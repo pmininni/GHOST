@@ -1,0 +1,67 @@
+Solvers supported by the main code and tools for analysis
+=========================================================
+
+0. I/O and FFT libraries
+========================
+
+All the solvers and analysis tools work with the following parallel 
+FFT libraries (pass 'FFTP=' to the make command to change the default):
+
+   fftp-2 parallel FFT library to link with FFTW 2.x [DEFAULT]
+   fftp-3 parallel FFT library to link with FFTW 3.x
+
+and with the following I/O libraries (pass 'IOLIB=' to change the 
+default):
+
+   posix  posix I/O, one file per processor [DEFAULT]
+   mpiio  MPI I/O, one file for all processors
+
+1. main
+=======
+
+The main code is built using 'make' or 'make main'. The following 
+solvers are currently supported (pass 'SOLVER=' to the make command 
+to build a solver other than the default):
+
+   HD        Hydrodynamic (HD) solver [DEFAULT]
+   PHD       Hydrodynamic solver with passive scalar
+   MHD       Magnetohydrodynamic (MHD) solver
+   MHDB      MHD solver with a uniform magnetic field
+   HMHD      Hall-MHD solver
+   ROTH      HD solver in a rotating frame
+   LAHD      Lagrangian-averaged HD solver
+   CAHD      Clark-alpha HD solver
+   LHD       Leray HD solver
+   LAMHD     Lagrangian-averaged MHD solver
+   EDQNMHD   EDQNM HD solver
+   EDQNMROTH EDQNM ROTH solver
+
+2. trans
+========
+
+The code to compute shell-to-shell transfers is built with 
+'make trans'. The following solvers are currently supported (use 
+'SOLVER='):
+
+   HD     HD transfer functions [DEFAULT]
+   MHD    MHD transfer functions
+   HMHD   Hall-MHD transfer functions
+   ROTH   transfer functions for HD in a rotating frame
+
+3. triad
+========
+
+The code to compute triadic transfer functions is built with 
+'make triad'. The following solvers are currently supported (use 
+'SOLVER='):
+
+   HD     HD transfer functions [DEFAULT]
+
+4. struc
+========
+
+The code to compute structure functions is built with 'make struc'. 
+The following solvers are currently supported (use 'SOLVER='):
+
+   HD     HD SO(3) structure functions [DEFAULT]
+   ROTH   ROTH SO(2) structure functions

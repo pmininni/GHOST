@@ -1,0 +1,42 @@
+! Initial condition for the velocity.
+! This file contains the expression used for the initial
+! velocity field. You can use temporary real arrays R1-R3
+! of size (1:n,1:n,ksta:kend) and temporary complex arrays
+! C1-C8 of size (n,n,ista:iend) to do intermediate
+! computations. The variable u0 should control the global
+! amplitude of the velocity, and variables vparam0-9 can be
+! used to control the amplitudes of individual terms. At the
+! end, the three components of the velocity in spectral
+! space should be stored in the arrays vx, vy, and vz.
+
+! Orszag-Tang vortex
+!     kdn : minimum wave number
+!     kup : maximum wave number
+
+      DO i = ista,iend
+         DO j = 1,n
+            DO k = 1,n
+               vz(k,j,i) = 0.
+            END DO
+         END DO
+      END DO
+
+      DO k = ksta,kend
+         DO j = 1,n
+            DO i = 1,n
+
+            R1(i,j,k) = 0.
+            R2(i,j,k) = 0.
+
+            DO ki = kdn,kup
+               R1(i,j,k) = R1(i,j,k)-2*SIN(2*pi*ki*(float(j)-1)/float(n))
+               R2(i,j,k) = R2(i,j,k)+2*SIN(2*pi*ki*(float(i)-1)/float(n))
+            END DO
+
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
+      CALL normalize(vx,vy,vz,sqrt(u0),1,MPI_COMM_WORLD)

@@ -1,0 +1,23 @@
+The following are a number of ideas for future work that I have thought 
+of, or which have been suggested to me.  Let me know if you have other 
+ideas or proposals, or if there is something that you want to work on.
+
+* Improve the documentation of the output files created by the code.
+
+* Add Alex's routines to compute partial fluxes together with the 
+shell-to-shell transfer.
+
+* Write compressible solvers (dgomez@df.uba.ar in charge of this?) and 
+solvers for stratified flows in the Boussinesq approximation.
+
+* Add FFT-Chebyshev routines to deal with non-periodic boundary 
+conditions.
+
+* Implement 1D domain decomposition in the parallel FFTs.
+
+* Full double precision support. Most compilers allow upgrade of 
+variables to double precision at compile time, but to make the option 
+of double precision easy to use some MPI variables have to be 
+overridden, and some name mangling is needed for FFTW 3.x.
+
+* Add the 2D code and solvers to this distribution?

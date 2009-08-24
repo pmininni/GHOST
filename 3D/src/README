@@ -1,0 +1,399 @@
+GHOST code: Geophysical High Order Suite for Turbulence
+=======================================================
+
+The code and different solvers provided here numerically integrate the 
+hydrodynamic/magnetodydrodynamic/Hall-magnetodydrodynamic equations in 
+3 dimensions with periodic boundary conditions. Several solvers are 
+provided (check the makefile and the comments in 'main3D.fpp' for the 
+current list of supported solvers). A pseudo-spectral method is used 
+to compute spatial derivatives, while a Runge-Kutta method of 
+adjustable order is used to evolve the system in the time domain. To 
+compile, you need the FFTW library installed on your system and some 
+flavor of MPI. Note that only serial transforms in the FFTW package 
+are used, since the MPI version of FFTW implements blocking 
+communications. Instead, a non-blocking parallel FFT (FFTP) based on 
+FFTW is used.
+
+1. Installing FFTW
+==================
+
+The default version of FFTW for the GHOST code is 2.1.5 (versions 
+previous to 2.1.5 should also work). The parallel FFT based on FFTW 
+2.x is in the directory 'fftp-2'. The API of FFTW 3.x is incompatible 
+with that of FFTW 2.x, and as a result also incompatible with fftp-2. 
+To use FFTW 3.x, use the parallel library in the directory 'fftp-3' 
+instead. Note that FFTW 3.x is faster, but how fast depends strongly 
+on the alignment of arrays, and on whether the hardware supports SIMD 
+instructions. For this to work, FFTW 3.x should be compiled with some 
+form of SSE/SSE2/3dNow!/Altivec support (see the FFTW documentation), 
+and a Fortran compiler that aligns arrays properly should be used to 
+compile the code. The parallel library for FFTW 3.x uses more memory, 
+so if you are running on a low-memory environment use FFTW 2.x instead.
+
+To compile FFTW 2.x, 'cd' to the directory containing the source and 
+type
+
+-------------------------------------------------------------------
+./configure --enable-type-prefix
+make
+make install
+make clean 
+./configure --enable-type-prefix --enable-float
+make
+make install
+-------------------------------------------------------------------
+
+To build FFTW 3.x, use the same options but remove 
+'--enable-type-prefix', and do 'make distclean' instead of 
+'make clean' after the first pass.
+
+The first pass installs the double precision libraries, and the 
+second pass installs the single precision libraries. By default, 
+the libraries are installed in '/usr/local/lib', '/usr/local/man', 
+etc. You can specify an installation prefix other than '/usr/local' 
+(e.g. the user's home directory) by giving `configure' the option 
+'--prefix=PATH'.
+
+FFTW uses GCC by default if GNU compilers are present. GCC previous 
+to version 4.x adds two underscores to the name of external 
+functions and subroutines by default, a feature not common in most 
+vendor compilers. This can generate some problems when mixing C and 
+Fortran (see Section 2.2 for more details and workarounds). To use 
+vendor compilers, you can pass variables to the configure script. 
+In a Bourne-compatible shell, you can do that on the command line 
+like this:
+
+-------------------------------------------------------------------
+CC=pgcc CFLAGS='-fastsse' F77=pgf90 ./configure
+-------------------------------------------------------------------
+
+CFLAGS passes flags to the C compiler, and F77 sets the Fortran 
+compiler. On systems that have the 'env' program, you can do it 
+like this:
+
+-------------------------------------------------------------------
+env CC=pgcc CFLAGS='-fastsse' F77=pgf90 ./configure
+-------------------------------------------------------------------
+
+2. Compiling the code
+=====================
+
+2.1. Setting code options:
+
+The linear resolution is set before compilation in the file 
+Makefile.in. The line 
+
+-------------------------------------------------------------------
+N        = 64
+-------------------------------------------------------------------
+
+sets the number of grid points in each direction. A few more 
+variables can be set in this file. The variable
+
+-------------------------------------------------------------------
+ORD      = 2
+-------------------------------------------------------------------
+
+controls the number of iterations in the Runge-Kutta method. 
+
+The remaining options in this section are optional and the defaults 
+give good performance in most computers. But if needed, you can set 
+three more variables for optimization purposes in the file 
+Makefile.in (again, the default values work fine in most computers, 
+don't change the values if you are unsure about the meaning of 
+these variables). The lines
+
+-------------------------------------------------------------------
+IKIND    = 8
+CSIZE    = 16
+NSTRIP   = 1
+-------------------------------------------------------------------
+
+set the variables 'ikind', 'csize', and 'nstrip' used in the 
+parallel FFTs. 'IKIND' is the size of C pointers. For optimal 
+results, it should be 4 in 32-bits machines, and 8 in 64-bits 
+machines. 'CSIZE' is used by the parallel FFT to do cache-friendly 
+transpositions. The optimal value for a particular machine can be 
+adjusted doing benchmarks, but rule of thumb values are 8 if the L1 
+cache is smaller or equal to 64 kb, and 16 if the L1 cache is 
+larger than 64 kb (24 is best in some processors with large cache). 
+The variable 'NSTRIP' controls strip mining during the 
+transpositions. The default value is 1 and in that case no strip 
+mining is done.
+
+Finally, if required, the users can change the number of digits 
+used to label spectrum, transfer and binary files. The variables 
+in the module 'filefmt' (in the file 'pseudo/pseudospec3D_mod.fpp') 
+control the length of the time label used to name these files. If 
+POSIX I/O is used, the length of the node label can be changed in 
+the module 'iovar' in the file 'posix/binary_mod.f90' (I am sorry 
+for releasing these hacks, but they can be useful if long 
+integrations are done, or when thousands of processors are used).
+
+2.2 Compiling the code:
+
+Initial conditions for the fields and the external forcings are 
+defined in the files 'initial*.f90'. Examples of these files can 
+be found in the directory 'examples'.
+
+Check the makefile to see all paths and variables are correct. In 
+some computers where MPI or FFTW are already installed, problems 
+can be found if MPI and FFTW were compiled using different 
+compilers. GNU compilers add two underscores to the name of 
+external functions and subroutines, while vendors compilers often 
+add one underscore. To solve this problem, if the variable 'UNDER' 
+is set to 1 in the makefile, the makefile runs a PERL script to 
+add underscores as needed before compiling. The file 'external' 
+lists the names of external functions and subroutines that need an 
+extra underscore.
+
+WARNING: if you use 'UNDER=1' and compiling fails, remember to do 
+'make clean' or 'make dist' before compiling again or doing any 
+change to the source files. Failing to do so can result in extra 
+underscores added to the source files every time a 'make' is 
+attempted.
+
+The makefile builds by default the HD solver using POSIX I/O and 
+FFTP-2. This behavior can be changed passing variables to make, 
+or editing the makefile. As an example, to build the MHD solver 
+with MPI I/O and FFTP-3 you can do
+
+-------------------------------------------------------------------
+make SOLVER=MHD IOLIB=mpiio FFTP=fftp-3
+-------------------------------------------------------------------
+
+The path to the FFTW libraries can be changed passing make the 
+variable FFTWDIR. For a list of currently supported solvers, check 
+the file 'SOLVERS' and the makefile. In addition, the makefile 
+supports 'make clean', 'make dist', and extra options to make code 
+for data analysis after the runs are finished (these are: 
+'make trans', 'make triad', and 'make struc', each one also 
+supports the SOLVER, IOLIB, and FFTP variables; see the file 
+'SOLVERS' and the makefile for more details).
+
+2.3 About the solvers:
+
+The main program 'main3D.fpp' includes files for the different 
+solvers at compile time from the directory 'include'. The files 
+in 'include' are named 'solver_component.f90' where 'solver' is 
+the name of the solver (in lowercase) and 'component' indicates 
+what action is done by the file. Most common components are
+
+adjustfv : contains routines to adjust the external forcing
+global   : contains routines to compute global quantities
+spectrum : contains routines to compute spectra
+rkstep1  : first step of Runge-Kutta
+rkstep2  : second step of Runge-Kutta
+
+3. Running the code
+===================
+
+The codes can be executed using mpirun or the correspondent vendor 
+equivalent. The first node then reads the parameters for the run 
+from the input file, and passes the values to the rest of the 
+nodes. 
+
+3.1. Input file:
+
+The input file for all the solvers is named 'parameter.txt'. The 
+file is separated into several 'lists', which have the following 
+syntax:
+
+-------------------------------------------------------------------
+! General comments
+&listname1
+variable1 = 1.00 ! Comment
+variable2 = 2.00 ! Another comment
+/
+
+! More comments
+&listname2
+variable3 = 3.00 ! Comment
+variable4 = 4.00 ! Another comment
+/
+...
+-------------------------------------------------------------------
+
+The number of lists required depends on the solver. An example with 
+the list of all variables for all the solvers is given in the 
+directory 'examples'. Note all variables are not needed for all the 
+solvers. The order of the lists in the file 'parameter.txt', and 
+the order of the variables inside each list, are not important. All 
+solvers need at least a list 'status' whith variables
+
+-------------------------------------------------------------------
+&status
+idir = /ptmp/run
+odir = /ptmp/run
+stat = 0         ! status
+mult = 1         ! multiplier
+bench = 0        ! benchmark
+outs = 0         ! output
+mean = 0         ! mean field
+trans = 1        ! energy transfer
+/
+-------------------------------------------------------------------
+
+The variables in this list are
+
+idir  : directory for binary input
+odir  : directory for binary output
+status: the number of the last binary file available if a 
+        simulation is restarted. If zero, a new simulation is done.
+multiplier: time step multiplier, should be 1 in most cases (if 
+        larger than one, the time step is divided by multiplier, 
+        and all 'step' variables multiplied by this variable).
+benchmark: if 1, performs a benchmark run.
+output: controls the amount of output written in the binary files.
+mean field : if 1, computes mean fields as the time average of the 
+        instantaneous fields
+energy transfer: if 1, computes energy transfer functions.
+
+All runs also read a list with parameters for the integration, 
+named 'parameter'
+
+-------------------------------------------------------------------
+&parameter
+dt = 7.5e-4      ! time step
+step = 12005     ! number of steps
+tstep = 500      ! binary output
+sstep = 250      ! spectrum
+cstep = 10       ! global quantities
+rand = 1         ! random
+cort = 7.5e-4    ! correlation time
+seed = 1000      ! seed
+/
+-------------------------------------------------------------------
+
+The variables in this list are
+
+dt  : sets the time step, which must satisfy the CFL condition 
+      dt <= 1/(u*n), where u is a characteristic speed, and n is 
+      the linear resolution.
+step: controls the total number of time steps the code will do.
+tstep, sstep, and cstep: number of time steps done between 
+      exporting global quantities (cstep), energy spectra (sstep), 
+      and binary files (tstep).
+rand: sets random or constant forcing.
+cort: correlation time for random forcing.
+seed: seed for the random number generator.
+
+Finally, all solvers read initial parameters for the velocity 
+field from the list 'velocity':
+
+-------------------------------------------------------------------
+&velocity
+f0 = 0.37714265   ! mechanical forcing
+u0 = 1.00         ! amplitude
+kdn = 2.00        ! minimum wavenumber
+kup = 2.00        ! maximum wavenumber
+nu = 3.e-4        ! viscosity
+fparam0 = 0.90    ! free parameter for the forcing
+vparam0 = 0.90    ! free parameter for the velocity
+/
+-------------------------------------------------------------------
+
+These variables are:
+
+f0  : amplitude of the external force.
+u0  : amplitude of the initial velocity field.
+kdn and kup: lower and upper bounds in Fourier space for the 
+      external force and/or the initial velocity field.
+nu  : kinematic viscosity
+fparam0-9: variables that can be used to adjust the amplitude of 
+individual terms in the expressions of the external force (e.g. 
+in the ABC or Roberts flows). See the files 'initialf*' in the 
+directory 'examples' for more details.
+vparam0-9: idem for the initial velocity field.
+
+If solvers with magnetic fields are used, the following two lists 
+are read from 'parameter.txt'. The first list, 'dynamo', controls 
+the behavior of the run:
+
+-------------------------------------------------------------------
+&dynamo
+dyna = 0          ! dynamo
+/
+-------------------------------------------------------------------
+
+with
+
+dynamo: if 1, reads the velocity from the binary files indicated 
+        by status, and generates initial conditions for the 
+        magnetic field for a dynamo run.
+
+The second list, 'magfield', sets properties of the initial 
+magnetic field and the electromotive forcing:
+
+-------------------------------------------------------------------
+&magfield
+m0 = 0.00         ! electromotive forcing
+a0 = 1.00         ! amplitude
+mkdn = 10.00      ! minimum wavenumber
+mkup = 20.00      ! maximum wavenumber
+mu = 2.e-3        ! diffusivity
+corr = 0          ! correlation
+mparam0 = 0.90    ! free parameter for the forcing
+aparam0 = 0.90    ! free parameter for the magnetic field
+-------------------------------------------------------------------
+
+and the variables are
+
+m0  : amplitude of the electromotive forcing
+a0  : amplitude of the initial vector potential
+mkdn and mkup: lower and upper bounds in Fourier space for the 
+      electromotive for and/or the initial magnetic field.
+nu  : magnetic diffusivity
+corr: correlation between the random phases of the mechanic and 
+      electromotive forcing (0 or 1).
+mparam0-9: variables that can be used to adjust the amplitude of 
+individual terms in the expressions of the external force (e.g. 
+in the ABC or Roberts flows). See the files 'initialf*' in the
+directory 'examples' for more details.
+aparam0-9: idem for the initial magnetic field. 
+
+Some solvers may need extra lists, e.g. 'uniformb', 'rotation', or 
+'hallparam'. See the file 'examples/parameter.txt' and main3D.fpp 
+for more details.
+
+3.2. Output files:
+
+When the code is not running in benchmark mode, it writes several 
+files with global quantities, spectra, and components of the fields.
+Global quantities and spectra are written to text files in the 
+directory where the binary was executed, while binary files are 
+written to the directory defined in the 'status.txt' file.
+
+If POSIX I/O is used, the binary files are named by the field name 
+and component, the node number, and a number that labels the time 
+of the snapshot of the field. As an example, the x-component of 
+the velocity field in the node 20 in a hydrodynamic simulation is 
+stored as 'vx.020.NNN.out', where NNN is proportional to the time 
+where the snapshot was taken. The actual time can be computed as 
+t = dt*tstep*(NNN-1). If MPI I/O is used, the naming convention is 
+the same but there is no number for the node.
+
+Spectra of kinetic and magnetic energy are written to files named 
+'kspectrum.MMM.txt' and 'mspectrum.MMM.txt' respectively. Spectra 
+of kinetic and magnetic helicity are written to files 
+'khelicity.MMM.txt' and 'mhelicity.MMM.txt'. Extra files with 
+the energy transfer function, or the spectrum in the parallel and 
+perpendicular directions (e.g. to the axis of rotation), are also 
+written by some of the solvers. Here, MMM is proportional to the 
+time where the spectra were computed, and the actual time is given 
+by t = dt*sstep*(MMM-1).
+
+The code also writes text files with quantities integrated over all 
+volume ('helicity.txt', 'balance.txt', etc.). The contents of these 
+files is described in the source files. When the external force is 
+constant (rand=0 in 'parameter.txt'), the files 'balance.txt' and 
+'injection.txt' can be used to verify consistency of the code when 
+doing a simulation in a new machine. In a hydrodynamic run, the file 
+'balance.txt' has four columns with the time (t), two times the 
+energy (2.E), two times the enstrophy (2.Omega), and the energy 
+injection rate (eps). In general, they must satisfy the relation
+
+dE/dt = -2.nu.Omega+eps
+
+where the time derivative of the energy can be computed using 
+centered finite differences.

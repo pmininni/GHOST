@@ -1,0 +1,110 @@
+#****************************************************************************
+# Edit this file to change library paths, compiler flags, and code options
+#****************************************************************************
+
+# N        spatial resolution
+# ORD      number of iterations in the Runge-Kutta method
+N        = 64
+ORD      = 2
+
+# SOLVER:  (read the file SOLVERS for a list of options)
+SOLVER   = HD
+
+# IOLIB:
+# posix    builds POSIX I/O
+# mpiio    builds MPI I/O
+IOLIB    = mpiio
+
+# FFTP:
+# fftp-2   builds FFTP-2 (links with FFTW 2.x)
+# fftp-3   builds FFTP-3 (links with FFTW 3.x)
+# FFTWxDIR contains the path to the FFTW libraries
+FFTP     = fftp-3
+FFTW2DIR = /opt/fftw-2.1.5
+FFTW3DIR = /opt/fftw-3.1.2
+
+# IKIND    4 in 32 bits machines, 8 in 64 bits machines
+# CSIZE    8 if L1 cache is <= 64 kb, 16 if L1 cache is 128 kb
+# NSTRIP   controls strip mining (often set to 1)
+IKIND    = 8
+CSIZE    = 32
+NSTRIP   = 1
+
+# When UNDER is equal to 1 you can use the variable APPEND 
+# to add extra characters at the end of external functions.
+UNDER    = 0
+APPEND   = _
+
+# Fortran compiler and MPI distribution (see below)
+COMPILER = GNU
+MPI      = MPICH
+
+#****************************************************************************
+# Compiler and MPI library dependent section
+#****************************************************************************
+#
+# Portland compiler (PGI)
+CPP_PGI       = /usr/bin/cpp -traditional-cpp
+FC_PGI        = /opt/pgi/linux86/7.1-5/bin/pgf90
+FFLAGS_PGI    = -fastsse -Minline -Minfo=loop,inline -Mneginfo -g77libs
+TARGET_PGI    =
+#
+# XLF compiler
+CPP_XLF       = /usr/ccs/lib/cpp -P
+FC_XLF        = mpxlf90_r
+FFLAGS_XLF    = -q64 -O5 -qenablevmx -qhot=simd -qipa=malloc16 -qvecnvol \
+  -qalign -Q -qsuffix=f=f90 -bdatapsize:64K -bstackpsize:64K
+TARGET_XLF    = -qarch=auto -qtune=auto -qcache=auto
+#
+# ABSOFT compiler
+CPP_ABSOFT    = /usr/bin/cpp -traditional-cpp
+FC_ABSOFT     = /usr/absoft/bin/f90
+FFLAGS_ABSOFT = -O -YEXT_SFX=__ -YEXT_NAMES=LCS
+TARGET_ABSOFT =
+#
+# INTEL compiler (use UNDER=1 with the gcc compiler <4.x)
+CPP_INTEL     = /usr/bin/cpp -traditional-cpp
+FC_INTEL      = /opt/intel/fce/9.1/bin/ifc
+FFLAGS_INTEL  = -O3 -ip -pad -unroll -opt_report -align -w -i-static
+TARGET_INTEL  =
+#
+# GFortran compiler (GNU)
+CPP_GNU       = /usr/bin/cpp -traditional-cpp
+FC_GNU        = gfortran
+FFLAGS_GNU    = -O4
+TARGET_GNU    = -msse
+#
+# G95 compiler (G95)
+CPP_G95       = /usr/local/bin/cpp -traditional-cpp -P
+FC_G95        = /sw/bin/g95
+FFLAGS_G95    = -O4 -w
+TARGET_G95    = -maltivec
+#****************************************************************************
+#
+# MPICH
+MPIINC_MPICH  = -I/opt/mpich2-1.0.5/include
+MPILIB_MPICH  = -L/opt/mpich2-1.0.5/lib
+MPILD_MPICH   = -lmpichf90 -lmpich -lpthread -lrt
+#
+# MPICH-GM (GM)
+MPIINC_GM     = -I/usr/local/mpich-gm-62/include
+MPILIB_GM     = -L/usr/local/mpich-gm-62/lib -L/opt/gm/lib64
+MPILD_GM      = -lmpichf90 -lmpich -lgm
+#
+# MPICH-VAPI (VAPI)
+MPIINC_VAPI   = -I/coral/local/mpich64/include
+MPILIB_VAPI   = -L/coral/local/mpich64/lib64/shared \
+  -L/coral/local/mpich64/lib64 -L/lib64
+MPILD_VAPI    = -lmpichf90 -lmpichfarg -lmpich -libt -lpublic -lmpicm \
+  -lmtl_common -lvapi -lmpga -lmosal -lpthread
+#
+# lam-mpi (LAM)
+MPIINC_LAM    = -I/opt/lam-6.5.7/include
+MPILIB_LAM    = -L/opt/lam-6.5.7/lib
+MPILD_LAM     = -llamf77mpi -lmpi -llam
+#
+# MPICH2 for MAC (MAC)
+MPIINC_MAC    = -I/usr/local/include
+MPILIB_MAC    = -L/usr/local/lib -L/usr/lib
+MPILD_MAC     = -lpmpich -lmpich -lSystemStubs
+#****************************************************************************
