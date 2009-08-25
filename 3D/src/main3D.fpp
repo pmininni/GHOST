@@ -40,6 +40,7 @@
 ! 15 Feb 2007: Main program for all solvers (HD/MHD/HMHD)
 ! 21 Feb 2007: POSIX and MPI/IO support
 ! 10 Mar 2007: FFTW-2.x and FFTW-3.x support
+! 25 Aug 2009: Hybrid MPI/OpenMP support (D. Rosenberg & P. Mininni)
 !
 ! References:
 ! Mininni PD, Gomez DO, Mahajan SM; Astrophys. J. 619, 1019 (2005)
@@ -123,6 +124,7 @@
       USE kes
       USE order
       USE random
+      USE threads
 #ifdef DNS_
       USE dns
 #endif
@@ -191,6 +193,8 @@
       COMPLEX          :: cdumr,jdumr
       DOUBLE PRECISION :: tmp,tmq
       DOUBLE PRECISION :: eps,epm
+      DOUBLE PRECISION :: omptime1,omptime2
+!$    DOUBLE PRECISION, EXTERNAL :: omp_get_wtime
 
       REAL    :: dt,nu,mu,kappa
       REAL    :: kup,kdn
@@ -242,6 +246,7 @@
       INTEGER :: tind,sind
       INTEGER :: timet,timec
       INTEGER :: times,timef
+!$     INTEGER, EXTERNAL :: omp_get_num_threads
 #ifdef SCALAR_
       INTEGER :: injt
 #endif
@@ -314,6 +319,9 @@
 ! Use FFTW_ESTIMATE in short runs and FFTW_MEASURE 
 ! in long runs
 
+      nth = 1
+!$    nth = omp_get_num_threads()
+!$    CALL omp_set_num_threads(nth)
       CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
                              FFTW_MEASURE)
       CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
@@ -322,7 +330,7 @@
 !
 ! Allocates memory for distributed blocks
 
-      ALLOCATE( C1(n,n,ista:iend),  C2(n,n,ista:iend)  )
+      ALLOCATE( C1(n,n,ista:iend),  C2(n,n,ista:iend) )
       ALLOCATE( C3(n,n,ista:iend),  C4(n,n,ista:iend) )
       ALLOCATE( C5(n,n,ista:iend),  C6(n,n,ista:iend) )
       ALLOCATE( C7(n,n,ista:iend),  C8(n,n,ista:iend) )
@@ -391,7 +399,9 @@
          ka(i) = float(i-1)
          ka(i+n/2) = float(i-n/2-1)
       END DO
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,n
             DO k = 1,n
                ka2(k,j,i) = ka(i)**2+ka(j)**2+ka(k)**2
@@ -750,7 +760,9 @@
          ALLOCATE( M1(n,n,ista:iend) )
          ALLOCATE( M2(n,n,ista:iend) )
          ALLOCATE( M3(n,n,ista:iend) )
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
                   M1(k,j,i) = 0.
@@ -761,7 +773,9 @@
          END DO
 #ifdef SCALAR_
          ALLOCATE( M7(n,n,ista:iend) )
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
                   M7(k,j,i) = 0.
@@ -773,7 +787,9 @@
          ALLOCATE( M4(n,n,ista:iend) )
          ALLOCATE( M5(n,n,ista:iend) )
          ALLOCATE( M6(n,n,ista:iend) )
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
                   M4(k,j,i) = 0.
@@ -842,7 +858,9 @@
          CALL fftp3d_real_to_complex(planrc,R2,M2,MPI_COMM_WORLD)
          CALL fftp3d_real_to_complex(planrc,R3,M3,MPI_COMM_WORLD)
          dump = float(ini)/cstep
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
                   M1(k,j,i) = dump*M1(k,j,i)
@@ -861,7 +879,9 @@
             CALL io_read(1,idir,'mean_th',ext,planio,R1)
             CALL fftp3d_real_to_complex(planrc,R1,M7,MPI_COMM_WORLD)
             dump = float(ini)/cstep
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
                DO j = 1,n
                   DO k = 1,n
                      M7(k,j,i) = dump*M7(k,j,i)
@@ -896,7 +916,9 @@
             CALL fftp3d_real_to_complex(planrc,R2,M5,MPI_COMM_WORLD)
             CALL fftp3d_real_to_complex(planrc,R3,M6,MPI_COMM_WORLD)
             dump = float(ini)/cstep
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
                DO j = 1,n
                   DO k = 1,n
                      M4(k,j,i) = dump*M4(k,j,i)
@@ -928,6 +950,7 @@
       IF (bench.eq.1) THEN
          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
          CALL CPU_Time(cputime1)
+!$       omptime1 = omp_get_wtime()
       ENDIF
 
  RK : DO t = ini,step
@@ -1115,7 +1138,9 @@
                ENDIF
             ENDIF
             WRITE(ext, fmtext) tind
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
                DO j = 1,n
                   DO k = 1,n
                      C1(k,j,i) = vx(k,j,i)/float(n)**3
@@ -1143,7 +1168,9 @@
             CALL io_write(1,odir,'vz',ext,planio,R3)
             IF (mean.eq.1) THEN
                dump = float(cstep)/t
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
                   DO j = 1,n
                      DO k = 1,n
                         C1(k,j,i) = dump*M1(k,j,i)/float(n)**3
@@ -1160,7 +1187,9 @@
                CALL io_write(1,odir,'mean_vz',ext,planio,R3)
             ENDIF
 #ifdef SCALAR_
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
                DO j = 1,n
                   DO k = 1,n
                      C1(k,j,i) = th(k,j,i)/float(n)**3
@@ -1171,7 +1200,9 @@
             CALL io_write(1,odir,'th',ext,planio,R1)
             IF (mean.eq.1) THEN
                dump = float(cstep)/t
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
                   DO j = 1,n
                      DO k = 1,n
                         C1(k,j,i) = dump*M7(k,j,i)/float(n)**3
@@ -1183,7 +1214,9 @@
             ENDIF
 #endif
 #ifdef MAGFIELD_
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
                DO j = 1,n
                   DO k = 1,n
                      C1(k,j,i) = ax(k,j,i)/float(n)**3
@@ -1222,7 +1255,9 @@
             CALL io_write(1,odir,'az',ext,planio,R3)
             IF (mean.eq.1) THEN
                dump = float(cstep)/t
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
                   DO j = 1,n
                      DO k = 1,n
                         C1(k,j,i) = dump*M4(k,j,i)/float(n)**3
@@ -1284,7 +1319,9 @@
             INCLUDE 'hd_global.f90'
 #endif
             IF (mean.eq.1) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
                   DO j = 1,n
                      DO k = 1,n
                         M1(k,j,i) = M1(k,j,i)+vx(k,j,i)
@@ -1294,7 +1331,9 @@
                   END DO
                END DO
 #ifdef SCALAR_
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
                   DO j = 1,n
                      DO k = 1,n
                         M7(k,j,i) = M7(k,j,i)+th(k,j,i)
@@ -1306,7 +1345,9 @@
                CALL rotor3(ay,az,C1,1)
                CALL rotor3(ax,az,C2,2)
                CALL rotor3(ax,ay,C3,3)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
                   DO j = 1,n
                      DO k = 1,n
                         M4(k,j,i) = M4(k,j,i)+vx(k,j,i)
@@ -1367,7 +1408,9 @@
 ! Runge-Kutta step 1
 ! Copies the fields into auxiliary arrays
 
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,n
          DO k = 1,n
 
@@ -1470,9 +1513,12 @@
       IF (bench.eq.1) THEN
          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
          CALL CPU_Time(cputime2)
+!$       omptime2 = omp_get_wtime()
          IF (myrank.eq.0) THEN
             OPEN(1,file='benchmark.txt',position='append')
-            WRITE(1,*) n,(step-ini+1),nprocs,(cputime2-cputime1)/(step-ini+1)
+            WRITE(1,*) n,(step-ini+1),nprocs,nth, &
+                       (cputime2-cputime1)/(step-ini+1),&
+                       (omptime2-omptime1)/(step-ini+1)
             CLOSE(1)
          ENDIF
       ENDIF

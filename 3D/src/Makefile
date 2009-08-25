@@ -19,17 +19,21 @@ MPIINC      = $(MPIINC_$(MPI))
 MPILIB      = $(MPILIB_$(MPI))
 MPILDFLAGS  = $(MPILD_$(MPI))
 
+DO_HYBRIDyes= $($(COMPILER)_OMP)
+DO_HYBRIDno = 
+
+FFTW3_OMP   = -lfftw3f_threads
 FFTW2FLAGS  = -lsrfftw -lsfftw -lm
-FFTW3FLAGS  = -lfftw3f -lm
+FFTW3FLAGS  = -lfftw3f $($(FFTP:fftp-%=FFTW%)_$(P_HYBRID:yes%=OMP%)) -lm
 FFTWDIR     = $($(FFTP:fftp-%=FFTW%)DIR)
 FFTWLDFLAGS = $($(FFTP:fftp-%=FFTW%)FLAGS)
 FFTWINC     = $(FFTWDIR)/include
 FFTWLIB     = $(FFTWDIR)/lib
-LDFLAGS     = $(MPILIB) -L$(FFTWLIB) $(MPILDFLAGS) $(FFTWLDFLAGS)
+LDFLAGS     = $(MPILIB) -L$(FFTWLIB) $(DO_HYBRID$(P_HYBRID)) $(MPILDFLAGS) $(FFTWLDFLAGS)
 INCLUDE     = $(MPIINC) -I$(FFTWINC) -I$(FFTP) -I$(IOLIB) -Iinclude
 CPPFLAGS    = -D$(SOLVER)_SOL
 PREPROCESS  = $(CPP) $(CPPFLAGS)
-COMPILE     = $(FC) $(FFLAGS) $(INCLUDE) $(TARGET_ARCH) -c
+COMPILE     = $(FC) $(FFLAGS) $(DO_HYBRID$(P_HYBRID)) $(INCLUDE) $(TARGET_ARCH) -c
 
 HD_OBJS        = pseudospec3D_mod.o module_dns.o pseudospec3D_hd.o
 PHD_OBJS       = $(HD_OBJS) pseudospec3D_phd.o

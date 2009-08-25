@@ -15,6 +15,11 @@ SOLVER   = HD
 # mpiio    builds MPI I/O
 IOLIB    = mpiio
 
+# Parallelization model:
+# P_HYBRID=yes  # OpenMP-MPI hybridization
+# P_HYBRID=no   # MP-based parallelization only
+P_HYBRID = yes
+
 # FFTP:
 # fftp-2   builds FFTP-2 (links with FFTW 2.x)
 # fftp-3   builds FFTP-3 (links with FFTW 3.x)
@@ -47,6 +52,7 @@ MPI      = MPICH
 CPP_PGI       = /usr/bin/cpp -traditional-cpp
 FC_PGI        = /opt/pgi/linux86/7.1-5/bin/pgf90
 FFLAGS_PGI    = -fastsse -Minline -Minfo=loop,inline -Mneginfo -g77libs
+PGI_OMP       = -mp
 TARGET_PGI    =
 #
 # XLF compiler
@@ -54,30 +60,35 @@ CPP_XLF       = /usr/ccs/lib/cpp -P
 FC_XLF        = mpxlf90_r
 FFLAGS_XLF    = -q64 -O5 -qenablevmx -qhot=simd -qipa=malloc16 -qvecnvol \
   -qalign -Q -qsuffix=f=f90 -bdatapsize:64K -bstackpsize:64K
+XLF_OMP       = -qsmp=omp 
 TARGET_XLF    = -qarch=auto -qtune=auto -qcache=auto
 #
 # ABSOFT compiler
 CPP_ABSOFT    = /usr/bin/cpp -traditional-cpp
 FC_ABSOFT     = /usr/absoft/bin/f90
 FFLAGS_ABSOFT = -O -YEXT_SFX=__ -YEXT_NAMES=LCS
+ABSOFT_OMP    = 
 TARGET_ABSOFT =
 #
 # INTEL compiler (use UNDER=1 with the gcc compiler <4.x)
 CPP_INTEL     = /usr/bin/cpp -traditional-cpp
 FC_INTEL      = /opt/intel/fce/9.1/bin/ifc
 FFLAGS_INTEL  = -O3 -ip -pad -unroll -opt_report -align -w -i-static
+INTEL_OMP     = -openmp
 TARGET_INTEL  =
 #
 # GFortran compiler (GNU)
 CPP_GNU       = /usr/bin/cpp -traditional-cpp
 FC_GNU        = gfortran
 FFLAGS_GNU    = -O4
+GNU_OMP       = -fopenmp
 TARGET_GNU    = -msse
 #
 # G95 compiler (G95)
 CPP_G95       = /usr/local/bin/cpp -traditional-cpp -P
 FC_G95        = /sw/bin/g95
 FFLAGS_G95    = -O4 -w
+G95_OMP       = -fopenmp
 TARGET_G95    = -maltivec
 #****************************************************************************
 #

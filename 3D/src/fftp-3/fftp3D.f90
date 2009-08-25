@@ -46,6 +46,7 @@
 
       USE mpivars
       USE fftplans
+!$    USE threads
       IMPLICIT NONE
 
       INTEGER, INTENT(IN) :: n
@@ -167,6 +168,7 @@
 
       USE mpivars
       USE fftplans
+!$    USE threads
       IMPLICIT NONE
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
@@ -217,7 +219,9 @@
 !
 ! Cache friendly transposition
 !
+!$omp parallel do if ((iend-ista)/csize.ge.nth) private (jj,kk,i,j,k)
       DO ii = ista,iend,csize
+!$omp parallel do if ((iend-ista)/csize.lt.nth) private (kk,i,j,k)
          DO jj = 1,plan%n,csize
             DO kk = 1,plan%n,csize
                DO i = ii,min(iend,ii+csize-1)
@@ -257,6 +261,7 @@
 
       USE mpivars
       USE fftplans
+!$    USE threads
       IMPLICIT NONE
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
@@ -281,7 +286,9 @@
 !
 ! Cache friendly transposition
 !
+!$omp parallel do if ((iend-ista)/csize.ge.nth) private (jj,kk,i,j,k)
       DO ii = ista,iend,csize
+!$omp parallel do if ((iend-ista)/csize.lt.nth) private (kk,i,j,k)
          DO jj = 1,plan%n,csize
             DO kk = 1,plan%n,csize
                DO i = ii,min(iend,ii+csize-1)

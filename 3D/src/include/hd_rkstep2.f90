@@ -12,7 +12,9 @@
             CALL entrans(C1,C2,C3,C7,C8,C4,ext,1)
 
          rmp = 1./float(o)
-         DO i = ista,iend 
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,n
          DO k = 1,n
             IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
