@@ -981,6 +981,7 @@
                jdumq = corr*jdump+(1-corr)*conjg(cdump)
 #endif
                IF (ista.eq.1) THEN
+!$omp parallel do
                   DO j = 2,n/2+1
                      fx(1,j,1) = fx(1,j,1)*cdump
                      fx(1,n-j+2,1) = fx(1,n-j+2,1)*jdump
@@ -1001,6 +1002,7 @@
                      mz(1,n-j+2,1) = mz(1,n-j+2,1)*jdumq
 #endif
                   END DO
+!$omp parallel do
                   DO k = 2,n/2+1
                      fx(k,1,1) = fx(k,1,1)*cdump
                      fx(n-k+2,1,1) = fx(n-k+2,1,1)*jdump
@@ -1021,6 +1023,7 @@
                      mz(n-k+2,1,1) = mz(n-k+2,1,1)*jdumq
 #endif
                   END DO
+!$omp parallel do private (k)
                   DO j = 2,n
                      DO k = 2,n/2+1
                         fx(k,j,1) = fx(k,j,1)*cdump
@@ -1043,7 +1046,9 @@
 #endif
                      END DO
                   END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k)
                   DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k)
                      DO j = 1,n
                         DO k = 1,n
                            fx(k,j,i) = fx(k,j,i)*cdump
@@ -1061,7 +1066,9 @@
                      END DO
                   END DO
                ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
                   DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
                      DO j = 1,n
                         DO k = 1,n
                            fx(k,j,i) = fx(k,j,i)*cdump
