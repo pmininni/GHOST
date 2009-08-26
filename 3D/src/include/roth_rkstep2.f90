@@ -2,7 +2,9 @@
 ! Computes the nonlinear terms and evolves the equations in dt/o
 
          CALL prodre3(vx,vy,vz,C4,C5,C6)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend               ! Coriolis force
+!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
                   C4(k,j,i) = C4(k,j,i)+2*omega*vy(k,j,i)
@@ -27,7 +29,9 @@
          ENDIF
 
          rmp = 1./float(o)
-         DO i = ista,iend 
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,n
          DO k = 1,n
             IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
