@@ -72,10 +72,10 @@ TARGET_ABSOFT =
 #
 # INTEL compiler (use UNDER=1 with the gcc compiler <4.x)
 CPP_INTEL     = /usr/bin/cpp -traditional-cpp
-FC_INTEL      = /opt/intel/fce/9.1/bin/ifc
+FC_INTEL      = /opt/intel/fce/9.1/bin/ifort
 FFLAGS_INTEL  = -O3 -ip -pad -unroll -opt_report -align -w -i-static
 INTEL_OMP     = -openmp
-TARGET_INTEL  =
+TARGET_INTEL  = 
 #
 # GFortran compiler (GNU)
 CPP_GNU       = /usr/bin/cpp -traditional-cpp
@@ -85,11 +85,11 @@ GNU_OMP       = -fopenmp
 TARGET_GNU    = -msse
 #
 # G95 compiler (G95)
-CPP_G95       = /usr/local/bin/cpp -traditional-cpp -P
-FC_G95        = /sw/bin/g95
+CPP_G95       = /usr/bin/cpp -traditional-cpp -P
+FC_G95        = /opt/g95-x86_64-32/bin/g95
 FFLAGS_G95    = -O4 -w
-G95_OMP       = -fopenmp
-TARGET_G95    = -maltivec
+G95_OMP       = 
+TARGET_G95    = -msse
 #****************************************************************************
 #
 # MPICH

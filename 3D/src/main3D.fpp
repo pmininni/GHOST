@@ -246,7 +246,6 @@
       INTEGER :: tind,sind
       INTEGER :: timet,timec
       INTEGER :: times,timef
-!$     INTEGER, EXTERNAL :: omp_get_num_threads
 #ifdef SCALAR_
       INTEGER :: injt
 #endif
@@ -254,6 +253,7 @@
       INTEGER :: dyna
       INTEGER :: corr
 #endif
+!$    INTEGER, EXTERNAL :: omp_get_max_threads
 
       TYPE(IOPLAN) :: planio
 
@@ -320,8 +320,8 @@
 ! in long runs
 
       nth = 1
-!$    nth = omp_get_num_threads()
-!$    CALL omp_set_num_threads(nth)
+!$    nth = omp_get_max_threads()
+!$    PRINT *,nth,omp_get_max_threads()
       CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
                              FFTW_MEASURE)
       CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &

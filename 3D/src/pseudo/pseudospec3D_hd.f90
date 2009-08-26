@@ -536,6 +536,7 @@
 !
       USE grid
       USE mpivars
+!$    USE threads
       IMPLICIT NONE
 
       COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
@@ -554,13 +555,16 @@
 !
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
+!$omp parallel do private (k) reduction(+:dloc)
             DO j = 1,n
                DO k = 1,n
                   dloc = dloc+(abs(a(k,j,1))**2+abs(b(k,j,1))**2+ &
                          abs(c(k,j,1))**2)*tmp
                END DO
             END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:dloc)
             DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:dloc)
                DO j = 1,n
                   DO k = 1,n
                      dloc = dloc+2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+ &
@@ -569,7 +573,9 @@
                END DO
             END DO
           ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:dloc)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:dloc)
                DO j = 1,n
                   DO k = 1,n
                      dloc = dloc+2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+ &
@@ -586,13 +592,16 @@
          CALL rotor3(a,c,c2,2)
          CALL rotor3(a,b,c3,3)
          IF (ista.eq.1) THEN
+!$omp parallel do private (k) reduction(+:dloc)
             DO j = 1,n
                DO k = 1,n
                   dloc = dloc+(abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+ &
                          abs(c3(k,j,1))**2)*tmp
                END DO
             END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:dloc)
             DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:dloc)
                DO j = 1,n
                   DO k = 1,n
                      dloc = dloc+2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
@@ -601,7 +610,9 @@
                END DO
             END DO
          ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:dloc)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:dloc)
                DO j = 1,n
                   DO k = 1,n
                      dloc = dloc+2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
@@ -618,13 +629,16 @@
          CALL laplak3(b,c2)
          CALL laplak3(c,c3)
          IF (ista.eq.1) THEN
+!$omp parallel do private (k) reduction(+:dloc)
             DO j = 1,n
                DO k = 1,n
                   dloc = dloc+(abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+ &
                          abs(c3(k,j,1))**2)*tmp
                END DO
             END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:dloc)
             DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:dloc)
                DO j = 1,n
                   DO k = 1,n
                      dloc = dloc+2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
@@ -633,7 +647,9 @@
                END DO
             END DO
          ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:dloc)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:dloc)
                DO j = 1,n
                   DO k = 1,n
                      dloc = dloc+2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
@@ -667,6 +683,7 @@
 !
       USE grid
       USE mpivars
+!$    USE threads
       IMPLICIT NONE
 
       COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
@@ -681,12 +698,15 @@
 
       CALL rotor3(b,c,c1,1)
       IF (ista.eq.1) THEN
+!$omp parallel do private (k) reduction(+:dloc)
          DO j = 1,n
             DO k = 1,n
                  dloc = dloc+real(a(k,j,1)*conjg(c1(k,j,1)))*tmp
             END DO
          END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:dloc)
          DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:dloc)
             DO j = 1,n
                DO k = 1,n
                   dloc = dloc+2*real(a(k,j,i)*conjg(c1(k,j,i)))*tmp
@@ -694,7 +714,9 @@
             END DO
          END DO
       ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:dloc)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:dloc)
             DO j = 1,n
                DO k = 1,n
                   dloc = dloc+2*real(a(k,j,i)*conjg(c1(k,j,i)))*tmp
@@ -704,12 +726,15 @@
       ENDIF
       CALL rotor3(a,c,c1,2)
       IF (ista.eq.1) THEN
+!$omp parallel do private (k) reduction(+:dloc)
          DO j = 1,n
             DO k = 1,n
                dloc = dloc+real(b(k,j,1)*conjg(c1(k,j,1)))*tmp
             END DO
          END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:dloc)
          DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:dloc)
             DO j = 1,n
                DO k = 1,n
                   dloc = dloc+2*real(b(k,j,i)*conjg(c1(k,j,i)))*tmp
@@ -717,7 +742,9 @@
             END DO
          END DO
       ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:dloc)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:dloc)
             DO j = 1,n
                DO k = 1,n
                   dloc = dloc+2*real(b(k,j,i)*conjg(c1(k,j,i)))*tmp
@@ -727,12 +754,15 @@
       ENDIF
       CALL rotor3(a,b,c1,3)
       IF (ista.eq.1) THEN
+!$omp parallel do private (k) reduction(+:dloc)
          DO j = 1,n
             DO k = 1,n
                dloc = dloc+real(c(k,j,1)*conjg(c1(k,j,1)))*tmp
             END DO
          END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:dloc)
          DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:dloc)
             DO j = 1,n
                DO k = 1,n
                   dloc = dloc+2*real(c(k,j,i)*conjg(c1(k,j,i)))*tmp
@@ -740,7 +770,9 @@
             END DO
          END DO
       ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:dloc)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:dloc)
             DO j = 1,n
                DO k = 1,n
                   dloc = dloc+2*real(c(k,j,i)*conjg(c1(k,j,i)))*tmp
@@ -777,6 +809,7 @@
       USE kes
       USE grid
       USE mpivars
+!$    USE threads
       IMPLICIT NONE
 
       COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
@@ -794,6 +827,7 @@
 !
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
+!$omp parallel do private (k) reduction(+:gloc)
             DO j = 1,n
                DO k = 1,n
                   gloc = gloc+real(a(k,j,1)*conjg(d(k,j,1))+      &
@@ -801,7 +835,9 @@
                         conjg(f(k,j,1)))*tmp
                END DO
             END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:gloc)
             DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:gloc)
                DO j = 1,n
                   DO k = 1,n
                      gloc = gloc+2*real(a(k,j,i)*conjg(d(k,j,i))+ &
@@ -811,7 +847,9 @@
                END DO
             END DO
          ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:gloc)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:gloc)
                DO j = 1,n
                   DO k = 1,n
                      gloc = gloc+2*real(a(k,j,i)*conjg(d(k,j,i))+ &
@@ -827,6 +865,7 @@
 !
       ELSE
          IF (ista.eq.1) THEN
+!$omp parallel do private (k) reduction(+:gloc)
             DO j = 1,n
                DO k = 1,n
                   gloc = gloc+real(a(k,j,1)*conjg(d(k,j,1))+      &
@@ -834,7 +873,9 @@
                         conjg(f(k,j,1)))*ka2(k,j,1)*tmp
                END DO
             END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:gloc)
             DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:gloc)
                DO j = 1,n
                   DO k = 1,n
                      gloc = gloc+2*real(a(k,j,i)*conjg(d(k,j,i))+ &
@@ -844,7 +885,9 @@
                END DO
             END DO
          ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:gloc)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:gloc)
                DO j = 1,n
                   DO k = 1,n
                      gloc = gloc+2*real(a(k,j,i)*conjg(d(k,j,i))+ &
@@ -884,6 +927,7 @@
       USE fft
       USE grid
       USE mpivars
+!$    USE threads
       IMPLICIT NONE
 
       COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
@@ -903,7 +947,9 @@
          CALL laplak3(b,c2)
          CALL laplak3(c,c3)
       ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
                   c1(k,j,i) = a(k,j,i)
@@ -917,7 +963,9 @@
       CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
       dloc = 0.
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i) reduction(max:dloc)
       DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i) reduction(max:dloc)
          DO j = 1,n
             DO i = 1,n
                dloc = max(dloc,sqrt(r1(i,j,k)**2+r2(i,j,k)**2+r3(i,j,k)**2))
@@ -953,6 +1001,7 @@
 !
       USE grid
       USE mpivars
+!$    USE threads
       IMPLICIT NONE
 
       COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
@@ -980,12 +1029,15 @@
       CALL derivk3(b,c2,2)
       CALL derivk3(c,c3,3)
       IF (ista.eq.1) THEN
+!$omp parallel do private (k) reduction(+:tmp)
          DO j = 1,n
             DO k = 1,n
                tmp = tmp+abs(c1(k,j,1)+c2(k,j,1)+c3(k,j,1))**2*tmq
             END DO
          END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:tmp)
          DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:tmp)
             DO j = 1,n
                DO k = 1,n
                   tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
@@ -993,7 +1045,9 @@
             END DO
          END DO
       ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:tmp)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:tmp)
             DO j = 1,n
                DO k = 1,n
                   tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
