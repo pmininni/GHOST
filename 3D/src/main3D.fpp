@@ -321,7 +321,6 @@
 
       nth = 1
 !$    nth = omp_get_max_threads()
-!$    PRINT *,nth,omp_get_max_threads()
       CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
                              FFTW_MEASURE)
       CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &

@@ -1189,7 +1189,7 @@
       USE kes
       USE grid
       USE mpivars
-      USE filefmt
+!$    USE threads
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek
@@ -1219,21 +1219,26 @@
             Ektot(i) = 0.
          END DO
          IF (ista.eq.1) THEN
+!$omp parallel do private (k,kmn)
             DO j = 1,n
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,1))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+!$omp atomic
                      Ek(kmn) = Ek(kmn)+                            &
                        (abs(a(k,j,1))**2+abs(b(k,j,1))**2+         &
                        abs(c(k,j,1))**2)*tmp
                   ENDIF
                END DO
             END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn)
             DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+!$omp atomic
                         Ek(kmn) = Ek(kmn)+                         &
                           2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+    &
                           abs(c(k,j,i))**2)*tmp
@@ -1242,11 +1247,14 @@
                END DO
             END DO
           ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+!$omp atomic
                         Ek(kmn) = Ek(kmn)+                         &
                           2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+    &
                           abs(c(k,j,i))**2)*tmp
@@ -1264,21 +1272,26 @@
             Ektot(i) = 0.
          END DO
          IF (ista.eq.1) THEN
+!$omp parallel do private (k,kmn)
             DO j = 1,n
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,1))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+!$omp atomic
                      Ek(kmn) = Ek(kmn)+                            &
                        (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+       &
                        abs(c3(k,j,1))**2)*tmp
                   ENDIF
                END DO
             END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn)
             DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+!$omp atomic
                         Ek(kmn) = Ek(kmn)+                         &
                           2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+  &
                           abs(c3(k,j,i))**2)*tmp
@@ -1287,11 +1300,14 @@
                END DO
             END DO
          ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+!$omp atomic
                         Ek(kmn) = Ek(kmn)+                         &
                           2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+  &
                           abs(c3(k,j,i))**2)*tmp
@@ -1317,10 +1333,12 @@
             Hktot(i) = 0.
          END DO
          IF (ista.eq.1) THEN
+!$omp parallel do private (k,kmn)
             DO j = 1,n
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,1))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+!$omp atomic
                      Ek(kmn) = Ek(kmn)+                                 &
                        (real(a(k,j,1)*conjg(c1(k,j,1)))+                &
                        real(b(k,j,1)*conjg(c2(k,j,1)))+                 &
@@ -1328,11 +1346,14 @@
                   ENDIF
                END DO
             END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn)
             DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+!$omp atomic
                         Ek(kmn) = Ek(kmn)+                              &
                           2*(real(a(k,j,i)*conjg(c1(k,j,i)))+           &
                           real(b(k,j,i)*conjg(c2(k,j,i)))+              &
@@ -1342,11 +1363,14 @@
                END DO
             END DO
          ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+!$omp atomic
                         Ek(kmn) = Ek(kmn)+                              &
                           2*(real(a(k,j,i)*conjg(c1(k,j,i)))+           &
                           real(b(k,j,i)*conjg(c2(k,j,i)))+              &
@@ -1391,6 +1415,7 @@
       USE grid
       USE mpivars
       USE filefmt
+!$    USE threads
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
@@ -1414,10 +1439,12 @@
       tmp = 1./float(n)**6
       IF ((kin.eq.1).or.(kin.eq.2)) THEN
          IF (ista.eq.1) THEN
+!$omp parallel do private (k,kmn)
             DO j = 1,n
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,1))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+!$omp atomic
                      Ek(kmn) = Ek(kmn)+                             &
                        (real(a(k,j,1)*conjg(d(k,j,1)))+             &
                        real(b(k,j,1)*conjg(e(k,j,1)))+              &
@@ -1425,11 +1452,14 @@
                   ENDIF
                END DO
             END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn)
             DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+!$omp atomic
                         Ek(kmn) = Ek(kmn)+                          &
                           2*(real(a(k,j,i)*conjg(d(k,j,i)))+        &
                           real(b(k,j,i)*conjg(e(k,j,i)))+           &
@@ -1439,11 +1469,14 @@
                END DO
             END DO
          ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+!$omp atomic
                         Ek(kmn) = Ek(kmn)+                          &
                           2*(real(a(k,j,i)*conjg(d(k,j,i)))+        &
                           real(b(k,j,i)*conjg(e(k,j,i)))+           &
@@ -1458,10 +1491,12 @@
 !
       ELSE
          IF (ista.eq.1) THEN
+!$omp parallel do private (k,kmn)
             DO j = 1,n
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,1))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+!$omp atomic
                      Ek(kmn) = Ek(kmn)+ka2(k,j,1)*                  &
                        (real(a(k,j,1)*conjg(d(k,j,1)))+             &
                        real(b(k,j,1)*conjg(e(k,j,1)))+              &
@@ -1469,11 +1504,14 @@
                   ENDIF
                END DO
             END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn)
             DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+!$omp atomic
                         Ek(kmn) = Ek(kmn)+2*ka2(k,j,i)*             &
                           (real(a(k,j,i)*conjg(d(k,j,i)))+          &
                           real(b(k,j,i)*conjg(e(k,j,i)))+           &
@@ -1483,11 +1521,14 @@
                END DO
             END DO
          ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+!$omp atomic
                         Ek(kmn) = Ek(kmn)+2*ka2(k,j,i)*             &
                           (real(a(k,j,i)*conjg(d(k,j,i)))+          &
                           real(b(k,j,i)*conjg(e(k,j,i)))+           &
@@ -1543,6 +1584,7 @@
       USE grid
       USE mpivars
       USE filefmt
+!$    USE threads
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Hk,Hktot
@@ -1569,10 +1611,12 @@
       CALL rotor3(a,c,c2,2)
       CALL rotor3(a,b,c3,3)
       IF (ista.eq.1) THEN
+!$omp parallel do private (k,kmn)
          DO j = 1,n
             DO k = 1,n
                kmn = int(sqrt(ka2(k,j,1))+.501)
                IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+!$omp atomic
                   Hk(kmn) = Hk(kmn)+                             &
                     (real(c1(k,j,1)*conjg(d(k,j,1)))+            &
                     real(c2(k,j,1)*conjg(e(k,j,1)))+             &
@@ -1580,11 +1624,14 @@
                ENDIF
             END DO
          END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn)
          DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn)
             DO j = 1,n
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,i))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+!$omp atomic
                      Hk(kmn) = Hk(kmn)+                          &
                        2*(real(c1(k,j,i)*conjg(d(k,j,i)))+       &
                        real(c2(k,j,i)*conjg(e(k,j,i)))+          &
@@ -1594,11 +1641,14 @@
             END DO
          END DO
       ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn)
             DO j = 1,n
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,i))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+!$omp atomic
                      Hk(kmn) = Hk(kmn)+                          &
                        2*(real(c1(k,j,i)*conjg(d(k,j,i)))+       &
                        real(c2(k,j,i)*conjg(e(k,j,i)))+          &
