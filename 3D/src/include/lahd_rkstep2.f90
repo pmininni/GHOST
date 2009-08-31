@@ -16,11 +16,11 @@
 
             IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
                vx(k,j,i) = C1(k,j,i)+dt*(nu*vx(k,j,i)+C7(k,j,i) &
-              +fx(k,j,i))/float(o)
+              +fx(k,j,i))/real(o,kind=GP)
                vy(k,j,i) = C2(k,j,i)+dt*(nu*vy(k,j,i)+C8(k,j,i) &
-              +fy(k,j,i))/float(o)
+              +fy(k,j,i))/real(o,kind=GP)
                vz(k,j,i) = C3(k,j,i)+dt*(nu*vz(k,j,i)+C4(k,j,i) &
-              +fz(k,j,i))/float(o)
+              +fz(k,j,i))/real(o,kind=GP)
             ELSE
                vx(k,j,i) = 0.
                vy(k,j,i) = 0.

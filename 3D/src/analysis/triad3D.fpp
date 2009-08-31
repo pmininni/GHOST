@@ -30,6 +30,8 @@
 !
 ! Modules
 
+      USE fprecision
+      USE commtypes
       USE mpivars
       USE filefmt
       USE iovar
@@ -43,16 +45,16 @@
 !
 ! Arrays for the fields and the transfers
 
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz,C1
-      REAL, ALLOCATABLE, DIMENSION (:,:,:)    :: Rxx,Rxy,Rxz
-      REAL, ALLOCATABLE, DIMENSION (:,:,:)    :: Ryx,Ryy,Ryz
-      REAL, ALLOCATABLE, DIMENSION (:,:,:)    :: Rzx,Rzy,Rzz
-      REAL, ALLOCATABLE, DIMENSION (:,:)      :: uu
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz,C1
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: Rxx,Rxy,Rxz
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: Ryx,Ryy,Ryz
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: Rzx,Rzy,Rzz
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:)      :: uu
 
 !
 ! Auxiliary variables
 
-      REAL    :: tmp
+      REAL(KIND=GP)    :: tmp
 
       INTEGER :: stat
       INTEGER :: cold
@@ -105,7 +107,7 @@
 !     kmax: maximum truncation for dealiasing
 !     tiny: minimum truncation for dealiasing
 
-      kmax = (float(n)/3.)**2
+      kmax = (REAL(n,KIND=GP)/3.)**2
       tiny = 1e-5
 
 !
@@ -113,8 +115,8 @@
 ! number matrixes
 
       DO i = 1,n/2
-         ka(i) = float(i-1)
-         ka(i+n/2) = float(i-n/2-1)
+         ka(i) = REAL(i-1,KIND=GP)
+         ka(i+n/2) = REAL(i-n/2-1,KIND=GP)
       END DO
       DO i = ista,iend
          DO j = 1,n

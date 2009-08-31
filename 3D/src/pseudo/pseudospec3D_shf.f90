@@ -27,12 +27,14 @@
 !     dir  : displacement (+1 or -1)
 !     comm : the MPI communicator (handle)
 !
+      USE fprecision
+      USE commtypes
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      REAL, INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: a
-      REAL, DIMENSION(n,n) :: buffer1,buffer2
+      REAL(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: a
+      REAL(KIND=GP), DIMENSION(n,n) :: buffer1,buffer2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
       INTEGER, INTENT(IN)  :: dir
       INTEGER, INTENT(IN)  :: comm
@@ -61,8 +63,8 @@
          END DO
       END DO
 
-      CALL MPI_IRECV(buffer1,n*n,MPI_REAL,igetFrom,1,comm,ireq1,ierr)
-      CALL MPI_ISEND(buffer2,n*n,MPI_REAL,isendTo,1,comm,ireq2,ierr)
+      CALL MPI_IRECV(buffer1,n*n,GC_REAL,igetFrom,1,comm,ireq1,ierr)
+      CALL MPI_ISEND(buffer2,n*n,GC_REAL,isendTo,1,comm,ireq2,ierr)
 
       DO k = zsend,zrecv-dir,dir
          DO j = 1,n
@@ -94,13 +96,14 @@
 !     a   : input matrix (rewriten with the shifted array)
 !     dis : displacement in x
 !
+      USE fprecision
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      REAL, INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: a
+      REAL(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: a
       INTEGER, INTENT(IN)                   :: dis
-      REAL, DIMENSION(abs(dis),n,ksta:kend) :: buffer
+      REAL(KIND=GP), DIMENSION(abs(dis),n,ksta:kend) :: buffer
       INTEGER :: d,s,inib,endb,alef,arig
       INTEGER :: i,j,k
 
@@ -153,13 +156,14 @@
 !     a   : input matrix (rewriten with the shifted array)
 !     dis : displacement in y
 !
+      USE fprecision
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      REAL, INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: a
+      REAL(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: a
       INTEGER, INTENT(IN)                   :: dis
-      REAL, DIMENSION(n,abs(dis),ksta:kend) :: buffer
+      REAL(KIND=GP), DIMENSION(n,abs(dis),ksta:kend) :: buffer
       INTEGER :: d,s,inib,endb,alef,arig
       INTEGER :: i,j,k
 

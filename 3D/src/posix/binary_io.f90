@@ -57,11 +57,12 @@
 !     var   : the array with the field component [OUT]
 !-----------------------------------------------------------------
 
+      USE fprecision
       USE iovar
       IMPLICIT NONE
 
       TYPE(IOPLAN), INTENT(IN) :: plan
-      REAL, INTENT(OUT) :: var(plan%n,plan%n,plan%ksta:plan%kend)
+      REAL(KIND=GP), INTENT(OUT) :: var(plan%n,plan%n,plan%ksta:plan%kend)
       INTEGER, INTENT(IN)      :: unit
       CHARACTER(len=100), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
@@ -92,11 +93,12 @@
 !     var   : the array with the field component [IN]
 !-----------------------------------------------------------------
 
+      USE fprecision
       USE iovar
       IMPLICIT NONE
 
       TYPE(IOPLAN), INTENT(IN) :: plan
-      REAL, INTENT(IN) :: var(plan%n,plan%n,plan%ksta:plan%kend)
+      REAL(KIND=GP), INTENT(IN) :: var(plan%n,plan%n,plan%ksta:plan%kend)
       INTEGER, INTENT(IN)      :: unit
       CHARACTER(len=100), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb

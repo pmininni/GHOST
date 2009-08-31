@@ -25,15 +25,15 @@
             R3(i,j,k) = 0.
 
             DO ki = kdn,kup
-               R1(i,j,k) = R1(i,j,k)+(vparam1*COS(2*pi*ki*(float(j)-1)/ &
-                          float(n))+vparam2*SIN(2*pi*ki*(float(k)-1)/   &
-                          float(n)))/ki**2
-               R2(i,j,k) = R2(i,j,k)+(vparam0*SIN(2*pi*ki*(float(i)-1)/ &
-                          float(n))+vparam2*COS(2*pi*ki*(float(k)-1)/   &
-                          float(n)))/ki**2 
-               R3(i,j,k) = R3(i,j,k)+(vparam0*COS(2*pi*ki*(float(i)-1)/ &
-                          float(n))+vparam1*SIN(2*pi*ki*(float(j)-1)/   &
-                          float(n)))/ki**2
+               R1(i,j,k) = R1(i,j,k)+(vparam1*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
+                          real(n,kind=GP))+vparam2*SIN(2*pi*ki*(real(k,kind=GP)-1)/   &
+                          real(n,kind=GP)))/ki**2
+               R2(i,j,k) = R2(i,j,k)+(vparam0*SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
+                          real(n,kind=GP))+vparam2*COS(2*pi*ki*(real(k,kind=GP)-1)/   &
+                          real(n,kind=GP)))/ki**2 
+               R3(i,j,k) = R3(i,j,k)+(vparam0*COS(2*pi*ki*(real(i,kind=GP)-1)/ &
+                          real(n,kind=GP))+vparam1*SIN(2*pi*ki*(real(j,kind=GP)-1)/   &
+                          real(n,kind=GP)))/ki**2
             END DO
 
             END DO

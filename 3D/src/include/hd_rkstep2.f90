@@ -1,7 +1,7 @@
 ! Step 2 of Runge-Kutta for the HD equations
 ! Computes the nonlinear terms and evolves the equations in dt/o
-
          CALL prodre3(vx,vy,vz,C4,C5,C6)
+
          CALL nonlhd3(C4,C5,C6,C7,1)
          CALL nonlhd3(C4,C5,C6,C8,2)
          CALL nonlhd3(C4,C5,C6,C4,3)
@@ -11,7 +11,7 @@
          IF ((trans.eq.1).and.(times.eq.0).and.(bench.eq.0).and.(o.eq.ord)) &
             CALL entrans(C1,C2,C3,C7,C8,C4,ext,1)
 
-         rmp = 1./float(o)
+         rmp = 1./real(o,kind=GP)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)

@@ -8,7 +8,7 @@ OBJS = binary_mod.o binary_io.o
 all: $(OBJS)
 
 $(OBJS):
-	$(COMPILE) $(@:.o=.f90)
+	$(COMPILE) $(INCLUDE) $(@:.o=.f90)
 
 clean:
 	rm -f *.o *.d *.s *.int *.inf *.mod work.pc* ifc*

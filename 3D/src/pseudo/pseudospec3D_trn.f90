@@ -40,19 +40,21 @@
 !     q1 : inner radius of the q-shell
 !     out: at the output contains the transfer
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE fft
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: ax,ay,az
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: cx,cy,cz
-      COMPLEX, DIMENSION(n,n,ista:iend)             :: c1
-      REAL, INTENT(IN), DIMENSION(n,n,ksta:kend)    :: rbx,rby,rbz
-      REAL, DIMENSION(n,n,ksta:kend)                :: r1,r2
-      REAL, INTENT(OUT)   :: out
-      REAL                :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ax,ay,az
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: cx,cy,cz
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1
+      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ksta:kend)    :: rbx,rby,rbz
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)                :: r1,r2
+      REAL(KIND=GP), INTENT(OUT)   :: out
+      REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: k1,q1
       INTEGER             :: i,j,k
 
@@ -256,8 +258,8 @@
          END DO
       END DO
 
-      tmp = tmp/float(n)**9
-      CALL MPI_REDUCE(tmp,out,1,MPI_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+      tmp = tmp/real(n,kind=GP)**9
+      CALL MPI_REDUCE(tmp,out,1,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       RETURN
       END SUBROUTINE shelltran
@@ -286,19 +288,21 @@
 !     q1 : height of the q-shell
 !     out: at the output contains the transfer
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE fft
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: ax,ay,az
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: cx,cy,cz
-      COMPLEX, DIMENSION(n,n,ista:iend)             :: c1
-      REAL, INTENT(IN), DIMENSION(n,n,ksta:kend)    :: rbx,rby,rbz
-      REAL, DIMENSION(n,n,ksta:kend)                :: r1,r2
-      REAL, INTENT(OUT)   :: out
-      REAL                :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ax,ay,az
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: cx,cy,cz
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1
+      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ksta:kend)    :: rbx,rby,rbz
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)                :: r1,r2
+      REAL(KIND=GP), INTENT(OUT)   :: out
+      REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: k1,q1
       INTEGER             :: i,j,k
 
@@ -502,8 +506,8 @@
          END DO
       END DO
 
-      tmp = tmp/float(n)**9
-      CALL MPI_REDUCE(tmp,out,1,MPI_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+      tmp = tmp/real(n,kind=GP)**9
+      CALL MPI_REDUCE(tmp,out,1,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       RETURN
       END SUBROUTINE paratran
@@ -531,19 +535,21 @@
 !     q1 : inner radius of the q-shell
 !     out: at the output contains the transfer
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE fft
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: ax,ay,az
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: cx,cy,cz
-      COMPLEX, DIMENSION(n,n,ista:iend)             :: c1
-      REAL, INTENT(IN), DIMENSION(n,n,ksta:kend)    :: rbx,rby,rbz
-      REAL, DIMENSION(n,n,ksta:kend)                :: r1,r2
-      REAL,INTENT(OUT)    :: out
-      REAL                :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ax,ay,az
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: cx,cy,cz
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1
+      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ksta:kend)    :: rbx,rby,rbz
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)                :: r1,r2
+      REAL(KIND=GP),INTENT(OUT)    :: out
+      REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: k1,q1
       INTEGER             :: i,j,k
 
@@ -747,8 +753,8 @@
          END DO
       END DO
 
-      tmp = tmp/float(n)**9
-      CALL MPI_REDUCE(tmp,out,1,MPI_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+      tmp = tmp/real(n,kind=GP)**9
+      CALL MPI_REDUCE(tmp,out,1,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       RETURN
       END SUBROUTINE perptran
@@ -772,18 +778,20 @@
 !     q1 : inner radius of the q-shell
 !     out: at the output contains the transfer
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE fft
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: ax,ay,az
-      COMPLEX, DIMENSION(n,n,ista:iend)             :: c1
-      REAL, INTENT(IN), DIMENSION(n,n,ksta:kend)    :: rbx,rby,rbz
-      REAL, DIMENSION(n,n,ksta:kend)                :: r1,r2,r3,r4
-      REAL,INTENT(OUT)    :: out
-      REAL                :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ax,ay,az
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1
+      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ksta:kend)    :: rbx,rby,rbz
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)                :: r1,r2,r3,r4
+      REAL(KIND=GP),INTENT(OUT)    :: out
+      REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: k1,q1
       INTEGER             :: i,j,k
 
@@ -837,8 +845,8 @@
          END DO
       END DO
 
-      tmp = tmp/float(n)**9
-      CALL MPI_REDUCE(tmp,out,1,MPI_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+      tmp = tmp/real(n,kind=GP)**9
+      CALL MPI_REDUCE(tmp,out,1,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       RETURN
       END SUBROUTINE crosstran
@@ -871,20 +879,22 @@
 !     p1 : inner radius of the p-shell
 !     out: at the output contains the transfer
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE fft
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: ax,ay,az
-      COMPLEX, DIMENSION(n,n,ista:iend)             :: c1
-      REAL, INTENT(IN), DIMENSION(n,n,ksta:kend)    :: rxx,rxy,rxz
-      REAL, INTENT(IN), DIMENSION(n,n,ksta:kend)    :: ryx,ryy,ryz
-      REAL, INTENT(IN), DIMENSION(n,n,ksta:kend)    :: rzx,rzy,rzz
-      REAL, DIMENSION(n,n,ksta:kend)                :: r1,r2
-      REAL, INTENT(OUT)   :: out
-      REAL                :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ax,ay,az
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1
+      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ksta:kend)    :: rxx,rxy,rxz
+      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ksta:kend)    :: ryx,ryy,ryz
+      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ksta:kend)    :: rzx,rzy,rzz
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)                :: r1,r2
+      REAL(KIND=GP), INTENT(OUT)   :: out
+      REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: k1,p1
       INTEGER             :: i,j,k
 
@@ -1088,9 +1098,9 @@
          END DO
       END DO
 
-      tmp = tmp/float(n)**9
-      tmp = tmp/float(n)**3
-      CALL MPI_REDUCE(tmp,out,1,MPI_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+      tmp = tmp/real(n,kind=GP)**9
+      tmp = tmp/real(n,kind=GP)**3
+      CALL MPI_REDUCE(tmp,out,1,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       RETURN
       END SUBROUTINE triagtran
@@ -1109,14 +1119,15 @@
 !          =2 derivative in the y-direction
 !          =3 derivative in the z-direction
 !
+      USE fprecision
       USE kes
       USE var
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
       INTEGER, INTENT(IN) :: k1
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
@@ -1159,14 +1170,15 @@
 !          =2 derivative in the y-direction
 !          =3 derivative in the z-direction
 !
+      USE fprecision
       USE kes
       USE var
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
       INTEGER, INTENT(IN) :: k1
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
@@ -1208,15 +1220,16 @@
 !          =2 derivative in the y-direction
 !          =3 derivative in the z-direction
 !
+      USE fprecision
       USE kes
       USE var
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
-      REAL                :: kperp2
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
+      REAL(KIND=GP)                :: kperp2
       INTEGER, INTENT(IN) :: k1
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
@@ -1256,14 +1269,15 @@
 !     a : field component in Fourier space [in]
 !     b : fieltered field [out]
 !
+      USE fprecision
       USE kes
       USE var
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
       INTEGER, INTENT(IN) :: k1
       INTEGER             :: i,j,k
 
@@ -1296,14 +1310,15 @@
 !     a : field component in Fourier space [in]
 !     b : fieltered field [out]
 !
+      USE fprecision
       USE kes
       USE var
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
       INTEGER, INTENT(IN) :: k1
       INTEGER             :: i,j,k
 
@@ -1335,15 +1350,16 @@
 !     a : field component in Fourier space [in]
 !     b : fieltered field [out]
 !
+      USE fprecision
       USE kes
       USE var
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
-      REAL                :: kperp2
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
+      REAL(KIND=GP)                :: kperp2
       INTEGER, INTENT(IN) :: k1
       INTEGER             :: i,j,k
 

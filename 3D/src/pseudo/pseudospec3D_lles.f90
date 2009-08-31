@@ -35,20 +35,22 @@
 !     alpk: value of alpha for the field A
 !     alpk: value of alpha for the field B
 !
+      USE fprecision
+      USE commtypes
       USE mpivars
       USE grid
       USE fft
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: d,e,f
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: x,y,z
-      REAL, DIMENSION(n,n,ksta:kend) :: r1,r2
-      REAL, DIMENSION(n,n,ksta:kend) :: r3,r4
-      REAL, DIMENSION(n,n,ksta:kend) :: r5,r6
-      REAL, DIMENSION(n,n,ksta:kend) :: r7
-      REAL, INTENT(IN) :: alpk,alpm
-      REAL             :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: d,e,f
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: x,y,z
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r1,r2
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r3,r4
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r5,r6
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r7
+      REAL(KIND=GP), INTENT(IN) :: alpk,alpm
+      REAL(KIND=GP)             :: tmp
       INTEGER          :: i,j,k
 
       CALL smooth3(a,b,c,x,y,z,alpk)
@@ -60,7 +62,7 @@
       CALL fftp3d_complex_to_real(plancr,y,r5,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,z,r6,MPI_COMM_WORLD)
 
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
       DO k = ksta,kend
          DO j = 1,n
             DO i = 1,n
@@ -95,6 +97,8 @@
 !     kin: =0 computes the magnetic energy
 !          =1 computes the kinetic energy
 
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
@@ -102,9 +106,9 @@
 
       DOUBLE PRECISION, INTENT(OUT) :: d
       DOUBLE PRECISION              :: dloc
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL, INTENT(IN)    :: alp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
+      REAL(KIND=GP), INTENT(IN)    :: alp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
 
@@ -119,7 +123,7 @@
                DO k = 1,n
                   dloc = dloc+(abs(a(k,j,1))**2+abs(b(k,j,1))**2+        &
                          abs(c(k,j,1))**2)/((1.+alp**2*ka2(k,j,1))*      &
-                         float(n)**6)
+                         real(n,kind=GP)**6)
                END DO
             END DO
             DO i = 2,iend
@@ -127,7 +131,7 @@
                   DO k = 1,n
                      dloc = dloc+2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+   &
                             abs(c(k,j,i))**2)/((1.+alp**2*ka2(k,j,i))*   &
-                            float(n)**6)
+                            real(n,kind=GP)**6)
                   END DO
                END DO
             END DO
@@ -137,7 +141,7 @@
                   DO k = 1,n
                      dloc = dloc+2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+   &
                             abs(c(k,j,i))**2)/((1.+alp**2*ka2(k,j,i))*   &
-                            float(n)**6)
+                            real(n,kind=GP)**6)
                   END DO
                END DO
             END DO
@@ -154,7 +158,7 @@
                DO k = 1,n
                   dloc = dloc+(abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+      &
                          abs(c3(k,j,1))**2)/((1.+alp**2*ka2(k,j,1))*     &
-                         float(n)**6)
+                         real(n,kind=GP)**6)
                END DO
             END DO
             DO i = 2,iend
@@ -162,7 +166,7 @@
                   DO k = 1,n
                      dloc = dloc+2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
                             abs(c3(k,j,i))**2)/((1.+alp**2*ka2(k,j,i))*  &
-                            float(n)**6)
+                            real(n,kind=GP)**6)
                   END DO
                END DO
             END DO
@@ -172,7 +176,7 @@
                   DO k = 1,n
                      dloc = dloc+2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
                             abs(c3(k,j,i))**2)/((1.+alp**2*ka2(k,j,i))*  &
-                            float(n)**6)
+                            real(n,kind=GP)**6)
                   END DO
                END DO
             END DO
@@ -207,6 +211,8 @@
 !     kin: =0 computes the inner product of the curls
 !          =1 computes the inner product of the fields
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
@@ -214,9 +220,9 @@
 
       DOUBLE PRECISION, INTENT(OUT) :: g
       DOUBLE PRECISION              :: gloc
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
-      REAL, INTENT(IN)    :: alp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
+      REAL(KIND=GP), INTENT(IN)    :: alp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
 
@@ -231,7 +237,7 @@
                   gloc = gloc+real(a(k,j,1)*conjg(d(k,j,1))+                 &
                         b(k,j,1)*conjg(e(k,j,1))+c(k,j,1)*                   &
                         conjg(f(k,j,1)))/((1.+alp**2*ka2(k,j,1))*            &
-                        float(n)**6)
+                        real(n)**6)
                END DO
             END DO
             DO i = 2,iend
@@ -240,7 +246,7 @@
                      gloc = gloc+2*real(a(k,j,i)*conjg(d(k,j,i))+            &
                            b(k,j,i)*conjg(e(k,j,i))+c(k,j,i)*                &
                            conjg(f(k,j,i)))/((1.+alp**2*ka2(k,j,i))*         &
-                           float(n)**6)
+                           real(n,kind=GP)**6)
                   END DO
                END DO
             END DO
@@ -251,7 +257,7 @@
                      gloc = gloc+2*real(a(k,j,i)*conjg(d(k,j,i))+            &
                            b(k,j,i)*conjg(e(k,j,i))+c(k,j,i)*                &
                            conjg(f(k,j,i)))/((1.+alp**2*ka2(k,j,i))*         &
-                           float(n)**6)
+                           real(n,kind=GP)**6)
                   END DO
                END DO
             END DO
@@ -267,7 +273,7 @@
                   gloc = gloc+ka2(k,j,1)*real(a(k,j,1)*conjg(d(k,j,1))+      &
                         b(k,j,1)*conjg(e(k,j,1))+c(k,j,1)*                   &
                         conjg(f(k,j,1)))/((1.+alp**2*ka2(k,j,1))*            &
-                        float(n)**6)
+                        real(n,kind=GP)**6)
                END DO
             END DO
             DO i = 2,iend
@@ -276,7 +282,7 @@
                      gloc = gloc+2*ka2(k,j,i)*real(a(k,j,i)*conjg(d(k,j,i))+ &
                            b(k,j,i)*conjg(e(k,j,i))+c(k,j,i)*                &
                            conjg(f(k,j,i)))/((1.+alp**2*ka2(k,j,i))*         &
-                           float(n)**6)
+                           real(n,kind=GP)**6)
                   END DO
                END DO
             END DO
@@ -287,7 +293,7 @@
                      gloc = gloc+2*ka2(k,j,i)*real(a(k,j,i)*conjg(d(k,j,i))+ &
                            b(k,j,i)*conjg(e(k,j,i))+c(k,j,i)*                &
                            conjg(f(k,j,i)))/((1.+alp**2*ka2(k,j,i))*         &
-                           float(n)**6)
+                           real(n)**6)
                   END DO
                END DO
             END DO
@@ -317,6 +323,8 @@
 !     d  : at the output contains the helicity
 !     alp: value of alpha
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
@@ -324,9 +332,9 @@
 
       DOUBLE PRECISION, INTENT(OUT) :: d
       DOUBLE PRECISION              :: dloc
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, DIMENSION(n,n,ista:iend)             :: c1
-      REAL, INTENT(IN)    :: alp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1
+      REAL(KIND=GP), INTENT(IN)    :: alp
       INTEGER             :: i,j,k
 
       dloc = 0.
@@ -336,14 +344,14 @@
          DO j = 1,n
             DO k = 1,n
                  dloc = dloc+real(a(k,j,1)*conjg(c1(k,j,1)))      &
-                        /((1.+alp**2*ka2(k,j,1))**2*float(n)**6)
+                        /((1.+alp**2*ka2(k,j,1))**2*real(n,kind=GP)**6)
             END DO
          END DO
          DO i = 2,iend
             DO j = 1,n
                DO k = 1,n
                   dloc = dloc+2*real(a(k,j,i)*conjg(c1(k,j,i)))   &
-                         /((1.+alp**2*ka2(k,j,i))**2*float(n)**6)
+                         /((1.+alp**2*ka2(k,j,i))**2*real(n,kind=GP)**6)
                END DO
             END DO
          END DO
@@ -352,7 +360,7 @@
             DO j = 1,n
                DO k = 1,n
                   dloc = dloc+2*real(a(k,j,i)*conjg(c1(k,j,i)))   &
-                         /((1.+alp**2*ka2(k,j,i))**2*float(n)**6)
+                         /((1.+alp**2*ka2(k,j,i))**2*real(n,kind=GP)**6)
                END DO
             END DO
          END DO
@@ -362,14 +370,14 @@
          DO j = 1,n
             DO k = 1,n
                dloc = dloc+real(b(k,j,1)*conjg(c1(k,j,1)))        &
-                      /((1.+alp**2*ka2(k,j,1))**2*float(n)**6)
+                      /((1.+alp**2*ka2(k,j,1))**2*real(n,kind=GP)**6)
             END DO
          END DO
          DO i = 2,iend
             DO j = 1,n
                DO k = 1,n
                   dloc = dloc+2*real(b(k,j,i)*conjg(c1(k,j,i)))   &
-                         /((1.+alp**2*ka2(k,j,i))**2*float(n)**6)
+                         /((1.+alp**2*ka2(k,j,i))**2*real(n,kind=GP)**6)
                END DO
             END DO
          END DO
@@ -378,7 +386,7 @@
             DO j = 1,n
                DO k = 1,n
                   dloc = dloc+2*real(b(k,j,i)*conjg(c1(k,j,i)))   &
-                         /((1.+alp**2*ka2(k,j,i))**2*float(n)**6)
+                         /((1.+alp**2*ka2(k,j,i))**2*real(n,kind=GP)**6)
                END DO
             END DO
          END DO
@@ -388,14 +396,14 @@
          DO j = 1,n
             DO k = 1,n
                dloc = dloc+real(c(k,j,1)*conjg(c1(k,j,1)))        &
-                      /((1.+alp**2*ka2(k,j,1))**2*float(n)**6)
+                      /((1.+alp**2*ka2(k,j,1))**2*real(n,kind=GP)**6)
             END DO
          END DO
          DO i = 2,iend
             DO j = 1,n
                DO k = 1,n
                   dloc = dloc+2*real(c(k,j,i)*conjg(c1(k,j,i)))   &
-                         /((1.+alp**2*ka2(k,j,i))**2*float(n)**6)
+                         /((1.+alp**2*ka2(k,j,i))**2*real(n,kind=GP)**6)
                END DO
             END DO
          END DO
@@ -404,7 +412,7 @@
             DO j = 1,n
                DO k = 1,n
                   dloc = dloc+2*real(c(k,j,i)*conjg(c1(k,j,i)))   &
-                         /((1.+alp**2*ka2(k,j,i))**2*float(n)**6)
+                         /((1.+alp**2*ka2(k,j,i))**2*real(n,kind=GP)**6)
                END DO
             END DO
          END DO
@@ -437,6 +445,7 @@
 !     hel: =1 computes the kinetic helicity
 !          =0 skips kinetic helicity computation
 !
+      USE fprecision
       USE kes
       USE grid
       USE mpivars
@@ -444,11 +453,11 @@
 
       DOUBLE PRECISION :: eng,ens
       DOUBLE PRECISION :: pot,khe
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
-      COMPLEX, DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL, INTENT(IN)    :: alp
-      REAL, INTENT(IN)    :: dt
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
+      REAL(KIND=GP), INTENT(IN)    :: alp
+      REAL(KIND=GP), INTENT(IN)    :: dt
       INTEGER, INTENT(IN) :: hel
       INTEGER             :: i,j,k
       INTEGER, INTENT(IN) :: t
@@ -503,15 +512,17 @@
 !     hel: =1 computes the helicity spectrum
 !          =0 skips helicity spectrum computation
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1)            :: Ek,Ektot
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL, INTENT(IN)    :: alp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
+      REAL(KIND=GP), INTENT(IN)    :: alp
       INTEGER, INTENT(IN) :: kin,hel
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -543,7 +554,7 @@
                      Ek(kmn) = Ek(kmn)+                               &
                        (abs(a(k,j,1))**2+abs(b(k,j,1))**2+            &
                        abs(c(k,j,1))**2)/((1.+alp**2*ka2(k,j,1))*     &
-                       float(n)**6)
+                       real(n,kind=GP)**6)
                   ENDIF
                END DO
             END DO
@@ -555,7 +566,7 @@
                         Ek(kmn) = Ek(kmn)+                            &
                           2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+       &
                           abs(c(k,j,i))**2)/((1.+alp**2*ka2(k,j,i))*  &
-                          float(n)**6)
+                          real(n,kind=GP)**6)
                      ENDIF
                   END DO
                END DO
@@ -569,7 +580,7 @@
                         Ek(kmn) = Ek(kmn)+                            &
                           2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+       &
                           abs(c(k,j,i))**2)/((1.+alp**2*ka2(k,j,i))*  &
-                          float(n)**6)
+                          real(n,kind=GP)**6)
                      ENDIF
                   END DO
                END DO
@@ -587,7 +598,7 @@
                      Ek(kmn) = Ek(kmn)+                               &
                        (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+          &
                        abs(c3(k,j,1))**2)/((1.+alp**2*ka2(k,j,1))*    &
-                       float(n)**6)
+                       real(n,kind=GP)**6)
                   ENDIF
                END DO
             END DO
@@ -599,7 +610,7 @@
                         Ek(kmn) = Ek(kmn)+                            &
                           2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+     &
                           abs(c3(k,j,i))**2)/((1.+alp**2*ka2(k,j,i))* &
-                          float(n)**6)
+                          real(n,kind=GP)**6)
                      ENDIF
                   END DO
                END DO
@@ -613,7 +624,7 @@
                         Ek(kmn) = Ek(kmn)+                            &
                           2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+     &
                           abs(c3(k,j,i))**2)/((1.+alp**2*ka2(k,j,i))* &
-                          float(n)**6)
+                          real(n,kind=GP)**6)
                      ENDIF
                   END DO
                END DO
@@ -652,7 +663,7 @@
                        (real(a(k,j,1)*conjg(c1(k,j,1)))+              &
                        real(b(k,j,1)*conjg(c2(k,j,1)))+               &
                        real(c(k,j,1)*conjg(c3(k,j,1))))/              &
-                       ((1.+alp**2*ka2(k,j,1))**2*float(n)**6)
+                       ((1.+alp**2*ka2(k,j,1))**2*real(n,kind=GP)**6)
                   ENDIF
                END DO
             END DO
@@ -665,7 +676,7 @@
                           2*(real(a(k,j,i)*conjg(c1(k,j,i)))+         &
                           real(b(k,j,i)*conjg(c2(k,j,i)))+            &
                           real(c(k,j,i)*conjg(c3(k,j,i))))/           &
-                          ((1.+alp**2*ka2(k,j,i))**2*float(n)**6)
+                          ((1.+alp**2*ka2(k,j,i))**2*real(n,kind=GP)**6)
                      ENDIF
                  END DO
                END DO
@@ -680,7 +691,7 @@
                           2*(real(a(k,j,i)*conjg(c1(k,j,i)))+         &
                           real(b(k,j,i)*conjg(c2(k,j,i)))+            &
                           real(c(k,j,i)*conjg(c3(k,j,i))))/           &
-                          ((1.+alp**2*ka2(k,j,i))**2*float(n)**6)
+                          ((1.+alp**2*ka2(k,j,i))**2*real(n,kind=GP)**6)
                      ENDIF
                   END DO
                END DO
@@ -730,6 +741,7 @@
 !     crs : =0 skips cross helicity computation
 !           =1 computes cross helicity
 !
+      USE fprecision
       USE kes
       USE grid
       USE mpivars
@@ -738,11 +750,11 @@
       DOUBLE PRECISION :: engk,engm,eng,ens
       DOUBLE PRECISION :: helk,helm,cur
       DOUBLE PRECISION :: asq,crh
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: ma,mb,mc
-      COMPLEX, DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL, INTENT(IN)    :: dt
-      REAL, INTENT(IN)    :: alpk,alpm
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ma,mb,mc
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
+      REAL(KIND=GP), INTENT(IN)    :: dt
+      REAL(KIND=GP), INTENT(IN)    :: alpk,alpm
       INTEGER, INTENT(IN) :: hel,crs
       INTEGER             :: i,j,k
       INTEGER, INTENT(IN) :: t
@@ -819,16 +831,18 @@
 !          =1 computes the kinetic energy transfer
 !          =2 computes the Lorentz force transfer
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1)            :: Ek,Ektot
-      COMPLEX, DIMENSION(n,n,ista:iend), INTENT(IN) :: a,b,c
-      COMPLEX, DIMENSION(n,n,ista:iend), INTENT(IN) :: d,e,f
-      REAL, INTENT(IN)    :: alp
-      REAL                :: tmp
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend), INTENT(IN) :: a,b,c
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend), INTENT(IN) :: d,e,f
+      REAL(KIND=GP), INTENT(IN)    :: alp
+      REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -853,7 +867,7 @@
                        (real(a(k,j,1)*conjg(d(k,j,1)))+             &
                        real(b(k,j,1)*conjg(e(k,j,1)))+              &
                        real(c(k,j,1)*conjg(f(k,j,1))))/             &
-                       ((1.+alp**2*ka2(k,j,1))*float(n)**6)
+                       ((1.+alp**2*ka2(k,j,1))*real(n,kind=GP)**6)
                   ENDIF
                END DO
             END DO
@@ -866,7 +880,7 @@
                           2*(real(a(k,j,i)*conjg(d(k,j,i)))+        &
                           real(b(k,j,i)*conjg(e(k,j,i)))+           &
                           real(c(k,j,i)*conjg(f(k,j,i))))/          &
-                          ((1.+alp**2*ka2(k,j,i))*float(n)**6)
+                          ((1.+alp**2*ka2(k,j,i))*real(n,kind=GP)**6)
                      ENDIF
                  END DO
                END DO
@@ -881,7 +895,7 @@
                           2*(real(a(k,j,i)*conjg(d(k,j,i)))+        &
                           real(b(k,j,i)*conjg(e(k,j,i)))+           &
                           real(c(k,j,i)*conjg(f(k,j,i))))/          &
-                          ((1.+alp**2*ka2(k,j,i))*float(n)**6)
+                          ((1.+alp**2*ka2(k,j,i))*real(n,kind=GP)**6)
                      ENDIF
                   END DO
                END DO
@@ -891,7 +905,7 @@
 ! Computes the magnetic energy transfer
 !
       ELSE
-         tmp = 1./float(n)**6
+         tmp = 1./real(n,kind=GP)**6
          IF (ista.eq.1) THEN
             DO j = 1,n
                DO k = 1,n

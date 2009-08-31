@@ -19,7 +19,8 @@
 !=================================================================
  
   MODULE iompi
-      INCLUDE 'mpif.h'
+!     INCLUDE 'mpif.h'
+      USE commtypes
       INTEGER, SAVE :: ioerr
       INTEGER(KIND=MPI_OFFSET_KIND), SAVE :: disp = 0
 

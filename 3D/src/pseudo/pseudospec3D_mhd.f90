@@ -37,19 +37,21 @@
 !     y: at the output contains (AxB)_y in Fourier space
 !     z: at the output contains (AxB)_z in Fourier space
 !
+      USE fprecision
+      USE commtypes
       USE mpivars
       USE grid
       USE fft
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: d,e,f
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: x,y,z
-      REAL, DIMENSION(n,n,ksta:kend) :: r1,r2
-      REAL, DIMENSION(n,n,ksta:kend) :: r3,r4
-      REAL, DIMENSION(n,n,ksta:kend) :: r5,r6
-      REAL, DIMENSION(n,n,ksta:kend) :: r7
-      REAL    :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: d,e,f
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: x,y,z
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r1,r2
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r3,r4
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r5,r6
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r7
+      REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
 
       DO i = ista,iend
@@ -77,7 +79,7 @@
       CALL fftp3d_complex_to_real(plancr,y,r5,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,z,r6,MPI_COMM_WORLD)
 
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
       DO k = ksta,kend
          DO j = 1,n
             DO i = 1,n
@@ -120,14 +122,15 @@
 !          =2 computes the y-component
 !          =3 computes the z-component
 !
+      USE fprecision
       USE kes
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: d,e,f
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: g
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: d,e,f
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: g
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
 
@@ -219,13 +222,14 @@
 !          =2 computes the y-component
 !          =3 computes the z-component
 !
+      USE fprecision
       USE kes
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: g
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: g
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
 
@@ -320,20 +324,22 @@
 !     chk: =0 skips divergency check
 !          =1 performs divergency check
 !
+      USE fprecision
+      USE commtypes
       USE grid
       USE hall
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: ma,mb,mc
-      COMPLEX, DIMENSION(n,n,ista:iend) :: c1,c2,c3
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ma,mb,mc
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1,c2,c3
       DOUBLE PRECISION    :: engk,engm,eng,ens
       DOUBLE PRECISION    :: divk,divm,asq,crh
       DOUBLE PRECISION    :: helk,helm,cur,tmp
       DOUBLE PRECISION    :: helg
-      REAL                :: tmq
-      REAL, INTENT(IN)    :: dt
+      REAL(KIND=GP)                :: tmq
+      REAL(KIND=GP), INTENT(IN)    :: dt
       INTEGER, INTENT(IN) :: hel,crs,chk
       INTEGER, INTENT(IN) :: t
       INTEGER             :: i,j,k
@@ -341,7 +347,7 @@
       divk = 0.
       divm = 0.
       tmp = 0.
-      tmq = 1./float(n)**6
+      tmq = 1./real(n,kind=GP)**6
 
 !
 ! Computes the mean square value of

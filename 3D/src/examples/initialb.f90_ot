@@ -23,15 +23,15 @@
             R3(i,j,k) = 0.
 
             DO ki = mkdn,mkup
-               R1(i,j,k) = R1(i,j,k)+corr*COS(2*pi*ki*(float(j)-1)/    &
-                          float(n))-corr*COS(2*pi*ki*(float(k)-1)/     &
-                          float(n))
-               R2(i,j,k) = R2(i,j,k)-corr*COS(2*pi*ki*(float(i)-1)/    &
-                          float(n))+corr*COS(2*pi*ki*(float(k)-1)/     &
-                          float(n))
-               R3(i,j,k) = R3(i,j,k)+2*corr*COS(2*pi*ki*(float(i)-1)/  &
-                          float(n))+corr*COS(4*pi*ki*(float(j)-1)/     &
-                          float(n))
+               R1(i,j,k) = R1(i,j,k)+corr*COS(2*pi*ki*(real(j,kind=GP)-1)/    &
+                          real(n,kind=GP))-corr*COS(2*pi*ki*(real(k,kind=GP)-1)/     &
+                          real(n,kind=GP))
+               R2(i,j,k) = R2(i,j,k)-corr*COS(2*pi*ki*(real(i,kind=GP)-1)/    &
+                          real(n,kind=GP))+corr*COS(2*pi*ki*(real(k,kind=GP)-1)/     &
+                          real(n,kind=GP))
+               R3(i,j,k) = R3(i,j,k)+2*corr*COS(2*pi*ki*(real(i,kind=GP)-1)/  &
+                          real(n,kind=GP))+corr*COS(4*pi*ki*(real(j,kind=GP)-1)/     &
+                          real(n,kind=GP))
             END DO
 
             END DO

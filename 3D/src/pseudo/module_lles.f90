@@ -7,7 +7,7 @@
 
 !=================================================================
 MODULE alpha
-  REAL, SAVE :: alpk,alpm
+  REAL(KIND=GP), SAVE :: alpk,alpm
 
 CONTAINS
   SUBROUTINE normalize(fx,fy,fz,f0,kin,comm)
@@ -16,8 +16,8 @@ CONTAINS
     IMPLICIT NONE
     
     DOUBLE PRECISION    :: tmp
-    COMPLEX, INTENT(INOUT), DIMENSION(n,n,ista:iend) :: fx,fy,fz
-    REAL, INTENT(IN)    :: f0
+    COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: fx,fy,fz
+    REAL(KIND=GP), INTENT(IN)    :: f0
     INTEGER, INTENT(IN) :: kin
     INTEGER, INTENT(IN) :: comm
     

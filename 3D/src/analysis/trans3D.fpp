@@ -54,6 +54,8 @@
 !
 ! Modules
 
+      USE fprecision
+      USE commtypes
       USE mpivars
       USE filefmt
       USE iovar
@@ -67,45 +69,45 @@
 !
 ! Arrays for the fields and the transfers
 
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz
 #ifdef VORTICITY_
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: wx,wy,wz
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: wx,wy,wz
 #endif 
 #ifdef MAGFIELD_
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: bx,by,bz
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: C1,C2,C3
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: bx,by,bz
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C1,C2,C3
 #endif 
 #ifdef ELSASSER_
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: px,py,pz
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: mx,my,mz
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: px,py,pz
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: mx,my,mz
 #endif 
 #ifdef HALLTERM_
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: jx,jy,jz
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: jx,jy,jz
 #endif 
 
-      REAL, ALLOCATABLE, DIMENSION (:,:,:)    :: rvx,rvy,rvz
-      REAL, ALLOCATABLE, DIMENSION (:,:)      :: uu,hh
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: rvx,rvy,rvz
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:)      :: uu,hh
 #ifdef MAGFIELD_
-      REAL, ALLOCATABLE, DIMENSION (:,:,:)    :: rbx,rby,rbz
-      REAL, ALLOCATABLE, DIMENSION (:,:)      :: ub,bu,bb
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: rbx,rby,rbz
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:)      :: ub,bu,bb
 #endif 
 #ifdef ELSASSER_
-      REAL, ALLOCATABLE, DIMENSION (:,:,:)    :: rpx,rpy,rpz
-      REAL, ALLOCATABLE, DIMENSION (:,:,:)    :: rmx,rmy,rmz
-      REAL, ALLOCATABLE, DIMENSION (:,:)      :: pp,mm
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: rpx,rpy,rpz
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: rmx,rmy,rmz
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:)      :: pp,mm
 #endif 
 #ifdef HALLTERM_
-      REAL, ALLOCATABLE, DIMENSION (:,:,:)    :: rjx,rjy,rjz
-      REAL, ALLOCATABLE, DIMENSION (:,:)      :: jb,jj
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: rjx,rjy,rjz
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:)      :: jb,jj
 #endif 
 #ifdef ROTATION_
-      REAL, ALLOCATABLE, DIMENSION (:,:)      :: para,perp
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:)      :: para,perp
 #endif
 
 !
 ! Auxiliary variables
 
-      REAL    :: tmp
+      REAL(KIND=GP)    :: tmp
 
       INTEGER :: stat
       INTEGER :: cold
@@ -189,7 +191,7 @@
 !     kmax: maximum truncation for dealiasing
 !     tiny: minimum truncation for dealiasing
 
-      kmax = (float(n)/3.)**2
+      kmax = (REAL(n,KIND=GP)/3.)**2
       tiny = 1e-5
 
 !
@@ -197,8 +199,8 @@
 ! number matrixes
 
       DO i = 1,n/2
-         ka(i) = float(i-1)
-         ka(i+n/2) = float(i-n/2-1)
+         ka(i) = REAL(i-1,KIND=GP)
+         ka(i+n/2) = REAL(i-n/2-1,KIND=GP)
       END DO
       DO i = ista,iend
          DO j = 1,n
@@ -272,7 +274,7 @@
       CALL laplak3(C3,jz)
 #endif
 #ifdef MAGFIELD_
-      tmp = 1./float(n)**3
+      tmp = 1./REAL(n,KIND=GP)**3
       DO i = ista,iend
          DO j = 1,n
             DO k = 1,n

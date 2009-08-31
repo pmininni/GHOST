@@ -35,17 +35,19 @@
 !     d: input matrix with the passive scalar
 !     e: product (A.grad)B in Fourier space [output]
 !
+      USE fprecision
+      USE commtypes
       USE mpivars
       USE grid
       USE fft
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c,d
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: e
-      COMPLEX, DIMENSION(n,n,ista:iend) :: c1,c2
-      REAL, DIMENSION(n,n,ksta:kend)    :: r1,r2
-      REAL, DIMENSION(n,n,ksta:kend)    :: r3
-      REAL    :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c,d
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: e
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1,c2
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r3
+      REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
 
 !
@@ -86,7 +88,7 @@
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
 
-      tmp = -1./float(n)**6   !we need -A.grad(B)
+      tmp = -1./real(n,kind=GP)**6   !we need -A.grad(B)
       DO k = ksta,kend
          DO j = 1,n
             DO i = 1,n
@@ -113,20 +115,22 @@
 !     kin: =0 computes the variance of k^2 times the scalar
 !          =1 computes the variance of the scalar
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
       DOUBLE PRECISION, INTENT(OUT) :: b
       DOUBLE PRECISION              :: bloc
-      REAL                :: tmp
+      REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
 
       bloc = 0.
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
 
 !
 ! Computes the variance
@@ -202,18 +206,20 @@
 !     b  : second scalar
 !     c  : at the output contains the product
 !
+      USE fprecision
+      USE commtypes
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
       DOUBLE PRECISION, INTENT(OUT) :: c
       DOUBLE PRECISION              :: cloc
-      REAL                :: tmp
+      REAL(KIND=GP)                :: tmp
       INTEGER             :: i,j,k
 
       cloc = 0.
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
 !
 ! Computes the averaged inner product between the fields
 !
@@ -261,13 +267,14 @@
 !     t : number of time steps made
 !     dt: time step
 !
+      USE fprecision
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
       DOUBLE PRECISION    :: eng,ens,pot
-      REAL, INTENT(IN)    :: dt
+      REAL(KIND=GP), INTENT(IN)    :: dt
       INTEGER, INTENT(IN) :: t
       INTEGER             :: i,j,k
 
@@ -304,6 +311,8 @@
 !     a  : input matrix with the passive scalar
 !     nmb: the extension used when writting the file
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
@@ -311,8 +320,8 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1)            :: Ek,Ektot
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a
-      REAL    :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
+      REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
       INTEGER :: kmn
       CHARACTER(len=*), INTENT(IN) :: nmb
@@ -326,7 +335,7 @@
 !
 ! Computes the power spectrum
 !
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
       IF (ista.eq.1) THEN
          DO j = 1,n
             DO k = 1,n
@@ -389,6 +398,8 @@
 !     b  : nonlinear term
 !     nmb: the extension used when writting the file
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
@@ -396,8 +407,8 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
-      REAL    :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
+      REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
       INTEGER :: kmn
       CHARACTER(len=*), INTENT(IN) :: nmb
@@ -411,7 +422,7 @@
 !
 ! Computes the passive scalar transfer
 !
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
       IF (ista.eq.1) THEN
          DO j = 1,n
             DO k = 1,n

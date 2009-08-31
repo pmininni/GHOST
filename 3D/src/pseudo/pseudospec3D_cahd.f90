@@ -35,21 +35,22 @@
 !     f  : output _z in Fourier space
 !     alp: value of alpha
 !
+      USE fprecision
       USE kes
       USE mpivars
       USE grid
       USE fft
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: d,e,f
-      COMPLEX, DIMENSION(n,n,ista:iend) :: c1,c2,c3
-      COMPLEX, DIMENSION(n,n,ista:iend) :: c4,c5,c6
-      REAL, DIMENSION(n,n,ksta:kend)    :: r1,r2,r3
-      REAL, DIMENSION(n,n,ksta:kend)    :: r4,r5,r6
-      REAL, DIMENSION(n,n,ksta:kend)    :: r7,r8,r9
-      REAL, INTENT(IN) :: alp
-      REAL    :: tmp,rx,ry
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1,c2,c3
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c4,c5,c6
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2,r3
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r4,r5,r6
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r7,r8,r9
+      REAL(KIND=GP), INTENT(IN) :: alp
+      REAL(KIND=GP)    :: tmp,rx,ry
       INTEGER :: i,j,k
 
 ! v -> u: c_{1-3}
@@ -89,7 +90,7 @@
       CALL fftp3d_complex_to_real(plancr,f,r6,MPI_COMM_WORLD)
 
 ! r_{7-9} = w_s x u
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
       DO k = ksta,kend
          DO j = 1,n
             DO i = 1,n
@@ -141,7 +142,7 @@
       CALL fftp3d_complex_to_real(plancr,c6,r9,MPI_COMM_WORLD)
 
 ! r_{7-9} = - .5 \alpha^2 \nabla^2 w_s x u
-      tmp = (-0.5 * alp**2)/float(n)**6
+      tmp = (-0.5 * alp**2)/real(n,kind=GP)**6
       DO k = ksta,kend
          DO j = 1,n
             DO i = 1,n
@@ -166,7 +167,7 @@
       CALL fftp3d_complex_to_real(plancr,c3,r6,MPI_COMM_WORLD)
 
 ! r_{x-z} = - .5 \alpha^2 \nabla^2 w_s x u- .5 \alpha^2 w_s x \nabla^2 u
-      tmp = (0.5 * alp**2)/float(n)**6
+      tmp = (0.5 * alp**2)/real(n,kind=GP)**6
       DO k = ksta,kend
          DO j = 1,n
             DO i = 1,n

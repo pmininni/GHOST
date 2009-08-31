@@ -28,7 +28,7 @@
             CALL heltperp(C1,C2,C3,C7,C8,C4,ext,1)
          ENDIF
 
-         rmp = 1./float(o)
+         rmp = 1./(REAL(o,KIND=GP)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)

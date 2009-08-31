@@ -39,6 +39,8 @@
 !
 ! Modules
 
+      USE fprecision
+      USE commtypes
       USE mpivars
       USE filefmt
       USE iovar
@@ -52,21 +54,21 @@
 !
 ! Arrays for the fields and structure functions
 
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: C1,C2,C3
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: C4,C5
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C1,C2,C3
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C4,C5
 
-      REAL, ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz
-      REAL, ALLOCATABLE, DIMENSION (:,:,:) :: vxl,vyl,vzl
-      REAL, ALLOCATABLE, DIMENSION (:,:,:) :: wx,wy,wz
-      REAL, ALLOCATABLE, DIMENSION (:,:,:) :: wxl,wyl,wzl
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vxl,vyl,vzl
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: wx,wy,wz
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: wxl,wyl,wzl
 
-      REAL, ALLOCATABLE, DIMENSION (:,:)   :: sp
-      REAL, ALLOCATABLE, DIMENSION (:)     :: r
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:)   :: sp
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)     :: r
 
 !
 ! Auxiliary variables
 
-      REAL    :: tmp,norm,spaux
+      REAL(KIND=GP)    :: tmp,norm,spaux
 
 #ifdef SO3_
       INTEGER, PARAMETER        :: ngen = 146
@@ -161,11 +163,11 @@
          CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
              FFTW_ESTIMATE)
          ALLOCATE( ka(n), ka2(n,n,ista:iend) )
-         kmax = (float(n)/3.)**2
+         kmax = (real(n,kind=GP)/3.)**2
          tiny = 1e-5
          DO i = 1,n/2
-            ka(i) = float(i-1)
-            ka(i+n/2) = float(i-n/2-1)
+            ka(i) = real(i-1,kind=GP)
+            ka(i+n/2) = real(i-n/2-1,kind=GP)
          END DO
          DO i = ista,iend
             DO j = 1,n
@@ -191,7 +193,7 @@
       ALLOCATE ( vyl(n,n,ksta:kend) )
       ALLOCATE ( vzl(n,n,ksta:kend) )
       IF (curl.eq.1) THEN
-         tmp = 1./float(n)**3
+         tmp = 1./real(n,kind=GP)**3
          DO k = ksta,kend
             DO j = 1,n
                DO i = 1,n
@@ -206,7 +208,7 @@
          ALLOCATE ( wzl(n,n,ksta:kend) )
       ENDIF
       IF (curl.eq.2) THEN
-         tmp = 1./float(n)**3
+         tmp = 1./real(n,kind=GP)**3
          DO k = ksta,kend
             DO j = 1,n
                DO i = 1,n
@@ -275,10 +277,10 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
                END DO
             END DO
          END DO
-         norm = 1./SQRT(float(j1(d)**2+j2(d)**2+j3(d)**2))
+         norm = 1./SQRT(real(j1(d)**2+j2(d)**2+j3(d)**2,kind=GP))
          maxd = max(abs(j1(d)),abs(j2(d)))
          maxd = 2*max(maxd,abs(j3(d)))
-         DO l = 1,INT(float(n-1)/maxd)
+         DO l = 1,INT(real(n-1,kind=GP)/maxd)
             IF ( abs(j3(d)).gt.0 ) THEN
                dis = j3(d)/abs(j3(d))
                DO i = 1,abs(j3(d))
@@ -306,7 +308,7 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
                CALL SHIFTY(wyl,j2(d))
                CALL SHIFTY(wzl,j2(d))
             ENDIF
-            r(l) = 2*pi*float(l)/(norm*n)
+            r(l) = 2*pi*real(l,kind=GP)/(norm*n)
             DO p = 1,pmax
                spaux = 0
                DO k = ksta,kend
@@ -319,9 +321,9 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
                      END DO
                   END DO
                END DO
-               CALL MPI_REDUCE(spaux,tmp,1,MPI_REAL,MPI_SUM,0, &
+               CALL MPI_REDUCE(spaux,tmp,1,GC_REAL,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
-               sp(l,p) = tmp/float(n)**3
+               sp(l,p) = tmp/real(n,kind=GP)**3
             END DO
          END DO
          IF (myrank.eq.0) THEN
@@ -357,10 +359,10 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
                END DO
             END DO
          END DO
-         norm = 1./SQRT(float(j1(d)**2+j2(d)**2+j3(d)**2))
+         norm = 1./SQRT(real(j1(d)**2+j2(d)**2+j3(d)**2,kind=GP))
          maxd = max(abs(j1(d)),abs(j2(d)))
          maxd = 2*max(maxd,abs(j3(d)))
-         DO l = 1,INT(float(n-1)/maxd)
+         DO l = 1,INT(real(n-1,kind=GP)/maxd)
             IF ( abs(j3(d)).gt.0 ) THEN
                dis = j3(d)/abs(j3(d))
                DO i = 1,abs(j3(d))
@@ -379,7 +381,7 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
                CALL SHIFTY(vyl,j2(d))
                CALL SHIFTY(vzl,j2(d))
             ENDIF
-            r(l) = 2*pi*float(l)/(norm*n)
+            r(l) = 2*pi*real(l,kind=GP)/(norm*n)
             DO p = 1,pmax
                spaux = 0
                DO k = ksta,kend
@@ -391,9 +393,9 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
                      END DO
                   END DO
                END DO
-               CALL MPI_REDUCE(spaux,tmp,1,MPI_REAL,MPI_SUM,0, &
+               CALL MPI_REDUCE(spaux,tmp,1,GC_REAL,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
-               sp(l,p) = tmp/float(n)**3
+               sp(l,p) = tmp/real(n,kind=GP)**3
             END DO
          END DO
          IF (myrank.eq.0) THEN

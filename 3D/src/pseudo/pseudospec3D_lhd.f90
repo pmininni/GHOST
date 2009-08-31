@@ -34,19 +34,21 @@
 !     f  : product (As.grad)A_z in Fourier space [output]
 !     alp: value of alpha
 !
+      USE fprecision
+      USE commtypes
       USE mpivars
       USE grid
       USE fft
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: d,e,f
-      COMPLEX, DIMENSION(n,n,ista:iend) :: c1,c2,c3
-      REAL, DIMENSION(n,n,ksta:kend)    :: r1,r2
-      REAL, DIMENSION(n,n,ksta:kend)    :: r3,r4
-      REAL, DIMENSION(n,n,ksta:kend)    :: rx,ry,rz
-      REAL, INTENT(IN) :: alp
-      REAL             :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1,c2,c3
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r3,r4
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: rx,ry,rz
+      REAL(KIND=GP), INTENT(IN) :: alp
+      REAL(KIND=GP)             :: tmp
       INTEGER          :: i,j,k
 
 !
@@ -104,7 +106,7 @@
       CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,d,r4,MPI_COMM_WORLD)
 
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
       DO k = ksta,kend
          DO j = 1,n
             DO i = 1,n
@@ -139,14 +141,15 @@
 !     kin: =1 computes the kinetic energy
 !          =0 computes the magnetic energy
 !
+      USE fprecision
       USE kes
       USE grid
       USE mpivars
       IMPLICIT NONE
 
       DOUBLE PRECISION, INTENT(OUT) :: d
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      REAL, INTENT(IN)    :: alp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      REAL(KIND=GP), INTENT(IN)    :: alp
       INTEGER, INTENT(IN) :: kin
 
       CALL energy(a,b,c,d,kin)
@@ -174,15 +177,16 @@
 !     kin: =1 computes the inner product of the fields
 !          =0 computes the inner product of the curls
 !
+      USE fprecision
       USE kes
       USE grid
       USE mpivars
       IMPLICIT NONE
 
       DOUBLE PRECISION, INTENT(OUT) :: g
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
-      REAL, INTENT(IN)    :: alp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
+      REAL(KIND=GP), INTENT(IN)    :: alp
       INTEGER, INTENT(IN) :: kin
 
       CALL cross(a,b,c,d,e,f,g,kin)

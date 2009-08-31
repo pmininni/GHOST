@@ -25,6 +25,7 @@
 !     plan  : contains the I/O plan [OUT]
 !-----------------------------------------------------------------
 
+      USE commtypes
       USE iovar
       USE iompi
       IMPLICIT NONE
@@ -49,7 +50,7 @@
       starts(2) = 0
       starts(3) = ksta-1
       CALL MPI_TYPE_CREATE_SUBARRAY(3,sizes,subsizes,starts, &
-           MPI_ORDER_FORTRAN,MPI_REAL,plan%iotype,ioerr)
+           MPI_ORDER_FORTRAN,GC_REAL,plan%iotype,ioerr)
       CALL MPI_TYPE_COMMIT(plan%iotype,ioerr)
 
       RETURN
@@ -72,12 +73,14 @@
 !     var   : the array with the field component [OUT]
 !-----------------------------------------------------------------
 
+      USE fprecision
+      USE commtypes
       USE iovar
       USE iompi
       IMPLICIT NONE
       
       TYPE(IOPLAN), INTENT(IN) :: plan
-      REAL, INTENT(OUT) :: var(plan%n,plan%n,plan%ksta:plan%kend)
+      REAL(KIND=GP), INTENT(OUT) :: var(plan%n,plan%n,plan%ksta:plan%kend)
       INTEGER, INTENT(IN)      :: unit
       INTEGER                  :: fh
       CHARACTER(len=100), INTENT(IN) :: dir
@@ -86,10 +89,10 @@
 
       CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname // &
           '.' // nmb // '.out',MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
-      CALL MPI_FILE_SET_VIEW(fh,disp,MPI_REAL,plan%iotype,'native', &
+      CALL MPI_FILE_SET_VIEW(fh,disp,GC_REAL,plan%iotype,'native', &
           MPI_INFO_NULL,ioerr)
       CALL MPI_FILE_READ_ALL(fh,var, &
-          plan%n*plan%n*(plan%kend-plan%ksta+1),MPI_REAL, &
+          plan%n*plan%n*(plan%kend-plan%ksta+1),GC_REAL, &
           MPI_STATUS_IGNORE,ioerr)
       CALL MPI_FILE_CLOSE(fh,ioerr)
 
@@ -112,12 +115,14 @@
 !     var   : the array with the field component [IN]
 !-----------------------------------------------------------------
 
+      USE fprecision
+      USE commtypes
       USE iovar
       USE iompi
       IMPLICIT NONE
 
       TYPE(IOPLAN), INTENT(IN) :: plan
-      REAL, INTENT(IN) :: var(plan%n,plan%n,plan%ksta:plan%kend)
+      REAL(KIND=GP), INTENT(IN) :: var(plan%n,plan%n,plan%ksta:plan%kend)
       INTEGER, INTENT(IN)      :: unit
       INTEGER                  :: fh
       CHARACTER(len=100), INTENT(IN) :: dir
@@ -127,10 +132,10 @@
       CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname // &
           '.' // nmb // '.out',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
           MPI_INFO_NULL,fh,ioerr)
-      CALL MPI_FILE_SET_VIEW(fh,disp,MPI_REAL,plan%iotype,'native', &
+      CALL MPI_FILE_SET_VIEW(fh,disp,GC_REAL,plan%iotype,'native', &
           MPI_INFO_NULL,ioerr)
       CALL MPI_FILE_WRITE_ALL(fh,var, &
-          plan%n*plan%n*(plan%kend-plan%ksta+1),MPI_REAL, &
+          plan%n*plan%n*(plan%kend-plan%ksta+1),GC_REAL, &
           MPI_STATUS_IGNORE,ioerr)
       CALL MPI_FILE_CLOSE(fh,ioerr)
 

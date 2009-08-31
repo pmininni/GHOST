@@ -36,7 +36,7 @@
             CALL entrans(C4,C5,C6,C7,C8,C9,ext,0)
          ENDIF
 
-         rmp = 1./float(o)
+         rmp = 1./real(o,kind=GP)
          DO i = ista,iend
          DO j = 1,n
          DO k = 1,n

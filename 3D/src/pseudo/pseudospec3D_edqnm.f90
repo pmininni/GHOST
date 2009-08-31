@@ -43,6 +43,7 @@
 !     Ext : enery spectrum extrapolated to 3kc grid (out)
 !     Hxt : enery spectrum extrapolated to 3kc grid (out)
 !
+      USE fprecision
       USE ali
       USE mpivars
       USE grid
@@ -53,8 +54,8 @@
       DOUBLE PRECISION, INTENT(OUT), DIMENSION(n/2+1)     :: tepq,thpq
       DOUBLE PRECISION, INTENT(OUT), DIMENSION(n/2+1)     :: tve,tvh
       DOUBLE PRECISION, INTENT(OUT), DIMENSION(3*(n/2+1)) :: Ext,Hxt
-      REAL   , INTENT(IN)   :: nu,time
-      REAL                  :: ddelta,delk,power,hddelta,hpower
+      REAL(KIND=GP)   , INTENT(IN)   :: nu,time
+      REAL(KIND=GP)                  :: ddelta,delk,power,hddelta,hpower
       INTEGER, INTENT(IN)   :: hel
       INTEGER               :: k,kc
 
@@ -100,6 +101,7 @@
 !     tepq: modal transfer function (out)
 !     nut : eddy viscosity (out)
 !
+      USE fprecision
       USE ali
       USE mpivars
       USE grid
@@ -109,11 +111,11 @@
 
       DOUBLE PRECISION, INTENT (IN), DIMENSION(3*(n/2+1)) :: Ext
       DOUBLE PRECISION, INTENT(OUT), DIMENSION(n/2+1)     :: tepq,nut
-      REAL, INTENT(IN)                                    :: nu,t0
-      REAL, DIMENSION(n,n,ksta:kend) :: r1,r2
-      REAL, DIMENSION(3*(n/2+1))     :: mu
-      REAL    :: coeff,en,frac,ppi,qqi,kk,lambda,pp,qq
-      REAL    :: theta,tmp,tvvkp,tvvkpsym,tvvpq,tvvpqsym,x,y,z
+      REAL(KIND=GP), INTENT(IN)                                    :: nu,t0
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r1,r2
+      REAL(KIND=GP), DIMENSION(3*(n/2+1))     :: mu
+      REAL(KIND=GP)    :: coeff,en,frac,ppi,qqi,kk,lambda,pp,qq
+      REAL(KIND=GP)    :: theta,tmp,tvvkp,tvvkpsym,tvvpq,tvvpqsym,x,y,z
       INTEGER :: i,j,k,kc,ktot,p,q
 
       lambda = 0.218*(kolmo**1.5)
@@ -180,6 +182,7 @@
 !     nut : eddy viscosity (out)
 !     tvh : helicity eddy diffusivity (out)
 !
+      USE fprecision
       USE ali
       USE mpivars
       USE grid
@@ -189,12 +192,12 @@
 
       DOUBLE PRECISION, INTENT(OUT), DIMENSION(3*(n/2+1)) :: Ext,Hxt
       DOUBLE PRECISION, INTENT(OUT), DIMENSION(n/2+1)     :: tepq,thpq,nut,tvh
-      REAL, INTENT(IN)                                    :: nu,t0
-      REAL, DIMENSION(n,n,ksta:kend) :: r1,r2
-      REAL, DIMENSION(3*(n/2+1))     :: mu
-      REAL    :: coeff,en,ppi,qqi,kk,lambda,pp,qq
-      REAL    :: tmp,theta,tvvkp,tvvkpsym,tvvpq,tvvpqsym,tvw,tvw2
-      REAL    :: twwkp,twwkpsym,twwpq,twwpqsym,x,y,z,xyz,xzy,ym1,zm1
+      REAL(KIND=GP), INTENT(IN)                                    :: nu,t0
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r1,r2
+      REAL(KIND=GP), DIMENSION(3*(n/2+1))     :: mu
+      REAL(KIND=GP)    :: coeff,en,ppi,qqi,kk,lambda,pp,qq
+      REAL(KIND=GP)    :: tmp,theta,tvvkp,tvvkpsym,tvvpq,tvvpqsym,tvw,tvw2
+      REAL(KIND=GP)    :: twwkp,twwkpsym,twwpq,twwpqsym,x,y,z,xyz,xzy,ym1,zm1
       INTEGER :: i,j,k,kc,ktot,p,q
 
       lambda = 0.218*(kolmo**1.5)
@@ -279,6 +282,7 @@
 !     power : spectral index of fit (out)
 !     ddelta: logarithmic decrement of spectral fit (out)
 !
+      USE fprecision
       USE ali
       USE mpivars
       USE grid
@@ -287,10 +291,10 @@
 
       DOUBLE PRECISION, INTENT (IN), DIMENSION(n/2+1)     :: Ein
       DOUBLE PRECISION, INTENT(OUT), DIMENSION(3*(n/2+1)) :: Efit
-      REAL, INTENT (IN) :: delk
-      REAL, INTENT(OUT) :: power, ddelta
-      REAL      :: x,y,z,v,w,a,b,m,o,p,nn
-      REAL      :: etot,fksup,ii,kk,expo,pnum,dden,pden
+      REAL(KIND=GP), INTENT (IN) :: delk
+      REAL(KIND=GP), INTENT(OUT) :: power, ddelta
+      REAL(KIND=GP)      :: x,y,z,v,w,a,b,m,o,p,nn
+      REAL(KIND=GP)      :: etot,fksup,ii,kk,expo,pnum,dden,pden
       INTEGER   :: i,j,k,kc,kinf,ksup,ktot
 
       kc     = int(sqrt(kmax))
@@ -412,17 +416,18 @@
 !            1: compute helicity quantities
 !            0: skip computation of helicity quantities
 !
+      USE fprecision
       USE ali
       USE mpivars
       USE grid
       USE kes
       IMPLICIT NONE
 
-      COMPLEX, INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
       DOUBLE PRECISION, INTENT (IN), DIMENSION(n/2+1)  :: tepq,thpq
       DOUBLE PRECISION, INTENT (IN), DIMENSION(n/2+1)  :: eold,hold
-      REAL, INTENT(IN), DIMENSION(n,n,ista:iend)       :: ef,hf
-      REAL, INTENT(IN)                                 :: dt
+      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)       :: ef,hf
+      REAL(KIND=GP), INTENT(IN)                                 :: dt
       INTEGER, INTENT(IN)                              :: hel
 
       IF ( ista.eq.1 ) THEN 
@@ -475,6 +480,7 @@
 !            1: compute helicity quantities
 !            0: skip computation of helicity quantities
 !
+      USE fprecision
       USE ali
       USE mpivars
       USE grid
@@ -482,7 +488,7 @@
       USE var
       IMPLICIT NONE
 
-      COMPLEX, INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
       DOUBLE PRECISION, INTENT (IN), DIMENSION(n/2+1)  :: tepq,thpq
       DOUBLE PRECISION, INTENT (IN), DIMENSION(n/2+1)  :: eold,hold
       DOUBLE PRECISION    :: E,H,mx,my,v2,vx2,vy2,vz2,w2
@@ -491,9 +497,9 @@
       DOUBLE PRECISION    :: tmp,tmp1,tmp2,inorm
       DOUBLE PRECISION    :: vxr,vxi,vyr,vyi,vzr,vzi
       DOUBLE PRECISION    :: kx2,ky2,kz2
-      REAL, INTENT(IN), DIMENSION(n,n,ista:iend) :: ef,hf
-      REAL, INTENT(IN)    :: dt
-      REAL                :: norm
+      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ef,hf
+      REAL(KIND=GP), INTENT(IN)    :: dt
+      REAL(KIND=GP)                :: norm
       INTEGER, INTENT(IN) :: hel,ip
       INTEGER             :: i,j,k,km
 
@@ -501,7 +507,7 @@
       j = 1
       kx2= ka(i)**2
       ky2= ka(j)**2
-      norm = float(n)**3
+      norm = real(n,kind=GP)**3
       inorm = 1./dble(norm)
       DO k = 2,n
          IF (ka2(k,j,i).gt.kmax) CYCLE
@@ -604,6 +610,7 @@
 !            1: compute helicity quantities
 !            0: skip computation of helicity quantities
 !
+      USE fprecision
       USE ali
       USE mpivars
       USE grid
@@ -611,7 +618,7 @@
       USE var
       IMPLICIT NONE
 
-      COMPLEX, INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
       DOUBLE PRECISION, INTENT (IN), DIMENSION(n/2+1)  :: tepq,thpq
       DOUBLE PRECISION, INTENT (IN), DIMENSION(n/2+1)  :: eold,hold
       DOUBLE PRECISION    :: E,H,mx,mz,v2,vx2,vy2,vz2,w2
@@ -620,9 +627,9 @@
       DOUBLE PRECISION    :: tmp,tmp1,tmp2,inorm
       DOUBLE PRECISION    :: vxr,vxi,vyr,vyi,vzr,vzi
       DOUBLE PRECISION    :: kx2,ky2,kz2
-      REAL, INTENT(IN), DIMENSION(n,n,ista:iend) :: ef,hf
-      REAL, INTENT(IN)    :: dt
-      REAL                :: norm
+      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ef,hf
+      REAL(KIND=GP), INTENT(IN)    :: dt
+      REAL(KIND=GP)                :: norm
       INTEGER, INTENT(IN) :: hel,ip
       INTEGER             :: i,j,k,km
 
@@ -630,7 +637,7 @@
       k = 1
       kx2= ka(i)**2
       kz2= ka(k)**2
-      norm = float(n)**3
+      norm = real(n,kind=GP)**3
       inorm = 1./dble(norm)
       DO j = 2,n
          IF (ka2(k,j,i).gt.kmax) CYCLE
@@ -733,6 +740,7 @@
 !            1: compute helicity quantities
 !            0: skip computation of helicity quantities
 !
+      USE fprecision
       USE ali
       USE mpivars
       USE grid
@@ -740,7 +748,7 @@
       USE var
       IMPLICIT NONE
 
-      COMPLEX, INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
       DOUBLE PRECISION, INTENT (IN), DIMENSION(n/2+1)  :: tepq,thpq
       DOUBLE PRECISION, INTENT (IN), DIMENSION(n/2+1)  :: eold,hold
       DOUBLE PRECISION    :: E,H,my,mz,v2,vx2,vy2,vz2,w2
@@ -749,9 +757,9 @@
       DOUBLE PRECISION    :: tmp,tmp1,tmp2,inorm
       DOUBLE PRECISION    :: vxr,vxi,vyr,vyi,vzr,vzi
       DOUBLE PRECISION    :: kx2,ky2,kz2
-      REAL, INTENT(IN), DIMENSION(n,n,ista:iend) :: ef,hf
-      REAL, INTENT(IN)    :: dt
-      REAL                :: norm
+      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ef,hf
+      REAL(KIND=GP), INTENT(IN)    :: dt
+      REAL(KIND=GP)                :: norm
       INTEGER, INTENT(IN) :: hel,ip
       INTEGER             :: i,j,k,km
 
@@ -759,7 +767,7 @@
       k = 1
       ky2= ka(j)**2
       kz2= ka(k)**2
-      norm = float(n)**3
+      norm = real(n,kind=GP)**3
       inorm = 1./dble(norm)
       DO i = ista+ip,iend
          IF (ka2(k,j,i).gt.kmax) CYCLE
@@ -862,6 +870,7 @@
 !            1: compute helicity quantities
 !            0: skip computation of helicity quantities
 !
+      USE fprecision
       USE ali
       USE mpivars
       USE grid
@@ -869,7 +878,7 @@
       USE var
       IMPLICIT NONE
 
-      COMPLEX, INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
       DOUBLE PRECISION, INTENT (IN), DIMENSION(n/2+1)  :: tepq,thpq
       DOUBLE PRECISION, INTENT (IN), DIMENSION(n/2+1)  :: eold,hold
       DOUBLE PRECISION    :: E,H,mx,my,mz,v2,vx2,vy2,vz2,w2
@@ -879,15 +888,15 @@
       DOUBLE PRECISION    :: tmp,tmp1,tmp2,tmp3,inorm
       DOUBLE PRECISION    :: vxr,vxi,vyr,vyi,vzr,vzi
       DOUBLE PRECISION    :: kx2,ky2,kz2
-      REAL, INTENT(IN), DIMENSION(n,n,ista:iend) :: ef,hf
-      REAL, INTENT(IN)    :: dt
-      REAL                :: norm
+      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ef,hf
+      REAL(KIND=GP), INTENT(IN)    :: dt
+      REAL(KIND=GP)                :: norm
       INTEGER, INTENT(IN) :: hel,ip
       INTEGER             :: i,j,k,km
 
       i = 1
       kx2= ka(i)**2
-      norm = float(n)**3
+      norm = real(n,kind=GP)**3
       inorm = 1./dble(norm)
       DO j = 2,n
       ky2= ka(j)**2
@@ -1031,6 +1040,7 @@
 !            1: compute helicity quantities
 !            0: skip computation of helicity quantities
 !
+      USE fprecision
       USE ali
       USE mpivars
       USE grid
@@ -1038,7 +1048,7 @@
       USE var
       IMPLICIT NONE
 
-      COMPLEX, INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
       DOUBLE PRECISION, INTENT (IN), DIMENSION(n/2+1)  :: tepq,thpq
       DOUBLE PRECISION, INTENT (IN), DIMENSION(n/2+1)  :: eold,hold
       DOUBLE PRECISION    :: E,H,mx,my,mz,v2,vx2,vy2,vz2,w2
@@ -1048,15 +1058,15 @@
       DOUBLE PRECISION    :: tmp,tmp1,tmp2,tmp3,inorm
       DOUBLE PRECISION    :: vxr,vxi,vyr,vyi,vzr,vzi
       DOUBLE PRECISION    :: kx2,ky2,kz2
-      REAL, INTENT(IN), DIMENSION(n,n,ista:iend) :: ef,hf
-      REAL, INTENT(IN)    :: dt
-      REAL                :: norm
+      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ef,hf
+      REAL(KIND=GP), INTENT(IN)    :: dt
+      REAL(KIND=GP)                :: norm
       INTEGER, INTENT(IN) :: hel,ip
       INTEGER             :: i,j,k,km
 
       j = 1
       ky2= ka(j)**2
-      norm = float(n)**3
+      norm = real(n,kind=GP)**3
       inorm = 1./dble(norm)
       DO i = ista+ip,iend
       kx2= ka(i)**2
@@ -1200,6 +1210,7 @@
 !            1: compute helicity quantities
 !            0: skip computation of helicity quantities
 !
+      USE fprecision
       USE ali
       USE mpivars
       USE grid
@@ -1207,7 +1218,7 @@
       USE var
       IMPLICIT NONE
 
-      COMPLEX, INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
       DOUBLE PRECISION, INTENT (IN), DIMENSION(n/2+1)  :: tepq,thpq
       DOUBLE PRECISION, INTENT (IN), DIMENSION(n/2+1)  :: eold,hold
       DOUBLE PRECISION    :: E,H,mx,my,mz,v2,vx2,vy2,vz2,w2
@@ -1217,15 +1228,15 @@
       DOUBLE PRECISION    :: tmp,tmp1,tmp2,tmp3,inorm
       DOUBLE PRECISION    :: vxr,vxi,vyr,vyi,vzr,vzi
       DOUBLE PRECISION    :: kx2,ky2,kz2
-      REAL, INTENT(IN), DIMENSION(n,n,ista:iend) :: ef,hf
-      REAL, INTENT(IN)    :: dt
-      REAL                :: norm
+      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ef,hf
+      REAL(KIND=GP), INTENT(IN)    :: dt
+      REAL(KIND=GP)                :: norm
       INTEGER, INTENT(IN) :: hel,ip
       INTEGER             :: i,j,k,km
 
       k = 1
       kz2= ka(k)**2
-      norm = float(n)**3
+      norm = real(n,kind=GP)**3
       inorm = 1./dble(norm)
       DO i = ista+ip,iend
       kx2= ka(i)**2
@@ -1369,6 +1380,7 @@
 !            1: compute helicity quantities
 !            0: skip computation of helicity quantities
 !
+      USE fprecision
       USE ali
       USE mpivars
       USE grid
@@ -1376,7 +1388,7 @@
       USE var
       IMPLICIT NONE
 
-      COMPLEX, INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
       DOUBLE PRECISION, INTENT (IN), DIMENSION(n/2+1)  :: tepq,thpq
       DOUBLE PRECISION, INTENT (IN), DIMENSION(n/2+1)  :: eold,hold
       DOUBLE PRECISION    :: E,H,mx,my,mz,v2,vx2,vy2,vz2,w2
@@ -1385,13 +1397,13 @@
       DOUBLE PRECISION    :: cx,sx,cy,sy,cz,sz
       DOUBLE PRECISION    :: a2,delta,tmp,vxr,vxi,vyr,vyi,vzr,vzi
       DOUBLE PRECISION    :: kx2,ky2,kz2,tmp1,tmp2,tmp3,tmp4,tmq,inorm
-      REAL, INTENT(IN), DIMENSION(n,n,ista:iend) :: ef,hf
-      REAL, INTENT(IN)    :: dt
-      REAL                :: norm
+      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ef,hf
+      REAL(KIND=GP), INTENT(IN)    :: dt
+      REAL(KIND=GP)                :: norm
       INTEGER, INTENT(IN) :: hel,ip
       INTEGER             :: i,j,k,km
 
-      norm = float(n)**3
+      norm = real(n,kind=GP)**3
       inorm = 1./dble(norm)
       DO i = ista+ip,iend
       kx2= ka(i)**2
@@ -1613,6 +1625,7 @@
 !     time  : time
 !     fn    : filename
 !
+      USE fprecision
       USE ali
       USE mpivars
       USE grid
@@ -1620,7 +1633,7 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, INTENT(IN), DIMENSION(*) :: tv
-      REAL   , INTENT(IN)      :: time
+      REAL(KIND=GP)   , INTENT(IN)      :: time
       INTEGER, INTENT(IN)      :: ntv
       INTEGER                  :: j
       CHARACTER(*), INTENT(IN) :: fn

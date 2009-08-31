@@ -39,8 +39,8 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
 
@@ -122,8 +122,8 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
       INTEGER :: i,j,k
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -156,14 +156,15 @@
 !          =2 computes the y-component
 !          =3 computes the z-component
 !
+      USE fprecision
       USE grid
       USE mpivars
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: c
-      COMPLEX, DIMENSION(n,n,ista:iend) :: c1,c2
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: c
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1,c2
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
 
@@ -233,20 +234,22 @@
 !     e: product (A.grad)A_y in Fourier space [output]
 !     f: product (A.grad)A_z in Fourier space [output]
 !
+      USE fprecision
+      USE commtypes
       USE mpivars
       USE grid
       USE fft
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: d,e,f
-      COMPLEX, DIMENSION(n,n,ista:iend) :: c1,c2
-      COMPLEX, DIMENSION(n,n,ista:iend) :: c3,c4
-      REAL, DIMENSION(n,n,ksta:kend)    :: r1,r2
-      REAL, DIMENSION(n,n,ksta:kend)    :: r3,r4
-      REAL, DIMENSION(n,n,ksta:kend)    :: rx,ry,rz
-      REAL    :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1,c2
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c3,c4
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r3,r4
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: rx,ry,rz
+      REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
 
 !
@@ -307,7 +310,7 @@
       CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c4,r4,MPI_COMM_WORLD)
 
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
 !$omp parallel do if (iend-ista.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (iend-ista.lt.nth) private (i)
@@ -343,19 +346,21 @@
 !     e  : product [curl(A)xA]_y in Fourier space [output]
 !     f  : product [curl(A)xA]_z in Fourier space [output]
 !
+      USE fprecision
+      USE commtypes
       USE mpivars
       USE grid
       USE fft
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN),  DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: d,e,f
-      REAL, DIMENSION(n,n,ksta:kend)    :: r1,r2
-      REAL, DIMENSION(n,n,ksta:kend)    :: r3,r4
-      REAL, DIMENSION(n,n,ksta:kend)    :: r5,r6
-      REAL, DIMENSION(n,n,ksta:kend)    :: r7
-      REAL    :: tmp
+      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: d,e,f
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r3,r4
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r5,r6
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r7
+      REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
 
 !
@@ -387,7 +392,7 @@
 !
 ! Computes curl(A)xA
 !
-      tmp = 1./float(n)**6
+      tmp = 1./real(n)**6
 !$omp parallel do if (iend-ista.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (iend-ista.lt.nth) private (i)
@@ -427,14 +432,15 @@
 !          =2 computes the y-component
 !          =3 computes the z-component
 !
+      USE fprecision
       USE kes
       USE grid
       USE mpivars
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: g
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: g
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
 
@@ -534,21 +540,23 @@
 !          =1 computes the kinetic energy
 !          =2 computes the magnetic enstrophy
 !
+      USE fprecision
+      USE commtypes
       USE grid
       USE mpivars
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, DIMENSION(n,n,ista:iend)             :: c1,c2,c3
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
       DOUBLE PRECISION, INTENT(OUT) :: d
       DOUBLE PRECISION              :: dloc
-      REAL                :: tmp
+      REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
 
       dloc = 0.
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
 
 !
 ! Computes the kinetic energy
@@ -681,20 +689,22 @@
 !     c: input matrix in the z-direction
 !     d: at the output contains the helicity
 !
+      USE fprecision
+      USE commtypes
       USE grid
       USE mpivars
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, DIMENSION(n,n,ista:iend)             :: c1
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1
       DOUBLE PRECISION, INTENT(OUT) :: d
       DOUBLE PRECISION              :: dloc
-      REAL    :: tmp
+      REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
 
       dloc = 0.
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
 
       CALL rotor3(b,c,c1,1)
       IF (ista.eq.1) THEN
@@ -806,22 +816,24 @@
 !     kin: =0 computes the inner product of the curls
 !          =1 computes the inner product of the fields
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
       DOUBLE PRECISION, INTENT(OUT) :: g
       DOUBLE PRECISION              :: gloc
-      REAL                :: tmp
+      REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
 
       gloc = 0.
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
 !
 ! Computes the averaged inner product between the fields
 !
@@ -924,17 +936,19 @@
 !          =1 computes the maximum of current density
 !          =2 computes the maximum of the field
 !
+      USE fprecision
+      USE commtypes
       USE fft
       USE grid
       USE mpivars
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL, DIMENSION(n,n,ksta:kend)                :: r1,r2,r3
-      REAL, INTENT(OUT)   :: d
-      REAL                :: dloc
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)                :: r1,r2,r3
+      REAL(KIND=GP), INTENT(OUT)   :: d
+      REAL(KIND=GP)                :: dloc
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
 
@@ -972,8 +986,8 @@
             END DO
          END DO
       END DO
-      dloc = dloc/float(n)**3
-      CALL MPI_REDUCE(dloc,d,1,MPI_REAL,MPI_MAX,0,MPI_COMM_WORLD,ierr)
+      dloc = dloc/real(n,kind=GP)**3
+      CALL MPI_REDUCE(dloc,d,1,GC_REAL,MPI_MAX,0,MPI_COMM_WORLD,ierr)
 
       RETURN
       END SUBROUTINE maxabs
@@ -999,25 +1013,27 @@
 !     chk: =0 skips divergency check
 !          =1 performs divergency check
 !
+      USE fprecision
+      USE commtypes
       USE grid
       USE mpivars
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
-      COMPLEX, DIMENSION(n,n,ista:iend)             :: c1,c2,c3
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
       DOUBLE PRECISION :: eng,ens,pot,khe
       DOUBLE PRECISION :: div,tay,tmp
-      REAL             :: dt
-      REAL             :: tmq
+      REAL(KIND=GP)             :: dt
+      REAL(KIND=GP)             :: tmq
       INTEGER, INTENT(IN) :: hel,chk
       INTEGER, INTENT(IN) :: t
       INTEGER             :: i,j,k
 
       div = 0.
       tmp = 0.
-      tmq = 1./float(n)**6
+      tmq = 1./real(n,kind=GP)**6
 
 !
 ! Computes the mean square value of
@@ -1081,7 +1097,7 @@
       IF (myrank.eq.0) THEN
          OPEN(1,file='balance.txt',position='append')
          WRITE(1,10) (t-1)*dt,eng,ens,pot
-   10    FORMAT( E13.6,E22.14,E22.14,E22.14 )
+   10    FORMAT( E13.6,E26.18,E26.18,E26.18 )
          CLOSE(1)
          IF (hel.eq.1) THEN
             OPEN(1,file='helicity.txt',position='append')
@@ -1124,7 +1140,7 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Hk
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
       INTEGER, INTENT(IN) :: kin,hel
       CHARACTER(len=*), INTENT(IN) :: nmb
 
@@ -1186,6 +1202,8 @@
 !     Ektot: output energy spectrum
 !     Hktot: output helicity spectrum
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
@@ -1194,9 +1212,9 @@
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek
       DOUBLE PRECISION, INTENT(OUT), DIMENSION(n/2+1) :: Ektot, Hktot
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)   :: a,b,c
-      COMPLEX, DIMENSION(n,n,ista:iend)               :: c1,c2,c3
-      REAL                :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)   :: a,b,c
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)               :: c1,c2,c3
+      REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: kin,hel
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -1212,7 +1230,7 @@
 !
 ! Computes the kinetic energy spectrum
 !
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
       IF (kin.eq.1) THEN
          DO i = 1,n/2+1
             Ek   (i) = 0.
@@ -1411,6 +1429,8 @@
 !          =1 computes the kinetic energy transfer
 !          =2 computes the Lorentz force transfer
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
@@ -1419,9 +1439,9 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
-      REAL                :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
+      REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -1436,7 +1456,7 @@
 !
 ! Computes the kinetic energy transfer
 !
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
       IF ((kin.eq.1).or.(kin.eq.2)) THEN
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn)
@@ -1580,6 +1600,8 @@
 !     kin: =0 computes the magnetic helicity transfer
 !          =1 computes the kinetic helicity transfer
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
@@ -1588,10 +1610,10 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Hk,Hktot
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
-      COMPLEX, DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL                :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
+      REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -1606,7 +1628,7 @@
 !
 ! Computes the helicity transfer
 !
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
       CALL rotor3(b,c,c1,1)
       CALL rotor3(a,c,c2,2)
       CALL rotor3(a,b,c3,3)

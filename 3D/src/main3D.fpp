@@ -114,6 +114,8 @@
 !
 ! Modules
 
+      USE fprecision
+      USE commtypes
       USE mpivars
       USE filefmt
       USE iovar
@@ -143,94 +145,94 @@
 !
 ! Arrays for the fields and the external forcing
 
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: fx,fy,fz
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fx,fy,fz
 #ifdef SCALAR_
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: th
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: fs
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: th
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fs
 #endif
 #ifdef MAGFIELD_
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: ax,ay,az
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: mx,my,mz
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: ax,ay,az
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: mx,my,mz
 #endif
 
 !
 ! Temporal data storage arrays
 
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: C1,C2
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: C3,C4
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: C5,C6
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: C7,C8
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: M1,M2,M3
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C1,C2
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C3,C4
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C5,C6
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C7,C8
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M1,M2,M3
 #ifdef SCALAR_
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: C20
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: M7
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C20
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M7
 #endif
 #ifdef MAGFIELD_
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: C9,C10,C11
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: C12,C13,C14
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: C15,C16,C17
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: M4,M5,M6
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C9,C10,C11
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C12,C13,C14
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C15,C16,C17
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M4,M5,M6
 #endif
 #ifdef HALLTERM_
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: C18
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C18
 #endif
 #ifdef EDQNM_ 
-      COMPLEX, ALLOCATABLE, DIMENSION (:,:,:) :: C19
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C19
       DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:) :: tepq,thpq,tve,tvh
       DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:) :: Eold,Hold
       DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:) :: Eext,Hext
-      REAL, ALLOCATABLE, DIMENSION (:,:,:)         :: Eden,Hden
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)         :: Eden,Hden
 #endif
-      REAL, ALLOCATABLE, DIMENSION (:,:,:)    :: R1,R2,R3
-      REAL, ALLOCATABLE, DIMENSION (:)        :: Faux1,Faux2
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: R1,R2,R3
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)        :: Faux1,Faux2
 
 !
 ! Auxiliary variables
 
-      COMPLEX          :: cdump,jdump
-      COMPLEX          :: cdumq,jdumq
-      COMPLEX          :: cdumr,jdumr
+      COMPLEX(KIND=GP)          :: cdump,jdump
+      COMPLEX(KIND=GP)          :: cdumq,jdumq
+      COMPLEX(KIND=GP)          :: cdumr,jdumr
       DOUBLE PRECISION :: tmp,tmq
       DOUBLE PRECISION :: eps,epm
       DOUBLE PRECISION :: omptime1,omptime2
 !$    DOUBLE PRECISION, EXTERNAL :: omp_get_wtime
 
-      REAL    :: dt,nu,mu,kappa
-      REAL    :: kup,kdn
-      REAL    :: rmp,rmq
-      REAL    :: dump
-      REAL    :: stat
-      REAL    :: f0,u0
-      REAL    :: cputime1,cputime2
-      REAL    :: phase,ampl,cort
-      REAL    :: fparam0,fparam1,fparam2,fparam3,fparam4
-      REAL    :: fparam5,fparam6,fparam7,fparam8,fparam9
-      REAL    :: vparam0,vparam1,vparam2,vparam3,vparam4
-      REAL    :: vparam5,vparam6,vparam7,vparam8,vparam9
+      REAL(KIND=GP)    :: dt,nu,mu,kappa
+      REAL(KIND=GP)    :: kup,kdn
+      REAL(KIND=GP)    :: rmp,rmq
+      REAL(KIND=GP)    :: dump
+      REAL(KIND=GP)    :: stat
+      REAL(KIND=GP)    :: f0,u0
+      REAL(KIND=GP)    :: cputime1,cputime2
+      REAL(KIND=GP)    :: phase,ampl,cort
+      REAL(KIND=GP)    :: fparam0,fparam1,fparam2,fparam3,fparam4
+      REAL(KIND=GP)    :: fparam5,fparam6,fparam7,fparam8,fparam9
+      REAL(KIND=GP)    :: vparam0,vparam1,vparam2,vparam3,vparam4
+      REAL(KIND=GP)    :: vparam5,vparam6,vparam7,vparam8,vparam9
 #ifdef SCALAR_
-      REAL    :: skup,skdn
-      REAL    :: c0,s0
-      REAL    :: cparam0,cparam1,cparam2,cparam3,cparam4
-      REAL    :: cparam5,cparam6,cparam7,cparam8,cparam9
-      REAL    :: sparam0,sparam1,sparam2,sparam3,sparam4
-      REAL    :: sparam5,sparam6,sparam7,sparam8,sparam9
+      REAL(KIND=GP)    :: skup,skdn
+      REAL(KIND=GP)    :: c0,s0
+      REAL(KIND=GP)    :: cparam0,cparam1,cparam2,cparam3,cparam4
+      REAL(KIND=GP)    :: cparam5,cparam6,cparam7,cparam8,cparam9
+      REAL(KIND=GP)    :: sparam0,sparam1,sparam2,sparam3,sparam4
+      REAL(KIND=GP)    :: sparam5,sparam6,sparam7,sparam8,sparam9
 #endif
 #ifdef MAGFIELD_
-      REAL    :: mkup,mkdn
-      REAL    :: m0,a0
-      REAL    :: mparam0,mparam1,mparam2,mparam3,mparam4
-      REAL    :: mparam5,mparam6,mparam7,mparam8,mparam9
-      REAL    :: aparam0,aparam1,aparam2,aparam3,aparam4
-      REAL    :: aparam5,aparam6,aparam7,aparam8,aparam9
+      REAL(KIND=GP)    :: mkup,mkdn
+      REAL(KIND=GP)    :: m0,a0
+      REAL(KIND=GP)    :: mparam0,mparam1,mparam2,mparam3,mparam4
+      REAL(KIND=GP)    :: mparam5,mparam6,mparam7,mparam8,mparam9
+      REAL(KIND=GP)    :: aparam0,aparam1,aparam2,aparam3,aparam4
+      REAL(KIND=GP)    :: aparam5,aparam6,aparam7,aparam8,aparam9
 #endif
 #ifdef UNIFORMB_
-      REAL    :: bx0
-      REAL    :: by0
-      REAL    :: bz0
+      REAL(KIND=GP)    :: bx0
+      REAL(KIND=GP)    :: by0
+      REAL(KIND=GP)    :: bz0
 #endif
 #ifdef ROTATION_
-      REAL    :: omega
+      REAL(KIND=GP)    :: omega
 #endif
 
       INTEGER :: ini,step
@@ -306,8 +308,8 @@
 
 !
 ! Initializes the MPI and I/O libraries
-
       CALL MPI_INIT(ierr)
+
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
@@ -383,9 +385,9 @@
 !     kmax: maximum truncation for dealiasing
 !     tiny: minimum truncation for dealiasing
 
-      kmax = (float(n)/3.)**2
+      kmax = (real(n,kind=GP)/3.)**2
 #ifdef EDQNM_
-      kmax = (float(n)/2.-.5)**2
+      kmax = (real(n,KIND=GP)/2.-.5)**2
 #endif
       tiny  = 1e-5
       tinyf = 1e-15
@@ -395,8 +397,8 @@
 ! square wavenumbers
 
       DO i = 1,n/2
-         ka(i) = float(i-1)
-         ka(i+n/2) = float(i-n/2-1)
+         ka(i) = real(i-1,kind=GP)
+         ka(i+n/2) = real(i-n/2-1,kind=GP)
       END DO
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
@@ -435,7 +437,7 @@
       ENDIF
       CALL MPI_BCAST(idir,100,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(odir,100,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(stat,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(stat,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(mult,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(bench,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(outs,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -461,14 +463,14 @@
          OPEN(1,file='parameter.txt',status='unknown',form="formatted")
          READ(1,NML=parameter)
          CLOSE(1)
-         dt = dt/float(mult)
+         dt = dt/real(mult,kind=GP)
          step = step*mult
          tstep = tstep*mult
          sstep = sstep*mult
          cstep = cstep*mult
          fstep = int(cort/dt)
       ENDIF
-      CALL MPI_BCAST(dt,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dt,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(step,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(tstep,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sstep,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -495,31 +497,31 @@
          READ(1,NML=velocity)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(f0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(u0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(kdn,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(kup,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(nu,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam1,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam2,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam3,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam4,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam5,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam6,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam7,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam8,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam9,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam1,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam2,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam3,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam4,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam5,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam6,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam7,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam8,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam9,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(f0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(u0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kdn,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kup,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(nu,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(fparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(fparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(fparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(fparam3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(fparam4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(fparam5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(fparam6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(fparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(fparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(fparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(vparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(vparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(vparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(vparam3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(vparam4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(vparam5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(vparam6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(vparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(vparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(vparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 
 #ifdef SCALAR_
 !
@@ -554,31 +556,31 @@
          READ(1,NML=scalar)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(s0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(c0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(skdn,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(skup,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(kappa,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(sparam0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(sparam1,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(sparam2,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(sparam3,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(sparam4,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(sparam5,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(sparam6,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(sparam7,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(sparam8,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(sparam9,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(cparam0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(cparam1,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(cparam2,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(cparam3,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(cparam4,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(cparam5,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(cparam6,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(cparam7,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(cparam8,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(cparam9,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(skdn,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(skup,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kappa,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #ifdef MAGFIELD_
@@ -616,32 +618,32 @@
          READ(1,NML=magfield)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(m0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(a0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(mkdn,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(mkup,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(mu,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(m0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(a0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(mkdn,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(mkup,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(mu,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(corr,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(mparam0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(mparam1,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(mparam2,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(mparam3,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(mparam4,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(mparam5,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(mparam6,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(mparam7,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(mparam8,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(mparam9,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(aparam0,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(aparam1,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(aparam2,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(aparam3,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(aparam4,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(aparam5,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(aparam6,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(aparam7,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(aparam8,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(aparam9,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(mparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(mparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(mparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(mparam3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(mparam4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(mparam5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(mparam6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(mparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(mparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(mparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(aparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(aparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(aparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(aparam3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(aparam4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(aparam5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(aparam6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(aparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(aparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(aparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #ifdef UNIFORMB_
@@ -674,7 +676,7 @@
          READ(1,NML=hallparam)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(ep,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ep,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(gspe,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 #endif
 
@@ -689,7 +691,7 @@
          READ(1,NML=rotation)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(omega,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(omega,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #ifdef ALPHAV_
@@ -703,7 +705,7 @@
          READ(1,NML=alphav)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(alpk,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(alpk,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #ifdef ALPHAB_
@@ -717,7 +719,7 @@
          READ(1,NML=alphab)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(alpm,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(alpm,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #ifdef EDQNM_
@@ -736,7 +738,7 @@
          READ(1,NML=edqnmles)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(kolmo,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kolmo,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(heli,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 #endif
 
@@ -836,7 +838,7 @@
 
       ini = int((stat-1)*tstep)
       tind = int(stat)
-      sind = int(float(ini)/float(sstep)+1)
+      sind = int(real(ini,kind=GP)/real(sstep,kind=GP)+1)
       WRITE(ext, fmtext) tind
       times = 0
       timet = 0
@@ -856,7 +858,7 @@
          CALL fftp3d_real_to_complex(planrc,R1,M1,MPI_COMM_WORLD)
          CALL fftp3d_real_to_complex(planrc,R2,M2,MPI_COMM_WORLD)
          CALL fftp3d_real_to_complex(planrc,R3,M3,MPI_COMM_WORLD)
-         dump = float(ini)/cstep
+         dump = real(ini,kind=GP)/cstep
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -877,7 +879,7 @@
          IF (mean.eq.1) THEN
             CALL io_read(1,idir,'mean_th',ext,planio,R1)
             CALL fftp3d_real_to_complex(planrc,R1,M7,MPI_COMM_WORLD)
-            dump = float(ini)/cstep
+            dump = real(ini,kind=GP)/cstep
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -914,7 +916,7 @@
             CALL fftp3d_real_to_complex(planrc,R1,M4,MPI_COMM_WORLD)
             CALL fftp3d_real_to_complex(planrc,R2,M5,MPI_COMM_WORLD)
             CALL fftp3d_real_to_complex(planrc,R3,M6,MPI_COMM_WORLD)
-            dump = float(ini)/cstep
+            dump = real(ini,kind=GP)/cstep
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -964,18 +966,18 @@
             IF (rand.eq.1) THEN      ! randomizes phases
 
                IF (myrank.eq.0) phase = 2*pi*randu(seed)
-               CALL MPI_BCAST(phase,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+               CALL MPI_BCAST(phase,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
                cdump = COS(phase)+im*SIN(phase)
                jdump = conjg(cdump)
 #ifdef SCALAR_
                IF (myrank.eq.0) phase = 2*pi*randu(seed)
-               CALL MPI_BCAST(phase,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+               CALL MPI_BCAST(phase,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
                cdumr = COS(phase)+im*SIN(phase)
                jdumr = conjg(cdump)
 #endif
 #ifdef MAGFIELD_
                IF (myrank.eq.0) phase = 2*pi*randu(seed)
-               CALL MPI_BCAST(phase,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+               CALL MPI_BCAST(phase,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
                cdumq = corr*cdump+(1-corr)*(COS(phase)+im*SIN(phase))
                jdumq = corr*jdump+(1-corr)*conjg(cdump)
 #endif
@@ -1149,9 +1151,9 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
                DO j = 1,n
                   DO k = 1,n
-                     C1(k,j,i) = vx(k,j,i)/float(n)**3
-                     C2(k,j,i) = vy(k,j,i)/float(n)**3
-                     C3(k,j,i) = vz(k,j,i)/float(n)**3
+                     C1(k,j,i) = vx(k,j,i)/real(n,kind=GP)**3
+                     C2(k,j,i) = vy(k,j,i)/real(n,kind=GP)**3
+                     C3(k,j,i) = vz(k,j,i)/real(n,kind=GP)**3
                   END DO
                END DO
             END DO
@@ -1173,15 +1175,15 @@
             CALL io_write(1,odir,'vy',ext,planio,R2)
             CALL io_write(1,odir,'vz',ext,planio,R3)
             IF (mean.eq.1) THEN
-               dump = float(cstep)/t
+               dump = real(cstep,kind=GP)/t
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
                   DO j = 1,n
                      DO k = 1,n
-                        C1(k,j,i) = dump*M1(k,j,i)/float(n)**3
-                        C2(k,j,i) = dump*M2(k,j,i)/float(n)**3
-                        C3(k,j,i) = dump*M3(k,j,i)/float(n)**3
+                        C1(k,j,i) = dump*M1(k,j,i)/real(n,kind=GP)**3
+                        C2(k,j,i) = dump*M2(k,j,i)/real(n,kind=GP)**3
+                        C3(k,j,i) = dump*M3(k,j,i)/real(n,kind=GP)**3
                      END DO
                   END DO
                END DO
@@ -1198,20 +1200,20 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
                DO j = 1,n
                   DO k = 1,n
-                     C1(k,j,i) = th(k,j,i)/float(n)**3
+                     C1(k,j,i) = th(k,j,i)/real(n,kind=GP)**3
                   END DO
                END DO
             END DO
             CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
             CALL io_write(1,odir,'th',ext,planio,R1)
             IF (mean.eq.1) THEN
-               dump = float(cstep)/t
+               dump = real(cstep,kind=GP)/t
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
                   DO j = 1,n
                      DO k = 1,n
-                        C1(k,j,i) = dump*M7(k,j,i)/float(n)**3
+                        C1(k,j,i) = dump*M7(k,j,i)/real(n,kind=GP)**3
                      END DO
                   END DO
                END DO
@@ -1225,9 +1227,9 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
                DO j = 1,n
                   DO k = 1,n
-                     C1(k,j,i) = ax(k,j,i)/float(n)**3
-                     C2(k,j,i) = ay(k,j,i)/float(n)**3
-                     C3(k,j,i) = az(k,j,i)/float(n)**3
+                     C1(k,j,i) = ax(k,j,i)/real(n,kind=GP)**3
+                     C2(k,j,i) = ay(k,j,i)/real(n,kind=GP)**3
+                     C3(k,j,i) = az(k,j,i)/real(n,kind=GP)**3
                   END DO
                END DO
             END DO
@@ -1260,15 +1262,15 @@
             CALL io_write(1,odir,'ay',ext,planio,R2)
             CALL io_write(1,odir,'az',ext,planio,R3)
             IF (mean.eq.1) THEN
-               dump = float(cstep)/t
+               dump = real(cstep,kind=GP)/t
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
                   DO j = 1,n
                      DO k = 1,n
-                        C1(k,j,i) = dump*M4(k,j,i)/float(n)**3
-                        C2(k,j,i) = dump*M5(k,j,i)/float(n)**3
-                        C3(k,j,i) = dump*M6(k,j,i)/float(n)**3
+                        C1(k,j,i) = dump*M4(k,j,i)/real(n,kind=GP)**3
+                        C2(k,j,i) = dump*M5(k,j,i)/real(n,kind=GP)**3
+                        C3(k,j,i) = dump*M6(k,j,i)/real(n,kind=GP)**3
                      END DO
                   END DO
                END DO

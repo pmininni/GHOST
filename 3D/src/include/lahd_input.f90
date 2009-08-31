@@ -16,4 +16,4 @@
          READ(1,*) alpk
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(alpk,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(alpk,1,GC_REAL,0,MPI_COMM_WORLD,ierr)

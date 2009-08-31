@@ -19,7 +19,7 @@ MPIINC      = $(MPIINC_$(MPI))
 MPILIB      = $(MPILIB_$(MPI))
 MPILDFLAGS  = $(MPILD_$(MPI))
 
-DO_HYBRIDyes= $(COMPILER)_OMP
+DO_HYBRIDyes= $($(COMPILER)_OMP)
 DO_HYBRIDno = 
 
 GHOME       = $(PWD)

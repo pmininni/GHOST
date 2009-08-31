@@ -5,9 +5,9 @@
          CALL rotor3(ax,az,C8,2)
          CALL rotor3(ax,ay,C9,3)
          IF (myrank.eq.0) THEN          ! b = b + B_0
-            C7(1,1,1) = bx0*float(n)**3
-            C8(1,1,1) = by0*float(n)**3
-            C9(1,1,1) = bz0*float(n)**3
+            C7(1,1,1) = bx0*real(n,kind=GP)**3
+            C8(1,1,1) = by0*real(n,kind=GP)**3
+            C9(1,1,1) = bz0*real(n,kind=GP)**3
          ENDIF
          CALL prodre3(vx,vy,vz,C10,C11,C12)
          CALL prodre3(C7,C8,C9,C13,C14,C15)
@@ -32,7 +32,7 @@
             CALL entrans(C4,C5,C6,C7,C8,C9,ext,0)
          ENDIF
 
-         rmp = 1./float(o)
+         rmp = 1./real(o,kind=GP)
          DO i = ista,iend
          DO j = 1,n
          DO k = 1,n

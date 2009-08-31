@@ -7,6 +7,7 @@
 !      e-mail: mininni@ucar.uba.ar 
 !=================================================================
 
+
 !=================================================================
 
   MODULE fftplans
@@ -18,16 +19,18 @@
 ! The variable nstrip controls strip mining during the 
 ! transposition. Often set to 1.
 !
+      USE fprecision
       INCLUDE 'fftw3.f'
+ 
       INTEGER, PARAMETER  :: ikind = IKIND_
       INTEGER, PARAMETER  :: csize = CSIZE_
       INTEGER, PARAMETER  :: nstrip = NSTRIP_
       INTEGER, PARAMETER  :: FFTW_REAL_TO_COMPLEX = FFTW_FORWARD
       INTEGER, PARAMETER  :: FFTW_COMPLEX_TO_REAL = FFTW_BACKWARD
       TYPE FFTPLAN
-         COMPLEX, DIMENSION (:,:,:), POINTER :: ccarr
-         COMPLEX, DIMENSION (:,:,:), POINTER :: carr
-         REAL, DIMENSION (:,:,:), POINTER    :: rarr
+         COMPLEX(KIND=GP), DIMENSION (:,:,:), POINTER :: ccarr
+         COMPLEX(KIND=GP), DIMENSION (:,:,:), POINTER :: carr
+         REAL(KIND=GP), DIMENSION (:,:,:), POINTER    :: rarr
          INTEGER(kind=ikind) :: planr,planc
          INTEGER :: n
          INTEGER, DIMENSION (:), POINTER :: itype1, itype2
@@ -47,7 +50,7 @@
 !=================================================================
 
   MODULE mpivars
-      INCLUDE 'mpif.h'
+!     INCLUDE 'mpif.h'
       INTEGER, SAVE :: ista,iend
       INTEGER, SAVE :: jsta,jend
       INTEGER, SAVE :: ksta,kend

@@ -26,6 +26,7 @@
 ! Gomez DO, Mininni PD, Dmitruk P; Phys. Scripta T116, 123 (2005)
 ! Gomez DO, Mininni PD, Dmitruk P; Adv. Sp. Res. 35, 899 (2005)
 !=================================================================
+#include "fftw_wrappers.h"
 
 !*****************************************************************
       SUBROUTINE fftp3d_create_plan(plan,n,fftdir,flags)
@@ -45,6 +46,7 @@
 !-----------------------------------------------------------------
 
       USE mpivars
+      USE commtypes
       USE fftplans
 !$    USE threads
       IMPLICIT NONE
@@ -58,16 +60,16 @@
       ALLOCATE ( plan%carr(n/2+1,n,ksta:kend) )
       ALLOCATE ( plan%rarr(n,n,ksta:kend)     )
       IF (fftdir.eq.FFTW_REAL_TO_COMPLEX) THEN
-      CALL sfftw_plan_many_dft_r2c(plan%planr,2,(/n,n/),kend-ksta+1, &
+      CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/n,n/),kend-ksta+1, &
                               plan%rarr,(/n,n*(kend-ksta+1)/),1,n*n, &
                               plan%carr,(/n/2+1,n*(kend-ksta+1)/),1, &
                               n*(n/2+1),flags)
       ELSE
-      CALL sfftw_plan_many_dft_c2r(plan%planr,2,(/n,n/),kend-ksta+1,      &
+      CALL GPMANGLE(plan_many_dft_c2r)(plan%planr,2,(/n,n/),kend-ksta+1,      &
                          plan%carr,(/n/2+1,n*(kend-ksta+1)/),1,n*(n/2+1), &
                          plan%rarr,(/n,n*(kend-ksta+1)/),1,n*n,flags)
       ENDIF
-      CALL sfftw_plan_many_dft(plan%planc,1,n,n*(iend-ista+1), &
+      CALL GPMANGLE(plan_many_dft)(plan%planc,1,n,n*(iend-ista+1), &
                          plan%ccarr,n*n*(iend-ista+1),1,n,     &
                          plan%ccarr,n*n*(iend-ista+1),1,n,fftdir,flags)
       plan%n = n
@@ -89,13 +91,14 @@
 !     plan : the parallel 3D plan [INOUT]
 !-----------------------------------------------------------------
 
+      USE commtypes
       USE fftplans
       IMPLICIT NONE
 
       TYPE(FFTPLAN), INTENT(INOUT) :: plan
 
-      CALL sfftw_destroy_plan(plan%planr)
-      CALL sfftw_destroy_plan(plan%planc)
+      CALL GPMANGLE(destroy_plan)(plan%planr)
+      CALL GPMANGLE(destroy_plan)(plan%planc)
       DEALLOCATE( plan%ccarr  )
       DEALLOCATE( plan%carr   )
       DEALLOCATE( plan%rarr   )
@@ -121,8 +124,8 @@
 !     itype2 : contains a derived data type for receiving [OUT]
 !-----------------------------------------------------------------
 
+      USE commtypes
       IMPLICIT NONE
-      INCLUDE 'mpif.h'
 
       INTEGER, INTENT(OUT), DIMENSION(0:nprocs-1) :: itype1,itype2
       INTEGER, INTENT(IN) :: n,nprocs
@@ -137,14 +140,14 @@
       DO irank = 0,nprocs-1
          CALL range(1,n/2+1,nprocs,irank,ista,iend)
          CALL block3d(1,n/2+1,1,n,ksta,ista,iend,1,n,ksta, &
-                     kend,MPI_COMPLEX,itemp1)
+                     kend,GC_COMPLEX,itemp1)
          itype1(irank) = itemp1
       END DO
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       DO krank = 0,nprocs-1
          CALL range(1,n,nprocs,krank,ksta,kend)
          CALL block3d(ista,iend,1,n,1,ista,iend,1,n,ksta, &
-                     kend,MPI_COMPLEX,itemp2)
+                     kend,GC_COMPLEX,itemp2)
          itype2(krank) = itemp2
       END DO
 
@@ -166,6 +169,8 @@
 !     comm : the MPI communicator (handle) [IN]
 !-----------------------------------------------------------------
 
+      USE commtypes
+      USE fprecision
       USE mpivars
       USE fftplans
 !$    USE threads
@@ -173,9 +178,9 @@
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
 
-      COMPLEX, INTENT(OUT), DIMENSION(plan%n,plan%n,ista:iend) :: out 
-      COMPLEX, DIMENSION(ista:iend,plan%n,plan%n)              :: c1
-      REAL, INTENT(IN), DIMENSION(plan%n,plan%n,ksta:kend)     :: in
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(plan%n,plan%n,ista:iend) :: out 
+      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%n,plan%n)              :: c1
+      REAL(KIND=GP), INTENT(IN), DIMENSION(plan%n,plan%n,ksta:kend)     :: in
 
       INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
@@ -189,7 +194,7 @@
 !
 ! 2D FFT in each node using the FFTW library
 !
-      CALL sfftw_execute_dft_r2c(plan%planr,in,plan%carr)
+      CALL GPMANGLE(execute_dft_r2c)(plan%planr,in,plan%carr)
 !
 ! Transposes the result between nodes using 
 ! strip mining when nstrip>1 (rreddy@psc.edu)
@@ -237,7 +242,7 @@
 !
 ! 1D FFT in each node using the FFTW library
 !
-      CALL sfftw_execute_dft(plan%planc,out,out)
+      CALL GPMANGLE(execute_dft)(plan%planc,out,out)
 
       RETURN
       END SUBROUTINE fftp3d_real_to_complex
@@ -259,16 +264,18 @@
 !     comm : the MPI communicator (handle) [IN]
 !-----------------------------------------------------------------
 
+      USE fprecision
       USE mpivars
+      USE commtypes
       USE fftplans
 !$    USE threads
       IMPLICIT NONE
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
 
-      COMPLEX, INTENT(IN), DIMENSION(plan%n,plan%n,ista:iend) :: in 
-      COMPLEX, DIMENSION(ista:iend,plan%n,plan%n)             :: c1
-      REAL, INTENT(OUT), DIMENSION(plan%n,plan%n,ksta:kend)   :: out
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(plan%n,plan%n,ista:iend) :: in 
+      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%n,plan%n)             :: c1
+      REAL(KIND=GP), INTENT(OUT), DIMENSION(plan%n,plan%n,ksta:kend)   :: out
 
       INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
@@ -282,7 +289,7 @@
 !
 ! 1D FFT in each node using the FFTW library
 !
-      CALL sfftw_execute_dft(plan%planc,in,in)
+      CALL GPMANGLE(execute_dft)(plan%planc,in,in)
 !
 ! Cache friendly transposition
 !
@@ -330,7 +337,7 @@
 !
 ! 2D FFT in each node using the FFTW library
 !
-      CALL sfftw_execute_dft_c2r(plan%planr,plan%carr,out)
+      CALL GPMANGLE(execute_dft_c2r)(plan%planr,plan%carr,out)
 
       RETURN
       END SUBROUTINE fftp3d_complex_to_real
@@ -358,9 +365,9 @@
 !     inewtype: the derived data type for the block [OUT]
 !-----------------------------------------------------------------
 
+      USE commtypes
       USE fftplans
       IMPLICIT NONE
-      INCLUDE 'mpif.h'
 
       INTEGER, DIMENSION (2) :: iblock,idisp,itype
 

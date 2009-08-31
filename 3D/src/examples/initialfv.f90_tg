@@ -29,14 +29,14 @@
             R2(i,j,k) = 0.
 
             DO ki = kdn,kup
-               R1(i,j,k) = R1(i,j,k)+SIN(2*pi*ki*(float(i)-1)/ &
-                          float(n))*COS(2*pi*ki*(float(j)-1)/  &
-                          float(n))*COS(2*pi*ki*(float(k)-1)/  &
-                          float(n))
-               R2(i,j,k) = R2(i,j,k)-COS(2*pi*ki*(float(i)-1)/ &
-                          float(n))*SIN(2*pi*ki*(float(j)-1)/  &
-                          float(n))*COS(2*pi*ki*(float(k)-1)/  &
-                          float(n))
+               R1(i,j,k) = R1(i,j,k)+SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
+                          real(n,kind=GP))*COS(2*pi*ki*(real(j,kind=GP)-1)/  &
+                          real(n,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/  &
+                          real(n,kind=GP))
+               R2(i,j,k) = R2(i,j,k)-COS(2*pi*ki*(real(i,kind=GP)-1)/ &
+                          real(n,kind=GP))*SIN(2*pi*ki*(real(j,kind=GP)-1)/  &
+                          real(n,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/  &
+                          real(n,kind=GP))
             END DO
 
             END DO

@@ -40,6 +40,8 @@
 !     hel: =1 computes the helicity spectrum
 !          =0 skips helicity spectrum computation
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
@@ -48,9 +50,9 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1)            :: Ek,Ektot
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL                :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
+      REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: kin,hel
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -73,7 +75,7 @@
 !
 ! Computes the kinetic energy spectrum
 !
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn)
@@ -287,6 +289,8 @@
 !     hel: =1 computes the helicity spectrum
 !          =0 skips helicity spectrum computation
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
@@ -295,9 +299,9 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1)            :: Ek,Ektot
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL                :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
+      REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: kin,hel
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -320,7 +324,7 @@
 !
 ! Computes the kinetic energy spectrum
 !
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn)
@@ -535,6 +539,8 @@
 !          =1 computes the kinetic energy transfer
 !          =2 computes the Lorentz force transfer
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
@@ -543,9 +549,9 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1)          :: Ek,Ektot
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
-      REAL                :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
+      REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -560,7 +566,7 @@
 !
 ! Computes the kinetic energy transfer
 !
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
       IF ((kin.eq.1).or.(kin.eq.2)) THEN
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn)
@@ -707,6 +713,8 @@
 !          =1 computes the kinetic energy transfer
 !          =2 computes the Lorentz force transfer
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
@@ -715,9 +723,9 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1)            :: Ek,Ektot
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
-      REAL                :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
+      REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -732,7 +740,7 @@
 !
 ! Computes the kinetic energy transfer
 !
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
       IF ((kin.eq.1).or.(kin.eq.2)) THEN
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn)
@@ -878,6 +886,8 @@
 !     kin: =0 computes the magnetic helicity transfer
 !          =1 computes the kinetic helicity transfer
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
@@ -886,10 +896,10 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1)          :: Hk,Hktot
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
-      COMPLEX, DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL                :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
+      REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -904,7 +914,7 @@
 !
 ! Computes the helicity transfer
 !
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
       CALL rotor3(b,c,c1,1)
       CALL rotor3(a,c,c2,2)
       CALL rotor3(a,b,c3,3)
@@ -997,6 +1007,8 @@
 !     kin: =0 computes the magnetic helicity transfer
 !          =1 computes the kinetic helicity transfer
 !
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
@@ -1005,10 +1017,10 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1)            :: Hk,Hktot
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
-      COMPLEX, DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL                :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
+      REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -1023,7 +1035,7 @@
 !
 ! Computes the helicity transfer
 !
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
       CALL rotor3(b,c,c1,1)
       CALL rotor3(a,c,c2,2)
       CALL rotor3(a,b,c3,3)

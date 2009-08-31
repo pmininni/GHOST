@@ -50,24 +50,27 @@
 !=================================================================
 
   MODULE ali
-      REAL :: kmax
-      REAL :: tiny
-      REAL :: tinyf
+      USE fprecision
+      REAL(KIND=GP) :: kmax
+      REAL(KIND=GP) :: tiny
+      REAL(KIND=GP) :: tinyf
       SAVE
 
   END MODULE ali
 !=================================================================
 
   MODULE var
-      REAL    :: pi = 3.14159265
-      COMPLEX :: im = (0.,1.)
+      USE fprecision
+      REAL(KIND=GP)    :: pi = 3.14159265
+      COMPLEX(KIND=GP) :: im = (0.,1.)
       SAVE
 
   END MODULE var
 !=================================================================
 
   MODULE hall
-      REAL    :: ep
+      USE fprecision
+      REAL(KIND=GP)    :: ep
       INTEGER :: gspe
       SAVE
 
@@ -75,16 +78,18 @@
 !=================================================================
 
   MODULE kes
-      REAL, ALLOCATABLE, DIMENSION (:)     :: ka
-      REAL, ALLOCATABLE, DIMENSION (:,:,:) :: ka2
+      USE fprecision
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)     :: ka
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: ka2
       SAVE
 
   END MODULE kes
 !=================================================================
 
   MODULE random
+      USE fprecision
       CONTAINS
-       REAL FUNCTION randu(idum)
+       REAL(KIND=GP) FUNCTION randu(idum)
 !
 ! Uniform distributed random numbers between -1 and 
 ! 1. The seed idum must be between 0 and the value 
@@ -93,7 +98,7 @@
        INTEGER, PARAMETER :: iq=127773,ir=2836,mask=123459876
        INTEGER, PARAMETER :: ia=16807,im=2147483647
        INTEGER            :: k,idum
-       REAL, PARAMETER    :: am=1./im
+       REAL(KIND=GP), PARAMETER    :: am=1./im
 
        idum = ieor(idum,mask)
        k = idum/iq
@@ -104,15 +109,15 @@
        idum = ieor(idum,mask)
        END FUNCTION randu
 
-       REAL FUNCTION randn(idum)
+       REAL(KIND=GP) FUNCTION randn(idum)
 !
 ! Normally distributed random numbers with zero mean 
 ! and unit variance. The seed idum must be between 0 
 ! and the value of mask in randu.
 
-       REAL          :: v1,v2,ran1
-       REAL          :: fac,rsq
-       REAL,SAVE     :: gset
+       REAL(KIND=GP)          :: v1,v2,ran1
+       REAL(KIND=GP)          :: fac,rsq
+       REAL(KIND=GP),SAVE     :: gset
        INTEGER       :: idum
        INTEGER, SAVE :: iset
 

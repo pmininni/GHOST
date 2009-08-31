@@ -34,19 +34,21 @@
 !     f  : product [curl(A)xAs]_z in Fourier space [output]
 !     alp: value of alpha
 !
+      USE fprecision
+      USE commtypes
       USE mpivars
       USE grid
       USE fft
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: d,e,f
-      REAL, DIMENSION(n,n,ksta:kend)    :: r1,r2
-      REAL, DIMENSION(n,n,ksta:kend)    :: r3,r4
-      REAL, DIMENSION(n,n,ksta:kend)    :: r5,r6
-      REAL, DIMENSION(n,n,ksta:kend)    :: r7
-      REAL, INTENT(IN) :: alp
-      REAL             :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: d,e,f
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r3,r4
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r5,r6
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r7
+      REAL(KIND=GP), INTENT(IN) :: alp
+      REAL(KIND=GP)             :: tmp
       INTEGER          :: i,j,k
 
 !
@@ -68,7 +70,7 @@
 !
 ! Computes curl(A)xAs
 !
-      tmp = 1./float(n)**6
+      tmp = 1./real(n,kind=GP)**6
       DO k = ksta,kend
          DO j = 1,n
             DO i = 1,n

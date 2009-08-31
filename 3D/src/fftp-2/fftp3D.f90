@@ -39,7 +39,7 @@
 !     plan   : contains the parallel 3D plan [OUT]
 !     n      : the size of the dimensions of the input array [IN]
 !     fftdir : the direction of the Fourier transform [IN]
-!              FFTW_FORWARD or FFTW_REAL_TO_COMPLEX (-1)
+!              FFTW_FORWARD or FFTW_REAL_TO_COMPLEX(KIND=GP) (-1)
 !              FFTW_BACKWARD or FFTW_COMPLEX_TO_REAL (+1)
 !     flags  : flags for the FFTW [IN]
 !              FFTW_MEASURE (optimal but slower) or 
@@ -106,6 +106,7 @@
 !     itype2 : contains a derived data type for receiving [OUT]
 !-----------------------------------------------------------------
 
+      USE commtypes
       IMPLICIT NONE
       INCLUDE 'mpif.h'
 
@@ -122,14 +123,14 @@
       DO irank = 0,nprocs-1
          CALL range(1,n/2+1,nprocs,irank,ista,iend)
          CALL block3d(1,n/2+1,1,n,ksta,ista,iend,1,n,ksta, &
-                     kend,MPI_COMPLEX,itemp1)
+                     kend,GC_COMPLEX,itemp1)
          itype1(irank) = itemp1
       END DO
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       DO krank = 0,nprocs-1
          CALL range(1,n,nprocs,krank,ksta,kend)
          CALL block3d(ista,iend,1,n,1,ista,iend,1,n,ksta, &
-                     kend,MPI_COMPLEX,itemp2)
+                     kend,GC_COMPLEX,itemp2)
          itype2(krank) = itemp2
       END DO
 
@@ -151,16 +152,18 @@
 !     comm : the MPI communicator (handle) [IN]
 !-----------------------------------------------------------------
 
+      USE fprecision
       USE mpivars
+      USE commtypes
       USE fftplans
       IMPLICIT NONE
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
 
-      COMPLEX, INTENT(OUT), DIMENSION(plan%n,plan%n,ista:iend) :: out 
-      COMPLEX, DIMENSION(plan%n/2+1,plan%n,ksta:kend)          :: c1
-      COMPLEX, DIMENSION(ista:iend,plan%n,plan%n)              :: c2
-      REAL, INTENT(IN), DIMENSION(plan%n,plan%n,ksta:kend)     :: in
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(plan%n,plan%n,ista:iend) :: out 
+      COMPLEX(KIND=GP), DIMENSION(plan%n/2+1,plan%n,ksta:kend)          :: c1
+      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%n,plan%n)              :: c2
+      REAL(KIND=GP), INTENT(IN), DIMENSION(plan%n,plan%n,ksta:kend)     :: in
 
       INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
@@ -244,16 +247,18 @@
 !     comm : the MPI communicator (handle) [IN]
 !-----------------------------------------------------------------
 
+      USE fprecision
       USE mpivars
+      USE commtypes
       USE fftplans
       IMPLICIT NONE
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
 
-      COMPLEX, INTENT(IN), DIMENSION(plan%n,plan%n,ista:iend) :: in 
-      COMPLEX, DIMENSION(plan%n/2+1,plan%n,ksta:kend)         :: c1
-      COMPLEX, DIMENSION(ista:iend,plan%n,plan%n)             :: c2
-      REAL, INTENT(OUT), DIMENSION(plan%n,plan%n,ksta:kend)   :: out
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(plan%n,plan%n,ista:iend) :: in 
+      COMPLEX(KIND=GP), DIMENSION(plan%n/2+1,plan%n,ksta:kend)         :: c1
+      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%n,plan%n)             :: c2
+      REAL(KIND=GP), INTENT(OUT), DIMENSION(plan%n,plan%n,ksta:kend)   :: out
 
       INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
@@ -343,6 +348,7 @@
 !     inewtype: the derived data type for the block [OUT]
 !-----------------------------------------------------------------
 
+      USE commtypes
       USE fftplans
       IMPLICIT NONE
       INCLUDE 'mpif.h'

@@ -16,7 +16,7 @@
             CALL sctrans(C20,C5,ext)
          ENDIF
 
-         rmp = 1./float(o)
+         rmp = 1./REAL(o,KIND=GP)
          DO i = ista,iend 
          DO j = 1,n
          DO k = 1,n

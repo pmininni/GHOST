@@ -30,16 +30,17 @@
 !     f  : smoothed field in the x-direction [output]
 !     alp: value of alpha
 !
+      USE fprecision
       USE ali
       USE kes
       USE grid
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX, INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
-      COMPLEX, INTENT(OUT), DIMENSION(n,n,ista:iend) :: d,e,f
-      REAL, INTENT(IN) :: alp
-      REAL             :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: d,e,f
+      REAL(KIND=GP), INTENT(IN) :: alp
+      REAL(KIND=GP)             :: tmp
       INTEGER          :: i,j,k
 
       DO i = ista,iend
