@@ -19,21 +19,24 @@ MPIINC      = $(MPIINC_$(MPI))
 MPILIB      = $(MPILIB_$(MPI))
 MPILDFLAGS  = $(MPILD_$(MPI))
 
-DO_HYBRIDyes= $($(COMPILER)_OMP)
+DO_HYBRIDyes= $(COMPILER)_OMP
 DO_HYBRIDno = 
 
-FFTW3_OMP   = -lfftw3f_threads
-FFTW2FLAGS  = -lsrfftw -lsfftw -lm
-FFTW3FLAGS  = -lfftw3f $($(FFTP:fftp-%=FFTW%)_$(P_HYBRID:yes%=OMP%)) -lm
+GHOME       = $(PWD)
+FFTW3DOUBLE = 
+FFTW3SINGLE = f
+FFTW2FLAGS  = -lsrfftw -lsfftw -lm 
+FFTW3FLAGS  = -lfftw3$(FFTW3$(PRECISION)) -lm $(DO_HYBRID$(P_HYBRID))
 FFTWDIR     = $($(FFTP:fftp-%=FFTW%)DIR)
 FFTWLDFLAGS = $($(FFTP:fftp-%=FFTW%)FLAGS)
 FFTWINC     = $(FFTWDIR)/include
 FFTWLIB     = $(FFTWDIR)/lib
-LDFLAGS     = $(MPILIB) -L$(FFTWLIB) $(DO_HYBRID$(P_HYBRID)) $(MPILDFLAGS) $(FFTWLDFLAGS)
-INCLUDE     = $(MPIINC) -I$(FFTWINC) -I$(FFTP) -I$(IOLIB) -Iinclude
+LDFLAGS     = $(MPILIB) -L$(FFTWLIB) $(MPILDFLAGS) $(FFTWLDFLAGS)
+INCLUDE     = $(MPIINC) -I$(FFTWINC) -I$(GHOME)/$(FFTP) -I$(GHOME)/$(IOLIB) -Iinclude
 CPPFLAGS    = -D$(SOLVER)_SOL
 PREPROCESS  = $(CPP) $(CPPFLAGS)
 COMPILE     = $(FC) $(FFLAGS) $(DO_HYBRID$(P_HYBRID)) $(INCLUDE) $(TARGET_ARCH) -c
+
 
 HD_OBJS        = pseudospec3D_mod.o module_dns.o pseudospec3D_hd.o
 PHD_OBJS       = $(HD_OBJS) pseudospec3D_phd.o
@@ -83,7 +86,7 @@ edit:
 	$(CPP) -DN_=$(N) -DORD_=$(ORD) $(OBJSDIR)/pseudospec3D_mod.fpp -o \
 	   $(OBJSDIR)/pseudospec3D_mod.f90
 	cd $(FFTP) && $(MAKE) edit CPP='$(CPP)' IKIND='$(IKIND)' \
-	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)'
+	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)'
 	if [ ${UNDER} -eq 1 ]; then \
 	if [ -e main3D.fpp.bak ]; then \
 	 echo 'Files have already been modified!'; else \
@@ -136,7 +139,7 @@ $(FFTP)/fftp3D.o:
 	cd $(FFTP) && $(MAKE) COMPILE='$(COMPILE)'
 
 $(IOLIB)/binary_io.o:
-	cd $(IOLIB) && $(MAKE) COMPILE='$(COMPILE)'
+	cd $(IOLIB) && $(MAKE) COMPILE='$(COMPILE)' 
 
 $(OBJS) $(TRAN_OBJS) $(STRU_OBJS):
 	$(COMPILE) $(OBJSDIR)/$(@:.o=.f90)
