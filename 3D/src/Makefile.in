@@ -4,13 +4,13 @@
 
 # N        spatial resolution
 # ORD      number of iterations in the Runge-Kutta method
-N        = 64
+N        = 128
 ORD      = 2
 
 # SOLVER:  (read the file SOLVERS for a list of options)
 SOLVER   = HD
 
-# PRECISION: (DOUBLE or SINGLE)
+# PRECISION: (SINGLE or DOUBLE)
 PRECISION= SINGLE
 
 # IOLIB:
@@ -29,7 +29,7 @@ P_HYBRID = no
 # FFTWxDIR contains the path to the FFTW libraries
 FFTP     = fftp-3
 FFTW2DIR = /share/apps/fftw2
-FFTW3DIR = /share/apps/fftw
+FFTW3DIR = /share/apps/fftw-3.2.2
 
 # IKIND    4 in 32 bits machines, 8 in 64 bits machines
 # CSIZE    8 if L1 cache is <= 64 kb, 16 if L1 cache is 128 kb
@@ -82,7 +82,7 @@ TARGET_INTEL  =
 #
 # GFortran compiler (GNU)
 CPP_GNU       = /usr/bin/cpp -traditional-cpp
-FC_GNU        = gfortran
+FC_GNU        = gfortran -pg
 FFLAGS_GNU    = -O4
 GNU_OMP       = -fopenmp
 TARGET_GNU    = -msse
@@ -98,7 +98,8 @@ TARGET_G95    = -msse
 # MPICH
 MPIINC_MPICH  = -I/opt/mpich2/gnu/include
 MPILIB_MPICH  = -L/opt/mpich2/gnu/lib
-MPILD_MPICH   = -lmpich -lmpichf90 -lfmpich -lpthread -lrt -lmpich -lpthread -lrt -luuid
+MPILD_MPICH   = -lmpich -lmpichf90 -lfmpich -lpthread -lrt -lmpich \
+  -lpthread -lrt -luuid
 #
 # MPICH-GM (GM)
 MPIINC_GM     = -I/usr/local/mpich-gm-62/include

@@ -13,20 +13,24 @@
 !     kdn : minimum wave number
 !     kup : maximum wave number
 
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,n
             DO k = 1,n
-               fz(k,j,i) = 0.
+               fz(k,j,i) = 0.0_GP
             END DO
          END DO
       END DO
 
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,n
             DO i = 1,n
 
-            R1(i,j,k) = 0.
-            R2(i,j,k) = 0.
+            R1(i,j,k) = 0.0_GP
+            R2(i,j,k) = 0.0_GP
 
             DO ki = kdn,kup
                R1(i,j,k) = R1(i,j,k)+SIN(2*pi*ki*(real(i,kind=GP)-1)/ &

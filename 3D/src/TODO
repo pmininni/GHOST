@@ -1,6 +1,6 @@
 The following are a number of ideas for future work that I have thought 
 of, or which have been suggested to me.  Let me know if you have other 
-ideas or proposals, or if there is something that you want to work on.
+ideas, or if there is something that you want to work on.
 
 * Improve the documentation of the output files created by the code.
 
@@ -15,9 +15,4 @@ conditions.
 
 * Implement 1D domain decomposition in the parallel FFTs.
 
-* Full double precision support. Most compilers allow upgrade of 
-variables to double precision at compile time, but to make the option 
-of double precision easy to use some MPI variables have to be 
-overridden, and some name mangling is needed for FFTW 3.x.
-
-* Add the 2D code and solvers to this distribution?
+* Update the 2D source to follow the same structure as the 3D source.

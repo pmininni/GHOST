@@ -20,13 +20,17 @@ MPILIB      = $(MPILIB_$(MPI))
 MPILDFLAGS  = $(MPILD_$(MPI))
 
 DO_HYBRIDyes= $($(COMPILER)_OMP)
-DO_HYBRIDno = 
+DO_HYBRIDno =
 
 GHOME       = $(PWD)
-FFTW3DOUBLE = 
+FFTW2SINGLE = s
+FFTW2DOUBLE = d
+FFTW2FLAGS  = -l$(FFTW2$(PRECISION))rfftw -l$(FFTW2$(PRECISION))fftw -lm
 FFTW3SINGLE = f
-FFTW2FLAGS  = -lsrfftw -lsfftw -lm 
-FFTW3FLAGS  = -lfftw3$(FFTW3$(PRECISION)) -lm $(DO_HYBRID$(P_HYBRID))
+FFTW3DOUBLE =
+FFTW3HYByes = -lfftw3$(FFTW3$(PRECISION))_threads
+FFTW3HYBno  =
+FFTW3FLAGS  = $(FFTW3HYB$(P_HYBRID)) -lfftw3$(FFTW3$(PRECISION)) -lm $(DO_HYBRID$(P_HYBRID)) 
 FFTWDIR     = $($(FFTP:fftp-%=FFTW%)DIR)
 FFTWLDFLAGS = $($(FFTP:fftp-%=FFTW%)FLAGS)
 FFTWINC     = $(FFTWDIR)/include
@@ -36,7 +40,6 @@ INCLUDE     = $(MPIINC) -I$(FFTWINC) -I$(GHOME)/$(FFTP) -I$(GHOME)/$(IOLIB) -Iin
 CPPFLAGS    = -D$(SOLVER)_SOL
 PREPROCESS  = $(CPP) $(CPPFLAGS)
 COMPILE     = $(FC) $(FFLAGS) $(DO_HYBRID$(P_HYBRID)) $(INCLUDE) $(TARGET_ARCH) -c
-
 
 HD_OBJS        = pseudospec3D_mod.o module_dns.o pseudospec3D_hd.o
 PHD_OBJS       = $(HD_OBJS) pseudospec3D_phd.o

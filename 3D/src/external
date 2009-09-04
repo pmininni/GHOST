@@ -13,6 +13,13 @@ sfftw_destroy_plan
 sfftw_execute_dft
 sfftw_execute_dft_r2c
 sfftw_execute_dft_c2r
+dfftw_plan_many_dft
+dfftw_plan_many_dft_r2c
+dfftw_plan_many_dft_c2r
+dfftw_destroy_plan
+dfftw_execute_dft
+dfftw_execute_dft_r2c
+dfftw_execute_dft_c2r
 MPI_TYPE_CREATE_SUBARRAY
 MPI_FILE_OPEN
 MPI_FILE_CLOSE

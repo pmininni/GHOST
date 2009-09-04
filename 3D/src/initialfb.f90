@@ -11,12 +11,14 @@
 
 ! Null electromotive forcing
 
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,n
             DO k = 1,n
-               mx(k,j,i) = 0.
-               my(k,j,i) = 0.
-               mz(k,j,i) = 0.
+               mx(k,j,i) = 0.0_GP
+               my(k,j,i) = 0.0_GP
+               mz(k,j,i) = 0.0_GP
             END DO
          END DO
       END DO

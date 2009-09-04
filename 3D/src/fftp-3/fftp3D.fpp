@@ -60,6 +60,8 @@
       ALLOCATE ( plan%carr(n/2+1,n,ksta:kend) )
       ALLOCATE ( plan%rarr(n,n,ksta:kend)     )
       IF (fftdir.eq.FFTW_REAL_TO_COMPLEX) THEN
+!$    CALL GPMANGLE(init_threads)(ierr)
+!$    CALL GPMANGLE(plan_with_nthreads)(nth)
       CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/n,n/),kend-ksta+1, &
                               plan%rarr,(/n,n*(kend-ksta+1)/),1,n*n, &
                               plan%carr,(/n/2+1,n*(kend-ksta+1)/),1, &

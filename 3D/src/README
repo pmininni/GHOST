@@ -17,18 +17,19 @@ FFTW is used.
 1. Installing FFTW
 ==================
 
-The default version of FFTW for the GHOST code is 2.1.5 (versions 
-previous to 2.1.5 should also work). The parallel FFT based on FFTW 
-2.x is in the directory 'fftp-2'. The API of FFTW 3.x is incompatible 
-with that of FFTW 2.x, and as a result also incompatible with fftp-2. 
-To use FFTW 3.x, use the parallel library in the directory 'fftp-3' 
-instead. Note that FFTW 3.x is faster, but how fast depends strongly 
-on the alignment of arrays, and on whether the hardware supports SIMD 
-instructions. For this to work, FFTW 3.x should be compiled with some 
-form of SSE/SSE2/3dNow!/Altivec support (see the FFTW documentation), 
-and a Fortran compiler that aligns arrays properly should be used to 
-compile the code. The parallel library for FFTW 3.x uses more memory, 
-so if you are running on a low-memory environment use FFTW 2.x instead.
+The default version of FFTW for the GHOST code is 3.2.2 (versions 3.x 
+previous to 3.2.2 should also work). The parallel FFT based on FFTW 
+3.x is in the directory 'fftp-3'. The API of FFTW 2.x is incompatible 
+with that of FFTW 3.x, and as a result also incompatible with fftp-3. 
+To use FFTW 2.x, use the parallel library in the directory 'fftp-2' 
+instead. Note that FFTW 3.x is faster, although how fast depends 
+strongly on the alignment of arrays, and on whether the hardware 
+supports SIMD instructions. For this to work, FFTW 3.x should be 
+compiled with some form of SSE/SSE2/3dNow!/Altivec support (see the 
+FFTW documentation), and a Fortran compiler that aligns arrays 
+properly should be used to compile GHOST. The parallel library for 
+FFTW 3.x uses more memory, so if you are running on a low-memory 
+environment use FFTW 2.x instead.
 
 To compile FFTW 2.x, 'cd' to the directory containing the source and 
 type
@@ -105,7 +106,7 @@ these variables). The lines
 
 -------------------------------------------------------------------
 IKIND    = 8
-CSIZE    = 16
+CSIZE    = 32
 NSTRIP   = 1
 -------------------------------------------------------------------
 
@@ -116,10 +117,10 @@ machines. 'CSIZE' is used by the parallel FFT to do cache-friendly
 transpositions. The optimal value for a particular machine can be 
 adjusted doing benchmarks, but rule of thumb values are 8 if the L1 
 cache is smaller or equal to 64 kb, and 16 if the L1 cache is 
-larger than 64 kb (24 is best in some processors with large cache). 
-The variable 'NSTRIP' controls strip mining during the 
-transpositions. The default value is 1 and in that case no strip 
-mining is done.
+larger than 64 kb (24 or 32 may be best in some processors with 
+large cache). The variable 'NSTRIP' controls strip mining during 
+the transpositions. The default value is 1 and in that case no 
+strip mining is done.
 
 Finally, if required, the users can change the number of digits 
 used to label spectrum, transfer and binary files. The variables 
@@ -139,13 +140,13 @@ be found in the directory 'examples'.
 Check the makefile to see all paths and variables are correct. In 
 some computers where MPI or FFTW are already installed, problems 
 can be found if MPI and FFTW were compiled using different 
-compilers. GNU compilers add two underscores to the name of 
-external functions and subroutines, while vendors compilers often 
-add one underscore. To solve this problem, if the variable 'UNDER' 
-is set to 1 in the makefile, the makefile runs a PERL script to 
-add underscores as needed before compiling. The file 'external' 
-lists the names of external functions and subroutines that need an 
-extra underscore.
+compilers. GNU compilers previous to version 4.x add two 
+underscores to the name of external functions and subroutines, 
+while vendors compilers often add one underscore. To solve this 
+problem, if the variable 'UNDER' is set to 1 in the makefile, the 
+makefile runs a PERL script to add underscores as needed before 
+compiling. The file 'external' lists the names of external 
+functions and subroutines that need an extra underscore.
 
 WARNING: if you use 'UNDER=1' and compiling fails, remember to do 
 'make clean' or 'make dist' before compiling again or doing any 
@@ -153,13 +154,13 @@ change to the source files. Failing to do so can result in extra
 underscores added to the source files every time a 'make' is 
 attempted.
 
-The makefile builds by default the HD solver using POSIX I/O and 
-FFTP-2. This behavior can be changed passing variables to make, 
-or editing the makefile. As an example, to build the MHD solver 
-with MPI I/O and FFTP-3 you can do
+The makefile builds by default the single precision HD solver using 
+MPI I/O and FFTP-3. This behavior can be changed passing variables 
+to make, or editing the makefile. As an example, to build the MHD 
+solver with double precision, POSIX I/O, and FFTP-2 you can do
 
 -------------------------------------------------------------------
-make SOLVER=MHD IOLIB=mpiio FFTP=fftp-3
+make SOLVER=MHD PRECISION=DOUBLE IOLIB=posix FFTP=fftp-2
 -------------------------------------------------------------------
 
 The path to the FFTW libraries can be changed passing make the 
@@ -168,10 +169,41 @@ the file 'SOLVERS' and the makefile. In addition, the makefile
 supports 'make clean', 'make dist', and extra options to make code 
 for data analysis after the runs are finished (these are: 
 'make trans', 'make triad', and 'make struc', each one also 
-supports the SOLVER, IOLIB, and FFTP variables; see the file 
-'SOLVERS' and the makefile for more details).
+supports the SOLVER, PRECISION, IOLIB, and FFTP variables; see the 
+file 'SOLVERS' and the makefile for more details).
 
-2.3 About the solvers:
+2.3 Hybrid support
+
+The code provides support for OpenMP-MPI hybridization, for use in
+supercomputers with multi-core processors and for simulations using 
+a large number of cores. When the variable
+
+-------------------------------------------------------------------
+P_HYBRID=yes
+-------------------------------------------------------------------
+
+is passed to make at compile time, a hybrid parallelization model 
+is used. Then, the number of MPI jobs and the number of threads in 
+each job can be set independently at run time. To define the number 
+of threads (in this example, set to 4 threads) in a Bourne-like 
+shell set the environment variable 
+
+-------------------------------------------------------------------
+export OMP_NUM_THREADS=4
+-------------------------------------------------------------------
+
+and in a C-like shell do
+
+-------------------------------------------------------------------
+setenv OMP_NUM_THREADS=4
+-------------------------------------------------------------------
+
+For the hybrid code to scale properly, processor affinity and/or 
+binding are crucial. How to set processor affinity and binding is 
+platform dependent; check the platform documentation where you are 
+running for more information.
+
+2.4 About the solvers:
 
 The main program 'main3D.fpp' includes files for the different 
 solvers at compile time from the directory 'include'. The files 
@@ -352,7 +384,8 @@ in the ABC or Roberts flows). See the files 'initialf*' in the
 directory 'examples' for more details.
 aparam0-9: idem for the initial magnetic field. 
 
-Some solvers may need extra lists, e.g. 'uniformb', 'rotation', or 
+Similar lists are used for solvers with passive scalars. Some 
+solvers may also need extra lists, e.g. 'uniformb', 'rotation', or 
 'hallparam'. See the file 'examples/parameter.txt' and main3D.fpp 
 for more details.
 
@@ -362,7 +395,7 @@ When the code is not running in benchmark mode, it writes several
 files with global quantities, spectra, and components of the fields.
 Global quantities and spectra are written to text files in the 
 directory where the binary was executed, while binary files are 
-written to the directory defined in the 'status.txt' file.
+written to the directory defined in the 'parameter.txt' file.
 
 If POSIX I/O is used, the binary files are named by the field name 
 and component, the node number, and a number that labels the time 

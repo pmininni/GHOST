@@ -41,6 +41,7 @@
 ! 21 Feb 2007: POSIX and MPI/IO support
 ! 10 Mar 2007: FFTW-2.x and FFTW-3.x support
 ! 25 Aug 2009: Hybrid MPI/OpenMP support (D. Rosenberg & P. Mininni)
+! 30 Aug 2009: SINGLE/DOUBLE precision (D. Rosenberg & P. Mininni)
 !
 ! References:
 ! Mininni PD, Gomez DO, Mahajan SM; Astrophys. J. 619, 1019 (2005)
@@ -179,20 +180,20 @@
 #endif
 #ifdef EDQNM_ 
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C19
-      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:) :: tepq,thpq,tve,tvh
-      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:) :: Eold,Hold
-      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:) :: Eext,Hext
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)         :: Eden,Hden
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)  :: tepq,thpq,tve,tvh
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)  :: Eold,Hold
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)  :: Eext,Hext
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: Eden,Hden
 #endif
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: R1,R2,R3
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)        :: Faux1,Faux2
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: R1,R2,R3
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)     :: Faux1,Faux2
 
 !
 ! Auxiliary variables
 
-      COMPLEX(KIND=GP)          :: cdump,jdump
-      COMPLEX(KIND=GP)          :: cdumq,jdumq
-      COMPLEX(KIND=GP)          :: cdumr,jdumr
+      COMPLEX(KIND=GP) :: cdump,jdump
+      COMPLEX(KIND=GP) :: cdumq,jdumq
+      COMPLEX(KIND=GP) :: cdumr,jdumr
       DOUBLE PRECISION :: tmp,tmq
       DOUBLE PRECISION :: eps,epm
       DOUBLE PRECISION :: omptime1,omptime2
@@ -309,7 +310,6 @@
 !
 ! Initializes the MPI and I/O libraries
       CALL MPI_INIT(ierr)
-
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
@@ -385,12 +385,12 @@
 !     kmax: maximum truncation for dealiasing
 !     tiny: minimum truncation for dealiasing
 
-      kmax = (real(n,kind=GP)/3.)**2
+      kmax = (real(n,kind=GP)/3.0_GP)**2
 #ifdef EDQNM_
-      kmax = (real(n,KIND=GP)/2.-.5)**2
+      kmax = (real(n,kind=GP)/2.0_GP-0.5_GP)**2
 #endif
-      tiny  = 1e-5
-      tinyf = 1e-15
+      tiny  = 1e-5_GP
+      tinyf = 1e-15_GP
 
 !
 ! Builds arrays with the wavenumbers and the 
@@ -731,7 +731,7 @@
 !     heli:  = 0 helicity not taken into account
 !            = 1 helicity taken into account
 
-      kolmo = 1.4    !Default value
+      kolmo = 1.4_GP !Default value
       heli = 0       !Default value
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.txt',status='unknown',form="formatted")
@@ -747,14 +747,14 @@
 ! amplitude if constant energy is used, and 
 ! allocates arrays to compute mean flows if needed.
 
-      ampl = 1.
+      ampl = 1.0_GP
       timef = fstep
       IF (rand.eq.2) THEN
          ALLOCATE( Faux1(10) )
          ALLOCATE( Faux2(10) )
          DO i = 1,10
             Faux1(i) = ampl
-            Faux2(i) = 0.
+            Faux2(i) = 0.0_GP
          END DO
       ENDIF
       IF (mean.eq.1) THEN
@@ -766,9 +766,9 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
-                  M1(k,j,i) = 0.
-                  M2(k,j,i) = 0.
-                  M3(k,j,i) = 0.
+                  M1(k,j,i) = 0.0_GP
+                  M2(k,j,i) = 0.0_GP
+                  M3(k,j,i) = 0.0_GP
                END DO
             END DO
          END DO
@@ -779,7 +779,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
-                  M7(k,j,i) = 0.
+                  M7(k,j,i) = 0.0_GP
                END DO
             END DO
          END DO
@@ -793,9 +793,9 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
-                  M4(k,j,i) = 0.
-                  M5(k,j,i) = 0.
-                  M6(k,j,i) = 0.
+                  M4(k,j,i) = 0.0_GP
+                  M5(k,j,i) = 0.0_GP
+                  M6(k,j,i) = 0.0_GP
                END DO
             END DO
          END DO

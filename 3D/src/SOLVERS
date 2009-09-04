@@ -7,14 +7,14 @@ Solvers supported by the main code and tools for analysis
 All the solvers and analysis tools work with the following parallel 
 FFT libraries (pass 'FFTP=' to the make command to change the default):
 
-   fftp-2 parallel FFT library to link with FFTW 2.x [DEFAULT]
-   fftp-3 parallel FFT library to link with FFTW 3.x
+   fftp-3 parallel FFT library to link with FFTW 3.x [DEFAULT]
+   fftp-2 parallel FFT library to link with FFTW 2.x
 
 and with the following I/O libraries (pass 'IOLIB=' to change the 
 default):
 
-   posix  posix I/O, one file per processor [DEFAULT]
-   mpiio  MPI I/O, one file for all processors
+   mpiio  MPI I/O, one file for all processors [DEFAULT]
+   posix  posix I/O, one file per processor
 
 1. main
 =======
@@ -29,6 +29,7 @@ to build a solver other than the default):
    MHDB      MHD solver with a uniform magnetic field
    HMHD      Hall-MHD solver
    ROTH      HD solver in a rotating frame
+   PROTH     ROTH solver with passive scalar
    LAHD      Lagrangian-averaged HD solver
    CAHD      Clark-alpha HD solver
    LHD       Leray HD solver

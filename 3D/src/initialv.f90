@@ -11,12 +11,14 @@
 
 ! Null velocity field
 
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,n
             DO k = 1,n
-               vx(k,j,i) = 0.
-               vy(k,j,i) = 0.
-               vz(k,j,i) = 0.
+               vx(k,j,i) = 0.0_GP
+               vy(k,j,i) = 0.0_GP
+               vz(k,j,i) = 0.0_GP
             END DO
          END DO
       END DO
