@@ -82,7 +82,7 @@ TARGET_INTEL  =
 #
 # GFortran compiler (GNU)
 CPP_GNU       = /usr/bin/cpp -traditional-cpp
-FC_GNU        = gfortran -pg
+FC_GNU        = gfortran
 FFLAGS_GNU    = -O4
 GNU_OMP       = -fopenmp
 TARGET_GNU    = -msse
