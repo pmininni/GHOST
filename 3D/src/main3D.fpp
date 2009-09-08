@@ -83,6 +83,12 @@
 #define ROTATION_
 #endif 
 
+#ifdef PROTH_SOL
+#define DNS_
+#define SCALAR_
+#define ROTATION_
+#endif
+
 #ifdef LAHD_SOL
 #define ALPHAV_
 #endif
@@ -1109,6 +1115,9 @@
 #ifdef ROTH_SOL
               INCLUDE 'hd_adjustfv.f90'
 #endif
+#ifdef PROTH_SOL
+              INCLUDE 'hd_adjustfv.f90'
+#endif
 #ifdef LAHD_SOL
               INCLUDE 'lahd_adjustfv.f90'
 #endif
@@ -1309,6 +1318,9 @@
 #ifdef ROTH_SOL
             INCLUDE 'hd_global.f90'
 #endif
+#ifdef PROTH_SOL
+            INCLUDE 'phd_global.f90'
+#endif
 #ifdef LAHD_SOL
             INCLUDE 'lahd_global.f90'
 #endif
@@ -1394,6 +1406,9 @@
 #ifdef ROTH_SOL
             INCLUDE 'roth_spectrum.f90'
 #endif
+#ifdef PROTH_SOL
+            INCLUDE 'proth_spectrum.f90'
+#endif
 #ifdef LAHD_SOL
             INCLUDE 'lahd_spectrum.f90'
 #endif
@@ -1441,6 +1456,9 @@
 #ifdef ROTH_SOL
          INCLUDE 'hd_rkstep1.f90'
 #endif
+#ifdef PROTH_SOL
+         INCLUDE 'phd_rkstep1.f90'
+#endif
 #ifdef LAHD_SOL
          INCLUDE 'hd_rkstep1.f90'
 #endif
@@ -1485,6 +1503,9 @@
 #endif
 #ifdef ROTH_SOL
          INCLUDE 'roth_rkstep2.f90'
+#endif
+#ifdef PROTH_SOL
+         INCLUDE 'proth_rkstep2.f90'
 #endif
 #ifdef LAHD_SOL
          INCLUDE 'lahd_rkstep2.f90'

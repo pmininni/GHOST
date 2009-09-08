@@ -49,6 +49,7 @@ MHD_OBJS       = $(HD_OBJS) pseudospec3D_mhd.o
 MHDB_OBJS      = $(HD_OBJS) pseudospec3D_mhd.o pseudospec3D_rot.o
 HMHD_OBJS      = $(MHD_OBJS)
 ROTH_OBJS      = $(HD_OBJS) pseudospec3D_rot.o
+PROTH_OBJS     = $(PHD_OBJS) pseudospec3D_rot.o pseudospec3D_prot.o
 ALPHA_OBJS     = module_lles.o pseudospec3D_filt.o
 CAHD_OBJS      = $(HD_OBJS) $(ALPHA_OBJS) pseudospec3D_lles.o pseudospec3D_cahd.o
 LAHD_OBJS      = $(HD_OBJS) $(ALPHA_OBJS) pseudospec3D_lles.o pseudospec3D_lahd.o

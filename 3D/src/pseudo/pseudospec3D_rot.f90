@@ -275,7 +275,7 @@
 ! Computes the energy and helicity power spectrum in the 
 ! direction perpendicular to the preferred direction 
 ! (rotation or uniform magnetic field). The k-shells are 
-! cylindrical surfaces (kperp=1,...,N/2+1). The output is 
+! cylindrical surfaces (kperp=1,...,n/2+1). The output is 
 ! written to a file by the first node.
 !
 ! Parameters
