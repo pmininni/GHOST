@@ -7,8 +7,8 @@
 
 !=================================================================
 MODULE edqnm
-  REAL(KIND=GP), SAVE    :: kolmo
-  INTEGER, SAVE :: heli
+  REAL(KIND=GP), SAVE :: kolmo
+  INTEGER, SAVE       :: heli
 
 END MODULE edqnm
 !=================================================================

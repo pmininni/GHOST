@@ -1,11 +1,8 @@
 !=================================================================
 ! Include file name-mangling of FFTW API names
 !
-! 2009 Pablo D. Mininni.
-!      Department of Physics, 
-!      Facultad de Ciencias Exactas y Naturales.
-!      Universidad de Buenos Aires.
-!      e-mail: mininni@df.uba.ar 
+! 2009 Duane Rosenberg and Pablo D. Mininni.
+!      National Center for Atmospheric Research.
 !=================================================================
 #define CONCAT(prefix,name)    prefix/**/name
 #if defined(GDOUBLE_PRECISION)

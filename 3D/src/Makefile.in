@@ -28,7 +28,7 @@ P_HYBRID = no
 # fftp-3   builds FFTP-3 (links with FFTW 3.x)
 # FFTWxDIR contains the path to the FFTW libraries
 FFTP     = fftp-3
-FFTW2DIR = /share/apps/fftw2
+FFTW2DIR = /share/apps/fftw-2.1.5
 FFTW3DIR = /share/apps/fftw-3.2.2
 
 # IKIND    4 in 32 bits machines, 8 in 64 bits machines

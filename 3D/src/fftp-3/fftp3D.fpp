@@ -20,6 +20,8 @@
 !              blocks in the row and column each processor is.
 !  9 Jul 2004: Transposition uses data cache blocking.
 ! 13 Feb 2007: Transposition uses strip mining (rreddy@psc.edu)
+! 25 Aug 2009: Hybrid MPI/OpenMP support (D. Rosenberg & P. Mininni)
+! 30 Aug 2009: SINGLE/DOUBLE precision (D. Rosenberg & P. Mininni)
 !
 ! References:
 ! Mininni PD, Gomez DO, Mahajan SM; Astrophys. J. 619, 1019 (2005)
@@ -27,6 +29,27 @@
 ! Gomez DO, Mininni PD, Dmitruk P; Adv. Sp. Res. 35, 899 (2005)
 !=================================================================
 #include "fftw_wrappers.h"
+
+!*****************************************************************
+      SUBROUTINE fftp3d_init_threads(err)
+!-----------------------------------------------------------------
+!
+! Initializes FFTW threads.
+!
+! Parameters
+!     err : if zero, the initialization failed
+!-----------------------------------------------------------------
+
+!$    USE threads
+      IMPLICIT NONE
+
+      INTEGER, INTENT(INOUT) :: err
+
+!$    CALL GPMANGLE(init_threads)(err)
+      IF (err.eq.0) PRINT *,'FFTP threads initialization failed!'
+
+      RETURN
+      END SUBROUTINE fftp3d_init_threads
 
 !*****************************************************************
       SUBROUTINE fftp3d_create_plan(plan,n,fftdir,flags)
@@ -46,7 +69,6 @@
 !-----------------------------------------------------------------
 
       USE mpivars
-      USE commtypes
       USE fftplans
 !$    USE threads
       IMPLICIT NONE
@@ -59,15 +81,14 @@
       ALLOCATE ( plan%ccarr(n,n,ista:iend)    )
       ALLOCATE ( plan%carr(n/2+1,n,ksta:kend) )
       ALLOCATE ( plan%rarr(n,n,ksta:kend)     )
-      IF (fftdir.eq.FFTW_REAL_TO_COMPLEX) THEN
-!$    CALL GPMANGLE(init_threads)(ierr)
 !$    CALL GPMANGLE(plan_with_nthreads)(nth)
-      CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/n,n/),kend-ksta+1, &
+      IF (fftdir.eq.FFTW_REAL_TO_COMPLEX) THEN
+      CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/n,n/),kend-ksta+1,  &
                               plan%rarr,(/n,n*(kend-ksta+1)/),1,n*n, &
                               plan%carr,(/n/2+1,n*(kend-ksta+1)/),1, &
                               n*(n/2+1),flags)
       ELSE
-      CALL GPMANGLE(plan_many_dft_c2r)(plan%planr,2,(/n,n/),kend-ksta+1,      &
+      CALL GPMANGLE(plan_many_dft_c2r)(plan%planr,2,(/n,n/),kend-ksta+1,  &
                          plan%carr,(/n/2+1,n*(kend-ksta+1)/),1,n*(n/2+1), &
                          plan%rarr,(/n,n*(kend-ksta+1)/),1,n*n,flags)
       ENDIF
@@ -93,7 +114,6 @@
 !     plan : the parallel 3D plan [INOUT]
 !-----------------------------------------------------------------
 
-      USE commtypes
       USE fftplans
       IMPLICIT NONE
 

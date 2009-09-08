@@ -25,14 +25,16 @@ DO_HYBRIDno =
 GHOME       = $(PWD)
 FFTW2SINGLE = s
 FFTW2DOUBLE = d
-FFTW2FLAGS  = -l$(FFTW2$(PRECISION))rfftw -l$(FFTW2$(PRECISION))fftw -lm
+FFTW2HYByes = -l$(FFTW2$(PRECISION))rfftw_threads -l$(FFTW2$(PRECISION))fftw_threads
+FFTW2HYBno  =
+FFTW2FLAGS  = $(FFTW2HYB$(P_HYBRID)) -l$(FFTW2$(PRECISION))rfftw -l$(FFTW2$(PRECISION))fftw -lm
 FFTW3SINGLE = f
 FFTW3DOUBLE =
 FFTW3HYByes = -lfftw3$(FFTW3$(PRECISION))_threads
 FFTW3HYBno  =
-FFTW3FLAGS  = $(FFTW3HYB$(P_HYBRID)) -lfftw3$(FFTW3$(PRECISION)) -lm $(DO_HYBRID$(P_HYBRID)) 
+FFTW3FLAGS  = $(FFTW3HYB$(P_HYBRID)) -lfftw3$(FFTW3$(PRECISION)) -lm 
 FFTWDIR     = $($(FFTP:fftp-%=FFTW%)DIR)
-FFTWLDFLAGS = $($(FFTP:fftp-%=FFTW%)FLAGS)
+FFTWLDFLAGS = $($(FFTP:fftp-%=FFTW%)FLAGS) $(DO_HYBRID$(P_HYBRID))
 FFTWINC     = $(FFTWDIR)/include
 FFTWLIB     = $(FFTWDIR)/lib
 LDFLAGS     = $(MPILIB) -L$(FFTWLIB) $(MPILDFLAGS) $(FFTWLDFLAGS)
@@ -89,7 +91,8 @@ edit:
 	$(CPP) -DN_=$(N) -DORD_=$(ORD) $(OBJSDIR)/pseudospec3D_mod.fpp -o \
 	   $(OBJSDIR)/pseudospec3D_mod.f90
 	cd $(FFTP) && $(MAKE) edit CPP='$(CPP)' IKIND='$(IKIND)' \
-	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)'
+	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)' \
+           DO_HYBRID='DO_HYBRID$(P_HYBRID)'
 	if [ ${UNDER} -eq 1 ]; then \
 	if [ -e main3D.fpp.bak ]; then \
 	 echo 'Files have already been modified!'; else \

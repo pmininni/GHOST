@@ -49,10 +49,10 @@
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1)            :: Ek,Ektot
+      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL(KIND=GP)                :: tmp
+      REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin,hel
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -75,7 +75,7 @@
 !
 ! Computes the kinetic energy spectrum
 !
-      tmp = 1./real(n,kind=GP)**6
+      tmp = 1.0_GP/real(n,kind=GP)**6
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn)
@@ -195,7 +195,7 @@
 !
       IF (hel.eq.1) THEN
          DO i = 1,n/2+1
-            Ek(i) = 0.
+            Ek(i) = 0.0D0
          END DO
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn)
@@ -298,10 +298,10 @@
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1)            :: Ek,Ektot
+      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL(KIND=GP)                :: tmp
+      REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin,hel
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -311,7 +311,7 @@
 ! Sets Ek to zero
 !
       DO i = 1,n/2+1
-         Ek(i) = 0.
+         Ek(i) = 0.0D0
       END DO
 !
 ! Computes the curl of the field if needed
@@ -324,7 +324,7 @@
 !
 ! Computes the kinetic energy spectrum
 !
-      tmp = 1./real(n,kind=GP)**6
+      tmp = 1.0_GP/real(n,kind=GP)**6
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn)
@@ -444,7 +444,7 @@
 !
       IF (hel.eq.1) THEN
          DO i = 1,n/2+1
-            Ek(i) = 0.
+            Ek(i) = 0.0D0
          END DO
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn)
@@ -548,10 +548,10 @@
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1)          :: Ek,Ektot
+      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
-      REAL(KIND=GP)                :: tmp
+      REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -561,12 +561,12 @@
 ! Sets Ek to zero
 !
       DO i = 1,n/2+1
-         Ek(i) = 0.
+         Ek(i) = 0.0D0
       END DO
 !
 ! Computes the kinetic energy transfer
 !
-      tmp = 1./real(n,kind=GP)**6
+      tmp = 1.0_GP/real(n,kind=GP)**6
       IF ((kin.eq.1).or.(kin.eq.2)) THEN
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn)
@@ -722,10 +722,10 @@
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1)            :: Ek,Ektot
+      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
-      REAL(KIND=GP)                :: tmp
+      REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -735,12 +735,12 @@
 ! Sets Ek to zero
 !
       DO i = 1,n/2+1
-         Ek(i) = 0.
+         Ek(i) = 0.0D0
       END DO
 !
 ! Computes the kinetic energy transfer
 !
-      tmp = 1./real(n,kind=GP)**6
+      tmp = 1.0_GP/real(n,kind=GP)**6
       IF ((kin.eq.1).or.(kin.eq.2)) THEN
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn)
@@ -895,11 +895,11 @@
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1)          :: Hk,Hktot
+      DOUBLE PRECISION, DIMENSION(n/2+1) :: Hk,Hktot
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL(KIND=GP)                :: tmp
+      REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -909,12 +909,12 @@
 ! Sets Hk to zero
 !
       DO i = 1,n/2+1
-         Hk(i) = 0.
+         Hk(i) = 0.0D0
       END DO
 !
 ! Computes the helicity transfer
 !
-      tmp = 1./real(n,kind=GP)**6
+      tmp = 1.0_GP/real(n,kind=GP)**6
       CALL rotor3(b,c,c1,1)
       CALL rotor3(a,c,c2,2)
       CALL rotor3(a,b,c3,3)
@@ -1016,11 +1016,11 @@
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1)            :: Hk,Hktot
+      DOUBLE PRECISION, DIMENSION(n/2+1) :: Hk,Hktot
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL(KIND=GP)                :: tmp
+      REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -1030,12 +1030,12 @@
 ! Sets Hk to zero
 !
       DO i = 1,n/2+1
-         Hk(i) = 0.
+         Hk(i) = 0.0D0
       END DO
 !
 ! Computes the helicity transfer
 !
-      tmp = 1./real(n,kind=GP)**6
+      tmp = 1.0_GP/real(n,kind=GP)**6
       CALL rotor3(b,c,c1,1)
       CALL rotor3(a,c,c2,2)
       CALL rotor3(a,b,c3,3)

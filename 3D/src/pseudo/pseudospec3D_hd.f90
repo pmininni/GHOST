@@ -57,7 +57,7 @@
                IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
                   b(k,j,i) = im*ka(i)*a(k,j,i)
                ELSE
-                  b(k,j,i) = 0.
+                  b(k,j,i) = 0.0_GP
                ENDIF
 
                END DO
@@ -76,7 +76,7 @@
                IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
                   b(k,j,i) = im*ka(j)*a(k,j,i)
                ELSE
-                  b(k,j,i) = 0.
+                  b(k,j,i) = 0.0_GP
                ENDIF
 
                END DO
@@ -95,7 +95,7 @@
                IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
                   b(k,j,i) = im*ka(k)*a(k,j,i)
                ELSE
-                  b(k,j,i) = 0.
+                  b(k,j,i) = 0.0_GP
                END IF
 
                END DO
@@ -310,7 +310,7 @@
       CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c4,r4,MPI_COMM_WORLD)
 
-      tmp = 1./real(n,kind=GP)**6
+      tmp = 1.0_GP/real(n,kind=GP)**6
 !$omp parallel do if (iend-ista.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (iend-ista.lt.nth) private (i)
@@ -392,7 +392,7 @@
 !
 ! Computes curl(A)xA
 !
-      tmp = 1./real(n)**6
+      tmp = 1.0_GP/real(n)**6
 !$omp parallel do if (iend-ista.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (iend-ista.lt.nth) private (i)
@@ -551,12 +551,12 @@
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
       DOUBLE PRECISION, INTENT(OUT) :: d
       DOUBLE PRECISION              :: dloc
-      REAL(KIND=GP)                :: tmp
+      REAL(KIND=GP)                 :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
 
-      dloc = 0.
-      tmp = 1./real(n,kind=GP)**6
+      dloc = 0.0D0
+      tmp = 1.0_GP/real(n,kind=GP)**6
 
 !
 ! Computes the kinetic energy
@@ -703,8 +703,8 @@
       REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
 
-      dloc = 0.
-      tmp = 1./real(n,kind=GP)**6
+      dloc = 0.0D0
+      tmp = 1.0_GP/real(n,kind=GP)**6
 
       CALL rotor3(b,c,c1,1)
       IF (ista.eq.1) THEN
@@ -828,12 +828,12 @@
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
       DOUBLE PRECISION, INTENT(OUT) :: g
       DOUBLE PRECISION              :: gloc
-      REAL(KIND=GP)                :: tmp
+      REAL(KIND=GP)                 :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
 
-      gloc = 0.
-      tmp = 1./real(n,kind=GP)**6
+      gloc = 0.0D0
+      tmp = 1.0_GP/real(n,kind=GP)**6
 !
 ! Computes the averaged inner product between the fields
 !
@@ -976,7 +976,7 @@
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
-      dloc = 0.
+      dloc = 0.0_GP
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i) reduction(max:dloc)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i) reduction(max:dloc)
@@ -1025,15 +1025,15 @@
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
       DOUBLE PRECISION :: eng,ens,pot,khe
       DOUBLE PRECISION :: div,tay,tmp
-      REAL(KIND=GP)             :: dt
-      REAL(KIND=GP)             :: tmq
+      REAL(KIND=GP)       :: dt
+      REAL(KIND=GP)       :: tmq
       INTEGER, INTENT(IN) :: hel,chk
       INTEGER, INTENT(IN) :: t
       INTEGER             :: i,j,k
 
-      div = 0.
-      tmp = 0.
-      tmq = 1./real(n,kind=GP)**6
+      div = 0.0D0
+      tmp = 0.0D0
+      tmq = 1.0_GP/real(n,kind=GP)**6
 
 !
 ! Computes the mean square value of
@@ -1141,7 +1141,7 @@
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Hk
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      INTEGER, INTENT(IN) :: kin,hel
+      INTEGER, INTENT(IN)          :: kin,hel
       CHARACTER(len=*), INTENT(IN) :: nmb
 
 !
@@ -1212,9 +1212,9 @@
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek
       DOUBLE PRECISION, INTENT(OUT), DIMENSION(n/2+1) :: Ektot, Hktot
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)   :: a,b,c
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)               :: c1,c2,c3
-      REAL(KIND=GP)                :: tmp
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
+      REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin,hel
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -1230,11 +1230,11 @@
 !
 ! Computes the kinetic energy spectrum
 !
-      tmp = 1./real(n,kind=GP)**6
+      tmp = 1.0_GP/real(n,kind=GP)**6
       IF (kin.eq.1) THEN
          DO i = 1,n/2+1
-            Ek   (i) = 0.
-            Ektot(i) = 0.
+            Ek   (i) = 0.0D0
+            Ektot(i) = 0.0D0
          END DO
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn)
@@ -1286,8 +1286,8 @@
 !
       ELSE IF (kin.eq.0) THEN
          DO i = 1,n/2+1
-            Ek   (i) = 0.
-            Ektot(i) = 0.
+            Ek   (i) = 0.0D0
+            Ektot(i) = 0.0D0
          END DO
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn)
@@ -1347,8 +1347,8 @@
 !
       IF (hel.eq.1) THEN
          DO i = 1,n/2+1
-            Ek(i) = 0.
-            Hktot(i) = 0.
+            Ek(i) = 0.0D0
+            Hktot(i) = 0.0D0
          END DO
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn)
@@ -1441,7 +1441,7 @@
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
-      REAL(KIND=GP)                :: tmp
+      REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -1451,12 +1451,12 @@
 ! Sets Ek to zero
 !
       DO i = 1,n/2+1
-         Ek(i) = 0.
+         Ek(i) = 0.0D0
       END DO
 !
 ! Computes the kinetic energy transfer
 !
-      tmp = 1./real(n,kind=GP)**6
+      tmp = 1.0_GP/real(n,kind=GP)**6
       IF ((kin.eq.1).or.(kin.eq.2)) THEN
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn)
@@ -1613,7 +1613,7 @@
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL(KIND=GP)                :: tmp
+      REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -1623,12 +1623,12 @@
 ! Sets Hk to zero
 !
       DO i = 1,n/2+1
-         Hk(i) = 0.
+         Hk(i) = 0.0D0
       END DO
 !
 ! Computes the helicity transfer
 !
-      tmp = 1./real(n,kind=GP)**6
+      tmp = 1.0_GP/real(n,kind=GP)**6
       CALL rotor3(b,c,c1,1)
       CALL rotor3(a,c,c2,2)
       CALL rotor3(a,b,c3,3)

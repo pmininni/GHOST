@@ -35,7 +35,6 @@
       INTEGER, DIMENSION(3) :: sizes,subsizes,starts
       TYPE(IOPLAN), INTENT(OUT) :: plan
 
-
       plan%n = n
       plan%ksta = ksta
       plan%kend = kend
@@ -79,10 +78,10 @@
       USE iompi
       IMPLICIT NONE
       
-      TYPE(IOPLAN), INTENT(IN) :: plan
+      TYPE(IOPLAN), INTENT(IN)   :: plan
       REAL(KIND=GP), INTENT(OUT) :: var(plan%n,plan%n,plan%ksta:plan%kend)
-      INTEGER, INTENT(IN)      :: unit
-      INTEGER                  :: fh
+      INTEGER, INTENT(IN)        :: unit
+      INTEGER                    :: fh
       CHARACTER(len=100), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname
@@ -121,10 +120,10 @@
       USE iompi
       IMPLICIT NONE
 
-      TYPE(IOPLAN), INTENT(IN) :: plan
+      TYPE(IOPLAN), INTENT(IN)  :: plan
       REAL(KIND=GP), INTENT(IN) :: var(plan%n,plan%n,plan%ksta:plan%kend)
-      INTEGER, INTENT(IN)      :: unit
-      INTEGER                  :: fh
+      INTEGER, INTENT(IN)       :: unit
+      INTEGER                   :: fh
       CHARACTER(len=100), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname

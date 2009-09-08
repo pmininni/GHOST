@@ -1,7 +1,6 @@
 ! Step 2 of Runge-Kutta for the HD equations
 ! Computes the nonlinear terms and evolves the equations in dt/o
          CALL prodre3(vx,vy,vz,C4,C5,C6)
-
          CALL nonlhd3(C4,C5,C6,C7,1)
          CALL nonlhd3(C4,C5,C6,C8,2)
          CALL nonlhd3(C4,C5,C6,C4,3)
@@ -25,9 +24,9 @@
                vz(k,j,i) = C3(k,j,i)+dt*(nu*vz(k,j,i)+C4(k,j,i) &
               +fz(k,j,i))*rmp
             ELSE
-               vx(k,j,i) = 0.
-               vy(k,j,i) = 0.
-               vz(k,j,i) = 0.
+               vx(k,j,i) = 0.0_GP
+               vy(k,j,i) = 0.0_GP
+               vz(k,j,i) = 0.0_GP
             ENDIF
          END DO
          END DO

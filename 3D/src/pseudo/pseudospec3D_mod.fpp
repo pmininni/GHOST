@@ -34,7 +34,7 @@
 ! of characters used to number the binary files and files with 
 ! the spectra. The format fmtext should be consistent with the 
 ! length of the string, e.g. if len=5 then fmtext = '(i5.5)'.
-      CHARACTER(len=3) :: ext
+      CHARACTER(len=3)      :: ext
       CHARACTER(len=6),SAVE :: fmtext = '(i3.3)'
 
   END MODULE filefmt
@@ -61,8 +61,8 @@
 
   MODULE var
       USE fprecision
-      REAL(KIND=GP)    :: pi = 3.14159265
-      COMPLEX(KIND=GP) :: im = (0.,1.)
+      REAL(KIND=GP)    :: pi = 3.14159265358979323846_GP
+      COMPLEX(KIND=GP) :: im = (0.0_GP,1.0_GP)
       SAVE
 
   END MODULE var
@@ -70,7 +70,7 @@
 
   MODULE hall
       USE fprecision
-      REAL(KIND=GP)    :: ep
+      REAL(KIND=GP) :: ep
       INTEGER :: gspe
       SAVE
 
@@ -98,7 +98,7 @@
        INTEGER, PARAMETER :: iq=127773,ir=2836,mask=123459876
        INTEGER, PARAMETER :: ia=16807,im=2147483647
        INTEGER            :: k,idum
-       REAL(KIND=GP), PARAMETER    :: am=1./im
+       REAL(KIND=GP), PARAMETER :: am=1./im
 
        idum = ieor(idum,mask)
        k = idum/iq
@@ -115,9 +115,9 @@
 ! and unit variance. The seed idum must be between 0 
 ! and the value of mask in randu.
 
-       REAL(KIND=GP)          :: v1,v2,ran1
-       REAL(KIND=GP)          :: fac,rsq
-       REAL(KIND=GP),SAVE     :: gset
+       REAL(KIND=GP)      :: v1,v2,ran1
+       REAL(KIND=GP)      :: fac,rsq
+       REAL(KIND=GP),SAVE :: gset
        INTEGER       :: idum
        INTEGER, SAVE :: iset
 

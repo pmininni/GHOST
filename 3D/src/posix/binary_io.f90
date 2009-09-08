@@ -61,9 +61,9 @@
       USE iovar
       IMPLICIT NONE
 
-      TYPE(IOPLAN), INTENT(IN) :: plan
+      TYPE(IOPLAN), INTENT(IN)   :: plan
       REAL(KIND=GP), INTENT(OUT) :: var(plan%n,plan%n,plan%ksta:plan%kend)
-      INTEGER, INTENT(IN)      :: unit
+      INTEGER, INTENT(IN)        :: unit
       CHARACTER(len=100), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname
@@ -97,9 +97,9 @@
       USE iovar
       IMPLICIT NONE
 
-      TYPE(IOPLAN), INTENT(IN) :: plan
+      TYPE(IOPLAN), INTENT(IN)  :: plan
       REAL(KIND=GP), INTENT(IN) :: var(plan%n,plan%n,plan%ksta:plan%kend)
-      INTEGER, INTENT(IN)      :: unit
+      INTEGER, INTENT(IN)       :: unit
       CHARACTER(len=100), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname

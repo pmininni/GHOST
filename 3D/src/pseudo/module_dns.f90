@@ -21,7 +21,7 @@ CONTAINS
 
     DOUBLE PRECISION    :: tmp
     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: fx,fy,fz
-    REAL(KIND=GP), INTENT(IN)    :: f0
+    REAL(KIND=GP), INTENT(IN) :: f0
     INTEGER, INTENT(IN) :: kin
     INTEGER, INTENT(IN) :: comm
     INTEGER :: i,j,k

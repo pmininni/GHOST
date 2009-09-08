@@ -28,7 +28,7 @@
             CALL heltperp(C1,C2,C3,C7,C8,C4,ext,1)
          ENDIF
 
-         rmp = 1./(REAL(o,KIND=GP)
+         rmp = 1.0_GP/(real(o,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -42,9 +42,9 @@
                vz(k,j,i) = C3(k,j,i)+dt*(nu*vz(k,j,i)+C4(k,j,i) &
               +fz(k,j,i))*rmp
             ELSE
-               vx(k,j,i) = 0.
-               vy(k,j,i) = 0.
-               vz(k,j,i) = 0.
+               vx(k,j,i) = 0.0_GP
+               vy(k,j,i) = 0.0_GP
+               vz(k,j,i) = 0.0_GP
             ENDIF
          END DO
          END DO

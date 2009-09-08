@@ -22,12 +22,35 @@
 !              blocks in the row and column each processor is.
 !  9 Jul 2004: Transposition uses data cache blocking.
 ! 13 Feb 2007: Transposition uses strip mining (rreddy@psc.edu)
+! 25 Aug 2009: Hybrid MPI/OpenMP support (D. Rosenberg & P. Mininni)
+! 30 Aug 2009: SINGLE/DOUBLE precision (D. Rosenberg & P. Mininni)
 !
 ! References:
 ! Mininni PD, Gomez DO, Mahajan SM; Astrophys. J. 619, 1019 (2005)
 ! Gomez DO, Mininni PD, Dmitruk P; Phys. Scripta T116, 123 (2005)
 ! Gomez DO, Mininni PD, Dmitruk P; Adv. Sp. Res. 35, 899 (2005)
 !=================================================================
+
+!*****************************************************************
+      SUBROUTINE fftp3d_init_threads(err)
+!-----------------------------------------------------------------
+!
+! Initializes FFTW threads.
+!
+! Parameters
+!     err : if not zero, the initialization failed
+!-----------------------------------------------------------------
+
+!$    USE threads
+      IMPLICIT NONE
+
+      INTEGER, INTENT(INOUT) :: err
+
+!$    CALL fftw_f77_threads_init(err)
+      IF (err.ne.0) PRINT *,'FFTP threads initialization failed!'
+
+      RETURN
+      END SUBROUTINE fftp3d_init_threads
 
 !*****************************************************************
       SUBROUTINE fftp3d_create_plan(plan,n,fftdir,flags)
@@ -48,6 +71,7 @@
 
       USE mpivars
       USE fftplans
+!$    USE threads
       IMPLICIT NONE
 
       INTEGER, INTENT(IN) :: n
@@ -108,7 +132,6 @@
 
       USE commtypes
       IMPLICIT NONE
-      INCLUDE 'mpif.h'
 
       INTEGER, INTENT(OUT), DIMENSION(0:nprocs-1) :: itype1,itype2
       INTEGER, INTENT(IN) :: n,nprocs
@@ -152,10 +175,11 @@
 !     comm : the MPI communicator (handle) [IN]
 !-----------------------------------------------------------------
 
+      USE commtypes
       USE fprecision
       USE mpivars
-      USE commtypes
       USE fftplans
+!$    USE threads
       IMPLICIT NONE
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
@@ -177,8 +201,13 @@
 !
 ! 2D FFT in each node using the FFTW library
 !
-      CALL rfftwnd_f77_real_to_complex(plan%planr,kend-ksta+1,in, &
+#ifdef DO_HYBRIDyes
+      CALL rfftwnd_f77_threads_real_to_complex(nth,plan%planr,kend-ksta+1, &
+                          in,1,plan%n*plan%n,c1,1,plan%n*(plan%n/2+1))
+#else
+      CALL rfftwnd_f77_real_to_complex(plan%planr,kend-ksta+1,in,          &
                           1,plan%n*plan%n,c1,1,plan%n*(plan%n/2+1))
+#endif
 !
 ! Transposes the result between nodes using 
 ! strip mining when nstrip>1 (rreddy@psc.edu)
@@ -208,7 +237,9 @@
 !
 ! Cache friendly transposition
 !
+!$omp parallel do if ((iend-ista)/csize.ge.nth) private (jj,kk,i,j,k)
       DO ii = ista,iend,csize
+!$omp parallel do if ((iend-ista)/csize.lt.nth) private (kk,i,j,k)
          DO jj = 1,plan%n,csize
             DO kk = 1,plan%n,csize
                DO i = ii,min(iend,ii+csize-1)
@@ -224,8 +255,13 @@
 !
 ! 1D FFT in each node using the FFTW library
 !
-      CALL fftw_f77(plan%planc,plan%n*(iend-ista+1),out,1,plan%n, &
+#ifdef DO_HYBRIDyes
+      CALL fftw_f77_threads(nth,plan%planc,plan%n*(iend-ista+1),out,1, &
+                   plan%n,c2,1,plan%n)
+#else
+      CALL fftw_f77(plan%planc,plan%n*(iend-ista+1),out,1,plan%n,      &
                    c2,1,plan%n)
+#endif
 
       RETURN
       END SUBROUTINE fftp3d_real_to_complex
@@ -251,6 +287,7 @@
       USE mpivars
       USE commtypes
       USE fftplans
+!$    USE threads
       IMPLICIT NONE
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
@@ -272,12 +309,19 @@
 !
 ! 1D FFT in each node using the FFTW library
 !
+#ifdef DO_HYBRIDyes
+      CALL fftw_f77_threads(nth,plan%planc,plan%n*(iend-ista+1),in,1, &
+                   plan%n,c2,1,plan%n)
+#else
       CALL fftw_f77(plan%planc,plan%n*(iend-ista+1),in,1,plan%n, &
                    c2,1,plan%n)
+#endif
 !
 ! Cache friendly transposition
 !
+!$omp parallel do if ((iend-ista)/csize.ge.nth) private (jj,kk,i,j,k)
       DO ii = ista,iend,csize
+!$omp parallel do if ((iend-ista)/csize.lt.nth) private (kk,i,j,k)
          DO jj = 1,plan%n,csize
             DO kk = 1,plan%n,csize
                DO i = ii,min(iend,ii+csize-1)
@@ -319,8 +363,13 @@
 !
 ! 2D FFT in each node using the FFTW library
 !
-      CALL rfftwnd_f77_complex_to_real(plan%planr,kend-ksta+1,c1, &
+#ifdef DO_HYBRIDyes
+      CALL rfftwnd_f77_threads_complex_to_real(nth,plan%planr,kend-ksta+1, &
+                         c1,1,plan%n*(plan%n/2+1),out,1,plan%n*plan%n)
+#else
+      CALL rfftwnd_f77_complex_to_real(plan%planr,kend-ksta+1,c1,          &
                          1,plan%n*(plan%n/2+1),out,1,plan%n*plan%n)
+#endif
 
       RETURN
       END SUBROUTINE fftp3d_complex_to_real
@@ -351,7 +400,6 @@
       USE commtypes
       USE fftplans
       IMPLICIT NONE
-      INCLUDE 'mpif.h'
 
       INTEGER, DIMENSION (2) :: iblock,idisp,itype
 

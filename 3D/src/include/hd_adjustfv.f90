@@ -10,9 +10,9 @@
                ampl = ampl*nu*tmp/eps
                Faux1(10) = ampl
                Faux2(10) = nu*tmp-eps
-               ampl = .9*ampl
+               ampl = 0.9_GP*ampl
                DO i = 1,9
-                  ampl = ampl+(.1*Faux1(i)+.01*Faux2(i))/9.
+                  ampl = ampl+(0.1_GP*Faux1(i)+0.01_GP*Faux2(i))/9.0_GP
                END DO
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend

@@ -34,8 +34,16 @@
   END MODULE fftplans
 !=================================================================
 
+  MODULE threads
+!
+! nth: number of threads used in OpenMP loops and FFTs
+      INTEGER :: nth
+      SAVE
+
+  END MODULE threads
+!=================================================================
+
   MODULE mpivars
-      INCLUDE 'mpif.h'
       INTEGER, SAVE :: ista,iend
       INTEGER, SAVE :: jsta,jend
       INTEGER, SAVE :: ksta,kend
