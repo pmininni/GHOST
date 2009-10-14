@@ -78,6 +78,7 @@
       CHARACTER     :: c,d,u
       CHARACTER*3   :: node,ext
       CHARACTER*100 :: ldir
+      CHARACTER*44  :: sparam
 
 !
 ! Initializes the MPI library
@@ -114,8 +115,8 @@
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='status.txt',status='unknown')
-         READ(1,*) stat
-         READ(1,*) mult
+         READ(1,'(A,1X,F11.7)') sparam, stat
+         READ(1,'(A,1X,I2)'   ) sparam, mult
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(stat,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
@@ -139,20 +140,33 @@
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.txt',status='unknown')
-         READ(1,*) dt
-         READ(1,*) step
-         READ(1,*) tstep
-         READ(1,*) sstep
-         READ(1,*) cstep
-         READ(1,*) f0
-         READ(1,*) u0
-         READ(1,*) kdn
-         READ(1,*) kup
-         READ(1,*) nu
-         READ(1,*) amus
-         READ(1,*) amuc
-         READ(1,'(a100)') ldir
+         READ(1,'(A,1X,F11.7)') sparam, dt
+         READ(1,'(A,1X,I6)'   ) sparam, step
+         READ(1,'(A,1X,I6)'   ) sparam, tstep
+         READ(1,'(A,1X,I6)'   ) sparam, sstep
+         READ(1,'(A,1X,I6)'   ) sparam, cstep
+         READ(1,'(A,1X,F11.7)') sparam, f0
+         READ(1,'(A,1X,F11.7)') sparam, u0
+         READ(1,'(A,1X,F11.7)') sparam, kdn
+         READ(1,'(A,1X,F11.7)') sparam, kup
+         READ(1,'(A,1X,F11.7)') sparam, nu
+         READ(1,'(A,1X,F11.7)') sparam, amus
+         READ(1,'(A,1X,F11.7)') sparam, amuc
+         READ(1,'(A,1X,A)'    ) sparam, ldir
          CLOSE(1)
+         write(*,*) 'dt   =', dt
+         write(*,*) 'step =', step
+         write(*,*) 'tstep=', tstep
+         write(*,*) 'sstep=', sstep
+         write(*,*) 'cstep=', cstep
+         write(*,*) 'f0   =', f0
+         write(*,*) 'u0   =', u0
+         write(*,*) 'kdn  =', kdn
+         write(*,*) 'kup  =', kup
+         write(*,*) 'mu   =', nu
+         write(*,*) 'amus =', amus
+         write(*,*) 'amuc =', amuc
+         write(*,*) 'ldir =', ldir
          dt = dt/float(mult)
          step = step*mult
          tstep = tstep*mult

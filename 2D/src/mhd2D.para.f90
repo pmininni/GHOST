@@ -87,7 +87,7 @@
 
       CHARACTER          :: c,d,u
       CHARACTER(len=3)   :: node,ext
-      CHARACTER(len=100) :: ldir
+      CHARACTER(len=100) :: ldir, sparam
 
 !
 ! Initializes the MPI library
@@ -127,10 +127,10 @@
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='status.txt',status='unknown')
-         READ(1,*) stat
-         READ(1,*) mult
-         READ(1,*) adap
-         READ(1,*) bench
+         READ(1,'(A,1X,F11.7)') sparam, stat
+         READ(1,'(A,1X,I2)'   ) sparam, mult
+         READ(1,'(A,1X,I2)'   ) sparam, adap
+         READ(1,'(A,1X,I2)'   ) sparam, bench
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(stat,1,MPI_REAL,0,MPI_COMM_WORLD,ierr)
@@ -163,25 +163,25 @@
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.txt',status='unknown')
-         READ(1,*) dt
-         READ(1,*) step
-         READ(1,*) tstep
-         READ(1,*) sstep
-         READ(1,*) cstep
-         READ(1,*) f0
-         READ(1,*) m0
-         READ(1,*) u0
-         READ(1,*) a0
-         READ(1,*) kdn
-         READ(1,*) kup
-         READ(1,*) mkdn
-         READ(1,*) mkup
-         READ(1,*) nu
-         READ(1,*) mu
-         READ(1,*) corr
-         READ(1,*) cort
-         READ(1,*) seed
-         READ(1,'(a100)') ldir
+         READ(1,'(A,1X,F11.7)') sparam, dt
+         READ(1,'(A,1X,I6)'   ) sparam, step
+         READ(1,'(A,1X,I6)'   ) sparam, tstep
+         READ(1,'(A,1X,I6)'   ) sparam, sstep
+         READ(1,'(A,1X,I6)'   ) sparam, cstep
+         READ(1,'(A,1X,F11.7)') sparam, f0
+         READ(1,'(A,1X,F11.7)') sparam,  m0
+         READ(1,'(A,1X,F11.7)') sparam, u0
+         READ(1,'(A,1X,F11.7)') sparam, a0
+         READ(1,'(A,1X,F11.7)') sparam, kdn
+         READ(1,'(A,1X,F11.7)') sparam, kup
+         READ(1,'(A,1X,F11.7)') sparam, mkdn
+         READ(1,'(A,1X,F11.7)') sparam, mkup
+         READ(1,'(A,1X,F11.7)') sparam, nu
+         READ(1,'(A,1X,F11.7)') sparam, mu
+         READ(1,'(A,1X,F11.7)') sparam, corr
+         READ(1,'(A,1X,F11.7)') sparam, cort
+         READ(1,'(A,1X,F11.7)') sparam, seed
+         READ(1,'(A,1X,A)'    ) sparam, ldir
          CLOSE(1)
          dt = dt/float(mult)
          step = step*mult
