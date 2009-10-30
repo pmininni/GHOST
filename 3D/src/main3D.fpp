@@ -24,6 +24,7 @@
 !           MHDB_SOL      builds the MHD solver with uniform B_0
 !           HMHD_SOL      builds the Hall-MHD solver
 !           ROTH_SOL      builds the HD solver in a rotating frame
+!           PROTH         builds the ROTH solver with passive scalar
 !           LAHD_SOL      builds the Lagrangian-averaged HD solver
 !           CAHD_SOL      builds the Clark-alpha HD solver
 !           LHD_SOL       builds the Leray HD solver

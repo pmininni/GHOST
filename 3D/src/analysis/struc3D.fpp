@@ -9,8 +9,10 @@
 ! increments depending on the solver.
 !
 ! Conditional compilation options:
-!           HD_SOL   Hydrodynamic SO(3) structure functions
-!           ROTH_SOL SO(2) HD structure functions (rotation)
+!           HD_SOL    Hydrodynamic SO(3) structure functions
+!           ROTH_SOL  SO(2) HD structure functions (rotation)
+!           PHD_SOL   Hydrodynamic and passive scalar with SO(3)
+!           PROTH_SOL Hydrodynamic and passive scalar with SO(2)
 !
 ! NOTATION: index 'i' is 'x' 
 !           index 'j' is 'y'
@@ -21,8 +23,9 @@
 !      Facultad de Ciencias Exactas y Naturales.
 !      Universidad de Buenos Aires.
 !
-! 2 Jul 2008: Main program for all decompositions and solvers
-! 4 Feb 2009: Option for increments of helicity and vorticity
+!  2 Jul 2008: Main program for all decompositions and solvers
+!  4 Feb 2009: Option for increments of helicity and vorticity
+! 30 Nov 2009: Option for passive scalar (with P. Rodriguez Imazio)
 !=================================================================
 
 !
@@ -34,6 +37,16 @@
 
 #ifdef ROTH_SOL
 #define SO2_
+#endif
+
+#ifdef PHD_SOL
+#define SO3_
+#define SCALAR_
+#endif
+
+#ifdef PROTH_SOL
+#define SO2_
+#define SCALAR_
 #endif
 
 !
@@ -61,9 +74,16 @@
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vxl,vyl,vzl
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: wx,wy,wz
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: wxl,wyl,wzl
+#ifdef SCALAR_
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: th,thl
+#endif
 
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:)   :: sp
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)     :: r
+#ifdef SCALAR_
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:)   :: zp
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)     :: flux
+#endif
 
 !
 ! Auxiliary variables
@@ -106,7 +126,7 @@
 !     stat : number of the file to analyze
 !     gini : =1 start a new computation
 !            >1 restart a previous computation from this generator
-!     curl : =0 computes increments of the field
+!     curl : =0 computes increments of the field (and the scalar)
 !            =1 computes increments of the helicity of the field
 !            =2 computes increments of the vorticity of the field
 !     pmax : maximum order p computed
@@ -131,17 +151,14 @@
 !
 ! Allocates memory for distributed blocks
 
-      IF (curl.gt.0) THEN
-         ALLOCATE( C1(n,n,ista:iend), C2(n,n,ista:iend) )
-         ALLOCATE( C3(n,n,ista:iend), C4(n,n,ista:iend) )
-         ALLOCATE( C5(n,n,ista:iend) )
-         ALLOCATE( wx(n,n,ksta:kend) )
-         ALLOCATE( wy(n,n,ksta:kend) )
-         ALLOCATE( wz(n,n,ksta:kend) )
-      ENDIF
       ALLOCATE( vx(n,n,ksta:kend) )
       ALLOCATE( vy(n,n,ksta:kend) )
       ALLOCATE( vz(n,n,ksta:kend) )
+#ifdef SCALAR_
+      ALLOCATE( th(n,n,ksta:kend) )
+      ALLOCATE( zp(n/2-1,pmax) )
+      ALLOCATE( flux(n/2-1) )
+#endif
       ALLOCATE( sp(n/2-1,pmax) )
       ALLOCATE( r(n/2-1) )
 
@@ -151,13 +168,22 @@
 ! fields if needed.
 ! If required, initializes the FFT library and 
 ! arrays with wavenumbers. Use FFTW_ESTIMATE in 
-! short runs and FFTW_MEASURE in long runs
+! short runs and FFTW_MEASURE in long runs.
 
       WRITE(ext, fmtext) stat
       CALL io_read(1,idir,'vx',ext,planio,vx)
       CALL io_read(1,idir,'vy',ext,planio,vy)
       CALL io_read(1,idir,'vz',ext,planio,vz)
+#ifdef SCALAR_
+      CALL io_read(1,idir,'th',ext,planio,th)
+#endif
       IF (curl.gt.0) THEN
+         ALLOCATE( C1(n,n,ista:iend), C2(n,n,ista:iend) )
+         ALLOCATE( C3(n,n,ista:iend), C4(n,n,ista:iend) )
+         ALLOCATE( C5(n,n,ista:iend) )
+         ALLOCATE( wx(n,n,ksta:kend) )
+         ALLOCATE( wy(n,n,ksta:kend) )
+         ALLOCATE( wz(n,n,ksta:kend) )
          CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
              FFTW_ESTIMATE)
          CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
@@ -344,10 +370,12 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
          WRITE(ext, fmtext) d
          DO l = 1,n/2-1
             r(l) = 0.
+            flux(l) = 0.
          END DO
          DO p = 1,pmax
             DO l = 1,n/2-1
                sp(l,p) = 0.
+               zp(l,p) = 0.
             END DO
          END DO
          DO k = ksta,kend
@@ -356,6 +384,9 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
                   vxl(i,j,k) = vx(i,j,k)
                   vyl(i,j,k) = vy(i,j,k)
                   vzl(i,j,k) = vz(i,j,k)
+#ifdef SCALAR_
+                  thl(i,j,k) = th(i,j,k)
+#endif
                END DO
             END DO
          END DO
@@ -369,21 +400,30 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
                   CALL SHIFTZ(vxl,dis,MPI_COMM_WORLD)
                   CALL SHIFTZ(vyl,dis,MPI_COMM_WORLD)
                   CALL SHIFTZ(vzl,dis,MPI_COMM_WORLD)
+#ifdef SCALAR_
+                  CALL SHIFTZ(thl,dis,MPI_COMM_WORLD)
+#endif
                END DO
             ENDIF
             IF ( abs(j1(d)).gt.0 ) THEN
                CALL SHIFTX(vxl,j1(d))
                CALL SHIFTX(vyl,j1(d))
                CALL SHIFTX(vzl,j1(d))
+#ifdef SCALAR_
+               CALL SHIFTX(thl,j1(d))
+#endif
             ENDIF
             IF ( abs(j2(d)).gt.0 ) THEN
                CALL SHIFTY(vxl,j2(d))
                CALL SHIFTY(vyl,j2(d))
                CALL SHIFTY(vzl,j2(d))
+#ifdef SCALAR_
+               CALL SHIFTX(thl,j2(d))
+#endif
             ENDIF
             r(l) = 2*pi*real(l,kind=GP)/(norm*n)
             DO p = 1,pmax
-               spaux = 0
+               spaux = 0.
                DO k = ksta,kend
                   DO j = 1,n
                      DO i = 1,n
@@ -396,7 +436,40 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
                CALL MPI_REDUCE(spaux,tmp,1,GC_REAL,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
                sp(l,p) = tmp/real(n,kind=GP)**3
+#ifdef SCALAR_
+               IF (curl.eq.0) THEN      ! passive scalar increments
+               spaux = 0.
+               DO k = ksta,kend
+                  DO j = 1,n
+                     DO i = 1,n
+                        spaux = spaux+abs(thl(i,j,k)-th(i,j,k))**p
+                     END DO
+                  END DO
+               END DO
+               CALL MPI_REDUCE(spaux,tmp,1,GC_REAL,MPI_SUM,0, &
+                      MPI_COMM_WORLD,ierr)
+               zp(l,p) = tmp/real(n,kind=GP)**3
+               ENDIF
+#endif
             END DO
+#ifdef SCALAR_
+            IF (curl.eq.0) THEN         ! passive scalar theorem
+               spaux = 0.
+               DO k = ksta,kend
+                  DO j = 1,n
+                     DO i = 1,n
+                        spaux = spaux+abs(((vxl(i,j,k)-vx(i,j,k))*j1(d)+ &
+                         (vyl(i,j,k)-vy(i,j,k))*j2(d)+ &
+                         (vzl(i,j,k)-vz(i,j,k))*j3(d))*norm)* &
+                         (thl(i,j,k)-th(i,j,k))**2
+                     END DO
+                  END DO
+               END DO
+               CALL MPI_REDUCE(spaux,tmp,1,GC_REAL,MPI_SUM,0, &
+                      MPI_COMM_WORLD,ierr)
+               flux(l) = tmp/real(n,kind=GP)**3
+            ENDIF
+#endif
          END DO
          IF (myrank.eq.0) THEN
             OPEN(1,file=trim(odir) // '/increment.' &
@@ -408,6 +481,18 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
             WRITE(1) sp
             CLOSE(1)
          ENDIF
+#ifdef SCALAR_
+         IF ((myrank.eq.0).and.(curl.eq.0)) THEN
+            OPEN(1,file=trim(odir) // '/scalarstr.' &
+              // ext // '.out' ,form='unformatted')
+            WRITE(1) zp
+            CLOSE(1)
+            OPEN(1,file=trim(odir) // '/sctheorem.' &
+              // ext // '.out' ,form='unformatted')
+            WRITE(1) flux
+            CLOSE(1)
+         ENDIF
+#endif         
       END DO
 
       ENDIF CU
@@ -416,10 +501,14 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
 ! End of STRUCTURE3D
 
       CALL MPI_FINALIZE(ierr)
-      DEALLOCATE( vx,vxl )
       IF ((curl.eq.0).or.(curl.eq.2)) THEN
          DEALLOCATE ( vy,vz,vyl,vzl )
       ENDIF
+      DEALLOCATE( vx,vxl )
       DEALLOCATE( sp,r )
+#ifdef SCALAR_
+      DEALLOCATE( th,thl )
+      DEALLOCATE( zp,flux )
+#endif         
 
       END PROGRAM STRUCTURE3D
