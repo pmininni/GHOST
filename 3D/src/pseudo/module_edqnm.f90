@@ -7,6 +7,7 @@
 
 !=================================================================
 MODULE edqnm
+  USE fprecision
   REAL(KIND=GP), SAVE :: kolmo
   INTEGER, SAVE       :: heli
 
