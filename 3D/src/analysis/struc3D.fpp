@@ -215,9 +215,6 @@
          CALL fftp3d_destroy_plan(plancr)
          CALL fftp3d_destroy_plan(planrc)
       ENDIF
-      ALLOCATE ( vxl(n,n,ksta:kend) )
-      ALLOCATE ( vyl(n,n,ksta:kend) )
-      ALLOCATE ( vzl(n,n,ksta:kend) )
       IF (curl.eq.1) THEN
          tmp = 1./real(n,kind=GP)**3
          DO k = ksta,kend
@@ -246,6 +243,12 @@
          END DO
          DEALLOCATE ( wx,wy,wz )
       ENDIF
+      ALLOCATE ( vxl(n,n,ksta:kend) )
+      ALLOCATE ( vyl(n,n,ksta:kend) )
+      ALLOCATE ( vzl(n,n,ksta:kend) )
+#ifdef SCALAR_
+      ALLOCATE( thl(n,n,ksta:kend) )
+#endif
 
 !
 ! Defines the generators
@@ -370,12 +373,16 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
          WRITE(ext, fmtext) d
          DO l = 1,n/2-1
             r(l) = 0.
+#ifdef SCALAR_
             flux(l) = 0.
+#endif
          END DO
          DO p = 1,pmax
             DO l = 1,n/2-1
                sp(l,p) = 0.
+#ifdef SCALAR_
                zp(l,p) = 0.
+#endif
             END DO
          END DO
          DO k = ksta,kend
@@ -418,12 +425,12 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
                CALL SHIFTY(vyl,j2(d))
                CALL SHIFTY(vzl,j2(d))
 #ifdef SCALAR_
-               CALL SHIFTX(thl,j2(d))
+               CALL SHIFTY(thl,j2(d))
 #endif
             ENDIF
             r(l) = 2*pi*real(l,kind=GP)/(norm*n)
-            DO p = 1,pmax
-               spaux = 0.
+ LP :       DO p = 1,pmax
+               spaux = 0.               ! vector field increments
                DO k = ksta,kend
                   DO j = 1,n
                      DO i = 1,n
@@ -451,7 +458,7 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
                zp(l,p) = tmp/real(n,kind=GP)**3
                ENDIF
 #endif
-            END DO
+            END DO LP
 #ifdef SCALAR_
             IF (curl.eq.0) THEN         ! passive scalar theorem
                spaux = 0.

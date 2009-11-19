@@ -28,8 +28,8 @@ P_HYBRID = no
 # fftp-3   builds FFTP-3 (links with FFTW 3.x)
 # FFTWxDIR contains the path to the FFTW libraries
 FFTP     = fftp-3
-FFTW2DIR = /share/apps/fftw-2.1.5
-FFTW3DIR = /share/apps/fftw-3.2.2
+FFTW2DIR = /opt/fftw-2.1.5
+FFTW3DIR = /opt/fftw-3.1.2
 
 # IKIND    4 in 32 bits machines, 8 in 64 bits machines
 # CSIZE    8 if L1 cache is <= 64 kb, 16 if L1 cache is 128 kb
@@ -96,8 +96,8 @@ TARGET_G95    = -msse
 #****************************************************************************
 #
 # MPICH
-MPIINC_MPICH  = -I/opt/mpich2/gnu/include
-MPILIB_MPICH  = -L/opt/mpich2/gnu/lib
+MPIINC_MPICH  = -I/opt/mpich2-1.0.5/include
+MPILIB_MPICH  = -L/opt/mpich2-1.0.5/lib
 MPILD_MPICH   = -lmpich -lmpichf90 -lfmpich -lpthread -lrt -lmpich \
   -lpthread -lrt -luuid
 #
