@@ -13,7 +13,7 @@
   MODULE grid
 !
 ! n: number of points in the spatial grid
-      INTEGER :: n = 512
+      INTEGER :: n = 256
       SAVE
 
   END MODULE grid
@@ -74,6 +74,36 @@
        idum = ieor(idum,mask)
 
        END FUNCTION randu
+!
+       REAL FUNCTION randn(idum, sig)
+!
+! Normally-distributed random number, given variance, sig.
+! Uses randu. Taken from Numerical Recipies, and modified to 
+! include variance.
+       INTEGER:: iset
+       REAL   :: x, y, rsq, rkeep, ssq, w
+       SAVE   :: iset
+       
+       ssq = sig*sig 
+       IF ( idum.lt.0 ) iset = 0
+       IF ( iset .eq. 0 ) THEN
+         rsq = 0.0
+         w   = 10.0 
+         DO WHILE ( rsq .ge. 1.0 .or. rsq .eq. 0.0 )
+           x = 2.0*ssq* randu(idum) - 1.0
+           y = 2.0*ssq* randu(idum) - 1.0
+           rsq = x*x + y*y
+         ENDDO
+         w = sqrt(-2.0*log(rsq)/rsq)
+         rkeep = w * x
+         iset = 1
+         randn = y * w
+       ELSE
+         iset = 0
+         randn = rkeep
+       ENDIF
+
+       END FUNCTION randn
 
   END MODULE random
 !=================================================================
