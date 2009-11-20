@@ -425,6 +425,7 @@
 ! Computes the cross correlation between
 ! velocity and magnetic fields
 !
+      tmp = 0.
       IF (ista.eq.1) THEN
          DO j = 1,n
             tmp = tmp+ka2(j,1)*real(b(j,1)*conjg(a(j,1)))*tmq
@@ -452,10 +453,12 @@
    10    FORMAT( E13.6,E22.14,E22.14,E22.14,E22.14 )
          CLOSE(1)
          OPEN(1,file='cross.txt',position='append')
-         WRITE(1,*) udb,asq
+         WRITE(1,20) t, udb, udb/eng, asq
+   20    FORMAT( E13.6,E22.14,E22.14,E22.14 )
          CLOSE(1)
          OPEN(1,file='energy.txt',position='append')
-         WRITE(1,*) engk,engm
+         WRITE(1,30) t, engk,engm
+   30    FORMAT( E13.6,E22.14,E22.14)
          CLOSE(1)
       ENDIF      
 
