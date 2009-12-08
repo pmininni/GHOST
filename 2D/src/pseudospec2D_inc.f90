@@ -475,8 +475,8 @@
 ! Parameters
 !     a  : streamfunction or vector potential
 !     ext: the extension used when writting the file
-!     kin: =1 computes the kinetic spectrum
-!          =0 computes the magnetic spectrum
+!     kin: =0 computes the magnetic spectrum
+!          =1 computes the kinetic spectrum
 !
       USE kes
       USE grid
@@ -489,7 +489,7 @@
       INTEGER     :: kin
       INTEGER     :: kmn
       INTEGER     :: i,j
-      CHARACTER*3 :: ext
+      CHARACTER*4 :: ext
 
 !
 ! Sets Ek to zero
@@ -533,10 +533,10 @@
       CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
-         IF (kin.eq.1) THEN
-            OPEN(1,file='kspectrum.' // ext // '.txt')
-         ELSE
+         IF (kin.eq.0) THEN
             OPEN(1,file='mspectrum.' // ext // '.txt')
+         ELSE IF (kin.eq.1) THEN
+            OPEN(1,file='kspectrum.' // ext // '.txt')
          ENDIF
          WRITE(1,20) Ektot
    20    FORMAT( E23.15 ) 
@@ -545,6 +545,96 @@
 
       RETURN
       END SUBROUTINE spectrum
+
+
+!*****************************************************************
+      SUBROUTINE pmspectrum(ps,a,ext,kin)
+!-----------------------------------------------------------------
+!
+! Computes the energy power spectrum in 2D for E+/-. 
+! The output is written to a file by the first node.
+!
+! Parameters
+!     ps : streamfunction 
+!     a  : vector potential
+!     ext: the extension used when writting the file
+!     kin: =0 computes the E+ spectrum
+!          =1 computes the E- spectrum
+!
+      USE kes
+      USE grid
+      USE mpivars
+      IMPLICIT NONE
+
+      REAL*8, DIMENSION(n/2+1)        :: Ek,Ektot
+      COMPLEX, DIMENSION(n,ista:iend) :: ps, a
+      REAL        :: q, sgn, tmp
+      INTEGER     :: kin
+      INTEGER     :: kmn
+      INTEGER     :: i,j
+      CHARACTER*4 :: ext
+
+      sgn = 2.0
+      IF (kin.eq.1) THEN
+        sgn = -2.0
+      ENDIF
+!
+! Sets Ek to zero
+!
+      DO i = 1,n/2+1
+         Ek(i) = 0.
+      END DO
+!
+! Computes the energy spectrum
+!
+      tmp = 1./float(n)**4
+      IF (ista.eq.1) THEN
+         DO j = 1,n
+            kmn = int(sqrt(ka2(j,1))+.5)
+            IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               q = abs(ps(j,i))**2 + abs(a(j,i))**2 + sgn*real(ps(j,i)*conjg(a(j,i)))
+               Ek(kmn) = Ek(kmn)+ka2(j,1)*q*tmp
+            ENDIF
+         END DO
+         DO i = 2,iend
+            DO j = 1,n
+               kmn = int(sqrt(ka2(j,i))+.5)
+               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                  q = abs(ps(j,i))**2 + abs(a(j,i))**2 + sgn*real(ps(j,i)*conjg(a(j,i)))
+                  Ek(kmn) = Ek(kmn)+2*ka2(j,i)*q*tmp
+               ENDIF
+            END DO
+         END DO
+      ELSE
+         DO i = ista,iend
+            DO j = 1,n
+               kmn = int(sqrt(ka2(j,i))+.5)
+               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                  q = abs(ps(j,i))**2 + abs(a(j,i))**2 + sgn*real(ps(j,i)*conjg(a(j,i)))
+                  Ek(kmn) = Ek(kmn)+2*ka2(j,i)*q*tmp
+               ENDIF
+            END DO
+         END DO
+      ENDIF
+!
+! Computes the reduction between nodes
+! and exports the result to a file
+!
+      CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+                      MPI_COMM_WORLD,ierr)
+      IF (myrank.eq.0) THEN
+         IF (kin.eq.0) THEN
+            OPEN(1,file='epspectrum.' // ext // '.txt')
+         ELSE 
+            OPEN(1,file='emspectrum.' // ext // '.txt')
+         ENDIF
+         WRITE(1,20) Ektot
+   20    FORMAT( E23.15 ) 
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE pmspectrum
 
 !*****************************************************************
       SUBROUTINE vectrans(a,b,ext)
