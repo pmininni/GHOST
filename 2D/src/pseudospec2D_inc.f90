@@ -489,7 +489,7 @@
       INTEGER     :: kin
       INTEGER     :: kmn
       INTEGER     :: i,j
-      CHARACTER*4 :: ext
+      CHARACTER*3 :: ext
 
 !
 ! Sets Ek to zero
@@ -572,7 +572,7 @@
       INTEGER     :: kin
       INTEGER     :: kmn
       INTEGER     :: i,j
-      CHARACTER*4 :: ext
+      CHARACTER*3 :: ext
 
       sgn = 2.0
       IF (kin.eq.1) THEN
@@ -592,7 +592,7 @@
          DO j = 1,n
             kmn = int(sqrt(ka2(j,1))+.5)
             IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-               q = abs(ps(j,i))**2 + abs(a(j,i))**2 + sgn*real(ps(j,i)*conjg(a(j,i)))
+               q = abs(ps(j,1))**2 + abs(a(j,1))**2 + sgn*real(ps(j,1)*conjg(a(j,1)))
                Ek(kmn) = Ek(kmn)+ka2(j,1)*q*tmp
             ENDIF
          END DO
@@ -661,6 +661,7 @@
       INTEGER     :: i,j
       CHARACTER*3 :: ext
 
+
 !
 ! Sets Ek to zero
 !
@@ -674,8 +675,10 @@
       CALL poisson(a,b,c1)
       IF (ista.eq.1) THEN
          DO j = 1,n
-            kmn = int(sqrt(ka2(j,1))+.5)
-            Ek(kmn) = Ek(kmn)+real(c1(j,1)*conjg(b(j,1)))*tmp
+            kmn = int(sqrt(ka2(j,1))+.501)
+            IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+              Ek(kmn) = Ek(kmn)+real(c1(j,1)*conjg(b(j,1)))*tmp
+            ENDIF
          END DO
          DO i = 2,iend
             DO j = 1,n

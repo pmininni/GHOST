@@ -14,19 +14,23 @@
 
 #
 # Desktop computers using the Portland copiler
-COMP     = /usr/pgi/linux86/6.1/bin/pgf90 -c -g77libs -fastsse \
-    -Msecond_underscore -Minline -Knoieee -Minfo=loop,inline
-LINK     = /usr/pgi/linux86/6.1/bin/pgf90 -fastsse -Msecond_underscore \
-    -Minline -Knoieee -Minfo=loop,inline
+#COMP     = pgf90 -c -g77libs -fastsse \
+#    -Msecond_underscore -Minline -Knoieee -Minfo=loop,inline
+#LINK     = pgf90 -fastsse -Msecond_underscore \
+#    -Minline -Knoieee -Minfo=loop,inline
+COMP     = pgf90 -c -g77libs -fastsse -Minline -Knoieee -Minfo=loop,inline
+LINK     = pgf90 -fastsse -Minline -Knoieee -Minfo=loop,inline
+COMP     = pgf90 -c -g77libs -g -Mbounds -Mchkstk -Mchkptr -Mchkfpstk
+LINK     = pgf90 -g -Mbounds -Mchkstk -Mchkptr -Mchkfpstk
 UNDER    = 0 
 EXTEN    = 0 
 APPEND   = _
 F90EXT   = f90
 LMPI     = -lmpich -lmpichf90 -lfmpich -lpthread -lrt
-IDIR     = -I/home/mininni/library/mpich/include
-LDIR     = -L/home/mininni/library/mpich/lib
-FFTWLDIR = /home/mininni/library/fftw2/lib
-LFFTW    = -lsrfftw -lsfftw -L$(FFTWLDIR)
+IDIR     = -I/home/duaner/lib/mpich2-1.0.7_pgi/include
+LDIR     = -L/home/duaner/lib/mpich2-1.0.7_pgi/lib
+FFTWLDIR = /home/duaner/lib/fftw-2.1.5_pgi/lib
+LFFTW    = -lfftw -lrfftw -L$(FFTWLDIR)
 SHELL    = /bin/bash
 MAKE     = /usr/bin/make
 PERL     = /usr/bin/perl
@@ -94,16 +98,16 @@ hd2D:
 	@$(MAKE) pseudospec2D_inc.o
 	$(COMP) $(IDIR) hd2D.para.$(F90EXT)
 	$(LINK) fftp.o fftp2D.o fftp_mod.o pseudospec2D_mod.o \
-          pseudospec2D_inc.o hd2D.para.o $(LDIR) $(LMPI) $(LFFTW) -o hd2D
+          pseudospec2D_inc.o hd2D.para.o $(LDIR) $(LMPI) $(LFFTW) -o ../bin/hd2D
 	@$(MAKE) undo
 
 mhd2D:
 	@$(MAKE) modify
 	@$(MAKE) fftp2D.o
 	@$(MAKE) pseudospec2D_inc.o
-	$(COMP) $(IDIR) mhd2D.para.$(F90EXT)
+	$(COMP) $(IDIR) mhd2D.dlr.$(F90EXT)
 	$(LINK) fftp.o fftp2D.o fftp_mod.o pseudospec2D_mod.o \
-          pseudospec2D_inc.o mhd2D.para.o $(LDIR) $(LMPI) $(LFFTW) -o mhd2D
+          pseudospec2D_inc.o mhd2D.dlr.o $(LDIR) $(LMPI) $(LFFTW) -o ../bin/mhd2D
 	@$(MAKE) undo
 
 mhdu2D:
@@ -114,7 +118,7 @@ mhdu2D:
 	$(COMP) $(IDIR) mhd2D.unif.$(F90EXT)
 	$(LINK) fftp.o fftp2D.o fftp_mod.o pseudospec2D_mod.o \
           pseudospec2D_inc.o pseudospec2D_uni.o mhd2D.unif.o \
-          $(LDIR) $(LMPI) $(LFFTW) -o mhdu2D
+          $(LDIR) $(LMPI) $(LFFTW) -o ../bin/mhdu2D
 	@$(MAKE) undo
 
 hall25:
@@ -125,7 +129,7 @@ hall25:
 	$(COMP) $(IDIR) hallmhd25.para.$(F90EXT)
 	$(LINK) fftp.o fftp2D.o fftp_mod.o pseudospec2D_mod.o \
           pseudospec2D_inc.o pseudospec25D_inc.o hallmhd25.para.o \
-          $(LDIR) $(LMPI) $(LFFTW) -o hall25
+          $(LDIR) $(LMPI) $(LFFTW) -o ../bin/hall25
 	@$(MAKE) undo
 
 modify:

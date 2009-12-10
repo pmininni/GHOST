@@ -154,19 +154,6 @@
          READ(1,'(A,1X,F11.7)') sparam, amuc
          READ(1,'(A,1X,A)'    ) sparam, ldir
          CLOSE(1)
-         write(*,*) 'dt   =', dt
-         write(*,*) 'step =', step
-         write(*,*) 'tstep=', tstep
-         write(*,*) 'sstep=', sstep
-         write(*,*) 'cstep=', cstep
-         write(*,*) 'f0   =', f0
-         write(*,*) 'u0   =', u0
-         write(*,*) 'kdn  =', kdn
-         write(*,*) 'kup  =', kup
-         write(*,*) 'mu   =', nu
-         write(*,*) 'amus =', amus
-         write(*,*) 'amuc =', amuc
-         write(*,*) 'ldir =', ldir
          dt = dt/float(mult)
          step = step*mult
          tstep = tstep*mult
