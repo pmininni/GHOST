@@ -20,8 +20,6 @@
 #    -Minline -Knoieee -Minfo=loop,inline
 COMP     = pgf90 -c -g77libs -fastsse -Minline -Knoieee -Minfo=loop,inline
 LINK     = pgf90 -fastsse -Minline -Knoieee -Minfo=loop,inline
-COMP     = pgf90 -c -g77libs -g -Mbounds -Mchkstk -Mchkptr -Mchkfpstk
-LINK     = pgf90 -g -Mbounds -Mchkstk -Mchkptr -Mchkfpstk
 UNDER    = 0 
 EXTEN    = 0 
 APPEND   = _
