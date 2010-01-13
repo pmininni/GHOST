@@ -14,10 +14,19 @@
                ampl = ampl*(nu*tmp+mu*tmq-epm)/eps
                Faux1(10) = ampl
                Faux2(10) = nu*tmp+mu*tmq-epm-eps
-               ampl = .9*ampl
+               ampl = 0.9_GP*ampl
                DO i = 1,9
-                  ampl = ampl+(.1*Faux1(i)+.01*Faux2(i))/9.
+                  ampl = ampl+(0.1_GP*Faux1(i)+0.01_GP*Faux2(i))/9.0_GP
                END DO
-               fx = fx*ampl
-               fy = fy*ampl
-               fz = fz*ampl
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+               DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+                  DO j = 1,n
+                     DO k = 1,n
+                        fx(k,j,i) = fx(k,j,i)*ampl
+                        fy(k,j,i) = fy(k,j,i)*ampl
+                        fz(k,j,i) = fz(k,j,i)*ampl
+                     END DO
+                  END DO
+               END DO
+

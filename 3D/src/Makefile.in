@@ -53,7 +53,7 @@ MPI      = MPICH
 #
 # Portland compiler (PGI)
 CPP_PGI       = /usr/bin/cpp -traditional-cpp
-FC_PGI        = /opt/pgi/linux86/7.1-5/bin/pgf90
+FC_PGI        = /opt/pgi/linux86/8.0-5/bin/pgf90
 FFLAGS_PGI    = -fastsse -Minline -Minfo=loop,inline -Mneginfo -g77libs
 PGI_OMP       = -mp
 TARGET_PGI    =

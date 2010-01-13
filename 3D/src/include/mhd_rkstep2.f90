@@ -28,10 +28,11 @@
          ENDIF
 
          rmp = 1./real(o,kind=GP)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,n
          DO k = 1,n
-
             IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
                vx(k,j,i) = C1(k,j,i)+dt*(nu*vx(k,j,i)+C16(k,j,i) &
               +fx(k,j,i))*rmp
@@ -46,14 +47,13 @@
                az(k,j,i) = C6(k,j,i)+dt*(mu*az(k,j,i)+C9(k,j,i)  &
               +mz(k,j,i))*rmp
             ELSE
-               vx(k,j,i) = 0.
-               vy(k,j,i) = 0.
-               vz(k,j,i) = 0.
-               ax(k,j,i) = 0.
-               ay(k,j,i) = 0.
-               az(k,j,i) = 0.
+               vx(k,j,i) = 0.0_GP
+               vy(k,j,i) = 0.0_GP
+               vz(k,j,i) = 0.0_GP
+               ax(k,j,i) = 0.0_GP
+               ay(k,j,i) = 0.0_GP
+               az(k,j,i) = 0.0_GP
             ENDIF
-
          END DO
          END DO
          END DO

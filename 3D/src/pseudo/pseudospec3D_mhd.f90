@@ -42,6 +42,7 @@
       USE mpivars
       USE grid
       USE fft
+!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
@@ -54,7 +55,9 @@
       REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
 
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,n
             DO k = 1,n
                x(k,j,i) = a(k,j,i)
@@ -79,8 +82,10 @@
       CALL fftp3d_complex_to_real(plancr,y,r5,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,z,r6,MPI_COMM_WORLD)
 
-      tmp = 1./real(n,kind=GP)**6
+      tmp = 1.0_GP/real(n,kind=GP)**6
+!$omp parallel do if (iend-ista.ge.nth) private (j,i)
       DO k = ksta,kend
+!$omp parallel do if (iend-ista.lt.nth) private (i)
          DO j = 1,n
             DO i = 1,n
                r7(i,j,k) = (r2(i,j,k)*r6(i,j,k)-r5(i,j,k)*r3(i,j,k))*tmp
@@ -126,6 +131,7 @@
       USE kes
       USE grid
       USE mpivars
+!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
@@ -139,12 +145,15 @@
 !
       IF (dir.eq.1) THEN
          IF (ista.eq.1) THEN
+!$omp parallel do private (k)
             DO j = 1,n
                DO k = 1,n
                   g(k,j,1) = -a(k,j,1)+d(k,j,1)
                END DO
             END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k)
             DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k)
                DO j = 1,n
                   DO k = 1,n
                      g(k,j,i) = -a(k,j,i)+d(k,j,i)+ka(i)*(ka(i)*(a(k,j,i) &
@@ -154,7 +163,9 @@
                END DO
             END DO
          ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
                DO j = 1,n
                   DO k = 1,n
                      g(k,j,i) = -a(k,j,i)+d(k,j,i)+ka(i)*(ka(i)*(a(k,j,i) &
@@ -168,12 +179,16 @@
 ! Computes the y-component
 !
       ELSE IF (dir.eq.2) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (k)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth)
             DO k = 1,n
                g(k,1,i) = -b(k,1,i)+e(k,1,i)
             END DO
          END DO
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 2,n
                DO k = 1,n
                   g(k,j,i) = -b(k,j,i)+e(k,j,i)+ka(j)*(ka(i)*(a(k,j,i) &
@@ -186,12 +201,16 @@
 ! Computes the z-component
 !
       ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth)
             DO j = 1,n
                g(1,j,i) = -c(1,j,i)+f(1,j,i)
             END DO
          END DO
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 2,n
                   g(k,j,i) = -c(k,j,i)+f(k,j,i)+ka(k)*(ka(i)*(a(k,j,i) &
@@ -226,6 +245,7 @@
       USE kes
       USE grid
       USE mpivars
+!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
@@ -238,12 +258,15 @@
 !
       IF (dir.eq.1) THEN
          IF (ista.eq.1) THEN
+!$omp parallel do private (k)
             DO j = 1,n
                DO k = 1,n
                   g(k,j,1) = a(k,j,1)
                END DO
             END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k)
             DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k)
                DO j = 1,n
                   DO k = 1,n
                      g(k,j,i) = a(k,j,i)-ka(i)*(ka(i)*a(k,j,i) &
@@ -252,7 +275,9 @@
                END DO
             END DO
          ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
                DO j = 1,n
                   DO k = 1,n
                      g(k,j,i) = a(k,j,i)-ka(i)*(ka(i)*a(k,j,i) &
@@ -265,12 +290,16 @@
 ! Computes the y-component
 !
       ELSE IF (dir.eq.2) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (k)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth)
             DO k = 1,n
                g(k,1,i) = b(k,1,i)
             END DO
          END DO
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 2,n
                DO k = 1,n
                   g(k,j,i) = b(k,j,i)-ka(j)*(ka(i)*a(k,j,i) &
@@ -282,12 +311,16 @@
 ! Computes the z-component
 !
       ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth)
             DO j = 1,n
                g(1,j,i) = c(1,j,i)
             END DO
          END DO
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 2,n
                   g(k,j,i) = c(k,j,i)-ka(k)*(ka(i)*a(k,j,i) &
@@ -329,6 +362,7 @@
       USE grid
       USE hall
       USE mpivars
+!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
@@ -344,10 +378,10 @@
       INTEGER, INTENT(IN) :: t
       INTEGER             :: i,j,k
 
-      divk = 0.
-      divm = 0.
-      tmp = 0.
-      tmq = 1./real(n,kind=GP)**6
+      divk = 0.0D0
+      divm = 0.0D0
+      tmp = 0.0D0
+      tmq = 1.0_GP/real(n,kind=GP)**6
 
 !
 ! Computes the mean square value of
@@ -360,12 +394,15 @@
       CALL derivk3(b,c2,2)
       CALL derivk3(c,c3,3)
       IF (ista.eq.1) THEN
+!$omp parallel do private (k) reduction(+:tmp)
          DO j = 1,n
             DO k = 1,n
                tmp = tmp+abs(c1(k,j,1)+c2(k,j,1)+c3(k,j,1))**2*tmq
             END DO
          END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:tmp)
          DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:tmp)
             DO j = 1,n
                DO k = 1,n
                   tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
@@ -373,7 +410,9 @@
             END DO
          END DO
       ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:tmp)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:tmp)
             DO j = 1,n
                DO k = 1,n
                   tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
@@ -384,17 +423,20 @@
       CALL MPI_REDUCE(tmp,divk,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
 
-      tmp = 0.
+      tmp = 0.0D0
       CALL derivk3(ma,c1,1)
       CALL derivk3(mb,c2,2)
       CALL derivk3(mc,c3,3)
       IF (ista.eq.1) THEN
+!$omp parallel do private (k) reduction(+:tmp)
          DO j = 1,n
             DO k = 1,n
                tmp = tmp+abs(c1(k,j,1)+c2(k,j,1)+c3(k,j,1))**2*tmq
             END DO
          END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:tmp)
          DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:tmp)
             DO j = 1,n
                DO k = 1,n
                   tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
@@ -402,7 +444,9 @@
             END DO
          END DO
       ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:tmp)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:tmp)
             DO j = 1,n
                DO k = 1,n
                   tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
@@ -441,7 +485,9 @@
          CALL cross(a,b,c,c1,c2,c3,crh,1)
       ENDIF
       IF (crs.eq.2) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
                   c1(k,j,i) = ma(k,j,i)+ep*a(k,j,i)
