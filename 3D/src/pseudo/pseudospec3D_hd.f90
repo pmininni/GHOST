@@ -1212,6 +1212,7 @@
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek
       DOUBLE PRECISION, INTENT(OUT), DIMENSION(n/2+1) :: Ektot, Hktot
+      DOUBLE PRECISION    :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
       REAL(KIND=GP)       :: tmp
@@ -1237,45 +1238,45 @@
             Ektot(i) = 0.0D0
          END DO
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn)
+!$omp parallel do private (k,kmn,tmq)
             DO j = 1,n
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,1))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-!$omp atomic
-                     Ek(kmn) = Ek(kmn)+                            &
-                       (abs(a(k,j,1))**2+abs(b(k,j,1))**2+         &
+                     tmq = (abs(a(k,j,1))**2+abs(b(k,j,1))**2+     &
                        abs(c(k,j,1))**2)*tmp
+!$omp atomic
+                     Ek(kmn) = Ek(kmn)+tmq
                   ENDIF
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
             DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                       tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+    &
+                                abs(c(k,j,i))**2)*tmp
 !$omp atomic
-                        Ek(kmn) = Ek(kmn)+                         &
-                          2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+    &
-                          abs(c(k,j,i))**2)*tmp
+                        Ek(kmn) = Ek(kmn)+tmq
                      ENDIF
                   END DO
                END DO
             END DO
           ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
             DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                       tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+    &
+                                abs(c(k,j,i))**2)*tmp
 !$omp atomic
-                        Ek(kmn) = Ek(kmn)+                         &
-                          2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+    &
-                          abs(c(k,j,i))**2)*tmp
+                        Ek(kmn) = Ek(kmn)+tmq
                      ENDIF
                   END DO
                END DO
@@ -1290,45 +1291,45 @@
             Ektot(i) = 0.0D0
          END DO
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn)
+!$omp parallel do private (k,kmn,tmq)
             DO j = 1,n
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,1))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     tmq = (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+       &
+                            abs(c3(k,j,1))**2)*tmp
 !$omp atomic
-                     Ek(kmn) = Ek(kmn)+                            &
-                       (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+       &
-                       abs(c3(k,j,1))**2)*tmp
+                     Ek(kmn) = Ek(kmn)+tmq
                   ENDIF
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
             DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                       tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+  &
+                                abs(c3(k,j,i))**2)*tmp
 !$omp atomic
-                        Ek(kmn) = Ek(kmn)+                         &
-                          2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+  &
-                          abs(c3(k,j,i))**2)*tmp
+                        Ek(kmn) = Ek(kmn)+tmq
                      ENDIF
                   END DO
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
             DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                       tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+  &
+                                 abs(c3(k,j,i))**2)*tmp
 !$omp atomic
-                        Ek(kmn) = Ek(kmn)+                         &
-                          2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+  &
-                          abs(c3(k,j,i))**2)*tmp
+                        Ek(kmn) = Ek(kmn)+tmq
                      ENDIF
                   END DO
                END DO
@@ -1351,48 +1352,48 @@
             Hktot(i) = 0.0D0
          END DO
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn)
+!$omp parallel do private (k,kmn,tmq)
             DO j = 1,n
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,1))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                    tmq = (real(a(k,j,1)*conjg(c1(k,j,1)))+                &
+                           real(b(k,j,1)*conjg(c2(k,j,1)))+                &
+                           real(c(k,j,1)*conjg(c3(k,j,1))))*tmp
 !$omp atomic
-                     Ek(kmn) = Ek(kmn)+                                 &
-                       (real(a(k,j,1)*conjg(c1(k,j,1)))+                &
-                       real(b(k,j,1)*conjg(c2(k,j,1)))+                 &
-                       real(c(k,j,1)*conjg(c3(k,j,1))))*tmp
+                     Ek(kmn) = Ek(kmn)+tmq
                   ENDIF
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
             DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                       tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+           &
+                                real(b(k,j,i)*conjg(c2(k,j,i)))+           &
+                                real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
 !$omp atomic
-                        Ek(kmn) = Ek(kmn)+                              &
-                          2*(real(a(k,j,i)*conjg(c1(k,j,i)))+           &
-                          real(b(k,j,i)*conjg(c2(k,j,i)))+              &
-                          real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
+                        Ek(kmn) = Ek(kmn)+tmq
                      ENDIF
                  END DO
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
             DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                       tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+           &
+                                real(b(k,j,i)*conjg(c2(k,j,i)))+           &
+                                real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
 !$omp atomic
-                        Ek(kmn) = Ek(kmn)+                              &
-                          2*(real(a(k,j,i)*conjg(c1(k,j,i)))+           &
-                          real(b(k,j,i)*conjg(c2(k,j,i)))+              &
-                          real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
+                        Ek(kmn) = Ek(kmn)+tmq
                      ENDIF
                   END DO
                END DO
@@ -1439,6 +1440,7 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
+      DOUBLE PRECISION    :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
       REAL(KIND=GP)       :: tmp
@@ -1459,48 +1461,48 @@
       tmp = 1.0_GP/real(n,kind=GP)**6
       IF ((kin.eq.1).or.(kin.eq.2)) THEN
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn)
+!$omp parallel do private (k,kmn,tmq)
             DO j = 1,n
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,1))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                    tmq = (real(a(k,j,1)*conjg(d(k,j,1)))+             &
+                           real(b(k,j,1)*conjg(e(k,j,1)))+             &
+                           real(c(k,j,1)*conjg(f(k,j,1))))*tmp
 !$omp atomic
-                     Ek(kmn) = Ek(kmn)+                             &
-                       (real(a(k,j,1)*conjg(d(k,j,1)))+             &
-                       real(b(k,j,1)*conjg(e(k,j,1)))+              &
-                       real(c(k,j,1)*conjg(f(k,j,1))))*tmp
+                     Ek(kmn) = Ek(kmn)+tmq
                   ENDIF
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
             DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                       tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+        &
+                                real(b(k,j,i)*conjg(e(k,j,i)))+        &
+                                real(c(k,j,i)*conjg(f(k,j,i))))*tmp
 !$omp atomic
-                        Ek(kmn) = Ek(kmn)+                          &
-                          2*(real(a(k,j,i)*conjg(d(k,j,i)))+        &
-                          real(b(k,j,i)*conjg(e(k,j,i)))+           &
-                          real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+                        Ek(kmn) = Ek(kmn)+tmq
                      ENDIF
                  END DO
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
             DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                       tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+        &
+                                real(b(k,j,i)*conjg(e(k,j,i)))+        &
+                                real(c(k,j,i)*conjg(f(k,j,i))))*tmp
 !$omp atomic
-                        Ek(kmn) = Ek(kmn)+                          &
-                          2*(real(a(k,j,i)*conjg(d(k,j,i)))+        &
-                          real(b(k,j,i)*conjg(e(k,j,i)))+           &
-                          real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+                        Ek(kmn) = Ek(kmn)+tmq
                      ENDIF
                   END DO
                END DO
@@ -1511,48 +1513,51 @@
 !
       ELSE
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn)
+!$omp parallel do private (k,kmn,tmq)
             DO j = 1,n
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,1))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                    tmq = ka2(k,j,1) *                             &
+                          (real(a(k,j,1)*conjg(d(k,j,1)))+         &
+                           real(b(k,j,1)*conjg(e(k,j,1)))+         &
+                           real(c(k,j,1)*conjg(f(k,j,1))))*tmp
 !$omp atomic
-                     Ek(kmn) = Ek(kmn)+ka2(k,j,1)*                  &
-                       (real(a(k,j,1)*conjg(d(k,j,1)))+             &
-                       real(b(k,j,1)*conjg(e(k,j,1)))+              &
-                       real(c(k,j,1)*conjg(f(k,j,1))))*tmp
+                     Ek(kmn) = Ek(kmn)+tmq
                   ENDIF
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
             DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-!$omp atomic
-                        Ek(kmn) = Ek(kmn)+2*ka2(k,j,i)*             &
-                          (real(a(k,j,i)*conjg(d(k,j,i)))+          &
-                          real(b(k,j,i)*conjg(e(k,j,i)))+           &
-                          real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+                       tmq = 2*ka2(k,j,i)*                              &
+                             (real(a(k,j,i)*conjg(d(k,j,i)))+           &
+                              real(b(k,j,i)*conjg(e(k,j,i)))+           &
+                              real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+!$omp atomic 
+                        Ek(kmn) = Ek(kmn)+tmq
                      ENDIF
                  END DO
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
             DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                       tmq = 2*ka2(k,j,i)*                             &
+                             (real(a(k,j,i)*conjg(d(k,j,i)))+          &
+                              real(b(k,j,i)*conjg(e(k,j,i)))+          &
+                              real(c(k,j,i)*conjg(f(k,j,i))))*tmp
 !$omp atomic
-                        Ek(kmn) = Ek(kmn)+2*ka2(k,j,i)*             &
-                          (real(a(k,j,i)*conjg(d(k,j,i)))+          &
-                          real(b(k,j,i)*conjg(e(k,j,i)))+           &
-                          real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+                        Ek(kmn) = Ek(kmn)+tmq
                      ENDIF
                   END DO
                END DO
@@ -1610,6 +1615,7 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Hk,Hktot
+      DOUBLE PRECISION    :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
@@ -1633,48 +1639,49 @@
       CALL rotor3(a,c,c2,2)
       CALL rotor3(a,b,c3,3)
       IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn)
+!$omp parallel do private (k,kmn,tmq)
          DO j = 1,n
             DO k = 1,n
                kmn = int(sqrt(ka2(k,j,1))+.501)
                IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                 tmq = (real(c1(k,j,1)*conjg(d(k,j,1)))+         &
+                        real(c2(k,j,1)*conjg(e(k,j,1)))+         &
+                        real(c3(k,j,1)*conjg(f(k,j,1))))*tmp
+
 !$omp atomic
-                  Hk(kmn) = Hk(kmn)+                             &
-                    (real(c1(k,j,1)*conjg(d(k,j,1)))+            &
-                    real(c2(k,j,1)*conjg(e(k,j,1)))+             &
-                    real(c3(k,j,1)*conjg(f(k,j,1))))*tmp
+                  Hk(kmn) = Hk(kmn)+tmq
                ENDIF
             END DO
          END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
          DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
             DO j = 1,n
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,i))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                    tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+          &
+                             real(c2(k,j,i)*conjg(e(k,j,i)))+          &
+                             real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
 !$omp atomic
-                     Hk(kmn) = Hk(kmn)+                          &
-                       2*(real(c1(k,j,i)*conjg(d(k,j,i)))+       &
-                       real(c2(k,j,i)*conjg(e(k,j,i)))+          &
-                       real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
+                     Hk(kmn) = Hk(kmn)+tmq
                   ENDIF
               END DO
             END DO
          END DO
       ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
             DO j = 1,n
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,i))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                    tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+          &
+                             real(c2(k,j,i)*conjg(e(k,j,i)))+          &
+                             real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
 !$omp atomic
-                     Hk(kmn) = Hk(kmn)+                          &
-                       2*(real(c1(k,j,i)*conjg(d(k,j,i)))+       &
-                       real(c2(k,j,i)*conjg(e(k,j,i)))+          &
-                       real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
+                     Hk(kmn) = Hk(kmn)+tmq
                   ENDIF
                END DO
             END DO
