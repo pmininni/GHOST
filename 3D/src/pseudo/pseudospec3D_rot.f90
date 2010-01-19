@@ -1028,6 +1028,7 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Hk,Hktot
+      DOUBLE PRECISION    :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
