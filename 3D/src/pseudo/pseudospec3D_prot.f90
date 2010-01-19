@@ -44,10 +44,11 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
+      DOUBLE PRECISION :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
-      REAL(KIND=GP) :: tmp
-      INTEGER       :: i,j,k
-      INTEGER       :: kmn
+      REAL(KIND=GP)    :: tmp
+      INTEGER          :: i,j,k
+      INTEGER          :: kmn
       CHARACTER(len=*), INTENT(IN) :: nmb
 
 !
@@ -61,39 +62,42 @@
 !
       tmp = 1.0_GP/real(n,kind=GP)**6
       IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn)
+!$omp parallel do private (k,kmn,tmq)
          DO j = 1,n
             DO k = 1,n
                kmn = int(abs(ka(k))+1)
                IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                  tmq = (abs(a(k,j,1))**2)*tmp
 !$omp atomic
-                  Ek(kmn) = Ek(kmn)+(abs(a(k,j,1))**2)*tmp
+                  Ek(kmn) = Ek(kmn)+tmq
                ENDIF
             END DO
          END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
          DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
             DO j = 1,n
                DO k = 1,n
                   kmn = int(abs(ka(k))+1)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     tmq = 2*(abs(a(k,j,i))**2)*tmp
 !$omp atomic
-                     Ek(kmn) = Ek(kmn)+2*(abs(a(k,j,i))**2)*tmp
+                     Ek(kmn) = Ek(kmn)+tmq
                   ENDIF
                END DO
             END DO
          END DO
       ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
             DO j = 1,n
                DO k = 1,n
                   kmn = int(abs(ka(k))+1)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     tmq = 2*(abs(a(k,j,i))**2)*tmp
 !$omp atomic
-                     Ek(kmn) = Ek(kmn)+2*(abs(a(k,j,i))**2)*tmp
+                     Ek(kmn) = Ek(kmn)+tmq
                   ENDIF
                END DO
             END DO
@@ -139,10 +143,11 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
+      DOUBLE PRECISION :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
-      REAL(KIND=GP) :: tmp
-      INTEGER       :: i,j,k
-      INTEGER       :: kmn
+      REAL(KIND=GP)    :: tmp
+      INTEGER          :: i,j,k
+      INTEGER          :: kmn
       CHARACTER(len=*), INTENT(IN) :: nmb
 
 !
@@ -156,39 +161,42 @@
 !
       tmp = 1.0_GP/real(n,kind=GP)**6
       IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn)
+!$omp parallel do private (k,kmn,tmq)
          DO j = 1,n
             kmn = int(sqrt(ka(1)**2+ka(j)**2)+.501)
             IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
                DO k = 1,n
+                  tmq = (abs(a(k,j,1))**2)*tmp
 !$omp atomic
-                  Ek(kmn) = Ek(kmn)+(abs(a(k,j,1))**2)*tmp
+                  Ek(kmn) = Ek(kmn)+tmq
                END DO
             ENDIF
          END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
          DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
             DO j = 1,n
                kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
                IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
                   DO k = 1,n
+                     tmq = 2*(abs(a(k,j,i))**2)*tmp
 !$omp atomic
-                     Ek(kmn) = Ek(kmn)+2*(abs(a(k,j,i))**2)*tmp
+                     Ek(kmn) = Ek(kmn)+tmq
                   END DO
                ENDIF
             END DO
          END DO
       ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
             DO j = 1,n
                kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
                IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
                   DO k = 1,n
+                     tmq = 2*(abs(a(k,j,i))**2)*tmp
 !$omp atomic
-                     Ek(kmn) = Ek(kmn)+2*(abs(a(k,j,i))**2)*tmp
+                     Ek(kmn) = Ek(kmn)+tmq
                   END DO
                ENDIF
             END DO
@@ -235,10 +243,11 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
+      DOUBLE PRECISION :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
-      REAL(KIND=GP) :: tmp
-      INTEGER :: i,j,k
-      INTEGER :: kmn
+      REAL(KIND=GP)    :: tmp
+      INTEGER          :: i,j,k
+      INTEGER          :: kmn
       CHARACTER(len=*), INTENT(IN) :: nmb
 
 !
@@ -252,39 +261,42 @@
 !
       tmp = 1.0_GP/real(n,kind=GP)**6
       IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn)
+!$omp parallel do private (k,kmn,tmq)
          DO j = 1,n
             DO k = 1,n
                kmn = int(abs(ka(k))+1)
                IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                  tmq = tmp*real(a(k,j,1)*conjg(b(k,j,1)))
 !$omp atomic
-                  Ek(kmn) = Ek(kmn)+tmp*real(a(k,j,1)*conjg(b(k,j,1)))
+                  Ek(kmn) = Ek(kmn)+tmq
                ENDIF
             END DO
          END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
          DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
             DO j = 1,n
                DO k = 1,n
                   kmn = int(abs(ka(k))+1)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     tmq = 2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
 !$omp atomic
-                     Ek(kmn) = Ek(kmn)+2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
+                     Ek(kmn) = Ek(kmn)+tmq
                   ENDIF
                END DO
             END DO
          END DO
       ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
             DO j = 1,n
                DO k = 1,n
                   kmn = int(abs(ka(k))+1)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     tmq = 2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
 !$omp atomic
-                     Ek(kmn) = Ek(kmn)+2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
+                     Ek(kmn) = Ek(kmn)+tmq
                   ENDIF
                END DO
             END DO
@@ -331,10 +343,11 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
+      DOUBLE PRECISION :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
-      REAL(KIND=GP) :: tmp
-      INTEGER :: i,j,k
-      INTEGER :: kmn
+      REAL(KIND=GP)    :: tmp
+      INTEGER          :: i,j,k
+      INTEGER          :: kmn
       CHARACTER(len=*), INTENT(IN) :: nmb
 
 !
@@ -348,39 +361,42 @@
 !
       tmp = 1.0_GP/real(n,kind=GP)**6
       IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn)
+!$omp parallel do private (k,kmn,tmq)
          DO j = 1,n
             kmn = int(sqrt(ka(1)**2+ka(j)**2)+.501)
             IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
                DO k = 1,n
+                  tmq = tmp*real(a(k,j,1)*conjg(b(k,j,1)))
 !$omp atomic
-                  Ek(kmn) = Ek(kmn)+tmp*real(a(k,j,1)*conjg(b(k,j,1)))
+                  Ek(kmn) = Ek(kmn)+tmq
                END DO
             ENDIF
          END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
          DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
             DO j = 1,n
                kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
                IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
                   DO k = 1,n
+                     tmq = 2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
 !$omp atomic
-                     Ek(kmn) = Ek(kmn)+2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
+                     Ek(kmn) = Ek(kmn)+tmq
                   END DO
                ENDIF
             END DO
          END DO
       ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn)
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
             DO j = 1,n
                kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
                IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
                   DO k = 1,n
+                     tmq = 2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
 !$omp atomic
-                     Ek(kmn) = Ek(kmn)+2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
+                     Ek(kmn) = Ek(kmn)+tmq
                   END DO
                ENDIF
             END DO

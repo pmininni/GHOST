@@ -1243,8 +1243,8 @@
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,1))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                     tmq = (abs(a(k,j,1))**2+abs(b(k,j,1))**2+     &
-                       abs(c(k,j,1))**2)*tmp
+                     tmq = (abs(a(k,j,1))**2+abs(b(k,j,1))**2+        &
+                            abs(c(k,j,1))**2)*tmp
 !$omp atomic
                      Ek(kmn) = Ek(kmn)+tmq
                   ENDIF
@@ -1257,8 +1257,8 @@
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                       tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+    &
-                                abs(c(k,j,i))**2)*tmp
+                        tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+   &
+                                 abs(c(k,j,i))**2)*tmp
 !$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
                      ENDIF
@@ -1273,8 +1273,8 @@
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                       tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+    &
-                                abs(c(k,j,i))**2)*tmp
+                        tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+   &
+                                 abs(c(k,j,i))**2)*tmp
 !$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
                      ENDIF
@@ -1296,7 +1296,7 @@
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,1))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                     tmq = (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+       &
+                     tmq = (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+      &
                             abs(c3(k,j,1))**2)*tmp
 !$omp atomic
                      Ek(kmn) = Ek(kmn)+tmq
@@ -1310,8 +1310,8 @@
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                       tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+  &
-                                abs(c3(k,j,i))**2)*tmp
+                        tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
+                                 abs(c3(k,j,i))**2)*tmp
 !$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
                      ENDIF
@@ -1326,7 +1326,7 @@
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                       tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+  &
+                        tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
                                  abs(c3(k,j,i))**2)*tmp
 !$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
@@ -1340,7 +1340,7 @@
 ! Computes the reduction between nodes
 !
       IF (kin.le.1) THEN
-         CALL MPI_ALLREDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,        &
+         CALL MPI_ALLREDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,      &
                          MPI_SUM,MPI_COMM_WORLD,ierr)
       END IF
 !
@@ -1357,9 +1357,9 @@
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,1))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                    tmq = (real(a(k,j,1)*conjg(c1(k,j,1)))+                &
-                           real(b(k,j,1)*conjg(c2(k,j,1)))+                &
-                           real(c(k,j,1)*conjg(c3(k,j,1))))*tmp
+                     tmq = (real(a(k,j,1)*conjg(c1(k,j,1)))+          &
+                            real(b(k,j,1)*conjg(c2(k,j,1)))+          &
+                            real(c(k,j,1)*conjg(c3(k,j,1))))*tmp
 !$omp atomic
                      Ek(kmn) = Ek(kmn)+tmq
                   ENDIF
@@ -1372,9 +1372,9 @@
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                       tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+           &
-                                real(b(k,j,i)*conjg(c2(k,j,i)))+           &
-                                real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
+                        tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+     &
+                                 real(b(k,j,i)*conjg(c2(k,j,i)))+     &
+                                 real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
 !$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
                      ENDIF
@@ -1389,9 +1389,9 @@
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                       tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+           &
-                                real(b(k,j,i)*conjg(c2(k,j,i)))+           &
-                                real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
+                        tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+     &
+                                 real(b(k,j,i)*conjg(c2(k,j,i)))+     &
+                                 real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
 !$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
                      ENDIF
@@ -1402,7 +1402,7 @@
 !
 ! Computes the reduction between nodes
 !
-         CALL MPI_ALLREDUCE(Ek,Hktot,n/2+1,MPI_DOUBLE_PRECISION,        &
+         CALL MPI_ALLREDUCE(Ek,Hktot,n/2+1,MPI_DOUBLE_PRECISION,      &
                          MPI_SUM,MPI_COMM_WORLD,ierr)
       ENDIF
 
@@ -1466,9 +1466,9 @@
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,1))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                    tmq = (real(a(k,j,1)*conjg(d(k,j,1)))+             &
-                           real(b(k,j,1)*conjg(e(k,j,1)))+             &
-                           real(c(k,j,1)*conjg(f(k,j,1))))*tmp
+                     tmq = (real(a(k,j,1)*conjg(d(k,j,1)))+            &
+                            real(b(k,j,1)*conjg(e(k,j,1)))+            &
+                            real(c(k,j,1)*conjg(f(k,j,1))))*tmp
 !$omp atomic
                      Ek(kmn) = Ek(kmn)+tmq
                   ENDIF
@@ -1481,9 +1481,9 @@
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                       tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+        &
-                                real(b(k,j,i)*conjg(e(k,j,i)))+        &
-                                real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+                        tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+       &
+                                 real(b(k,j,i)*conjg(e(k,j,i)))+       &
+                                 real(c(k,j,i)*conjg(f(k,j,i))))*tmp
 !$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
                      ENDIF
@@ -1498,9 +1498,9 @@
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                       tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+        &
-                                real(b(k,j,i)*conjg(e(k,j,i)))+        &
-                                real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+                        tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+       &
+                                 real(b(k,j,i)*conjg(e(k,j,i)))+       &
+                                 real(c(k,j,i)*conjg(f(k,j,i))))*tmp
 !$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
                      ENDIF
@@ -1518,10 +1518,10 @@
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,1))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                    tmq = ka2(k,j,1) *                             &
-                          (real(a(k,j,1)*conjg(d(k,j,1)))+         &
-                           real(b(k,j,1)*conjg(e(k,j,1)))+         &
-                           real(c(k,j,1)*conjg(f(k,j,1))))*tmp
+                     tmq = ka2(k,j,1) *                                &
+                           (real(a(k,j,1)*conjg(d(k,j,1)))+            &
+                            real(b(k,j,1)*conjg(e(k,j,1)))+            &
+                            real(c(k,j,1)*conjg(f(k,j,1))))*tmp
 !$omp atomic
                      Ek(kmn) = Ek(kmn)+tmq
                   ENDIF
@@ -1534,10 +1534,10 @@
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                       tmq = 2*ka2(k,j,i)*                              &
-                             (real(a(k,j,i)*conjg(d(k,j,i)))+           &
-                              real(b(k,j,i)*conjg(e(k,j,i)))+           &
-                              real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+                        tmq = 2*ka2(k,j,i)*                            &
+                              (real(a(k,j,i)*conjg(d(k,j,i)))+         &
+                               real(b(k,j,i)*conjg(e(k,j,i)))+         &
+                               real(c(k,j,i)*conjg(f(k,j,i))))*tmp
 !$omp atomic 
                         Ek(kmn) = Ek(kmn)+tmq
                      ENDIF
@@ -1552,10 +1552,10 @@
                   DO k = 1,n
                      kmn = int(sqrt(ka2(k,j,i))+.501)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                       tmq = 2*ka2(k,j,i)*                             &
-                             (real(a(k,j,i)*conjg(d(k,j,i)))+          &
-                              real(b(k,j,i)*conjg(e(k,j,i)))+          &
-                              real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+                        tmq = 2*ka2(k,j,i)*                            &
+                              (real(a(k,j,i)*conjg(d(k,j,i)))+         &
+                               real(b(k,j,i)*conjg(e(k,j,i)))+         &
+                               real(c(k,j,i)*conjg(f(k,j,i))))*tmp
 !$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
                      ENDIF
@@ -1644,9 +1644,9 @@
             DO k = 1,n
                kmn = int(sqrt(ka2(k,j,1))+.501)
                IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                 tmq = (real(c1(k,j,1)*conjg(d(k,j,1)))+         &
-                        real(c2(k,j,1)*conjg(e(k,j,1)))+         &
-                        real(c3(k,j,1)*conjg(f(k,j,1))))*tmp
+                  tmq = (real(c1(k,j,1)*conjg(d(k,j,1)))+            &
+                         real(c2(k,j,1)*conjg(e(k,j,1)))+            &
+                         real(c3(k,j,1)*conjg(f(k,j,1))))*tmp
 
 !$omp atomic
                   Hk(kmn) = Hk(kmn)+tmq
@@ -1660,9 +1660,9 @@
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,i))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                    tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+          &
-                             real(c2(k,j,i)*conjg(e(k,j,i)))+          &
-                             real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
+                     tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+       &
+                              real(c2(k,j,i)*conjg(e(k,j,i)))+       &
+                              real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
 !$omp atomic
                      Hk(kmn) = Hk(kmn)+tmq
                   ENDIF
@@ -1677,9 +1677,9 @@
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,i))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                    tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+          &
-                             real(c2(k,j,i)*conjg(e(k,j,i)))+          &
-                             real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
+                     tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+       &
+                              real(c2(k,j,i)*conjg(e(k,j,i)))+       &
+                              real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
 !$omp atomic
                      Hk(kmn) = Hk(kmn)+tmq
                   ENDIF
