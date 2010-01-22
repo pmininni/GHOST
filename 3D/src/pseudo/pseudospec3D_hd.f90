@@ -48,9 +48,8 @@
 ! Derivative in the x-direction
 !
       IF (dir.eq.1) THEN
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do private (k) collapse (2)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
 
@@ -67,9 +66,8 @@
 ! Derivative in the y-direction
 !
       ELSE IF (dir.eq.2) THEN
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do private (k) collapse (2)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
 
@@ -86,9 +84,8 @@
 ! Derivative in the z-direction
 !
       ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do private (k) collapse (2)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
 
@@ -126,9 +123,8 @@
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
       INTEGER :: i,j,k
 
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do private (k) collapse (2)
       DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,n
             DO k = 1,n
                b(k,j,i) = -ka2(k,j,i)*a(k,j,i)
@@ -174,9 +170,8 @@
       IF (dir.eq.1) THEN
          CALL derivk3(a,c1,3)
          CALL derivk3(b,c2,2)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel private (k) collapse (2)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
                   c(k,j,i) = c2(k,j,i)-c1(k,j,i)
@@ -189,9 +184,8 @@
       ELSE IF (dir.eq.2) THEN
          CALL derivk3(a,c1,3)
          CALL derivk3(b,c2,1)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do private (k) collapse (2)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
                   c(k,j,i) = c1(k,j,i)-c2(k,j,i)
@@ -204,9 +198,8 @@
       ELSE
          CALL derivk3(a,c1,2)
          CALL derivk3(b,c2,1)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do private (k) collapse (2)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
                   c(k,j,i) = c2(k,j,i)-c1(k,j,i)
@@ -264,9 +257,10 @@
       CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c4,r4,MPI_COMM_WORLD)
 
-!$omp parallel do if (iend-ista.ge.nth) private (j,i)
+!$omp parallel do private (k) collapse (2)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
-!$omp parallel do if (iend-ista.lt.nth) private (i)
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,n
             DO i = 1,n
                rx(i,j,k) = r1(i,j,k)*r2(i,j,k)
@@ -287,9 +281,9 @@
       CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c4,r4,MPI_COMM_WORLD)
 
-!$omp parallel do if (iend-ista.ge.nth) private (j,i)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
-!$omp parallel do if (iend-ista.lt.nth) private (i)
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,n
             DO i = 1,n
                rx(i,j,k) = rx(i,j,k)+r1(i,j,k)*r2(i,j,k)
@@ -311,9 +305,9 @@
       CALL fftp3d_complex_to_real(plancr,c4,r4,MPI_COMM_WORLD)
 
       tmp = 1.0_GP/real(n,kind=GP)**6
-!$omp parallel do if (iend-ista.ge.nth) private (j,i)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
-!$omp parallel do if (iend-ista.lt.nth) private (i)
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,n
             DO i = 1,n
                rx(i,j,k) = (rx(i,j,k)+r1(i,j,k)*r2(i,j,k))*tmp
@@ -393,9 +387,9 @@
 ! Computes curl(A)xA
 !
       tmp = 1.0_GP/real(n)**6
-!$omp parallel do if (iend-ista.ge.nth) private (j,i)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
-!$omp parallel do if (iend-ista.lt.nth) private (i)
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,n
             DO i = 1,n
                r7(i,j,k) = (r2(i,j,k)*r6(i,j,k)-r5(i,j,k)*r3(i,j,k))*tmp
