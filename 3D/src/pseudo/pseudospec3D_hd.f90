@@ -31,7 +31,6 @@
 !          =2 derivative in the y-direction
 !          =3 derivative in the z-direction
 !
-      USE ali
       USE kes
       USE var
       USE grid
@@ -53,13 +52,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
-
-               IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
                   b(k,j,i) = im*ka(i)*a(k,j,i)
-               ELSE
-                  b(k,j,i) = 0.0_GP
-               ENDIF
-
                END DO
             END DO
          END DO
@@ -72,13 +65,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
-
-               IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
                   b(k,j,i) = im*ka(j)*a(k,j,i)
-               ELSE
-                  b(k,j,i) = 0.0_GP
-               ENDIF
-
                END DO
             END DO
          END DO
@@ -91,13 +78,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
-
-               IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
                   b(k,j,i) = im*ka(k)*a(k,j,i)
-               ELSE
-                  b(k,j,i) = 0.0_GP
-               END IF
-
                END DO
             END DO
          END DO
