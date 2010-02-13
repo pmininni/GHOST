@@ -316,6 +316,7 @@
 
 !
 ! Initializes the MPI and I/O libraries
+
       CALL MPI_INIT(ierr)
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
@@ -325,16 +326,17 @@
 
 !
 ! Initializes the FFT library
-! Use FFTW_ESTIMATE in short runs and FFTW_MEASURE 
-! in long runs
+! Use FFTW_ESTIMATE or FFTW_MEASURE in short runs
+! Use FFTW_PATIENT or FFTW_EXHAUSTIVE in long runs
+! FFTW 2.x only supports FFTW_ESTIMATE or FFTW_MEASURE
 
       nth = 1
 !$    nth = omp_get_max_threads()
 !$    CALL fftp3d_init_threads(ierr)
       CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
-                             FFTW_MEASURE)
+                             FFTW_PATIENT)
       CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
-                             FFTW_MEASURE)
+                             FFTW_PATIENT)
 
 !
 ! Allocates memory for distributed blocks
