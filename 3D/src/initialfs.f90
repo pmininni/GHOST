@@ -9,7 +9,7 @@
 ! individual terms. At the end, the forcing in spectral
 ! space should be stored in the array fs
 
-! Null electromotive forcing
+! Null source
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
