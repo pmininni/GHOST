@@ -1,0 +1,101 @@
+! External forcing for the scalar.
+! This file contains the expression used for the external 
+! forcing. You can use temporary real arrays 
+! R1-R3 of size (1:n,1:n,ksta:kend) and temporary complex 
+! arrays C1-C8 of size (n,n,ista:iend) to do intermediate 
+! computations. The variable s0 should control the global 
+! amplitude of the forcing, and variables sparam0-9 can be
+! used to control the amplitudes of individual terms. At the
+! end, the three components of the forcing in spectral
+! space should be stored in the array fs.
+
+! Superposition of harmonic modes with random phases 
+!     skdn   : minimum wave number
+!     skup   : maximum wave number
+      IF (ista.eq.1) THEN
+         fs(1,1,1) = 0.
+         DO j = 2,n/2+1
+
+            IF ((ka2(1,j,1).le.skup**2).and.(ka2(1,j,1).ge.skdn**2)) THEN
+               dump = 1./sqrt(ka2(1,j,1))
+               phase = 2*pi*randu(seed)
+               fs(1,j,1) = (COS(phase)+im*SIN(phase))*dump
+               fs(1,n-j+2,1) = conjg(fs(1,j,1))
+            ELSE
+               fs(1,j,1) = 0.
+               fs(1,n-j+2,1) = 0.
+            ENDIF
+
+         END DO
+         DO k = 2,n/2+1
+
+            IF ((ka2(k,1,1).le.skup**2).and.(ka2(k,1,1).ge.skdn**2)) THEN
+               dump = 1./sqrt(ka2(k,1,1))
+               phase = 2*pi*randu(seed)
+               fs(k,1,1) = (COS(phase)+im*SIN(phase))*dump
+               fs(n-k+2,1,1) = conjg(fs(k,1,1))
+            ELSE
+               fs(k,1,1) = 0.
+               fs(n-k+2,1,1) = 0.
+            ENDIF
+
+         END DO
+         DO j = 2,n
+            DO k = 2,n/2+1
+     
+            IF ((ka2(k,j,1).le.skup**2).and.(ka2(k,j,1).ge.skdn**2)) THEN
+               dump = 1./sqrt(ka2(k,j,1))
+               phase = 2*pi*randu(seed)
+               fs(k,j,1) = (COS(phase)+im*SIN(phase))*dump
+               fs(n-k+2,n-j+2,1) = conjg(fs(k,j,1))
+            ELSE
+               fs(k,j,1) = 0.
+               fs(n-k+2,n-j+2,1) = 0.
+            ENDIF
+
+            END DO
+         END DO
+         DO i = 2,iend
+            DO j = 1,n
+               DO k = 1,n
+
+               IF ((ka2(k,j,i).le.skup**2).and.(ka2(k,j,i).ge.skdn**2)) THEN
+                  dump = 1./sqrt(ka2(k,j,i))
+                  phase = 2*pi*randu(seed)
+                  fs(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+               ELSE
+                  fs(k,j,i) = 0.
+               ENDIF
+
+               END DO
+            END DO
+         END DO
+      ELSE
+         DO i = ista,iend
+            DO j = 1,n
+               DO k = 1,n
+
+               IF ((ka2(k,j,i).le.skup**2).and.(ka2(k,j,i).ge.skdn**2)) THEN
+                  dump = 1./sqrt(ka2(k,j,i))
+                  phase = 2*pi*randu(seed)
+                  fs(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+               ELSE
+                  fs(k,j,i) = 0.
+               ENDIF
+
+               END DO
+            END DO
+        END DO
+      ENDIF
+
+      CALL variance(fs,tmp,1)
+      CALL MPI_BCAST(tmp,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,n
+            DO k = 1,n
+               fs(k,j,i) = fs(k,j,i)*s0/sqrt(tmp)
+            END DO
+         END DO
+      END DO
