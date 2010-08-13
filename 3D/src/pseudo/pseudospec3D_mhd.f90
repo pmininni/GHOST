@@ -69,7 +69,9 @@
       CALL fftp3d_complex_to_real(plancr,x,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,y,r2,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,z,r3,MPI_COMM_WORLD)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,n
             DO k = 1,n
                x(k,j,i) = d(k,j,i)
