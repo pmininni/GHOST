@@ -54,6 +54,7 @@
       INTEGER, SAVE :: jsta,jend
       INTEGER, SAVE :: ksta,kend
       INTEGER, SAVE :: nprocs,myrank
+      INTEGER, SAVE :: provided
       INTEGER, SAVE :: ierr
 
   END MODULE mpivars

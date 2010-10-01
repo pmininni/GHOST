@@ -203,7 +203,10 @@
       COMPLEX(KIND=GP) :: cdumr,jdumr
       DOUBLE PRECISION :: tmp,tmq
       DOUBLE PRECISION :: eps,epm
+      DOUBLE PRECISION :: cputime1,cputime2      ! rreddy@psc.edu
+      DOUBLE PRECISION :: cputime3,cputime4      ! rreddy@psc.edu 
       DOUBLE PRECISION :: omptime1,omptime2
+      DOUBLE PRECISION :: omptime3,omptime4
 !$    DOUBLE PRECISION, EXTERNAL :: omp_get_wtime
 
       REAL(KIND=GP)    :: dt,nu,mu,kappa
@@ -212,7 +215,6 @@
       REAL(KIND=GP)    :: dump
       REAL(KIND=GP)    :: stat
       REAL(KIND=GP)    :: f0,u0
-      REAL(KIND=GP)    :: cputime1,cputime2
       REAL(KIND=GP)    :: phase,ampl,cort
       REAL(KIND=GP)    :: fparam0,fparam1,fparam2,fparam3,fparam4
       REAL(KIND=GP)    :: fparam5,fparam6,fparam7,fparam8,fparam9
@@ -317,7 +319,7 @@
 !
 ! Initializes the MPI and I/O libraries
 
-      CALL MPI_INIT(ierr)
+      CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
@@ -333,10 +335,20 @@
       nth = 1
 !$    nth = omp_get_max_threads()
 !$    CALL fftp3d_init_threads(ierr)
+      IF (bench.eq.2) THEN
+         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+         CALL CPU_Time(cputime3)
+!$       omptime3 = omp_get_wtime()
+      ENDIF
       CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
                              FFTW_PATIENT)
       CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
                              FFTW_PATIENT)
+      IF (bench.eq.2) THEN
+         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+         CALL CPU_Time(cputime4)
+!$       omptime4 = omp_get_wtime()
+      ENDIF
 
 !
 ! Allocates memory for distributed blocks
@@ -432,6 +444,7 @@
 !     mult : time step multiplier
 !     bench: = 0 production run
 !            = 1 benchmark run (no I/O)
+!            = 2 higher level benchmark run (+time to create plans)
 !     outs : = 0 writes velocity [and vector potential (MAGFIELD_)]
 !            = 1 writes vorticity [and magnetic field (MAGFIELD_)]
 !            = 2 writes current density (MAGFIELD_)
@@ -1552,6 +1565,10 @@
             WRITE(1,*) n,(step-ini+1),nprocs,nth, &
                        (cputime2-cputime1)/(step-ini+1),&
                        (omptime2-omptime1)/(step-ini+1)
+            IF (bench.eq.2) THEN
+               WRITE(1,*) 'FFTW: Create_plan = ', &
+                       (cputime4-cputime3),(omptime4-omptime3)
+            ENDIF
             CLOSE(1)
          ENDIF
       ENDIF
