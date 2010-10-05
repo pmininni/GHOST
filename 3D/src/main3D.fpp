@@ -268,7 +268,6 @@
 !$    INTEGER, EXTERNAL :: omp_get_max_threads
 
       TYPE(IOPLAN) :: planio
-
       CHARACTER(len=100) :: odir,idir
 
 !
@@ -683,6 +682,9 @@
          READ(1,NML=uniformb)
          CLOSE(1)
       ENDIF
+      CALL MPI_BCAST(bx0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(by0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(bz0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #ifdef HALLTERM_
