@@ -1,0 +1,26 @@
+! Initial condition for the velocity.
+! This file contains the expression used for the initial
+! streamfunction or velocity field (depending on the solver). 
+! You can use the temporary real array R1 of size 
+! (n,jsta:jend), and temporary complex arrays C1, C2 of size 
+! (n,ista:iend) to do intermediate computations. The variable 
+! u0 should control the global amplitude of the field, and 
+! variables vparam0-9 can be used to control the amplitudes 
+! of individual terms. At the end, the streamfunction should 
+! be stored in the array ps, or the velocity field components 
+! in the arrays vx and vy (plus vz in 2.5D solvers).
+
+! Orszag-Tang vortex (streamfunction, 2D)
+
+      DO j = jsta,jend
+         DO i = 1,n
+            R1(i,j) = 0.0_GP
+            R2(i,j) = 0.0_GP
+            DO ki = kdn,kup
+            R1(i,j) = R1(i,j)+2*u0*(COS(2*pi*ki*(real(i,kind=GP)-1)/ &
+                   real(n,kind=GP))+COS(2*pi*ki*(real(j,kind=GP)-1)/ &
+                   real(n,kind=GP)))
+            END DO
+         END DO
+      END DO
+      CALL fftp2d_real_to_complex(planrc,R1,ps,MPI_COMM_WORLD)

@@ -1,0 +1,19 @@
+! Initial condition for the velocity.
+! This file contains the expression used for the initial
+! streamfunction or velocity field (depending on the solver). 
+! You can use the temporary real array R1 of size 
+! (n,jsta:jend), and temporary complex arrays C1, C2 of size 
+! (n,ista:iend) to do intermediate computations. The variable 
+! u0 should control the global amplitude of the field, and 
+! variables vparam0-9 can be used to control the amplitudes 
+! of individual terms. At the end, the streamfunction should 
+! be stored in the array ps, or the velocity field components 
+! in the arrays vx and vy (plus vz in 2.5D solvers).
+
+! Null streamfunction (2D)
+
+      DO i = ista,iend
+         DO j = 1,n
+            ps(j,i) = 0.0_GP
+         END DO
+      END DO

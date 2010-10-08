@@ -1,0 +1,25 @@
+! Initial condition for the vector potential.
+! This file contains the expression used for the initial 
+! vector potential. You can use temporary real arrays R1-R2 
+! of size (n,jsta:jend), and temporary complex arrays C1-C5 
+! of size (n,ista:iend) to do intermediate computations. 
+! The variable a0 should control the global amplitude of the 
+! initial condition, and variables aparam0-9 can be used to 
+! control the amplitudes of individual terms. At the end, the 
+! potential in spectral space should be stored in the array 
+! az (plus bz for the z-component of the magnetic field in 
+! 2.5D solvers).
+
+! Orszag-Tang vortex (vector potential, 2D)
+ 
+      DO j = jsta,jend
+         DO i = 1,n
+            R1(i,j) = 0.0_GP
+            DO ki = mkdn,mkup
+            R1(i,j) = R1(i,j)+a0*(2*COS(2*pi*ki*(real(i,kind=GP)-1)/ &
+                   real(n,kind=GP))+COS(4*pi*ki*(real(j,kind=GP)-1)/ &
+                   real(n,kind=GP)))
+            END DO
+         END DO
+      END DO
+      CALL fftp2d_real_to_complex(planrc,R1,az,MPI_COMM_WORLD)
