@@ -12,7 +12,3 @@ solvers for stratified flows in the Boussinesq approximation.
 
 * Add FFT-Chebyshev routines to deal with non-periodic boundary 
 conditions.
-
-* Implement 1D domain decomposition in the parallel FFTs.
-
-* Update the 2D source to follow the same structure as the 3D source.
