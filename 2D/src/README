@@ -1,0 +1,28 @@
+GHOST code: Geophysical High Order Suite for Turbulence
+=======================================================
+
+The code and different solvers provided here numerically integrate the 
+hydrodynamic/magnetodydrodynamic/Hall-magnetodydrodynamic equations in 
+2 dimensions. For instalation details, see the README file in the 3D 
+directory. Here, we briefly give details of the differences between the 
+2D and 3D code.
+
+1. Hybrid support
+=================
+
+The 2D code has no hybrid (MPI+OpenMP) support. Only parallelization 
+with MPI is available.
+
+2. Solvers 
+==========
+
+The list of solvers in the 2D and 3D code differs. See the file SOLVERS 
+for the list of solvers available in the 2D code.
+
+3. Input files
+==============
+
+Although the format of the input and output files is the same for the 
+2D and 3D codes, some options may not be available in the 2D code. See 
+the directory "examples" for an example of the "parameter.txt" input 
+file for the 2D solvers.

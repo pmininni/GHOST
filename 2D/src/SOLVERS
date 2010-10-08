@@ -1,0 +1,29 @@
+Solvers supported by the main code
+==================================
+
+0. I/O and FFT libraries
+========================
+
+All the solvers and analysis tools work with the following parallel 
+FFT libraries (pass 'FFTP=' to the make command to change the default):
+
+   fftp-3 parallel FFT library to link with FFTW 3.x [DEFAULT]
+   fftp-2 parallel FFT library to link with FFTW 2.x
+
+and with the following I/O libraries (pass 'IOLIB=' to change the 
+default):
+
+   mpiio  MPI I/O, one file for all processors [DEFAULT]
+   posix  posix I/O, one file per processor
+
+1. main
+=======
+
+The main code is built using 'make' or 'make main'. The following 
+solvers are currently supported (pass 'SOLVER=' to the make command 
+to build a solver other than the default):
+
+   HD        Hydrodynamic (HD) solver with streamfunction [DEFAULT]
+   MHD       Magnetohydrodynamic (MHD) solver (streamfunction-potential)
+   MHDB      MHD solver with a uniform magnetic field in y
+   HMHD      Hall-MHD solver
