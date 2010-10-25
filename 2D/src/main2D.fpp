@@ -448,7 +448,7 @@
       INCLUDE 'initialfv.f90'           ! mechanical forcing
 #ifdef MAGFIELD_
       INCLUDE 'initialfb.f90'           ! electromotive forcing
-#endif
+#endif 
 
 ! If stat=0 we start a new run.
 ! Generates initial conditions for the fields.
@@ -594,6 +594,7 @@
          IF ((timet.eq.tstep).and.(bench.eq.0)) THEN
             timet = 0
             tind = tind+1
+            WRITE(ext, fmtext) tind
             rmp = 1./real(n,kind=GP)**2
 #ifdef STREAM_
             DO i = ista,iend

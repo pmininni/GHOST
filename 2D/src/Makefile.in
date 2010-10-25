@@ -85,7 +85,7 @@ TARGET_GNU    = -msse
 # G95 compiler (G95)
 CPP_G95       = /usr/bin/cpp -traditional-cpp -P
 FC_G95        = /opt/g95-x86_64-32/bin/g95
-FFLAGS_G95    = -O4 -w
+FFLAGS_G95    = -O4 -w -fno-second-underscore
 G95_OMP       = 
 TARGET_G95    = -msse
 #****************************************************************************

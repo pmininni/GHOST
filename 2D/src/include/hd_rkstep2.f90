@@ -10,7 +10,7 @@
                ps(j,i) = C1(j,i)+dt*(nu*C2(j,i)-ps(j,i)/ka2(j,i)   &
               +fk(j,i))*rmp
             ELSE
-               C1(j,i) = 0.0_GP
+               ps(j,i) = 0.0_GP
             ENDIF
          END DO
          END DO

@@ -56,7 +56,7 @@ clean:  undo
         done
 
 dist:
-	rm -f *HD* *MHD* *HMHD* *ROTH*
+	rm -f *HD* *MHD* *ROTH*
 	$(MAKE) clean
 
 edit:

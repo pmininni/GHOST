@@ -25,10 +25,10 @@
                bz(j,i) = C4(j,i)+dt*(mu*bz(j,i)+C9(j,i)-C10(j,i)     &
               -ep*az(j,i)+mz(j,i))/float(o)
             ELSE
-               C1(j,i) = 0.0_GP
-               C2(j,i) = 0.0_GP
-               C3(j,i) = 0.0_GP
-               C4(j,i) = 0.0_GP
+               ps(j,i) = 0.0_GP
+               az(j,i) = 0.0_GP
+               vz(j,i) = 0.0_GP
+               bz(j,i) = 0.0_GP
             ENDIF
 
             END DO

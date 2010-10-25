@@ -10,4 +10,3 @@
 #elif defined(GSINGLE_PRECISION) 
 #define GPMANGLE(name)    CONCAT(sfftw_,name)
 #endif
-

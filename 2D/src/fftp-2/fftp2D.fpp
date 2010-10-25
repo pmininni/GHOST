@@ -164,7 +164,7 @@
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(plan%n,ista:iend) :: out 
       COMPLEX(KIND=GP), DIMENSION(plan%n/2+1,jsta:jend)          :: c1
       COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%n)              :: c2
-      REAL(KIND=GP), INTENT(IN), DIMENSION(plan%n,plan%n,jsta:jend) :: in
+      REAL(KIND=GP), INTENT(IN), DIMENSION(plan%n,jsta:jend)     :: in
 
       INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
