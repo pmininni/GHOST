@@ -3,13 +3,13 @@
 ! Compute eddy viscosities, transfer functions from partially-updated v_i:
          CALL spectrumc(vx,vy,vz,1,heli,Eold,Hold)
          CALL evedqnm(Eold,Hold,nu,(t-1)*dt,heli,tepq,thpq,tve,tvh,Eext,Hext)
-         tmp = 1./dble(n)**6
+         rmp = 1./real(n,KIND=GP)**6
          DO i = ista,iend 
          DO j = 1,n
          DO k = 1,n
             Eden(k,j,i) = (abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+           &
-                          abs(vz(k,j,i))**2)*tmp
-            Hden(k,j,i) = 2*tmp*(ka(k)*(real(vx(k,j,i))*aimag(vy(k,j,i))- &
+                          abs(vz(k,j,i))**2)*rmp
+            Hden(k,j,i) = 2*rmp*(ka(k)*(real(vx(k,j,i))*aimag(vy(k,j,i))- &
                           real(vy(k,j,i))*aimag(vx(k,j,i)))               &
                           +ka(j)*(real(vz(k,j,i))*aimag(vx(k,j,i))-       &
                           real(vx(k,j,i))*aimag(vz(k,j,i)))               &
