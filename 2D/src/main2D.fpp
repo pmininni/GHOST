@@ -462,9 +462,9 @@
       timec = cstep
       times = sstep
       INCLUDE 'initialv.f90'            ! initial velocity
-!#ifdef VECPOT_
+#ifdef VECPOT_
       INCLUDE 'initialb.f90'            ! initial vector potential
-!#endif
+#endif
       
       ELSE
 
