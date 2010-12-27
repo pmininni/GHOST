@@ -140,6 +140,7 @@
 #ifdef VECPOT_
       REAL(KIND=GP) :: mkup,mkdn
       REAL(KIND=GP) :: m0,a0
+      REAL(KIND=GP) :: corr
       REAL(KIND=GP) :: mparam0,mparam1,mparam2,mparam3,mparam4
       REAL(KIND=GP) :: mparam5,mparam6,mparam7,mparam8,mparam9
       REAL(KIND=GP) :: aparam0,aparam1,aparam2,aparam3,aparam4
@@ -175,7 +176,7 @@
       NAMELIST / velocity / fparam8,fparam9,vparam0,vparam1,vparam2
       NAMELIST / velocity / vparam3,vparam4,vparam5,vparam6,vparam7
       NAMELIST / velocity / vparam8,vparam9
-#ifdef MAGFIELD_
+#ifdef VECPOT_
       NAMELIST / magfield / m0,a0,mkdn,mkup,mu,corr,mparam0,mparam1
       NAMELIST / magfield / mparam2,mparam3,mparam4,mparam5,mparam6
       NAMELIST / magfield / mparam7,mparam8,mparam9,aparam0,aparam1
@@ -191,25 +192,23 @@
 
 !
 ! Initializes the MPI and I/O library
-
       CALL MPI_INIT(ierr)
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       CALL range(1,n,nprocs,myrank,jsta,jend)
       CALL io_init(myrank,n,jsta,jend,planio)
-
 !
 ! Initializes the FFT library
 ! Use FFTW_ESTIMATE or FFTW_MEASURE in short runs
 ! Use FFTW_PATIENT or FFTW_EXHAUSTIVE in long runs
 ! FFTW 2.x only supports FFTW_ESTIMATE or FFTW_MEASURE
-
+      
       CALL fftp2d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
                              FFTW_MEASURE)
       CALL fftp2d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
                              FFTW_MEASURE)
-
+      
 !
 ! Allocates memory for distributed blocks
 
@@ -218,6 +217,7 @@
       ALLOCATE( ps(n,ista:iend), fk(n,ista:iend) )
 #endif
 #ifdef VECPOT_
+      ALLOCATE( az(n,ista:iend), mk(n,ista:iend) )
       ALLOCATE( C3(n,ista:iend), C4(n,ista:iend) )
       ALLOCATE( C5(n,ista:iend) )
 #endif
@@ -267,7 +267,7 @@
 !     bench: = 0 production run
 !            = 1 benchmark run (no I/O)
 !     outs : = 0 writes streamfunction [and vector potential (VECPOT_)]
-!            = 1 writes vorticity [and current (MAGFIELD_)]
+!            = 1 writes vorticity [and current (VECPOT_)]
 !     trans: = 0 skips energy transfer computation
 !            = 1 performs energy transfer computation
 
@@ -362,7 +362,7 @@
       CALL MPI_BCAST(vparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(vparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 
-#ifdef MAGFIELD_
+#ifdef VECPOT_
 !
 ! Reads parameters for the magnetic field from the 
 ! namelist 'magfield' on the external file 'parameter.txt' 
@@ -387,7 +387,7 @@
       CALL MPI_BCAST(mkdn,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(mkup,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(mu,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(corr,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(corr,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(mparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(mparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(mparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
@@ -441,21 +441,20 @@
       ENDIF
       CALL MPI_BCAST(ep,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
-
+     
 !
 ! Sets the external forcing
-
       INCLUDE 'initialfv.f90'           ! mechanical forcing
-#ifdef MAGFIELD_
+#ifdef VECPOT_
       INCLUDE 'initialfb.f90'           ! electromotive forcing
 #endif 
-
+      
 ! If stat=0 we start a new run.
 ! Generates initial conditions for the fields.
 
       timef = fstep
  IC : IF (stat.eq.0) THEN
-
+      
       ini = 1
       sind = 0                          ! index for the spectrum
       tind = 0                          ! index for the binaries
@@ -463,10 +462,10 @@
       timec = cstep
       times = sstep
       INCLUDE 'initialv.f90'            ! initial velocity
-#ifdef MAGFIELD_
+!#ifdef VECPOT_
       INCLUDE 'initialb.f90'            ! initial vector potential
-#endif
-
+!#endif
+      
       ELSE
 
 ! If stat.ne.0 a previous run is continued
@@ -524,7 +523,7 @@
                CALL MPI_BCAST(phase,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
                cdump = COS(phase)+im*SIN(phase)
                jdump = conjg(cdump)
-#ifdef MAGFIELD_
+#ifdef VECPOT_
                IF (myrank.eq.0) phase = 2*pi*randu(seed)
                CALL MPI_BCAST(phase,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
                cdumq = corr*cdump+(1-corr)*(COS(phase)+im*SIN(phase))
