@@ -430,3 +430,25 @@ dE/dt = -2.nu.Omega+eps
 
 where the time derivative of the energy can be computed using 
 centered finite differences.
+
+4. References:
+
+The pseudospectral method with MPI parallelization is described 
+in: D.O. Gomez, P.D. Mininni, and P. Dmitruk; Phys. Scripta T116, 
+123 (2005).
+
+The hybrid parallelization scheme is described in: P.D. Mininni, 
+D.L. Rosenberg, R. Reddy, and A. Pouquet, arXiv:1003.4322 (2010).
+
+We ask users to cite these two papers when referencing GHOST. The 
+following papers should be used as references for each specific 
+solver:
+
+HD solver: P.D. Mininni, A. Alexakis, and A. Pouquet, Phys. Rev. 
+E 77, 036306 (2008).
+
+MHD solver: P.D. Mininni and A. Pouquet, Phys. Rev. Lett. 99, 
+254502 (2007).
+
+Hall-MHD solver: P.D. Mininni, D.O. Gomez, and S.M. Mahajan; 
+Astrophys. J. 619, 1019 (2005).
