@@ -86,8 +86,14 @@
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname
 
+      IF ( bmangle.EQ.1 ) THEN
       CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname // &
           '.' // nmb // '.out',MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
+      ELSE
+
+      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname  &
+                        ,MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
+      ENDIF
       CALL MPI_FILE_SET_VIEW(fh,disp,GC_REAL,plan%iotype,'native', &
           MPI_INFO_NULL,ioerr)
       CALL MPI_FILE_READ_ALL(fh,var, &
@@ -128,9 +134,15 @@
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname
 
+      IF ( bmangle.EQ.1 ) THEN
       CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname // &
           '.' // nmb // '.out',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
           MPI_INFO_NULL,fh,ioerr)
+      ELSE
+      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname  &
+                        ,MPI_MODE_CREATE+MPI_MODE_WRONLY &
+                        ,MPI_INFO_NULL,fh,ioerr)
+      ENDIF
       CALL MPI_FILE_SET_VIEW(fh,disp,GC_REAL,plan%iotype,'native', &
           MPI_INFO_NULL,ioerr)
       CALL MPI_FILE_WRITE_ALL(fh,var, &
@@ -140,3 +152,148 @@
 
       RETURN
       END SUBROUTINE io_write
+
+
+!*****************************************************************
+      SUBROUTINE io_initc(myrank,n,ksta,kend,plan)
+!-----------------------------------------------------------------
+!
+! Initializes variables for MPI I/O. Creates plans and MPI 
+! derived data types for I/O of the distributed complex arrays 
+! with the components of the fields.
+!
+! Parameters
+!     myrank: the rank of the processor [IN]
+!     n     : the size of the dimensions of the input array [IN]
+!     ksta  : start value of the block in the third dimension [IN]
+!     kend  : end value of the block in the third dimension [IN]
+!     plan  : contains the I/O plan [OUT]
+!-----------------------------------------------------------------
+
+      USE commtypes
+      USE iovar
+      USE iompi
+      IMPLICIT NONE
+
+      INTEGER, INTENT(IN)   :: myrank,n
+      INTEGER, INTENT(IN)   :: ksta,kend
+      INTEGER, DIMENSION(3) :: sizes,subsizes,starts
+      TYPE(IOPLAN), INTENT(OUT) :: plan
+
+      plan%n = n
+      plan%ksta = ksta
+      plan%kend = kend
+
+      sizes(1) = n
+      sizes(2) = n
+      sizes(3) = n
+      subsizes(1) = n
+      subsizes(2) = n
+      subsizes(3) = kend-ksta+1
+      starts(1) = 0
+      starts(2) = 0
+      starts(3) = ksta-1
+      CALL MPI_TYPE_CREATE_SUBARRAY(3,sizes,subsizes,starts, &
+           MPI_ORDER_FORTRAN,GC_COMPLEX,plan%iotype,ioerr)
+      CALL MPI_TYPE_COMMIT(plan%iotype,ioerr)
+
+      RETURN
+      END SUBROUTINE io_initc
+
+!*****************************************************************
+      SUBROUTINE io_readc(unit,dir,fname,nmb,plan,var)
+!-----------------------------------------------------------------
+!
+! Reads field components from individual MPI native 
+! complex binary files, labeled only by the extension 
+! indicating the time.
+!
+! Parameters
+!     unit  : file unit [IN]
+!     dir   : directory from which the files are read [IN]
+!     fname : name of the field component [IN]
+!     nmb   : extension with the time label [IN]
+!     plan  : I/O plan [IN]
+!     var   : the array with the complex field component [OUT]
+!-----------------------------------------------------------------
+
+      USE fprecision
+      USE commtypes
+      USE iovar
+      USE iompi
+      IMPLICIT NONE
+      
+      TYPE(IOPLAN), INTENT(IN)   :: plan
+      COMPLEX(KIND=GP), INTENT(OUT) :: var(plan%n,plan%n,plan%ksta:plan%kend)
+      INTEGER, INTENT(IN)        :: unit
+      INTEGER                    :: fh
+      CHARACTER(len=100), INTENT(IN) :: dir
+      CHARACTER(len=*), INTENT(IN)   :: nmb
+      CHARACTER(len=*), INTENT(IN)   :: fname
+
+      IF ( bmangle.EQ.1 ) THEN
+      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname // &
+          '.' // nmb // '.out',MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
+      ELSE
+
+      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname  &
+                        ,MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
+      ENDIF
+      CALL MPI_FILE_SET_VIEW(fh,disp,GC_COMPLEX,plan%iotype,'native', &
+          MPI_INFO_NULL,ioerr)
+      CALL MPI_FILE_READ_ALL(fh,var, &
+          plan%n*plan%n*(plan%kend-plan%ksta+1),GC_COMPLEX, &
+          MPI_STATUS_IGNORE,ioerr)
+      CALL MPI_FILE_CLOSE(fh,ioerr)
+
+      RETURN
+      END SUBROUTINE io_readc
+
+!*****************************************************************
+      SUBROUTINE io_writec(unit,dir,fname,nmb,plan,var)
+!-----------------------------------------------------------------
+!
+! Writes field components into MPI native complex binary files, 
+! labeled only by the extension indicating the time.
+!
+! Parameters
+!     unit  : file unit [IN]
+!     dir   : directory in which the files are written [IN]
+!     fname : name of the field component [IN]
+!     nmb   : extension with the time label [IN]
+!     plan  : I/O plan [IN]
+!     var   : the array with the field component [IN]
+!-----------------------------------------------------------------
+
+      USE fprecision
+      USE commtypes
+      USE iovar
+      USE iompi
+      IMPLICIT NONE
+
+      TYPE(IOPLAN), INTENT(IN)  :: plan
+      COMPLEX(KIND=GP), INTENT(IN) :: var(plan%n,plan%n,plan%ksta:plan%kend)
+      INTEGER, INTENT(IN)       :: unit
+      INTEGER                   :: fh
+      CHARACTER(len=100), INTENT(IN) :: dir
+      CHARACTER(len=*), INTENT(IN)   :: nmb
+      CHARACTER(len=*), INTENT(IN)   :: fname
+
+      IF ( bmangle.EQ.1 ) THEN
+      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname // &
+          '.' // nmb // '.out',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
+          MPI_INFO_NULL,fh,ioerr)
+      ELSE
+      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname  &
+                        ,MPI_MODE_CREATE+MPI_MODE_WRONLY &
+                        ,MPI_INFO_NULL,fh,ioerr)
+      ENDIF
+      CALL MPI_FILE_SET_VIEW(fh,disp,GC_COMPLEX,plan%iotype,'native', &
+          MPI_INFO_NULL,ioerr)
+      CALL MPI_FILE_WRITE_ALL(fh,var, &
+          plan%n*plan%n*(plan%kend-plan%ksta+1),GC_COMPLEX, &
+          MPI_STATUS_IGNORE,ioerr)
+      CALL MPI_FILE_CLOSE(fh,ioerr)
+
+      RETURN
+      END SUBROUTINE io_writec

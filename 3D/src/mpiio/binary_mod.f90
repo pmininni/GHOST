@@ -23,6 +23,7 @@
       USE commtypes
       INTEGER, SAVE :: ioerr
       INTEGER(KIND=MPI_OFFSET_KIND), SAVE :: disp = 0
+      INTEGER, SAVE :: bmangle = 1
 
   END MODULE iompi
 !=================================================================
