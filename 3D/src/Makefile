@@ -38,12 +38,12 @@ FFTWLDFLAGS = $($(FFTP:fftp-%=FFTW%)FLAGS) $(DO_HYBRID$(P_HYBRID))
 FFTWINC     = $(FFTWDIR)/include
 FFTWLIB     = $(FFTWDIR)/lib
 LDFLAGS     = $(MPILIB) -L$(FFTWLIB) $(MPILDFLAGS) $(FFTWLDFLAGS)
-INCLUDE     = $(MPIINC) -I$(FFTWINC) -I$(GHOME)/$(FFTP) -I$(GHOME)/$(IOLIB) -Iinclude
+INCLUDE     = $(MPIINC) -I$(FFTWINC) -I$(GHOME)/$(FFTP) -I$(GHOME)/$(IOLIB) -I$(GHOME)/utils -Iinclude
 CPPFLAGS    = -D$(SOLVER)_SOL
 PREPROCESS  = $(CPP) $(CPPFLAGS)
 COMPILE     = $(FC) $(FFLAGS) $(DO_HYBRID$(P_HYBRID)) $(INCLUDE) $(TARGET_ARCH) -c
 
-HD_OBJS        = pseudospec3D_mod.o module_dns.o pseudospec3D_hd.o
+HD_OBJS        = pseudospec3D_mod.o module_dns.o pseudospec3D_hd.o  
 PHD_OBJS       = $(HD_OBJS) pseudospec3D_phd.o
 MHD_OBJS       = $(HD_OBJS) pseudospec3D_mhd.o
 MHDB_OBJS      = $(HD_OBJS) pseudospec3D_mhd.o pseudospec3D_rot.o
@@ -61,11 +61,12 @@ EDQNMROTH_OBJS = $(ROTH_OBJS) $(EDQNM_OBJS)
 TRAN_OBJS      = pseudospec3D_trn.o
 STRU_OBJS      = pseudospec3D_shf.o
 OBJS           = $($(SOLVER)_OBJS)
+UTILS          = utils
 OBJSDIR        = pseudo
-SUBDIRS        = posix mpiio fftp-2 fftp-3
+SUBDIRS        = posix mpiio fftp-2 fftp-3 utils
 EXTRASDIR      = analysis
 
-all: edit $(FFTP)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(SOLVER) undo
+all: edit $(FFTP)/fftp3D.o $(IOLIB)/binary_io.o $(UTILS)/gutils_mod.o $(OBJS) $(SOLVER) undo
 
 main: all
 
@@ -75,6 +76,13 @@ trans triad: edit $(FFTP)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(TRAN_OBJS)
 
 struc:	edit $(FFTP)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(STRU_OBJS)
 	$(MAKE) $@$(SOLVER)
+	$(MAKE) undo
+
+trunc:	edit $(FFTP)/fftp3D.o $(IOLIB)/binary_io.o $(UTILS)/gutils_mod.o $(OBJS)
+	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I./fftp-3 $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
+	$(COMPILE) $@.f90 -o $@.o
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTP)/*.o $(IOLIB)/*.o $(UTILS)/*.o $(OBJS) \
+           $@.o $(LDFLAGS) -o $@
 	$(MAKE) undo
 
 clean:  undo
@@ -144,6 +152,9 @@ struc$(SOLVER):
 
 $(FFTP)/fftp3D.o:
 	cd $(FFTP) && $(MAKE) COMPILE='$(COMPILE)'
+
+$(UTILS)/gutils_mod.o:
+	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)'
 
 $(IOLIB)/binary_io.o:
 	cd $(IOLIB) && $(MAKE) COMPILE='$(COMPILE)' 
