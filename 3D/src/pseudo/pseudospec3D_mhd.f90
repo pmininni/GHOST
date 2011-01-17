@@ -534,3 +534,119 @@
 
       RETURN
       END SUBROUTINE mhdcheck
+
+!*****************************************************************
+      SUBROUTINE crosspec(a,b,c,d,e,f,nmb)
+!-----------------------------------------------------------------
+!
+! Computes the cross-helicity spectrum. The 
+! output is written to a file by the first 
+! node.
+!
+! Parameters
+!     a  : velocity in the x-direction
+!     b  : velocity in the y-direction
+!     c  : velocity in the z-direction
+!     d  : magnetic potential in the x-direction
+!     e  : magnetic potential in the y-direction
+!     f  : magnetic potential in the z-direction
+!     nmb: the extension used when writting the file
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+!$    USE threads
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ck,Cktot
+      DOUBLE PRECISION    :: tmq
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
+      REAL(KIND=GP)       :: tmp
+      INTEGER             :: i,j,k
+      INTEGER             :: kmn
+      CHARACTER(len=*), INTENT(IN) :: nmb
+
+!
+! Computes the curl of the field if needed
+!
+      CALL rotor3(e,f,c1,1)
+      CALL rotor3(d,f,c2,2)
+      CALL rotor3(d,e,c3,3)
+!
+! Computes the cross-helicity spectrum
+!
+      tmp = 1.0_GP/real(n,kind=GP)**6
+      DO i = 1,n/2+1
+         Ck   (i) = 0.0D0
+         Cktot(i) = 0.0D0
+      END DO
+      IF (ista.eq.1) THEN
+!$omp parallel do private (k,kmn,tmq)
+         DO j = 1,n
+            DO k = 1,n
+               kmn = int(sqrt(ka2(k,j,1))+.501)
+               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     tmq = (real(a(k,j,1)*conjg(c1(k,j,1)))+          &
+                            real(b(k,j,1)*conjg(c2(k,j,1)))+          &
+                            real(c(k,j,1)*conjg(c3(k,j,1))))*tmp
+!$omp atomic
+                     Ck(kmn) = Ck(kmn)+tmq
+               ENDIF
+            END DO
+         END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+         DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
+            DO j = 1,n
+               DO k = 1,n
+                  kmn = int(sqrt(ka2(k,j,i))+.501)
+                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+     &
+                              real(b(k,j,i)*conjg(c2(k,j,i)))+     &
+                              real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
+!$omp atomic
+                     Ck(kmn) = Ck(kmn)+tmq
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
+            DO j = 1,n
+               DO k = 1,n
+                  kmn = int(sqrt(ka2(k,j,i))+.501)
+                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+     &
+                              real(b(k,j,i)*conjg(c2(k,j,i)))+     &
+                              real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
+!$omp atomic
+                     Ck(kmn) = Ck(kmn)+tmq
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ENDIF
+!
+! Computes the reduction between nodes
+!
+      CALL MPI_ALLREDUCE(Ck,Cktot,n/2+1,MPI_DOUBLE_PRECISION,      &
+                         MPI_SUM,MPI_COMM_WORLD,ierr)
+!
+! Exports the spectrum to a file
+!
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='cspectrum.' // nmb // '.txt')
+         WRITE(1,20) Cktot
+   20    FORMAT( E23.15 ) 
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE crosspec

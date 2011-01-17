@@ -11,6 +11,8 @@
          CALL nonlin3(C10,C11,C12,C13,C14,C15,C16,1)
          CALL nonlin3(C10,C11,C12,C13,C14,C15,C17,2)
          CALL nonlin3(C10,C11,C12,C13,C14,C15,C10,3)
+         IF ((trans.eq.1).and.(times.eq.0).and.(bench.eq.0).and.(o.eq.ord)) &
+            CALL entrans(C7,C8,C9,C16,C17,C10,ext,4)
          CALL vector3(vx,vy,vz,C7,C8,C9,C11,C12,C13)
          CALL gauge3(C11,C12,C13,C7,1)
          CALL gauge3(C11,C12,C13,C8,2)
@@ -25,6 +27,10 @@
             THEN
             CALL entrans(C1,C2,C3,C16,C17,C10,ext,1)
             CALL entrans(C4,C5,C6,C7,C8,C9,ext,0)
+            CALL rotor3(C8,C9,C11,1)
+            CALL rotor3(C7,C9,C12,2)
+            CALL rotor3(C7,C8,C13,3)
+            CALL entrans(C1,C2,C3,C11,C12,C13,ext,3)
          ENDIF
 
          rmp = 1./real(o,kind=GP)

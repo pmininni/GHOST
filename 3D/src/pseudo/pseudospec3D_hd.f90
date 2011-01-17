@@ -1395,9 +1395,9 @@
       SUBROUTINE entrans(a,b,c,d,e,f,nmb,kin)
 !-----------------------------------------------------------------
 !
-! Computes the energy transfer in Fourier 
-! space in 3D. The output is written to a 
-! file by the first node.
+! Computes the energy (or cross-helicity) transfer 
+! in Fourier space in 3D. The output is written to 
+! a file by the first node.
 !
 ! Parameters
 !     a  : field component in the x-direction
@@ -1409,7 +1409,9 @@
 !     nmb: the extension used when writting the file
 !     kin: =0 computes the magnetic energy transfer
 !          =1 computes the kinetic energy transfer
-!          =2 computes the Lorentz force transfer
+!          =2 computes the Lorentz force work (energy transfer)
+!          =3 computes the magnetic cross-helicity transfer
+!          =4 computes the kinetic cross-helicity transfer
 !
       USE fprecision
       USE commtypes
@@ -1440,7 +1442,7 @@
 ! Computes the kinetic energy transfer
 !
       tmp = 1.0_GP/real(n,kind=GP)**6
-      IF ((kin.eq.1).or.(kin.eq.2)) THEN
+      IF (kin.ge.1) THEN
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn,tmq)
             DO j = 1,n
@@ -1499,7 +1501,7 @@
                DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,1))+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                     tmq = ka2(k,j,1) *                                &
+                     tmq = ka2(k,j,1)*                                 &
                            (real(a(k,j,1)*conjg(d(k,j,1)))+            &
                             real(b(k,j,1)*conjg(e(k,j,1)))+            &
                             real(c(k,j,1)*conjg(f(k,j,1))))*tmp
@@ -1556,8 +1558,12 @@
             OPEN(1,file='mtransfer.' // nmb // '.txt')
          ELSEIF (kin.eq.1) THEN
             OPEN(1,file='ktransfer.' // nmb // '.txt')
-         ELSE
+         ELSEIF (kin.eq.2) THEN
             OPEN(1,file='jtransfer.' // nmb // '.txt')
+         ELSEIF (kin.eq.3) THEN
+            OPEN(1,file='mcrostran.' // nmb // '.txt')
+         ELSEIF (kin.eq.4) THEN
+            OPEN(1,file='kcrostran.' // nmb // '.txt')
          ENDIF
          WRITE(1,40) Ektot
    40    FORMAT( E23.15 ) 
