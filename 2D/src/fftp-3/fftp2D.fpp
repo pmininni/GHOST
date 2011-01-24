@@ -53,7 +53,6 @@
       ALLOCATE ( plan%ccarr(n,ista:iend)    )
       ALLOCATE ( plan%carr(n/2+1,jsta:jend) )
       ALLOCATE ( plan%rarr(n,jsta:jend)     )
-!$    CALL GPMANGLE(plan_with_nthreads)(nth)
       IF (fftdir.eq.FFTW_REAL_TO_COMPLEX) THEN
       CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,1,n,jend-jsta+1, &
                               plan%rarr,n*(jend-jsta+1),1,n,       &
@@ -370,7 +369,7 @@
       itype(1) = MPI_LB
       itype(2) = itemp
       CALL MPI_TYPE_STRUCT(2,iblock,idisp,itype,inewtype,ierr)
-      CALL MPI_TYPE_FREE(itemp)
+      CALL MPI_TYPE_FREE(itemp,ierr)
       CALL MPI_TYPE_COMMIT(inewtype,ierr)
 
       RETURN
