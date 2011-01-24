@@ -364,7 +364,7 @@
       itype(1) = MPI_LB
       itype(2) = itemp
       CALL MPI_TYPE_STRUCT(2,iblock,idisp,itype,inewtype,ierr)
-      CALL MPI_TYPE_FREE(itemp)
+      CALL MPI_TYPE_FREE(itemp,ierr)
       CALL MPI_TYPE_COMMIT(inewtype,ierr)
 
       RETURN
