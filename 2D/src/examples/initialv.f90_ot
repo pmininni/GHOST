@@ -15,7 +15,6 @@
       DO j = jsta,jend
          DO i = 1,n
             R1(i,j) = 0.0_GP
-            R2(i,j) = 0.0_GP
             DO ki = kdn,kup
             R1(i,j) = R1(i,j)+2*u0*(COS(2*pi*ki*(real(i,kind=GP)-1)/ &
                    real(n,kind=GP))+COS(2*pi*ki*(real(j,kind=GP)-1)/ &
