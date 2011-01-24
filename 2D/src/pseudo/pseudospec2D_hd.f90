@@ -442,3 +442,83 @@
 
       RETURN
       END SUBROUTINE spectrum
+
+!*****************************************************************    
+      SUBROUTINE entrans(a,b,nmb)
+!-----------------------------------------------------------------
+!
+! Computes the energy transfer in Fourier space 
+! in 2D. The output is written to a file by the 
+! first node.
+!
+! Parameters
+!     a  : streamfunction
+!     b  : Poisson bracket
+!     nmb: the extension used when writting the file
+!
+      USE fprecision
+      USE commtypes
+      USE mpivars
+      USE filefmt
+      USE grid
+      USE kes
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,ista:iend) :: a,b
+      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
+      REAL(KIND=GP)       :: tmp
+      INTEGER             :: kmn
+      INTEGER             :: i,j
+      CHARACTER(len=*), INTENT(IN) :: nmb
+
+!
+! Sets Ek to zero
+!
+      DO i = 1,n/2+1
+         Ek(i) = 0.0_GP
+      END DO
+!
+! Computes the energy flux
+!
+      tmp = 1.0_GP/real(n,kind=GP)**4
+      IF (ista.eq.1) THEN
+         DO j = 1,n
+            kmn = int(sqrt(ka2(j,1))+.501)
+            IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+              Ek(kmn) = Ek(kmn)-real(a(j,1)*conjg(b(j,1)))*tmp
+            ENDIF
+         END DO
+         DO i = 2,iend
+            DO j = 1,n
+               kmn = int(sqrt(ka2(j,i))+.5)
+               IF (kmn.le.n/2+1) THEN
+                  Ek(kmn) = Ek(kmn)-2*real(a(j,i)*conjg(b(j,i)))*tmp
+               ENDIF
+            END DO
+         END DO
+      ELSE
+         DO i = ista,iend
+            DO j = 1,n
+               kmn = int(sqrt(ka2(j,i))+.5)
+               IF (kmn.le.n/2+1) THEN
+                  Ek(kmn) = Ek(kmn)-2*real(a(j,i)*conjg(b(j,i)))*tmp
+               ENDIF
+            END DO
+         END DO
+      ENDIF
+!
+! Computes the reduction between nodes
+! and exports the result to a file
+!
+      CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+                      MPI_COMM_WORLD,ierr)
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='ktransfer.' // nmb // '.txt')
+         WRITE(1,20) Ektot
+   20    FORMAT( E23.15 )
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE entrans
+

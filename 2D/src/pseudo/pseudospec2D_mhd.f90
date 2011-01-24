@@ -369,7 +369,7 @@
       CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
-         OPEN(1,file='vectrans.' // nmb // '.txt')
+         OPEN(1,file='vectransf.' // nmb // '.txt')
          WRITE(1,20) Ektot
    20    FORMAT( E23.15 ) 
          CLOSE(1)
