@@ -998,13 +998,13 @@
                IF (myrank.eq.0) phase = 2*pi*randu(seed)
                CALL MPI_BCAST(phase,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
                cdumr = COS(phase)+im*SIN(phase)
-               jdumr = conjg(cdump)
+               jdumr = conjg(cdumr)
 #endif
 #ifdef MAGFIELD_
                IF (myrank.eq.0) phase = 2*pi*randu(seed)
                CALL MPI_BCAST(phase,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
                cdumq = corr*cdump+(1-corr)*(COS(phase)+im*SIN(phase))
-               jdumq = corr*jdump+(1-corr)*conjg(cdump)
+               jdumq = corr*jdump+(1-corr)*(COS(phase)-im*SIN(phase))
 #endif
                IF (ista.eq.1) THEN
 !$omp parallel do
