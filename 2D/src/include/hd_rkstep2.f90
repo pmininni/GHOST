@@ -3,7 +3,7 @@
          CALL laplak2(ps,C2)
          CALL poisson(ps,C2,ps)
          IF ((trans.eq.1).and.(times.eq.0).and.(bench.eq.0).and.(o.eq.ord)) &
-            CALL entrans(ps,C2,ext)
+            CALL entrans(C1,ps,ext)
 
          rmp = 1.0_GP/real(o,kind=GP)
          DO i = ista,iend
