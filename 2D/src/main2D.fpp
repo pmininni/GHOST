@@ -21,6 +21,7 @@
 !           MHD_SOL       builds the MHD solver
 !           MHDB_SOL      builds the MHD solver with uniform B_0
 !           HMHD_SOL      builds the Hall-MHD solver (2.5D)
+!           SQG_SOL       builds the surface quasigeostrophic solver
 !
 ! 2004 Pablo D. Mininni.
 !      Department of Physics, 
@@ -29,6 +30,7 @@
 !      e-mail: mininni@df.uba.ar 
 !
 ! 1 Oct 2010: Main program for all solvers (HD/MHD/HMHD)
+! 13 May 2011: SQG solver (Tomas Teitelbaum, teitelbaum@df.uba.ar)
 !=================================================================
 
 !
@@ -58,6 +60,11 @@
 #define STREAM_
 #define VECPOT_
 #define HALLTERM_
+#endif
+
+#ifdef SQG_SOL
+#define DNS_
+#define STREAM_
 #endif
 
 !
@@ -605,6 +612,19 @@
                CALL laplak2(C1,C2)
                CALL fftp2d_complex_to_real(plancr,C2,R1,MPI_COMM_WORLD)
                CALL io_write(1,odir,'wz',ext,planio,R1)
+#ifdef SQG_
+               DO i = ista,iend
+                  DO j = 1,n
+                     IF (ka2(j,i).ne.0) THEN
+                        C2(j,i) = -C1(j,i)*sqrt(ka2(j,i))
+                     ELSE
+                        C2(j,i) = 0
+                     ENDIF
+                  END DO
+               END DO
+               CALL fftp2d_complex_to_real(plancr,C2,R1,MPI_COMM_WORLD)
+               CALL io_write(1,odir,'phi',ext,planio,R1)
+#endif
             ENDIF
             CALL fftp2d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
             CALL io_write(1,odir,'ps',ext,planio,R1)
@@ -660,6 +680,9 @@
 #ifdef HMHD_SOL
             INCLUDE 'hmhd_global.f90'
 #endif
+#ifdef SQG_SOL
+            INCLUDE 'sqg_global.f90'
+#endif
          ENDIF
 
 ! Every 'sstep' steps, generates external files 
@@ -681,6 +704,9 @@
 #ifdef HMHD_SOL
             INCLUDE 'hmhd_spectrum.f90'
 #endif
+#ifdef SQG_SOL
+            INCLUDE 'sqg_spectrum.f90'
+#endif
          ENDIF
 
 ! Runge-Kutta step 1
@@ -701,6 +727,9 @@
 #ifdef HMHD_SOL
          INCLUDE 'hmhd_rkstep1.f90'
 #endif
+#ifdef SQG_SOL
+         INCLUDE 'hd_rkstep1.f90'
+#endif
 
          END DO
          END DO
@@ -720,6 +749,9 @@
 #endif
 #ifdef HMHD_SOL
          INCLUDE 'hmhd_rkstep2.f90'
+#endif
+#ifdef SQG_SOL
+         INCLUDE 'sqg_rkstep2.f90'
 #endif
          END DO
 

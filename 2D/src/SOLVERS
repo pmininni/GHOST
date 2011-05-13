@@ -27,3 +27,4 @@ to build a solver other than the default):
    MHD       Magnetohydrodynamic (MHD) solver (streamfunction-potential)
    MHDB      MHD solver with a uniform magnetic field in y
    HMHD      Hall-MHD solver
+   SQG       Surface quasi-geostrophic solver

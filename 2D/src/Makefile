@@ -40,6 +40,7 @@ HD_OBJS        = pseudospec2D_mod.o module_dns.o pseudospec2D_hd.o
 MHD_OBJS       = $(HD_OBJS) pseudospec2D_mhd.o
 MHDB_OBJS      = $(MHD_OBJS)
 HMHD_OBJS      = $(MHD_OBJS) pseudospec2D_25D.o
+SQG_OBJS       = $(HD_OBJS) pseudospec2D_sqg.o
 OBJS           = $($(SOLVER)_OBJS)
 OBJSDIR        = pseudo
 SUBDIRS        = posix mpiio fftp-2 fftp-3
@@ -56,7 +57,7 @@ clean:  undo
         done
 
 dist:
-	rm -f *HD* *MHD* *ROTH*
+	rm -f *HD* *MHD* *ROTH* *SQG*
 	$(MAKE) clean
 
 edit:
