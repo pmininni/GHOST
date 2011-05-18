@@ -11,6 +11,10 @@
 ! the output files are the originial files appended with with the 
 ! truncation size.
 !
+! When building either this of the 'boots3d' utillity, the Makefile.in
+! should be modified with the largest dataset size. So, it would be
+! the original data size for trunc3D.
+!
 ! NOTATION: index 'i' is 'x' 
 !           index 'j' is 'y'
 !           index 'k' is 'z'
@@ -73,6 +77,8 @@
       CHARACTER(len=256) :: fname, fout, msg
       CHARACTER(len=1024):: fnlist
 
+NAMELIST / regrid / idir, odir, fnlist, iswap, nt
+
 !
 ! Initializes the MPI and I/O libraries
 
@@ -94,11 +100,7 @@
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='trunc.txt',status='unknown')
-         READ(1,'(a100)') idir
-         READ(1,'(a100)') odir
-         READ(1,'(a)'   ) fnlist
-         READ(1,'(i2)'  ) iswap
-         READ(1,'(i4)'  ) nt
+         READ(1,NML=regrid)
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(idir  ,100 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
