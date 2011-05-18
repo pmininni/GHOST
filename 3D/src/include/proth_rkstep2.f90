@@ -57,6 +57,7 @@
                vx(k,j,i) = 0.0_GP
                vy(k,j,i) = 0.0_GP
                vz(k,j,i) = 0.0_GP
+               th(k,j,i) = C20(k,j,i)
             ENDIF
          END DO
          END DO
