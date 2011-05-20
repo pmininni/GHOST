@@ -38,6 +38,7 @@
       USE kes
       USE fftplans
       USE threads
+      USE gutils
       IMPLICIT NONE
 
 !
