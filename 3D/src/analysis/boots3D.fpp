@@ -149,25 +149,9 @@
       CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, flags)
       CALL trrange(1,n    ,nt    ,nprocs,myrank,ksta,kend)
       CALL trrange(1,n/2+1,nt/2+1,nprocs,myrank,ista,iend)
-write(*,*)'main: creating trplan...'
       CALL fftp3d_create_trplan(planrct,n,nt,FFTW_REAL_TO_COMPLEX,flags)
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       CALL range(1,n,nprocs,myrank,ksta,kend)
-
-#if 0
-      IF ( myrank .LT. ntprocs ) THEN
-!       CALL MPI_COMM_RANK(commtrunc,myrank,ierr)
-        npkeep = nprocs ; istak  = ista ; iendk  = iend ; kstak  = ksta ; kendk  = kend ;
-        nprocs = ntprocs; ista   = itsta; iend   = itend; ksta   = ktsta; kend   = ktend;
-        IF ( ierr .NE. MPI_SUCCESS ) THEN
-          WRITE(*,*) 'main: MPI_COMM_RANK failed on commtrunc; myrank= ', myrank
-          STOP
-        ENDIF
-        CALL fftp3d_create_plan(planrct,nt, FFTW_REAL_TO_COMPLEX, FFTW_MEASURE)
-        nprocs = npkeep ; ista   = istak; iend   = iendk; ksta   = kstak; kend   = kendk;
-!       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
-      ENDIF
-#endif
 !
       kmax = (real(nt,kind=GP)/3.)**2
       DO i = 1,nt/2
@@ -228,25 +212,13 @@ write(*,*)'main: creating trplan...'
 
 !
 ! Compute FT of variable:
-!        IF ( myrank .LT. ntprocs ) THEN
-#if 0
-           npkeep = nprocs ; istak  = ista ; iendk  = iend ; kstak  = ksta ; kendk  = kend ;
-           nprocs = ntprocs; ista   = itsta; iend   = itend; ksta   = ktsta; kend   = ktend;
-           CALL MPI_COMM_RANK(commtrunc,myrank,ierr)
-           CALL fftp3d_real_to_complex(planrct,vvt,C1t,MPI_COMM_WORLD)
-           nprocs = npkeep ; ista   = istak; iend   = iendk; ksta   = kstak; kend   = kendk;
-           CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
-#endif
-if ( myrank.lt.ntprocs ) write(*,*)'main: C1t=', C1t(1:10,1,1)
-if ( myrank.lt.ntprocs ) write(*,*)'main: vvt=', vvt(1,1,1:10)
            CALL trrange(1,n    ,nt    ,nprocs,myrank,ksta,kend)
            CALL trrange(1,n/2+1,nt/2+1,nprocs,myrank,ista,iend)
-           ista   = itsta; iend   = itend; ksta   = ktsta; kend   = ktend;
            CALL fftp3d_real_to_complex(planrct,vvt,C1t,MPI_COMM_WORLD)
+write(*,*)'main: C1t=',C1t(1:10,1,1)
            CALL range(1,n/2+1,nprocs,myrank,ista,iend)
            CALL range(1,n,nprocs,myrank,ksta,kend)
 
-!        ENDIF
 !
 ! Prolongate in Fourier space:
 !
@@ -285,17 +257,6 @@ if ( myrank.lt.ntprocs ) write(*,*)'main: vvt=', vvt(1,1,1:10)
          bmangle = 0
          CALL io_write(1,idir,fout,1,planio,br)
          bmangle = 1
-#if 0
-         CALL MPI_FILE_OPEN(MPI_COMM_WORLD, fout, &
-           MPI_MODE_CREATE+MPI_MODE_WRONLY, &
-           MPI_INFO_NULL,fh,ioerr)
-         CALL MPI_FILE_SET_VIEW(fh,disp,GC_REAL,planio%iotype,'native', &
-           MPI_INFO_NULL,ioerr)
-         CALL MPI_FILE_WRITE_ALL(fh,br, &
-           planio%n*planio%n*(planio%kend-planio%ksta+1),GC_REAL, &
-           MPI_STATUS_IGNORE,ioerr)
-         CALL MPI_FILE_CLOSE(fh,ioerr)
-#endif
          IF ( myrank .EQ. 0 ) THEN
          WRITE(*,*) 'main: ',trim(fout),' written.'
          ENDIF
