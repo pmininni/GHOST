@@ -110,7 +110,7 @@ NAMELIST / regrid / idir, odir, fnlist, iswap, nt
       CALL MPI_BCAST(nt    ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
 
       IF ( nt .GT. n .OR. nt .LT. 1 ) THEN
-        WRITE(*,*)'MAIN: truncation specification incorrect: Nmax=', n
+        WRITE(*,*)'MAIN: truncation specification incorrect: Nmax=', n, ' nt=', nt
         STOP 
       ENDIF
 
@@ -173,7 +173,7 @@ NAMELIST / regrid / idir, odir, fnlist, iswap, nt
       CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, flags)
       CALL trrange(1,n    ,nt    ,nprocs,myrank,ksta,kend)
       CALL trrange(1,n/2+1,nt/2+1,nprocs,myrank,ista,iend)
-write(*,*)'main: creating trplan...'
+      IF ( myrank.eq.0 ) write(*,*)'main: creating trplan...'
       CALL fftp3d_create_trplan(plancrt,n,nt,FFTW_COMPLEX_TO_REAL,flags)
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       CALL range(1,n,nprocs,myrank,ksta,kend)
@@ -206,7 +206,7 @@ write(*,*)'main: creating trplan...'
 
 !
 ! Compute FT of variable:
-write(*,*)'main: real_to_complex...'
+         IF ( myrank.eq.0 ) write(*,*)'main: real_to_complex...'
          CALL fftp3d_real_to_complex(planrc,vv,C1,MPI_COMM_WORLD)
 !
 ! Truncate in Fourier space:
@@ -256,13 +256,15 @@ write(*,*)'main: real_to_complex...'
 !
          CALL trrange(1,n    ,nt    ,nprocs,myrank,ksta,kend)
          CALL trrange(1,n/2+1,nt/2+1,nprocs,myrank,ista,iend)
-write(*,*)'main: complex_to_real...'
+         IF ( myrank.eq.0 ) write(*,*)'main: complex_to_real...'
          CALL fftp3d_complex_to_real(plancrt,T1,tr,MPI_COMM_WORLD)
+         IF ( myrank.eq.0 ) write(*,*)'main: complex_to_real done.'
          CALL range(1,n/2+1,nprocs,myrank,ista,iend)
          CALL range(1,n,nprocs,myrank,ksta,kend)
 !
 ! Put to disk:
          fout = trim(odir) // '/' // trim(fname) // trim(suff)
+         IF ( myrank.eq.0 ) write(*,*)'main: writing to disk...'
          IF ( myrank .LT. ntprocs ) THEN
            CALL MPI_FILE_OPEN(commtrunc, fout, &
              MPI_MODE_CREATE+MPI_MODE_WRONLY, &
@@ -279,6 +281,7 @@ write(*,*)'main: complex_to_real...'
          ENDIF
 !
       ENDDO
+      IF ( myrank.eq.0 ) write(*,*)'main: cleaning up...'
       CALL fftp3d_destroy_plan(planrc)
       IF ( myrank .LT. ntprocs ) THEN
         CALL fftp3d_destroy_plan(plancrt)
