@@ -54,11 +54,10 @@
 !
 ! Auxiliary variables
 
+      REAL(KIND=GP)    :: kprol2, kprol
       INTEGER :: nfiles,nmt,np,npt,nt,ntprocs,npkeep
       INTEGER :: i,ib,ie,ind,iswap,itsta,itend,j,k,ktsta,ktend
       INTEGER :: istak,iendk,kstak,kendk
-      INTEGER :: mykrank,mytrank
-
       INTEGER :: commtrunc, fh, groupworld, flags, grouptrunc, iExclude(3,1), iInclude(3,1)
 
       TYPE(IOPLAN)  :: planio, planiot
@@ -132,10 +131,18 @@
       CALL trrange(1,n/2+1,nt/2+1,nprocs,myrank,itsta,itend)
 
 
+!     kprol  = real(n,kind=GP)/2.0 - 1.0
+      kprol  = real(n,kind=GP)/3.0
+      kprol2 = (real(kprol,kind=GP) )**2
+      kmax   = (real(n,kind=GP)/3.)**2
+
+write(*,*)'main: kprol=',kprol,' kmax=',kmax,' itsta=',itsta,' itend=',itend,\
+' ktsta=',ktsta,' ktend=',ktend
+
       ALLOCATE( vvt(nt,nt,ktsta:ktend) )
       ALLOCATE( C1t(nt,nt,itsta:itend) )
       ALLOCATE( B1(n,n,ista:iend) )
-      ALLOCATE( ka(nt),ka2(nt,nt,itsta:itend) )
+      ALLOCATE( ka(n),ka2(n,n,ista:iend) )
       ALLOCATE( br(n,n,ksta:kend) )
 
       IF ( myrank .LT. ntprocs ) THEN
@@ -153,15 +160,14 @@
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       CALL range(1,n,nprocs,myrank,ksta,kend)
 !
-      kmax = (real(nt,kind=GP)/3.)**2
-      DO i = 1,nt/2
+      DO i = 1,n/2
          ka(i) = real(i-1,kind=GP)
-         ka(i+nt/2) = real(i-nt/2-1,kind=GP)
+         ka(i+n/2) = real(i-n/2-1,kind=GP)
       END DO
 
-      DO i = itsta,itend
-         DO j = 1,nt
-            DO k = 1,nt
+      DO i = ista,iend
+         DO j = 1,n
+            DO k = 1,n
                ka2(k,j,i) = ka(i)**2+ka(j)**2+ka(k)**2
             END DO
          END DO
@@ -211,43 +217,52 @@
          ENDIF
 
 !
-! Compute FT of variable:
-           CALL trrange(1,n    ,nt    ,nprocs,myrank,ksta,kend)
-           CALL trrange(1,n/2+1,nt/2+1,nprocs,myrank,ista,iend)
-           CALL fftp3d_real_to_complex(planrct,vvt,C1t,MPI_COMM_WORLD)
-write(*,*)'main: C1t=',C1t(1:10,1,1)
-           CALL range(1,n/2+1,nprocs,myrank,ista,iend)
-           CALL range(1,n,nprocs,myrank,ksta,kend)
-
+! Compute FT of variable on smaller grid:
+         CALL trrange(1,n    ,nt    ,nprocs,myrank,ksta,kend)
+         CALL trrange(1,n/2+1,nt/2+1,nprocs,myrank,ista,iend)
+         CALL fftp3d_real_to_complex(planrct,vvt,C1t,MPI_COMM_WORLD)
+         CALL range(1,n/2+1,nprocs,myrank,ista,iend)
+         CALL range(1,n,nprocs,myrank,ksta,kend)
 !
 ! Prolongate in Fourier space:
 !
 !
-         B1 = 0.0
 ! Compute inverse FT of truncated variable, and store in
 ! larger storage for output:
-         fact = 1.0_GP / real(nt,kind=GP)**3
-         IF ( myrank .LT. ntprocs ) THEN
-           DO i = itsta,itend
-              DO j = 1,nt/2
-                 DO k = 1,nt/2
-                    B1(k,j,i) = C1t(k,j,i) * fact
-                 END DO
-                 DO k = nt/2+1,nt
-                    B1(k,j,i) = C1t(k-nt+n,j,i) * fact
-                 END DO
-              END DO
-              DO j = nt/2+1,nt
-                 DO k = 1,nt/2
-                    B1(k,j,i) = C1t(k,j-nt+n,i) * fact
-                 END DO
-                 DO k = nt/2+1,nt
-                    B1(k,j,i) = C1t(k-nt+n,j-nt+n,i) * fact
-                 END DO
-              END DO
-           END DO
-
-         ENDIF
+         fact = 1.0_GP/real(nt,kind=GP)**3
+         B1 = 0.0
+         DO i = itsta,itend
+            DO j = 1,nt/2
+               DO k = 1,nt/2
+                  B1(k,j,i) = C1t(k,j,i) * fact
+               END DO
+               DO k = n-nt/2+1,n
+                  B1(k,j,i) = C1t(k-n+nt,j,i) * fact
+               END DO
+            END DO
+            DO j = n-nt/2+1,n
+               DO k = 1,nt/2
+                  B1(k,j,i) = C1t(k,j-n+nt,i) * fact
+               END DO
+               DO k = n-nt/2+1,n
+                  B1(k,j,i) = C1t(k-n+nt,j-n+nt,i) * fact
+               END DO
+            END DO
+         END DO
+!
+!
+#if 1
+! Spherically truncate prolongated spectrum in Fourier space:
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,n
+               DO k = 1,n
+                  IF (  ka2(k,j,i).GT.kprol2 ) B1(k,j,i) = 0.0
+               END DO
+            END DO
+         END DO
+#endif
 !
 ! Compute inverse FT of prolongated variable:
          CALL fftp3d_complex_to_real(plancr,B1,br,MPI_COMM_WORLD)
@@ -260,7 +275,7 @@ write(*,*)'main: C1t=',C1t(1:10,1,1)
          IF ( myrank .EQ. 0 ) THEN
          WRITE(*,*) 'main: ',trim(fout),' written.'
          ENDIF
-      ENDDO
+      ENDDO ! end of file loop
 !
       CALL fftp3d_destroy_plan(plancr)
       IF ( myrank .LT. ntprocs ) THEN
