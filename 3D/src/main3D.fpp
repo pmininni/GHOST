@@ -24,7 +24,9 @@
 !           MHDB_SOL      builds the MHD solver with uniform B_0
 !           HMHD_SOL      builds the Hall-MHD solver
 !           ROTH_SOL      builds the HD solver in a rotating frame
-!           PROTH         builds the ROTH solver with passive scalar
+!           PROTH_SOL     builds the ROTH solver with passive scalar
+!           BOUSS_SOL     builds the BOUSS solver 
+!           ROTBOUSS_SOL  builds the BOUSS solver in a rotating frame 
 !           LAHD_SOL      builds the Lagrangian-averaged HD solver
 !           CAHD_SOL      builds the Clark-alpha HD solver
 !           LHD_SOL       builds the Leray HD solver
@@ -88,6 +90,19 @@
 #define DNS_
 #define SCALAR_
 #define ROTATION_
+#endif
+
+#ifdef BOUSS_SOL
+#define DNS_
+#define SCALAR_
+#define BOUSSINESQ_
+#endif
+
+#ifdef ROTBOUSS_SOL
+#define DNS_
+#define SCALAR_
+#define ROTATION_
+#define BOUSSINESQ_
 #endif
 
 #ifdef LAHD_SOL
@@ -209,7 +224,7 @@
       DOUBLE PRECISION :: omptime3,omptime4
 !$    DOUBLE PRECISION, EXTERNAL :: omp_get_wtime
 
-      REAL(KIND=GP)    :: dt,nu,mu,kappa
+      REAL(KIND=GP)    :: dt,nu,mu,kappa,bvfreq
       REAL(KIND=GP)    :: kup,kdn
       REAL(KIND=GP)    :: rmp,rmq
       REAL(KIND=GP)    :: dump
@@ -304,6 +319,9 @@
 #endif
 #ifdef ROTATION_
       NAMELIST / rotation / omega
+#endif
+#ifdef BOUSSINESQ_
+      NAMELIST / boussinesq / bvfreq
 #endif
 #ifdef ALPHAV_
       NAMELIST / alphav / alpk
@@ -544,6 +562,21 @@
       CALL MPI_BCAST(vparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(vparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(vparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+
+#ifdef BOUSSINESQ_
+!
+! Reads parameters specifically for Boussinesq solver from the 
+! namelist 'boussinesq' on the external file 'parameter.txt'
+!     bvfreq: Brunt-Vaisala frequency (positive definite)
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         READ(1,NML=boussinesq)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(bvfreq,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+#endif
+
 
 #ifdef SCALAR_
 !
@@ -1136,6 +1169,9 @@
 #ifdef PROTH_SOL
               INCLUDE 'hd_adjustfv.f90'
 #endif
+#if defined(BOUSS_SOL) || defined(ROTBOUSS_SOL)
+              INCLUDE 'hd_adjustfv.f90'
+#endif
 #ifdef LAHD_SOL
               INCLUDE 'lahd_adjustfv.f90'
 #endif
@@ -1339,6 +1375,9 @@
 #ifdef PROTH_SOL
             INCLUDE 'phd_global.f90'
 #endif
+#if defined(BOUSS_SOL) || defined(ROTBOUSS_SOL)
+            INCLUDE 'phd_global.f90'
+#endif
 #ifdef LAHD_SOL
             INCLUDE 'lahd_global.f90'
 #endif
@@ -1427,6 +1466,12 @@
 #ifdef PROTH_SOL
             INCLUDE 'proth_spectrum.f90'
 #endif
+#ifdef BOUSS_SOL
+            INCLUDE 'phd_spectrum.f90'
+#endif
+#ifdef ROTBOUSS_SOL
+            INCLUDE 'proth_spectrum.f90'
+#endif
 #ifdef LAHD_SOL
             INCLUDE 'lahd_spectrum.f90'
 #endif
@@ -1477,6 +1522,9 @@
 #ifdef PROTH_SOL
          INCLUDE 'phd_rkstep1.f90'
 #endif
+#if defined(BOUSS_SOL) || defined(ROTBOUSS_SOL)
+         INCLUDE 'phd_rkstep1.f90'
+#endif
 #ifdef LAHD_SOL
          INCLUDE 'hd_rkstep1.f90'
 #endif
@@ -1524,6 +1572,9 @@
 #endif
 #ifdef PROTH_SOL
          INCLUDE 'proth_rkstep2.f90'
+#endif
+#if defined(BOUSS_SOL) || defined(ROTBOUSS_SOL)
+         INCLUDE 'bouss_rkstep2.f90'
 #endif
 #ifdef LAHD_SOL
          INCLUDE 'lahd_rkstep2.f90'
