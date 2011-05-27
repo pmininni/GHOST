@@ -93,6 +93,9 @@
 !-----------------------------------------------------------------
 !
 ! Creates plans for the FFTW in each node.
+! NOTE: ista/iend & ksta/kend for the truncated grid must be set
+!       outside of this call, since they are set in fftplans module.
+!       In principle, nprocs should be the _full_ MPI_COMM_WORLD.
 !
 ! Parameters
 !     plan   : contains the parallel 3D plan [OUT]
@@ -120,9 +123,15 @@
       ALLOCATE ( plan%carr(nt/2+1,nt,ksta:kend) )
       ALLOCATE ( plan%rarr(nt,nt,ksta:kend)     )
 
+      IF ( fftdir.EQ.FFTW_REAL_TO_COMPLEX ) THEN
+      CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/nt,nt/),kend-ksta+1,  &
+                       plan%rarr,(/nt,nt*(kend-ksta+1)/),1,nt*nt, &
+                       plan%carr,(/nt/2+1,nt*(kend-ksta+1)/),1,nt*(nt/2+1),flags)
+      ELSE
       CALL GPMANGLE(plan_many_dft_c2r)(plan%planr,2,(/nt,nt/),kend-ksta+1,  &
                        plan%carr,(/nt/2+1,nt*(kend-ksta+1)/),1,nt*(nt/2+1), &
                        plan%rarr,(/nt,nt*(kend-ksta+1)/),1,nt*nt,flags)
+      ENDIF
       CALL GPMANGLE(plan_many_dft)(plan%planc,1,nt,nt*(iend-ista+1), &
                        plan%ccarr,nt*nt*(iend-ista+1),1,nt,     &
                        plan%ccarr,nt*nt*(iend-ista+1),1,nt,fftdir,flags)
