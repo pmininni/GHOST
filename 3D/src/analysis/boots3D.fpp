@@ -136,9 +136,6 @@
       kprol2 = (real(kprol,kind=GP) )**2
       kmax   = (real(n,kind=GP)/3.)**2
 
-write(*,*)'main: kprol=',kprol,' kmax=',kmax,' itsta=',itsta,' itend=',itend,\
-' ktsta=',ktsta,' ktend=',ktend
-
       ALLOCATE( vvt(nt,nt,ktsta:ktend) )
       ALLOCATE( C1t(nt,nt,itsta:itend) )
       ALLOCATE( B1(n,n,ista:iend) )
