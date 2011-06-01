@@ -1467,7 +1467,7 @@
             INCLUDE 'proth_spectrum.f90'
 #endif
 #ifdef BOUSS_SOL
-            INCLUDE 'phd_spectrum.f90'
+            INCLUDE 'proth_spectrum.f90'
 #endif
 #ifdef ROTBOUSS_SOL
             INCLUDE 'proth_spectrum.f90'
