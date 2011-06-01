@@ -80,14 +80,14 @@ struc:	edit $(FFTP)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(STRU_OBJS)
 	$(MAKE) $@$(SOLVER)
 	$(MAKE) undo
 
-trunc:	edit uedit $(FFTP)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(UTILS)/gutils_mod.o $(UTILS)/regridutils.o
+trunc:	edit $(FFTP)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(UTILS)/gutils_mod.o $(UTILS)/regridutils.o
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I./fftp-3 $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTP)/*.o $(IOLIB)/*.o $(UTILS)/*.o $(OBJS) \
            $@.o $(LDFLAGS) -o ../bin/$@
 	$(MAKE) undo
 
-boots: edit uedit $(FFTP)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(UTILS)/gutils_mod.o $(UTILS)/regridutils.o
+boots: edit $(FFTP)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(UTILS)/gutils_mod.o $(UTILS)/regridutils.o
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I./fftp-3 $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTP)/*.o $(IOLIB)/*.o $(UTILS)/*.o $(OBJS) \
@@ -105,11 +105,13 @@ dist:
 	rm -f *HD* *MHD* *HMHD* *ROTH*
 	$(MAKE) clean
 
-uedit: 
-	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I./fftp-3 $(UTILS)/regridutils.fpp -o $(UTILS)/regridutils.f90
 edit:
 	$(CPP) -DN_=$(N) -DORD_=$(ORD) $(OBJSDIR)/pseudospec3D_mod.fpp -o \
 	   $(OBJSDIR)/pseudospec3D_mod.f90
+	cd $(UTILS) && $(MAKE) edit CPP='$(CPP)' IKIND='$(IKIND)' \
+	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)' \
+	   DO_HYBRID='DO_HYBRID$(P_HYBRID)'	
+	cd ../
 	cd $(FFTP) && $(MAKE) edit CPP='$(CPP)' IKIND='$(IKIND)' \
 	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)' \
            DO_HYBRID='DO_HYBRID$(P_HYBRID)'	
