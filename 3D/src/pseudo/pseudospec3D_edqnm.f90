@@ -48,6 +48,7 @@
       USE mpivars
       USE grid
       USE fft
+      USE edqnm
       IMPLICIT NONE
 
       DOUBLE PRECISION, INTENT (IN), DIMENSION(n/2+1)     :: Eold,Hold
@@ -61,6 +62,7 @@
 
       kc = int(sqrt(kmax))
       delk = 3.*kc/4.
+!     write(*,*) 'cusp: kolmo=', kolmo, ' kmax=',kmax,' kc=',kc
       DO k = 1,n/2+1
          tve (k) = 0.
          tvh (k) = 0.
@@ -70,6 +72,7 @@
       IF ( hel.eq.1 ) THEN
          call spec_fit(Eold,delk-2,Ext,power,ddelta)
          call spec_fit(Hold,delk,Hxt,hpower,hddelta)
+!     write(*,*) 'cusp: hel=1: power=', power
          IF ( power.gt.0 ) THEN
             IF ( hpower.gt.0. ) THEN
               call full_cusp(Ext,Hxt,nu,time,tepq,thpq,tve,tvh)
@@ -79,6 +82,7 @@
          ENDIF
       ELSE
          call spec_fit(Eold,delk,Ext,power,ddelta)
+!     write(*,*) 'cusp: hel=0: power=', power
          IF ( power.gt.0. ) THEN
             call cusp(Ext,nu,time,tepq,tve)
          ENDIF     
@@ -121,6 +125,7 @@
       lambda = 0.218*(kolmo**1.5)
       kc     = int(sqrt(kmax))
       ktot   = 3*kc
+!     write(*,*) 'cusp: kolmo=', kolmo, ' kmax=',kmax,' kc=',kc
 
       IF ( (Ext(kc+1).eq.0.) ) RETURN
 
@@ -203,6 +208,7 @@
       lambda = 0.218*(kolmo**1.5)
       kc     = int(sqrt(kmax))
       ktot   = 3*kc
+!     write(*,*) 'full_cusp: kolmo=', kolmo, ' kmax=',kmax,' kc=',kc
 
       IF ( (Ext(kc+1).eq.0.) ) RETURN
 
@@ -339,6 +345,10 @@
          expo   = ((z*nn-v*m)-power*(w*m-y*nn))/dden
          ddelta = expo*x/m - power*y/m - z/m
       ENDIF
+!     write(*,*)'spec_fit: pden=',pden,' pnum=',pnum,' dden=', dden
+!     write(*,*)'spec_fit: power=',power,' expo=',expo,' ddelta=',ddelta
+!     write(*,*)'spec_fit: z=',z,' nn=',nn, ' v=',v,' m=',m,' kinf=',kinf,' ksup=',ksup,' tinyf',tinyf
+!     write(*,*)'Ein=',Ein
       IF ( power.ge.0. .and. ddelta.ge.0. ) THEN
          expo   = exp(expo)
          DO k = 1,3*(n/2+1)
