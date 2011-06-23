@@ -45,13 +45,13 @@ COMPILE     = $(FC) $(FFLAGS) $(DO_HYBRID$(P_HYBRID)) $(INCLUDE) $(TARGET_ARCH) 
 
 HD_OBJS        = pseudospec3D_mod.o module_dns.o pseudospec3D_hd.o  
 PHD_OBJS       = $(HD_OBJS) pseudospec3D_phd.o
-BOUSS_OBJS     = $(PHD_OBJS) 
 MHD_OBJS       = $(HD_OBJS) pseudospec3D_mhd.o
 MHDB_OBJS      = $(HD_OBJS) pseudospec3D_mhd.o pseudospec3D_rot.o
 HMHD_OBJS      = $(MHD_OBJS)
 ROTH_OBJS      = $(HD_OBJS) pseudospec3D_rot.o
 PROTH_OBJS     = $(PHD_OBJS) pseudospec3D_rot.o pseudospec3D_prot.o
-ROTBOUSS_OBJS  = $(PROTH_OBJS) 
+BOUSS_OBJS     = $(PROTH_OBJS) pseudospec3D_bouss.o
+ROTBOUSS_OBJS  = $(PROTH_OBJS) pseudospec3D_bouss.o
 ALPHA_OBJS     = module_lles.o pseudospec3D_filt.o
 CAHD_OBJS      = $(HD_OBJS) $(ALPHA_OBJS) pseudospec3D_lles.o pseudospec3D_cahd.o
 LAHD_OBJS      = $(HD_OBJS) $(ALPHA_OBJS) pseudospec3D_lles.o pseudospec3D_lahd.o
