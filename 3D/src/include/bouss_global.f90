@@ -1,5 +1,6 @@
 ! Global quantities computed in BOUSS runs
 
+            CALL tbouss(vx,vy,vz,t,dt)
             CALL hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,0)
             CALL pscheck(th,fs,t,dt)
             CALL maxabs(vx,vy,vz,rmp,0)
@@ -12,4 +13,3 @@
                WRITE(1,FMT='(E13.6,E13.6,E13.6)') (t-1)*dt,rmp,rmq
                CLOSE(1)
             ENDIF
-            CALL tbouss(vx,vy,vz,t,dt)

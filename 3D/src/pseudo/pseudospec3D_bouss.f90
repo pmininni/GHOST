@@ -103,6 +103,7 @@
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: u,v
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1
       REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2
       REAL(KIND=GP), DIMENSION(n)                :: havg,ghavg
       REAL(KIND=GP)                              :: tmp
@@ -111,8 +112,10 @@
 
 !
 ! Find spatial u, v:
-      CALL fftp3d_complex_to_real(plancr,u,r1,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,v,r2,MPI_COMM_WORLD)
+      c1 = u
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      c1 = v
+      CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
 
 !
 ! Do volume average of total shear:
@@ -167,9 +170,10 @@
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: u,v,w
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1
-      REAL(KIND=GP), INTENT(IN)                  :: t, dt
+      REAL(KIND=GP), INTENT(IN)                  :: dt
       REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2
-      REAL(KIND=GP)                              :: del,xavg(3),gxavg(3),xmax(3),gxmax(3),tmp
+      DOUBLE PRECISION                           :: dloc,xavg(3),gxavg(3),xmax(3),gxmax(3),tmp
+      INTEGER, INTENT(IN)                        :: t
       INTEGER                                    :: i,j,k
 
 !
@@ -180,58 +184,74 @@
       CALL derivk3(v,c1,3)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
 
-      xavg = 0.0
-      xmax = 0.0
-      tmp  = 1.0_GP/real(n,kind=GP)**3
+      xavg(1:3) = 0.0
+      xmax(1:3) = 0.0
+      tmp  = 1.0_GP/real(n,kind=GP)**6
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,n
             DO i = 1,n
-               del     = (r1(i,j,k)**2 + r2(i,j,k)**2 )*tmp 
-               xmax(1) = MAX(xmax(1),del)
-               xavg(1) = xavg(1) + del*tmp
+               dloc    = (r1(i,j,k)**2 + r2(i,j,k)**2 )*tmp 
+               xmax(1) = MAX(xmax(1),dloc)
+               xavg(1) = xavg(1) + dloc
             END DO
          END DO
       END DO
 
 !
 ! Find spatial u, v, vol average of square of horizontal velocity:
-      CALL fftp3d_complex_to_real(plancr,u,r1,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,v,r2,MPI_COMM_WORLD)
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-      DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
-               del     = sqrt(r1(i,j,k)**2 + r2(i,j,k)**2 ) * tmp
-               xmax(2) = MAX(xmax(2),del)
-               xavg(2) = xavg(2) + del*tmp
+      IF (ista.eq.1) THEN
+!$omp parallel do private (k) reduction(+:dloc)
+            DO j = 1,n
+               DO k = 1,n
+                  dloc    = (abs(u(k,j,1))**2+abs(v(k,j,1))**2)*tmp
+                  xmax(2) = MAX(xmax(2),dloc)
+                  xavg(2) = xavg(2) + dloc
+                  dloc    = (abs(w(k,j,1))**2)*tmp
+                  xmax(3) = MAX(xmax(3),dloc)
+                  xavg(3) = xavg(3) + dloc
+               END DO
             END DO
-         END DO
-      END DO
-
-!
-! Find spatial w, vol average of square of, and max of vertical velocity:
-      CALL fftp3d_complex_to_real(plancr,w,r1,MPI_COMM_WORLD)
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-      DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
-               del     = (r1(i,j,k)**2) * tmp
-               xmax(3) = MAX(xmax(3),del)
-               xavg(3) = xavg(3) + del*tmp
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:dloc)
+            DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:dloc)
+               DO j = 1,n
+                  DO k = 1,n
+                    dloc    = 2.0*(abs(u(k,j,i))**2+abs(v(k,j,i))**2)*tmp
+                    xmax(2) = MAX(xmax(2),dloc)
+                    xavg(2) = xavg(2) + dloc
+                    dloc    = 2.0*(abs(w(k,j,i))**2)*tmp
+                    xmax(3) = MAX(xmax(3),dloc)
+                    xavg(3) = xavg(3) + dloc
+                  END DO
+               END DO
             END DO
-         END DO
-      END DO
-
+       ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:dloc)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:dloc)
+               DO j = 1,n
+                  DO k = 1,n
+                    dloc    = 2.0*(abs(u(k,j,i))**2+abs(v(k,j,i))**2)*tmp
+                    xmax(2) = MAX(xmax(2),dloc)
+                    xavg(2) = xavg(2) + dloc
+                    dloc    = 2.0*(abs(w(k,j,i))**2 )*tmp
+                    xmax(3) = MAX(xmax(3),dloc)
+                    xavg(3) = xavg(3) + dloc
+                  END DO
+               END DO
+            END DO
+       ENDIF
 !
 ! Do reductions to find global vol avg and global max:
       CALL MPI_REDUCE(xavg,gxavg,3,GC_REAL,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       CALL MPI_REDUCE(xmax,gxmax,3,GC_REAL,MPI_MAX,0, &
                       MPI_COMM_WORLD,ierr)
+
+! For volume average:
+      xavg(1:3) = xavg(1:3) / real(n,kind=GP)**3
 ! NOTE: xavg_1 == vol average of shear
 !       xavg_2 == vol average of horiz. kinetic energy
 !       xavg_3 == vol average of vert. kinetic energy
