@@ -222,10 +222,6 @@
          CALL range(1,n,nprocs,myrank,ksta,kend)
 !
 ! Prolongate in Fourier space:
-!
-!
-! Compute inverse FT of truncated variable, and store in
-! larger storage for output:
          fact = 1.0_GP/real(nt,kind=GP)**3
          B1 = 0.0
          DO i = itsta,itend
