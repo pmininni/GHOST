@@ -208,7 +208,7 @@
            CALL MPI_FILE_CLOSE(fh,ioerr)
 
            IF ( iswap .NE. 0 ) THEN
-             CALL rarray_byte_swap(vvt, nt)
+             CALL rarray_byte_swap(vvt, nt*nt*(ktend-ktsta+1))
            ENDIF
 
          ENDIF
