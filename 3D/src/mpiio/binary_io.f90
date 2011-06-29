@@ -67,7 +67,8 @@
 !     unit  : file unit [IN]
 !     dir   : directory from which the files are read [IN]
 !     fname : name of the field component [IN]
-!     nmb   : extension with the time label [IN]
+!     nmb   : extension with the time label [IN]. May turn off 
+!             name-mangling by setting bmangle=0 before call.
 !     plan  : I/O plan [IN]
 !     var   : the array with the field component [OUT]
 !-----------------------------------------------------------------
@@ -115,7 +116,8 @@
 !     unit  : file unit [IN]
 !     dir   : directory in which the files are written [IN]
 !     fname : name of the field component [IN]
-!     nmb   : extension with the time label [IN]
+!     nmb   : extension with the time label [IN]. May turn off
+!             name-mangling by setting bmangle=0 before call.
 !     plan  : I/O plan [IN]
 !     var   : the array with the field component [IN]
 !-----------------------------------------------------------------
