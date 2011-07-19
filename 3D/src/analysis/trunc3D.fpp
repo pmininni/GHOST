@@ -63,7 +63,7 @@
 
       REAL(KIND=GP)    :: ktrunc2, ktrunc
       INTEGER :: fftdir, flags, nfiles,nmt,np,npt,nt,ntprocs, npkeep
-      INTEGER :: i,ib,ie,ind,iswap,itsta,itend,j,k,ktsta,ktend
+      INTEGER :: i,ib,ie,ind,iswap,oswap,itsta,itend,j,k,ktsta,ktend
       INTEGER :: istak,iendk,kstak,kendk
       INTEGER :: mykrank,mytrank
 
@@ -77,7 +77,7 @@
       CHARACTER(len=256) :: fname, fout, msg
       CHARACTER(len=1024):: fnlist
 
-NAMELIST / regrid / idir, odir, fnlist, iswap, nt
+      NAMELIST / regrid / idir, odir, fnlist, iswap, oswap, nt
 
 !
 ! Initializes the MPI and I/O libraries
@@ -88,14 +88,20 @@ NAMELIST / regrid / idir, odir, fnlist, iswap, nt
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       CALL range(1,n,nprocs,myrank,ksta,kend)
       CALL io_init(myrank,n,ksta,kend,planio)
-
+      idir   = '.'
+      odir   = '.'
+      fnlist = ''
+      iswap  = 0
+      oswap  = 0
+      nt     = 0
 !
 ! Reads from the external file 'trunc.txt' the 
 ! parameters that will be used to compute the transfer
 !     idir   : directory for unformatted input (field components)
 !     odir   : directory for unformatted output (truncated data)
 !     fnlist : file list to truncate, separated by ';'
-!     iswap  : do endian swap?
+!     iswap  : do endian swap on input?
+!     oswap  : do endian swap on output?
 !     nt     : truncation wavenumber
 
       IF (myrank.eq.0) THEN
@@ -107,6 +113,7 @@ NAMELIST / regrid / idir, odir, fnlist, iswap, nt
       CALL MPI_BCAST(odir  ,100 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(fnlist,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(oswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nt    ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
 
       IF ( nt .GT. n .OR. nt .LT. 1 ) THEN
@@ -266,6 +273,9 @@ NAMELIST / regrid / idir, odir, fnlist, iswap, nt
          fout = trim(odir) // '/' // trim(fname) // trim(suff)
          IF ( myrank.eq.0 ) write(*,*)'main: writing to disk...'
          IF ( myrank .LT. ntprocs ) THEN
+           IF ( iswap .NE. 0 ) THEN
+             CALL rarray_byte_swap(tr, nt*nt*(ktend-ktsta+1))
+           ENDIF
            CALL MPI_FILE_OPEN(commtrunc, fout, &
              MPI_MODE_CREATE+MPI_MODE_WRONLY, &
              MPI_INFO_NULL,fh,ioerr)

@@ -56,7 +56,7 @@
 
       REAL(KIND=GP)    :: kprol2, kprol
       INTEGER :: nfiles,nmt,np,npt,nt,ntprocs,npkeep
-      INTEGER :: i,ib,ie,ind,iswap,itsta,itend,j,k,ktsta,ktend
+      INTEGER :: i,ib,ie,ind,iswap,oswap,itsta,itend,j,k,ktsta,ktend
       INTEGER :: istak,iendk,kstak,kendk
       INTEGER :: commtrunc, fh, groupworld, flags, grouptrunc, iExclude(3,1), iInclude(3,1)
 
@@ -68,7 +68,7 @@
       CHARACTER(len=256) :: fname, fout, msg
       CHARACTER(len=1024):: fnlist
 !
-      NAMELIST / regrid / idir, odir, fnlist, iswap, nt
+      NAMELIST / regrid / idir, odir, fnlist, iswap, oswap, nt
 
 !
 ! Initializes the MPI and I/O libraries
@@ -78,14 +78,20 @@
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       CALL range(1,n,nprocs,myrank,ksta,kend)
       CALL io_init(myrank,n,ksta,kend,planio)
-
+      idir   = '.'
+      odir   = '.'
+      fnlist = ''
+      iswap  = 0
+      oswap  = 0
+      nt     = 0
 !
 ! Reads from the external file 'boots.txt' the 
 ! parameters that will be used to compute the transfer
 !     idir   : directory for unformatted input (field components)
 !     odir   : directory for unformatted output (prolongated data)
 !     fnlist : file list to prolongate, separated by ';'
-!     iswap  : do endian swap?
+!     iswap  : do endian swap on input?
+!     oswap  : do endian swap on output?
 !     nt     : original linear size of the old grid
 
       IF (myrank.eq.0) THEN
@@ -97,6 +103,7 @@
       CALL MPI_BCAST(odir  ,100 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(fnlist,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(oswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nt    ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
 
       IF ( nt .GT. n .OR. nt .LT. 1 ) THEN
@@ -259,6 +266,11 @@
 !
 ! Compute inverse FT of prolongated variable:
          CALL fftp3d_complex_to_real(plancr,B1,br,MPI_COMM_WORLD)
+!
+! Byte-swap on output:
+         IF ( oswap .NE. 0 ) THEN
+           CALL rarray_byte_swap(br, n*n*(kend-ksta+1))
+         ENDIF
 !
 ! Put to disk:
          fout = trim(odir) // '/' // trim(fname) // trim(suff)
