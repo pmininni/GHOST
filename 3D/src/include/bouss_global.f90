@@ -8,6 +8,7 @@
             CALL derivk3(th,C2,2)
             CALL derivk3(th,C3,3)
             CALL maxabs(C1,C2,C3,rmq,2)
+            CALL tbouss(vx, vy, vz, t, dt)
             IF (myrank.eq.0) THEN
                OPEN(1,file='maximum.txt',position='append')
                WRITE(1,FMT='(E13.6,E13.6,E13.6)') (t-1)*dt,rmp,rmq
