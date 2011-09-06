@@ -30,9 +30,9 @@
               +fx(k,j,i))*rmp
                vy(k,j,i) = C2(k,j,i)+dt*(nu*vy(k,j,i)+C8(k,j,i) &
               +fy(k,j,i))*rmp
-               vz(k,j,i) = C3(k,j,i)+dt*(nu*vz(k,j,i)-bvfreq*th(k,j,i)+C4(k,j,i) &
+               vz(k,j,i) = C3(k,j,i)+dt*(nu*vz(k,j,i)-xmom*bvfreq*C20(k,j,i)+C4(k,j,i) &
               +fz(k,j,i))*rmp
-               th(k,j,i) = C20(k,j,i)+dt*(kappa*th(k,j,i)+bvfreq*vz(k,j,i)+C5(k,j,i) &
+               th(k,j,i) = C20(k,j,i)+dt*(kappa*th(k,j,i)+xtemp*bvfreq*C3(k,j,i)+C5(k,j,i) &
               +fs(k,j,i))*rmp
            ELSE IF (ka2(k,j,i).gt.kmax) THEN
                vx(k,j,i) = 0.0_GP
