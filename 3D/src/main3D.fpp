@@ -224,7 +224,7 @@
       DOUBLE PRECISION :: omptime3,omptime4
 !$    DOUBLE PRECISION, EXTERNAL :: omp_get_wtime
 
-      REAL(KIND=GP)    :: dt,nu,mu,kappa,bvfreq
+      REAL(KIND=GP)    :: dt,nu,mu,kappa,bvfreq,xmom,xtemp
       REAL(KIND=GP)    :: kup,kdn
       REAL(KIND=GP)    :: rmp,rmq
       REAL(KIND=GP)    :: dump
@@ -321,7 +321,7 @@
       NAMELIST / rotation / omega
 #endif
 #ifdef BOUSSINESQ_
-      NAMELIST / boussinesq / bvfreq
+      NAMELIST / boussinesq / bvfreq,xmom,xtemp
 #endif
 #ifdef ALPHAV_
       NAMELIST / alphav / alpk
@@ -568,13 +568,21 @@
 ! Reads parameters specifically for Boussinesq solver from the 
 ! namelist 'boussinesq' on the external file 'parameter.txt'
 !     bvfreq: Brunt-Vaisala frequency (positive definite)
+!     xmom  : multiplies bouyancy term in momentum equation
+!     xtemp : multiplies temperature-current term in temperature/density equation
 
+      xmom  = 1.0
+      xtemp = 1.0
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.txt',status='unknown',form="formatted")
          READ(1,NML=boussinesq)
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(bvfreq,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(xmom  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(xtemp ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      xmom  = xmom  * bvfreq
+      xtemp = xtemp * bvfreq
 #endif
 
 
@@ -873,7 +881,6 @@
 
 ! If stat=0 we start a new run.
 ! Generates initial conditions for the fields.
-
  IC : IF (stat.eq.0) THEN
 
       ini = 1
