@@ -94,6 +94,13 @@ boots: edit $(FFTP)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(UTILS)/gutils_mod.o 
            $@.o $(LDFLAGS) -o ../bin/$@
 	$(MAKE) undo
 
+vt: edit $(FFTP)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(UTILS)/gutils_mod.o 
+	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I./fftp-3 $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
+	$(COMPILE) $@.f90 -o $@.o
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTP)/*.o $(IOLIB)/*.o $(UTILS)/*.o $(OBJS) \
+           $@.o $(LDFLAGS) -o ../bin/$@
+	$(MAKE) undo
+
 clean:  undo
 	rm -f *.o *.d *.s *.int *.inf *.mod work.pc* ifc*
 	rm -f $(OBJSDIR)/pseudospec3D_mod.f90
