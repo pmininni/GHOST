@@ -51,4 +51,49 @@ MODULE gutils
 
       END SUBROUTINE rarray_byte_swap
 
+!
+!
+      SUBROUTINE parseind(sind, sep, ind, nmax, nind) 
+!-----------------------------------------------------------------
+!
+! Parses string of integers that are ';' separated, and stores, and
+! stores them in the integer array, specifying how many integers
+! were found in the string. A test is made against the specified
+! max number of integer indices, nmax, before attempting to add
+! any more indices to this array.
+!
+! Parameters
+!     sind : ';'-separated string of integers (IN)
+!     sep  : separator string (IN)
+!     ind  : integer array contining integers found in sind (IN)
+!     nmax : max size of 'ind' array (OUT)
+!     nind : num. integers found in 'sind' (OUT)
+!-----------------------------------------------------------------
+      INTEGER, INTENT(OUT)         :: ind(*), nind
+      INTEGER, INTENT(IN)          :: nmax
+      CHARACTER(len=*), INTENT(IN) :: sind, sep
+
+      INTEGER                      :: i
+      CHARACTER(len=1024)          :: sint
+
+      ib = 1;
+      ie = len(sind)
+      nind = 0
+      DO WHILE ( len(trim(sind(ib:ie))) .GT. 0 )
+        i = index(sind(ib:ie),sep)
+        IF ( i .eq. 0 ) THEN
+          sint = trim(adjustl(sind(ib:ie)))
+          ib = ie + 1
+        ELSE
+          sint = trim(adjustl(sind(ib:(ib+i-2))))
+          ib = ib + i
+        ENDIF
+        nind = nind + 1
+        IF ( nind.GT.nmax ) RETURN
+        READ(sint,'(I10)') ind(nind)
+      ENDDO
+      RETURN
+
+      END SUBROUTINE parseind
+
 END MODULE gutils
