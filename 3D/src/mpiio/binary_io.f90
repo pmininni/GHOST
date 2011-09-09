@@ -92,7 +92,7 @@
           '.' // nmb // '.out',MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
       ELSE
 
-      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname  &
+      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,fname  &
                         ,MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
       ENDIF
       CALL MPI_FILE_SET_VIEW(fh,disp,GC_REAL,plan%iotype,'native', &
@@ -141,7 +141,7 @@
           '.' // nmb // '.out',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
           MPI_INFO_NULL,fh,ioerr)
       ELSE
-      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname  &
+      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,fname  &
                         ,MPI_MODE_CREATE+MPI_MODE_WRONLY &
                         ,MPI_INFO_NULL,fh,ioerr)
       ENDIF
