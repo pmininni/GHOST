@@ -47,16 +47,17 @@
 !
 ! Auxiliary variables
 
-      INTEGER :: i,ic,iir,ind,ir,iswap,oswap,j,jc,jjc,k,irow(3),jcol(3),nrow,ncol,stat
-      INTEGER :: fh
+      INTEGER :: i,ic,iir,ind,ir,iswap,it,oswap,j,jc,jjc,k
+      INTEGER :: irow(3),jcol(3),istat(1024), nrow,ncol,nstat
 
       TYPE(IOPLAN) :: planio
       CHARACTER(len=8)   :: pref
-      CHARACTER(len=100) :: odir,idir
+      CHARACTER(len=256) :: odir,idir
       CHARACTER(len=256) :: fout
       CHARACTER(len=100 ):: srow, scol
+      CHARACTER(len=4096):: stat
 !
-      NAMELIST / vt / idir, odir, srow, scol, iswap, oswap, stat
+      NAMELIST / vt / idir, odir, srow, scol, stat, iswap, oswap
 
 !
 ! Initializes the MPI and I/O libraries
@@ -68,8 +69,9 @@
       CALL io_init(myrank,n,ksta,kend,planio)
       idir   = '.'
       odir   = '.'
-      srow   = '0'
-      scol   = '0'
+      srow   = '1'
+      scol   = '1'
+      stat  = '0'
       iswap  = 0
       oswap  = 0
       irow   = 0
@@ -79,7 +81,7 @@
 ! parameters that will be used to compute the transfer
 !     idir   : directory for unformatted input (field components)
 !     odir   : directory for unformatted output (prolongated data)
-!     stat   : time index for which to compute VT
+!     stat  : time index for which to compute VT, or a ';--separated list
 !     srow   : list of rows to do (';' separated)
 !     scol   : list of columns to do (';' separated)
 !     iswap  : do endian swap on input?
@@ -90,13 +92,13 @@
          READ(1,NML=vt)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(idir  ,100 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(odir  ,100 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(idir  ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(odir  ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(srow  ,100 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(scol  ,100 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(stat ,4096,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(oswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(stat  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
 
       pref = 'VT'
 !
@@ -137,60 +139,63 @@
          END DO
       END DO
 
-      CALL parseind(srow, ';', irow, 3, nrow) 
-      CALL parseind(scol, ';', jcol, 3, ncol) 
+      CALL parseind(srow, ';', irow , 3   , nrow) 
+      CALL parseind(scol, ';', jcol , 3   , ncol) 
+      CALL parseind(stat,';', istat , 1024, nstat) 
 
-      WRITE(ext, fmtext) stat
       tmp = 1./REAL(n,KIND=GP)**3
-      DO ir = 1, nrow
-        iir = irow(ir)
+      DO it = 1,nstat
+        WRITE(ext, fmtext) istat(it)
+        DO ir = 1, nrow
+          iir = irow(ir)
 ! read in appropriate file:
-        IF ( iir.EQ.1 ) THEN
-          CALL io_read(1,idir,'vx',ext,planio,rv)
-        ELSE IF ( iir.EQ.2 ) THEN
-          CALL io_read(1,idir,'vy',ext,planio,rv)
-        ELSE IF ( iir.EQ.3 ) THEN
-          CALL io_read(1,idir,'vz',ext,planio,rv)
-        ELSE
-          WRITE(*,*) 'main: invalid row specified: ',i
-          STOP 
-        ENDIF
-!
-! Byte-swap on input:
-        IF ( iswap .NE. 0 ) THEN
-          CALL rarray_byte_swap(rv, n*n*(kend-ksta+1))
-        ENDIF
-!
-! take FFT of component:
-        CALL fftp3d_real_to_complex(planrc,rv,vc,MPI_COMM_WORLD)
-        DO jc = 1, ncol
-          jjc = jcol(jc)
-          IF ( jjc.LT.1 .OR. jjc.GT.3 ) THEN
-            WRITE(*,*) 'main: invalid column specified: ',j
+          IF ( iir.EQ.1 ) THEN
+            CALL io_read(1,idir,'vx',ext,planio,rv)
+          ELSE IF ( iir.EQ.2 ) THEN
+            CALL io_read(1,idir,'vy',ext,planio,rv)
+          ELSE IF ( iir.EQ.3 ) THEN
+            CALL io_read(1,idir,'vz',ext,planio,rv)
+          ELSE
+            WRITE(*,*) 'main: invalid row specified: ',i
             STOP 
           ENDIF
-          CALL derivk3(vc, dvc, jjc)
-          DO i = ista,iend
-            DO j = 1,n
-              DO k = 1,n
-                dvc(k,j,i) = dvc(k,j,i)*tmp
-              END DO
-            END DO
-          END DO
-          CALL fftp3d_complex_to_real(plancr,dvc,rv,MPI_COMM_WORLD)
 !
-! Byte-swap on output:
-          IF ( oswap .NE. 0 ) THEN
+! Byte-swap on input:
+          IF ( iswap .NE. 0 ) THEN
             CALL rarray_byte_swap(rv, n*n*(kend-ksta+1))
           ENDIF
-          WRITE(fout,'(a2,i01,i01)') trim(pref),iir,jjc
-          fout = trim(odir) // '/' // trim(fout) // '.' // ext // '.out' 
-          bmangle = 0
-          CALL io_write(1,odir,fout,0,planio,rv)
-          bmangle = 1
-          WRITE(*,*)'main: ', trim(fout), ' written.'
-        ENDDO
-      ENDDO
+!
+! take FFT of component:
+          CALL fftp3d_real_to_complex(planrc,rv,vc,MPI_COMM_WORLD)
+          DO jc = 1, ncol
+            jjc = jcol(jc)
+            IF ( jjc.LT.1 .OR. jjc.GT.3 ) THEN
+              WRITE(*,*) 'main: invalid column specified: ',j
+              STOP 
+            ENDIF
+            CALL derivk3(vc, dvc, jjc)
+            DO i = ista,iend
+              DO j = 1,n
+                DO k = 1,n
+                  dvc(k,j,i) = dvc(k,j,i)*tmp
+                END DO
+              END DO
+            END DO
+            CALL fftp3d_complex_to_real(plancr,dvc,rv,MPI_COMM_WORLD)
+!
+! Byte-swap on output:
+            IF ( oswap .NE. 0 ) THEN
+              CALL rarray_byte_swap(rv, n*n*(kend-ksta+1))
+            ENDIF
+            WRITE(fout,'(a2,i01,i01)') trim(pref),iir,jjc
+            fout = trim(odir) // '/' // trim(fout) // '.' // ext // '.out' 
+            bmangle = 0
+            CALL io_write(1,odir,fout,0,planio,rv)
+            bmangle = 1
+            WRITE(*,*)'main: ', trim(fout), ' written.'
+          ENDDO ! tensor column loop
+        ENDDO   ! tensor row loop
+      ENDDO     ! time index loop
 !
       CALL fftp3d_destroy_plan(plancr)
       CALL fftp3d_destroy_plan(planrc)
