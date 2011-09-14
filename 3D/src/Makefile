@@ -42,6 +42,7 @@ INCLUDE     = $(MPIINC) -I$(FFTWINC) -I$(GHOME)/$(FFTP) -I$(GHOME)/$(IOLIB) -I$(
 CPPFLAGS    = -D$(SOLVER)_SOL
 PREPROCESS  = $(CPP) $(CPPFLAGS)
 COMPILE     = $(FC) $(FFLAGS) $(DO_HYBRID$(P_HYBRID)) $(INCLUDE) $(TARGET_ARCH) -c
+BIN         = ../
 
 HD_OBJS        = pseudospec3D_mod.o module_dns.o pseudospec3D_hd.o  
 PHD_OBJS       = $(HD_OBJS) pseudospec3D_phd.o
@@ -84,21 +85,21 @@ trunc:	edit $(FFTP)/fftp3D.o $(IOLIB)/binary_io.o $(UTILS)/gutils_mod.o $(OBJS) 
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I./fftp-3 $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTP)/*.o $(IOLIB)/*.o $(UTILS)/*.o $(OBJS) \
-           $@.o $(LDFLAGS) -o ../bin/$@
+           $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
 boots: edit $(FFTP)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(UTILS)/gutils_mod.o $(UTILS)/regridutils.o
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I./fftp-3 $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTP)/*.o $(IOLIB)/*.o $(UTILS)/*.o $(OBJS) \
-           $@.o $(LDFLAGS) -o ../bin/$@
+           $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
 vt: edit $(FFTP)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(UTILS)/gutils_mod.o 
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I./fftp-3 $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTP)/*.o $(IOLIB)/*.o $(UTILS)/*.o $(OBJS) \
-           $@.o $(LDFLAGS) -o ../bin/$@
+           $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
 clean:  undo
@@ -109,7 +110,7 @@ clean:  undo
         done
 
 dist:
-	rm -f *HD* *MHD* *HMHD* *ROTH*
+	rm -f $(BIN)/*HD* $(BIN)/*MHD* $(BIN)/*HMHD* $(BIN)/*ROTH* $(BIN)/*BOUSS*
 	$(MAKE) clean
 
 edit:
