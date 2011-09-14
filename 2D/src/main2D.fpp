@@ -41,6 +41,12 @@
 #define STREAM_
 #endif
 
+#ifdef PHD_SOL
+#define DNS_
+#define STREAM_
+#define SCALAR_
+#endif
+
 #ifdef MHD_SOL
 #define DNS_
 #define STREAM_
@@ -82,6 +88,7 @@
       USE kes
       USE order
       USE random
+      USE fftplans
 #ifdef DNS_
       USE dns
 #endif
@@ -106,13 +113,19 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: bz,mz
 #endif
 #endif
-
+#ifdef SCALAR_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: th
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: fs
+#endif
 !
 ! Temporal data storage arrays
 
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: C1,C2
 #ifdef VECPOT_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: C3,C4,C5
+#endif
+#ifdef SCALAR_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: C3,C4,C5,C12
 #endif
 #ifdef HALLTERM_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: C6,C7
@@ -129,7 +142,8 @@
 
       COMPLEX(KIND=GP) :: cdump,jdump
       COMPLEX(KIND=GP) :: cdumq,jdumq
-      DOUBLE PRECISION :: tmp,tmq
+      COMPLEX(KIND=GP) :: cdumr,jdumr
+      DOUBLE PRECISION :: tmp,tmq,tmpp,tmqq
       DOUBLE PRECISION :: cputime1,cputime2
       DOUBLE PRECISION :: cputime3,cputime4
 
@@ -153,6 +167,14 @@
       REAL(KIND=GP) :: aparam0,aparam1,aparam2,aparam3,aparam4
       REAL(KIND=GP) :: aparam5,aparam6,aparam7,aparam8,aparam9
 #endif
+#ifdef SCALAR_
+      REAL(KIND=GP)    :: skup,skdn,kappa
+      REAL(KIND=GP)    :: c0,s0
+      REAL(KIND=GP)    :: cparam0,cparam1,cparam2,cparam3,cparam4
+      REAL(KIND=GP)    :: cparam5,cparam6,cparam7,cparam8,cparam9
+      REAL(KIND=GP)    :: sparam0,sparam1,sparam2,sparam3,sparam4
+      REAL(KIND=GP)    :: sparam5,sparam6,sparam7,sparam8,sparam9
+#endif
 #ifdef UNIFORMB_
       REAL(KIND=GP) :: by0
 #endif
@@ -169,6 +191,10 @@
       INTEGER :: tind,sind
       INTEGER :: timet,timec
       INTEGER :: times,timef
+#ifdef SCALAR_
+      INTEGER :: injt
+#endif
+
 
       TYPE(IOPLAN) :: planio
       CHARACTER(len=100) :: odir,idir
@@ -196,6 +222,14 @@
 #ifdef HALLTERM_
       NAMELIST / hallparam / ep
 #endif
+#ifdef SCALAR_
+      NAMELIST / scalar / c0,s0,skdn,skup,kappa,cparam0,cparam1
+      NAMELIST / scalar / cparam2,cparam3,cparam4,cparam5,cparam6
+      NAMELIST / scalar / cparam7,cparam8,cparam9,sparam0,sparam1
+      NAMELIST / scalar / sparam2,sparam3,sparam4,sparam5,sparam6
+      NAMELIST / scalar / sparam7,sparam8,sparam9
+      NAMELIST / inject / injt
+#endif
 
 !
 ! Initializes the MPI and I/O library
@@ -218,7 +252,6 @@
       
 !
 ! Allocates memory for distributed blocks
-
       ALLOCATE( C1(n,ista:iend), C2(n,ista:iend) )
 #ifdef STREAM_
       ALLOCATE( ps(n,ista:iend), fk(n,ista:iend) )
@@ -238,6 +271,14 @@
 #ifdef VECPOT_
       ALLOCATE( R2(n,jsta:jend) )
 #endif
+#ifdef SCALAR_
+      ALLOCATE( C3(n,ista:iend), C4(n,ista:iend) )
+      ALLOCATE( C5(n,ista:iend) )
+      ALLOCATE( C12(n,ista:iend) )
+      ALLOCATE( th(n,ista:iend) )
+      ALLOCATE( fs(n,ista:iend) )
+#endif
+
 
 !
 ! Some constants for the FFT
@@ -448,6 +489,67 @@
       ENDIF
       CALL MPI_BCAST(ep,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
+
+#ifdef SCALAR_
+!
+! Reads general configuration flags for runs with 
+! a passive scalar from the namelist 'inject' on 
+! the external file 'parameter.txt'
+!     injt : = 0 when stat=0 generates initial v and th (SCALAR_)
+!            = 1 when stat.ne.0 imports v and generates th (SCALAR_)
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         READ(1,NML=inject)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(injt,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+
+!
+! Reads parameters for the passive scalar from the 
+! namelist 'scalar' on the external file 'parameter.txt'
+!     s0   : amplitude of the passive scalar source
+!     c0   : amplitude of the initial concentration
+!     skdn : minimum wave number in concentration/source
+!     skup : maximum wave number in concentration/source
+!     kappa: diffusivity
+!     sparam0-9 : ten real numbers to control properties of 
+!            the source
+!     cparam0-9 : ten real numbers to control properties of
+!            the initial concentration
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         READ(1,NML=scalar)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(s0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(skdn,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(skup,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kappa,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+#endif
+
      
 !
 ! Sets the external forcing
@@ -455,6 +557,9 @@
 #ifdef VECPOT_
       INCLUDE 'initialfb.f90'           ! electromotive forcing
 #endif 
+#ifdef SCALAR_
+      INCLUDE 'initialfs.f90'           ! passive scalar source
+#endif
       
 ! If stat=0 we start a new run.
 ! Generates initial conditions for the fields.
@@ -472,6 +577,10 @@
 #ifdef VECPOT_
       INCLUDE 'initialb.f90'            ! initial vector potential
 #endif
+#ifdef SCALAR_
+      INCLUDE 'initials.f90'            ! initial concentration
+#endif
+
       
       ELSE
 
@@ -501,6 +610,21 @@
       CALL fftp2d_real_to_complex(planrc,R1,bz,MPI_COMM_WORLD)
 #endif
 #endif
+#ifdef SCALAR_
+ INJ: IF (injt.eq.0) THEN
+         CALL io_read(1,idir,'th',ext,planio,R1)
+         CALL fftp2d_real_to_complex(planrc,R1,th,MPI_COMM_WORLD)
+      ELSE
+         INCLUDE 'initials.f90'      ! initial concentration
+         ini = 1                     ! resets all counters (the
+         sind = 0                    ! run starts at t=0)
+         tind = 0
+         timet = tstep
+         timec = cstep
+         times = sstep
+      ENDIF INJ
+#endif
+
 
       ENDIF IC
 
@@ -536,6 +660,13 @@
                cdumq = corr*cdump+(1-corr)*(COS(phase)+im*SIN(phase))
                jdumq = corr*jdump+(1-corr)*conjg(cdump)
 #endif
+#ifdef SCALAR_
+               IF (myrank.eq.0) phase = 2*pi*randu(seed)
+               CALL MPI_BCAST(phase,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+               cdumr = COS(phase)+im*SIN(phase)
+               jdumr = conjg(cdumr)
+#endif
+
                IF (ista.eq.1) THEN
                   DO j = 2,n/2+1
 #ifdef STREAM_
@@ -554,6 +685,10 @@
                      mz(n-j+2,1) = mz(n-j+2,1)*jdump
 #endif
 #endif
+#ifdef SCALAR_
+                     fs(j,1) = fs(j,1)*cdumr
+                     fs(n-j+2,1) = fs(n-j+2,1)*jdumr
+#endif
                   END DO
                   DO i = 2,iend
                      DO j = 1,n
@@ -569,6 +704,10 @@
                         mz(j,i) = mz(j,i)*cdump
 #endif
 #endif
+#ifdef SCALAR_
+                        fs(j,i) = fs(j,i)*cdumr
+#endif
+
                      END DO
                   END DO
                ELSE
@@ -585,6 +724,9 @@
 #ifdef D25_
                         mz(j,i) = mz(j,i)*cdump
 #endif
+#endif
+#ifdef SCALAR_
+                        fs(j,i) = fs(j,i)*cdumr
 #endif
                      END DO
                   END DO
@@ -661,6 +803,17 @@
             CALL io_write(1,odir,'bz',ext,planio,R1)
 #endif
 #endif
+#ifdef SCALAR_
+!$omp parallel do if (iend-ista.ge.nth) private (j)
+            DO i = ista,iend
+               DO j = 1,n
+                  C1(j,i) = th(j,i)*rmp
+               END DO
+            END DO
+            CALL fftp2d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+            CALL io_write(1,odir,'th',ext,planio,R1)
+#endif
+
          ENDIF
 
 ! Every 'cstep' steps, generates external files 
@@ -682,6 +835,9 @@
 #endif
 #ifdef SQG_SOL
             INCLUDE 'sqg_global.f90'
+#endif
+#ifdef PHD_SOL
+            INCLUDE 'phd_global.f90'
 #endif
          ENDIF
 
@@ -707,6 +863,9 @@
 #ifdef SQG_SOL
             INCLUDE 'sqg_spectrum.f90'
 #endif
+#ifdef PHD_SOL
+            INCLUDE 'phd_spectrum.f90'
+#endif
          ENDIF
 
 ! Runge-Kutta step 1
@@ -730,6 +889,10 @@
 #ifdef SQG_SOL
          INCLUDE 'hd_rkstep1.f90'
 #endif
+#ifdef PHD_SOL
+            INCLUDE 'phd_rkstep1.f90'
+#endif
+
 
          END DO
          END DO
@@ -753,6 +916,9 @@
 #ifdef SQG_SOL
          INCLUDE 'sqg_rkstep2.f90'
 #endif
+#ifdef PHD_SOL
+            INCLUDE 'phd_rkstep2.f90'
+#endif
          END DO
 
          timet = timet+1
@@ -773,7 +939,8 @@
          IF (myrank.eq.0) THEN
             OPEN(1,file='benchmark.txt',position='append')
             WRITE(1,*) n,(step-ini+1),nprocs, &
-                       (cputime2-cputime1)/(step-ini+1)
+                       (cputime2-cputime1)/(step-ini+1) , &
+                       ffttime/(step-ini+1), memtime/(step-ini+1), tratime/(step-ini+1)
             CLOSE(1)
          ENDIF
       ENDIF
@@ -803,5 +970,9 @@
 #ifdef HALLTERM_
       DEALLOCATE( C6,C7,C8,C9,C10,C11 )
 #endif
+#ifdef SCALAR_
+      DEALLOCATE( th,fs )
+#endif
+
 
       END PROGRAM MAIN2D
