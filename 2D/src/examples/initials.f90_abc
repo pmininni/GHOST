@@ -1,0 +1,35 @@
+! Initial condition for the velocity.
+! This file contains the expression used for the initial 
+! velocity field. You can use temporary real arrays R1-R3 
+! of size (1:n,ksta:kend) and temporary complex arrays 
+! C1-C8 of size (n,ista:iend) to do intermediate 
+! computations. The variable u0 should control the global 
+! amplitude of the velocity, and variables vparam0-9 can be
+! used to control the amplitudes of individual terms. At the
+! end, the three components of the velocity in spectral
+! space should be stored in the arrays ps, th.
+
+! Superposition of AB(C=0) flows with k^(-4) spectrum
+!     kdn    : minimum wave number
+!     kup    : maximum wave number
+!     cparam0: A amplitude
+!     cparam1: B amplitude
+!              NOTE: C amplitude == 0
+!              scalar here is the velocity component vz= A cos(kF x) + B sin(kF y)
+
+      DO j = jsta,jend
+         DO i = 1,n
+
+            R1(i,j) = 0.
+
+            DO ki = kdn,kup
+               R1(i,j) = R1(i,j)+(cparam0*COS(2*pi*ki*(real(i,kind=GP)-1)/ &
+                          real(n,kind=GP))+cparam1*SIN(2*pi*ki*(real(j,kind=GP)-1)/   &
+                          real(n,kind=GP)))/ki**2
+            END DO
+
+         END DO
+      END DO
+
+      CALL fftp2d_real_to_complex(planrc,R1,th,MPI_COMM_WORLD)
+      CALL normalize(th,c0,2,MPI_COMM_WORLD)
