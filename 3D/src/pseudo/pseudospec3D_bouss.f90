@@ -184,9 +184,11 @@
       CALL derivk3(v,c1,3)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
 
-      xavg(1:3) = 0.0
-      xmax(1:3) = 0.0
-      tmp  = 1.0_GP/real(n,kind=GP)**6
+      xavg  = 0.0_GP
+      xmax  = 0.0_GP
+      gxavg = 0.0_GP
+      gxmax = 0.0_GP
+      tmp   = 1.0_GP/real(n,kind=GP)**6
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
@@ -245,13 +247,13 @@
        ENDIF
 !
 ! Do reductions to find global vol avg and global max:
-      CALL MPI_REDUCE(xavg,gxavg,3,GC_REAL,MPI_SUM,0, &
+      CALL MPI_REDUCE(xavg,gxavg,3,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
-      CALL MPI_REDUCE(xmax,gxmax,3,GC_REAL,MPI_MAX,0, &
+      CALL MPI_REDUCE(xmax,gxmax,3,MPI_DOUBLE_PRECISION,MPI_MAX,0, &
                       MPI_COMM_WORLD,ierr)
 
 ! For volume average:
-      xavg(1:3) = xavg(1:3) / real(n,kind=GP)**3
+      gxavg(1:3) = gxavg(1:3) / real(n,kind=GP)**3
 ! NOTE: xavg_1 == vol average of shear
 !       xavg_2 == vol average of horiz. kinetic energy
 !       xavg_3 == vol average of vert. kinetic energy
