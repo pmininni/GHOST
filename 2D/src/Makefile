@@ -63,7 +63,7 @@ PREPROCESS  = $(CPP) $(CPPFLAGS)
 COMPILE     = $(FC) $(FFLAGS) $(INCLUDE) $(TARGET_ARCH) -c
 
 CUCOMPILE   = $(CUCC) $(CUGENCODE) $(CUARCH) -I$(CUINC) $(CUFLAGS) -c
-
+BIN         = ../
 
 HD_OBJS        = pseudospec2D_mod.o module_dns.o pseudospec2D_hd.o
 MHD_OBJS       = $(HD_OBJS) pseudospec2D_mhd.o
@@ -87,7 +87,7 @@ clean:  undo
         done
 
 dist:
-	rm -f *HD* *MHD* *ROTH* *SQG*
+	rm -f $(BIN)/*HD* $(BIN)/*MHD* $(BIN)/*ROTH* $(BIN)/*SQG* $(BIN)/*PHD*
 	$(MAKE) clean
 
 edit:
@@ -130,7 +130,7 @@ $(SOLVER):
 	$(PREPROCESS) main2D.fpp -o $(SOLVER).f90
 	$(COMPILE) $(SOLVER).f90
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(OBJS) \
-           $(SOLVER).o $(LDFLAGS) -o ../bin/$(SOLVER)
+           $(SOLVER).o $(LDFLAGS) -o $(BIN)/$(SOLVER)
 
 $(FFTPDIR)/fftp2D.o:
 	cd $(FFTPDIR) && $(MAKE) COMPILE='$(COMPILE)' CUCOMPILE='$(CUCOMPILE)'
