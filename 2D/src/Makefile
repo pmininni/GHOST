@@ -63,7 +63,7 @@ PREPROCESS  = $(CPP) $(CPPFLAGS)
 COMPILE     = $(FC) $(FFLAGS) $(INCLUDE) $(TARGET_ARCH) -c
 
 CUCOMPILE   = $(CUCC) $(CUGENCODE) $(CUARCH) -I$(CUINC) $(CUFLAGS) -c
-BIN         = ../
+BIN         = ../bin
 
 HD_OBJS        = pseudospec2D_mod.o module_dns.o pseudospec2D_hd.o
 MHD_OBJS       = $(HD_OBJS) pseudospec2D_mhd.o
@@ -87,7 +87,8 @@ clean:  undo
         done
 
 dist:
-	rm -f $(BIN)/*HD* $(BIN)/*MHD* $(BIN)/*ROTH* $(BIN)/*SQG* $(BIN)/*PHD*
+	rm -f $(BIN)/*HD* $(BIN)/*MHD* $(BIN)/*ROTH* $(BIN)/*SQG* $(BIN)/*PHD* \
+              *HD* *MHD* *ROTH* *SQG* *PHD*
 	$(MAKE) clean
 
 edit:
