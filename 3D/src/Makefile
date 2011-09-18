@@ -42,7 +42,7 @@ INCLUDE     = $(MPIINC) -I$(FFTWINC) -I$(GHOME)/$(FFTP) -I$(GHOME)/$(IOLIB) -I$(
 CPPFLAGS    = -D$(SOLVER)_SOL
 PREPROCESS  = $(CPP) $(CPPFLAGS)
 COMPILE     = $(FC) $(FFLAGS) $(DO_HYBRID$(P_HYBRID)) $(INCLUDE) $(TARGET_ARCH) -c
-BIN         = ../
+BIN         = ../bin
 
 HD_OBJS        = pseudospec3D_mod.o module_dns.o pseudospec3D_hd.o  
 PHD_OBJS       = $(HD_OBJS) pseudospec3D_phd.o
@@ -110,7 +110,9 @@ clean:  undo
         done
 
 dist:
-	rm -f $(BIN)/*HD* $(BIN)/*MHD* $(BIN)/*HMHD* $(BIN)/*ROTH* $(BIN)/*BOUSS*
+	rm -f $(BIN)/HD* $(BIN)/MHD* $(BIN)/HMHD* $(BIN)/ROTH* $(BIN)/BOUSS* \
+              $(BIN)/boots* $(BIN)/trunc* *HD* *MHD* *HMHD* *ROTH* *BOUSS* *boots* *trunc*
+	
 	$(MAKE) clean
 
 edit:
