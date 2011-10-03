@@ -1,8 +1,8 @@
 ! Global quantities computed in BOUSS runs
 
-            CALL tbouss(vx,vy,vz,t,dt)
             CALL hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,0)
             CALL pscheck(th,fs,t,dt)
+            CALL tbouss(vx,vy,vz,t,dt)
             CALL maxabs(vx,vy,vz,rmp,0)
             CALL derivk3(th,C1,1)
             CALL derivk3(th,C2,2)
