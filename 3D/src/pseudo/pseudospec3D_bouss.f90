@@ -193,7 +193,7 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,n
             DO i = 1,n
-               dloc    = DBLE(r1(i,j,k)**2 + r2(i,j,k)**2 )
+               dloc    = sqrt(r1(i,j,k)**2 + r2(i,j,k)**2 )
                xmax(1) = MAX(xmax(1),dloc)
                xavg(1) = xavg(1) + dloc
             END DO
