@@ -1,0 +1,139 @@
+! Initial condition for the velocity.
+! This file contains the expression used for the initial 
+! velocity field. You can use temporary real arrays R1-R3 
+! of size (1:n,1:n,ksta:kend) and temporary complex arrays 
+! C1-C8 of size (n,n,ista:iend) to do intermediate 
+! computations. The variable u0 should control the global 
+! amplitude of the velocity, and variables vparam0-9 can be
+! used to control the amplitudes of individual terms. At the
+! end, the three components of the velocity in spectral
+! space should be stored in the arrays vx, vy, and vz.
+
+! Initial conditions from Kimura & Herring (JFM 328:253 (1996))
+! For this paper, kdn=1, and kup = N/2+1, but we can use any
+! interval
+!     kdn    : minimum wave number
+!     kup    : maximum wave number
+!     vparam0: wave number peak in spectrum
+!     vparam8, vparam9 are used for temporal storage
+!
+      IF (ista.eq.1) THEN
+        DO j=2,n/2+1
+           C1    (1,j,1) = 0.0_GP
+           C1(1,n-j+2,1) = 0.0_GP
+           C2    (1,j,1) = 0.0_GP
+           C2(1,n-j+2,1) = 0.0_GP
+           C3    (1,j,1) = 0.0_GP
+           C3(1,n-j+2,1) = 0.0_GP
+           IF ((ka2(1,j,1).le.kup**2).and.(ka2(1,j,1).ge.kdn**2)) THEN
+              dump = 16.0*sqrt(2.0/pi)*vparam0**(-5.0)*ka2(1,j,1)**2 * exp(-2.0*ka2(1,j,1)/vparam0**2)
+              dump = sqrt(dump/3.0)                  ! assume equipartition
+              phase = 2*pi*randu(seed)
+              C1    (1,j,1) = (COS(phase)+im*SIN(phase))*dump
+              C1(1,n-j+2,1) = conjg(C1(1,j,1))
+              phase = 2*pi*randu(seed)
+              C2    (1,j,1) = (COS(phase)+im*SIN(phase))*dump
+              C2(1,n-j+2,1) = conjg(C2(1,j,1))
+              phase = 2*pi*randu(seed)
+              C3    (1,j,1) = (COS(phase)+im*SIN(phase))*dump
+              C3(1,n-j+2,1) = conjg(C3(1,j,1))
+           ENDIF
+        ENDDO
+
+        DO k=2,n/2+1
+           C1    (k,1,1) = 0.0_GP
+           C1(n-k+2,1,1) = 0.0_GP
+           C2    (k,1,1) = 0.0_GP
+           C2(n-k+2,1,1) = 0.0_GP
+           C3    (k,1,1) = 0.0_GP
+           C3(n-k+2,1,1) = 0.0_GP
+           IF ((ka2(k,1,1).le.kup**2).and.(ka2(k,1,1).ge.kdn**2)) THEN
+              dump = 16.0*sqrt(2.0/pi)*vparam0**(-5.0)*ka2(k,1,1)**2 * exp(-2.0*ka2(k,1,1)/vparam0**2)
+              dump = sqrt(dump/3.0)                  ! assume equipartition
+              phase = 2*pi*randu(seed)
+              C1    (k,1,1) = (COS(phase)+im*SIN(phase))*dump
+              C1(n-k+2,1,1) = conjg(C1(k,1,1))
+              phase = 2*pi*randu(seed)
+              C2    (k,1,1) = (COS(phase)+im*SIN(phase))*dump
+              C2(n-k+2,1,1) = conjg(C2(k,1,1))
+              phase = 2*pi*randu(seed)
+              C3    (k,1,1) = (COS(phase)+im*SIN(phase))*dump
+              C3(n-k+2,1,1) = conjg(C3(k,1,1))
+           ENDIF
+        ENDDO
+
+        DO j = 2,n
+           DO k = 2,n/2+1
+              C1        (k,j,1) = 0.0_GP
+              C1(n-k+2,n-j+2,1) = 0.0_GP
+              C2(        k,j,1) = 0.0_GP
+              C2(n-k+2,n-j+2,1) = 0.0_GP
+              C3(        k,j,1) = 0.0_GP
+              C3(n-k+2,n-j+2,1) = 0.0_GP
+              IF ((ka2(k,j,1).le.kup**2).and.(ka2(k,j,1).ge.kdn**2)) THEN
+                  dump = 16.0*sqrt(2.0/pi)*vparam0**(-5.0)*ka2(k,j,1)**2 * exp(-2.0*ka2(k,j,1)/vparam0**2)
+                  dump = sqrt(dump/3.0)                  ! assume equipartition
+                  phase = 2*pi*randu(seed)
+                  C1        (k,j,1) = (COS(phase)+im*SIN(phase))*dump
+                  C1(n-k+2,n-j+2,1) = conjg(C1(k,j,1))
+                  phase = 2*pi*randu(seed)
+                  C2        (k,j,1) = (COS(phase)+im*SIN(phase))*dump
+                  C2(n-k+2,n-j+2,1) = conjg(C2(k,j,1))
+                  phase = 2*pi*randu(seed)
+                  C3        (k,j,1) = (COS(phase)+im*SIN(phase))*dump
+                  C3(n-k+2,n-j+2,1) = conjg(C3(k,j,1))
+              ENDIF
+           ENDDO
+        ENDDO
+
+        DO i = 2,iend
+           DO j = 1,n
+              DO k = 1,n
+                C1(k,j,i) = 0.0_GP
+                C2(k,j,i) = 0.0_GP
+                C3(k,j,i) = 0.0_GP
+                IF ((ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
+                  dump = 16.0*sqrt(2.0/pi)*vparam0**(-5.0)*ka2(k,j,i)**2 * exp(-2.0*ka2(k,j,i)/vparam0**2)
+                  dump = sqrt(dump/3.0)                  ! assume equipartition
+                  phase = 2*pi*randu(seed)
+                  C1(k,j,i) = (COS(phase)+im*SIN(phase))*dump
+                  phase = 2*pi*randu(seed)
+                  C2(k,j,i) = (COS(phase)+im*SIN(phase))*dump
+                  phase = 2*pi*randu(seed)
+                  C3(k,j,i) = (COS(phase)+im*SIN(phase))*dump
+                ENDIF
+              ENDDO
+           ENDDO
+        ENDDO
+
+
+      ELSE
+         DO i = ista,iend
+            DO j = 1,n
+               DO k = 1,n
+
+               IF ((ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
+                  dump = 16.0*sqrt(2.0/pi)*vparam0**(-5.0)*ka2(k,j,i)**2 * exp(-2.0*ka2(k,j,i)/vparam0**2)
+                  dump = sqrt(dump/3.0)                  ! assume equipartition
+                  phase = 2*pi*randu(seed)
+                  C1(k,j,i) = (COS(phase)+im*SIN(phase))*dump
+                  phase = 2*pi*randu(seed)
+                  C2(k,j,i) = (COS(phase)+im*SIN(phase))*dump
+                  phase = 2*pi*randu(seed)
+                  C3(k,j,i) = (COS(phase)+im*SIN(phase))*dump
+               ELSE
+                  C1(k,j,i) = 0.
+                  C2(k,j,i) = 0.
+                  C3(k,j,i) = 0.
+               ENDIF
+
+               END DO
+            END DO
+        END DO
+      ENDIF
+
+      CALL rotor3(C2,C3,vx,1)
+      CALL rotor3(C1,C3,vy,2)
+      CALL rotor3(C1,C2,vz,3)
+      CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
+
