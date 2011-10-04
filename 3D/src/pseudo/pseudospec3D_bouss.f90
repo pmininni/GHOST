@@ -171,7 +171,7 @@
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1,c2,c3
       REAL(KIND=GP), INTENT(IN)                  :: dt
       REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2,r3
-      DOUBLE PRECISION                           :: dloc,xavg(3),gxavg(3),xmax(3),gxmax(3),tmp
+      REAL(KIND=GP)                              :: dloc,xavg(3),gxavg(3),xmax(3),gxmax(3),tmp
       REAL(KIND=GP)                              :: dm
       INTEGER, INTENT(IN)                        :: t
       INTEGER                                    :: i,j,k
@@ -193,7 +193,7 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,n
             DO i = 1,n
-               dloc    = r1(i,j,k)**2 + r2(i,j,k)**2 
+               dloc    = r1(i,j,k)**2+r2(i,j,k)**2
                xmax(1) = MAX(xmax(1),dloc)
             END DO
          END DO
@@ -270,12 +270,13 @@
             END DO
          END DO
       END DO
-      xmax = xmax*tmp
+      xmax(2) = xmax(2)*tmp
+      xmax(3) = xmax(3)*tmp
 !
 ! Do reductions to find global vol avg and global max:
-      CALL MPI_REDUCE(xavg,gxavg,3,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+      CALL MPI_REDUCE(xavg,gxavg,3,GC_REAL,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
-      CALL MPI_REDUCE(xmax,gxmax,3,MPI_DOUBLE_PRECISION,MPI_MAX,0, &
+      CALL MPI_REDUCE(xmax,gxmax,3,GC_REAL,MPI_MAX,0, &
                       MPI_COMM_WORLD,ierr)
 
 ! NOTE: xavg_1 == vol average of shear
