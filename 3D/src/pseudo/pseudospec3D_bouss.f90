@@ -183,9 +183,9 @@
 !
 ! Find max and vol avg of shear:
       CALL derivk3(u,c1,3)
+      CALL derivk3(v,c2,3)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-      CALL derivk3(v,c1,3)
-      CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
 
       tmp   = 1.0_GP/real(n,kind=GP)**6
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -193,14 +193,12 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,n
             DO i = 1,n
-               dloc    = sqrt(r1(i,j,k)**2 + r2(i,j,k)**2 )
+               dloc    = r1(i,j,k)**2 + r2(i,j,k)**2 
                xmax(1) = MAX(xmax(1),dloc)
-               xavg(1) = xavg(1) + dloc
             END DO
          END DO
       END DO
-      xmax(1) = xmax(1)/real(n,kind=GP)**3
-      xavg(1) = xavg(1)/real(n,kind=GP)**3
+      xmax(1) = xmax(1)*tmp
 
 !
 ! Find spatial u, v, vol average of square of horizontal velocity:
@@ -210,6 +208,8 @@
 !$omp parallel do private (k) reduction(+:dloc)
             DO j = 1,n
                DO k = 1,n
+                  dloc    = (abs(r1(k,j,i))**2 + abs(r2(k,j,i))**2)*tmp
+                  xavg(1) = xavg(1) + dloc
                   dloc    = (abs(u(k,j,1))**2+abs(v(k,j,1))**2)*tmp
                   xavg(2) = xavg(2) + dloc
                   dloc    = (abs(w(k,j,1))**2)*tmp
@@ -221,6 +221,8 @@
 !$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:dloc)
                DO j = 1,n
                   DO k = 1,n
+                    dloc    = 2.0*(abs(r1(k,j,i))**2 + abs(r2(k,j,i))**2)*tmp
+                    xavg(1) = xavg(1) + dloc
                     dloc    = 2.0*(abs(u(k,j,i))**2+abs(v(k,j,i))**2)*tmp
                     xavg(2) = xavg(2) + dloc
                     dloc    = 2.0*(abs(w(k,j,i))**2)*tmp
@@ -234,6 +236,8 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:dloc)
                DO j = 1,n
                   DO k = 1,n
+                    dloc    = 2.0*(abs(r1(k,j,i))**2 + abs(r2(k,j,i))**2)*tmp 
+                    xavg(1) = xavg(1) + dloc
                     dloc    = 2.0*(abs(u(k,j,i))**2+abs(v(k,j,i))**2)*tmp
                     xavg(2) = xavg(2) + dloc
                     dloc    = 2.0*(abs(w(k,j,i))**2 )*tmp
@@ -263,12 +267,12 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i) reduction(max:dloc)
          DO j = 1,n
             DO i = 1,n
-               xmax(2) = max(xmax(2),abs(r3(i,j,k)))
-               xmax(3) = max(xmax(3),sqrt(r1(i,j,k)**2+r2(i,j,k)**2))
+               xmax(2) = max(xmax(2),r3(i,j,k)**2)
+               xmax(3) = max(xmax(3),r1(i,j,k)**2+r2(i,j,k)**2)
             END DO
          END DO
       END DO
-      xmax = xmax/real(n,kind=GP)**3
+      xmax = xmax*tmp
 !
 ! Do reductions to find global vol avg and global max:
       CALL MPI_REDUCE(xavg,gxavg,3,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
