@@ -206,9 +206,9 @@
 !$omp parallel do private (k) reduction(+:dloc)
             DO j = 1,n
                DO k = 1,n
-                  dloc    = (abs(c1(k,j,i))**2 + abs(c2(k,j,i))**2)*tmp
+                  dloc    = (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2)*tmp
                   xavg(1) = xavg(1) + dloc
-                  dloc    = (abs(u(k,j,1))**2+abs(v(k,j,1))**2)*tmp
+                  dloc    = (abs(u (k,j,1))**2+abs(v (k,j,1))**2)*tmp
                   xavg(2) = xavg(2) + dloc
                   dloc    = (abs(w(k,j,1))**2)*tmp
                   xavg(3) = xavg(3) + dloc
@@ -219,9 +219,9 @@
 !$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:dloc)
                DO j = 1,n
                   DO k = 1,n
-                    dloc    = 2.0*(abs(c1(k,j,i))**2 + abs(c2(k,j,i))**2)*tmp
+                    dloc    = 2.0*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2)*tmp
                     xavg(1) = xavg(1) + dloc
-                    dloc    = 2.0*(abs(u(k,j,i))**2+abs(v(k,j,i))**2)*tmp
+                    dloc    = 2.0*(abs(u (k,j,i))**2+abs(v (k,j,i))**2)*tmp
                     xavg(2) = xavg(2) + dloc
                     dloc    = 2.0*(abs(w(k,j,i))**2)*tmp
                     xavg(3) = xavg(3) + dloc
@@ -234,9 +234,9 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:dloc)
                DO j = 1,n
                   DO k = 1,n
-                    dloc    = 2.0*(abs(c1(k,j,i))**2 + abs(c2(k,j,i))**2)*tmp 
+                    dloc    = 2.0*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2)*tmp 
                     xavg(1) = xavg(1) + dloc
-                    dloc    = 2.0*(abs(u(k,j,i))**2+abs(v(k,j,i))**2)*tmp
+                    dloc    = 2.0*(abs(u (k,j,i))**2+abs(v (k,j,i))**2)*tmp
                     xavg(2) = xavg(2) + dloc
                     dloc    = 2.0*(abs(w(k,j,i))**2 )*tmp
                     xavg(3) = xavg(3) + dloc
