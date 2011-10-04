@@ -181,7 +181,7 @@
       gxavg = 0.0_GP
       gxmax = 0.0_GP
 !
-! Find max and vol avg of shear:
+! Find max of shear:
       CALL derivk3(u,c1,3)
       CALL derivk3(v,c2,3)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
@@ -201,14 +201,12 @@
       xmax(1) = xmax(1)*tmp
 
 !
-! Find spatial u, v, vol average of square of horizontal velocity:
-! ... compute L2 norms:
-
+! Find spatial u, v, vol average of square of horizontal, vert. velocita, shear:
       IF (ista.eq.1) THEN
 !$omp parallel do private (k) reduction(+:dloc)
             DO j = 1,n
                DO k = 1,n
-                  dloc    = (abs(r1(k,j,i))**2 + abs(r2(k,j,i))**2)*tmp
+                  dloc    = (abs(c1(k,j,i))**2 + abs(c2(k,j,i))**2)*tmp
                   xavg(1) = xavg(1) + dloc
                   dloc    = (abs(u(k,j,1))**2+abs(v(k,j,1))**2)*tmp
                   xavg(2) = xavg(2) + dloc
@@ -221,7 +219,7 @@
 !$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:dloc)
                DO j = 1,n
                   DO k = 1,n
-                    dloc    = 2.0*(abs(r1(k,j,i))**2 + abs(r2(k,j,i))**2)*tmp
+                    dloc    = 2.0*(abs(c1(k,j,i))**2 + abs(c2(k,j,i))**2)*tmp
                     xavg(1) = xavg(1) + dloc
                     dloc    = 2.0*(abs(u(k,j,i))**2+abs(v(k,j,i))**2)*tmp
                     xavg(2) = xavg(2) + dloc
@@ -236,7 +234,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:dloc)
                DO j = 1,n
                   DO k = 1,n
-                    dloc    = 2.0*(abs(r1(k,j,i))**2 + abs(r2(k,j,i))**2)*tmp 
+                    dloc    = 2.0*(abs(c1(k,j,i))**2 + abs(c2(k,j,i))**2)*tmp 
                     xavg(1) = xavg(1) + dloc
                     dloc    = 2.0*(abs(u(k,j,i))**2+abs(v(k,j,i))**2)*tmp
                     xavg(2) = xavg(2) + dloc
