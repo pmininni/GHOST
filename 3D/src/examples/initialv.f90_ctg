@@ -60,7 +60,7 @@
 !       END DO
 !    END DO
 
-     CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
+!    CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
 
 ! Randomize phases:
      IF (myrank.eq.0) phase = 2*pi*randu(seed)
