@@ -9,10 +9,15 @@
 ! end, the three components of the forcing in spectral
 ! space should be stored in the arrays fx, fy, and fz.
 
-! Superposition of Taylor-Green vortices
-!     kdn : minimum wave number
-!     kup : maximum wave number
+! Superposition of Taylor-Green vortices. The TG flow is perturbed by 
+! white-distributed random noise, with a specified level.
+!     kdn : minimum noise wave number
+!     kup : maximum noise wave number
 !     u0  : velocity magnitude
+!     vparam0: level of noise.
+!     vparam1: magnitude of TG vortex at k=1 or 0
+!     vparam2: reference wave number, k0
+!     vparam3: log std deviation of spectrum fall-off
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
@@ -32,14 +37,24 @@
          DO j = 1,n
             DO i = 1,n
 
-               R1(i,j,k) =                 COS(4*pi*(real(i,kind=GP)-1)/ &
-                          real(n,kind=GP))*SIN(4*pi*(real(j,kind=GP)-1)/  &
-                          real(n,kind=GP))*COS(4*pi*(real(k,kind=GP)-1)/  &
-                          real(n,kind=GP))
-               R2(i,j,k) =                -SIN(4*pi*(real(i,kind=GP)-1)/ &
-                          real(n,kind=GP))*COS(4*pi*(real(j,kind=GP)-1)/  &
-                          real(n,kind=GP))*COS(4*pi*(real(k,kind=GP)-1)/  &
-                          real(n,kind=GP))
+                 R1(i,j,k) =         vparam1*COS(2*pi*(real(i,kind=GP)-1)/  &
+                            real(n,kind=GP))*SIN(2*pi*(real(j,kind=GP)-1)/  &
+                            real(n,kind=GP))*COS(2*pi*(real(k,kind=GP)-1)/  &
+                            real(n,kind=GP))                                   &
+                                            +COS(4*pi*(real(i,kind=GP)-1)/  &
+                            real(n,kind=GP))*SIN(4*pi*(real(j,kind=GP)-1)/  &
+                            real(n,kind=GP))*COS(4*pi*(real(k,kind=GP)-1)/  &
+                            real(n,kind=GP))
+
+                 R2(i,j,k) =        -vparam1*SIN(2*pi*(real(i,kind=GP)-1)/  &
+                            real(n,kind=GP))*COS(2*pi*(real(j,kind=GP)-1)/  &
+                            real(n,kind=GP))*COS(2*pi*(real(k,kind=GP)-1)/  &
+                            real(n,kind=GP))                                   & 
+                                            -SIN(4*pi*(real(i,kind=GP)-1)/  &
+                            real(n,kind=GP))*COS(4*pi*(real(j,kind=GP)-1)/  &
+                            real(n,kind=GP))*COS(4*pi*(real(k,kind=GP)-1)/  &
+                            real(n,kind=GP))
+
 
             END DO
          END DO
@@ -47,55 +62,65 @@
 
       CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
+      CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
 
-!     DO i = ista,iend
-!       DO j = 1,n
-!         DO k = 1,n
-!           IF ((ka2(k,j,i).lt.kdn**2).or.(ka2(k,j,i).gt.kup**2)) THEN
-!             vx(k,j,i) = 0.0
-!             vy(k,j,i) = 0.0
-!             vz(k,j,i) = 0.0
-!           ENDIF
-!         END DO
-!       END DO
-!    END DO
+      C1 = 0.0_GP
+      C2 = 0.0_GP
+      C3 = 0.0_GP
 
-!    CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
+! Generate divergence-free noise:
+     tmp = 1.0_GP/real(n,KIND=GP)**3
 
-! Randomize phases:
-     IF (myrank.eq.0) phase = 2*pi*randu(seed)
-     CALL MPI_BCAST(phase,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-     cdump = COS(phase)+im*SIN(phase)
-     jdump = conjg(cdump)
-
-     IF (ista.eq.1) THEN
+! To ensure Div v = 0: Set noise, Ny, s.t. kx Nx + ky Ny=0:
+      IF (ista.eq.1) THEN
 !$omp parallel do
         DO j = 2,n/2+1
-          C1    (1,j,1) = vx    (1,j,1)*cdump
-          C1(1,n-j+2,1) = vx(1,n-j+2,1)*jdump
-          C2    (1,j,1) = vy    (1,j,1)*cdump
-          C2(1,n-j+2,1) = vy(1,n-j+2,1)*jdump
-          C3    (1,j,1) = vz    (1,j,1)*cdump
-          C3(1,n-j+2,1) = vz(1,n-j+2,1)*jdump
+          dump = 0.0_GP
+          IF ( (ka2(1,j,1).ge.vparam2**2) ) THEN
+            rmq  = sqrt(ka2(1,j,1))
+            dump = exp(-log10((rmq/vparam2)**2)/(2.0*vparam3**2))/rmq
+          ENDIF
+          phase = 2.0*pi*randu(seed); 
+          cdump = (cos(phase)+im*sin(phase))*dump
+          C1    (1,j,1) = cdump
+          C1(1,n-j+2,1) = conjg(C1(1,j,1))
+          IF ( ka(j).GT.tiny ) THEN
+          C2    (1,j,1) = -cdump*ka(1)/ka(j)
+          C2(1,n-j+2,1) = conjg(C2(1,j,1))
+          ENDIF
         END DO
 !$omp parallel do
         DO k = 2,n/2+1
-          C1    (k,1,1) = vx    (k,1,1)*cdump
-          C1(n-k+2,1,1) = vx(n-k+2,1,1)*jdump
-          C2    (k,1,1) = vy    (k,1,1)*cdump
-          C2(n-k+2,1,1) = vy(n-k+2,1,1)*jdump
-          C3    (k,1,1) = vz    (k,1,1)*cdump
-          C3(n-k+2,1,1) = vz(n-k+2,1,1)*jdump
+          dump = 0.0_GP
+          IF ( (ka2(k,1,1).ge.vparam2**2) ) THEN
+             rmq  = sqrt(ka2(k,1,1))
+             dump = exp(-log10((rmq/vparam2)**2)/(2.0*vparam3**2))/rmq
+          ENDIF
+          phase = 2.0*pi*randu(seed); 
+          cdump = (cos(phase)+im*sin(phase))*dump
+          C1    (k,1,1) = cdump
+          C1(n-k+2,1,1) = conjg(C1(k,1,1))
+          IF ( ka(1).GT.tiny ) THEN
+          C2    (k,1,1) = -cdump*ka(k)/ka(1)
+          C2(n-k+2,1,1) = conjg(C2(k,1,1))
+          ENDIF
         END DO
 !$omp parallel do private (k)
         DO j = 2,n
           DO k = 2,n/2+1
-            C1        (k,j,1) = vx        (k,j,1)*cdump
-            C1(n-k+2,n-j+2,1) = vx(n-k+2,n-j+2,1)*jdump
-            C2        (k,j,1) = vy        (k,j,1)*cdump
-            C2(n-k+2,n-j+2,1) = vy(n-k+2,n-j+2,1)*jdump
-            C3        (k,j,1) = vz        (k,j,1)*cdump
-            C3(n-k+2,n-j+2,1) = vz(n-k+2,n-j+2,1)*jdump
+            dump = 0.0_GP
+            IF ( (ka2(k,j,1).ge.vparam2**2) ) THEN
+              rmq  = sqrt(ka2(k,j,1))
+              dump = exp(-log10((rmq/vparam2)**2)/(2.0*vparam3**2))/rmq
+            ENDIF
+            phase = 2.0*pi*randu(seed); 
+            cdump = (cos(phase)+im*sin(phase))*dump
+            C1        (k,j,1) = cdump
+            C1(n-k+2,n-j+2,1) = conjg(C1(k,j,1))
+            IF ( ka(j).GT.tiny ) THEN
+            C2        (k,j,1) = -cdump*ka(k)/ka(j)
+            C2(n-k+2,n-j+2,1) = conjg(C2(k,j,1))
+            ENDIF
           END DO
         END DO
 !$omp parallel do if (iend-2.ge.nth) private (j,k)
@@ -103,9 +128,18 @@
 !$omp parallel do if (iend-2.lt.nth) private (k)
           DO j = 1,n
             DO k = 1,n
-              C1(k,j,i) = vx(k,j,i)*cdump
-              C2(k,j,i) = vy(k,j,i)*cdump
-              C3(k,j,i) = vz(k,j,i)*cdump
+              dump = 0.0_GP
+              IF ( (ka2(k,j,i).ge.vparam2**2) ) THEN
+                rmq  = sqrt(ka2(k,j,i))
+                dump = exp(-log10((rmq/vparam2))**2/(2.0*vparam3**2))/rmq
+              ENDIF
+              phase = 2.0*pi*randu(seed); 
+              cdump = (cos(phase)+im*sin(phase))*dump
+!write(*,*)'dump=',dump,' cdump=',cdump,' v=',vx(k,j,i)
+              C1(k,j,i) = cdump
+              IF ( ka(j).GT.tiny ) THEN
+              C2(k,j,i) = -cdump*ka(k)/ka(j)
+              ENDIF
             END DO
           END DO
         END DO
@@ -115,16 +149,27 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,n
             DO k = 1,n
-              C1(k,j,i) = vx(k,j,i)*cdump
-              C2(k,j,i) = vy(k,j,i)*cdump
-              C3(k,j,i) = vz(k,j,i)*cdump
+              dump = 0.0_GP
+              IF ( (ka2(k,j,i).ge.vparam2**2) ) THEN
+                rmq  = sqrt(ka2(k,j,i))
+                dump = exp(-log10((rmq/vparam2))**2/(2.0*vparam3**2))/rmq
+              ENDIF
+              phase = 2.0*pi*randu(seed); 
+              cdump = (cos(phase)+im*sin(phase))*dump
+              C1(k,j,i) = cdump
+              IF ( ka(j).GT.tiny ) THEN
+              C2(k,j,i) = -cdump*ka(k)/ka(j)
+              ENDIF
+!write(*,*)'vx2=',abs(vx(k,j,i)),' vy2=',abs(vy(k,j,i))
             END DO
           END DO
         END DO
-     ENDIF
+      ENDIF
+      CALL normalize(C1,C2,C3,sqrt(vparam0)*u0,1,MPI_COMM_WORLD)
 
-     CALL rotor3(C2,C3,vx,1)
-     CALL rotor3(C1,C3,vy,2)
-     CALL rotor3(C1,C2,vz,3)
-     CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
+!  Add noise to orginal TG state:
+      vx = vx + C1
+      vy = vy + C2
+!
+!     CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
 
