@@ -82,9 +82,9 @@
           ENDIF
           phase = 2.0*pi*randu(seed); 
           cdump = (cos(phase)+im*sin(phase))*dump
+          IF ( ka(j).GT.tiny ) THEN
           C1    (1,j,1) = cdump
           C1(1,n-j+2,1) = conjg(C1(1,j,1))
-          IF ( ka(j).GT.tiny ) THEN
           C2    (1,j,1) = -cdump*ka(1)/ka(j)
           C2(1,n-j+2,1) = conjg(C2(1,j,1))
           ENDIF
@@ -98,10 +98,10 @@
           ENDIF
           phase = 2.0*pi*randu(seed); 
           cdump = (cos(phase)+im*sin(phase))*dump
+          IF ( ka(1).GT.tiny ) THEN
           C1    (k,1,1) = cdump
           C1(n-k+2,1,1) = conjg(C1(k,1,1))
-          IF ( ka(1).GT.tiny ) THEN
-          C2    (k,1,1) = -cdump*ka(k)/ka(1)
+          C2    (k,1,1) = -cdump*ka(1)/ka(1)
           C2(n-k+2,1,1) = conjg(C2(k,1,1))
           ENDIF
         END DO
@@ -115,10 +115,10 @@
             ENDIF
             phase = 2.0*pi*randu(seed); 
             cdump = (cos(phase)+im*sin(phase))*dump
+            IF ( ka(j).GT.tiny ) THEN
             C1        (k,j,1) = cdump
             C1(n-k+2,n-j+2,1) = conjg(C1(k,j,1))
-            IF ( ka(j).GT.tiny ) THEN
-            C2        (k,j,1) = -cdump*ka(k)/ka(j)
+            C2        (k,j,1) = -cdump*ka(1)/ka(j)
             C2(n-k+2,n-j+2,1) = conjg(C2(k,j,1))
             ENDIF
           END DO
@@ -136,9 +136,9 @@
               phase = 2.0*pi*randu(seed); 
               cdump = (cos(phase)+im*sin(phase))*dump
 !write(*,*)'dump=',dump,' cdump=',cdump,' v=',vx(k,j,i)
-              C1(k,j,i) = cdump
               IF ( ka(j).GT.tiny ) THEN
-              C2(k,j,i) = -cdump*ka(k)/ka(j)
+              C1(k,j,i) = cdump
+              C2(k,j,i) = -cdump*ka(i)/ka(j)
               ENDIF
             END DO
           END DO
@@ -156,9 +156,9 @@
               ENDIF
               phase = 2.0*pi*randu(seed); 
               cdump = (cos(phase)+im*sin(phase))*dump
-              C1(k,j,i) = cdump
               IF ( ka(j).GT.tiny ) THEN
-              C2(k,j,i) = -cdump*ka(k)/ka(j)
+              C1(k,j,i) = cdump
+              C2(k,j,i) = -cdump*ka(i)/ka(j)
               ENDIF
 !write(*,*)'vx2=',abs(vx(k,j,i)),' vy2=',abs(vy(k,j,i))
             END DO
@@ -171,5 +171,5 @@
       vx = vx + C1
       vy = vy + C2
 !
-!     CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
+      CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
 
