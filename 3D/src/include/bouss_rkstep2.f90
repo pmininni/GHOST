@@ -2,6 +2,16 @@
 ! Computes the nonlinear terms and evolves the equations in dt/o
 
          CALL prodre3(vx,vy,vz,C4,C5,C6)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend               ! Gravity:
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,n
+               DO k = 1,n
+                  C6(k,j,i) = C6(k,j,i)+xmom*C20(k,j,i)
+               END DO
+            END DO
+         END DO
+
          CALL nonlhd3(C4,C5,C6,C7,1)
          CALL nonlhd3(C4,C5,C6,C8,2)
          CALL nonlhd3(C4,C5,C6,C4,3)
@@ -26,12 +36,11 @@
          DO j = 1,n
          DO k = 1,n
             IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
-               cdump = im*xmom*ka(k)/ka2(k,j,i)*C20(k,j,i)
-               vx(k,j,i) = C1(k,j,i)+dt*(nu*vx(k,j,i)-im*ka(i)*cdump+C7(k,j,i) &
+               vx(k,j,i) = C1(k,j,i)+dt*(nu*vx(k,j,i)+C7(k,j,i) &
               +fx(k,j,i))*rmp
-               vy(k,j,i) = C2(k,j,i)+dt*(nu*vy(k,j,i)-im*ka(j)*cdump+C8(k,j,i) &
+               vy(k,j,i) = C2(k,j,i)+dt*(nu*vy(k,j,i)+C8(k,j,i) &
               +fy(k,j,i))*rmp
-               vz(k,j,i) = C3(k,j,i)+dt*(nu*vz(k,j,i)-xmom*C20(k,j,i)-im*ka(k)*cdump+C4(k,j,i) &
+               vz(k,j,i) = C3(k,j,i)+dt*(nu*vz(k,j,i)+C4(k,j,i) &
               +fz(k,j,i))*rmp
                th(k,j,i) = C20(k,j,i)+dt*(kappa*th(k,j,i)+xtemp*C3(k,j,i)+C5(k,j,i) &
               +fs(k,j,i))*rmp
@@ -49,3 +58,4 @@
          END DO
          END DO
          END DO
+
