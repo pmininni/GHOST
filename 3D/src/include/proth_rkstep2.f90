@@ -7,8 +7,8 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n
                DO k = 1,n
-                  C4(k,j,i) = C4(k,j,i)+2*omega*vy(k,j,i)
-                  C5(k,j,i) = C5(k,j,i)-2*omega*vx(k,j,i)
+                  C4(k,j,i) = C4(k,j,i)-2*omega*vy(k,j,i)
+                  C5(k,j,i) = C5(k,j,i)+2*omega*vx(k,j,i)
                END DO
             END DO
          END DO
