@@ -17,6 +17,16 @@
          CALL nonlhd3(C4,C5,C6,C8,2)
          CALL nonlhd3(C4,C5,C6,C4,3)
          CALL advect3(vx,vy,vz,th,C5)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend               ! heat 'currrent':
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,n
+               DO k = 1,n
+                  C5(k,j,i) = C5(k,j,i)+xtemp*vz(k,j,i)
+               END DO
+            END DO
+         END DO
+
          CALL laplak3(vx,vx)
          CALL laplak3(vy,vy)
          CALL laplak3(vz,vz)
@@ -41,7 +51,7 @@
          DO j = 1,n
          DO k = 1,n
             IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
-               th(k,j,i) = C20(k,j,i)+dt*(kappa*th(k,j,i)+xtemp*vz(k,j,i)+C5(k,j,i) &
+               th(k,j,i) = C20(k,j,i)+dt*(kappa*th(k,j,i)+C5(k,j,i) &
               +fs(k,j,i))*rmp
                vx(k,j,i) = C1(k,j,i)+dt*(nu*vx(k,j,i)+C7(k,j,i) &
               +fx(k,j,i))*rmp
