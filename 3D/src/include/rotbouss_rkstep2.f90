@@ -9,6 +9,7 @@
                DO k = 1,n
                   C4(k,j,i) = C4(k,j,i)+2*omega*vy(k,j,i)
                   C5(k,j,i) = C5(k,j,i)-2*omega*vx(k,j,i)
+                  C6(k,j,i) = C6(k,j,i)+xmom*th(k,j,i)
                END DO
             END DO
          END DO
@@ -40,14 +41,14 @@
          DO j = 1,n
          DO k = 1,n
             IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
+               th(k,j,i) = C20(k,j,i)+dt*(kappa*th(k,j,i)+xtemp*vz(k,j,i)+C5(k,j,i) &
+              +fs(k,j,i))*rmp
                vx(k,j,i) = C1(k,j,i)+dt*(nu*vx(k,j,i)+C7(k,j,i) &
               +fx(k,j,i))*rmp
                vy(k,j,i) = C2(k,j,i)+dt*(nu*vy(k,j,i)+C8(k,j,i) &
               +fy(k,j,i))*rmp
-               vz(k,j,i) = C3(k,j,i)+dt*(nu*vz(k,j,i)-xmom*C20(k,j,i)+C4(k,j,i) &
+               vz(k,j,i) = C3(k,j,i)+dt*(nu*vz(k,j,i)+C4(k,j,i) &
               +fz(k,j,i))*rmp
-               th(k,j,i) = C20(k,j,i)+dt*(kappa*th(k,j,i)+xtemp*C3(k,j,i)+C5(k,j,i) &
-              +fs(k,j,i))*rmp
            ELSE IF (ka2(k,j,i).gt.kmax) THEN
                vx(k,j,i) = 0.0_GP
                vy(k,j,i) = 0.0_GP
