@@ -54,8 +54,9 @@
 
 !
 ! Do volume average of total shear:
-      sh = 0.0
-      tmp = 1.0_GP/real(n,kind=GP)**6
+      sh  = 0.0_GP
+      gsh = 0.0_GP
+      tmp = 1.0_GP/real(n,kind=GP)**8
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
@@ -69,7 +70,6 @@
 ! Output shear as a fcn of z:
 !
       CALL MPI_ALLREDUCE(sh,gsh,n,GC_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
-      gsh = gsh / (real(n,kind=GP))**2
       IF (myrank.eq.0) THEN
          OPEN(1,file='shear.' // nmb // '.txt')
          WRITE(1,10) gsh
@@ -120,7 +120,7 @@
 !
 ! Do volume average of total shear:
       havg = 0.0
-      tmp = 1.0_GP/real(n,kind=GP)**6
+      tmp = 1.0_GP/real(n,kind=GP)**8
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
