@@ -1,0 +1,190 @@
+! External mechanical forcing.
+! This file contains the expression used for the external
+! mechanical forcing. You can use temporary real arrays
+! R1-R3 of size (1:n,1:n,ksta:kend) and temporary complex
+! arrays C1-C8 of size (n,n,ista:iend) to do intermediate
+! computations. The variable f0 should control the global
+! amplitude of the forcing, and variables fparam0-9 can be
+! used to control the amplitudes of individual terms. At the
+! end, the three components of the forcing in spectral
+! space should be stored in the arrays fx, fy, and fz.
+
+! Superposition of Taylor-Green vortices. The TG flow is perturbed by 
+! 2D white-distributed random noise, with a specified level relative
+! to energy.
+!     kdn : minimum noise wave number
+!     kup : maximum noise wave number
+!     u0  : velocity magnitude
+!     vparam0: level of noise.
+!     vparam1: magnitude of TG vortex at k=1 
+!     vparam2: reference wave number, k0
+!     vparam3: log std deviation of spectrum fall-off
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,n
+            DO k = 1,n
+               vz(k,j,i) = 0.0_GP
+            END DO
+         END DO
+      END DO
+
+      R1 = 0.0_GP
+      R2 = 0.0_GP
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+
+                 R1(i,j,k) =         vparam1*COS(2*pi*(real(i,kind=GP)-1)/  &
+                            real(n,kind=GP))*SIN(2*pi*(real(j,kind=GP)-1)/  &
+                            real(n,kind=GP))*COS(2*pi*(real(k,kind=GP)-1)/  &
+                            real(n,kind=GP))                                   &
+                                            +COS(4*pi*(real(i,kind=GP)-1)/  &
+                            real(n,kind=GP))*SIN(4*pi*(real(j,kind=GP)-1)/  &
+                            real(n,kind=GP))*COS(4*pi*(real(k,kind=GP)-1)/  &
+                            real(n,kind=GP))
+
+                 R2(i,j,k) =        -vparam1*SIN(2*pi*(real(i,kind=GP)-1)/  &
+                            real(n,kind=GP))*COS(2*pi*(real(j,kind=GP)-1)/  &
+                            real(n,kind=GP))*COS(2*pi*(real(k,kind=GP)-1)/  &
+                            real(n,kind=GP))                                   & 
+                                            -SIN(4*pi*(real(i,kind=GP)-1)/  &
+                            real(n,kind=GP))*COS(4*pi*(real(j,kind=GP)-1)/  &
+                            real(n,kind=GP))*COS(4*pi*(real(k,kind=GP)-1)/  &
+                            real(n,kind=GP))
+
+
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
+      CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
+
+      C1 = 0.0_GP
+      C2 = 0.0_GP
+      C3 = 0.0_GP
+
+! Generate divergence-free noise:
+     tmp = 1.0_GP/real(n,KIND=GP)**3
+
+! To ensure Div v = 0: Set noise, Ny, s.t. kx Nx + ky Ny=0:
+      IF (ista.eq.1) THEN
+!$omp parallel do
+        DO j = 2,n/2+1
+          dump = 0.0_GP
+          IF ( (ka2(1,j,1).ge.vparam2**2) ) THEN
+            rmq  = sqrt(ka2(1,j,1))
+            rmq  = (ka2(1,j,1))
+            dump = exp(-log10((rmq/vparam2)**2)/(2.0*vparam3**2))/rmq
+!           dump = 1.0_GP/rmq**3
+          ENDIF
+          phase = 2.0*pi*randu(seed); 
+          cdump = (cos(phase)+im*sin(phase))*dump
+          IF ( ka(j).GT.tiny ) THEN
+          C1    (1,j,1) = cdump
+          C1(1,n-j+2,1) = conjg(C1(1,j,1))
+          C2    (1,j,1) = -cdump*ka(1)/ka(j)
+          C2(1,n-j+2,1) = conjg(C2(1,j,1))
+          ENDIF
+        END DO
+!$omp parallel do
+        DO k = 2,n/2+1
+          dump = 0.0_GP
+          IF ( (ka2(k,1,1).ge.vparam2**2) ) THEN
+             rmq  = sqrt(ka2(k,1,1))
+             rmq  = (ka2(k,1,1))
+             dump = exp(-log10((rmq/vparam2)**2)/(2.0*vparam3**2))/rmq
+!            dump = 1.0_GP/rmq**3
+          ENDIF
+          phase = 2.0*pi*randu(seed); 
+          cdump = (cos(phase)+im*sin(phase))*dump
+          IF ( ka(1).GT.tiny ) THEN
+          C1    (k,1,1) = cdump
+          C1(n-k+2,1,1) = conjg(C1(k,1,1))
+          C2    (k,1,1) = -cdump*ka(1)/ka(1)
+          C2(n-k+2,1,1) = conjg(C2(k,1,1))
+          ENDIF
+        END DO
+!$omp parallel do private (k)
+        DO j = 2,n
+          DO k = 2,n/2+1
+            dump = 0.0_GP
+            IF ( (ka2(k,j,1).ge.vparam2**2) ) THEN
+              rmq  = sqrt(ka2(k,j,1))
+              rmq  = (ka2(k,j,1))
+              dump = exp(-log10((rmq/vparam2)**2)/(2.0*vparam3**2))/rmq
+!             dump = 1.0_GP/rmq**3
+            ENDIF
+            phase = 2.0*pi*randu(seed); 
+            cdump = (cos(phase)+im*sin(phase))*dump
+            IF ( ka(j).GT.tiny ) THEN
+            C1        (k,j,1) = cdump
+            C1(n-k+2,n-j+2,1) = conjg(C1(k,j,1))
+            C2        (k,j,1) = -cdump*ka(1)/ka(j)
+            C2(n-k+2,n-j+2,1) = conjg(C2(k,j,1))
+            ENDIF
+          END DO
+        END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k)
+        DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k)
+          DO j = 1,n
+            DO k = 1,n
+              dump = 0.0_GP
+              IF ( (ka2(k,j,i).ge.vparam2**2) ) THEN
+                rmq  = sqrt(ka2(k,j,i))
+                rmq  = (ka2(k,j,i))
+                dump = exp(-log10((rmq/vparam2))**2/(2.0*vparam3**2))/rmq
+!               dump = 1.0_GP/rmq**3
+              ENDIF
+              phase = 2.0*pi*randu(seed); 
+              cdump = (cos(phase)+im*sin(phase))*dump
+              IF ( ka(j).GT.tiny ) THEN
+              C1(k,j,i) = cdump
+              C2(k,j,i) = -cdump*ka(i)/ka(j)
+              ENDIF
+            END DO
+          END DO
+        END DO
+      ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,n
+            DO k = 1,n
+              dump = 0.0_GP
+              IF ( (ka2(k,j,i).ge.vparam2**2) ) THEN
+                rmq  = sqrt(ka2(k,j,i))
+                rmq  = (ka2(k,j,i))
+                dump = exp(-log10((rmq/vparam2))**2/(2.0*vparam3**2))/rmq
+!               dump = 1.0_GP/rmq**3
+              ENDIF
+              phase = 2.0*pi*randu(seed); 
+              cdump = (cos(phase)+im*sin(phase))*dump
+               
+              IF ( ka(j).GT.tiny ) THEN
+              C1(k,j,i) = cdump
+              C2(k,j,i) = -cdump*ka(i)/ka(j)
+              ENDIF
+            END DO
+          END DO
+        END DO
+      ENDIF
+      CALL normalize(C1,C2,C3,sqrt(vparam0)*u0,1,MPI_COMM_WORLD)
+!    CALL energy(C1,C2,C3,tmp,1)
+
+!  Add noise to orginal TG state:
+      vx = vx + C1
+      vy = vy + C2
+!
+
+      CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
+
+!     CALL energy(vx,vy,vz,tmq,1)
+
+

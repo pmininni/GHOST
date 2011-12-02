@@ -10,12 +10,13 @@
 ! space should be stored in the arrays fx, fy, and fz.
 
 ! Superposition of Taylor-Green vortices. The TG flow is perturbed by 
-! white-distributed random noise, with a specified level.
+! 3D white-distributed random noise, with a specified level relative 
+! to energy.
 !     kdn : minimum noise wave number
 !     kup : maximum noise wave number
 !     u0  : velocity magnitude
 !     vparam0: level of noise.
-!     vparam1: magnitude of TG vortex at k=1 or 0
+!     vparam1: magnitude of TG vortex at k=1 
 !     vparam2: reference wave number, k0
 !     vparam3: log std deviation of spectrum fall-off
 
@@ -68,7 +69,7 @@
       C2 = 0.0_GP
       C3 = 0.0_GP
 
-! Generate divergence-free noise:
+! Generate divergence-free 2D noise:
      tmp = 1.0_GP/real(n,KIND=GP)**3
 
 ! To ensure Div v = 0: Set noise, Ny, s.t. kx Nx + ky Ny=0:
@@ -78,32 +79,44 @@
           dump = 0.0_GP
           IF ( (ka2(1,j,1).ge.vparam2**2) ) THEN
             rmq  = sqrt(ka2(1,j,1))
+            rmq  = (ka2(1,j,1))
             dump = exp(-log10((rmq/vparam2)**2)/(2.0*vparam3**2))/rmq
+!           dump = 1.0_GP/rmq**3
           ENDIF
           phase = 2.0*pi*randu(seed); 
           cdump = (cos(phase)+im*sin(phase))*dump
-          IF ( ka(j).GT.tiny ) THEN
           C1    (1,j,1) = cdump
           C1(1,n-j+2,1) = conjg(C1(1,j,1))
-          C2    (1,j,1) = -cdump*ka(1)/ka(j)
+          phase = 2.0*pi*randu(seed); 
+          cdump = (cos(phase)+im*sin(phase))*dump
+          C2    (1,j,1) = cdump
           C2(1,n-j+2,1) = conjg(C2(1,j,1))
-          ENDIF
+          phase = 2.0*pi*randu(seed); 
+          cdump = (cos(phase)+im*sin(phase))*dump
+          C3    (1,j,1) = cdump
+          C3(1,n-j+2,1) = conjg(C3(1,j,1))
         END DO
 !$omp parallel do
         DO k = 2,n/2+1
           dump = 0.0_GP
           IF ( (ka2(k,1,1).ge.vparam2**2) ) THEN
              rmq  = sqrt(ka2(k,1,1))
+             rmq  = (ka2(k,1,1))
              dump = exp(-log10((rmq/vparam2)**2)/(2.0*vparam3**2))/rmq
+!            dump = 1.0_GP/rmq**3
           ENDIF
           phase = 2.0*pi*randu(seed); 
           cdump = (cos(phase)+im*sin(phase))*dump
-          IF ( ka(1).GT.tiny ) THEN
           C1    (k,1,1) = cdump
           C1(n-k+2,1,1) = conjg(C1(k,1,1))
-          C2    (k,1,1) = -cdump*ka(1)/ka(1)
+          phase = 2.0*pi*randu(seed); 
+          cdump = (cos(phase)+im*sin(phase))*dump
+          C2    (k,1,1) = cdump
           C2(n-k+2,1,1) = conjg(C2(k,1,1))
-          ENDIF
+          phase = 2.0*pi*randu(seed); 
+          cdump = (cos(phase)+im*sin(phase))*dump
+          C3    (k,1,1) = cdump
+          C3(n-k+2,1,1) = conjg(C3(k,1,1))
         END DO
 !$omp parallel do private (k)
         DO j = 2,n
@@ -111,16 +124,22 @@
             dump = 0.0_GP
             IF ( (ka2(k,j,1).ge.vparam2**2) ) THEN
               rmq  = sqrt(ka2(k,j,1))
+              rmq  = (ka2(k,j,1))
               dump = exp(-log10((rmq/vparam2)**2)/(2.0*vparam3**2))/rmq
+!             dump = 1.0_GP/rmq**3
             ENDIF
             phase = 2.0*pi*randu(seed); 
             cdump = (cos(phase)+im*sin(phase))*dump
-            IF ( ka(j).GT.tiny ) THEN
             C1        (k,j,1) = cdump
             C1(n-k+2,n-j+2,1) = conjg(C1(k,j,1))
-            C2        (k,j,1) = -cdump*ka(1)/ka(j)
+            phase = 2.0*pi*randu(seed); 
+            cdump = (cos(phase)+im*sin(phase))*dump
+            C2        (k,j,1) = cdump
             C2(n-k+2,n-j+2,1) = conjg(C2(k,j,1))
-            ENDIF
+            phase = 2.0*pi*randu(seed); 
+            cdump = (cos(phase)+im*sin(phase))*dump
+            C3        (k,j,1) = cdump
+            C3(n-k+2,n-j+2,1) = conjg(C3(k,j,1))
           END DO
         END DO
 !$omp parallel do if (iend-2.ge.nth) private (j,k)
@@ -131,15 +150,19 @@
               dump = 0.0_GP
               IF ( (ka2(k,j,i).ge.vparam2**2) ) THEN
                 rmq  = sqrt(ka2(k,j,i))
+                rmq  = (ka2(k,j,i))
                 dump = exp(-log10((rmq/vparam2))**2/(2.0*vparam3**2))/rmq
+!               dump = 1.0_GP/rmq**3
               ENDIF
               phase = 2.0*pi*randu(seed); 
               cdump = (cos(phase)+im*sin(phase))*dump
-!write(*,*)'dump=',dump,' cdump=',cdump,' v=',vx(k,j,i)
-              IF ( ka(j).GT.tiny ) THEN
               C1(k,j,i) = cdump
-              C2(k,j,i) = -cdump*ka(i)/ka(j)
-              ENDIF
+              phase = 2.0*pi*randu(seed); 
+              cdump = (cos(phase)+im*sin(phase))*dump
+              C2(k,j,i) = cdump
+              phase = 2.0*pi*randu(seed); 
+              cdump = (cos(phase)+im*sin(phase))*dump
+              C3(k,j,i) = cdump
             END DO
           END DO
         END DO
@@ -152,24 +175,38 @@
               dump = 0.0_GP
               IF ( (ka2(k,j,i).ge.vparam2**2) ) THEN
                 rmq  = sqrt(ka2(k,j,i))
+                rmq  = (ka2(k,j,i))
                 dump = exp(-log10((rmq/vparam2))**2/(2.0*vparam3**2))/rmq
+!               dump = 1.0_GP/rmq**3
               ENDIF
               phase = 2.0*pi*randu(seed); 
               cdump = (cos(phase)+im*sin(phase))*dump
-              IF ( ka(j).GT.tiny ) THEN
               C1(k,j,i) = cdump
-              C2(k,j,i) = -cdump*ka(i)/ka(j)
-              ENDIF
-!write(*,*)'vx2=',abs(vx(k,j,i)),' vy2=',abs(vy(k,j,i))
+              phase = 2.0*pi*randu(seed); 
+              cdump = (cos(phase)+im*sin(phase))*dump
+              C2(k,j,i) = cdump
+              phase = 2.0*pi*randu(seed); 
+              cdump = (cos(phase)+im*sin(phase))*dump
+              C3(k,j,i) = cdump
             END DO
           END DO
         END DO
       ENDIF
-      CALL normalize(C1,C2,C3,sqrt(vparam0)*u0,1,MPI_COMM_WORLD)
+      CALL rotor3(C2,C3,C7,1)
+      CALL rotor3(C1,C3,C8,2) 
+      CALL rotor3(C1,C2,C3,3)
+      CALL normalize(C7,C8,C3,u0,1,MPI_COMM_WORLD)
+
+      CALL normalize(C7,C8,C3,sqrt(vparam0)*u0,1,MPI_COMM_WORLD)
 
 !  Add noise to orginal TG state:
       vx = vx + C1
       vy = vy + C2
+      vz = vy + C3
 !
+
       CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
+
+!     CALL energy(vx,vy,vz,tmq,1)
+
 
