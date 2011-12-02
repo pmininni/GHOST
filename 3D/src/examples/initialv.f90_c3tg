@@ -195,14 +195,12 @@
       CALL rotor3(C2,C3,C7,1)
       CALL rotor3(C1,C3,C8,2) 
       CALL rotor3(C1,C2,C3,3)
-      CALL normalize(C7,C8,C3,u0,1,MPI_COMM_WORLD)
-
       CALL normalize(C7,C8,C3,sqrt(vparam0)*u0,1,MPI_COMM_WORLD)
 
 !  Add noise to orginal TG state:
-      vx = vx + C1
-      vy = vy + C2
-      vz = vy + C3
+      vx = vx + C7
+      vy = vy + C8
+      vz = vz + C3
 !
 
       CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
