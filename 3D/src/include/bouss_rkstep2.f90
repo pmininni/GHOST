@@ -88,9 +88,9 @@
           CALL nonlhd3(C4,C5,C6,C8,2)
           CALL nonlhd3(C4,C5,C6,C4,3)
 !         CALL advect3(C1,C2,C3,C20,C5)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!!$omp parallel do if (iend-ista.ge.nth) private (j,k)
 !         DO i = ista,iend               ! heat 'currrent':
-!$omp parallel do if (iend-ista.lt.nth) private (k)
+!!$omp parallel do if (iend-ista.lt.nth) private (k)
 !            DO j = 1,n
 !               DO k = 1,n
 !                  C5(k,j,i) = C5(k,j,i)+xtemp*C3(k,j,i)
