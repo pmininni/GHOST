@@ -69,7 +69,6 @@
          END DO
          END DO
 
-         ! 3rd order correction:
          IF ( ord.EQ.3 .AND. o.LE.1 ) THEN
   
 ! First, compute u <-- L(u) + N(u,u):
@@ -164,4 +163,3 @@
           END DO
 
          ENDIF
-
