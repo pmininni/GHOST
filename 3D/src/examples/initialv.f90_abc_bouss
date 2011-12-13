@@ -1,0 +1,191 @@
+! Initial condition for the magnetic potentisl.
+! This file contains the expression used for the initial 
+! magnetic field. You can use temporary real arrays R1-R3 
+! of size (1:n,1:n,ksta:kend) and temporary complex arrays 
+! C1-C8 of size (n,n,ista:iend) to do intermediate 
+! computations. The variable u0 should control the global 
+! amplitude of the velocity, and variables vparam0-9 can be
+! used to control the amplitudes of individual terms. At the
+! end, the three components of the magnetic vector potl in spectral
+! space should be stored in the arrays ax, ay, and az.
+
+! Superposition of ABC flows with k^(-4) spectrum
+!     kdn    : minimum wave number
+!     kup    : maximum wave number
+!     vparam0: level of noise
+!     vparam1: reference wave number, k0, for spectrall fall-off
+!     vparam2: log std deviation of spectrum fall-off
+!     vparam3: A amplitude
+!     vparam4: B amplitude
+!     vparam5: C amplitude
+
+      R1(i,j,k) = 0.
+      R2(i,j,k) = 0.
+      R3(i,j,k) = 0.
+
+! Compute real-space velocity field:
+      DO k = ksta,kend
+         DO j = 1,n
+            DO i = 1,n
+
+
+            DO ki = kdn,kup
+               R1(i,j,k) = R1(i,j,k)+(vparam4*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
+                          real(n,kind=GP))+vparam5*SIN(2*pi*ki*(real(k,kind=GP)-1)/   &
+                          real(n,kind=GP)))/ki**2
+               R2(i,j,k) = R2(i,j,k)+(vparam3*SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
+                          real(n,kind=GP))+vparam5*COS(2*pi*ki*(real(k,kind=GP)-1)/   &
+                          real(n,kind=GP)))/ki**2 
+               R3(i,j,k) = R3(i,j,k)+(vparam3*COS(2*pi*ki*(real(i,kind=GP)-1)/ &
+                          real(n,kind=GP))+vparam4*SIN(2*pi*ki*(real(j,kind=GP)-1)/   &
+                          real(n,kind=GP)))/ki**2
+            END DO
+
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
+
+      CALL normalize(vx,vy,vz,u0,0,MPI_COMM_WORLD)
+
+      C1 = 0.0_GP
+      C2 = 0.0_GP
+      C3 = 0.0_GP
+      C4 = 0.0_GP
+      C5 = 0.0_GP
+      C6 = 0.0_GP
+
+! Generate divergence-free noise:
+      tmp = 1.0_GP/real(n,KIND=GP)**3
+
+! Compute noise components:
+      IF (ista.eq.1) THEN
+!$omp parallel do
+        DO j = 2,n/2+1
+          dump = 0.0_GP
+          IF ( (ka2(1,j,1).ge.vparam2**2) ) THEN
+            rmq  = sqrt(ka2(1,j,1))
+            dump = exp(-log10((rmq/vparam2)**2)/(2.0*vparam3**2))/rmq
+          ENDIF
+          phase = 2.0*pi*randu(seed);
+          cdump = (cos(phase)+im*sin(phase))*dump
+          C1    (1,j,1) = cdump
+          C1(1,n-j+2,1) = conjg(C1(1,j,1))
+          phase = 2.0*pi*randu(seed);
+          cdump = (cos(phase)+im*sin(phase))*dump
+          C2    (1,j,1) = cdump
+          C2(1,n-j+2,1) = conjg(C2(1,j,1))
+          phase = 2.0*pi*randu(seed);
+          cdump = (cos(phase)+im*sin(phase))*dump
+          C3    (1,j,1) = cdump
+          C3(1,n-j+2,1) = conjg(C3(1,j,1))
+        END DO
+!$omp parallel do
+        DO k = 2,n/2+1
+          dump = 0.0_GP
+          IF ( (ka2(k,1,1).ge.vparam2**2) ) THEN
+             rmq  = sqrt(ka2(k,1,1))
+             dump = exp(-log10((rmq/vparam2)**2)/(2.0*vparam3**2))/rmq
+          ENDIF
+          phase = 2.0*pi*randu(seed);
+          cdump = (cos(phase)+im*sin(phase))*dump
+          C1    (k,1,1) = cdump
+          C1(n-k+2,1,1) = conjg(C1(k,1,1))
+          phase = 2.0*pi*randu(seed);
+          cdump = (cos(phase)+im*sin(phase))*dump
+          C2    (k,1,1) = cdump
+          C2(n-k+2,1,1) = conjg(C2(k,1,1))
+          phase = 2.0*pi*randu(seed);
+          cdump = (cos(phase)+im*sin(phase))*dump
+          C3    (k,1,1) = cdump
+          C3(n-k+2,1,1) = conjg(C3(k,1,1))
+        END DO
+!$omp parallel do private (k)
+        DO j = 2,n
+          DO k = 2,n/2+1
+            dump = 0.0_GP
+            IF ( (ka2(k,j,1).ge.vparam2**2) ) THEN
+              rmq  = sqrt(ka2(k,j,1))
+              dump = exp(-log10((rmq/vparam2)**2)/(2.0*vparam3**2))/rmq
+            ENDIF
+            phase = 2.0*pi*randu(seed);
+            cdump = (cos(phase)+im*sin(phase))*dump
+            C1        (k,j,1) = cdump
+            C1(n-k+2,n-j+2,1) = conjg(C1(k,j,1))
+            phase = 2.0*pi*randu(seed);
+            cdump = (cos(phase)+im*sin(phase))*dump
+            C2        (k,j,1) = cdump
+            C2(n-k+2,n-j+2,1) = conjg(C2(k,j,1))
+            phase = 2.0*pi*randu(seed);
+            cdump = (cos(phase)+im*sin(phase))*dump
+            C3        (k,j,1) = cdump
+            C3(n-k+2,n-j+2,1) = conjg(C3(k,j,1))
+          END DO
+        END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k)
+        DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k)
+          DO j = 1,n
+            DO k = 1,n
+              dump = 0.0_GP
+              IF ( (ka2(k,j,i).ge.vparam2**2) ) THEN
+                rmq  = sqrt(ka2(k,j,i))
+                dump = exp(-log10((rmq/vparam2))**2/(2.0*vparam3**2))/rmq
+              ENDIF
+              phase = 2.0*pi*randu(seed);
+              cdump = (cos(phase)+im*sin(phase))*dump
+              C1(k,j,i) = cdump
+              phase = 2.0*pi*randu(seed);
+              cdump = (cos(phase)+im*sin(phase))*dump
+              C2(k,j,i) = cdump
+              phase = 2.0*pi*randu(seed);
+              cdump = (cos(phase)+im*sin(phase))*dump
+              C3(k,j,i) = cdump
+            END DO
+          END DO
+        END DO
+      ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,n
+            DO k = 1,n
+              dump = 0.0_GP
+              IF ( (ka2(k,j,i).ge.vparam2**2) ) THEN
+                rmq  = sqrt(ka2(k,j,i))
+                dump = exp(-log10((rmq/vparam2))**2/(2.0*vparam3**2))/rmq
+              ENDIF
+              phase = 2.0*pi*randu(seed);
+              cdump = (cos(phase)+im*sin(phase))*dump
+              C1(k,j,i) = cdump
+              phase = 2.0*pi*randu(seed);
+              cdump = (cos(phase)+im*sin(phase))*dump
+              C2(k,j,i) = cdump
+              phase = 2.0*pi*randu(seed);
+              cdump = (cos(phase)+im*sin(phase))*dump
+              C3(k,j,i) = cdump
+            END DO
+          END DO
+        END DO
+      ENDIF
+!
+! Compute curl of noise comps: 
+      CALL rotor3(C2,C3,C4,1)  ! C4=Nx
+      CALL rotor3(C1,C3,C5,2)  ! C5=Ny
+      CALL rotor3(C1,C2,C6,3)  ! C6=Nz
+
+! Normalize noise to fraction of initial kinetic energy:
+      CALL normalize(C4,C5,C6,sqrt(vparam0)*u0,1,MPI_COMM_WORLD)
+
+!
+! Add noise to a:
+      vx = vx + C4
+      vy = vy + C5
+      vz = vz + C6
+
+! Normalize final a:
+      CALL normalize(vx,vy,vz,u0,0,MPI_COMM_WORLD)
+
