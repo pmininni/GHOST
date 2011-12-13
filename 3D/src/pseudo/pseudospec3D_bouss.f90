@@ -189,9 +189,9 @@
       CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
 
       tmp   = 1.0_GP/real(n,kind=GP)**6
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i,dloc) reduction(max:xmax)
       DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
+!$omp parallel do if (kend-ksta.lt.nth) private (i,dloc) reduction(max:xmax)
          DO j = 1,n
             DO i = 1,n
                dloc    = r1(i,j,k)**2+r2(i,j,k)**2
@@ -204,7 +204,7 @@
 !
 ! Find spatial u, v, vol average of square of horizontal, vert. velocita, shear:
       IF (ista.eq.1) THEN
-!$omp parallel do private (k) reduction(+:dloc)
+!$omp parallel do private (k,dloc) reduction(+:xavg)
             DO j = 1,n
                DO k = 1,n
                   dloc    = (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2)*tmp
@@ -215,9 +215,9 @@
                   xavg(3) = xavg(3) + dloc
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:dloc)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,dloc) reduction(+:xavg)
             DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:dloc)
+!$omp parallel do if (iend-2.lt.nth) private (k,dloc) reduction(+:xavg)
                DO j = 1,n
                   DO k = 1,n
                     dloc    = 2.0*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2)*tmp
@@ -230,9 +230,9 @@
                END DO
             END DO
        ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:dloc)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,dloc) reduction(+:xavg)
             DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:dloc)
+!$omp parallel do if (iend-ista.lt.nth) private (k,dloc) reduction(+:xavg)
                DO j = 1,n
                   DO k = 1,n
                     dloc    = 2.0*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2)*tmp 
@@ -261,9 +261,9 @@
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i) reduction(max:dloc)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i) reduction(max:xmax)
       DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i) reduction(max:dloc)
+!$omp parallel do if (kend-ksta.lt.nth) private (i) reduction(max:xmax)
          DO j = 1,n
             DO i = 1,n
                xmax(2) = max(xmax(2),r3(i,j,k)**2)
