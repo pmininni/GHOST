@@ -9,7 +9,7 @@
 ! end, the three components of the magnetic vector potl in spectral
 ! space should be stored in the arrays ax, ay, and az.
 
-! Superposition of ABC flows with k^(-4) spectrum
+! Superposition of ABC flows with k^(-n) spectrum + noise
 !     kdn    : minimum wave number
 !     kup    : maximum wave number
 !     vparam0: level of noise
@@ -19,15 +19,13 @@
 !     vparam4: B amplitude
 !     vparam5: C amplitude
 
-      R1(i,j,k) = 0.
-      R2(i,j,k) = 0.
-      R3(i,j,k) = 0.
-
+      R1 = 0.
+      R2 = 0.
+      R3 = 0.
 ! Compute real-space velocity field:
       DO k = ksta,kend
          DO j = 1,n
             DO i = 1,n
-
 
             DO ki = kdn,kup
                R1(i,j,k) = R1(i,j,k)+(vparam4*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
@@ -188,4 +186,3 @@
 
 ! Normalize final a:
       CALL normalize(vx,vy,vz,u0,0,MPI_COMM_WORLD)
-
