@@ -9,12 +9,10 @@
 ! end, the three components of the magnetic vector potl in spectral
 ! space should be stored in the arrays ax, ay, and az.
 
-! Superposition of ABC flows with k^(-n) spectrum + noise
+! Superposition of ABC flows with k^(-4) spectrum + noise
 !     kdn    : minimum wave number
 !     kup    : maximum wave number
 !     vparam0: level of noise
-!     vparam1: reference wave number, k0, for spectrall fall-off
-!     vparam2: log std deviation of spectrum fall-off
 !     vparam3: A amplitude
 !     vparam4: B amplitude
 !     vparam5: C amplitude
@@ -33,7 +31,7 @@
                           real(n,kind=GP)))/ki**2
                R2(i,j,k) = R2(i,j,k)+(vparam3*SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
                           real(n,kind=GP))+vparam5*COS(2*pi*ki*(real(k,kind=GP)-1)/   &
-                          real(n,kind=GP)))/ki**2 
+                          real(n,kind=GP)))/ki**2
                R3(i,j,k) = R3(i,j,k)+(vparam3*COS(2*pi*ki*(real(i,kind=GP)-1)/ &
                           real(n,kind=GP))+vparam4*SIN(2*pi*ki*(real(j,kind=GP)-1)/   &
                           real(n,kind=GP)))/ki**2
@@ -47,7 +45,7 @@
       CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
 
-      CALL normalize(vx,vy,vz,u0,0,MPI_COMM_WORLD)
+      CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
 
       C1 = 0.0_GP
       C2 = 0.0_GP
@@ -66,7 +64,8 @@
           dump = 0.0_GP
           IF ( (ka2(1,j,1).ge.vparam2**2) ) THEN
             rmq  = sqrt(ka2(1,j,1))
-            dump = exp(-log10((rmq/vparam2)**2)/(2.0*vparam3**2))/rmq
+!           dump = exp(-log10((rmq/vparam2)**2)/(2.0*vparam3**2))/rmq**2
+            dump = 1.0_GP/rmq**3
           ENDIF
           phase = 2.0*pi*randu(seed);
           cdump = (cos(phase)+im*sin(phase))*dump
@@ -86,7 +85,8 @@
           dump = 0.0_GP
           IF ( (ka2(k,1,1).ge.vparam2**2) ) THEN
              rmq  = sqrt(ka2(k,1,1))
-             dump = exp(-log10((rmq/vparam2)**2)/(2.0*vparam3**2))/rmq
+!            dump = exp(-log10((rmq/vparam2)**2)/(2.0*vparam3**2))/rmq**2
+             dump = 1.0_GP/rmq**3
           ENDIF
           phase = 2.0*pi*randu(seed);
           cdump = (cos(phase)+im*sin(phase))*dump
@@ -107,7 +107,8 @@
             dump = 0.0_GP
             IF ( (ka2(k,j,1).ge.vparam2**2) ) THEN
               rmq  = sqrt(ka2(k,j,1))
-              dump = exp(-log10((rmq/vparam2)**2)/(2.0*vparam3**2))/rmq
+!             dump = exp(-log10((rmq/vparam2)**2)/(2.0*vparam3**2))/rmq**2
+              dump = 1.0_GP/rmq**3
             ENDIF
             phase = 2.0*pi*randu(seed);
             cdump = (cos(phase)+im*sin(phase))*dump
@@ -131,7 +132,8 @@
               dump = 0.0_GP
               IF ( (ka2(k,j,i).ge.vparam2**2) ) THEN
                 rmq  = sqrt(ka2(k,j,i))
-                dump = exp(-log10((rmq/vparam2))**2/(2.0*vparam3**2))/rmq
+!               dump = exp(-log10((rmq/vparam2))**2/(2.0*vparam3**2))/rmq**2
+                dump = 1.0_GP/rmq**3
               ENDIF
               phase = 2.0*pi*randu(seed);
               cdump = (cos(phase)+im*sin(phase))*dump
@@ -154,7 +156,8 @@
               dump = 0.0_GP
               IF ( (ka2(k,j,i).ge.vparam2**2) ) THEN
                 rmq  = sqrt(ka2(k,j,i))
-                dump = exp(-log10((rmq/vparam2))**2/(2.0*vparam3**2))/rmq
+!               dump = exp(-log10((rmq/vparam2))**2/(2.0*vparam3**2))/rmq**2
+                dump = 1.0_GP/rmq**3
               ENDIF
               phase = 2.0*pi*randu(seed);
               cdump = (cos(phase)+im*sin(phase))*dump
@@ -184,5 +187,5 @@
       vy = vy + C5
       vz = vz + C6
 
-! Normalize final a:
-      CALL normalize(vx,vy,vz,u0,0,MPI_COMM_WORLD)
+! Normalize final v:
+      CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
