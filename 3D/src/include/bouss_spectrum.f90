@@ -9,6 +9,6 @@
 !!          CALL spec2D(vx,vy,vz,ext,odir,1,1)
 !!          CALL specsc2D(th,ext,odir)
             CALL havghvel(vx,vy,ext)
-            CALL havghshear(vx,vy,ext)
+            CALL havgshear(vx,vy,ext)
             CALL spectpv(vx,vy,vz,th,ext)
             
