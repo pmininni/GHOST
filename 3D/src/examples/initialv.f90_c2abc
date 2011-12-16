@@ -18,13 +18,12 @@
 !     vparam0: level of noise
 !     vparam3: A amplitude
 !     vparam4: B amplitude
-               NOTE: C amplitude is 0 here
+!     vparam5: C amplitude
 
 
       R1 = 0.0_GP
       R2 = 0.0_GP
       R3 = 0.0_GP
-      vparam5 = 0.0_GP
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
