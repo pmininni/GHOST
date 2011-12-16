@@ -38,9 +38,9 @@
                R2(i,j,k) = R2(i,j,k)+(vparam3*SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
                           real(n,kind=GP))+vparam5*COS(2*pi*ki*(real(k,kind=GP)-1)/   &
                           real(n,kind=GP)))/ki**2
-               R3(i,j,k) = R3(i,j,k)+(vparam3*COS(2*pi*ki*(real(i,kind=GP)-1)/ &
-                          real(n,kind=GP))+vparam4*SIN(2*pi*ki*(real(j,kind=GP)-1)/   &
-                          real(n,kind=GP)))/ki**2
+!              R3(i,j,k) = R3(i,j,k)+(vparam3*COS(2*pi*ki*(real(i,kind=GP)-1)/ &
+!                         real(n,kind=GP))+vparam4*SIN(2*pi*ki*(real(j,kind=GP)-1)/   &
+!                         real(n,kind=GP)))/ki**2
 
               END DO
             END DO
@@ -49,7 +49,7 @@
 
       CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
-      CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
+!     CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
       CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
 
       C1 = 0.0_GP
