@@ -17,7 +17,7 @@
 !     aparam1: B amplitude
 !     aparam2: C amplitude
 
-      vparam3 = 4.5
+      aparam3 = 4.5
 
       DO k = ksta,kend
          DO j = 1,n
@@ -66,7 +66,7 @@
          DO j = 2,n/2+1
 
             IF ((ka2(1,j,1).le.kmax/2).and.(ka2(1,j,1).gt.mkup**2)) THEN
-               dump = 3.e5/sqrt(ka2(1,j,1))**vparam3
+               dump = 3.e5/sqrt(ka2(1,j,1))**aparam3
                phase = 2*pi*randu(seed)
                C1(1,j,1) = (aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
                C1(1,n-j+2,1) = conjg(C1(1,j,1))
@@ -89,7 +89,7 @@
          DO k = 2,n/2+1
 
             IF ((ka2(k,1,1).le.kmax/2).and.(ka2(k,1,1).gt.mkup**2)) THEN
-               dump = 3.e5/sqrt(ka2(k,1,1))**vparam3
+               dump = 3.e5/sqrt(ka2(k,1,1))**aparam3
                phase = 2*pi*randu(seed)
                C1(k,1,1) = (aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
                C1(n-k+2,1,1) = conjg(C1(k,1,1))
@@ -113,7 +113,7 @@
             DO k = 2,n/2+1
      
             IF ((ka2(k,j,1).le.kmax/2).and.(ka2(k,j,1).gt.mkup**2)) THEN
-               dump = 3.e5/sqrt(ka2(k,j,1))**vparam3
+               dump = 3.e5/sqrt(ka2(k,j,1))**aparam3
                phase = 2*pi*randu(seed)
                C1(k,j,1) = (aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
                C1(n-k+2,n-j+2,1) = conjg(C1(k,j,1))
@@ -139,7 +139,7 @@
                DO k = 1,n
 
                IF ((ka2(k,j,i).le.kmax/2).and.(ka2(k,j,i).gt.mkup**2)) THEN
-                  dump = 3.e5/sqrt(ka2(k,j,i))**vparam3
+                  dump = 3.e5/sqrt(ka2(k,j,i))**aparam3
                   phase = 2*pi*randu(seed)
                   C1(k,j,i) = 2*(aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
                   phase = 2*pi*randu(seed)
@@ -161,7 +161,7 @@
                DO k = 1,n
 
                IF ((ka2(k,j,i).le.kmax/2).and.(ka2(k,j,i).gt.mkup**2)) THEN
-                  dump = 3.e5/sqrt(ka2(k,j,i))**vparam3
+                  dump = 3.e5/sqrt(ka2(k,j,i))**aparam3
                   phase = 2*pi*randu(seed)
                   C1(k,j,i) = 2*(aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
                   phase = 2*pi*randu(seed)
