@@ -9,13 +9,14 @@
 ! end, the three components of the velocity in spectral
 ! space should be stored in the arrays vx, vy, and vz.
 
-! Superposition of ABC flows at large scales, and k^-5 noise at 
+! Superposition of ABC flows at large scales, and k^-m noise at 
 ! small scales
 !     kdn    : minimum wave number
 !     kup    : maximum wave number
 !     vparam0: A amplitude
 !     vparam1: B amplitude
 !     vparam2: C amplitude
+!     vparam3: spectral fall off of noise
 
       phase = pi/2.
       vparam3 = 3.5 !(N/64.)^3  NOT ! resolution times 9

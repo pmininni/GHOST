@@ -9,13 +9,14 @@
 ! end, the three components of the potential in spectral 
 ! space should be stored in the arrays ax, ay, and az.
 
-! Superposition of ABC flows at large scales, and k^-5 noise at 
+! Superposition of ABC flows at large scales, and k^-m noise at 
 ! small scales
 !     mkdn   : minimum wave number
 !     mkup   : maximum wave number
 !     aparam0: A amplitude
 !     aparam1: B amplitude
 !     aparam2: C amplitude
+!     aparam3: power of specral fall off of noise
 
       aparam3 = 4.5
 
