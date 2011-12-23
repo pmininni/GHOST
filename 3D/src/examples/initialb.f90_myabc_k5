@@ -1,0 +1,194 @@
+! Initial condition for the vector potential.
+! This file contains the expression used for the initial 
+! vector potential. You can use temporary real arrays R1-R3 
+! of size (1:n,1:n,ksta:kend) and temporary complex arrays 
+! C1-C8 of size (n,n,ista:iend) to do intermediate 
+! computations. The variable a0 should control the global 
+! amplitude of the forcing, and variables aparam0-9 can be  
+! used to control the amplitudes of individual terms. At the 
+! end, the three components of the potential in spectral 
+! space should be stored in the arrays ax, ay, and az.
+
+! Superposition of ABC flows at large scales, and k^-5 noise at 
+! small scales
+!     mkdn   : minimum wave number
+!     mkup   : maximum wave number
+!     aparam0: A amplitude
+!     aparam1: B amplitude
+!     aparam2: C amplitude
+
+      vparam3 = 4.5
+
+      DO k = ksta,kend
+         DO j = 1,n
+            DO i = 1,n
+            R1(i,j,k) = 0.
+            DO ki = mkdn,mkup
+               R1(i,j,k) = R1(i,j,k)+(aparam1*COS(2*pi*ki*(float(j)-1)/    &
+                          float(n))+aparam2*SIN(2*pi*ki*(float(k)-1)/      &
+                          float(n)))/float(ki**2)
+            END DO
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_real_to_complex(planrc,R1,ax,MPI_COMM_WORLD)
+      DO k = ksta,kend
+         DO j = 1,n
+            DO i = 1,n
+            R1(i,j,k) = 0.
+            DO ki = mkdn,mkup
+               R1(i,j,k) = R1(i,j,k)+(aparam0*SIN(2*pi*ki*(float(i)-1)/    &
+                          float(n))+aparam2*COS(2*pi*ki*(float(k)-1)/      &
+                          float(n)))/float(ki**2)
+            END DO
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_real_to_complex(planrc,R1,ay,MPI_COMM_WORLD)
+      DO k = ksta,kend
+         DO j = 1,n
+            DO i = 1,n
+            R1(i,j,k) = 0.
+            DO ki = mkdn,mkup
+               R1(i,j,k) = R1(i,j,k)+(aparam0*COS(2*pi*ki*(float(i)-1)/    &
+                          float(n))+aparam1*SIN(2*pi*ki*(float(j)-1)/      &
+                          float(n)))/float(ki**2)
+            END DO
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_real_to_complex(planrc,R1,az,MPI_COMM_WORLD)
+
+      IF (ista.eq.1) THEN
+         C1(1,1,1) = 0.
+         C2(1,1,1) = 0.
+         C3(1,1,1) = 0.
+         DO j = 2,n/2+1
+
+            IF ((ka2(1,j,1).le.kmax/2).and.(ka2(1,j,1).gt.mkup**2)) THEN
+               dump = 3.e5/sqrt(ka2(1,j,1))**vparam3
+               phase = 2*pi*randu(seed)
+               C1(1,j,1) = (aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
+               C1(1,n-j+2,1) = conjg(C1(1,j,1))
+               phase = 2*pi*randu(seed)
+               C2(1,j,1) = (aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
+               C2(1,n-j+2,1) = conjg(C2(1,j,1))
+               phase = 2*pi*randu(seed)
+               C3(1,j,1) = (aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
+               C3(1,n-j+2,1) = conjg(C3(1,j,1))
+            ELSE
+               C1(1,j,1) = 0.
+               C1(1,n-j+2,1) = 0.
+               C2(1,j,1) = 0.
+               C2(1,n-j+2,1) = 0.
+               C3(1,j,1) = 0.
+               C3(1,n-j+2,1) = 0.
+            ENDIF
+
+         END DO
+         DO k = 2,n/2+1
+
+            IF ((ka2(k,1,1).le.kmax/2).and.(ka2(k,1,1).gt.mkup**2)) THEN
+               dump = 3.e5/sqrt(ka2(k,1,1))**vparam3
+               phase = 2*pi*randu(seed)
+               C1(k,1,1) = (aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
+               C1(n-k+2,1,1) = conjg(C1(k,1,1))
+               phase = 2*pi*randu(seed)
+               C2(k,1,1) = (aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
+               C2(n-k+2,1,1) = conjg(C2(k,1,1))
+               phase = 2*pi*randu(seed)
+               C3(k,1,1) = (aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
+               C3(n-k+2,1,1) = conjg(C3(k,1,1))
+            ELSE
+               C1(k,1,1) = 0.
+               C1(n-k+2,1,1) = 0.
+               C2(k,1,1) = 0.
+               C2(n-k+2,1,1) = 0.
+               C3(k,1,1) = 0.
+               C3(n-k+2,1,1) = 0.
+            ENDIF
+
+         END DO
+         DO j = 2,n
+            DO k = 2,n/2+1
+     
+            IF ((ka2(k,j,1).le.kmax/2).and.(ka2(k,j,1).gt.mkup**2)) THEN
+               dump = 3.e5/sqrt(ka2(k,j,1))**vparam3
+               phase = 2*pi*randu(seed)
+               C1(k,j,1) = (aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
+               C1(n-k+2,n-j+2,1) = conjg(C1(k,j,1))
+               phase = 2*pi*randu(seed)
+               C2(k,j,1) = (aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
+               C2(n-k+2,n-j+2,1) = conjg(C2(k,j,1))
+               phase = 2*pi*randu(seed)
+               C3(k,j,1) = (aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
+               C3(n-k+2,n-j+2,1) = conjg(C3(k,j,1))
+            ELSE
+               C1(k,j,1) = 0.
+               C1(n-k+2,n-j+2,1) = 0.
+               C2(k,j,1) = 0.
+               C2(n-k+2,n-j+2,1) = 0.
+               C3(k,j,1) = 0.
+               C3(n-k+2,n-j+2,1) = 0.
+            ENDIF
+
+            END DO
+         END DO
+         DO i = 2,iend
+            DO j = 1,n
+               DO k = 1,n
+
+               IF ((ka2(k,j,i).le.kmax/2).and.(ka2(k,j,i).gt.mkup**2)) THEN
+                  dump = 3.e5/sqrt(ka2(k,j,i))**vparam3
+                  phase = 2*pi*randu(seed)
+                  C1(k,j,i) = 2*(aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
+                  phase = 2*pi*randu(seed)
+                  C2(k,j,i) = 2*(aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
+                  phase = 2*pi*randu(seed)
+                  C3(k,j,i) = 2*(aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
+               ELSE
+                  C1(k,j,i) = 0.
+                  C2(k,j,i) = 0.
+                  C3(k,j,i) = 0.
+               ENDIF
+
+               END DO
+            END DO
+         END DO
+      ELSE
+         DO i = ista,iend
+            DO j = 1,n
+               DO k = 1,n
+
+               IF ((ka2(k,j,i).le.kmax/2).and.(ka2(k,j,i).gt.mkup**2)) THEN
+                  dump = 3.e5/sqrt(ka2(k,j,i))**vparam3
+                  phase = 2*pi*randu(seed)
+                  C1(k,j,i) = 2*(aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
+                  phase = 2*pi*randu(seed)
+                  C2(k,j,i) = 2*(aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
+                  phase = 2*pi*randu(seed)
+                  C3(k,j,i) = 2*(aparam2*COS(phase)+im*aparam1*SIN(phase))*dump
+               ELSE
+                  C1(k,j,i) = 0.
+                  C2(k,j,i) = 0.
+                  C3(k,j,i) = 0.
+               ENDIF
+
+               END DO
+            END DO
+        END DO
+      ENDIF
+
+      CALL rotor3(C2,C3,C7,1)
+      CALL rotor3(C1,C3,C8,2)
+      CALL rotor3(C1,C2,C9,3)
+      DO i = ista,iend
+         DO j = 1,n
+            DO k = 1,n
+               ax(k,j,i) = ax(k,j,i)+C7(k,j,i)
+               ay(k,j,i) = ay(k,j,i)+C8(k,j,i)
+               az(k,j,i) = az(k,j,i)+C9(k,j,i)
+            END DO
+        END DO
+      END DO
+      CALL normalize(ax,ay,az,a0,0,MPI_COMM_WORLD)
