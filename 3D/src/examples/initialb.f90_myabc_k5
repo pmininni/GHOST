@@ -16,7 +16,8 @@
 !     aparam0: A amplitude
 !     aparam1: B amplitude
 !     aparam2: C amplitude
-!     aparam3: power of specral fall off of noise
+!     aparam3: index of spectral fall off of noise, fixed here
+!     aparam4: noise level as fraction of mag. energy
 
       aparam3 = 4.5
 
@@ -183,6 +184,7 @@
       CALL rotor3(C2,C3,C7,1)
       CALL rotor3(C1,C3,C8,2)
       CALL rotor3(C1,C2,C9,3)
+      CALL normalize(C7,C8,C9,sqrt(aparam4)*a0,0,MPI_COMM_WORLD)
       DO i = ista,iend
          DO j = 1,n
             DO k = 1,n

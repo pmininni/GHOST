@@ -16,7 +16,8 @@
 !     vparam0: A amplitude
 !     vparam1: B amplitude
 !     vparam2: C amplitude
-!     vparam3: spectral fall off of noise
+!     vparam3: spectral fall off of noise, fixed here
+!     vparam4: noise amplitude as fraction of energy
 
       phase = pi/2.
       vparam3 = 3.5 !(N/64.)^3  NOT ! resolution times 9
@@ -183,6 +184,7 @@
       CALL rotor3(C5,C6,C7,1)
       CALL rotor3(C4,C6,C8,2)
       CALL rotor3(C4,C5,C6,3)
+      CALL normalize(C7,C8,C6,sqrt(vparam4)*u0,1,MPI_COMM_WORLD)
       DO i = ista,iend
          DO j = 1,n
             DO k = 1,n
