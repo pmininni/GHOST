@@ -1,6 +1,6 @@
 !=================================================================
 ! cuda_bindings
-! Includes Fortran bindings for most CUDA functions.
+! Provides Fortran bindings for a variety of CUDA functions.
 !
 ! 2011 Duane Rosenberg, Pablo D. Mininni
 !      Copyright 2011
@@ -10,8 +10,116 @@
 !=================================================================
 
 MODULE cuda_bindings
+
+!USE ISO_C_BINDING
+!ENUM, BIND(C) 
+!  ENUMERATOR :: 
+!  cudaSuccess                       =0 ,   & 
+!  cudaErrorMissingConfigurationa    =1 ,   &
+!  cudaErrorMemoryAllocation         =2 ,   &
+!  cudaErrorInitializationError      =3 ,   &
+!  cudaErrorLaunchFailure            =4 ,   &
+!  cudaErrorPriorLaunchFailure       =5 ,   &
+!  cudaErrorLaunchTimeout            =6 ,   &
+!  cudaErrorLaunchOutOfResources     =7 ,   &
+!  cudaErrorInvalidDeviceFunction    =8 ,   &
+!  cudaErrorInvalidConfiguration     =9 ,   &
+!  cudaErrorInvalidDevice            =10,   &
+!  cudaErrorInvalidValue             =11,   &
+!  cudaErrorInvalidPitchValue        =12,   &
+!  cudaErrorInvalidSymbol            =13,   &
+!  cudaErrorMapBufferObjectFailed    =14,   &
+!  cudaErrorUnmapBufferObjectFailed  =15,   &
+!  cudaErrorInvalidHostPointer       =16,   &
+!  cudaErrorInvalidDevicePointer     =17,   &
+!  cudaErrorInvalidTexture           =18,   &
+!  cudaErrorInvalidTextureBinding    =19,   &
+!  cudaErrorInvalidChannelDescriptor =20,   &
+!  cudaErrorInvalidMemcpyDirection   =21,   &
+!  cudaErrorAddressOfConstant        =22,   &
+!  cudaErrorTextureFetchFailed       =23,   &
+!  cudaErrorTextureNotBound          =24,   &
+!  cudaErrorSynchronizationError     =25,   &
+!  cudaErrorInvalidFilterSetting     =26,   &
+!  cudaErrorInvalidNormSetting       =27,   &
+!  cudaErrorMixedDeviceExecution     =28,   &
+!  cudaErrorCudartUnloading          =29,   &
+!  cudaErrorUnknown                  =30,   &
+!  cudaErrorNotYetImplemented        =31,   &
+!  cudaErrorMemoryValueTooLarge      =32,   &
+!  cudaErrorInvalidResourceHandle    =33,   &
+!  cudaErrorNotReady                 =34,   &
+!  cudaErrorInsufficientDriver       =35,   &
+!  cudaErrorSetOnActiveProcess       =36,   &
+!  cudaErrorNoDevice                 =37,   &
+!  cudaErrorStartupFailure           =38,   &
+!  cudaErrorApiFailureBase           =39
+!END ENUM
+
  INTERFACE
 
+!!!!!!!!!!!!!!!!!!!! Management utilities !!!!!!!!!!!!!!!!!!!!!!!!
+
+!*****************************************************************
+!*****************************************************************
+! cudaGetDeviceCount
+!    count : integer
+!*****************************************************************
+  INTEGER(C_INT) function cudaGetDeviceCount(ndev) bind(C,name="cudaGetDeviceCount")
+    USE iso_c_binding
+    IMPLICIT NONE
+    INTEGER(C_INT)       :: ndev
+  END FUNCTION cudaGetDeviceCount
+
+!*****************************************************************
+!*****************************************************************
+! cudaSetDevice
+!    idev : integer device id
+!*****************************************************************
+  INTEGER(C_INT) function cudaSetDevice(idev) bind(C,name="cudaSetDevice")
+    USE iso_c_binding
+    IMPLICIT NONE
+    INTEGER(C_INT),value :: idev
+  END FUNCTION cudaSetDevice
+
+!*****************************************************************
+!*****************************************************************
+! cudaGetDevice
+!    idev : integer device id
+!*****************************************************************
+  INTEGER(C_INT) function cudaGetDevice(idev) bind(C,name="cudaGetDevice")
+    USE iso_c_binding
+    IMPLICIT NONE
+    INTEGER(C_INT)       :: idev
+  END FUNCTION cudaGetDevice
+
+!*****************************************************************
+!*****************************************************************
+! cudaSetDeviceFlags
+!    flag : C_INT type
+!*****************************************************************
+  INTEGER(C_INT) function cudaSetDeviceFlags(flag)  bind(C,name="cudaSetDeviceFlags")
+    USE, INTRINSIC :: iso_c_binding
+    IMPLICIT NONE
+    INTEGER(C_INT),value :: flag
+  END FUNCTION cudaSetDeviceFlags
+
+!*****************************************************************
+!*****************************************************************
+! cudaGetDeviceProperties
+!    prop : struct cudaDeviceProp pointer
+!    idev : integer device id
+!*****************************************************************
+  INTEGER(C_INT) function cudaGetDeviceProperties(prop,idev) bind(C,name="cudaGetDeviceProperties")
+    USE iso_c_binding
+    USE cutypes
+    IMPLICIT NONE
+    INTEGER(C_INT),value :: idev
+    TYPE(cudaDeviceProp) :: prop
+  END FUNCTION cudaGetDeviceProperties
+
+
+!!!!!!!!!!!!!!!!!!!! Mem/compute utilities !!!!!!!!!!!!!!!!!!!!!!!
 
 !*****************************************************************
 !*****************************************************************
@@ -101,7 +209,6 @@ MODULE cuda_bindings
 
 !*****************************************************************
 !*****************************************************************
-!
 ! cudaFree
 !    buffer: void* pointer
 !*****************************************************************
@@ -113,43 +220,6 @@ MODULE cuda_bindings
 
 !*****************************************************************
 !*****************************************************************
-!
-! cudaSetDeviceFlag
-!    flag : C_INT type
-!*****************************************************************
-  INTEGER(C_INT) function cudaSetDeviceFlags(flag)  bind(C,name="cudaSetDeviceFlags")
-    USE, INTRINSIC :: iso_c_binding
-    IMPLICIT NONE
-    INTEGER(C_INT),value :: flag
-  END FUNCTION cudaSetDeviceFlags
-
-!*****************************************************************
-!*****************************************************************
-!
-! cudaGetDeviceCount
-!    count : number of devices
-!*****************************************************************
-  INTEGER(C_INT) function cudaGetDeviceCount(count)  bind(C,name="cudaGetDeviceCount")
-    USE, INTRINSIC :: iso_c_binding
-    IMPLICIT NONE
-    INTEGER(C_INT) :: count
-  END FUNCTION cudaGetDeviceCount
-
-!*****************************************************************
-!*****************************************************************
-!
-! cudaSetDevice
-!    device: device no.
-!*****************************************************************
-  INTEGER(C_INT) function cudaSetDevice(device)  bind(C,name="cudaSetDevice")
-    USE, INTRINSIC :: iso_c_binding
-    IMPLICIT NONE
-    INTEGER(C_INT), value:: device
-  END FUNCTION cudaSetDevice
-
-!*****************************************************************
-!*****************************************************************
-!
 ! cudaHostGetDevicePointer
 !    pdevice: void** device pointer
 !    phost  : void*  host pointer mapping
@@ -164,7 +234,6 @@ MODULE cuda_bindings
 
 !*****************************************************************
 !*****************************************************************
-!
 ! cufftPlan1d :: create CUDA FFT 1d plan
 !     pplan    : cufftHandle pointer (out)
 !     nx       : transform size
@@ -183,7 +252,6 @@ MODULE cuda_bindings
 
 !*****************************************************************
 !*****************************************************************
-!
 ! cufftDestroy:: destroy CUDA FFT plan
 !     pplan     : cufftHandle pointer (in)
 !
@@ -196,7 +264,6 @@ MODULE cuda_bindings
 
 !*****************************************************************
 !*****************************************************************
-!
 ! cufftExecR2C:: execute CUDA FFT plan, R-->C
 !    pplan     : cufftHandle pointer (out)
 !    datain    : input data (cufftReal)
@@ -213,7 +280,6 @@ MODULE cuda_bindings
 
 !*****************************************************************
 !*****************************************************************
-!
 ! cufftExecC2R:: execute CUDA FFT plan, C-->R
 !    pplan     : cufftHandle pointer (out)
 !    datain    : input data (cufftReal)
@@ -230,7 +296,6 @@ MODULE cuda_bindings
 
 !*****************************************************************
 !*****************************************************************
-!
 ! cufftExecC2C:: execute CUDA FFT plan, C-->C
 !    pplan     : cufftHandle pointer (out)
 !    datain    : input data (cufftReal)
@@ -250,7 +315,6 @@ MODULE cuda_bindings
 
 !*****************************************************************
 !*****************************************************************
-!
 ! cufftExecD2Z:: execute CUDA FFT plan, D-->Z, double to double complex
 !    pplan     : cufftHandle pointer (out)
 !    datain    : input data (cufftDouble)
@@ -267,7 +331,6 @@ MODULE cuda_bindings
 
 !*****************************************************************
 !*****************************************************************
-!
 ! cufftExecZ2D:: execute CUDA FFT plan, Z-->D, double complex to double
 !    pplan     : cufftHandle pointer (out)
 !    datain    : input data (cufftDoubleComplex)
@@ -284,7 +347,6 @@ MODULE cuda_bindings
 
 !*****************************************************************
 !*****************************************************************
-!
 ! cufftExecZ2Z:: execute CUDA FFT plan, Z-->Z, double complex to double complex
 !    pplan     : cufftHandle pointer (out)
 !    datain    : input data (cufftDoubleComplex)

@@ -95,6 +95,11 @@
 #ifdef HALLTERM_
       USE hall
 #endif
+#if defined(DEF_GHOST_CUDA_)
+      USE, INTRINSIC :: iso_c_binding
+      USE cuda_bindings
+      USE cutypes
+#endif
 
       IMPLICIT NONE
 
@@ -196,6 +201,9 @@
       INTEGER :: injt
 #endif
 
+#if defined(DEF_GHOST_CUDA_)
+       TYPE(cudaDeviceProp) :: devprop
+#endif
 
       TYPE(IOPLAN) :: planio
       CHARACTER(len=100) :: odir,idir
@@ -254,13 +262,16 @@
 ! Initializes CUDA by selecting device. The list of devices must
 ! correspond to the MPI rank mod NUM_CUDA_DEV, which is defined
 ! in the makefile:
-#if defined(DEF_GHOST_CUDA)
+#if defined(DEF_GHOST_CUDA_)
+write(*,*) 'main: DEF_GHOST_CUDA:0'
      iret = cudaGetDeviceCount(ncuda)
+write(*,*) 'main: DEF_GHOST_CUDA:1, iret=',iret
      idevice = mod(myrank,ncuda)
      iret = cudaSetDevice(idevice);
+write(*,*) 'main: DEF_GHOST_CUDA:2, iret=',iret
      IF ( iret .EQ. cudaErrorInvalidDevice ) THEN
        WRITE(*,*)'MAIN: Invalid CUDA device selected: ', &
-       idevice, '; myrank=',myrank, '; NUM_CUDA_DEV='ncuda
+       idevice, '; myrank=',myrank, '; NUM_CUDA_DEV=',ncuda
        STOP
      ENDIF
      iret = cudaGetDeviceProperties(devprop,idevice)
@@ -970,13 +981,6 @@
       CALL MPI_FINALIZE(ierr)
       CALL fftp2d_destroy_plan(plancr)
       CALL fftp2d_destroy_plan(planrc)
-#if defined(DEF_GHOST_CUDA)
-     IF ( iret .EQ. cudaErrorInvalidDevice ) THEN
-       WRITE(*,*)'MAIN: Invalid CUDA device selected: ', &
-       mod(myrank,NUM_CUDA_DEV), ' myrank=',myrank, ' NUM_CUDA_DEV=',NUM_CUDA_DEV
-       STOP
-     ENDIF
-#endif
       DEALLOCATE( R1 )
       DEALLOCATE( C1,C2 )
       DEALLOCATE( ka,ka2 )

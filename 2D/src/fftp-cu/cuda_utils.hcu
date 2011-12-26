@@ -6,17 +6,20 @@
 
 int w_cudaMemCpyHost2Dev( void *devdst, const void *hostsrc,  size_t count);
 int w_cudaMemCpyDev2Host( void *hostdst, const void *devsrc,  size_t count);
+
+/***********************
 int w_cufftExecR2C      ( cufftHandle plan, void *idata, void *odata);
 int w_cufftExecC2C      ( cufftHandle plan, void *idata, void *odata);
 int w_cufftExecC2R      ( cufftHandle plan, void *idata, void *odata);
 int w_cufftExecD2Z      ( cufftHandle plan, void *idata, void *odata);
 int w_cufftExecZ2Z      ( cufftHandle plan, void *idata, void *odata);
 int w_cufftExecZ2D      ( cufftHandle plan, void *idata, void *odata);
-/*
+************************/
+/***********************
 int w_cufftExecR2C      ( cufftHandle plan, cufftReal *idata, cufftComplex *odata);
 int w_cufftExecC2C      ( cufftHandle plan, cufftComplex *idata, cufftComplex *odata);
 int w_cufftExecC2R      ( cufftHandle plan, cufftComplex *idata, cufftReal *odata);
 int w_cufftExecD2Z      ( cufftHandle plan, cufftDoubleReal *idata, cufftDoubleComplex *odata);
 int w_cufftExecZ2Z      ( cufftHandle plan, cufftDoubleComplex *idata, cufftDoubleComplex *odata);
 int w_cufftExecZ2D      ( cufftHandle plan, cufftDoubleComplex *idata, cufftDoubleReal *odata);
-*/
+************************/

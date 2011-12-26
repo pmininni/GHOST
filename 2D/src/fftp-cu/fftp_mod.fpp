@@ -62,8 +62,8 @@
 
 !=================================================================
   MODULE cutypes
+      USE ISO_C_BINDING
       IMPLICIT NONE
-
       
       INTEGER, PARAMETER :: CUFFT_R2C=X'2a'
       INTEGER, PARAMETER :: CUFFT_C2R=X'2c'
@@ -76,6 +76,72 @@
       INTEGER, PARAMETER :: cudaHostAllocMapped  =2
       INTEGER, PARAMETER :: cudaDeviceMapHost    =3
      
+      ENUM, BIND(C)
+        ENUMERATOR ::                            &
+        cudaSuccess                       =0 ,   &
+        cudaErrorMissingConfigurationa    =1 ,   &
+        cudaErrorMemoryAllocation         =2 ,   &
+        cudaErrorInitializationError      =3 ,   &
+        cudaErrorLaunchFailure            =4 ,   &
+        cudaErrorPriorLaunchFailure       =5 ,   &
+        cudaErrorLaunchTimeout            =6 ,   &
+        cudaErrorLaunchOutOfResources     =7 ,   &
+        cudaErrorInvalidDeviceFunction    =8 ,   &
+        cudaErrorInvalidConfiguration     =9 ,   &
+        cudaErrorInvalidDevice            =10,   &
+        cudaErrorInvalidValue             =11,   &
+        cudaErrorInvalidPitchValue        =12,   &
+        cudaErrorInvalidSymbol            =13,   &
+        cudaErrorMapBufferObjectFailed    =14,   &
+        cudaErrorUnmapBufferObjectFailed  =15,   &
+        cudaErrorInvalidHostPointer       =16,   &
+        cudaErrorInvalidDevicePointer     =17,   &
+        cudaErrorInvalidTexture           =18,   &
+        cudaErrorInvalidTextureBinding    =19,   &
+        cudaErrorInvalidChannelDescriptor =20,   &
+        cudaErrorInvalidMemcpyDirection   =21,   &
+        cudaErrorAddressOfConstant        =22,   &
+        cudaErrorTextureFetchFailed       =23,   &
+        cudaErrorTextureNotBound          =24,   &
+        cudaErrorSynchronizationError     =25,   &
+        cudaErrorInvalidFilterSetting     =26,   &
+        cudaErrorInvalidNormSetting       =27,   &
+        cudaErrorMixedDeviceExecution     =28,   &
+        cudaErrorCudartUnloading          =29,   &
+        cudaErrorUnknown                  =30,   &
+        cudaErrorNotYetImplemented        =31,   &
+        cudaErrorMemoryValueTooLarge      =32,   &
+        cudaErrorInvalidResourceHandle    =33,   &
+        cudaErrorNotReady                 =34,   &
+        cudaErrorInsufficientDriver       =35,   &
+        cudaErrorSetOnActiveProcess       =36,   &
+        cudaErrorNoDevice                 =37,   &
+        cudaErrorStartupFailure           =38,   &
+        cudaErrorApiFailureBase           =39
+      END ENUM
+
+      TYPE, BIND(C) :: cudaDeviceProp
+        INTEGER   (C_INT) :: canMapHostMemory
+        INTEGER   (C_INT) :: clockRate
+        INTEGER   (C_INT) :: computeMode
+        INTEGER   (C_INT) :: deviceOverlap
+        INTEGER   (C_INT) :: integrated
+        INTEGER   (C_INT) :: kernelExecTimeoutEnabled
+        INTEGER   (C_INT) :: major
+        INTEGER   (C_INT) :: maxGridSize(3)
+        INTEGER   (C_INT) :: maxThreadsDim(3)
+        INTEGER   (C_INT) :: maxThreadsPerBlock
+        INTEGER(C_SIZE_T) :: memPitch
+        INTEGER   (C_INT) :: minor
+        INTEGER   (C_INT) :: multiProcessorCount
+        CHARACTER(C_CHAR) :: name(256) 
+        INTEGER   (C_INT) :: regsPerBlock
+        INTEGER(C_SIZE_T) :: sharedMemPerBlock
+        INTEGER(C_SIZE_T) :: textureAlignment
+        INTEGER(C_SIZE_T) :: totalConstMem
+        INTEGER(C_SIZE_T) :: totalGlobalMem
+        INTEGER   (C_INT) :: warpSize
+      END TYPE cudaDeviceProp
 
   END MODULE cutypes
 !=================================================================
