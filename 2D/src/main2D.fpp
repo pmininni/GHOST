@@ -179,6 +179,7 @@
       REAL(KIND=GP) :: by0
 #endif
 
+      INTEGER :: idevice, iret, ncuda
       INTEGER :: ini,step
       INTEGER :: tstep,cstep
       INTEGER :: sstep,fstep
@@ -249,6 +250,25 @@
                              FFTW_MEASURE)
       CALL fftp2d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
                              FFTW_MEASURE)
+
+! Initializes CUDA by selecting device. The list of devices must
+! correspond to the MPI rank mod NUM_CUDA_DEV, which is defined
+! in the makefile:
+#if defined(DEF_GHOST_CUDA)
+     iret = cudaGetDeviceCount(ncuda)
+     idevice = mod(myrank,ncuda)
+     iret = cudaSetDevice(idevice);
+     IF ( iret .EQ. cudaErrorInvalidDevice ) THEN
+       WRITE(*,*)'MAIN: Invalid CUDA device selected: ', &
+       idevice, '; myrank=',myrank, '; NUM_CUDA_DEV='ncuda
+       STOP
+     ENDIF
+     iret = cudaGetDeviceProperties(devprop,idevice)
+     IF ( devprop%major .GT. 999 ) THEN
+       WRITE(*,*)'MAIN: CUDA device emulation not allowed!'
+       STOP
+     ENDIF
+#endif
       
 !
 ! Allocates memory for distributed blocks
@@ -950,6 +970,13 @@
       CALL MPI_FINALIZE(ierr)
       CALL fftp2d_destroy_plan(plancr)
       CALL fftp2d_destroy_plan(planrc)
+#if defined(DEF_GHOST_CUDA)
+     IF ( iret .EQ. cudaErrorInvalidDevice ) THEN
+       WRITE(*,*)'MAIN: Invalid CUDA device selected: ', &
+       mod(myrank,NUM_CUDA_DEV), ' myrank=',myrank, ' NUM_CUDA_DEV=',NUM_CUDA_DEV
+       STOP
+     ENDIF
+#endif
       DEALLOCATE( R1 )
       DEALLOCATE( C1,C2 )
       DEALLOCATE( ka,ka2 )
