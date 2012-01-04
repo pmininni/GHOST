@@ -50,17 +50,6 @@
   END MODULE fftplans
 !=================================================================
 
-  MODULE mpivars
-!     INCLUDE 'mpif.h'
-      INTEGER, SAVE :: ista,iend
-      INTEGER, SAVE :: jsta,jend
-      INTEGER, SAVE :: ksta,kend
-      INTEGER, SAVE :: nprocs,myrank
-      INTEGER, SAVE :: ierr
-
-  END MODULE mpivars
-
-!=================================================================
   MODULE cutypes
       USE ISO_C_BINDING
       IMPLICIT NONE
@@ -145,3 +134,26 @@
 
   END MODULE cutypes
 !=================================================================
+
+  MODULE threads
+!
+! nth: number of threads used in OpenMP loops and FFTs
+      INTEGER :: nth
+      SAVE
+
+  END MODULE threads
+
+!=================================================================
+
+  MODULE mpivars
+!     INCLUDE 'mpif.h'
+      INTEGER, SAVE :: ista,iend
+      INTEGER, SAVE :: jsta,jend
+      INTEGER, SAVE :: ksta,kend
+      INTEGER, SAVE :: nprocs,myrank
+      INTEGER, SAVE :: ierr
+
+  END MODULE mpivars
+
+!=================================================================
+

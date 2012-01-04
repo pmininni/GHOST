@@ -178,7 +178,7 @@
 
       INTEGER :: ista,iend
       INTEGER :: ksta,kend
-      INTEGER :: irank,jrank
+      INTEGER :: irank,krank
       INTEGER :: itemp1,itemp2
 
       CALL range(1,n,nprocs,myrank,ksta,kend)
@@ -359,17 +359,18 @@
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(plan%n,ista:iend) :: in
-      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%n)             :: c1
-      REAL(KIND=GP), INTENT(OUT), DIMENSION(plan%n,jsta:jend)   :: out
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(plan%n,plan%n,ista:iend) :: in 
+      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%n,plan%n)             :: c1
+      REAL(KIND=GP), INTENT(OUT), DIMENSION(plan%n,plan%n,ksta:kend)   :: out
+
 
       DOUBLE PRECISION                                          :: t0, t1
 
       INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
       INTEGER, INTENT(IN)                 :: comm
-      INTEGER :: i,iret,j
-      INTEGER :: ii,jj
+      INTEGER :: i,iret,j,k
+      INTEGER :: ii,jj,kk
       INTEGER :: irank
       INTEGER :: isendTo, igetFrom
       INTEGER :: istrip,iproc
