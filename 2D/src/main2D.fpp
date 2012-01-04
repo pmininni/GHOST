@@ -249,6 +249,29 @@
       CALL range(1,n,nprocs,myrank,jsta,jend)
       CALL io_init(myrank,n,jsta,jend,planio)
 !
+! Initializes CUDA by selecting device. The list of devices must
+! correspond to the MPI rank mod NUM_CUDA_DEV, which is defined
+! in the makefile:
+#if defined(DEF_GHOST_CUDA_)
+     iret = cudaGetDeviceCount(ncuda)
+     idevice = mod(myrank,ncuda)
+     iret = cudaSetDevice(idevice);
+     IF ( iret .EQ. cudaErrorInvalidDevice ) THEN
+!    IF ( iret .NE. cudaSuccess ) THEN
+       WRITE(*,*)'MAIN: Invalid CUDA device selected: ', &
+       idevice, '; myrank=',myrank, '; NUM_CUDA_DEV=',ncuda
+       STOP
+     ENDIF
+     iret = cudaGetDeviceProperties(devprop,idevice)
+     IF ( devprop%major .GT. 999 ) THEN
+       WRITE(*,*)'MAIN: CUDA device emulation not allowed!'
+       STOP
+     ENDIF
+     iret = cudaGetDevice(idevice)
+     WRITE(*,*)'MAIN: idev=',idevice, ' rank=', myrank
+#endif
+     
+!
 ! Initializes the FFT library
 ! Use FFTW_ESTIMATE or FFTW_MEASURE in short runs
 ! Use FFTW_PATIENT or FFTW_EXHAUSTIVE in long runs
@@ -259,28 +282,6 @@
       CALL fftp2d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
                              FFTW_MEASURE)
 
-! Initializes CUDA by selecting device. The list of devices must
-! correspond to the MPI rank mod NUM_CUDA_DEV, which is defined
-! in the makefile:
-#if defined(DEF_GHOST_CUDA_)
-write(*,*) 'main: DEF_GHOST_CUDA:0'
-     iret = cudaGetDeviceCount(ncuda)
-write(*,*) 'main: DEF_GHOST_CUDA:1, iret=',iret
-     idevice = mod(myrank,ncuda)
-     iret = cudaSetDevice(idevice);
-write(*,*) 'main: DEF_GHOST_CUDA:2, iret=',iret
-     IF ( iret .EQ. cudaErrorInvalidDevice ) THEN
-       WRITE(*,*)'MAIN: Invalid CUDA device selected: ', &
-       idevice, '; myrank=',myrank, '; NUM_CUDA_DEV=',ncuda
-       STOP
-     ENDIF
-     iret = cudaGetDeviceProperties(devprop,idevice)
-     IF ( devprop%major .GT. 999 ) THEN
-       WRITE(*,*)'MAIN: CUDA device emulation not allowed!'
-       STOP
-     ENDIF
-#endif
-      
 !
 ! Allocates memory for distributed blocks
       ALLOCATE( C1(n,ista:iend), C2(n,ista:iend) )
@@ -581,7 +582,7 @@ write(*,*) 'main: DEF_GHOST_CUDA:2, iret=',iret
       CALL MPI_BCAST(cparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
-     
+
 !
 ! Sets the external forcing
       INCLUDE 'initialfv.f90'           ! mechanical forcing
