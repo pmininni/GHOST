@@ -22,7 +22,15 @@ MPILDFLAGS  = $(MPILD_$(MPI))
 DO_HYBRIDyes= $($(COMPILER)_OMP)
 DO_HYBRIDno =
 
+CUCC         = $(CUCC_$(CUCOMPILER))
+CUFLAGS      = $(CUFLAGS_$(CUCOMPILER))
+CUINC        = $(CUINC_$(CUCOMPILER))
+CUGENCODE    = $(CUGENCODE_$(CUCOMPILER))
+CUARCH       = $(CUARCH_$(CUCOMPILER))
+
 GHOME       = $(PWD)
+
+# FFTW library variables:
 FFTW2SINGLE = s
 FFTW2DOUBLE = d
 FFTW2HYByes = -l$(FFTW2$(PRECISION))rfftw_threads -l$(FFTW2$(PRECISION))fftw_threads
@@ -36,9 +44,32 @@ FFTW3FLAGS  = $(FFTW3HYB$(P_HYBRID)) -lfftw3$(FFTW3$(PRECISION)) -lm
 FFTWDIR     = $($(FFTP:fftp-%=FFTW%)DIR)
 FFTWLDFLAGS = $($(FFTP:fftp-%=FFTW%)FLAGS) $(DO_HYBRID$(P_HYBRID))
 FFTWINC     = $(FFTWDIR)/include
-FFTWLIB     = $(FFTWDIR)/lib
-LDFLAGS     = $(MPILIB) -L$(FFTWLIB) $(MPILDFLAGS) $(FFTWLDFLAGS)
-INCLUDE     = $(MPIINC) -I$(FFTWINC) -I$(GHOME)/$(FFTP) -I$(GHOME)/$(IOLIB) -I$(GHOME)/utils -Iinclude
+FFTWLIBDIR  = $(FFTWDIR)/lib
+
+# CUDA FFT library variables:
+FFTCULDFLAGS= $(CULDFLAGS_$(CUCOMPILER))
+FFTCUINC    = $(CUINC_$(CUCOMPILER))
+FFTCULIBDIR = $(CULIBDIR_$(CUCOMPILER))
+FFTCULIB    = $(CULIB_$(CUCOMPILER))
+
+CUDA_GHOSTno   =
+CUDA_GHOSTyes  = -DDEF_GHOST_CUDA_
+
+# FFT Target variables derived from above FFT library quantities:
+FFTTYPEno   = W
+FFTTYPEyes  = CU
+FFTPDIRno   = $(FFTP)
+FFTPDIRyes  = fftp-cu
+FFTTYPE     = $(FFTTYPE$(P_CUDA))
+FFTTLIBDIR  = $(FFT$(FFTTYPE)LIBDIR)
+FFTTLIB     = $(FFT$(FFTTYPE)LIB)
+FFTTINC     = $(FFT$(FFTTYPE)INC)
+FFTTLDFLAGS = $(FFT$(FFTTYPE)LDFLAGS)
+
+FFTPDIR     = $(FFTPDIR$(P_CUDA))
+
+LDFLAGS     = $(MPILIB) -L$(FFTLIBDIR) $(FFTTLIB)$(MPILDFLAGS) $(FFTTLDFLAGS)
+INCLUDE     = $(MPIINC) -I$(FFTTINC) -I$(GHOME)/$(FFTPDIR) -I$(GHOME)/$(IOLIB) -I$(GHOME)/utils -Iinclude
 CPPFLAGS    = -D$(SOLVER)_SOL
 PREPROCESS  = $(CPP) $(CPPFLAGS)
 COMPILE     = $(FC) $(FFLAGS) $(DO_HYBRID$(P_HYBRID)) $(INCLUDE) $(TARGET_ARCH) -c
@@ -66,7 +97,7 @@ STRU_OBJS      = pseudospec3D_shf.o
 OBJS           = $($(SOLVER)_OBJS)
 UTILS          = utils
 OBJSDIR        = pseudo
-SUBDIRS        = posix mpiio fftp-2 fftp-3 utils
+SUBDIRS        = posix mpiio fftp-2 fftp-3 fftp-cu utils
 EXTRASDIR      = analysis
 
 all: edit $(FFTP)/fftp3D.o $(IOLIB)/binary_io.o $(UTILS)/gutils_mod.o $(OBJS) $(SOLVER) undo
@@ -111,7 +142,8 @@ clean:  undo
 
 dist:
 	rm -f $(BIN)/HD* $(BIN)/MHD* $(BIN)/HMHD* $(BIN)/ROTH* $(BIN)/BOUSS* \
-              $(BIN)/boots* $(BIN)/trunc* *HD* *MHD* *HMHD* *ROTH* *BOUSS* *boots* *trunc*
+              $(BIN)/boots* $(BIN)/trunc* $(BIN)/vt* *HD* *MHD* *HMHD* *ROTH*\
+              *BOUSS* *boots* *trunc* *vt*
 	
 	$(MAKE) clean
 
