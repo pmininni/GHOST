@@ -265,6 +265,7 @@
       REAL(KIND=GP)    :: omega
 #endif
 
+      INTEGER :: idevice, iret, ncuda
       INTEGER :: ini,step
       INTEGER :: tstep,cstep
       INTEGER :: sstep,fstep
