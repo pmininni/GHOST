@@ -154,7 +154,7 @@ edit:
 	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)' \
 	   DO_HYBRID='DO_HYBRID$(P_HYBRID)'	
 	cd ../
-	cd $(FFTP) && $(MAKE) edit CPP='$(CPP)' IKIND='$(IKIND)' \
+	cd $(FFTPDIR) && $(MAKE) edit CPP='$(CPP)' IKIND='$(IKIND)' \
 	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)' \
            DO_HYBRID='DO_HYBRID$(P_HYBRID)'	
 	if [ ${UNDER} -eq 1 ]; then \
