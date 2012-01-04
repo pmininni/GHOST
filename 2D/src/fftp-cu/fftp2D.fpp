@@ -232,12 +232,6 @@
 
 !
 ! 1D real-to-complex FFT in each node using the FFTCU library
-write(*,*)'rank=',myrank,' fft:r2c: 0'
-if ( .not. c_associated(plan%prarr_,c_loc(plan%rarr) ) ) then
-  write(*,*)'fftp2d_real_to_complex: prarr_ and rarr not associated!!'
-  stop
-endif
-!write(*,*)'rank=',myrank, ' f2c: rarr=', plan%rarr
 !     DO j = jsta,jend
 !        DO i = 1,plan%n
 !           plan%rarr(i,j) = in(i,j)
@@ -245,16 +239,9 @@ endif
 !     END DO
       plan%rarr = in
 
-write(*,*)'rank=',myrank,' fft:r2c: 0.1'
-!write(*,*)'rank=',myrank,' fft:r2c: getting device............'
-!iret = cudaGetDevice(idev)
-!write(*,*)'rank=',myrank,' fft:r2c: ...................................idev=',idev,' iret=',iret
-
 ! data sent to cufftXXXXXX must reside on device:
       call CPU_TIME(t0)
-write(*,*)'rank=',myrank,' fft:r2c: 0.3'
       iret = cudaMemCpyHost2Dev(plan%cu_rd_, plan%prarr_, plan%szrd_ )
-write(*,*)'rank=',myrank,' fft:r2c: 0.4'
       call CPU_TIME(t1); memtime = memtime + t1-t0
  
       call CPU_TIME(t0)
@@ -263,16 +250,12 @@ write(*,*)'rank=',myrank,' fft:r2c: 0.4'
       ELSE
         iret = cufftExecD2Z(plan%icuplanr_, plan%cu_rd_, plan%cu_cd_)
       ENDIF
-write(*,*)'rank=',myrank,' fft:r2c: 0.5'
       call MPI_BARRIER(MPI_COMM_WORLD,ierr)
-write(*,*)'rank=',myrank,' fft:r2c: 0.6'
       call CPU_TIME(t1); ffttime = ffttime + t1-t0
       call CPU_TIME(t0)
       iret = cudaMemCpyDev2Host(plan%pcarr_, plan%cu_cd_, plan%szcd_ )
       call CPU_TIME(t1); memtime = memtime + t1-t0
-write(*,*)'rank=',myrank,' fft:r2c: 0.7'
       call MPI_BARRIER(MPI_COMM_WORLD,ierr)
-write(*,*)'rank=',myrank,' fft:r2c: 0.8'
 
 ! NOTE: If nrocs = 1, then we can carry out the transpose directly
 !       on the CUDA device.
@@ -280,9 +263,7 @@ write(*,*)'rank=',myrank,' fft:r2c: 0.8'
 ! Transposes the result between nodes using 
 ! strip mining when nstrip>1 (rreddy@psc.edu)
 !
-write(*,*)'rank=',myrank,' fft:r2c: 1'
       call CPU_TIME(t0)
-write(*,*)'rank=',myrank,' fft:r2c: 2'
       do iproc = 0, nprocs-1, nstrip
          do istrip=0, nstrip-1
             irank = iproc + istrip
@@ -305,29 +286,27 @@ write(*,*)'rank=',myrank,' fft:r2c: 2'
             CALL MPI_WAIT(ireq2(irank),istatus,ierr)
          enddo
       enddo
-write(*,*)'rank=',myrank,' fft:r2c: 3'
 
 !
 ! Cache friendly transposition
 !
+      DO ii = ista,iend,csize
+         DO jj = 1,plan%n,csize
+            DO i = ii,min(iend,ii+csize-1)
+            DO j = jj,min(plan%n,jj+csize-1)
+!              Recall that ccarr is dimensioned (:,:), starting at (1,1):
+               plan%ccarr(j,i-ista+1) = c1(i,j)
+            END DO
+            END DO
+         END DO
+      END DO
 
-!     DO ii = ista,iend,csize
-!        DO jj = 1,plan%n,csize
-!           DO i = ii,min(iend,ii+csize-1)
-!           DO j = jj,min(plan%n,jj+csize-1)
-!              plan%ccarr(j,i) = c1(i,j)
-!           END DO
-!           END DO
-!        END DO
-!     END DO
-write(*,*)'rank=',myrank,' fft:r2c: 4'
       call CPU_TIME(t1); tratime = tratime + t1-t0
 !
 ! 1D FFT in each node using the FFTCU library
 !
       call CPU_TIME(t0); 
       iret = cudaMemCpyHost2Dev(plan%cu_ccd_, plan%pccarr_, plan%szccd_ )
-write(*,*)'rank=',myrank,' fft:r2c: 5'
       call CPU_TIME(t1); memtime = memtime + t1-t0
       call CPU_TIME(t0); 
       IF ( GP.EQ. 4 ) THEN
@@ -335,11 +314,9 @@ write(*,*)'rank=',myrank,' fft:r2c: 5'
       ELSE
       iret = cufftExecZ2Z(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_REAL_TO_COMPLEX)
       ENDIF
-write(*,*)'rank=',myrank,' fft:r2c: 6'
       call CPU_TIME(t1); ffttime = ffttime + t1-t0
       call CPU_TIME(t0); 
       iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd_, plan%szccd_ )
-write(*,*)'rank=',myrank,' fft:r2c: 7'
       call CPU_TIME(t1); memtime = memtime + t1-t0
 
 !     DO j = ista,iend
@@ -348,7 +325,6 @@ write(*,*)'rank=',myrank,' fft:r2c: 7'
 !        END DO
 !     END DO
       out = plan%ccarr
-write(*,*)'rank=',myrank,' fft:r2c: 7'
 
       RETURN
       END SUBROUTINE fftp2d_real_to_complex
@@ -399,12 +375,12 @@ write(*,*)'rank=',myrank,' fft:r2c: 7'
 !
 ! 1D FFT in each node using the FFTCU library
 !
-!     plan%ccarr = in
-      DO j = ista,iend
-         DO i = 1,plan%n
-             plan%ccarr(i,j) = in(i,j)
-         END DO
-      END DO
+      plan%ccarr = in
+!     DO j = ista,iend
+!        DO i = 1,plan%n
+!            plan%ccarr(i,j) = in(i,j)
+!        END DO
+!     END DO
       call CPU_TIME(t0);
       iret = cudaMemCpyHost2Dev(plan%cu_ccd_, plan%pccarr_, plan%szccd_ )
       call CPU_TIME(t1); memtime = memtime + t1-t0
@@ -427,7 +403,8 @@ write(*,*)'rank=',myrank,' fft:r2c: 7'
          DO jj = 1,plan%n,csize
             DO i = ii,min(iend,ii+csize-1)
             DO j = jj,min(plan%n,jj+csize-1)
-               c1(i,j) = plan%ccarr(j,i)
+!              Recall that ccarr is dimensioned (:,:), starting at (1,1):
+               c1(i,j) = plan%ccarr(j,i-ista+1)
             END DO
             END DO
          END DO
