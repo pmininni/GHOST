@@ -11,51 +11,6 @@
 
 MODULE cuda_bindings
 
-!USE ISO_C_BINDING
-!ENUM, BIND(C) 
-!  ENUMERATOR :: 
-!  cudaSuccess                       =0 ,   & 
-!  cudaErrorMissingConfigurationa    =1 ,   &
-!  cudaErrorMemoryAllocation         =2 ,   &
-!  cudaErrorInitializationError      =3 ,   &
-!  cudaErrorLaunchFailure            =4 ,   &
-!  cudaErrorPriorLaunchFailure       =5 ,   &
-!  cudaErrorLaunchTimeout            =6 ,   &
-!  cudaErrorLaunchOutOfResources     =7 ,   &
-!  cudaErrorInvalidDeviceFunction    =8 ,   &
-!  cudaErrorInvalidConfiguration     =9 ,   &
-!  cudaErrorInvalidDevice            =10,   &
-!  cudaErrorInvalidValue             =11,   &
-!  cudaErrorInvalidPitchValue        =12,   &
-!  cudaErrorInvalidSymbol            =13,   &
-!  cudaErrorMapBufferObjectFailed    =14,   &
-!  cudaErrorUnmapBufferObjectFailed  =15,   &
-!  cudaErrorInvalidHostPointer       =16,   &
-!  cudaErrorInvalidDevicePointer     =17,   &
-!  cudaErrorInvalidTexture           =18,   &
-!  cudaErrorInvalidTextureBinding    =19,   &
-!  cudaErrorInvalidChannelDescriptor =20,   &
-!  cudaErrorInvalidMemcpyDirection   =21,   &
-!  cudaErrorAddressOfConstant        =22,   &
-!  cudaErrorTextureFetchFailed       =23,   &
-!  cudaErrorTextureNotBound          =24,   &
-!  cudaErrorSynchronizationError     =25,   &
-!  cudaErrorInvalidFilterSetting     =26,   &
-!  cudaErrorInvalidNormSetting       =27,   &
-!  cudaErrorMixedDeviceExecution     =28,   &
-!  cudaErrorCudartUnloading          =29,   &
-!  cudaErrorUnknown                  =30,   &
-!  cudaErrorNotYetImplemented        =31,   &
-!  cudaErrorMemoryValueTooLarge      =32,   &
-!  cudaErrorInvalidResourceHandle    =33,   &
-!  cudaErrorNotReady                 =34,   &
-!  cudaErrorInsufficientDriver       =35,   &
-!  cudaErrorSetOnActiveProcess       =36,   &
-!  cudaErrorNoDevice                 =37,   &
-!  cudaErrorStartupFailure           =38,   &
-!  cudaErrorApiFailureBase           =39
-!END ENUM
-
  INTERFACE
 
 !!!!!!!!!!!!!!!!!!!! Management utilities !!!!!!!!!!!!!!!!!!!!!!!!
@@ -132,8 +87,7 @@ MODULE cuda_bindings
     USE iso_c_binding
     IMPLICIT NONE
     TYPE(C_PTR),value       :: devdst, hostsrc
- !  REAL, DIMENSION (:,:)   :: hostsrc
-    INTEGER(C_INT),value :: count
+    INTEGER(C_SIZE_T),value :: count
   END FUNCTION cudaMemcpyHost2Dev
 
 !*****************************************************************
@@ -148,8 +102,7 @@ MODULE cuda_bindings
     USE iso_c_binding
     IMPLICIT NONE
     TYPE(C_PTR),value      :: devsrc, hostdst
- !  REAL, DIMENSION (:,:)  :: hostdst
-    INTEGER(C_INT),value:: count
+    INTEGER(C_SIZE_T),value:: count
   END FUNCTION cudaMemcpyDev2Host
  
 !*****************************************************************
@@ -161,8 +114,8 @@ MODULE cuda_bindings
   INTEGER(C_INT) function cudaMalloc(buffer, isize)  bind(C,name="cudaMalloc")
     USE, INTRINSIC :: iso_c_binding
     IMPLICIT NONE
-    TYPE(C_PTR)           :: buffer
-    INTEGER(C_INT), value :: isize
+    TYPE(C_PTR)              :: buffer
+    INTEGER(C_SIZE_T), value :: isize
   END FUNCTION cudaMalloc
  
 !*****************************************************************
@@ -174,25 +127,25 @@ MODULE cuda_bindings
 !            cudaHostAllocPortable, cudaHostAllocDefault. If the last
 !            is used, this function seems to behave the same as cudaMallocHost.
 !*****************************************************************
-  INTEGER(C_INT) function cudaHostAlloc(buffer, isize, flag)  bind(C,name="cudaHostAlloc")
+  INTEGER(C_INT) function cudaHostAlloc(buffer, isize, flags)  bind(C,name="cudaHostAlloc")
     USE, INTRINSIC :: iso_c_binding
     IMPLICIT NONE
     TYPE(C_PTR)            :: buffer
     INTEGER(C_SIZE_T),value:: isize
-    INTEGER(C_INT),value   :: flag
+    INTEGER(C_INT),value   :: flags
   END FUNCTION cudaHostAlloc
 
 !*****************************************************************
 !*****************************************************************
-! cudaHoetAlloc
+! cudaMallocHost
 !    buffer: void** pointer
 !    isize : integer byte size of buffer
 !*****************************************************************
   INTEGER(C_INT) function cudaMallocHost(buffer, isize)  bind(C,name="cudaMallocHost")
     USE, INTRINSIC :: iso_c_binding
     IMPLICIT NONE
-    TYPE(C_PTR)            :: buffer
-    INTEGER(C_INT), value  :: isize
+    TYPE(C_PTR)               :: buffer
+    INTEGER(C_SIZE_T), value  :: isize
   END FUNCTION cudaMallocHost
 
  

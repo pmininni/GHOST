@@ -51,16 +51,21 @@
       INTEGER, INTENT(IN) :: flags
       TYPE(FFTPLAN), INTENT(OUT) :: plan
 
-      INTEGER             :: iret, i1(2), i2(2), i3(2)
+      INTEGER             :: iret, nm, i1(2), i2(2), i3(2)
 
 
       plan%szccd_= 2* n     *(iend-ista+1)*GP
       plan%szcd_ = 2*(n/2+1)*(jend-jsta+1)*GP
       plan%szrd_ =    n     *(jend-jsta+1)*GP
+      iret = 0
+      nm   = 0
 
-      iret = cudaMallocHost ( plan%pccarr_,  plan%szccd_ )
-      iret = cudaMallocHost ( plan%pcarr_, plan%szcd_ )
-      iret = cudaMallocHost ( plan%prarr_, plan%szrd_ )
+!     iret = iret + cudaMallocHost ( plan%pccarr_,  plan%szccd_ ); nm = nm + 1
+!     iret = iret + cudaMallocHost ( plan%pcarr_, plan%szcd_ )   ; nm = nm + 1
+!     iret = iret + cudaMallocHost ( plan%prarr_, plan%szrd_ )   ; nm = nm + 1
+      iret = iret + cudaHostAlloc ( plan%pccarr_,  plan%szccd_, cudaHostAllocPortable ); nm = nm + 1
+      iret = iret + cudaHostAlloc ( plan%pcarr_, plan%szcd_, cudaHostAllocPortable)   ; nm = nm + 1
+      iret = iret + cudaHostAlloc ( plan%prarr_, plan%szrd_, cudaHostAllocPortable )   ; nm = nm + 1
 
       i1(1) = n    ; i1(2) = iend-ista+1;
       i2(1) = n/2+1; i2(2) = jend-jsta+1;
@@ -68,27 +73,32 @@
       call c_f_pointer ( plan%pccarr_, plan%ccarr, i1 )
       call c_f_pointer ( plan%pcarr_ , plan%carr , i2 )
       call c_f_pointer ( plan%prarr_ , plan%rarr , i3 )
-
-!     ALLOCATE ( plan%ccarr(n,ista:iend)    )
-!     ALLOCATE ( plan%carr(n/2+1,jsta:jend) )
-!     ALLOCATE ( plan%rarr(n,jsta:jend)     )
 !
       IF (fftdir.eq.FFTCU_REAL_TO_COMPLEX) THEN
-      iret = cudaMalloc(plan%cu_ccd_, plan%szccd_)
-      iret = cudaMalloc(plan%cu_cd_ , plan%szcd_ )
-      iret = cudaMalloc(plan%cu_rd_ , plan%szrd_ )
+      iret = iret + cudaMalloc(plan%cu_ccd_, plan%szccd_); nm = nm + 1
+      iret = iret + cudaMalloc(plan%cu_cd_ , plan%szcd_ ); nm = nm + 1
+      iret = iret + cudaMalloc(plan%cu_rd_ , plan%szrd_ ); nm = nm + 1
       ! reverse order of rank for C-calling order:
 !     CALL c_f_pointer(plan%icuplanr_, plan%icuplanr_)
-      iret = cufftPlan1d(plan%icuplanr_, n, CUFFT_R2C, jend-jsta+1)
-      iret = cufftPlan1d(plan%icuplanc_, n, CUFFT_C2C, iend-ista+1)
+      iret = iret + cufftPlan1d(plan%icuplanr_, n, CUFFT_R2C, jend-jsta+1); 
+      nm = nm + 1
+      iret = iret + cufftPlan1d(plan%icuplanc_, n, CUFFT_C2C, iend-ista+1); 
+      nm = nm + 1
       ELSE
-      iret = cudaMalloc(plan%cu_ccd_, plan%szccd_)
-      iret = cudaMalloc(plan%cu_cd_ , plan%szcd_ )
-      iret = cudaMalloc(plan%cu_rd_ , plan%szrd_ )
-      iret = cufftPlan1d(plan%icuplanr_, n    , CUFFT_C2R, jend-jsta+1)
-      iret = cufftPlan1d(plan%icuplanc_, n, CUFFT_C2C, iend-ista+1)
+      iret = iret + cudaMalloc(plan%cu_ccd_, plan%szccd_); nm = nm + 1
+      iret = iret + cudaMalloc(plan%cu_cd_ , plan%szcd_ ); nm = nm + 1
+      iret = iret + cudaMalloc(plan%cu_rd_ , plan%szrd_ ); nm = nm + 1
+      iret = iret + cufftPlan1d(plan%icuplanr_, n    , CUFFT_C2R, jend-jsta+1)
+      nm = nm + 1
+      iret = iret + cufftPlan1d(plan%icuplanc_, n, CUFFT_C2C, iend-ista+1)
+      nm = nm + 1
       ENDIF
       plan%n = n
+
+      IF ( (iret - nm*cudaSuccess) .NE. 0 ) THEN
+        WRITE(*,*) 'fftp2d_create_plan: error in device allocations'
+        STOP
+      ENDIF
       
       ALLOCATE( plan%itype1(0:nprocs-1) )
       ALLOCATE( plan%itype2(0:nprocs-1) )
@@ -216,23 +226,35 @@
       INTEGER, INTENT(IN)                 :: comm
       INTEGER :: i,iret,j
       INTEGER :: ii,jj
-      INTEGER :: irank
+      INTEGER :: irank,idev
       INTEGER :: isendTo,igetFrom
       INTEGER :: istrip,iproc
 
 !
 ! 1D real-to-complex FFT in each node using the FFTCU library
-      
-      DO j = jsta,jend
-         DO i = 1,plan%n
-            plan%rarr(i,j) = in(i,j)
-         END DO
-      END DO
+write(*,*)'rank=',myrank,' fft:r2c: 0'
+if ( .not. c_associated(plan%prarr_,c_loc(plan%rarr) ) ) then
+  write(*,*)'fftp2d_real_to_complex: prarr_ and rarr not associated!!'
+  stop
+endif
+!write(*,*)'rank=',myrank, ' f2c: rarr=', plan%rarr
+!     DO j = jsta,jend
+!        DO i = 1,plan%n
+!           plan%rarr(i,j) = in(i,j)
+!        END DO
+!     END DO
+      plan%rarr = in
 
+write(*,*)'rank=',myrank,' fft:r2c: 0.1'
+!write(*,*)'rank=',myrank,' fft:r2c: getting device............'
+!iret = cudaGetDevice(idev)
+!write(*,*)'rank=',myrank,' fft:r2c: ...................................idev=',idev,' iret=',iret
 
 ! data sent to cufftXXXXXX must reside on device:
       call CPU_TIME(t0)
+write(*,*)'rank=',myrank,' fft:r2c: 0.3'
       iret = cudaMemCpyHost2Dev(plan%cu_rd_, plan%prarr_, plan%szrd_ )
+write(*,*)'rank=',myrank,' fft:r2c: 0.4'
       call CPU_TIME(t1); memtime = memtime + t1-t0
  
       call CPU_TIME(t0)
@@ -241,10 +263,16 @@
       ELSE
         iret = cufftExecD2Z(plan%icuplanr_, plan%cu_rd_, plan%cu_cd_)
       ENDIF
+write(*,*)'rank=',myrank,' fft:r2c: 0.5'
+      call MPI_BARRIER(MPI_COMM_WORLD,ierr)
+write(*,*)'rank=',myrank,' fft:r2c: 0.6'
       call CPU_TIME(t1); ffttime = ffttime + t1-t0
       call CPU_TIME(t0)
       iret = cudaMemCpyDev2Host(plan%pcarr_, plan%cu_cd_, plan%szcd_ )
       call CPU_TIME(t1); memtime = memtime + t1-t0
+write(*,*)'rank=',myrank,' fft:r2c: 0.7'
+      call MPI_BARRIER(MPI_COMM_WORLD,ierr)
+write(*,*)'rank=',myrank,' fft:r2c: 0.8'
 
 ! NOTE: If nrocs = 1, then we can carry out the transpose directly
 !       on the CUDA device.
@@ -252,7 +280,9 @@
 ! Transposes the result between nodes using 
 ! strip mining when nstrip>1 (rreddy@psc.edu)
 !
+write(*,*)'rank=',myrank,' fft:r2c: 1'
       call CPU_TIME(t0)
+write(*,*)'rank=',myrank,' fft:r2c: 2'
       do iproc = 0, nprocs-1, nstrip
          do istrip=0, nstrip-1
             irank = iproc + istrip
@@ -275,26 +305,29 @@
             CALL MPI_WAIT(ireq2(irank),istatus,ierr)
          enddo
       enddo
+write(*,*)'rank=',myrank,' fft:r2c: 3'
 
 !
 ! Cache friendly transposition
 !
 
-      DO ii = ista,iend,csize
-         DO jj = 1,plan%n,csize
-            DO i = ii,min(iend,ii+csize-1)
-            DO j = jj,min(plan%n,jj+csize-1)
-               plan%ccarr(j,i) = c1(i,j)
-            END DO
-            END DO
-         END DO
-      END DO
+!     DO ii = ista,iend,csize
+!        DO jj = 1,plan%n,csize
+!           DO i = ii,min(iend,ii+csize-1)
+!           DO j = jj,min(plan%n,jj+csize-1)
+!              plan%ccarr(j,i) = c1(i,j)
+!           END DO
+!           END DO
+!        END DO
+!     END DO
+write(*,*)'rank=',myrank,' fft:r2c: 4'
       call CPU_TIME(t1); tratime = tratime + t1-t0
 !
 ! 1D FFT in each node using the FFTCU library
 !
       call CPU_TIME(t0); 
       iret = cudaMemCpyHost2Dev(plan%cu_ccd_, plan%pccarr_, plan%szccd_ )
+write(*,*)'rank=',myrank,' fft:r2c: 5'
       call CPU_TIME(t1); memtime = memtime + t1-t0
       call CPU_TIME(t0); 
       IF ( GP.EQ. 4 ) THEN
@@ -302,16 +335,20 @@
       ELSE
       iret = cufftExecZ2Z(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_REAL_TO_COMPLEX)
       ENDIF
+write(*,*)'rank=',myrank,' fft:r2c: 6'
       call CPU_TIME(t1); ffttime = ffttime + t1-t0
       call CPU_TIME(t0); 
       iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd_, plan%szccd_ )
+write(*,*)'rank=',myrank,' fft:r2c: 7'
       call CPU_TIME(t1); memtime = memtime + t1-t0
 
-      DO j = ista,iend
-         DO i = 1,plan%n
-             out(i,j) = plan%ccarr(i,j)
-         END DO
-      END DO
+!     DO j = ista,iend
+!        DO i = 1,plan%n
+!            out(i,j) = plan%ccarr(i,j)
+!        END DO
+!     END DO
+      out = plan%ccarr
+write(*,*)'rank=',myrank,' fft:r2c: 7'
 
       RETURN
       END SUBROUTINE fftp2d_real_to_complex

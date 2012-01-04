@@ -41,8 +41,8 @@
          TYPE     (C_PTR)                              :: cu_ccd_, cu_cd_, cu_rd_
          TYPE     (C_PTR)                              :: pccarr_, pcarr_, prarr_
          INTEGER  (C_INT)                              :: icuplanr_, icuplanc_
-         INTEGER :: n
-         INTEGER :: szccd_, szcd_, szrd_
+         INTEGER  :: n
+         INTEGER(C_SIZE_T) :: szccd_, szcd_, szrd_
          INTEGER, DIMENSION (:), POINTER :: itype1, itype2
       END TYPE FFTPLAN
       SAVE
