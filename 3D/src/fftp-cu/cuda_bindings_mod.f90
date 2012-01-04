@@ -3,7 +3,7 @@
 ! Provides Fortran bindings for a variety of CUDA functions.
 !
 ! 2011 Duane Rosenberg, Pablo D. Mininni
-!      Copyright 2011
+!      Copyright 2011-2012
 !      National Center for Atmospheric Research
 !      e-mail: mininni@df.uba.ar 
 !

@@ -1,6 +1,6 @@
 !=================================================================
 ! MODULES for FFTP v3
-! Parallel Fast Fourier Transform in 2D using CUDA
+! Parallel Fast Fourier Transform in 3D using CUDA
 !
 ! 2011 Duane L. Rosenberg and Pablo D. Mininni.
 !      National Center for Atmospheric Research.

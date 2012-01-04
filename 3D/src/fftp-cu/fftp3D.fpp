@@ -11,10 +11,8 @@
 ! derived data types for message passing using the subroutine 
 ! 'fftp3d_create_block'.
 !
-! 2010 Pablo D. Mininni
-!      Department of Physics, 
-!      Facultad de Ciencias Exactas y Naturales.
-!      Universidad de Buenos Airet.
+! 2011 Duane Rosenberg & Pablo D. Mininni
+!      National Center for Atmospheric Research
 !      e-mail: mininni@df.uba.ar 
 !
 ! References:
