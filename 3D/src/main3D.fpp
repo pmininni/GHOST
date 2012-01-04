@@ -162,6 +162,11 @@
 #ifdef EDQNM_
       USE edqnm
 #endif
+#if defined(DEF_GHOST_CUDA_)
+      USE, INTRINSIC :: iso_c_binding
+      USE cuda_bindings
+      USE cutypes
+#endif
 
       IMPLICIT NONE
 
@@ -282,6 +287,9 @@
 #endif
 !$    INTEGER, EXTERNAL :: omp_get_max_threads
 
+#if defined(DEF_GHOST_CUDA_)
+       TYPE(cudaDeviceProp) :: devprop
+#endif
       TYPE(IOPLAN) :: planio
       CHARACTER(len=100) :: odir,idir
 
@@ -335,13 +343,34 @@
 
 !
 ! Initializes the MPI and I/O libraries
-
       CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       CALL range(1,n,nprocs,myrank,ksta,kend)
       CALL io_init(myrank,n,ksta,kend,planio)
+
+#if defined(DEF_GHOST_CUDA_)
+! Initializes CUDA by selecting device. The list of devices must
+! correspond to the MPI rank mod NUM_CUDA_DEV, which is defined
+! in the makefile:
+     iret = cudaGetDeviceCount(ncuda)
+     idevice = mod(myrank,ncuda)
+     iret = cudaSetDevice(idevice);
+     IF ( iret .EQ. cudaErrorInvalidDevice ) THEN
+!    IF ( iret .NE. cudaSuccess ) THEN
+       WRITE(*,*)'MAIN: Invalid CUDA device selected: ', &
+       idevice, '; myrank=',myrank, '; NUM_CUDA_DEV=',ncuda
+       STOP
+     ENDIF
+     iret = cudaGetDeviceProperties(devprop,idevice)
+     IF ( devprop%major .GT. 999 ) THEN
+       WRITE(*,*)'MAIN: CUDA device emulation not allowed!'
+       STOP
+     ENDIF
+     iret = cudaGetDevice(idevice)
+     WRITE(*,*)'MAIN: idev=',idevice, ' rank=', myrank
+#endif
 
 !
 ! Initializes the FFT library
