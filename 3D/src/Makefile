@@ -69,7 +69,7 @@ FFTTLDFLAGS = $(FFT$(FFTTYPE)LDFLAGS)
 FFTPDIR     = $(GHOME)/$(FFTPDIR$(P_CUDA))
 
 LDFLAGS     = $(MPILIB) -L$(FFTLIBDIR) $(FFTTLIB)$(MPILDFLAGS) $(FFTTLDFLAGS)
-INCLUDE     = $(MPIINC) -I$(FFTTINC) -I$(FFTPDIR) -I$(GHOME)/$(IOLIB) -I$(GHOME)/utils -Iinclude
+INCLUDE     = $(MPIINC) -I$(FFTTINC) -I$(FFTPDIR) -I$(GHOME)/$(IOLIB) -I$(GHOME)/utils 
 CPPFLAGS    = -D$(SOLVER)_SOL $(CUDA_GHOST$(P_CUDA))
 PREPROCESS  = $(CPP) $(CPPFLAGS)
 COMPILE     = $(FC) $(FFLAGS) $(DO_HYBRID$(P_HYBRID)) $(INCLUDE) $(TARGET_ARCH) -c
@@ -156,7 +156,7 @@ edit:
            DO_HYBRID='DO_HYBRID$(P_HYBRID)'	
 	cd $(UTILS) && $(MAKE) edit CPP='$(CPP)' IKIND='$(IKIND)' \
 	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)' \
-	   DO_HYBRID='DO_HYBRID$(P_HYBRID)'	
+	   DO_HYBRID='DO_HYBRID$(P_HYBRID)' P_CUDA='$(P_CUDA)'
 	cd ../
 	if [ ${UNDER} -eq 1 ]; then \
 	if [ -e main3D.fpp.bak ]; then \
@@ -210,9 +210,9 @@ $(FFTPDIR)/fftp3D.o:
 	cd $(FFTPDIR) && $(MAKE) COMPILE='$(COMPILE)' CUCOMPILE='$(CUCOMPILE)'
 
 $(UTILS)/gutils_mod.o:
-	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)'
-$(UTILS)/regridutils.o:
-	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)'
+	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)' 
+#$(UTILS)/regridutils.o:
+#	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)' P_CUDA='$(P_CUDA)'
 
 $(IOLIB)/binary_io.o:
 	cd $(IOLIB) && $(MAKE) COMPILE='$(COMPILE)' 
