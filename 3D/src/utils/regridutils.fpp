@@ -1,4 +1,6 @@
+#if !defined(DEF_GHOST_CUDA_)
 #include "fftw_wrappers.h"
+#endif
 !*****************************************************************
       SUBROUTINE fftp3d_create_trblock(n,nt,nprocs,myrank,itype1,itype2)
 !-----------------------------------------------------------------
@@ -123,6 +125,7 @@
       ALLOCATE ( plan%carr(nt/2+1,nt,ksta:kend) )
       ALLOCATE ( plan%rarr(nt,nt,ksta:kend)     )
 
+#if !defined(DEF_GHOST_CUDA_)
       IF ( fftdir.EQ.FFTW_REAL_TO_COMPLEX ) THEN
       CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/nt,nt/),kend-ksta+1,  &
                        plan%rarr,(/nt,nt*(kend-ksta+1)/),1,nt*nt, &
@@ -135,6 +138,7 @@
       CALL GPMANGLE(plan_many_dft)(plan%planc,1,nt,nt*(iend-ista+1), &
                        plan%ccarr,nt*nt*(iend-ista+1),1,nt,     &
                        plan%ccarr,nt*nt*(iend-ista+1),1,nt,fftdir,flags)
+#endif
       plan%n = nt
       ALLOCATE( plan%itype1(0:nprocs-1) )
       ALLOCATE( plan%itype2(0:nprocs-1) )
