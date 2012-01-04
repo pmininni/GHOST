@@ -20,7 +20,6 @@
 ! Gomez DO, Mininni PD, Dmitruk P; Phys. Scripta T116, 123 (2005)
 ! Gomez DO, Mininni PD, Dmitruk P; Adv. Sp. Res. 35, 899 (2005)
 !=================================================================
-#include "fftw_wrappers.h"
 
 !*****************************************************************
       SUBROUTINE fftp3d_init_threads(err) 

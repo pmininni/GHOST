@@ -35,9 +35,9 @@
       DOUBLE PRECISION    :: memtime = 0.0
       DOUBLE PRECISION    :: tratime = 0.0
       TYPE FFTPLAN
-         COMPLEX(KIND=GP), POINTER, DIMENSION (:,:)    :: ccarr
-         COMPLEX(KIND=GP), POINTER, DIMENSION (:,:)    :: carr
-         REAL   (KIND=GP), POINTER, DIMENSION (:,:)    :: rarr
+         COMPLEX(KIND=GP), POINTER, DIMENSION (:,:,:)  :: ccarr
+         COMPLEX(KIND=GP), POINTER, DIMENSION (:,:,:)  :: carr
+         REAL   (KIND=GP), POINTER, DIMENSION (:,:,:)  :: rarr
          TYPE     (C_PTR)                              :: cu_ccd_, cu_cd_, cu_rd_
          TYPE     (C_PTR)                              :: pccarr_, pcarr_, prarr_
          INTEGER  (C_INT)                              :: icuplanr_, icuplanc_

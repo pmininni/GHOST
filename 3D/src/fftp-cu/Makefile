@@ -3,7 +3,7 @@
 # Pablo Daniel Mininni - 10/04/2003
 #****************************************************************************
 
-FOBJS  = fprecision_mod.o fftp_mod.o cuda_bindings_mod.o fftp.o fftp3D.o 
+FOBJS  = fprecision_mod.o fftp_mod.o cuda_bindings_mod.o fftp3D.o 
 CUOBJS = cuda_utils.o
 
 all: $(FOBJS) $(CUOBJS)
