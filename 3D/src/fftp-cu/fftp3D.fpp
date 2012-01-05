@@ -76,9 +76,9 @@
       INTEGER             :: iret, i1(3), i2(3), i3(3)
 
 
-      plan%szccd_= 2* n     *(iend-ista+1)*GP
-      plan%szcd_ = 2*(n/2+1)*(jend-jsta+1)*GP
-      plan%szrd_ =    n     *(jend-jsta+1)*GP
+      plan%szccd_= 2* n     *n*(iend-ista+1)*GP
+      plan%szcd_ = 2*(n/2+1)*n*(jend-jsta+1)*GP
+      plan%szrd_ =    n     *n*(jend-jsta+1)*GP
 
       iret = cudaMallocHost ( plan%pccarr_, plan%szccd_ )
       iret = cudaMallocHost ( plan%pcarr_ , plan%szcd_  )
@@ -90,6 +90,7 @@
       call c_f_pointer ( plan%pccarr_, plan%ccarr, i1 )
       call c_f_pointer ( plan%pcarr_ , plan%carr , i2 )
       call c_f_pointer ( plan%prarr_ , plan%rarr , i3 )
+!     REAL(KIND=GP), INTENT(IN), DIMENSION(plan%n,plan%n,ksta:kend)     :: in
 
 !
       IF (fftdir.eq.FFTCU_REAL_TO_COMPLEX) THEN
@@ -239,11 +240,13 @@
       INTEGER :: istrip,iproc
 !
 ! 2D real-to-complex FFT in each node using the FFTCU library
-      
+     
+write(*,*)'rank=',myrank,' f2c: 0' 
       plan%rarr = in
 !
 ! Data sent to cufftXXXXXX must reside on device:
       call CPU_TIME(t0)
+write(*,*)'rank=',myrank,' f2c: 1' 
       iret = cudaMemCpyHost2Dev(plan%cu_rd_, plan%prarr_, plan%szrd_ )
       call CPU_TIME(t1); memtime = memtime + t1-t0
  
@@ -255,6 +258,7 @@
       ENDIF
       call CPU_TIME(t1); ffttime = ffttime + t1-t0
       call CPU_TIME(t0)
+write(*,*)'rank=',myrank,' f2c: 2' 
       iret = cudaMemCpyDev2Host(plan%pcarr_, plan%cu_cd_, plan%szcd_ )
       call CPU_TIME(t1); memtime = memtime + t1-t0
 
@@ -265,6 +269,7 @@
 ! strip mining when nstrip>1 (rreddy@psc.edu)
 !
       call CPU_TIME(t0)
+write(*,*)'rank=',myrank,' f2c: 3' 
       do iproc = 0, nprocs-1, nstrip
          do istrip=0, nstrip-1
             irank = iproc + istrip
@@ -288,6 +293,7 @@
          enddo
       enddo
 
+write(*,*)'rank=',myrank,' f2c: 4' 
 !
 ! Cache friendly transposition
 !
@@ -308,12 +314,14 @@
             END DO
          END DO
       END DO
+write(*,*)'rank=',myrank,' f2c: 5' 
       call CPU_TIME(t1); tratime = tratime + t1-t0
 !
 ! 1D FFT in each node using the FFTCU library
 !
       call CPU_TIME(t0); 
       iret = cudaMemCpyHost2Dev(plan%cu_ccd_, plan%pccarr_, plan%szccd_ )
+write(*,*)'rank=',myrank,' f2c: 6' 
       call CPU_TIME(t1); memtime = memtime + t1-t0
       call CPU_TIME(t0); 
       IF ( GP.EQ. 4 ) THEN
@@ -321,12 +329,15 @@
       ELSE
       iret = cufftExecZ2Z(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_REAL_TO_COMPLEX)
       ENDIF
+write(*,*)'rank=',myrank,' f2c: 7' 
       call CPU_TIME(t1); ffttime = ffttime + t1-t0
       call CPU_TIME(t0); 
       iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd_, plan%szccd_ )
       call CPU_TIME(t1); memtime = memtime + t1-t0
+write(*,*)'rank=',myrank,' f2c: 8' 
 
       out = plan%ccarr
+write(*,*)'rank=',myrank,' f2c: done.' 
 
       RETURN
       END SUBROUTINE fftp3d_real_to_complex
@@ -378,23 +389,28 @@
 !
 ! 1D FFT in each node using the FFTCU library
 !
+write(*,*)'rank=',myrank,' c2f: 0' 
       plan%ccarr = in
      
+write(*,*)'rank=',myrank,' c2f: 1' 
       call CPU_TIME(t0);
       iret = cudaMemCpyHost2Dev(plan%cu_ccd_, plan%pccarr_, plan%szccd_ )
       call CPU_TIME(t1); memtime = memtime + t1-t0
       call CPU_TIME(t0);
+write(*,*)'rank=',myrank,' c2f: 2' 
       IF ( GP.EQ. 4 ) THEN
       iret = cufftExecC2C(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_COMPLEX_TO_REAL)
       ELSE
       iret = cufftExecZ2Z(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_COMPLEX_TO_REAL)
       ENDIF
+write(*,*)'rank=',myrank,' c2f: 3' 
       call CPU_TIME(t1); ffttime = ffttime + t1-t0
       call CPU_TIME(t0);
       iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd_, plan%szccd_ )
       call CPU_TIME(t1); memtime = memtime + t1-t0
 
       call CPU_TIME(t0);
+write(*,*)'rank=',myrank,' c2f: 4' 
 !
 ! Cache friendly transposition
 !
@@ -414,6 +430,7 @@
             END DO
          END DO
       END DO
+write(*,*)'rank=',myrank,' c2f: 5' 
 
 !
 ! Transposes the result between nodes using 
@@ -441,14 +458,15 @@
             CALL MPI_WAIT(ireq2(irank),istatus,ierr)
          enddo
       enddo
+write(*,*)'rank=',myrank,' c2f: 6' 
 
       call CPU_TIME(t1); tratime = tratime + t1-t0
 !
 ! 2D FFT in each node using the FFTCU library
 !
-
       call CPU_TIME(t0);
       iret = cudaMemCpyHost2Dev(plan%cu_cd_, plan%pcarr_, plan%szcd_ )
+write(*,*)'rank=',myrank,' c2f: 7' 
       call CPU_TIME(t1); memtime = memtime + t1-t0
       call CPU_TIME(t0);
       IF ( GP.EQ. 4 ) THEN
@@ -456,11 +474,14 @@
       ELSE
       iret = cufftExecZ2D(plan%icuplanr_, plan%cu_cd_, plan%cu_rd_)
       ENDIF
+write(*,*)'rank=',myrank,' c2f: 8' 
       call CPU_TIME(t1); ffttime = ffttime + t1-t0
       call CPU_TIME(t0);
       iret = cudaMemCpyDev2Host(plan%prarr_, plan%cu_rd_, plan%szrd_ )
       call CPU_TIME(t1); memtime = memtime + t1-t0
+write(*,*)'rank=',myrank,' c2f: 9' 
       out = plan%rarr
+write(*,*)'rank=',myrank,' c2f: done.' 
 
       RETURN
       END SUBROUTINE fftp3d_complex_to_real
