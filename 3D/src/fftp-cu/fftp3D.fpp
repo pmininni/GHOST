@@ -77,8 +77,8 @@
 
 
       plan%szccd_= 2* n     *n*(iend-ista+1)*GP
-      plan%szcd_ = 2*(n/2+1)*n*(jend-jsta+1)*GP
-      plan%szrd_ =    n     *n*(jend-jsta+1)*GP
+      plan%szcd_ = 2*(n/2+1)*n*(kend-ksta+1)*GP
+      plan%szrd_ =    n     *n*(kend-ksta+1)*GP
 
       iret = cudaMallocHost ( plan%pccarr_, plan%szccd_ )
       iret = cudaMallocHost ( plan%pcarr_ , plan%szcd_  )
@@ -307,7 +307,7 @@ write(*,*)'rank=',myrank,' f2c: 4'
                DO j = jj,min(plan%n,jj+csize-1)
                DO k = kk,min(plan%n,kk+csize-1)
                  !Recall that ccarr is dimensioned (:,:), starting at (1,1):
-                  plan%ccarr(k,j,i-ista) = c1(i,j,k)
+                  plan%ccarr(k,j,i-ista+1) = c1(i,j,k)
                END DO
                END DO
                END DO
@@ -423,7 +423,7 @@ write(*,*)'rank=',myrank,' c2f: 4'
                DO j = jj,min(plan%n,jj+csize-1)
                DO k = kk,min(plan%n,kk+csize-1)
                  !Recall that ccarr is dimensioned (:,:), starting at (1,1):
-                  c1(i,j,k) = plan%ccarr(k,j,i-ista)
+                  c1(i,j,k) = plan%ccarr(k,j,i-ista+1)
                END DO
                END DO
                END DO
