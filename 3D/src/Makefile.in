@@ -50,8 +50,8 @@ APPEND   = _
 
 # Fortran compiler and MPI distribution (see below)
 CUCOMPILER = NVIDIA
-COMPILER = GNU
-MPI      = MPICH
+COMPILER   = GNU
+MPI        = MPICH
 
 #****************************************************************************
 # Compiler and MPI library dependent section
