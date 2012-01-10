@@ -23,6 +23,11 @@ IOLIB    = mpiio
 # P_HYBRID=no   # MP-based parallelization only
 P_HYBRID = no
 
+# Parallelization model:
+# P_CUDA=yes  # CUDA-MPI hybridization
+# P_CUDA=no   # MPI- or hybrid- parallelization only
+P_CUDA   = no
+
 # FFTP:
 # fftp-2   builds FFTP-2 (links with FFTW 2.x)
 # fftp-3   builds FFTP-3 (links with FFTW 3.x)
@@ -44,6 +49,7 @@ UNDER    = 0
 APPEND   = _
 
 # Fortran compiler and MPI distribution (see below)
+CUCOMPILER = NVIDIA
 COMPILER = GNU
 MPI      = MPICH
 
@@ -93,6 +99,22 @@ FC_G95        = /opt/g95-x86_64-32/bin/g95
 FFLAGS_G95    = -O4 -w
 G95_OMP       = 
 TARGET_G95    = -msse
+#****************************************************************************
+# CUDA compilers:
+#****************************************************************************
+#
+# NVCC NVIDIA CUDA compiler:
+CUCC_NVIDIA     = nvcc
+CUINC_NVIDIA    = /usr/local/cuda_4.0.17/cuda/include
+CULIBDIR_NVIDIA = /usr/local/cuda_4.0.17/cuda/lib64
+CULIB_NVIDIA    = -lcudart -lcufft
+CUCFLAGS_NVIDIA =
+CULDFLAGS_NVIDIA=
+CUGENCODE_NVIDIA=
+CUARCH_NVIDIA   =
+
+#****************************************************************************
+#  MPI libraries:
 #****************************************************************************
 #
 # MPICH
