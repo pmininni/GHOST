@@ -23,6 +23,7 @@
 !           MHD_SOL       builds the MHD solver
 !           MHDB_SOL      builds the MHD solver with uniform B_0
 !           HMHD_SOL      builds the Hall-MHD solver
+!           HMHDB_SOL     builds the HMHD solver with uniform B_0
 !           ROTH_SOL      builds the HD solver in a rotating frame
 !           PROTH_SOL     builds the ROTH solver with passive scalar
 !           BOUSS_SOL     builds the BOUSS solver 
@@ -47,6 +48,7 @@
 ! 30 Aug 2009: SINGLE/DOUBLE precision (D. Rosenberg & P. Mininni)
 !
 ! References:
+! Mininni PD, Rosenberg DL, Reddy R, Pouquet A.; P. Comp. 37, 123 (2011)
 ! Mininni PD, Gomez DO, Mahajan SM; Astrophys. J. 619, 1019 (2005)
 ! Gomez DO, Mininni PD, Dmitruk P; Phys. Scripta T116, 123 (2005)
 ! Gomez DO, Mininni PD, Dmitruk P; Adv. Sp. Res. 35, 899 (2005)
@@ -79,6 +81,13 @@
 #define DNS_
 #define MAGFIELD_
 #define HALLTERM_
+#endif
+
+#ifdef HMHDB_SOL
+#define DNS_
+#define MAGFIELD_
+#define HALLTERM_
+#define UNIFORMB_
 #endif
 
 #ifdef ROTH_SOL
@@ -1200,6 +1209,9 @@
 #ifdef HMHD_SOL
               INCLUDE 'mhd_adjustfv.f90'
 #endif
+#ifdef HMHDB_SOL
+              INCLUDE 'mhd_adjustfv.f90'
+#endif
 #ifdef ROTH_SOL
               INCLUDE 'hd_adjustfv.f90'
 #endif
@@ -1406,6 +1418,9 @@
 #ifdef HMHD_SOL
             INCLUDE 'hmhd_global.f90'
 #endif
+#ifdef HMHDB_SOL
+            INCLUDE 'hmhd_global.f90'
+#endif
 #ifdef ROTH_SOL
             INCLUDE 'hd_global.f90'
 #endif
@@ -1497,6 +1512,9 @@
 #ifdef HMHD_SOL
             INCLUDE 'hmhd_spectrum.f90'
 #endif
+#ifdef HMHDB_SOL
+            INCLUDE 'hmhdb_spectrum.f90'
+#endif
 #ifdef ROTH_SOL
             INCLUDE 'roth_spectrum.f90'
 #endif
@@ -1553,6 +1571,9 @@
 #ifdef HMHD_SOL
          INCLUDE 'mhd_rkstep1.f90'
 #endif
+#ifdef HMHDB_SOL
+         INCLUDE 'mhd_rkstep1.f90'
+#endif
 #ifdef ROTH_SOL
          INCLUDE 'hd_rkstep1.f90'
 #endif
@@ -1603,6 +1624,9 @@
 #endif
 #ifdef HMHD_SOL
          INCLUDE 'hmhd_rkstep2.f90'
+#endif
+#ifdef HMHDB_SOL
+         INCLUDE 'hmhdb_rkstep2.f90'
 #endif
 #ifdef ROTH_SOL
          INCLUDE 'roth_rkstep2.f90'

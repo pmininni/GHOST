@@ -81,6 +81,7 @@ PHD_OBJS       = $(HD_OBJS) pseudospec3D_phd.o
 MHD_OBJS       = $(HD_OBJS) pseudospec3D_mhd.o
 MHDB_OBJS      = $(HD_OBJS) pseudospec3D_mhd.o pseudospec3D_rot.o
 HMHD_OBJS      = $(MHD_OBJS)
+HMHDB_OBJS     = $(MHDB_OBJS)
 ROTH_OBJS      = $(HD_OBJS) pseudospec3D_rot.o
 PROTH_OBJS     = $(PHD_OBJS) pseudospec3D_rot.o pseudospec3D_prot.o
 BOUSS_OBJS     = $(PROTH_OBJS) pseudospec3D_bouss.o

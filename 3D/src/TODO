@@ -7,8 +7,7 @@ ideas, or if there is something that you want to work on.
 * Add Alex's routines to compute partial fluxes together with the 
 shell-to-shell transfer.
 
-* Write compressible solvers (dgomez@df.uba.ar in charge of this?) and 
-solvers for stratified flows in the Boussinesq approximation.
+* Write compressible solvers.
 
 * Add FFT-Chebyshev routines to deal with non-periodic boundary 
 conditions.

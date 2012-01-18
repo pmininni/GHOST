@@ -28,8 +28,11 @@ to build a solver other than the default):
    MHD       Magnetohydrodynamic (MHD) solver
    MHDB      MHD solver with a uniform magnetic field
    HMHD      Hall-MHD solver
+   HMHD      HMHD solver with a uniform magnetic field
    ROTH      HD solver in a rotating frame
    PROTH     ROTH solver with passive scalar
+   BOUSS     Boussinesq solver
+   ROTBOUSS  BOUSS solver in a rotating frame
    LAHD      Lagrangian-averaged HD solver
    CAHD      Clark-alpha HD solver
    LHD       Leray HD solver
