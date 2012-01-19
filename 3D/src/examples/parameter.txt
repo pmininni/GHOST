@@ -66,14 +66,14 @@ injt = 0         ! injects a passive scalar if 1
 dyna = 0         ! dynamo run if 1
 /
 
-! Parameters for runs with uniform magnetic fields (MHDB solver)
+! Parameters for runs with uniform magnetic fields (MHDB, HMHDB solvers)
 &uniformb
 bx0 = 0.00       ! uniform magnetic field in x
 by0 = 0.00       ! uniform magnetic field in y
 bz0 = 1.00       ! uniform magnetic field in z
 /
 
-! Parameters for runs with the Hall term (HMHD solver)
+! Parameters for runs with the Hall term (HMHD, HMHDB solvers)
 &hallparam
 ep = 0.1         ! Hall length
 gspe = 1         ! computes generalized helicity if 1
@@ -99,4 +99,3 @@ alpm = 0.066     ! filter length for the magnetic field
 kolmo = 1.3      ! Kolmogorov constant
 heli = 1         ! Computes helical contribution to LES if 1
 /
-
