@@ -1,12 +1,12 @@
 !=================================================================
 ! PSEUDOSPECTRAL subroutines
 !
-! Extra subroutines to compute the passive scalar spectrum, 
-! transfer function, and associated global quantities in the 
-! HD, MHD, and Hall-MHD equations when a passive scalar is 
-! present. You should use the FFTPLANS and MPIVARS modules 
-! (see the file 'fftp_mod.f90') in each program that calls 
-! any of the subroutines in this file. 
+! Extra subroutines to compute the passive/active scalar 
+! spectrum, transfer function, and associated global quantities 
+! in the HD, MHD, Hall-MHD, and Boussinesq equations when a 
+! passive or active scalar is present. You should use the 
+! FFTPLANS and MPIVARS modules (see the file 'fftp_mod.f90') in 
+! each program that calls any of the subroutines in this file. 
 !
 ! NOTATION: index 'i' is 'x' 
 !           index 'j' is 'y'
@@ -32,7 +32,7 @@
 !     a: input matrix in the x-direction
 !     b: input matrix in the y-direction
 !     c: input matrix in the z-direction
-!     d: input matrix with the passive scalar
+!     d: input matrix with the scalar
 !     e: product (A.grad)B in Fourier space [output]
 !
       USE fprecision
@@ -106,7 +106,7 @@
       SUBROUTINE variance(a,b,kin)
 !-----------------------------------------------------------------
 !
-! Computes the mean variance of the passive scalar.
+! Computes the mean variance of the scalar.
 ! The output is only valid in the first node.
 !
 ! Parameters
@@ -262,8 +262,8 @@
 ! helicity, and null divergency of the velocity field
 !
 ! Parameters
-!     a : passive scalar concentration
-!     b : source of the passive scalar
+!     a : scalar concentration
+!     b : source of the scalar
 !     t : number of time steps made
 !     dt: time step
 !
@@ -304,11 +304,11 @@
       SUBROUTINE spectrsc(a,nmb)
 !-----------------------------------------------------------------
 !
-! Computes the passive scalar power spectrum. The 
+! Computes the passive/active scalar power spectrum. The 
 ! output is written to a file by the first node.
 !
 ! Parameters
-!     a  : input matrix with the passive scalar
+!     a  : input matrix with the scalar
 !     nmb: the extension used when writting the file
 !
       USE fprecision
@@ -389,12 +389,12 @@
       SUBROUTINE sctrans(a,b,nmb)
 !-----------------------------------------------------------------
 !
-! Computes the passive scalar transfer in Fourier 
-! space in 3D. The output is written to a file 
-! by the first node.
+! Computes the scalar transfer in Fourier space 
+! in 3D. The output is written to a file by the 
+! first node.
 !
 ! Parameters
-!     a  : passive scalar
+!     a  : scalar
 !     b  : nonlinear term
 !     nmb: the extension used when writting the file
 !
@@ -420,7 +420,7 @@
          Ek(i) = 0.
       END DO
 !
-! Computes the passive scalar transfer
+! Computes the scalar transfer
 !
       tmp = 1./real(n,kind=GP)**6
       IF (ista.eq.1) THEN

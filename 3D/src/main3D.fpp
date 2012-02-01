@@ -608,7 +608,8 @@
 ! namelist 'boussinesq' on the external file 'parameter.txt'
 !     bvfreq: Brunt-Vaisala frequency (positive definite)
 !     xmom  : multiplies bouyancy term in momentum equation
-!     xtemp : multiplies temperature-current term in temperature/density equation
+!     xtemp : multiplies temperature-current term in 
+!             temperature/density equation
 
       xmom  = 1.0
       xtemp = 1.0
@@ -628,8 +629,8 @@
 #ifdef SCALAR_
 !
 ! Reads general configuration flags for runs with 
-! a passive scalar from the namelist 'inject' on 
-! the external file 'parameter.txt'
+! a passive/active scalar from the namelist 'inject' 
+! on the external file 'parameter.txt'
 !     injt : = 0 when stat=0 generates initial v and th (SCALAR_)
 !            = 1 when stat.ne.0 imports v and generates th (SCALAR_)
 
@@ -641,7 +642,7 @@
       CALL MPI_BCAST(injt,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
 !
-! Reads parameters for the passive scalar from the 
+! Reads parameters for the passive/active scalar from the 
 ! namelist 'scalar' on the external file 'parameter.txt'
 !     s0   : amplitude of the passive scalar source
 !     c0   : amplitude of the initial concentration
@@ -912,7 +913,7 @@
 
       INCLUDE 'initialfv.f90'           ! mechanical forcing
 #ifdef SCALAR_
-      INCLUDE 'initialfs.f90'           ! passive scalar source
+      INCLUDE 'initialfs.f90'           ! scalar source
 #endif
 #ifdef MAGFIELD_
       INCLUDE 'initialfb.f90'           ! electromotive forcing

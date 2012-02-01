@@ -172,7 +172,14 @@ for data analysis after the runs are finished (these are:
 supports the SOLVER, PRECISION, IOLIB, and FFTP variables; see the 
 file 'SOLVERS' and the makefile for more details).
 
-2.3 Hybrid support
+2.3 Parallelization models
+
+By default, GHOST uses 1D domain decomposition with pure MPI 
+parallelization. This behavior can be changed with two settings 
+in the Makefile.in file, or equivalently with two variables that 
+can be passed to make at compile time.
+
+2.3.1 Hybrid parallelization
 
 The code provides support for OpenMP-MPI hybridization, for use in
 supercomputers with multi-core processors and for simulations using 
@@ -202,6 +209,29 @@ For the hybrid code to scale properly, processor affinity and/or
 binding are crucial. How to set processor affinity and binding is 
 platform dependent; check the platform documentation where you are 
 running for more information.
+
+2.3.2 CUDA support
+
+GHOST has experimental support for GPU-based computation of FFTs 
+using CUDA. To use this option, the NVIDIA CUDA Toolkit (the CUDA 
+compilers plus the GPU-accelerated math libraries) must be 
+installed in the system. Paths to the CUDA compiler and libraries 
+must be declared in the file Makefile.in (check all the variables 
+defined in the section "CUDA compilers" of Makefile.in).
+
+To enable this option, pass the following variable to make at 
+compile time:
+
+-------------------------------------------------------------------
+P_CUDA=yes
+-------------------------------------------------------------------
+
+Only one GPU can be used per MPI task. In systems with multiple 
+GPUs, the GPU binded to a given MPI task should be the one with 
+the fastest access to the CPU in which the MPI task is running. 
+How to set affinity between CPUs and GPUs is platform dependent; 
+check the platform documentation where you are running for more 
+information.
 
 2.4 About the solvers:
 

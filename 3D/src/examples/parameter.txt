@@ -45,10 +45,17 @@ mparam0 = 0.90   ! mparam0-9 can be used to control the forcing
 aparam0 = 0.10   ! idem for the initial magnetic field
 / 
 
-! Parameters for the passive scalar (PHD solver)
+! Parameters for the Boussinesq solvers (BOUSS, ROTBOUSS solvers)
+&boussinesq
+bvfreq = 0.10    ! Brunt-Vaisala frequency (positive definite)
+xmom = 1.00      ! multiplies bouyancy term in momentum equation
+xtemp = 1.00     ! multiplies temperature-current term in scalar eq.
+/
+
+! Parameters for the passive/active scalar (PHD, Boussiesq solvers)
 &scalar
 c0 = 0.00        ! amplitude of the initial concentration
-s0 = 1.00        ! amplitude of the passive scalar source
+s0 = 1.00        ! amplitude of the scalar source
 skdn = 1.00      ! minimum wavenumber
 skup = 2.00      ! maximum wavenumber
 kappa = 2.e-3    ! diffusivity
@@ -56,13 +63,13 @@ sparam0 = 0.90   ! cparam0-9 can be used to control the source
 cparam0 = 0.10   ! idem for the initial concentration
 / 
 
-! Configuration flags for runs with a passive scalar
+! Configuration flags for runs with a passive/active scalar
 &inject
 injt = 0         ! injects a passive scalar if 1
 /
 
 ! Configuration flags for runs with magnetic fields
-&dynamo
+n&dynamo
 dyna = 0         ! dynamo run if 1
 /
 
@@ -79,7 +86,7 @@ ep = 0.1         ! Hall length
 gspe = 1         ! computes generalized helicity if 1
 /
 
-! Parameters for runs with uniform rotation (ROTH solver)
+! Parameters for runs with uniform rotation (ROTH, ROTBOUSS solvers)
 &rotation
 omega = 10.00    ! uniform rotation in z
 /
