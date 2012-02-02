@@ -1,17 +1,34 @@
 GHOST code: Geophysical High Order Suite for Turbulence
 =======================================================
 
-The code and different solvers provided here numerically integrate the 
-hydrodynamic/magnetodydrodynamic/Hall-magnetodydrodynamic equations in 
-2 dimensions. For instalation details, see the README file in the 3D 
-directory. Here, we briefly give details of the differences between the 
-2D and 3D code.
+The code and different solvers provided here numerically integrate 
+the hydrodynamic/magnetodydrodynamic/Hall-magnetodydrodynamic 
+equations in 2 dimensions. For instalation details, see the README 
+file in the 3D directory. Here, we briefly give details of the 
+differences between the 2D and 3D code.
 
-1. Hybrid support
-=================
+1. Parallelization models
+=========================
 
-The 2D code has no hybrid (MPI+OpenMP) support. Only parallelization 
-with MPI is available.
+1.1 Hybrid parallelization
+ 
+The 2D code has no hybrid (MPI+OpenMP) support. Only MPI-based 
+parallelization is available.
+
+1.2 CUDA support
+
+The 2D code has CUDA (MPI+CUDA) support for GPU-based computation 
+of FFTs using CUDA. To use this option, the NVIDIA CUDA Toolkit 
+(the CUDA compilers plus the GPU-accelerated math libraries) must 
+be installed in the system, and the path to the CUDA compilers and 
+libraries must be declared in Makefile.in. To enable CUDA support, 
+pass the following variable to make at compile time:
+
+-------------------------------------------------------------------
+P_CUDA=yes
+-------------------------------------------------------------------
+
+See the README file in the 3D directory for more details.
 
 2. Solvers 
 ==========

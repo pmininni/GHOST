@@ -44,6 +44,17 @@ mparam0 = 0.90   ! mparam0-9 can be used to control the forcing
 aparam0 = 0.10   ! idem for the initial magnetic field
 / 
 
+! Parameters for the passive/active scalar (PHD, SWHD solvers)
+&scalar
+c0 = 1.00        ! initial amplitude of the scalar
+s0 = 0.00        ! amplitude of the forcing (topography in SW)
+skdn = 1.00      ! minimum wavenumber
+skup = 2.00      ! maximum wavenumber
+kappa = 2.e-3    ! diffusivity (ignored in SW solvers)
+sparam0 = 0.90   ! sparam0-9 can be used to control the forcing
+cparam0 = 0.10   ! idem for the initial amplitude of the scalar
+/
+
 ! Parameters for runs with uniform magnetic fields (MHDB solver)
 &uniformb
 by0 = 0.00       ! uniform magnetic field in y
@@ -52,4 +63,9 @@ by0 = 0.00       ! uniform magnetic field in y
 ! Parameters for runs with the Hall term (HMHD solver)
 &hallparam
 ep = 0.1         ! Hall length
+/
+
+! Parameters for shallow-water runs (SWHD solver)
+&gravity
+g = 2.00         ! effective gravity
 /

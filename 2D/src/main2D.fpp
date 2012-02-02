@@ -22,6 +22,7 @@
 !           MHDB_SOL      builds the MHD solver with uniform B_0
 !           HMHD_SOL      builds the Hall-MHD solver (2.5D)
 !           SQG_SOL       builds the surface quasigeostrophic solver
+!           SWHD_SOL      builds the shallow-water (SW) HD solver
 !
 ! 2004 Pablo D. Mininni.
 !      Department of Physics, 
@@ -31,6 +32,7 @@
 !
 ! 1 Oct 2010: Main program for all solvers (HD/MHD/HMHD)
 ! 13 May 2011: SQG solver (Tomas Teitelbaum, teitelbaum@df.uba.ar)
+! 1 Feb 2012: SWHD solver (Patricio Clark, patoclark@gmail.com)
 !=================================================================
 
 !
@@ -71,6 +73,13 @@
 #ifdef SQG_SOL
 #define DNS_
 #define STREAM_
+#endif
+
+#ifdef SWHD_SOL
+#define DNS_
+#define VELOC_
+#define SCALAR_
+#define SW_
 #endif
 
 !
@@ -118,10 +127,15 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: bz,mz
 #endif
 #endif
+#ifdef VELOC_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: vx,vy
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: fx,fy
+#endif
 #ifdef SCALAR_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: th
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: fs
 #endif
+
 !
 ! Temporal data storage arrays
 
@@ -129,13 +143,17 @@
 #ifdef VECPOT_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: C3,C4,C5
 #endif
-#ifdef SCALAR_
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: C3,C4,C5,C12
-#endif
 #ifdef HALLTERM_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: C6,C7
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: C8,C9
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: C10,C11
+#endif
+#ifdef SCALAR_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: C12,C13
+#endif
+#ifdef VELOC_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: C14,C15
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: C16
 #endif
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:)    :: R1
 #ifdef VECPOT_
@@ -173,15 +191,18 @@
       REAL(KIND=GP) :: aparam5,aparam6,aparam7,aparam8,aparam9
 #endif
 #ifdef SCALAR_
-      REAL(KIND=GP)    :: skup,skdn,kappa
-      REAL(KIND=GP)    :: c0,s0
-      REAL(KIND=GP)    :: cparam0,cparam1,cparam2,cparam3,cparam4
-      REAL(KIND=GP)    :: cparam5,cparam6,cparam7,cparam8,cparam9
-      REAL(KIND=GP)    :: sparam0,sparam1,sparam2,sparam3,sparam4
-      REAL(KIND=GP)    :: sparam5,sparam6,sparam7,sparam8,sparam9
+      REAL(KIND=GP) :: skup,skdn,kappa
+      REAL(KIND=GP) :: c0,s0
+      REAL(KIND=GP) :: cparam0,cparam1,cparam2,cparam3,cparam4
+      REAL(KIND=GP) :: cparam5,cparam6,cparam7,cparam8,cparam9
+      REAL(KIND=GP) :: sparam0,sparam1,sparam2,sparam3,sparam4
+      REAL(KIND=GP) :: sparam5,sparam6,sparam7,sparam8,sparam9
 #endif
 #ifdef UNIFORMB_
       REAL(KIND=GP) :: by0
+#endif
+#ifdef SW_
+      REAL(KIND=GP) :: g
 #endif
 
       INTEGER :: idevice, iret, ncuda
@@ -225,12 +246,6 @@
       NAMELIST / magfield / aparam2,aparam3,aparam4,aparam5,aparam6
       NAMELIST / magfield / aparam7,aparam8,aparam9
 #endif
-#ifdef UNIFORMB_
-      NAMELIST / uniformb / by0
-#endif
-#ifdef HALLTERM_
-      NAMELIST / hallparam / ep
-#endif
 #ifdef SCALAR_
       NAMELIST / scalar / c0,s0,skdn,skup,kappa,cparam0,cparam1
       NAMELIST / scalar / cparam2,cparam3,cparam4,cparam5,cparam6
@@ -238,6 +253,15 @@
       NAMELIST / scalar / sparam2,sparam3,sparam4,sparam5,sparam6
       NAMELIST / scalar / sparam7,sparam8,sparam9
       NAMELIST / inject / injt
+#endif
+#ifdef UNIFORMB_
+      NAMELIST / uniformb / by0
+#endif
+#ifdef HALLTERM_
+      NAMELIST / hallparam / ep
+#endif
+#ifdef SW_
+      NAMELIST / gravity / g
 #endif
 
 !
@@ -248,6 +272,7 @@
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       CALL range(1,n,nprocs,myrank,jsta,jend)
       CALL io_init(myrank,n,jsta,jend,planio)
+
 !
 ! Initializes CUDA by selecting device. The list of devices must
 ! correspond to the MPI rank mod NUM_CUDA_DEV, which is defined
@@ -257,7 +282,6 @@
      idevice = mod(myrank,ncuda)
      iret = cudaSetDevice(idevice);
      IF ( iret .EQ. cudaErrorInvalidDevice ) THEN
-!    IF ( iret .NE. cudaSuccess ) THEN
        WRITE(*,*)'MAIN: Invalid CUDA device selected: ', &
        idevice, '; myrank=',myrank, '; NUM_CUDA_DEV=',ncuda
        STOP
@@ -270,7 +294,7 @@
      iret = cudaGetDevice(idevice)
      WRITE(*,*)'MAIN: idev=',idevice, ' rank=', myrank
 #endif
-     
+
 !
 ! Initializes the FFT library
 ! Use FFTW_ESTIMATE or FFTW_MEASURE in short runs
@@ -304,13 +328,18 @@
       ALLOCATE( R2(n,jsta:jend) )
 #endif
 #ifdef SCALAR_
-      ALLOCATE( C3(n,ista:iend), C4(n,ista:iend) )
-      ALLOCATE( C5(n,ista:iend) )
-      ALLOCATE( C12(n,ista:iend) )
+      ALLOCATE( C12(n,ista:iend), C13(n,ista:iend) )
       ALLOCATE( th(n,ista:iend) )
       ALLOCATE( fs(n,ista:iend) )
 #endif
-
+#ifdef VELOC_
+      ALLOCATE( vx(n,ista:iend) )
+      ALLOCATE( vy(n,ista:iend) )
+      ALLOCATE( fx(n,ista:iend) )
+      ALLOCATE( fy(n,ista:iend) )
+      ALLOCATE( C14(n,ista:iend), C15(n,ista:iend) )
+      ALLOCATE( C16(n,ista:iend) )
+#endif
 
 !
 ! Some constants for the FFT
@@ -490,43 +519,11 @@
       CALL MPI_BCAST(aparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
-#ifdef UNIFORMB_
-!
-! Reads parameters for runs with a uniform magnetic 
-! field from the namelist 'uniformb' on the external 
-! file 'parameter.txt' 
-!     by0: uniform magnetic field in y
-
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
-         READ(1,NML=uniformb)
-         CLOSE(1)
-      ENDIF
-      CALL MPI_BCAST(by0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-#endif
-
-#ifdef HALLTERM_
-!
-! Reads parameters for runs with the Hall effect 
-! from the namelist 'hallparam' on the external 
-! file 'parameter.txt' 
-!     ep  : amplitude of the Hall effect
-!     gspe: = 0 skips generalized helicity spectrum computation
-!           = 1 computes the spectrum of generalized helicity
-
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
-         READ(1,NML=hallparam)
-         CLOSE(1)
-      ENDIF
-      CALL MPI_BCAST(ep,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-#endif
-
 #ifdef SCALAR_
 !
 ! Reads general configuration flags for runs with 
-! a passive scalar from the namelist 'inject' on 
-! the external file 'parameter.txt'
+! a passive/active scalar from the namelist 'inject' 
+! on the external file 'parameter.txt'
 !     injt : = 0 when stat=0 generates initial v and th (SCALAR_)
 !            = 1 when stat.ne.0 imports v and generates th (SCALAR_)
 
@@ -538,17 +535,17 @@
       CALL MPI_BCAST(injt,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
 !
-! Reads parameters for the passive scalar from the 
+! Reads parameters for the passive/active scalar from the 
 ! namelist 'scalar' on the external file 'parameter.txt'
-!     s0   : amplitude of the passive scalar source
-!     c0   : amplitude of the initial concentration
-!     skdn : minimum wave number in concentration/source
-!     skup : maximum wave number in concentration/source
-!     kappa: diffusivity
+!     s0   : amplitude of the scalar forcing (or topography)
+!     c0   : initial amplitude of the scalar
+!     skdn : minimum wave number in scalar/forcing
+!     skup : maximum wave number in scalar/forcing
+!     kappa: diffusivity (ignored in SW solvers)
 !     sparam0-9 : ten real numbers to control properties of 
-!            the source
+!            the forcing
 !     cparam0-9 : ten real numbers to control properties of
-!            the initial concentration
+!            the initial scalar distribution
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.txt',status='unknown',form="formatted")
@@ -582,17 +579,63 @@
       CALL MPI_BCAST(cparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
+#ifdef UNIFORMB_
+!
+! Reads parameters for runs with a uniform magnetic 
+! field from the namelist 'uniformb' on the external 
+! file 'parameter.txt' 
+!     by0: uniform magnetic field in y
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         READ(1,NML=uniformb)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(by0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+#endif
+
+#ifdef HALLTERM_
+!
+! Reads parameters for runs with the Hall effect 
+! from the namelist 'hallparam' on the external 
+! file 'parameter.txt' 
+!     ep  : amplitude of the Hall effect
+!     gspe: = 0 skips generalized helicity spectrum computation
+!           = 1 computes the spectrum of generalized helicity
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         READ(1,NML=hallparam)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(ep,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+#endif
+
+#ifdef SW_
+!
+! Reads parameters for runs solving shallow-water 
+! equations from the namelist 'gravity' on the 
+! external file 'parameter.txt' 
+!     g : amplitude of the effective gravity
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         READ(1,NML=gravity)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(g,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+#endif
 
 !
 ! Sets the external forcing
-      INCLUDE 'initialfv.f90'           ! mechanical forcing
+      INCLUDE 'initialfv.f90'        ! mechanical forcing
 #ifdef VECPOT_
-      INCLUDE 'initialfb.f90'           ! electromotive forcing
+      INCLUDE 'initialfb.f90'        ! electromotive forcing
 #endif 
 #ifdef SCALAR_
-      INCLUDE 'initialfs.f90'           ! passive scalar source
+      INCLUDE 'initialfs.f90'        ! passive/active scalar/topography
 #endif
-      
+
 ! If stat=0 we start a new run.
 ! Generates initial conditions for the fields.
 
@@ -600,20 +643,19 @@
  IC : IF (stat.eq.0) THEN
       
       ini = 1
-      sind = 0                          ! index for the spectrum
-      tind = 0                          ! index for the binaries
+      sind = 0                       ! index for the spectrum
+      tind = 0                       ! index for the binaries
       timet = tstep
       timec = cstep
       times = sstep
-      INCLUDE 'initialv.f90'            ! initial velocity
+      INCLUDE 'initialv.f90'         ! initial velocity
 #ifdef VECPOT_
-      INCLUDE 'initialb.f90'            ! initial vector potential
+      INCLUDE 'initialb.f90'         ! initial vector potential
 #endif
 #ifdef SCALAR_
-      INCLUDE 'initials.f90'            ! initial concentration
+      INCLUDE 'initials.f90'         ! initial scalar
 #endif
 
-      
       ELSE
 
 ! If stat.ne.0 a previous run is continued
@@ -642,12 +684,18 @@
       CALL fftp2d_real_to_complex(planrc,R1,bz,MPI_COMM_WORLD)
 #endif
 #endif
+#ifdef VELOC_
+      CALL io_read(1,idir,'vx',ext,planio,R1)
+      CALL fftp2d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
+      CALL io_read(1,idir,'vy',ext,planio,R1)
+      CALL fftp2d_real_to_complex(planrc,R1,vy,MPI_COMM_WORLD)
+#endif
 #ifdef SCALAR_
  INJ: IF (injt.eq.0) THEN
          CALL io_read(1,idir,'th',ext,planio,R1)
          CALL fftp2d_real_to_complex(planrc,R1,th,MPI_COMM_WORLD)
       ELSE
-         INCLUDE 'initials.f90'      ! initial concentration
+         INCLUDE 'initials.f90'      ! initial scalar
          ini = 1                     ! resets all counters (the
          sind = 0                    ! run starts at t=0)
          tind = 0
@@ -656,7 +704,6 @@
          times = sstep
       ENDIF INJ
 #endif
-
 
       ENDIF IC
 
@@ -692,7 +739,7 @@
                cdumq = corr*cdump+(1-corr)*(COS(phase)+im*SIN(phase))
                jdumq = corr*jdump+(1-corr)*conjg(cdump)
 #endif
-#ifdef SCALAR_
+#if defined(SCALAR_) && !defined(SW_)
                IF (myrank.eq.0) phase = 2*pi*randu(seed)
                CALL MPI_BCAST(phase,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
                cdumr = COS(phase)+im*SIN(phase)
@@ -717,7 +764,7 @@
                      mz(n-j+2,1) = mz(n-j+2,1)*jdump
 #endif
 #endif
-#ifdef SCALAR_
+#if defined(SCALAR_) && !defined(SW_)
                      fs(j,1) = fs(j,1)*cdumr
                      fs(n-j+2,1) = fs(n-j+2,1)*jdumr
 #endif
@@ -736,7 +783,7 @@
                         mz(j,i) = mz(j,i)*cdump
 #endif
 #endif
-#ifdef SCALAR_
+#if defined(SCALAR_) && !defined(SW_)
                         fs(j,i) = fs(j,i)*cdumr
 #endif
 
@@ -757,7 +804,7 @@
                         mz(j,i) = mz(j,i)*cdump
 #endif
 #endif
-#ifdef SCALAR_
+#if defined(SCALAR_) && !defined(SW_)
                         fs(j,i) = fs(j,i)*cdumr
 #endif
                      END DO
@@ -836,7 +883,6 @@
 #endif
 #endif
 #ifdef SCALAR_
-!$omp parallel do if (iend-ista.ge.nth) private (j)
             DO i = ista,iend
                DO j = 1,n
                   C1(j,i) = th(j,i)*rmp
@@ -844,6 +890,29 @@
             END DO
             CALL fftp2d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
             CALL io_write(1,odir,'th',ext,planio,R1)
+#endif
+#ifdef VELOC_
+            DO i = ista,iend
+               DO j = 1,n
+                  C1(j,i) = vx(j,i)*rmp
+                  C2(j,i) = vy(j,i)*rmp
+               END DO
+            END DO
+            IF (outs.ge.1) THEN
+               CALL derivk2(C2,C14,1)
+               CALL derivk2(C1,C15,2)
+               DO i = ista,iend
+                  DO j = 1,n
+                     C14(j,i) = C14(j,i)-C15(j,i)
+                  END DO
+               END DO
+               CALL fftp2d_complex_to_real(plancr,C15,R1,MPI_COMM_WORLD)
+               CALL io_write(1,odir,'wz',ext,planio,R1)
+            ENDIF
+            CALL fftp2d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+            CALL io_write(1,odir,'vx',ext,planio,R1)
+            CALL fftp2d_complex_to_real(plancr,C2,R1,MPI_COMM_WORLD)
+            CALL io_write(1,odir,'vy',ext,planio,R1)
 #endif
 
          ENDIF
@@ -870,6 +939,9 @@
 #endif
 #ifdef PHD_SOL
             INCLUDE 'phd_global.f90'
+#endif
+#ifdef SWHD_SOL
+            INCLUDE 'swhd_global.f90'
 #endif
          ENDIF
 
@@ -898,6 +970,9 @@
 #ifdef PHD_SOL
             INCLUDE 'phd_spectrum.f90'
 #endif
+#ifdef SWHD_SOL
+            INCLUDE 'swhd_spectrum.f90'
+#endif
          ENDIF
 
 ! Runge-Kutta step 1
@@ -922,9 +997,11 @@
          INCLUDE 'hd_rkstep1.f90'
 #endif
 #ifdef PHD_SOL
-            INCLUDE 'phd_rkstep1.f90'
+         INCLUDE 'phd_rkstep1.f90'
 #endif
-
+#ifdef SWHD_SOL
+         INCLUDE 'swhd_rkstep1.f90'
+#endif
 
          END DO
          END DO
@@ -949,7 +1026,10 @@
          INCLUDE 'sqg_rkstep2.f90'
 #endif
 #ifdef PHD_SOL
-            INCLUDE 'phd_rkstep2.f90'
+         INCLUDE 'phd_rkstep2.f90'
+#endif
+#ifdef SWHD_SOL
+         INCLUDE 'swhd_rkstep2.f90'
 #endif
          END DO
 
@@ -971,8 +1051,9 @@
          IF (myrank.eq.0) THEN
             OPEN(1,file='benchmark.txt',position='append')
             WRITE(1,*) n,(step-ini+1),nprocs, &
-                       (cputime2-cputime1)/(step-ini+1) , &
-                       ffttime/(step-ini+1), memtime/(step-ini+1), tratime/(step-ini+1)
+               (cputime2-cputime1)/(step-ini+1) , &
+               ffttime/(step-ini+1), memtime/(step-ini+1), &
+               tratime/(step-ini+1)
             CLOSE(1)
          ENDIF
       ENDIF
@@ -1004,7 +1085,12 @@
 #endif
 #ifdef SCALAR_
       DEALLOCATE( th,fs )
+      DEALLOCATE( C12,C13 )
 #endif
-
+#ifdef VELOC_
+      DEALLOCATE( vx,vy )
+      DEALLOCATE( fx,fy )
+      DEALLOCATE( C14,C15,C16 )
+#endif
 
       END PROGRAM MAIN2D
