@@ -47,7 +47,7 @@
       DO j = jsta,jend
          DO i = 1,n
             c1(i,j) = a(i,j)
-            c(i,j)2 = b(i,j)
+            c2(i,j) = b(i,j)
          END DO
       END DO
       CALL fftp2d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
