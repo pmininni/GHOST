@@ -205,7 +205,7 @@
       REAL(KIND=GP) :: g
 #endif
 
-      INTEGER :: idevice, iret, ncuda
+      INTEGER :: idevice, iret, ncuda, ngcuda, ppn
       INTEGER :: ini,step
       INTEGER :: tstep,cstep
       INTEGER :: sstep,fstep
@@ -269,31 +269,41 @@
       CALL MPI_INIT(ierr)
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
-      CALL range(1,n/2+1,nprocs,myrank,ista,iend)
-      CALL range(1,n,nprocs,myrank,jsta,jend)
-      CALL io_init(myrank,n,jsta,jend,planio)
 
 !
 ! Initializes CUDA by selecting device. The list of devices must
 ! correspond to the MPI rank mod NUM_CUDA_DEV, which is defined
 ! in the makefile:
 #if defined(DEF_GHOST_CUDA_)
+#if 1
      iret = cudaGetDeviceCount(ncuda)
-     idevice = mod(myrank,ncuda)
+     CALL MPI_REDUCE(ncuda,ngcuda,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+     ppn = G_PPN_
+     idevice = -1
+     iret = setaffinity_for_nvidia(myrank,ppn,idevice)
      iret = cudaSetDevice(idevice);
-     IF ( iret .EQ. cudaErrorInvalidDevice ) THEN
-       WRITE(*,*)'MAIN: Invalid CUDA device selected: ', &
-       idevice, '; myrank=',myrank, '; NUM_CUDA_DEV=',ncuda
-       STOP
-     ENDIF
-     iret = cudaGetDeviceProperties(devprop,idevice)
-     IF ( devprop%major .GT. 999 ) THEN
-       WRITE(*,*)'MAIN: CUDA device emulation not allowed!'
-       STOP
-     ENDIF
-     iret = cudaGetDevice(idevice)
-     WRITE(*,*)'MAIN: idev=',idevice, ' rank=', myrank
+#else
+      iret = cudaGetDeviceCount(ncuda)
+      idevice = mod(myrank,ncuda)
+      iret = cudaSetDevice(idevice);
+      IF ( iret .EQ. cudaErrorInvalidDevice ) THEN
+        WRITE(*,*)'MAIN: Invalid CUDA device selected: ', &
+        idevice, '; myrank=',myrank, '; NUM_CUDA_DEV=',ncuda
+        STOP
+      ENDIF
+      iret = cudaGetDeviceProperties(devprop,idevice)
+      IF ( devprop%major .GT. 999 ) THEN
+        WRITE(*,*)'MAIN: CUDA device emulation not allowed!'
+        STOP
+      ENDIF
+      iret = cudaGetDevice(idevice)
+      WRITE(*,*)'MAIN: idev=',idevice, ' rank=', myrank
 #endif
+#endif
+
+      CALL range(1,n/2+1,nprocs,myrank,ista,iend)
+      CALL range(1,n,nprocs,myrank,jsta,jend)
+      CALL io_init(myrank,n,jsta,jend,planio)
 
 !
 ! Initializes the FFT library
@@ -1050,10 +1060,15 @@
          CALL CPU_Time(cputime2)
          IF (myrank.eq.0) THEN
             OPEN(1,file='benchmark.txt',position='append')
+#if defined(DEF_GHOST_CUDA_)
+            WRITE(1,*) n,(step-ini+1),nprocs,ngcuda, &
+                       (cputime2-cputime1)/(step-ini+1) , &
+                       ffttime/(step-ini+1), tratime/(step-ini+1), memtime/(step-ini+1)
+#else
             WRITE(1,*) n,(step-ini+1),nprocs, &
-               (cputime2-cputime1)/(step-ini+1) , &
-               ffttime/(step-ini+1), memtime/(step-ini+1), &
-               tratime/(step-ini+1)
+                       (cputime2-cputime1)/(step-ini+1), &
+                       ffttime/(step-ini+1), tratime/(step-ini+1)
+#endif
             CLOSE(1)
          ENDIF
       ENDIF
