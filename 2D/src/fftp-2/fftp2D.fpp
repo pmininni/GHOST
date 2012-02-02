@@ -165,6 +165,8 @@
       COMPLEX(KIND=GP), DIMENSION(plan%n/2+1,jsta:jend)          :: c1
       COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%n)              :: c2
       REAL(KIND=GP), INTENT(IN), DIMENSION(plan%n,jsta:jend)     :: in
+      DOUBLE PRECISION                    :: t0, t1
+
 
       INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
@@ -178,12 +180,15 @@
 !
 ! 1D real-to-complex FFT in each node using the FFTW library
 !
+      CALL CPU_TIME(t0)
       CALL rfftwnd_f77_real_to_complex(plan%planr,jend-jsta+1,in,1, &
                                       plan%n,c1,1,plan%n/2+1)
+      CALL CPU_TIME(t1); ffttime = ffttime + t1-t0
 !
 ! Transposes the result between nodes using 
 ! strip mining when nstrip>1 (rreddy@psc.edu)
 !
+      CALL CPU_TIME(t0)
       do iproc = 0, nprocs-1, nstrip
          do istrip=0, nstrip-1
             irank = iproc + istrip
@@ -218,10 +223,13 @@
             END DO
          END DO
       END DO
+     CALL CPU_TIME(t1); tratime = tratime + t1-t0
 !
 ! 1D FFT in each node using the FFTW library
 !
+      CALL CPU_TIME(t0)
       CALL fftw_f77(plan%planc,iend-ista+1,out,1,plan%n,c2,1,plan%n)
+     CALL CPU_TIME(t1); ffttime = ffttime + t1-t0
 
       RETURN
       END SUBROUTINE fftp2d_real_to_complex
@@ -255,6 +263,8 @@
       COMPLEX(KIND=GP), DIMENSION(plan%n/2+1,jsta:jend)         :: c1
       COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%n)             :: c2
       REAL(KIND=GP), INTENT(OUT), DIMENSION(plan%n,jsta:jend)   :: out
+      DOUBLE PRECISION                    :: t0, t1
+
 
       INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
@@ -268,10 +278,13 @@
 !
 ! 1D FFT in each node using the FFTW library
 !
+      CALL CPU_TIME(t0)
       CALL fftw_f77(plan%planc,iend-ista+1,in,1,plan%n,c2,1,plan%n)
+      CALL CPU_TIME(t1); ffttime = ffttime + t1-t0
 !
 ! Cache friendly transposition
 !
+      CALL CPU_TIME(t0)
       DO ii = ista,iend,csize
          DO jj = 1,plan%n,csize
             DO i = ii,min(iend,ii+csize-1)
@@ -307,11 +320,14 @@
             CALL MPI_WAIT(ireq2(irank),istatus,ierr)
          enddo
       enddo
+      CALL CPU_TIME(t1); tratime = tratime + t1-t0
 !
 ! 1D FFT in each node using the FFTW library
 !
+      CALL CPU_TIME(t0)
       CALL rfftwnd_f77_complex_to_real(plan%planr,jend-jsta+1,c1,1, &
                                       plan%n/2+1,out,1,plan%n)
+      CALL CPU_TIME(t1); ffttime = ffttime + t1-t0
 
       RETURN
       END SUBROUTINE fftp2d_complex_to_real
