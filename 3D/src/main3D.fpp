@@ -401,7 +401,9 @@
 
       nth = 1
 !$    nth = omp_get_max_threads()
+#if !defined(DEF_GHOST_CUDA_)
 !$    CALL fftp3d_init_threads(ierr)
+#endif
       IF (bench.eq.2) THEN
          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
          CALL CPU_Time(cputime3)
