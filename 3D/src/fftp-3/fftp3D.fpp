@@ -82,6 +82,7 @@
       ALLOCATE ( plan%carr(n/2+1,n,ksta:kend) )
       ALLOCATE ( plan%rarr(n,n,ksta:kend)     )
 !$    CALL GPMANGLE(plan_with_nthreads)(nth)
+
       IF (fftdir.eq.FFTW_REAL_TO_COMPLEX) THEN
       CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/n,n/),kend-ksta+1,  &
                               plan%rarr,(/n,n*(kend-ksta+1)/),1,n*n, &
@@ -130,6 +131,7 @@
       RETURN
       END SUBROUTINE fftp3d_destroy_plan
 
+!*****************************************************************
 !*****************************************************************
       SUBROUTINE fftp3d_create_block(n,nprocs,myrank,itype1,itype2)
 !-----------------------------------------------------------------
@@ -204,6 +206,8 @@
       COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%n,plan%n)              :: c1
       REAL(KIND=GP), INTENT(IN), DIMENSION(plan%n,plan%n,ksta:kend)     :: in
 
+      DOUBLE PRECISION                    :: t0, t1
+
       INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
       INTEGER, INTENT(IN)                 :: comm
@@ -216,11 +220,17 @@
 !
 ! 2D FFT in each node using the FFTW library
 !
+      CALL CPU_TIME(t0)
       CALL GPMANGLE(execute_dft_r2c)(plan%planr,in,plan%carr)
+      CALL CPU_TIME(t1); ffttime = ffttime + t1-t0
+
+
+!
 !
 ! Transposes the result between nodes using 
 ! strip mining when nstrip>1 (rreddy@psc.edu)
 !
+      CALL CPU_TIME(t0)
       do iproc = 0, nprocs-1, nstrip
          do istrip=0, nstrip-1
             irank = iproc + istrip
@@ -230,7 +240,6 @@
 
             igetFrom = myrank - irank
             if ( igetFrom .lt. 0 ) igetFrom = igetFrom + nprocs
-
             CALL MPI_IRECV(c1,1,plan%itype2(igetFrom),igetFrom,      & 
                           1,comm,ireq2(irank),ierr)
             CALL MPI_ISEND(plan%carr,1,plan%itype1(isendTo),isendTo, &
@@ -261,10 +270,13 @@
             END DO
          END DO
       END DO
+      CALL CPU_TIME(t1); tratime = tratime + t1-t0
 !
 ! 1D FFT in each node using the FFTW library
 !
+      CALL CPU_TIME(t0)
       CALL GPMANGLE(execute_dft)(plan%planc,out,out)
+      CALL CPU_TIME(t1); ffttime = ffttime + t1-t0
 
       RETURN
       END SUBROUTINE fftp3d_real_to_complex
@@ -299,6 +311,8 @@
       COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%n,plan%n)             :: c1
       REAL(KIND=GP), INTENT(OUT), DIMENSION(plan%n,plan%n,ksta:kend)   :: out
 
+      DOUBLE PRECISION                    :: t0, t1
+
       INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
       INTEGER, INTENT(IN)                 :: comm
@@ -310,8 +324,12 @@
 
 !
 ! 1D FFT in each node using the FFTW library
-!
+
+      CALL CPU_TIME(t0)
       CALL GPMANGLE(execute_dft)(plan%planc,in,in)
+      CALL CPU_TIME(t1); ffttime = ffttime + t1-t0
+
+      CALL CPU_TIME(t0)
 !
 ! Cache friendly transposition
 !
@@ -343,7 +361,6 @@
 
             igetFrom = myrank - irank
             if ( igetFrom .lt. 0 ) igetFrom = igetFrom + nprocs
-
             CALL MPI_IRECV(plan%carr,1,plan%itype1(igetFrom),igetFrom, & 
                           1,comm,ireq2(irank),ierr)
             CALL MPI_ISEND(c1,1,plan%itype2(isendTo),isendTo, &
@@ -356,10 +373,13 @@
             CALL MPI_WAIT(ireq2(irank),istatus,ierr)
          enddo
       enddo
+      CALL CPU_TIME(t1); tratime = tratime + t1-t0
 !
 ! 2D FFT in each node using the FFTW library
 !
+      CALL CPU_TIME(t0)
       CALL GPMANGLE(execute_dft_c2r)(plan%planr,plan%carr,out)
+      CALL CPU_TIME(t1); ffttime = ffttime + t1-t0
 
       RETURN
       END SUBROUTINE fftp3d_complex_to_real
