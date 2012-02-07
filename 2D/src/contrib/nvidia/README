@@ -1,0 +1,50 @@
+
+This file describes the setaffinity_for_nvidia API.  Call this routine early in your code:
+
+	for serial or OpenACC code, call soon after main()
+	
+	for MPI code, call soon after MPI_Init()
+	
+The idea is to call the code before large blocks of memory for program data occupy Numa nodes
+on the host system.  For best Nvidia GPU performance with the host memory, you want to migrate 
+the host process to cpu cores on the PCI bus with your target GPU.
+
+The c function prototype for setaffinity_for_nvidia is:
+
+  int setaffinity_for_nvidia(int my_rank, int PPN, int my_gpu);
+
+Requirements: A linux system running with at least CUDA 4.x 
+
+Description: setaffinity_for_nvidia() sets the cpu core affinity for the current process by following the
+  gpu -> pci_bus -> cpulistaffinity mapping through the /proc and /sys filesystem interfaces
+  to the kernel data for the Nvidia driver and the system pci_bus core affinity.
+  
+  This routine should be called early in your program, before large data structures are assigned to
+  a (potentially distant) numa node.
+  
+Arguments:
+
+   PPN is number of mpi processes per node as specified via traditional batch systems, the
+   assertion here is that there is a 1:1 mapping of my_rank <-> my_gpu.  If set, the MPI_PPN
+   environment variable will override the value of PPN.  This would be useful with MPI codes where
+   the PPN is subject to change due to a heterogenous mix of nodes and hardware configurations in a cluster.
+
+   my_gpu may be passed in, or if it is less than 0, setaffinity() will choose a my_gpu using the typical
+   rank%PPN logic seen in MPI gpu programs.  If set, the MYCUDADEVICE environment variable will override
+   the value of my_gpu.  This may be helpful with serial codes running on multi-gpu hosts and driven from
+   a job workflow script.
+
+Caveats:
+   For MPI apps, the modulo logic works with ranks assigned in node-packed order. Round-robin
+   rank layouts would need different arithmetic to get the correct core <-> gpu mapping.
+   
+Compile, Link hints and tips:
+   
+   Add -D_GNU_SOURCE to the compile command for setaffinity_for_nvidia.c to allow the CPU_ZERO (and 
+   similar) macros to be resolved.
+   
+   You may find it simpler to call setaffinity_for_nvidia() from a source file built without Nvidia's 
+   nvcc compiler.  setaffinity_for_nvidia.c should be compiled with your build environment's normal c
+   compiler.
+   
+   
