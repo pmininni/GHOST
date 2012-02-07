@@ -29,6 +29,7 @@ CUGENCODE    = $(CUGENCODE_$(CUCOMPILER))
 CUARCH       = $(CUARCH_$(CUCOMPILER))
 
 GHOME       = $(PWD)
+CONTRIB     = $(GHOME)/contrib
 
 # FFTW library variables:
 FFTW2SINGLE = s
@@ -53,7 +54,11 @@ FFTCULIBDIR = $(CULIBDIR_$(CUCOMPILER))
 FFTCULIB    = $(CULIB_$(CUCOMPILER))
 
 CUDA_GHOSTno   =
-CUDA_GHOSTyes  = -DDEF_GHOST_CUDA_
+CUDA_GHOSTyes  = -DDEF_GHOST_CUDA_ -DG_PPN_=$(PPN)
+CUDA_OBJSno    =
+CUDA_OBJSyes   = $(CONTRIB)/nvidia/setaffinity_for_nvidia.o
+
+CONTRIBOBJS    = $(CUDA_OBJS$(P_CUDA))
 
 # FFT Target variables derived from above FFT library quantities:
 FFTTYPEno   = W
@@ -73,6 +78,7 @@ INCLUDE     = $(MPIINC) -I$(FFTTINC) -I$(FFTPDIR) -I$(GHOME)/$(IOLIB) -I$(GHOME)
 CPPFLAGS    = -D$(SOLVER)_SOL $(CUDA_GHOST$(P_CUDA))
 PREPROCESS  = $(CPP) $(CPPFLAGS)
 COMPILE     = $(FC) $(FFLAGS) $(DO_HYBRID$(P_HYBRID)) $(INCLUDE) $(TARGET_ARCH) -c
+CCOMPILE    = $(CC) $(CFLAGS) $(INCLUDE) $(TARGET_ARCH) -c
 CUCOMPILE   = $(CUCC) $(CUGENCODE) $(CUARCH) -I$(CUINC) $(CUFLAGS) -c
 BIN         = ../bin
 
@@ -99,10 +105,10 @@ STRU_OBJS      = pseudospec3D_shf.o
 OBJS           = $($(SOLVER)_OBJS)
 UTILS          = utils
 OBJSDIR        = pseudo
-SUBDIRS        = posix mpiio fftp-2 fftp-3 fftp-cu utils
+SUBDIRS        = posix mpiio fftp-2 fftp-3 fftp-cu utils $(CONTRIB)/nvidia
 EXTRASDIR      = analysis
 
-all: edit $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(UTILS)/gutils_mod.o $(OBJS) $(SOLVER) undo
+all: edit $(CONTRIBOBJS) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(UTILS)/gutils_mod.o $(OBJS) $(SOLVER) undo
 
 main: all
 
@@ -192,7 +198,7 @@ undo:
 $(SOLVER):
 	$(PREPROCESS) main3D.fpp -o $(SOLVER).f90
 	$(COMPILE) $(SOLVER).f90
-	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(OBJS) \
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(CONTRIBOBJS) $(OBJS) \
            $(SOLVER).o $(LDFLAGS) -o ../bin/$(SOLVER)
 
 trans$(SOLVER) triad$(SOLVER):
@@ -212,11 +218,12 @@ $(FFTPDIR)/fftp3D.o:
 
 $(UTILS)/gutils_mod.o:
 	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)' 
-#$(UTILS)/regridutils.o:
-#	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)' P_CUDA='$(P_CUDA)'
 
 $(IOLIB)/binary_io.o:
 	cd $(IOLIB) && $(MAKE) COMPILE='$(COMPILE)' 
+
+$(CONTRIB)/nvidia/setaffinity_for_nvidia.o:
+	cd $(CONTRIB)/nvidia && $(MAKE) CCOMPILE='$(CCOMPILE) -D_GNU_SOURCE' 
 
 $(OBJS) $(TRAN_OBJS) $(STRU_OBJS):
 	$(COMPILE) $(OBJSDIR)/$(@:.o=.f90)

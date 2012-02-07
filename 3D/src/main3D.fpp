@@ -274,7 +274,7 @@
       REAL(KIND=GP)    :: omega
 #endif
 
-      INTEGER :: idevice, iret, ncuda
+      INTEGER :: idevice, iret, ncuda, ngcuda, ppn
       INTEGER :: ini,step
       INTEGER :: tstep,cstep
       INTEGER :: sstep,fstep
@@ -356,17 +356,25 @@
       CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
-      CALL range(1,n/2+1,nprocs,myrank,ista,iend)
-      CALL range(1,n,nprocs,myrank,ksta,kend)
-      CALL io_init(myrank,n,ksta,kend,planio)
 
 #if defined(DEF_GHOST_CUDA_)
-! Initializes CUDA by selecting device. The list of devices must
-! correspond to the MPI rank mod NUM_CUDA_DEV, which is defined
-! in the makefile:
-     iret = cudaGetDeviceCount(ncuda)
+#if 1
+! Initializes CUDA for Linux-based systems. This is a call to an
+! NVIDIA-developed intermediary code that gets the GPU dev. no. 
+! by looking in cpu_info and finding the device that resides on 
+! its PCI bus:
+     iret = cudaGetDeviceCount(ncuda)  ! diagnostic , for now
+     CALL MPI_REDUCE(ncuda,ngcuda,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+     ppn     = G_PPN_
+     idevice = -1
+     iret    = setaffinity_for_nvidia(myrank,ppn,idevice)
+     iret    = cudaSetDevice(idevice);
+#else
+! Initializes CUDA by selecting device. The list of devices can
+! be changed by the modifying the env. variable CUDA_VISIBLE_DEVICES:
+     iret    = cudaGetDeviceCount(ncuda)
      idevice = mod(myrank,ncuda)
-     iret = cudaSetDevice(idevice);
+     iret    = cudaSetDevice(idevice);
      IF ( iret .EQ. cudaErrorInvalidDevice ) THEN
 !    IF ( iret .NE. cudaSuccess ) THEN
        WRITE(*,*)'MAIN: Invalid CUDA device selected: ', &
@@ -379,8 +387,11 @@
        STOP
      ENDIF
      iret = cudaGetDevice(idevice)
-     WRITE(*,*)'MAIN: idev=',idevice, ' rank=', myrank
 #endif
+#endif
+      CALL range(1,n/2+1,nprocs,myrank,ista,iend)
+      CALL range(1,n,nprocs,myrank,ksta,kend)
+      CALL io_init(myrank,n,ksta,kend,planio)
 
 !
 ! Initializes the FFT library
@@ -397,9 +408,9 @@
 !$       omptime3 = omp_get_wtime()
       ENDIF
       CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
-                             FFTW_PATIENT)
+                             FFTW_ESTIMATE)
       CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
-                             FFTW_PATIENT)
+                             FFTW_ESTIMATE)
       IF (bench.eq.2) THEN
          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
          CALL CPU_Time(cputime4)
