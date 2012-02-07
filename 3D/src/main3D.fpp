@@ -1696,7 +1696,7 @@
                        (omptime2-omptime1)/(step-ini+1), &
                        ffttime/(step-ini+1), tratime/(step-ini+1), memtime/(step-ini+1)
 #else
-            WRITE(1,*) n,(step-ini+1),nprocs, &
+            WRITE(1,*) n,(step-ini+1),nprocs,nth, &
                        (cputime2-cputime1)/(step-ini+1), &
                        ffttime/(step-ini+1), tratime/(step-ini+1)
 #endif
