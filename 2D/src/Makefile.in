@@ -4,7 +4,7 @@
 
 # N        spatial resolution
 # ORD      number of iterations in the Runge-Kutta method
-N        = 128
+N        = 1024
 ORD      = 2
 
 # SOLVER:  (read the file SOLVERS for a list of options)
@@ -21,15 +21,19 @@ IOLIB    = mpiio
 # Parallelization model:
 # P_CUDA=yes  # CUDA-MPI hybridization
 # P_CUDA=no   # MPI- or hybrid- parallelization only
+# PPN = <number>      # number of MPI tasks per node; required for device affinity.
+#                       Can be overridden at runtime by setting MPI_PPN env. variable.
 P_CUDA   = no
+PPN      = 6
 
 # FFTP:
 # fftp-2   builds FFTP-2 (links with FFTW 2.x)
 # fftp-3   builds FFTP-3 (links with FFTW 3.x)
 # FFTWxDIR contains the path to the FFTW libraries; not used if using CUDA
 FFTP     = fftp-3
-FFTW2DIR = /opt/fftw-2.1.5
-FFTW3DIR = /opt/fftw-3.1.2
+FFTW2DIR = 
+#FFTW3DIR = /usr/apps/math/fftw/intel/3.3.0/openmpi-1.4.3
+FFTW3DIR = /home/duaner/lib/fftw-3.1.2_gccf
 
 # IKIND    4 in 32 bits machines, 8 in 64 bits machines
 # CSIZE    8 if L1 cache is <= 64 kb, 16 if L1 cache is 128 kb
@@ -55,22 +59,29 @@ MPI        = MPICH
 # Portland compiler (PGI)
 CPP_PGI       = /usr/bin/cpp -traditional-cpp
 FC_PGI        = /opt/pgi/linux86/8.0-5/bin/pgf90
+CC_PGI        = /opt/pgi/linux86/8.0-5/bin/pgcc
 FFLAGS_PGI    = -fastsse -Minline -Minfo=loop,inline -Mneginfo -g77libs
+CFLAGS_PGI    = -fastsse -Minline -Minfo=loop,inline -Mneginfo 
 PGI_OMP       = -mp
 TARGET_PGI    =
 #
 # XLF compiler
 CPP_XLF       = /usr/ccs/lib/cpp -P
 FC_XLF        = mpxlf90_r
+CC_XLF        = mpxlc_r
 FFLAGS_XLF    = -q64 -O5 -qenablevmx -qhot=simd -qipa=malloc16 -qvecnvol \
   -qalign -Q -qsuffix=f=f90 -bdatapsize:64K -bstackpsize:64K
+CFLAGS_XLF    = -q64 -O5 -qenablevmx -qhot=simd -qipa=malloc16 -qvecnvol \
+  -qalign -Q -bdatapsize:64K -bstackpsize:64K
 XLF_OMP       = -qsmp=omp 
 TARGET_XLF    = -qarch=auto -qtune=auto -qcache=auto
 #
 # ABSOFT compiler
 CPP_ABSOFT    = /usr/bin/cpp -traditional-cpp
 FC_ABSOFT     = /usr/absoft/bin/f90
+CC_ABSOFT     = /usr/absoft/bin/cc
 FFLAGS_ABSOFT = -O -YEXT_SFX=__ -YEXT_NAMES=LCS
+CFLAGS_ABSOFT = -O 
 ABSOFT_OMP    = 
 TARGET_ABSOFT =
 #
@@ -84,24 +95,28 @@ TARGET_INTEL  =
 # GFortran compiler (GNU)
 CPP_GNU       = /usr/bin/cpp -traditional-cpp
 FC_GNU        = gfortran
+CC_GNU        = gcc
 FFLAGS_GNU    = -O4
+CFLAGS_GNU    = -O4
 GNU_OMP       = -fopenmp
 TARGET_GNU    = -msse
 #
 # G95 compiler (G95)
 CPP_G95       = /usr/bin/cpp -traditional-cpp -P
 FC_G95        = /opt/g95-x86_64-32/bin/g95
+CC_G95        = gcc
 FFLAGS_G95    = -O4 -w -fno-second-underscore
+CFLAGS_G95    = -O4 -w -fno-second-underscore
 G95_OMP       = 
 TARGET_G95    = -msse
 #****************************************************************************
-# CUDA compiler
+# CUDA
 #****************************************************************************
 #
 # NVCC NVIDIA CUDA compiler:
-CUCC_NVIDIA     = /usr/local/cuda/bin/nvcc 
-CUINC_NVIDIA    = /usr/local/cuda/include
-CULIBDIR_NVIDIA = /usr/local/cuda/lib64 
+CUCC_NVIDIA     = nvcc 
+CUINC_NVIDIA    = /usr/local/cuda_4.0.17/cuda/include
+CULIBDIR_NVIDIA = /usr/local/cuda_4.0.17/cuda/lib64
 CULIB_NVIDIA    = -lcudart -lcufft
 CUCFLAGS_NVIDIA = 
 CULDFLAGS_NVIDIA= 
@@ -110,8 +125,6 @@ CUARCH_NVIDIA   =
 #****************************************************************************
 # MPI library
 #****************************************************************************
-#
-# MPICH
 MPIINC_MPICH  = -I/home/duaner/lib/mpich2-1.3.1_gcc/include
 MPILIB_MPICH  = -L/home/duaner/lib/mpich2-1.3.1_gcc/lib
 MPILD_MPICH   =  -lmpichf90 -lmpichf90 -lmpich -lopa -lmpl -lrt -lpthread
