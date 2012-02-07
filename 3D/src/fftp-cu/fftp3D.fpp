@@ -21,27 +21,6 @@
 ! Gomez DO, Mininni PD, Dmitruk P; Adv. Sp. Res. 35, 899 (2005)
 !=================================================================
 
-!*****************************************************************
-      SUBROUTINE fftp3d_init_threads(err) 
-!-----------------------------------------------------------------
-!
-! Initializes FFTW threads.
-!
-! Parameters
-!     err : if zero, the initialization failed
-!-----------------------------------------------------------------
-
-!$    USE threads
-      IMPLICIT NONE
-
-      INTEGER, INTENT(INOUT) :: err
-
-!$    CALL GPMANGLE(init_threads)(err)
-      IF (err.eq.0) PRINT *,'fftp3d_init_threads: initialization failed!'
-
-      RETURN
-      END SUBROUTINE fftp3d_init_threads
-
 
 !*****************************************************************
       SUBROUTINE fftp3d_create_plan(plan,n,fftdir,flags)
@@ -73,16 +52,18 @@
       INTEGER, INTENT(IN) :: flags
       TYPE(FFTPLAN), INTENT(OUT) :: plan
 
+      INTEGER             :: istr, idist, ostr, odist, nrank
       INTEGER             :: iret, i1(3), i2(3), i3(3)
+      INTEGER             :: na(2), pinembed(2), ponembed(2)
 
 
       plan%szccd_= 2* n     *n*(iend-ista+1)*GP
       plan%szcd_ = 2*(n/2+1)*n*(kend-ksta+1)*GP
       plan%szrd_ =    n     *n*(kend-ksta+1)*GP
 
-      iret = cudaMallocHost ( plan%pccarr_, plan%szccd_ )
-      iret = cudaMallocHost ( plan%pcarr_ , plan%szcd_  )
-      iret = cudaMallocHost ( plan%prarr_ , plan%szrd_  )
+      iret = cudaHostAlloc ( plan%pccarr_, plan%szccd_, cudaHostAllocPortable) 
+      iret = cudaHostAlloc ( plan%pcarr_ , plan%szcd_ , cudaHostAllocPortable) 
+      iret = cudaHostAlloc ( plan%prarr_ , plan%szrd_ , cudaHostAllocPortable)
 
       i1(1) = n    ; i1(2) = n; i1(3) = iend-ista+1;
       i2(1) = n/2+1; i2(2) = n; i2(3) = kend-ksta+1; 
@@ -90,23 +71,45 @@
       call c_f_pointer ( plan%pccarr_, plan%ccarr, i1 )
       call c_f_pointer ( plan%pcarr_ , plan%carr , i2 )
       call c_f_pointer ( plan%prarr_ , plan%rarr , i3 )
-!     REAL(KIND=GP), INTENT(IN), DIMENSION(plan%n,plan%n,ksta:kend)     :: in
 
-!
+
+      iret = cudaMalloc(plan%cu_ccd_, plan%szccd_)
+      iret = cudaMalloc(plan%cu_cd_ , plan%szcd_ )
+      iret = cudaMalloc(plan%cu_rd_ , plan%szrd_ )
       IF (fftdir.eq.FFTCU_REAL_TO_COMPLEX) THEN
-      iret = cudaMalloc(plan%cu_ccd_, plan%szccd_)
-      iret = cudaMalloc(plan%cu_cd_ , plan%szcd_ )
-      iret = cudaMalloc(plan%cu_rd_ , plan%szrd_ )
-      ! reverse order of rank for C-calling order:
-!     CALL c_f_pointer(plan%icuplanr_, plan%icuplanr_)
-      iret = cufftPlan2d(plan%icuplanr_, n, n*(kend-ksta+1), CUFFT_R2C)
-      iret = cufftPlan1d(plan%icuplanc_, n, CUFFT_C2C, n*(iend-ista+1))
+        nrank= 2
+        na      (1) = n            ; na      (2) = n              ;
+        pinembed(1) = n            ; pinembed(2) = n*(kend-ksta+1);            
+        istr        = 1            ; idist       = n*n            ;
+        ponembed(1) = n/2+1        ; ponembed(2) = n*(kend-ksta+1);            
+        ostr        = 1            ; odist       = n*(n/2+1)      ;
+        iret = cufftPlanMany(plan%icuplanr_,nrank,na,pinembed,istr,idist,&
+                             ponembed,ostr,odist,CUFFT_R2C,kend-ksta+1);
+        nrank       = 1
+        na      (1) = n                ; 
+        pinembed(1) = n*n*(iend-ista+1);
+        istr        = 1                ; idist       = n           ;
+        ponembed(1) = n*n*(iend-ista+1); 
+        ostr        = 1                ; odist       = n           ; 
+        iret = cufftPlanMany(plan%icuplanc_,nrank,na,pinembed,istr,idist,&
+                             ponembed,ostr,odist,CUFFT_C2C,n*(iend-ista+1));
       ELSE
-      iret = cudaMalloc(plan%cu_ccd_, plan%szccd_)
-      iret = cudaMalloc(plan%cu_cd_ , plan%szcd_ )
-      iret = cudaMalloc(plan%cu_rd_ , plan%szrd_ )
-      iret = cufftPlan2d(plan%icuplanr_, n/2+1, n*(kend-ksta+1), CUFFT_C2R)
-      iret = cufftPlan1d(plan%icuplanc_, n, CUFFT_C2C, iend-ista+1)
+        nrank= 2;
+        na      (1) = n            ; na      (2) = n              ;
+        pinembed(1) = n/2+1        ; pinembed(2) = n*(kend-ksta+1);
+        istr        = 1            ; idist       = n*(n/2+1)      ;
+        ponembed(1) = n            ; ponembed(2) = n*(kend-ksta+1);
+        ostr        = 1            ; odist       = n*n            ; 
+        iret = cufftPlanMany(plan%icuplanr_,nrank,na,pinembed,istr,idist,&
+                             ponembed,ostr,odist,CUFFT_C2R,kend-ksta+1);
+        nrank       = 1
+        na      (1) = n                ; 
+        pinembed(1) = n*n*(iend-ista+1);
+        istr        = 1                ; idist       = n           ;
+        ponembed(1) = n*n*(iend-ista+1); 
+        ostr        = 1                ; odist       = n           ; 
+        iret = cufftPlanMany(plan%icuplanc_,nrank,na,pinembed,istr,idist,&
+                             ponembed,ostr,odist,CUFFT_C2C,n*(iend-ista+1));
       ENDIF
       plan%n = n
       
@@ -117,6 +120,7 @@
 
       RETURN
       END SUBROUTINE fftp3d_create_plan
+
 
 !*****************************************************************
       SUBROUTINE fftp3d_destroy_plan(plan)
@@ -131,6 +135,7 @@
       USE fftplans
       USE cuda_bindings
       USE cutypes
+      USE threads
 
       IMPLICIT NONE
 
@@ -222,6 +227,7 @@
       USE, INTRINSIC :: iso_c_binding
       USE cuda_bindings
       USE cutypes
+      USE threads
       IMPLICIT NONE
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
@@ -238,27 +244,26 @@
       INTEGER :: irank
       INTEGER :: isendTo,igetFrom
       INTEGER :: istrip,iproc
+
 !
 ! 2D real-to-complex FFT in each node using the FFTCU library
      
-write(*,*)'rank=',myrank,' f2c: 0' 
       plan%rarr = in
 !
 ! Data sent to cufftXXXXXX must reside on device:
       call CPU_TIME(t0)
-write(*,*)'rank=',myrank,' f2c: 1' 
       iret = cudaMemCpyHost2Dev(plan%cu_rd_, plan%prarr_, plan%szrd_ )
       call CPU_TIME(t1); memtime = memtime + t1-t0
  
       call CPU_TIME(t0)
       IF ( GP.EQ. 4 ) THEN
-        iret = cufftExecR2C(plan%icuplanr_, plan%cu_rd_, plan%cu_cd_)
+        iret = cufftExecR2C(plan%icuplanr_, plan%cu_rd_, plan%cu_cd_ )
       ELSE
-        iret = cufftExecD2Z(plan%icuplanr_, plan%cu_rd_, plan%cu_cd_)
+        iret = cufftExecD2Z(plan%icuplanr_, plan%cu_rd_, plan%cu_cd_ )
       ENDIF
+
       call CPU_TIME(t1); ffttime = ffttime + t1-t0
       call CPU_TIME(t0)
-write(*,*)'rank=',myrank,' f2c: 2' 
       iret = cudaMemCpyDev2Host(plan%pcarr_, plan%cu_cd_, plan%szcd_ )
       call CPU_TIME(t1); memtime = memtime + t1-t0
 
@@ -269,31 +274,28 @@ write(*,*)'rank=',myrank,' f2c: 2'
 ! strip mining when nstrip>1 (rreddy@psc.edu)
 !
       call CPU_TIME(t0)
-write(*,*)'rank=',myrank,' f2c: 3' 
-      do iproc = 0, nprocs-1, nstrip
-         do istrip=0, nstrip-1
+      DO iproc = 0, nprocs-1, nstrip
+         DO istrip=0, nstrip-1
             irank = iproc + istrip
 
             isendTo = myrank + irank
-            if ( isendTo .ge. nprocs ) isendTo = isendTo - nprocs
+            IF ( isendTo .GE. nprocs ) isendTo = isendTo - nprocs
 
             igetFrom = myrank - irank
-            if ( igetFrom .lt. 0 ) igetFrom = igetFrom + nprocs
+            IF ( igetFrom .LT. 0 ) igetFrom = igetFrom + nprocs
 
             CALL MPI_IRECV(c1,1,plan%itype2(igetFrom),igetFrom,      & 
                           1,comm,ireq2(irank),ierr)
             CALL MPI_ISEND(plan%carr,1,plan%itype1(isendTo),isendTo, &
                           1,comm,ireq1(irank),ierr)
-         enddo
+         ENDDO
 
-         do istrip=0, nstrip-1
+         DO istrip=0, nstrip-1
             irank = iproc + istrip
             CALL MPI_WAIT(ireq1(irank),istatus,ierr)
             CALL MPI_WAIT(ireq2(irank),istatus,ierr)
-         enddo
-      enddo
-
-write(*,*)'rank=',myrank,' f2c: 4' 
+         ENDDO
+      ENDDO
 !
 ! Cache friendly transposition
 !
@@ -314,14 +316,12 @@ write(*,*)'rank=',myrank,' f2c: 4'
             END DO
          END DO
       END DO
-write(*,*)'rank=',myrank,' f2c: 5' 
       call CPU_TIME(t1); tratime = tratime + t1-t0
 !
 ! 1D FFT in each node using the FFTCU library
 !
       call CPU_TIME(t0); 
       iret = cudaMemCpyHost2Dev(plan%cu_ccd_, plan%pccarr_, plan%szccd_ )
-write(*,*)'rank=',myrank,' f2c: 6' 
       call CPU_TIME(t1); memtime = memtime + t1-t0
       call CPU_TIME(t0); 
       IF ( GP.EQ. 4 ) THEN
@@ -329,15 +329,12 @@ write(*,*)'rank=',myrank,' f2c: 6'
       ELSE
       iret = cufftExecZ2Z(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_REAL_TO_COMPLEX)
       ENDIF
-write(*,*)'rank=',myrank,' f2c: 7' 
       call CPU_TIME(t1); ffttime = ffttime + t1-t0
       call CPU_TIME(t0); 
       iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd_, plan%szccd_ )
       call CPU_TIME(t1); memtime = memtime + t1-t0
-write(*,*)'rank=',myrank,' f2c: 8' 
 
       out = plan%ccarr
-write(*,*)'rank=',myrank,' f2c: done.' 
 
       RETURN
       END SUBROUTINE fftp3d_real_to_complex
@@ -366,6 +363,7 @@ write(*,*)'rank=',myrank,' f2c: done.'
       USE, INTRINSIC :: iso_c_binding
       USE cuda_bindings
       USE cutypes
+      USE threads
       IMPLICIT NONE
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
@@ -389,28 +387,25 @@ write(*,*)'rank=',myrank,' f2c: done.'
 !
 ! 1D FFT in each node using the FFTCU library
 !
-write(*,*)'rank=',myrank,' c2f: 0' 
       plan%ccarr = in
      
-write(*,*)'rank=',myrank,' c2f: 1' 
       call CPU_TIME(t0);
       iret = cudaMemCpyHost2Dev(plan%cu_ccd_, plan%pccarr_, plan%szccd_ )
       call CPU_TIME(t1); memtime = memtime + t1-t0
       call CPU_TIME(t0);
-write(*,*)'rank=',myrank,' c2f: 2' 
       IF ( GP.EQ. 4 ) THEN
-      iret = cufftExecC2C(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_COMPLEX_TO_REAL)
+        iret = cufftExecC2C(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_COMPLEX_TO_REAL)
+!       iret = cufftExecC2R(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_)
       ELSE
-      iret = cufftExecZ2Z(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_COMPLEX_TO_REAL)
+        iret = cufftExecZ2Z(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_COMPLEX_TO_REAL)
       ENDIF
-write(*,*)'rank=',myrank,' c2f: 3' 
+
       call CPU_TIME(t1); ffttime = ffttime + t1-t0
       call CPU_TIME(t0);
       iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd_, plan%szccd_ )
       call CPU_TIME(t1); memtime = memtime + t1-t0
 
       call CPU_TIME(t0);
-write(*,*)'rank=',myrank,' c2f: 4' 
 !
 ! Cache friendly transposition
 !
@@ -422,7 +417,7 @@ write(*,*)'rank=',myrank,' c2f: 4'
                DO i = ii,min(iend,ii+csize-1)
                DO j = jj,min(plan%n,jj+csize-1)
                DO k = kk,min(plan%n,kk+csize-1)
-                 !Recall that ccarr is dimensioned (:,:), starting at (1,1):
+                 !Recall that ccarr is dimensioned (:,:,:), starting at (1,1,1):
                   c1(i,j,k) = plan%ccarr(k,j,i-ista+1)
                END DO
                END DO
@@ -430,8 +425,6 @@ write(*,*)'rank=',myrank,' c2f: 4'
             END DO
          END DO
       END DO
-write(*,*)'rank=',myrank,' c2f: 5' 
-
 !
 ! Transposes the result between nodes using 
 ! strip mining when nstrip>1 (rreddy@psc.edu)
@@ -458,7 +451,6 @@ write(*,*)'rank=',myrank,' c2f: 5'
             CALL MPI_WAIT(ireq2(irank),istatus,ierr)
          enddo
       enddo
-write(*,*)'rank=',myrank,' c2f: 6' 
 
       call CPU_TIME(t1); tratime = tratime + t1-t0
 !
@@ -466,7 +458,6 @@ write(*,*)'rank=',myrank,' c2f: 6'
 !
       call CPU_TIME(t0);
       iret = cudaMemCpyHost2Dev(plan%cu_cd_, plan%pcarr_, plan%szcd_ )
-write(*,*)'rank=',myrank,' c2f: 7' 
       call CPU_TIME(t1); memtime = memtime + t1-t0
       call CPU_TIME(t0);
       IF ( GP.EQ. 4 ) THEN
@@ -474,14 +465,11 @@ write(*,*)'rank=',myrank,' c2f: 7'
       ELSE
       iret = cufftExecZ2D(plan%icuplanr_, plan%cu_cd_, plan%cu_rd_)
       ENDIF
-write(*,*)'rank=',myrank,' c2f: 8' 
       call CPU_TIME(t1); ffttime = ffttime + t1-t0
       call CPU_TIME(t0);
       iret = cudaMemCpyDev2Host(plan%prarr_, plan%cu_rd_, plan%szrd_ )
       call CPU_TIME(t1); memtime = memtime + t1-t0
-write(*,*)'rank=',myrank,' c2f: 9' 
       out = plan%rarr
-write(*,*)'rank=',myrank,' c2f: done.' 
 
       RETURN
       END SUBROUTINE fftp3d_complex_to_real

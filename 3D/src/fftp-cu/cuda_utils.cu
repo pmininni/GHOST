@@ -11,7 +11,7 @@
 !      e-mail: mininni@df.uba.ar 
 !
 ***************************************************************/
-
+#include <cufft.h>
 
 extern "C" {
 
@@ -27,7 +27,6 @@ cudaError_t cudaMemcpyDev2Host( void *hostdst, const void *devsrc,  size_t count
 {
   return cudaMemcpy( hostdst , devsrc, count,  cudaMemcpyDeviceToHost ); 
 }
-
 
 } /* end, extern "C" interface */
 

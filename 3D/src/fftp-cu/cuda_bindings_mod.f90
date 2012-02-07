@@ -10,10 +10,29 @@
 !=================================================================
 
 MODULE cuda_bindings
+ IMPLICIT  NONE
 
  INTERFACE
 
 !!!!!!!!!!!!!!!!!!!! Management utilities !!!!!!!!!!!!!!!!!!!!!!!!
+
+!*****************************************************************
+!*****************************************************************
+! setaffinity_for_nvidia
+!    my_rank: integer MPI task rank
+!    ppn    : integer MPI tasks per node (MPI_PPN env. var. overrides this)
+!    my_gpu : integer GPU id. IF < 0, setaffinity will choose based on
+!             rank%ppn 
+!*****************************************************************
+  INTEGER(C_INT) function setaffinity_for_nvidia(my_rank,ppn,my_gpu) bind(C,name="setaffinity_for_nvidia")
+    USE iso_c_binding
+    IMPLICIT NONE
+    INTEGER(C_INT)       :: my_rank
+    INTEGER(C_INT)       :: ppn
+    INTEGER(C_INT)       :: my_gpu
+!write(*,*)'setaffinity_for_nvidia (bind): my_rank=',my_rank,' ppn=',ppn, ' my_gpu=',my_gpu
+  END FUNCTION setaffinity_for_nvidia
+
 
 !*****************************************************************
 !*****************************************************************
@@ -223,6 +242,33 @@ MODULE cuda_bindings
 
 !*****************************************************************
 !*****************************************************************
+! cufftPlanMany :: create CUDA FFT 2d plan
+!     pplan      : cufftHandle pointer (out)
+!     rank       : integer rank
+!     nx         : transform size
+!     ny         : transform size
+!     cutype     : transform data type: CUFFT_R2C (0x2a), CUFFT_C2R(0x2c), CUFFT_C2C (0x29)
+!
+!*****************************************************************
+ INTEGER(C_INT) function cufftPlanMany(pplan,rank,pn,&
+pinembed,istride,idist,ponembed,ostride,odist,cutype,batch)  bind(C,name="cufftPlanMany")
+   USE, INTRINSIC :: iso_c_binding
+  IMPLICIT NONE
+  INTEGER(C_INT)        :: pplan
+  INTEGER(C_INT),value  :: rank
+  INTEGER(C_INT)        :: pn(*)
+  INTEGER(C_INT)        :: pinembed(*)
+  INTEGER(C_INT),value  :: istride
+  INTEGER(C_INT),value  :: idist
+  INTEGER(C_INT)        :: ponembed(*)
+  INTEGER(C_INT),value  :: ostride
+  INTEGER(C_INT),value  :: odist
+  INTEGER(C_INT),value  :: cutype
+  INTEGER(C_INT),value  :: batch
+ END FUNCTION cufftPlanMany
+
+!*****************************************************************
+!*****************************************************************
 ! cufftDestroy:: destroy CUDA FFT plan
 !     pplan     : cufftHandle pointer (in)
 !
@@ -337,5 +383,41 @@ MODULE cuda_bindings
 
 
  END INTERFACE 
+
+
+ CONTAINS
+
+
+!*****************************************************************
+!*****************************************************************
+  SUBROUTINE GetCUFFTErr(iret, sret)
+!    PURPOSE: Get error string condition for CUFFT calls.
+!    iret : integer return value from CUFFT function (IN)
+!    sret : string of size >= 24 to hold error condition (OUT)
+!*****************************************************************
+      INTEGER, INTENT(IN)                     :: iret
+      CHARACTER(len=*), INTENT(OUT)           :: sret
+
+      CHARACTER(len=24), DIMENSION(0:8)       :: serr
+
+      serr(0) = 'CUFFT_SUCCESS'
+      serr(1) = 'CUFFT_INVALID_PLAN'
+      serr(2) = 'CUFFT_ALLOC_FAILED'
+      serr(3) = 'CUFFT_INVALID_TYPE'
+      serr(4) = 'CUFFT_INVALID_VALUE'
+      serr(5) = 'CUFFT_INTERNAL_ERROR'
+      serr(6) = 'CUFFT_EXEC_FAILED CUFFT'
+      serr(7) = 'CUFFT_SETUP_FAILED'
+      serr(8) = 'CUFFT_INVALID_SIZE'
+
+      IF ( iret .LT. 0 .OR. iret .GT. 8 ) THEN
+        sret = 'UNKNOWN_ERROR'
+        RETURN
+      ENDIF
+
+      sret = serr(iret)
+
+  END SUBROUTINE GetCUFFTErr
+
 
 END MODULE cuda_bindings
