@@ -21,10 +21,7 @@ IOLIB    = mpiio
 # Parallelization model:
 # P_CUDA=yes  # CUDA-MPI hybridization
 # P_CUDA=no   # MPI- or hybrid- parallelization only
-# PPN = <number>      # number of MPI tasks per node; required for device affinity.
-#                       Can be overridden at runtime by setting MPI_PPN env. variable.
 P_CUDA   = no
-PPN      = 6
 
 # FFTP:
 # fftp-2   builds FFTP-2 (links with FFTW 2.x)
@@ -122,6 +119,9 @@ CUCFLAGS_NVIDIA =
 CULDFLAGS_NVIDIA= 
 CUGENCODE_NVIDIA= 
 CUARCH_NVIDIA   =  
+# PPN = <number>      # number of GPUs per node; required for device affinity.
+#                       Can be overridden at runtime by setting MPI_PPN env. variable.
+PPN      = 6
 #****************************************************************************
 # MPI library
 #****************************************************************************

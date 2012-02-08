@@ -271,11 +271,13 @@
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
 
 !
-! Initializes CUDA by selecting device. The list of devices must
-! correspond to the MPI rank mod NUM_CUDA_DEV, which is defined
-! in the makefile:
 #if defined(DEF_GHOST_CUDA_)
 #if 1
+! Initializes CUDA for Linux-based systems. This is a call to an
+! NVIDIA-developed intermediary code that gets the GPU dev. no. 
+! by looking in cpu_info and finding the device that resides on 
+! its PCI bus:
+
      iret = cudaGetDeviceCount(ncuda)
      CALL MPI_REDUCE(ncuda,ngcuda,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,ierr)
      ppn = G_PPN_
@@ -283,6 +285,8 @@
      iret = setaffinity_for_nvidia(myrank,ppn,idevice)
      iret = cudaSetDevice(idevice);
 #else
+! Initializes CUDA by selecting device. The list of devices can
+! be changed by the modifying the env. variable CUDA_VISIBLE_DEVICES:
       iret = cudaGetDeviceCount(ncuda)
       idevice = mod(myrank,ncuda)
       iret = cudaSetDevice(idevice);
