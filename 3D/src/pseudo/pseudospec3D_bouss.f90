@@ -16,15 +16,17 @@
 !=================================================================
 
 !*****************************************************************
-      SUBROUTINE havgshear(u, v, nmb)
+      SUBROUTINE havgshear(u, v, s, nmb)
 !-----------------------------------------------------------------
 !
-! Computes the horizontal-averaged shear (as a function of z), and
-! outputs it.
+! Computes the horizontal-averaged shear^2 (as a function of z), and
+! horizontal average of vertical temperature gradient 
+! (as a function of z), and outputs them.
 !
 ! Parameters
 !     u  : input x-velocity, Fourier coeffs
 !     v  : input y-velocity, Fourier coeffs
+!     s  : input scalar density/temperature, Fourier coeffs
 !     nmb: the extension used when writting the file
 
       USE fprecision
@@ -37,7 +39,7 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: u,v
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: u,v,s
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1
       REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2
       REAL(KIND=GP), DIMENSION(n)                :: sh, gsh
@@ -53,7 +55,7 @@
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
 
 !
-! Do volume average of total shear:
+! Do hor. average of total shear:
       sh  = 0.0_GP
       gsh = 0.0_GP
       tmp = 1.0_GP/real(n,kind=GP)**8
@@ -67,13 +69,40 @@
          END DO
       END DO
 
-! Output shear as a fcn of z:
 !
+! Output shear as a fcn of z:
       CALL MPI_ALLREDUCE(sh,gsh,n,GC_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          OPEN(1,file='shear.' // nmb // '.txt')
          WRITE(1,10) gsh
    10    FORMAT( E23.15 )
+         CLOSE(1)
+      ENDIF
+!
+! Find z-derivative of s:
+      CALL derivk3(s,c1,3)
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+!
+! Do hor. average of vert. temp. gradient:
+      sh  = 0.0_GP
+      gsh = 0.0_GP
+      tmp = 1.0_GP/real(n,kind=GP)**8
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               sh(k) = sh(k)+ ( r1(i,j,k) ) * tmp
+            END DO
+         END DO
+      END DO
+!
+! Output vert. temp. gradient as a fcn of z:
+      CALL MPI_ALLREDUCE(sh,gsh,n,GC_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='tgradz.' // nmb // '.txt')
+         WRITE(1,20) gsh
+   20    FORMAT( E23.15 )
          CLOSE(1)
       ENDIF
 
@@ -85,7 +114,7 @@
 !-----------------------------------------------------------------
 !
 ! Computes the horizontal-averaged square horizontal velocity 
-! (as a function of z), and ! outputs it.
+! (as a function of z), and outputs it.
 !
 ! Parameters
 !     u  : input x-velocity, Fourier coeffs
@@ -145,7 +174,7 @@
       END SUBROUTINE havghvel
 
 !*****************************************************************
-      SUBROUTINE tbouss(u, v, w, t, dt)
+      SUBROUTINE tbouss(u, v, w, s, t, dt)
 !-----------------------------------------------------------------
 !
 ! Computes the volume-average and max of horizontal & vertical kinetic energy, and
@@ -155,6 +184,7 @@
 !     u  : input x-velocity, Fourier coeffs
 !     v  : input y-velocity, Fourier coeffs
 !     w  : input z-velocity, Fourier coeffs
+!     s  : input scalar density/temperature, Fourier coeffs
 !     t  : number of time steps made
 !     dt : time step
 
@@ -165,28 +195,34 @@
       USE mpivars
       USE filefmt
       USE fft
+      USE ali
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: u,v,w
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: u,v,w,s
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1,c2,c3
       REAL(KIND=GP), INTENT(IN)                  :: dt
       REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2,r3
-      REAL(KIND=GP)                              :: dloc,xavg(3),gxavg(3),xmax(3),gxmax(3),tmp
-      REAL(KIND=GP)                              :: dm
+      REAL(KIND=GP)                              :: dloc,xavg(4),gxavg(4),xmax(4),gxmax(4),tmp
+      REAL(KIND=GP)                              :: xmin(4),gxmin(4)
+      REAL(KIND=GP)                              :: sgn
       INTEGER, INTENT(IN)                        :: t
       INTEGER                                    :: i,j,k
 
       xavg  = 0.0_GP
       xmax  = 0.0_GP
+      xmin  = 1.0_GP/tinyf
       gxavg = 0.0_GP
       gxmax = 0.0_GP
 !
-! Find max of shear:
+! Find max of shear, vert. temp gradient:
       CALL derivk3(u,c1,3)
       CALL derivk3(v,c2,3)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+
+      CALL derivk3(s,c3,3)
+      CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
 
       tmp   = 1.0_GP/real(n,kind=GP)**6
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i,dloc) reduction(max:xmax)
@@ -196,13 +232,21 @@
             DO i = 1,n
                dloc    = r1(i,j,k)**2+r2(i,j,k)**2
                xmax(1) = MAX(xmax(1),dloc)
+              
+               sgn     = sign(1.0,r1(i,j,k))
+               xmax(4) = MAX(xmax(4),r1(i,j,k))
+               xmin(4) = MIN(xmin(4),r1(i,j,k))
+               xavg(4) = xmax(4) + r1(i,j,k)
             END DO
          END DO
       END DO
       xmax(1) = xmax(1)*tmp
+      xmax(4) = xmax(4)*sqrt(tmp)
+      xmin(4) = xmin(4)*sqrt(tmp)
+      xavg(4) = xavg(4)*sqrt(tmp)
 
 !
-! Find spatial u, v, vol average of square of horizontal, vert. velocita, shear:
+! Find spatial u, v, vol average of square of horizontal, vert. velocity, shear:
       IF (ista.eq.1) THEN
 !$omp parallel do private (k,dloc) reduction(+:xavg)
             DO j = 1,n
@@ -275,24 +319,37 @@
       xmax(3) = xmax(3)*tmp
 !
 ! Do reductions to find global vol avg and global max:
-      CALL MPI_REDUCE(xavg,gxavg,3,GC_REAL,MPI_SUM,0, &
+      CALL MPI_REDUCE(xavg,gxavg,4,GC_REAL,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
-      CALL MPI_REDUCE(xmax,gxmax,3,GC_REAL,MPI_MAX,0, &
+      CALL MPI_REDUCE(xmax,gxmax,4,GC_REAL,MPI_MAX,0, &
+                      MPI_COMM_WORLD,ierr)
+      CALL MPI_REDUCE(xmin(4),gxmin(4),1,GC_REAL,MPI_MIN,0, &
                       MPI_COMM_WORLD,ierr)
 
-! NOTE: xavg_1 == vol average of shear
-!       xavg_2 == vol average of horiz. kinetic energy
-!       xavg_3 == vol average of vert. kinetic energy
-!
-!       xmax_1 == max of shear
-!       xmax_2 == max of horiz. kinetic energy
-!       xmax_3 == max of vert. kinetic energy
+! NOTE: col_1 == vol average of shear
+!       col_2 == vol average of horiz. kinetic energy
+!       col_3 == vol average of vert. kinetic energy
+!       col_4 == vol average of vert. temp. gradient
 !
 ! Output quantities as a fcn of t:
       IF (myrank.eq.0) THEN
-         OPEN(1,file='tbouss.txt',position='append')
-         WRITE(1,10) (t-1)*dt,gxavg(1),gxavg(2),gxavg(3),gxmax(1),gxmax(2),gxmax(3)
-   10    FORMAT( E13.6,1x,6(E26.18,1x) )
+         OPEN(1,file='tboussavg.txt',position='append')
+         WRITE(1,10) (t-1)*dt,gxavg(1),gxavg(2),gxavg(3),gxavg(4)
+   10    FORMAT( E13.6,1x,4(E26.18,1x) )
+         CLOSE(1)
+      ENDIF
+!
+!       col_1 == max of shear
+!       col_2 == max of horiz. kinetic energy
+!       col_3 == max of vert. kinetic energy
+!       col_4 == max of vert. temp. gradient
+!       col_5 == min of vert. temp. gradient
+!
+! Output quantities as a fcn of t:
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='tboussinf.txt',position='append')
+         WRITE(1,20) (t-1)*dt,gxmax(1),gxmax(2),gxmax(3),gxmax(4),gxmin(4)
+   20    FORMAT( E13.6,1x,5(E26.18,1x) )
          CLOSE(1)
       ENDIF
 
