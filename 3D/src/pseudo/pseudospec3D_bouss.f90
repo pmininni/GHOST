@@ -58,7 +58,7 @@
 ! Do hor. average of total shear:
       sh  = 0.0_GP
       gsh = 0.0_GP
-      tmp = 1.0_GP/real(n,kind=GP)**8
+      tmp = 1.0_GP/real(n,kind=GP)**6
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
@@ -86,7 +86,7 @@
 ! Do hor. average of vert. temp. gradient:
       sh  = 0.0_GP
       gsh = 0.0_GP
-      tmp = 1.0_GP/real(n,kind=GP)**8
+      tmp = 1.0_GP/real(n,kind=GP)**3
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
@@ -149,7 +149,7 @@
 !
 ! Do volume average of total shear:
       havg = 0.0
-      tmp = 1.0_GP/real(n,kind=GP)**8
+      tmp = 1.0_GP/real(n,kind=GP)**6
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
@@ -324,10 +324,10 @@
       CALL MPI_REDUCE(xmin,gxmin,1,GC_REAL,MPI_MIN,0, &
                       MPI_COMM_WORLD,ierr)
 
-! NOTE: col_1 == vol average of shear
-!       col_2 == vol average of horiz. kinetic energy
-!       col_3 == vol average of vert. kinetic energy
-!       col_4 == vol average of vert. temp. gradient
+! NOTE: col_2 == vol average of shear
+!       col_3 == vol average of horiz. kinetic energy
+!       col_4 == vol average of vert. kinetic energy
+!       col_5 == vol average of vert. temp. gradient
 !
 ! Output quantities as a fcn of t:
       IF (myrank.eq.0) THEN
@@ -337,11 +337,11 @@
          CLOSE(1)
       ENDIF
 !
-!       col_1 == max of shear
-!       col_2 == max of horiz. kinetic energy
-!       col_3 == max of vert. kinetic energy
-!       col_4 == max of vert. temp. gradient
-!       col_5 == min of vert. temp. gradient
+!       col_2 == max of shear
+!       col_3 == max of horiz. kinetic energy
+!       col_4 == max of vert. kinetic energy
+!       col_5 == max of vert. temp. gradient
+!       col_6 == min of vert. temp. gradient
 !
 ! Output quantities as a fcn of t:
       IF (myrank.eq.0) THEN
