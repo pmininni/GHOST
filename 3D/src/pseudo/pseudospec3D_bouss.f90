@@ -308,8 +308,8 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i) reduction(max:xmax)
          DO j = 1,n
             DO i = 1,n
-               xmax(2) = max(xmax(2),r3(i,j,k)**2)
-               xmax(3) = max(xmax(3),r1(i,j,k)**2+r2(i,j,k)**2)
+               xmax(2) = max(xmax(2),r1(i,j,k)**2+r2(i,j,k)**2)
+               xmax(3) = max(xmax(3),r3(i,j,k)**2)
             END DO
          END DO
       END DO
