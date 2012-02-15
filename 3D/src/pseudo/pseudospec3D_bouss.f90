@@ -204,8 +204,7 @@
       REAL(KIND=GP), INTENT(IN)                  :: dt
       REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2,r3
       REAL(KIND=GP)                              :: dloc,xavg(4),gxavg(4),xmax(4),gxmax(4),tmp
-      REAL(KIND=GP)                              :: xmin(4),gxmin(4)
-      REAL(KIND=GP)                              :: sgn
+      REAL(KIND=GP)                              :: xmin(1),gxmin(1)
       INTEGER, INTENT(IN)                        :: t
       INTEGER                                    :: i,j,k
 
@@ -233,16 +232,15 @@
                dloc    = r1(i,j,k)**2+r2(i,j,k)**2
                xmax(1) = MAX(xmax(1),dloc)
               
-               sgn     = sign(1.0,r1(i,j,k))
-               xmax(4) = MAX(xmax(4),r1(i,j,k))
-               xmin(4) = MIN(xmin(4),r1(i,j,k))
-               xavg(4) = xmax(4) + r1(i,j,k)
+               xmax(4) = MAX(xmax(4),r3(i,j,k))
+               xmin(1) = MIN(xmin(1),r3(i,j,k))
+               xavg(4) = xavg(4) + r3(i,j,k)
             END DO
          END DO
       END DO
       xmax(1) = xmax(1)*tmp
       xmax(4) = xmax(4)*sqrt(tmp)
-      xmin(4) = xmin(4)*sqrt(tmp)
+      xmin(1) = xmin(1)*sqrt(tmp)
       xavg(4) = xavg(4)*sqrt(tmp)
 
 !
@@ -323,7 +321,7 @@
                       MPI_COMM_WORLD,ierr)
       CALL MPI_REDUCE(xmax,gxmax,4,GC_REAL,MPI_MAX,0, &
                       MPI_COMM_WORLD,ierr)
-      CALL MPI_REDUCE(xmin(4),gxmin(4),1,GC_REAL,MPI_MIN,0, &
+      CALL MPI_REDUCE(xmin,gxmin,1,GC_REAL,MPI_MIN,0, &
                       MPI_COMM_WORLD,ierr)
 
 ! NOTE: col_1 == vol average of shear
@@ -348,7 +346,7 @@
 ! Output quantities as a fcn of t:
       IF (myrank.eq.0) THEN
          OPEN(1,file='tboussinf.txt',position='append')
-         WRITE(1,20) (t-1)*dt,gxmax(1),gxmax(2),gxmax(3),gxmax(4),gxmin(4)
+         WRITE(1,20) (t-1)*dt,gxmax(1),gxmax(2),gxmax(3),gxmax(4),gxmin(1)
    20    FORMAT( E13.6,1x,5(E26.18,1x) )
          CLOSE(1)
       ENDIF
