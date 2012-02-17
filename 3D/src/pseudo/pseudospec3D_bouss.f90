@@ -68,6 +68,7 @@
                sh(k) = sh(k)+( r1(i,j,k)**2 + r2(i,j,k)**2 ) * tmp
             END DO
          END DO
+         sh(k) = sh(k) /(real(n,kind=GP)**2 ! to set horiz. avg
       END DO
 
 !
@@ -97,6 +98,7 @@
                sh(k) = sh(k) + ( r1(i,j,k) * tmp )
             END DO
          END DO
+         sh(k) = sh(k) /(real(n,kind=GP)**2 ! to set horiz. avg
       END DO
 !
 ! Output vert. temp. gradient as a fcn of z:
@@ -152,7 +154,7 @@
 !
 ! Do volume average of total shear:
       havg = 0.0
-      tmp = 1.0_GP/real(n,kind=GP)**6
+      tmp = 1.0/real(n,kind=GP)**6
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
@@ -161,6 +163,7 @@
                havg(k) = havg(k)+( r1(i,j,k)**2 + r2(i,j,k)**2 ) * tmp
             END DO
          END DO
+         havg(k) = havg(k) /(real(n,kind=GP)**2 ! to set horiz. avg
       END DO
 
 ! Output shear as a fcn of z:
