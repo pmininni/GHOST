@@ -92,13 +92,13 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,n
             DO i = 1,n
-               sh(k) = sh(k)+ ( r1(i,j,k) ) * tmp
+               sh(k) = sh(k) + ( r1(i,j,k) * tmp )
             END DO
          END DO
       END DO
 !
 ! Output vert. temp. gradient as a fcn of z:
-      CALL MPI_ALLREDUCE(sh,gsh,n,GC_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
+      CALL MPI_GATHER(sh,kend-ksta+1,GC_REAL,gsh,kend-ksta+1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          OPEN(1,file='tgradz.' // nmb // '.txt')
          WRITE(1,20) gsh
