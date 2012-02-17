@@ -42,7 +42,8 @@
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: u,v,s
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1
       REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2
-      REAL(KIND=GP), DIMENSION(n)                :: sh, gsh
+      REAL(KIND=GP), DIMENSION(ksta:kend)        :: sh
+      REAL(KIND=GP), DIMENSION(n)                :: gsh
       REAL(KIND=GP)                              :: tmp
       INTEGER                                    :: i,j,k
       CHARACTER(len=*), INTENT(IN) :: nmb
@@ -71,7 +72,8 @@
 
 !
 ! Output shear as a fcn of z:
-      CALL MPI_ALLREDUCE(sh,gsh,n,GC_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
+!     CALL MPI_ALLREDUCE(sh,gsh,n,GC_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
+      CALL MPI_GATHER(sh,kend-ksta+1,GC_REAL,gsh,kend-ksta+1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          OPEN(1,file='shear.' // nmb // '.txt')
          WRITE(1,10) gsh
@@ -134,7 +136,8 @@
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: u,v
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1
       REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2
-      REAL(KIND=GP), DIMENSION(n)                :: havg,ghavg
+      REAL(KIND=GP), DIMENSION(ksta:kend)        :: havg
+      REAL(KIND=GP), DIMENSION(n)                :: ghavg
       REAL(KIND=GP)                              :: tmp
       INTEGER                                    :: i,j,k
       CHARACTER(len=*), INTENT(IN)               :: nmb
@@ -162,7 +165,7 @@
 
 ! Output shear as a fcn of z:
 !
-      CALL MPI_ALLREDUCE(havg,ghavg,n,GC_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
+      CALL MPI_GATHER(havg,kend-ksta+1,GC_REAL,ghavg,kend-ksta+1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          OPEN(1,file='havgv.' // nmb // '.txt')
          WRITE(1,10) ghavg
