@@ -74,7 +74,7 @@
 !
 ! Output shear as a fcn of z:
 !     CALL MPI_ALLREDUCE(sh,gsh,n,GC_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
-      CALL MPI_GATHER(sh,kend-ksta+1,GC_REAL,gsh,kend-ksta+1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_GATHER(sh,kend-ksta+1,MPI_DOUBLE,gsh,kend-ksta+1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          OPEN(1,file='shear.' // nmb // '.txt')
          WRITE(1,10) gsh
