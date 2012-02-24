@@ -68,7 +68,7 @@
                sh(k) = sh(k)+( r1(i,j,k)**2 + r2(i,j,k)**2 ) * tmp
             END DO
          END DO
-         sh(k) = sh(k) /(real(n,kind=GP)**2 ! to set horiz. avg
+         sh(k) = sh(k) /(real(n,kind=GP)**2) ! to set horiz. avg
       END DO
 
 !
@@ -98,7 +98,7 @@
                sh(k) = sh(k) + ( r1(i,j,k) * tmp )
             END DO
          END DO
-         sh(k) = sh(k) /(real(n,kind=GP)**2 ! to set horiz. avg
+         sh(k) = sh(k) /(real(n,kind=GP)**2) ! to set horiz. avg
       END DO
 !
 ! Output vert. temp. gradient as a fcn of z:
@@ -163,7 +163,7 @@
                havg(k) = havg(k)+( r1(i,j,k)**2 + r2(i,j,k)**2 ) * tmp
             END DO
          END DO
-         havg(k) = havg(k) /(real(n,kind=GP)**2 ! to set horiz. avg
+         havg(k) = havg(k) /(real(n,kind=GP)**2) ! to set horiz. avg
       END DO
 
 ! Output shear as a fcn of z:
