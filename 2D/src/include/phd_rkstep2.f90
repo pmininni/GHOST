@@ -17,10 +17,12 @@
               +fk(j,i))*rmp
                th(j,i) = C12(j,i)+dt*(kappa*C13(j,i)+th(j,i) &
               +fs(j,i))*rmp
-
-            ELSE
+            ELSE IF (ka2(k,j,i).gt.kmax) THEN
                ps(j,i) = 0.0_GP
                th(j,i) = 0.0_GP
+            ELSE IF (ka2(k,j,i).lt.tiny) THEN
+               ps(j,i) = 0.0_GP
+               th(j,i) = C12(j,i) ! preserves mean
             ENDIF
           END DO
          END DO
