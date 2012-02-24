@@ -54,16 +54,11 @@
               +fz(k,j,i))*rmp
                th(k,j,i) = C20(k,j,i)+dt*(kappa*th(k,j,i)+C5(k,j,i) &
               +fs(k,j,i))*rmp
-           ELSE IF (ka2(k,j,i).gt.kmax) THEN
+            ELSE 
                vx(k,j,i) = 0.0_GP
                vy(k,j,i) = 0.0_GP
                vz(k,j,i) = 0.0_GP
                th(k,j,i) = 0.0_GP
-            ELSE IF (ka2(k,j,i).lt.tiny) THEN
-               vx(k,j,i) = 0.0_GP
-               vy(k,j,i) = 0.0_GP
-               vz(k,j,i) = 0.0_GP
-               th(k,j,i) = C20(k,j,i)
             ENDIF
          END DO
          END DO
@@ -86,21 +81,10 @@
           CALL nonlhd3(C4,C5,C6,C7,1)
           CALL nonlhd3(C4,C5,C6,C8,2)
           CALL nonlhd3(C4,C5,C6,C4,3)
-!         CALL advect3(C1,C2,C3,C20,C5)
-!!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-!         DO i = ista,iend               ! heat 'currrent':
-!!$omp parallel do if (iend-ista.lt.nth) private (k)
-!            DO j = 1,n
-!               DO k = 1,n
-!                  C5(k,j,i) = C5(k,j,i)+xtemp*C3(k,j,i)
-!               END DO
-!            END DO
-!         END DO
 
           CALL laplak3(C1 ,C1 )
           CALL laplak3(C2 ,C2 )
           CALL laplak3(C3 ,C3 )
-!         CALL laplak3(C20,C20)
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
           ! Compute L(u) + N(u,u):
@@ -112,17 +96,10 @@
                  C1 (k,j,i) = C1 (k,j,i)+C7(k,j,i)
                  C2 (k,j,i) = C2 (k,j,i)+C8(k,j,i)
                  C3 (k,j,i) = C3 (k,j,i)+C4(k,j,i)
-!                C20(k,j,i) = C20(k,j,i)+C5(k,j,i)
-              ELSE IF (ka2(k,j,i).gt.kmax) THEN
+              ELSE 
                  C1 (k,j,i) = 0.0
                  C2 (k,j,i) = 0.0
                  C3 (k,j,i) = 0.0
-!                C20(k,j,i) = 0.0
-              ELSE IF (ka2(k,j,i).lt.tiny) THEN
-                 C1 (k,j,i) = 0.0
-                 C2 (k,j,i) = 0.0
-                 C3 (k,j,i) = 0.0
-!                C20(k,j,i) = 0.0
               ENDIF
              END DO
             END DO
@@ -143,7 +120,6 @@
           CALL nonlhd3(C4,C5,C6,C7,1)
           CALL nonlhd3(C4,C5,C6,C8,2)
           CALL nonlhd3(C4,C5,C6,C4,3)
-!         CALL advect3(C1,C2,C3,C20,C5)
 
           rmp = dt**3/24.0_GP
 
@@ -157,7 +133,6 @@
                    vx(k,j,i) = vx(k,j,i)+2.0_GP*C7(k,j,i)*rmp
                    vy(k,j,i) = vy(k,j,i)+2.0_GP*C8(k,j,i)*rmp
                    vz(k,j,i) = vz(k,j,i)+2.0_GP*C4(k,j,i)*rmp
-!                  th(k,j,i) = th(k,j,i)+2.0_GP*C5(k,j,i)*rmp
                 END DO
             END DO
           END DO
