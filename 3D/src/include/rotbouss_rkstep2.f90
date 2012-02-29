@@ -59,11 +59,16 @@
               +fz(k,j,i))*rmp
                th(k,j,i) = C20(k,j,i)+dt*(kappa*th(k,j,i)+C5(k,j,i) &
               +fs(k,j,i))*rmp
-            ELSE 
+            ELSE IF (ka2(k,j,i).gt.kmax) THEN
                vx(k,j,i) = 0.0_GP
                vy(k,j,i) = 0.0_GP
                vz(k,j,i) = 0.0_GP
                th(k,j,i) = 0.0_GP
+            ELSE IF (ka2(k,j,i).lt.tiny) THEN
+               vx(k,j,i) = 0.0_GP
+               vy(k,j,i) = 0.0_GP
+               vz(k,j,i) = 0.0_GP
+               th(k,j,i) = C20(k,j,i)
             ENDIF
          END DO
          END DO

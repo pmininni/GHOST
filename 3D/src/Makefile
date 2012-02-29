@@ -149,7 +149,7 @@ clean:  undo
         done
 
 dist:
-	rm -f $(BIN)/HD* $(BIN)/MHD* $(BIN)/HMHD* $(BIN)/ROTH* $(BIN)/BOUSS* \
+	rm -f $(BIN)/HD* $(BIN)/MHD* $(BIN)/HMHD* $(BIN)/ROTH* $(BIN)/*BOUSS* \
               $(BIN)/boots* $(BIN)/trunc* $(BIN)/vt* *HD* *MHD* *HMHD* *ROTH*\
               *BOUSS* *boots* *trunc* *vt*
 	

@@ -42,8 +42,7 @@
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: u,v,s
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1
       REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2
-      DOUBLE PRECISION, DIMENSION(ksta:kend)     :: sh
-      DOUBLE PRECISION, DIMENSION(n)             :: gsh
+      DOUBLE PRECISION, DIMENSION(n)             :: sh,gsh
       DOUBLE PRECISION                           :: tmp
       INTEGER                                    :: i,j,k
       CHARACTER(len=*), INTENT(IN) :: nmb
@@ -57,9 +56,9 @@
 
 !
 ! Do hor. average of total shear:
-      sh  = 0.0_GP
-      gsh = 0.0
-      tmp = 1.0/real(n,kind=GP)**6
+      sh  = 0.0D0
+      gsh = 0.0D0
+      tmp = 1.0D0/dble(n)**6
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
@@ -68,13 +67,13 @@
                sh(k) = sh(k)+( r1(i,j,k)**2 + r2(i,j,k)**2 ) * tmp
             END DO
          END DO
-         sh(k) = sh(k) /(real(n,kind=GP)**2) ! to set horiz. avg
+         sh(k) = sh(k) / (dble(n))**2 ! to set horiz. avg
       END DO
 
 !
 ! Output shear as a fcn of z:
-!     CALL MPI_ALLREDUCE(sh,gsh,n,GC_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
-      CALL MPI_GATHER(sh,kend-ksta+1,MPI_DOUBLE,gsh,kend-ksta+1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_ALLREDUCE(sh,gsh,n,MPI_DOUBLE_PRECISION,      &
+                         MPI_SUM,MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          OPEN(1,file='shear.' // nmb // '.txt')
          WRITE(1,10) gsh
@@ -87,9 +86,9 @@
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
 !
 ! Do hor. average of vert. temp. gradient:
-      sh  = 0.0_GP
-      gsh = 0.0_GP
-      tmp = 1.0_GP/real(n,kind=GP)**3
+      sh  = 0.0D0
+      gsh = 0.0D0
+      tmp = 1.0D0/dble(n)**3
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
@@ -98,11 +97,12 @@
                sh(k) = sh(k) + ( r1(i,j,k) * tmp )
             END DO
          END DO
-         sh(k) = sh(k) /(real(n,kind=GP)**2) ! to set horiz. avg
+         sh(k) = sh(k) /(dble(n))**2 ! to set horiz. avg
       END DO
 !
 ! Output vert. temp. gradient as a fcn of z:
-      CALL MPI_GATHER(sh,kend-ksta+1,MPI_DOUBLE,gsh,kend-ksta+1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_ALLREDUCE(sh,gsh,n,MPI_DOUBLE_PRECISION,      &
+                         MPI_SUM,MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          OPEN(1,file='tgradz.' // nmb // '.txt')
          WRITE(1,20) gsh
@@ -138,8 +138,7 @@
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: u,v
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1
       REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2
-      DOUBLE PRECISION, DIMENSION(ksta:kend)     :: havg
-      DOUBLE PRECISION, DIMENSION(n)             :: ghavg
+      DOUBLE PRECISION, DIMENSION(n)             :: havg,ghavg
       DOUBLE PRECISION                           :: tmp
       INTEGER                                    :: i,j,k
       CHARACTER(len=*), INTENT(IN)               :: nmb
@@ -153,8 +152,8 @@
 
 !
 ! Do volume average of total shear:
-      havg = 0.0
-      tmp = 1.0/real(n,kind=GP)**6
+      havg = 0.0D0
+      tmp = 1.0D0/dble(n)**6
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
@@ -163,12 +162,13 @@
                havg(k) = havg(k)+( r1(i,j,k)**2 + r2(i,j,k)**2 ) * tmp
             END DO
          END DO
-         havg(k) = havg(k) /(real(n,kind=GP)**2) ! to set horiz. avg
+         havg(k) = havg(k) /(real(n,kind=GP))**2 ! to set horiz. avg
       END DO
 
 ! Output shear as a fcn of z:
 !
-      CALL MPI_GATHER(havg,kend-ksta+1,MPI_DOUBLE,ghavg,kend-ksta+1,MPI_DOUBLE,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_ALLREDUCE(havg,ghavg,n,MPI_DOUBLE_PRECISION,      &
+                         MPI_SUM,MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          OPEN(1,file='havgv.' // nmb // '.txt')
          WRITE(1,10) ghavg
@@ -323,11 +323,11 @@
       xmax(3) = xmax(3)*tmp
 !
 ! Do reductions to find global vol avg and global max:
-      CALL MPI_REDUCE(xavg,gxavg,4,MPI_DOUBLE,MPI_SUM,0, &
+      CALL MPI_REDUCE(xavg,gxavg,4,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
-      CALL MPI_REDUCE(xmax,gxmax,4,MPI_DOUBLE,MPI_MAX,0, &
+      CALL MPI_REDUCE(xmax,gxmax,4,MPI_DOUBLE_PRECISION,MPI_MAX,0, &
                       MPI_COMM_WORLD,ierr)
-      CALL MPI_REDUCE(xmin,gxmin,1,MPI_DOUBLE,MPI_MIN,0, &
+      CALL MPI_REDUCE(xmin,gxmin,1,MPI_DOUBLE_PRECISION,MPI_MIN,0, &
                       MPI_COMM_WORLD,ierr)
 
 ! NOTE: col_2 == vol average of shear
