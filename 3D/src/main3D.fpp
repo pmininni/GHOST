@@ -1648,8 +1648,11 @@
 #ifdef PROTH_SOL
          INCLUDE 'proth_rkstep2.f90'
 #endif
-#if defined(BOUSS_SOL) || defined(ROTBOUSS_SOL)
+#ifdef BOUSS_SOL
          INCLUDE 'bouss_rkstep2.f90'
+#endif
+#ifdef ROTBOUSS_SOL
+         INCLUDE 'rotbouss_rkstep2.f90'
 #endif
 #ifdef LAHD_SOL
          INCLUDE 'lahd_rkstep2.f90'
