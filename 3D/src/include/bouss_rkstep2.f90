@@ -11,7 +11,6 @@
                END DO
             END DO
          END DO
-
          CALL nonlhd3(C4,C5,C6,C7,1)
          CALL nonlhd3(C4,C5,C6,C8,2)
          CALL nonlhd3(C4,C5,C6,C4,3)
@@ -25,7 +24,6 @@
                END DO
             END DO
          END DO
-
          CALL laplak3(vx,vx)
          CALL laplak3(vy,vy)
          CALL laplak3(vz,vz)
@@ -84,7 +82,6 @@
           CALL nonlhd3(C4,C5,C6,C7,1)
           CALL nonlhd3(C4,C5,C6,C8,2)
           CALL nonlhd3(C4,C5,C6,C4,3)
-
           CALL laplak3(C1 ,C1 )
           CALL laplak3(C2 ,C2 )
           CALL laplak3(C3 ,C3 )

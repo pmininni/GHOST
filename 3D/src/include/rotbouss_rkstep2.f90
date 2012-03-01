@@ -26,19 +26,16 @@
                END DO
             END DO
          END DO
-
          CALL laplak3(vx,vx)
          CALL laplak3(vy,vy)
          CALL laplak3(vz,vz)
          CALL laplak3(th,th)
+
          IF ((trans.eq.1).and.(times.eq.0).and.(bench.eq.0).and.(o.eq.ord)) &
             THEN
             CALL entrans(C1,C2,C3,C7,C8,C4,ext,1)
             CALL entpara(C1,C2,C3,C7,C8,C4,ext,1)
             CALL entperp(C1,C2,C3,C7,C8,C4,ext,1)
-            CALL heltrans(C1,C2,C3,C7,C8,C4,ext,1)
-            CALL heltpara(C1,C2,C3,C7,C8,C4,ext,1)
-            CALL heltperp(C1,C2,C3,C7,C8,C4,ext,1)
             CALL sctrans(C20,C5,ext)
             CALL sctpara(C20,C5,ext)
             CALL sctperp(C20,C5,ext)
