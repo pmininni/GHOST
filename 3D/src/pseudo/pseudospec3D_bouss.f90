@@ -238,8 +238,8 @@
                dloc    = r1(i,j,k)**2+r2(i,j,k)**2
                xmax(1) = MAX(xmax(1),dloc)
               
-               xmax(4) = MAX(xmax(4),r3(i,j,k))
-               xmin(1) = MIN(xmin(1),r3(i,j,k))
+               xmax(4) = MAX(xmax(4),dble(r3(i,j,k)))
+               xmin(1) = MIN(xmin(1),dble(r3(i,j,k)))
                xavg(4) = xavg(4) + r3(i,j,k)
             END DO
          END DO
@@ -314,8 +314,8 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i) reduction(max:xmax)
          DO j = 1,n
             DO i = 1,n
-               xmax(2) = max(xmax(2),r1(i,j,k)**2+r2(i,j,k)**2)
-               xmax(3) = max(xmax(3),r3(i,j,k)**2)
+               xmax(2) = max(xmax(2),dble(r1(i,j,k)**2+r2(i,j,k)**2))
+               xmax(3) = max(xmax(3),dble(r3(i,j,k)**2))
             END DO
          END DO
       END DO
