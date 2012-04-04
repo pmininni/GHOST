@@ -15,19 +15,482 @@
 !
 !=================================================================
 
+
 !*****************************************************************
-      SUBROUTINE havgshear(u, v, s, nmb)
+      SUBROUTINE havgcomp(gsh, u, v, w, s, fo, bv, itype)
 !-----------------------------------------------------------------
 !
-! Computes the horizontal-averaged shear^2 (as a function of z), and
-! horizontal average of vertical temperature gradient 
-! (as a function of z), and outputs them.
+! Computes a variety of 'horizontally-averaged' quantities, which
+! are functions of z. The results are stored in the return array,
+! gsh, which must have a size >= N. The quantity to be computed
+! is specified by flag itype, which can take the following 
+! values:
+!    itype == 0 : hor. avg. of shear == <du_perp/dz>_perp
+!    itype == 1 : hor. avg. of vert. temp. gradient == <d\theta/dz>_perp
+!    itype == 2 : hor. avg. of correlation == <u_z d\theta/dz>_perp
+!    itype == 3 : hor. avg. of hor. kinetic energy == <u^2 + v^2>_perp
+!    itype == 4 : hor. avg. of vert. kinetic energy == <w^2>_perp
+!    itype == 5 : hor. avg. of perp. helicity == <u_perp . curl u_perp = -u dv/dz + v du/dz>_perp
+!    itype == 6 : hor. avg. of correlation: <\omega_z \theta>_perp
+!    itype == 7 : hor. avg. of PV^2: <(fd\theta/dz - N \omega_z + omega.Grad\theta -fN)^2>_perp
+!    itype == 8 : hor. avg. of 'super-helicity': <\omega . curl \omega>_perp 
 !
 ! Parameters
+!     gsh: return array, funcion of z of size >= N
 !     u  : input x-velocity, Fourier coeffs
 !     v  : input y-velocity, Fourier coeffs
+!     w  : input z-velocity, Fourier coeffs
 !     s  : input scalar density/temperature, Fourier coeffs
-!     nmb: the extension used when writting the file
+!     fo : Coriolis parameter (usually == 2\Omega)
+!     bv : Brunt-Vaisala frequency
+!     itype: which quantity to compute
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: u,v,w,s
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1,c2,c3,c4
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2,r3
+      REAL(KIND=GP),INTENT(IN)                   :: fo, bv
+      DOUBLE PRECISION, DIMENSION(n)             :: sh
+      DOUBLE PRECISION, INTENT(INOUT), DIMENSION(n):: gsh
+      DOUBLE PRECISION                           :: tmp
+      INTEGER,INTENT(IN)                         :: itype
+      INTEGER                                    :: i,j,k
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+
+      IF ( itype .eq. 0 ) THEN  ! <du_perp/dz>_perp
+!
+! Find z-derivative of u, v:
+        CALL derivk3(u,c1,3)
+        CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+        CALL derivk3(v,c1,3)
+        CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+
+!
+! Do hor. average of total shear:
+        sh  = 0.0D0
+        gsh = 0.0D0
+        tmp = 1.0D0/dble(n)**8 ! fact of 1/n^3 for each factor * 1/n^2 for horiz. avg
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+           DO j = 1,n
+              DO i = 1,n
+                 sh(k) = sh(k)+( r1(i,j,k)**2 + r2(i,j,k)**2 )
+              END DO
+           END DO
+           sh(k) = sh(k) * tmp
+        END DO
+
+!
+! Collect as a fcn of z:
+        CALL MPI_ALLREDUCE(sh,gsh,n,MPI_DOUBLE_PRECISION,      &
+                           MPI_SUM,MPI_COMM_WORLD,ierr)
+
+        RETURN
+      ENDIF
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+
+      IF ( itype .eq. 1 .or. itype .eq. 2 ) THEN  ! <d\theta/dz>_perp
+!
+! Find z-derivative of s:
+        CALL derivk3(s,c1,3)
+        CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+!
+! Do hor. average of vert. temp. gradient:
+        IF ( itype .eq. 1 ) THEN
+          sh  = 0.0D0
+          gsh = 0.0D0
+          tmp = 1.0D0/dble(n)**5 ! fact of 1/n^3 r1  * 1/n^2 for horiz. avg
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+          DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+             DO j = 1,n
+              DO i = 1,n
+                   sh(k) = sh(k) + r1(i,j,k) 
+                END DO
+             END DO
+             sh(k) = sh(k) * tmp
+          END DO
+!
+! Collect as a fcn of z:
+          CALL MPI_ALLREDUCE(sh,gsh,n,MPI_DOUBLE_PRECISION,      &
+                             MPI_SUM,MPI_COMM_WORLD,ierr)
+          RETURN
+
+        ENDIF
+      ENDIF
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+
+      IF ( itype .eq. 2 ) THEN  ! <u_z d\theta/dz>_perp
+! Do correlation <u_z d\theta/dz>; d\theta already computed above:
+        CALL fftp3d_complex_to_real(plancr,w ,r2,MPI_COMM_WORLD)
+!
+! Do hor. average of vert. temp. gradient:
+        sh  = 0.0D0
+        gsh = 0.0D0
+        tmp = 1.0D0/dble(n)**8 ! fact of 1/n^3 for each factor * 1/n^2 for horiz. avg
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+           DO j = 1,n
+              DO i = 1,n
+                 sh(k) = sh(k) + ( r1(i,j,k)*r2(i,j,k) )
+              END DO
+           END DO
+           sh(k) = sh(k) * tmp
+        END DO
+!
+! Collect as a fcn of z:
+        CALL MPI_ALLREDUCE(sh,gsh,n,MPI_DOUBLE_PRECISION,      &
+                           MPI_SUM,MPI_COMM_WORLD,ierr)
+
+        RETURN
+      ENDIF
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+
+      IF ( itype .eq. 3 ) THEN  ! <u^2 + v^2>_perp
+!
+! Find spatial u, v:
+        c1 = u
+        CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+        c1 = v
+        CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+
+!
+! Do volume average of perp kinetic energy:
+        sh  = 0.0D0
+        tmp = 1.0D0/dble(n)**8
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+           DO j = 1,n
+              DO i = 1,n
+                 sh(k) = sh(k)+( r1(i,j,k)**2 + r2(i,j,k)**2 )
+              END DO
+           END DO
+           sh(k) = sh(k) * tmp
+        END DO
+
+!
+! Collect as a fcn of z:
+        CALL MPI_ALLREDUCE(sh,gsh,n,MPI_DOUBLE_PRECISION,      &
+                           MPI_SUM,MPI_COMM_WORLD,ierr)
+        RETURN
+      ENDIF
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+
+      IF ( itype .eq. 4 ) THEN  ! <w^2 >_perp
+!
+! Find spatial u, v:
+        c1 = 2
+        CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+
+!
+! Do volume average of perp kinetic energy:
+        sh  = 0.0D0
+        tmp = 1.0D0/dble(n)**8
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+           DO j = 1,n
+              DO i = 1,n
+                 sh(k) = sh(k)+( r1(i,j,k)**2 )
+              END DO
+           END DO
+           sh(k) = sh(k) * tmp
+        END DO
+
+!
+! Collect as a fcn of z:
+        CALL MPI_ALLREDUCE(sh,gsh,n,MPI_DOUBLE_PRECISION,      &
+                           MPI_SUM,MPI_COMM_WORLD,ierr)
+        RETURN
+      ENDIF
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+
+      IF ( itype .eq. 5 ) THEN  ! <u_perp . curl u_perp = -u dv/dz + v du/dz>_perp
+!
+! Find z-derivative of v, IFFT of u:
+        CALL derivk3(v,c1,3)
+        CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+        CALL fftp3d_complex_to_real(plancr,u ,r1,MPI_COMM_WORLD)
+!
+! Compute -u dv/dz contrib:
+        sh  = 0.0D0
+        gsh = 0.0D0
+        tmp = 1.0D0/dble(n)**8
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend 
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+           DO j = 1,n
+              DO i = 1,n
+                 sh(k) = sh(k)-( r1(i,j,k)*r2(i,j,k) )
+              END DO
+           END DO
+        END DO
+!
+! Compute v du/dz contrib:
+        CALL derivk3(u,c1,3)
+        CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+        CALL fftp3d_complex_to_real(plancr,v ,r1,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+           DO j = 1,n
+              DO i = 1,n
+                 sh(k) = sh(k)+( r1(i,j,k)*r2(i,j,k) )
+              END DO
+           END DO
+           sh(k) = sh(k) * tmp
+        END DO
+
+!
+! Collect as a fcn of z:
+        CALL MPI_ALLREDUCE(sh,gsh,n,MPI_DOUBLE_PRECISION,      &
+                           MPI_SUM,MPI_COMM_WORLD,ierr)
+
+        RETURN
+      ENDIF
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+
+      IF ( itype .eq. 6 ) THEN  ! <\omega_z \theta>_perp
+        sh  = 0.0D0
+        gsh = 0.0D0
+        tmp = 1.0D0/dble(n)**5
+        CALL rotor3(u,v,c1,3)
+        CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+           DO j = 1,n
+              DO i = 1,n
+                 sh(k) = sh(k)+r1(i,j,k)
+              END DO
+           END DO
+           sh(k) = sh(k) * tmp
+        END DO
+!
+! Collect as a fcn of z:
+        CALL MPI_ALLREDUCE(sh,gsh,n,MPI_DOUBLE_PRECISION,      &
+                           MPI_SUM,MPI_COMM_WORLD,ierr)
+
+        RETURN
+      ENDIF
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+
+      IF ( itype .eq. 7 ) THEN  ! <PV^2>_perp
+        r2  = 0.0_GP
+        sh  = 0.0D0
+        gsh = 0.0D0
+!
+! Find z-derivative of theta contrib:
+        CALL derivk3(s,c1,3)
+        CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+
+        tmp = 1.0D0/dble(n)**3
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+           DO j = 1,n
+              DO i = 1,n
+                 r2(i,j,k) = r2(i,j,k) + fo*r1(i,j,k)*tmp
+              END DO
+           END DO
+        END DO
+
+! Find omega_z contrib:
+        CALL rotor3(u,v,c1,3) ! omega_z
+        CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+        tmp = 1.0D0/dble(n)**3
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+           DO j = 1,n
+              DO i = 1,n
+                 r2(i,j,k) = r2(i,j,k) - bv*r1(i,j,k)*tmp
+              END DO
+           END DO
+        END DO
+
+!  Find omega.Grad theta contrib:
+      CALL rotor3(v,w,c1,1)
+      CALL rotor3(u,w,c2,2)
+      CALL rotor3(u,v,c3,3)
+      CALL advect3(c1,c2,c3,s,c4)
+      CALL fftp3d_complex_to_real(plancr,c4,r1,MPI_COMM_WORLD)
+      tmp = 1.0D0/dble(n)**3
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+           DO j = 1,n
+              DO i = 1,n
+                 r2(i,j,k) = r2(i,j,k) + r1(i,j,k)*tmp
+              END DO
+           END DO
+        END DO
+
+!
+! Find fN contrib:
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+           DO j = 1,n
+              DO i = 1,n
+                 r2(i,j,k) = r2(i,j,k) - fo*bv 
+                 r2(i,j,k) = r2(i,j,k)**2
+              END DO
+           END DO
+        END DO
+
+      tmp = 1.0D0/dble(n)**2
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+           DO j = 1,n
+              DO i = 1,n
+                 sh(k) = sh(k) + r2(i,j,k)
+              END DO
+           END DO
+           sh(k) = sh(k)*tmp
+        END DO
+!
+! Collect as a fcn of z:
+        CALL MPI_ALLREDUCE(sh,gsh,n,MPI_DOUBLE_PRECISION,      &
+                           MPI_SUM,MPI_COMM_WORLD,ierr)
+
+        RETURN
+      ENDIF
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+
+      IF ( itype .eq. 8 ) THEN  ! <\omega . curl \omega>_perp == <super-helicity>_perp
+        sh  = 0.0D0
+        gsh = 0.0D0
+        tmp = 1.0D0/dble(n)**8
+
+!       ...do omega_x * ( d\omega_z/dy - d\omega_y/dz) contrib:
+        CALL rotor3(u,v,c1,3)
+        CALL derivk3(c1,c2,2)
+        CALL fftp3d_complex_to_real(plancr,c2,r1,MPI_COMM_WORLD)
+        CALL rotor3(u,w,c1,2)
+        CALL derivk3(c1,c2,3)
+        CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+     
+        CALL rotor3(v,w,c1,1) ! omega_x
+        CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+           DO j = 1,n
+              DO i = 1,n
+                 sh(k) = sh(k) + r3(i,j,k)*( r1(i,j,k)-r2(i,j,k) )
+              END DO
+           END DO
+        END DO
+
+!       ...do omega_y * ( d\omega_x/dz - d\omega_z/dx) contrib:
+        CALL rotor3(v,w,c1,1) ! omega_x
+        CALL derivk3(c1,c2,3)
+        CALL fftp3d_complex_to_real(plancr,c2,r1,MPI_COMM_WORLD)
+        CALL rotor3(u,v,c1,3) ! omega_z
+        CALL derivk3(c1,c2,1)
+        CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+     
+        CALL rotor3(u,w,c1,2) ! omega_y
+        CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+           DO j = 1,n
+              DO i = 1,n
+                 sh(k) = sh(k) + r3(i,j,k)*( r1(i,j,k)-r2(i,j,k) )
+              END DO
+           END DO
+        END DO
+
+!       ...do omega_z * ( d\omega_y/dx - d\omega_x/dy) contrib:
+        CALL rotor3(u,w,c1,2) ! omega_y
+        CALL derivk3(c1,c2,1)
+        CALL fftp3d_complex_to_real(plancr,c2,r1,MPI_COMM_WORLD)
+        CALL rotor3(v,w,c1,1) ! omega_x
+        CALL derivk3(c1,c2,2)
+        CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+     
+        CALL rotor3(u,v,c1,3) ! omega_z
+        CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+           DO j = 1,n
+              DO i = 1,n
+                 sh(k) = sh(k) + r3(i,j,k)*( r1(i,j,k)-r2(i,j,k) )
+              END DO
+           END DO
+           sh(k) = sh(k) * tmp
+        END DO
+!
+! Collect as a fcn of z:
+        CALL MPI_ALLREDUCE(sh,gsh,n,MPI_DOUBLE_PRECISION,      &
+                           MPI_SUM,MPI_COMM_WORLD,ierr)
+
+        RETURN
+      ENDIF
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+
+      RETURN
+      END SUBROUTINE havgcomp
+
+
+!*****************************************************************
+      SUBROUTINE havgwrite(itype,spref,nmb,u,v,w,s,fo,bv)
+!-----------------------------------------------------------------
+!
+! Computes horizontal average of quantity, itype (specified in 
+! method 'havgcomp', and outputs it as a function of z, to the
+! file whose prefix is 'spref'. Filename will be of the form
+! spref.XXX.txt, where XXX is computed from output interval id, 'nmb'
+!
+! Parameters
+!     itype : quantity id
+!     spref : filename prefix
+!     nmb   : output interval id extension
+!     u     : input x-velocity, Fourier coeffs
+!     v     : input y-velocity, Fourier coeffs
+!     w     : input z-velocity, Fourier coeffs
+!     s     : input scalar density/temperature, Fourier coeffs
+!     fo    : Coriolis parameter (usually == 2\Omega)
+!     bv    : Brunt-Vaisala frequency
+
 
       USE fprecision
       USE commtypes
@@ -39,152 +502,31 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: u,v,s
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2
-      DOUBLE PRECISION, DIMENSION(n)             :: sh,gsh
-      DOUBLE PRECISION                           :: tmp
-      INTEGER                                    :: i,j,k
-      CHARACTER(len=*), INTENT(IN) :: nmb
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: u,v,w,s
+      REAL(KIND=GP),INTENT(IN)                               :: fo, bv
+      DOUBLE PRECISION, DIMENSION(n)                         :: gsh
+      CHARACTER(len=*), INTENT(IN)                           :: nmb,spref
+      INTEGER,INTENT(IN)                                     :: itype
 
 !
-! Find z-derivative of u, v:
-      CALL derivk3(u,c1,3)
-      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-      CALL derivk3(v,c1,3)
-      CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
-
-!
-! Do hor. average of total shear:
-      sh  = 0.0D0
-      gsh = 0.0D0
-      tmp = 1.0D0/dble(n)**6
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-      DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
-               sh(k) = sh(k)+( r1(i,j,k)**2 + r2(i,j,k)**2 ) * tmp
-            END DO
-         END DO
-         sh(k) = sh(k) / (dble(n))**2 ! to set horiz. avg
-      END DO
-
-!
-! Output shear as a fcn of z:
-      CALL MPI_ALLREDUCE(sh,gsh,n,MPI_DOUBLE_PRECISION,      &
-                         MPI_SUM,MPI_COMM_WORLD,ierr)
+      CALL havgcomp(gsh,u,v,w,s,itype) 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='shear.' // nmb // '.txt')
+         OPEN(1,file=trim(spref) // '.' // trim(nmb) // '.txt')
          WRITE(1,10) gsh
    10    FORMAT( E23.15 )
          CLOSE(1)
       ENDIF
-!
-! Find z-derivative of s:
-      CALL derivk3(s,c1,3)
-      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-!
-! Do hor. average of vert. temp. gradient:
-      sh  = 0.0D0
-      gsh = 0.0D0
-      tmp = 1.0D0/dble(n)**3
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-      DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
-               sh(k) = sh(k) + ( r1(i,j,k) * tmp )
-            END DO
-         END DO
-         sh(k) = sh(k) /(dble(n))**2 ! to set horiz. avg
-      END DO
-!
-! Output vert. temp. gradient as a fcn of z:
-      CALL MPI_ALLREDUCE(sh,gsh,n,MPI_DOUBLE_PRECISION,      &
-                         MPI_SUM,MPI_COMM_WORLD,ierr)
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='tgradz.' // nmb // '.txt')
-         WRITE(1,20) gsh
-   20    FORMAT( E23.15 )
-         CLOSE(1)
-      ENDIF
 
       RETURN
-      END SUBROUTINE havgshear
+      END SUBROUTINE havgwrite
+
 
 !*****************************************************************
-      SUBROUTINE havghvel(u, v, nmb)
+      SUBROUTINE tbouss(u, v, w, s, t, dt, fo, bv)
 !-----------------------------------------------------------------
 !
-! Computes the horizontal-averaged square horizontal velocity 
-! (as a function of z), and outputs it.
-!
-! Parameters
-!     u  : input x-velocity, Fourier coeffs
-!     v  : input y-velocity, Fourier coeffs
-!     nmb: the extension used when writting the file
-
-      USE fprecision
-      USE commtypes
-      USE kes
-      USE grid
-      USE mpivars
-      USE filefmt
-      USE fft
-!$    USE threads
-      IMPLICIT NONE
-
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: u,v
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2
-      DOUBLE PRECISION, DIMENSION(n)             :: havg,ghavg
-      DOUBLE PRECISION                           :: tmp
-      INTEGER                                    :: i,j,k
-      CHARACTER(len=*), INTENT(IN)               :: nmb
-
-!
-! Find spatial u, v:
-      c1 = u
-      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-      c1 = v
-      CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
-
-!
-! Do volume average of total shear:
-      havg = 0.0D0
-      tmp = 1.0D0/dble(n)**6
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-      DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
-               havg(k) = havg(k)+( r1(i,j,k)**2 + r2(i,j,k)**2 ) * tmp
-            END DO
-         END DO
-         havg(k) = havg(k) /(real(n,kind=GP))**2 ! to set horiz. avg
-      END DO
-
-! Output shear as a fcn of z:
-!
-      CALL MPI_ALLREDUCE(havg,ghavg,n,MPI_DOUBLE_PRECISION,      &
-                         MPI_SUM,MPI_COMM_WORLD,ierr)
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='havgv.' // nmb // '.txt')
-         WRITE(1,10) ghavg
-   10    FORMAT( E23.15 )
-         CLOSE(1)
-      ENDIF
-
-      RETURN
-      END SUBROUTINE havghvel
-
-!*****************************************************************
-      SUBROUTINE tbouss(u, v, w, s, t, dt)
-!-----------------------------------------------------------------
-!
-! Computes the volume-average and max of horizontal & vertical kinetic energy, and
-! of the shear, and outputs them as a function of time. 
+! Computes the volume-average and max/min of quantities computed in
+! havgcomp, and output them to disk as a function of time.
 !
 ! Parameters
 !     u  : input x-velocity, Fourier coeffs
@@ -193,6 +535,9 @@
 !     s  : input scalar density/temperature, Fourier coeffs
 !     t  : number of time steps made
 !     dt : time step
+!     fo : Coriolis parameter (usually == 2\Omega)
+!     bv : Brunt-Vaisala frequency
+
 
       USE fprecision
       USE commtypes
@@ -206,158 +551,65 @@
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: u,v,w,s
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1,c2,c3
-      REAL(KIND=GP), INTENT(IN)                  :: dt
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2,r3
-      DOUBLE PRECISION                           :: dloc,xavg(4),gxavg(4),xmax(4),gxmax(4),tmp
-      DOUBLE PRECISION                           :: xmin(1),gxmin(1)
+      REAL(KIND=GP),INTENT(IN)                   :: dt
+      REAL(KIND=GP),INTENT(IN)                   :: fo, bv
+      DOUBLE PRECISION                           :: gxavg(9),gxmax(9),gxmin(9),tmp
+      DOUBLE PRECISION,  DIMENSION(n)            :: gsh
       INTEGER, INTENT(IN)                        :: t
-      INTEGER                                    :: i,j,k
+      INTEGER                                    :: i
 
-      xavg  = 0.0
-      xmax  = 0.0
-      xmin  = 1.0/tinyf
-      gxavg = 0.0
-      gxmax = 0.0
+      gxavg  = 0.0D0
+      gxmax  = 0.0D0
+      gxmin  = 1.0D0/tinyf
+
+! Compute volume averages from horizontal averages, and
+! also extrema from horiz. averages:
+      DO i = 1, 9
+        CALL havgcomp(gsh,u,v,w,s,fo,bv,i-1)
+        gxavg(i) = sum   (gsh,n);
+        gxmax(i) = maxval(gsh,n);
+        gxmin(i) = minval(gsh,n);
+      ENDDO
 !
-! Find max of shear, vert. temp gradient:
-      CALL derivk3(u,c1,3)
-      CALL derivk3(v,c2,3)
-      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+! Don't need reductions bec the results from havgcomp are globalized,
+! so just do the outputs:
 
-      CALL derivk3(s,c3,3)
-      CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
-
-      tmp   = 1.0/real(n,kind=GP)**6
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i,dloc) reduction(max:xmax)
-      DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i,dloc) reduction(max:xmax)
-         DO j = 1,n
-            DO i = 1,n
-               dloc    = r1(i,j,k)**2+r2(i,j,k)**2
-               xmax(1) = MAX(xmax(1),dloc)
-              
-               xmax(4) = MAX(xmax(4),dble(r3(i,j,k)))
-               xmin(1) = MIN(xmin(1),dble(r3(i,j,k)))
-               xavg(4) = xavg(4) + r3(i,j,k)
-            END DO
-         END DO
-      END DO
-      xmax(1) = xmax(1)*tmp
-      xmax(4) = xmax(4)*sqrt(tmp)
-      xmin(1) = xmin(1)*sqrt(tmp)
-      xavg(4) = xavg(4)*sqrt(tmp)
-
-!
-! Find spatial u, v, vol average of square of horizontal, vert. velocity, shear:
-      IF (ista.eq.1) THEN
-!$omp parallel do private (k,dloc) reduction(+:xavg)
-            DO j = 1,n
-               DO k = 1,n
-                  dloc    = (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2)*tmp
-                  xavg(1) = xavg(1) + dloc
-                  dloc    = (abs(u (k,j,1))**2+abs(v (k,j,1))**2)*tmp
-                  xavg(2) = xavg(2) + dloc
-                  dloc    = (abs(w(k,j,1))**2)*tmp
-                  xavg(3) = xavg(3) + dloc
-               END DO
-            END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,dloc) reduction(+:xavg)
-            DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,dloc) reduction(+:xavg)
-               DO j = 1,n
-                  DO k = 1,n
-                    dloc    = 2.0*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2)*tmp
-                    xavg(1) = xavg(1) + dloc
-                    dloc    = 2.0*(abs(u (k,j,i))**2+abs(v (k,j,i))**2)*tmp
-                    xavg(2) = xavg(2) + dloc
-                    dloc    = 2.0*(abs(w(k,j,i))**2)*tmp
-                    xavg(3) = xavg(3) + dloc
-                  END DO
-               END DO
-            END DO
-       ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,dloc) reduction(+:xavg)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,dloc) reduction(+:xavg)
-               DO j = 1,n
-                  DO k = 1,n
-                    dloc    = 2.0*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2)*tmp 
-                    xavg(1) = xavg(1) + dloc
-                    dloc    = 2.0*(abs(u (k,j,i))**2+abs(v (k,j,i))**2)*tmp
-                    xavg(2) = xavg(2) + dloc
-                    dloc    = 2.0*(abs(w(k,j,i))**2 )*tmp
-                    xavg(3) = xavg(3) + dloc
-                  END DO
-               END DO
-            END DO
-       ENDIF
-
-! ... compute extrema:
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
-               c1(k,j,i) = u(k,j,i)
-               c2(k,j,i) = v(k,j,i)
-               c3(k,j,i) = w(k,j,i)
-           END DO
-        END DO
-      END DO
-      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i) reduction(max:xmax)
-      DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i) reduction(max:xmax)
-         DO j = 1,n
-            DO i = 1,n
-               xmax(2) = max(xmax(2),dble(r1(i,j,k)**2+r2(i,j,k)**2))
-               xmax(3) = max(xmax(3),dble(r3(i,j,k)**2))
-            END DO
-         END DO
-      END DO
-      xmax(2) = xmax(2)*tmp
-      xmax(3) = xmax(3)*tmp
-!
-! Do reductions to find global vol avg and global max:
-      CALL MPI_REDUCE(xavg,gxavg,4,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
-                      MPI_COMM_WORLD,ierr)
-      CALL MPI_REDUCE(xmax,gxmax,4,MPI_DOUBLE_PRECISION,MPI_MAX,0, &
-                      MPI_COMM_WORLD,ierr)
-      CALL MPI_REDUCE(xmin,gxmin,1,MPI_DOUBLE_PRECISION,MPI_MIN,0, &
-                      MPI_COMM_WORLD,ierr)
-
-! NOTE: col_2 == vol average of shear
-!       col_3 == vol average of horiz. kinetic energy
-!       col_4 == vol average of vert. kinetic energy
-!       col_5 == vol average of vert. temp. gradient
+! NOTE: col_2 == vol average/extremum of du_perp/dz
+!       col_3 == vol average/extremum of d\theta/dz
+!       col_4 == vol average/extremum of u_z d\theta/dz
+!       col_5 == vol average/extremum of u^2 + v^2
+!       col_6 == vol average/extremum of w^2
+!       col_7 == vol average/extremum of u_perp . curl u_perp
+!       col_8 == vol average/extremum of \omega_z \theta
+!       col_9 == vol average/extremum of PV^2
+!       col_10== vol average/extremum of \omega . curl \omega
 !
 ! Output quantities as a fcn of t:
       IF (myrank.eq.0) THEN
          OPEN(1,file='tboussavg.txt',position='append')
-         WRITE(1,10) (t-1)*dt,gxavg(1),gxavg(2),gxavg(3),gxavg(4)
-   10    FORMAT( E13.6,1x,4(E26.18,1x) )
+         WRITE(1,10) (t-1)*dt,gxavg(1),gxavg(2),gxavg(3),gxavg(4),gxavg(5), &
+                              gxavg(6),gxavg(7),gxavg(8),gxavg(9)
          CLOSE(1)
       ENDIF
 !
-!       col_2 == max of shear
-!       col_3 == max of horiz. kinetic energy
-!       col_4 == max of vert. kinetic energy
-!       col_5 == max of vert. temp. gradient
-!       col_6 == min of vert. temp. gradient
-!
-! Output quantities as a fcn of t:
+! Output max quantities as a fcn of t:
       IF (myrank.eq.0) THEN
-         OPEN(1,file='tboussinf.txt',position='append')
-         WRITE(1,20) (t-1)*dt,gxmax(1),gxmax(2),gxmax(3),gxmax(4),gxmin(1)
-   20    FORMAT( E13.6,1x,5(E26.18,1x) )
+         OPEN(1,file='tboussmax.txt',position='append')
+         WRITE(1,10) (t-1)*dt,gxmax(1),gxmax(2),gxmax(3),gxmax(4),gxmax(5), &
+                              gxmax(6),gxmax(7),gxmax(8),gxmax(9)
+         CLOSE(1)
+      ENDIF
+!
+! Output min quantities as a fcn of t:
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='tboussmin.txt',position='append')
+         WRITE(1,10) (t-1)*dt,gxmin(1),gxmin(2),gxmin(3),gxmin(4),gxmin(5), &
+                              gxmin(6),gxmin(7),gxmin(8),gxmin(9)
          CLOSE(1)
       ENDIF
 
       RETURN
+   10 FORMAT( E13.6,1x,9(E26.18,1x) )
       END SUBROUTINE tbouss
 
 
@@ -399,8 +651,7 @@
 ! Compute curl a = v . Grad(s):
       CALL advect3(c1,c2,c3,s,a)
 !
-! Sets Ek to zero
-!
+! Set Ek to zero
       DO i = 1,n/2+1
          Ek(i) = 0.
       END DO
