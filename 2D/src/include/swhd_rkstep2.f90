@@ -11,8 +11,8 @@
          CALL laplak2(vx,vx)
          CALL laplak2(vy,vy)
 
-!        IF ((trans.eq.1).and.(times.eq.0).and.(bench.eq.0).and.(o.eq.ord)) &
-!           CALL entrans(C1,ps,ext)
+        IF ((trans.eq.1).and.(times.eq.0).and.(bench.eq.0).and.(o.eq.ord)) &
+           CALL v_entrans(C1,C2,C15,C16,ext)
 
          rmp = 1.0_GP/real(o,kind=GP)
          DO i = ista,iend
@@ -22,12 +22,17 @@
                         - g*im*ka(i)*th(j,i) + fx(j,i))*rmp
                vy(j,i) = C2(j,i) + dt*(nu*vy(j,i) - C16(j,i) &
                         - g*im*ka(j)*th(j,i) + fy(j,i))*rmp
-               th(j,i) = C12(j,i) + dt*im*(-ka(i)*C14(j,i) &
-                        - ka(j)*C13(j,i))
-            ELSE
+               th(j,i) = C12(j,i) - dt*im*(ka(i)*C14(j,i)   &
+                        + ka(j)*C13(j,i))*rmp
+            ELSE IF (ka2(j,i).gt.kmax) THEN
                vx(j,i) = 0.0_GP
                vy(j,i) = 0.0_GP
                th(j,i) = 0.0_GP
+            ELSE IF (ka2(j,i).lt.tiny) THEN
+               vx(j,i) = 0.0_GP
+               vy(j,i) = 0.0_GP
+               th(j,i) = C12(j,i)               
             ENDIF
          END DO
          END DO
+         
