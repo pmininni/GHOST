@@ -1441,8 +1441,11 @@
 #ifdef PROTH_SOL
             INCLUDE 'phd_global.f90'
 #endif
-#if defined(BOUSS_SOL) || defined(ROTBOUSS_SOL)
+#if defined(BOUSS_SOL) 
             INCLUDE 'bouss_global.f90'
+#endif
+#if defined(ROTBOUSS_SOL)
+            INCLUDE 'rotbouss_global.f90'
 #endif
 #ifdef LAHD_SOL
             INCLUDE 'lahd_global.f90'
@@ -1539,7 +1542,7 @@
             INCLUDE 'bouss_spectrum.f90'
 #endif
 #ifdef ROTBOUSS_SOL
-            INCLUDE 'bouss_spectrum.f90'
+            INCLUDE 'rotbouss_spectrum.f90'
 #endif
 #ifdef LAHD_SOL
             INCLUDE 'lahd_spectrum.f90'
