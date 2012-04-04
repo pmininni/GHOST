@@ -9,8 +9,8 @@
             CALL spec2D(vx,vy,vz,ext,odir,1,1)
             CALL specsc2D(th,ext,odir)
 !
-            CALL havgwrite(0,'hashear',ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg shear
-            CALL havgwrite(1,'hadtdz' ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg dtheta/dz
+            CALL havgwrite(0,'shear'  ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg shear
+            CALL havgwrite(1,'tgradz' ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg dtheta/dz
             CALL havgwrite(2,'hawdtdz',ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg u_z * dtheta/dz
             CALL havgwrite(3,'hahke'  ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg hor. k.e.
             CALL havgwrite(4,'havke'  ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg vert. k.e.
