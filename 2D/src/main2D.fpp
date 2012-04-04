@@ -920,7 +920,7 @@
                      C14(j,i) = C14(j,i)-C15(j,i)
                   END DO
                END DO
-               CALL fftp2d_complex_to_real(plancr,C15,R1,MPI_COMM_WORLD)
+               CALL fftp2d_complex_to_real(plancr,C14,R1,MPI_COMM_WORLD)
                CALL io_write(1,odir,'wz',ext,planio,R1)
             ENDIF
             CALL fftp2d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
