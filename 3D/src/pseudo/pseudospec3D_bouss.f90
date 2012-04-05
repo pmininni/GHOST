@@ -512,9 +512,7 @@
       INTEGER,INTENT(IN)                                     :: itype
 
 !
-write(*,*)'havgwrite: 0'
       CALL havgcomp(gsh,u,v,w,s,fo,bv,itype) 
-write(*,*)'havgwrite: 1'
       IF (myrank.eq.0) THEN
          OPEN(1,file=trim(spref) // '.' // trim(nmb) // '.txt')
          WRITE(1,10) gsh
