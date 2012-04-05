@@ -346,9 +346,9 @@
       CALL rotor3(v,w,c1,1)
       CALL rotor3(u,w,c2,2)
       CALL rotor3(u,v,c3,3)
-      CALL advect3(c1,c2,c3,s,c4)
+      CALL advect3(c1,c2,c3,s,c4) ! what comes out is -omega.Grad theta:
       CALL fftp3d_complex_to_real(plancr,c4,r1,MPI_COMM_WORLD)
-      tmp = 1.0D0/dble(n)**3
+      tmp = -1.0D0/dble(n)**3
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
         DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
