@@ -113,7 +113,7 @@
         IF ( itype .eq. 1 ) THEN
           sh  = 0.0D0
           gsh = 0.0D0
-          tmp = 1.0D0/dble(n)**5 ! fact of 1/n^3 r1  * 1/n^2 for horiz. avg
+          tmp = 1.0D0/dble(n)**5 ! fact of 1/n^3 for r1  * 1/n^2 for horiz. avg
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
           DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
