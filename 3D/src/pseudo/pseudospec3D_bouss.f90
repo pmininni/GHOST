@@ -138,7 +138,8 @@
 
       IF ( itype .eq. 2 ) THEN  ! <u_z d\theta/dz>_perp
 ! Do correlation <u_z d\theta/dz>; d\theta already computed above:
-        CALL fftp3d_complex_to_real(plancr,w ,r2,MPI_COMM_WORLD)
+        c1 = w
+        CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
 !
 ! Do hor. average of vert. temp. gradient:
         sh  = 0.0D0
@@ -200,8 +201,8 @@
 
       IF ( itype .eq. 4 ) THEN  ! <w^2 >_perp
 !
-! Find spatial u, v:
-        c1 = 2
+! Find spatial u_z:
+        c1 = w
         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
 
 !
@@ -235,7 +236,8 @@
 ! Find z-derivative of v, IFFT of u:
         CALL derivk3(v,c1,3)
         CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
-        CALL fftp3d_complex_to_real(plancr,u ,r1,MPI_COMM_WORLD)
+        c1 = u
+        CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
 !
 ! Compute -u dv/dz contrib:
         sh  = 0.0D0
@@ -254,7 +256,8 @@
 ! Compute v du/dz contrib:
         CALL derivk3(u,c1,3)
         CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
-        CALL fftp3d_complex_to_real(plancr,v ,r1,MPI_COMM_WORLD)
+        c1 = v
+        CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
         DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
@@ -509,7 +512,9 @@
       INTEGER,INTENT(IN)                                     :: itype
 
 !
-      CALL havgcomp(gsh,u,v,w,s,itype) 
+write(*,*)'havgwrite: 0'
+      CALL havgcomp(gsh,u,v,w,s,fo,bv,itype) 
+write(*,*)'havgwrite: 1'
       IF (myrank.eq.0) THEN
          OPEN(1,file=trim(spref) // '.' // trim(nmb) // '.txt')
          WRITE(1,10) gsh
