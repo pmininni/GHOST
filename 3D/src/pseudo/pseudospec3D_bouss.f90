@@ -571,7 +571,7 @@ write(*,*)'havgwrite: 1'
 ! also extrema from horiz. averages:
       DO i = 1, 9
         CALL havgcomp(gsh,u,v,w,s,fo,bv,i-1)
-        gxavg(i) = sum   (gsh,n);
+        gxavg(i) = sum   (gsh,n)/dble(n);
         gxmax(i) = maxval(gsh,n);
         gxmin(i) = minval(gsh,n);
       ENDDO
