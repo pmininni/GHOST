@@ -132,7 +132,6 @@
       END SUBROUTINE fftp3d_destroy_plan
 
 !*****************************************************************
-!*****************************************************************
       SUBROUTINE fftp3d_create_block(n,nprocs,myrank,itype1,itype2)
 !-----------------------------------------------------------------
 !
@@ -240,6 +239,7 @@
 
             igetFrom = myrank - irank
             if ( igetFrom .lt. 0 ) igetFrom = igetFrom + nprocs
+
             CALL MPI_IRECV(c1,1,plan%itype2(igetFrom),igetFrom,      & 
                           1,comm,ireq2(irank),ierr)
             CALL MPI_ISEND(plan%carr,1,plan%itype1(isendTo),isendTo, &
@@ -361,6 +361,7 @@
 
             igetFrom = myrank - irank
             if ( igetFrom .lt. 0 ) igetFrom = igetFrom + nprocs
+
             CALL MPI_IRECV(plan%carr,1,plan%itype1(igetFrom),igetFrom, & 
                           1,comm,ireq2(irank),ierr)
             CALL MPI_ISEND(c1,1,plan%itype2(isendTo),isendTo, &
