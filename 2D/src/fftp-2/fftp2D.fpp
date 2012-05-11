@@ -124,14 +124,14 @@
       DO irank = 0,nprocs-1
          CALL range(1,n/2+1,nprocs,irank,ista,iend)
          CALL block2d(1,n/2+1,jsta,ista,iend,jsta,jend, &
-                     MPI_COMPLEX,itemp1)
+                     GC_COMPLEX,itemp1)
          itype1(irank) = itemp1
       END DO
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       DO jrank = 0,nprocs-1
          CALL range(1,n,nprocs,jrank,jsta,jend)
          CALL block2d(ista,iend,1,ista,iend,jsta,jend,  &
-                     MPI_COMPLEX,itemp2)
+                     GC_COMPLEX,itemp2)
          itype2(jrank) = itemp2
       END DO
 
@@ -223,13 +223,13 @@
             END DO
          END DO
       END DO
-     CALL CPU_TIME(t1); tratime = tratime + t1-t0
+      CALL CPU_TIME(t1); tratime = tratime + t1-t0
 !
 ! 1D FFT in each node using the FFTW library
 !
       CALL CPU_TIME(t0)
       CALL fftw_f77(plan%planc,iend-ista+1,out,1,plan%n,c2,1,plan%n)
-     CALL CPU_TIME(t1); ffttime = ffttime + t1-t0
+      CALL CPU_TIME(t1); ffttime = ffttime + t1-t0
 
       RETURN
       END SUBROUTINE fftp2d_real_to_complex
