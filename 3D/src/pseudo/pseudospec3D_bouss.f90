@@ -283,16 +283,18 @@
       IF ( itype .eq. 6 ) THEN  ! <\omega_z \theta>_perp
         sh  = 0.0D0
         gsh = 0.0D0
-        tmp = 1.0D0/dble(n)**5
+        tmp = 1.0D0/dble(n)**8
         CALL rotor3(u,v,c1,3)
         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+        c1 = s
+        CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
         DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,n
               DO i = 1,n
-                 sh(k) = sh(k)+r1(i,j,k)
+                 sh(k) = sh(k)+r1(i,j,k)*r2(i,j,k)
               END DO
            END DO
            sh(k) = sh(k) * tmp
