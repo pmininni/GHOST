@@ -6,5 +6,7 @@
             CALL spectrsc(th,ext)
             CALL specscpa(th,ext)
             CALL specscpe(th,ext)
+!           CALL difucx(vx,th,ext)
+!           CALL difucz(vz,th,ext)
 !           CALL spec2D(vx,vy,vz,ext,odir,1,1)
 !           CALL specsc2D(th,ext,odir)

@@ -469,3 +469,187 @@
 
       RETURN
       END SUBROUTINE sctrans
+
+!*****************************************************************
+      SUBROUTINE difucx(a,b,nmb)
+!-----------------------------------------------------------------
+!
+! Computes the mean profiles in x of the velocity, the 
+! passive scalar, and their product. The output is 
+! written to a file by the first node.
+!
+! Parameters
+!     a    : vector field component in the x-direction
+!     b    : scalar field
+!     nmb: the extension used when writting the file
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE fft
+      USE grid
+      USE mpivars
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)                :: r1,r2
+      REAL(KIND=GP), DIMENSION(n)  :: meth,mev,methv
+      REAL(KIND=GP), DIMENSION(n)  :: mth,mv,mthv
+      REAL(KIND=GP)                :: tmp,tmq
+      INTEGER                      :: i,j,k
+      CHARACTER(len=*), INTENT(IN) :: nmb
+
+!
+! Transforms the input arrays to real space
+!
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,n
+            DO k = 1,n
+               c1(k,j,i) = a(k,j,i)
+               c2(k,j,i) = b(k,j,i)
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+!
+! Computes the mean profiles
+!    
+      DO i = 1,n
+         mev(i) = 0.0_GP
+         meth(i) = 0.0_GP
+         methv(i) = 0.0_GP
+      END DO
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i) reduction(max:dloc)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i) reduction(max:dloc)
+         DO j = 1,n
+            DO i = 1,n
+               mev(i) = mev(i)+r1(i,j,k)
+               meth(i) = meth(i)+r2(i,j,k)
+               methv(i) = methv(i)+r1(i,j,k)*r2(i,j,k)
+            END DO
+         END DO
+      END DO
+      tmp = 1.0_GP/float(n)**5
+      tmq = 1.0_GP/float(n)**8
+      DO i = 1,n
+         mev(i) = mev(i)*tmp
+         meth(i) = meth(i)*tmp
+         methv(i) = methv(i)*tmq
+      END DO
+!
+! Computes the reduction between nodes
+!
+      CALL MPI_REDUCE(mev,mv,n,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_REDUCE(meth,mth,n,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_REDUCE(methv,mthv,n,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+
+      IF (myrank.eq.0) THEN
+
+         OPEN(1,file='profilex.' // nmb // '.txt')
+         DO i = 1,n
+            WRITE(1,40) mv(i),mth(i),mthv(i)
+         END DO
+         CLOSE(1) 
+   40    FORMAT( E23.15,E23.15,E23.15 ) 
+      ENDIF
+
+      RETURN
+      END SUBROUTINE difucx
+
+!*****************************************************************
+      SUBROUTINE difucz(a,b,nmb)
+!-----------------------------------------------------------------
+!
+! Computes the mean profiles in z of the velocity, the 
+! passive scalar, and their product. The output is 
+! written to a file by the first node.
+!
+! Parameters
+!     a    : vector field component in the z-direction
+!     b    : scalar field
+!     nmb  : number of blocks
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE fft
+      USE grid
+      USE mpivars
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)                :: r1,r2
+      REAL(KIND=GP), DIMENSION(n)  :: meth,mev,methv
+      REAL(KIND=GP), DIMENSION(n)  :: mth,mv,mthv
+      REAL(KIND=GP)                :: tmp,tmq
+      INTEGER                      :: i,j,k
+      CHARACTER(len=*), INTENT(IN) :: nmb
+
+!
+! Transforms the input arrays to real space
+!
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,n
+            DO k = 1,n
+               c1(k,j,i) = a(k,j,i)
+               c2(k,j,i) = b(k,j,i)
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+!
+! Computes the mean profiles
+!    
+      DO i = 1,n
+         mev(i) = 0.0_GP
+         meth(i) = 0.0_GP
+         methv(i) = 0.0_GP
+      END DO
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i) reduction(max:dloc)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i) reduction(max:dloc)
+         DO j = 1,n
+            DO i = 1,n
+               mev(k) =  mev(k)+r1(i,j,k)
+               meth(k) = meth(k)+r2(i,j,k)
+               methv(k) = methv(k)+r1(i,j,k)*r2(i,j,k)  
+            END DO
+         END DO
+      END DO
+      tmp = 1.0_GP/float(n)**5
+      tmq = 1.0_GP/float(n)**8
+      DO i = 1,n
+         mev(i) = mev(i)*tmp
+         meth(i) = meth(i)*tmp
+         methv(i) = methv(i)*tmq
+      END DO
+!
+! Computes the reduction between nodes
+!
+      CALL MPI_REDUCE(mev,mv,n,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_REDUCE(meth,mth,n,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_REDUCE(methv,mthv,n,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+
+      IF (myrank.eq.0) THEN
+
+         OPEN(1,file='profilez.' // nmb // '.txt')
+         DO i = 1,n
+            WRITE(1,40) mv(i),mth(i),mthv(i)
+         END DO
+         CLOSE(1) 
+   40    FORMAT( E23.15,E23.15,E23.15 ) 
+      ENDIF
+
+      RETURN
+      END SUBROUTINE difucz
