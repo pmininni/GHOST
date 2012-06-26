@@ -778,6 +778,12 @@
                      mz(n-j+2,1) = mz(n-j+2,1)*jdump
 #endif
 #endif
+#ifdef VELOC_
+                     fx(j,1) = fx(j,1)*cdump
+                     fx(n-j+2,1) = fx(n-j+2,1)*jdump
+                     fy(j,1) = fy(j,1)*cdump
+                     fy(n-j+2,1) = fy(n-j+2,1)*jdump
+#endif
 #if defined(SCALAR_) && !defined(SW_)
                      fs(j,1) = fs(j,1)*cdumr
                      fs(n-j+2,1) = fs(n-j+2,1)*jdumr
@@ -796,6 +802,10 @@
 #ifdef D25_
                         mz(j,i) = mz(j,i)*cdump
 #endif
+#endif
+#ifdef VELOC_
+                        fx(j,i) = fx(j,i)*cdump
+                        fy(j,i) = fy(j,i)*cdump
 #endif
 #if defined(SCALAR_) && !defined(SW_)
                         fs(j,i) = fs(j,i)*cdumr
@@ -817,6 +827,10 @@
 #ifdef D25_
                         mz(j,i) = mz(j,i)*cdump
 #endif
+#endif
+#ifdef VELOC_
+                        fx(j,i) = fx(j,i)*cdump
+                        fy(j,i) = fy(j,i)*cdump
 #endif
 #if defined(SCALAR_) && !defined(SW_)
                         fs(j,i) = fs(j,i)*cdumr

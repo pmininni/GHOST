@@ -114,10 +114,10 @@
       CALL MPI_REDUCE(tmr,zet,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
 !
-! Computes the variance and the variance of k^2 times the scalar
+! Computes the variance and the gradient of the scalar
 !
-       CALL variance(a,var,1)
-       CALL variance(a,grd,0)
+      CALL variance(c,var,1)
+      CALL variance(c,grd,0)
 !
 ! Creates external files to store the results
 !
@@ -200,17 +200,17 @@
       ELSE IF (kin.eq.2) THEN
          IF (ista.eq.1) THEN
             DO j = 1,n
-               bloc = bloc+g*abs(c(j,1))**2*tmp
+               bloc = bloc+g*abs(c(j,1))**2*tmp**2
             END DO
             DO i = 2,iend
                DO j = 1,n
-                  bloc = bloc+2*g*abs(c(j,i))**2*tmp
+                  bloc = bloc+2*g*abs(c(j,i))**2*tmp**2
                END DO
             END DO
          ELSE
             DO i = ista,iend
                DO j = 1,n
-                  bloc = bloc+2*g*abs(c(j,i))**2*tmp
+                  bloc = bloc+2*g*abs(c(j,i))**2*tmp**2
                END DO
             END DO
          ENDIF
@@ -294,6 +294,7 @@
       USE filefmt
       USE grid
       USE kes
+      USE ali
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,ista:iend) :: a,b,c,d
@@ -417,6 +418,8 @@
       USE mpivars
       USE grid
       USE fft
+      USE kes
+      USE ali
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,ista:iend)  :: a,b
@@ -445,8 +448,53 @@
       END DO
 
       CALL fftp2d_real_to_complex(planrc,r3,c,MPI_COMM_WORLD)
+
+      ! De-aliasing
+      DO i = ista,iend
+         DO j = 1,n
+            IF (ka2(j,i).gt.kmax) c(j,i) = 0
+         END DO
+      END DO
       
       RETURN
       END SUBROUTINE swspectrumaux
      
+!*****************************************************************
+      SUBROUTINE puntual(a,t)
+!-----------------------------------------------------------------
+!
+!     a  : input matrix
+!     t  : time
+!
+      USE fprecision
+      USE commtypes
+      USE mpivars
+      USE grid
+      USE fft
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,ista:iend)  :: a
+      COMPLEX(KIND=GP), DIMENSION(n,ista:iend) :: c
+      REAL(KIND=GP),    DIMENSION(n,jsta:jend) :: r
+      REAL(KIND=GP)       :: t,tmp
+      INTEGER             :: i,j
+
+      tmp = 1.0_GP/real(n,kind=GP)**2
       
+      DO i = ista,iend
+         DO j = 1,n
+            c(j,i) = a(j,i)*tmp
+         END DO
+      END DO
+      
+      CALL fftp2d_complex_to_real(plancr,c,r,MPI_COMM_WORLD)
+            
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='puntual.txt',position='append')
+         WRITE(1,10) t,r(1,1)
+   10    FORMAT( E13.6,E26.18 )
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE puntual
