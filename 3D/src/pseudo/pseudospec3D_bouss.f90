@@ -34,6 +34,7 @@
 !    itype == 6 : hor. avg. of correlation: <\omega_z \theta>_perp
 !    itype == 7 : hor. avg. of PV^2: <(fd\theta/dz - N \omega_z + omega.Grad\theta -fN)^2>_perp
 !    itype == 8 : hor. avg. of 'super-helicity': <\omega . curl \omega>_perp 
+!    itype == 9 : hor. avg. of <\omega . Grad \theta>_perp 
 !
 ! Parameters
 !     gsh: return array, funcion of z of size >= N
@@ -471,6 +472,14 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
 
+      IF ( itype .eq. 9 ) THEN  ! <\omega . Grad \theta>_perp
+        r2  = 0.0_GP
+        sh  = 0.0D0
+        gsh = 0.0D0
+
+        RETURN
+      ENDIF
+
       RETURN
       END SUBROUTINE havgcomp
 
@@ -570,7 +579,7 @@
 ! also extrema from horiz. averages:
       DO i = 1, 9
         CALL havgcomp(gsh,u,v,w,s,fo,bv,i-1)
-        gxavg(i) = sum   (gsh,n-1)/dble(n-1);
+        gxavg(i) = sum   (gsh)/dble(n-1);
         gxmax(i) = maxval(gsh,n-1);
         gxmin(i) = minval(gsh,n-1);
       ENDDO
