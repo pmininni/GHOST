@@ -580,8 +580,8 @@
       DO i = 1, 9
         CALL havgcomp(gsh,u,v,w,s,fo,bv,i-1)
         gxavg(i) = sum   (gsh)/dble(n-1);
-        gxmax(i) = maxval(gsh,n-1);
-        gxmin(i) = minval(gsh,n-1);
+        gxmax(i) = maxval(gsh);
+        gxmin(i) = minval(gsh);
       ENDDO
 !
 ! Don't need reductions bec the results from havgcomp are globalized,
