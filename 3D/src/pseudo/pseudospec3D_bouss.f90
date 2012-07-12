@@ -579,7 +579,7 @@
 ! also extrema from horiz. averages:
       DO i = 1, 9
         CALL havgcomp(gsh,u,v,w,s,fo,bv,i-1)
-        gxavg(i) = sum   (gsh)/dble(n-1);
+        gxavg(i) = sum   (gsh)/dble(n);
         gxmax(i) = maxval(gsh);
         gxmin(i) = minval(gsh);
       ENDDO
