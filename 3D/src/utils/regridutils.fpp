@@ -32,20 +32,20 @@
       INTEGER :: itemp1,itemp2
 
       CALL trrange(1,n,nt,nprocs,myrank,ksta,kend)
-
       DO irank = 0,nprocs-1
-         CALL trrange(1,n,nt,nprocs,irank,ista,iend)
+         CALL trrange(1,n/2+1,nt/2+1,nprocs,irank,ista,iend)
+         CALL block3d(1,nt/2+1,1,nt,ksta,ista,iend,1,nt,ksta, &
+                      kend,GC_COMPLEX,itemp1)
 
-         CALL block3d(1,nt,1,nt,ksta,ista,iend,1,nt,ksta, &
-                     kend,GC_COMPLEX,itemp1)
          itype1(irank) = itemp1
       END DO
-      CALL trrange(1,n,nt,nprocs,myrank,ista,iend)
+      CALL trrange(1,n/2+1,nt/2+1,nprocs,myrank,ista,iend)
       iend = min(iend,ista+nt)
       DO krank = 0,nprocs-1
          CALL trrange(1,n,nt,nprocs,krank,ksta,kend)
          CALL block3d(ista,iend,1,nt,1,ista,iend,1,nt,ksta, &
-                     kend,GC_COMPLEX,itemp2)
+                      kend,GC_COMPLEX,itemp2)
+
          itype2(krank) = itemp2
       END DO
 
@@ -144,6 +144,8 @@
       ALLOCATE( plan%itype2(0:nprocs-1) )
       CALL fftp3d_create_trblock(n,nt,nprocs,myrank,plan%itype1, &
                        plan%itype2)
+!     CALL fftp3d_create_block(nt,nprocs,myrank,plan%itype1, &
+!                      plan%itype2)
 
       RETURN
       END SUBROUTINE fftp3d_create_trplan
