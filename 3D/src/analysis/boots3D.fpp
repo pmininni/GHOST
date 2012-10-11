@@ -158,6 +158,7 @@
       flags  = FFTW_MEASURE
 
       CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, flags)
+      CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, flags)
       CALL trrange(1,n    ,nt    ,nprocs,myrank,ksta,kend)
       CALL trrange(1,n/2+1,nt/2+1,nprocs,myrank,ista,iend)
       CALL fftp3d_create_trplan(planrct,n,nt,FFTW_REAL_TO_COMPLEX,flags)
