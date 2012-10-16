@@ -460,9 +460,12 @@
       END SUBROUTINE swspectrumaux
      
 !*****************************************************************
-      SUBROUTINE puntual(a,t)
+      SUBROUTINE point(a,t)
 !-----------------------------------------------------------------
 !
+! Writes the value of the field in the (1,1) position
+!
+! Parameters:
 !     a  : input matrix
 !     t  : time
 !
@@ -490,11 +493,11 @@
       CALL fftp2d_complex_to_real(plancr,c,r,MPI_COMM_WORLD)
             
       IF (myrank.eq.0) THEN
-         OPEN(1,file='puntual.txt',position='append')
+         OPEN(1,file='point.txt',position='append')
          WRITE(1,10) t,r(1,1)
    10    FORMAT( E13.6,E26.18 )
          CLOSE(1)
       ENDIF
 
       RETURN
-      END SUBROUTINE puntual
+      END SUBROUTINE point

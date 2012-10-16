@@ -203,6 +203,7 @@
 #endif
 #ifdef SW_
       REAL(KIND=GP) :: g
+      REAL(KIND=GP) :: switch
 #endif
 
       INTEGER :: idevice, iret, ncuda, ngcuda, ppn
@@ -262,6 +263,7 @@
 #endif
 #ifdef SW_
       NAMELIST / gravity / g
+      NAMELIST / gravity / switch
 #endif
 
 !
@@ -630,7 +632,9 @@
 ! Reads parameters for runs solving shallow-water 
 ! equations from the namelist 'gravity' on the 
 ! external file 'parameter.txt' 
-!     g : amplitude of the effective gravity
+!     g      : amplitude of the effective gravity
+!     switch : = 0 for non-dispersive SW equations
+!              = 1 for dispersive (Boussinessq) SW equations
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.txt',status='unknown',form="formatted")
@@ -638,6 +642,7 @@
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(g,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(switch,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
 !

@@ -18,10 +18,11 @@
          DO i = ista,iend
          DO j = 1,n
             IF ((ka2(j,i).le.kmax).and.(ka2(j,i).ge.tiny)) THEN
+               tmp     = 1/(1+switch*(c0**2)*ka2(j,i)/3)
                vx(j,i) = C1(j,i) + dt*(nu*vx(j,i) - C15(j,i) &
-                        - g*im*ka(i)*th(j,i) + fx(j,i))*rmp
+                        - g*im*ka(i)*th(j,i) + fx(j,i))*rmp*tmp
                vy(j,i) = C2(j,i) + dt*(nu*vy(j,i) - C16(j,i) &
-                        - g*im*ka(j)*th(j,i) + fy(j,i))*rmp
+                        - g*im*ka(j)*th(j,i) + fy(j,i))*rmp*tmp
                th(j,i) = C12(j,i) - dt*im*(ka(i)*C14(j,i)   &
                         + ka(j)*C13(j,i))*rmp
             ELSE IF (ka2(j,i).gt.kmax) THEN
