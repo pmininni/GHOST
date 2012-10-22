@@ -456,7 +456,7 @@
                   kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
                      tmq = 2*(abs(c1(1,j,i))**2+abs(c2(1,j,i))**2)*tmp
-                     tmq = 2*abs(c3(1,j,i))**2*tmp
+                     tmr = 2*abs(c3(1,j,i))**2*tmp
 !$omp critical
                      Ekp(kmn) = Ekp(kmn)+tmq
                      Ekz(kmn) = Ekz(kmn)+tmr
