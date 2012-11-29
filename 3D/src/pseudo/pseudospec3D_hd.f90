@@ -1577,7 +1577,7 @@
                       MPI_COMM_WORLD,ierr)
       coord = 'xyz'
       IF (myrank.eq.0) THEN
-         OPEN(1,file='kspec1d' // coord(cmp:cmp) // kcoord(dir:dir)  &
+         OPEN(1,file='kspec1d' // coord(cmp:cmp) // coord(dir:dir)  &
               // '.' // nmb // '.txt')
          WRITE(1,40) Ektot
    40    FORMAT( E23.15 ) 
