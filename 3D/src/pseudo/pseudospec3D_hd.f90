@@ -1390,6 +1390,202 @@
       RETURN
       END SUBROUTINE spectrumc
 
+!*****************************************************************
+      SUBROUTINE spectr1d(a,nmb,cmp,dir)
+!-----------------------------------------------------------------
+!
+! Computes the 1D longitudinal or transverse kinetic energy 
+! spectrum following the nomenclature of Monin and Yaglom. 
+! The k-shells are planes with normal (0,0,k_dir), with 
+! k_dir=0,...,n/2. The output is written to a file by the 
+! first node.
+!
+! Parameters
+!     a  : input matrix with a field component
+!     nmb: the extension used when writting the file
+!     cmp: =1 the input matrix is v_x
+!          =2 the input matrix is v_y
+!          =3 the input matrix is v_z
+!     dir: =1 computes the 1D spectrum in k_x
+!          =2 computes the 1D spectrum in k_y
+!          =3 computes the 1D spectrum in k_z
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+!$    USE threads
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
+      DOUBLE PRECISION    :: tmq
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
+      REAL(KIND=GP)       :: tmp
+      INTEGER, INTENT(IN) :: cmp,dir
+      INTEGER             :: i,j,k
+      INTEGER             :: kmn
+      CHARACTER(len=3)    :: coord
+      CHARACTER(len=*), INTENT(IN) :: nmb
+
+!
+! Sets Ek to zero
+!
+      DO i = 1,n/2+1
+         Ek(i) = 0.
+      END DO
+!
+! Computes the kinetic energy spectrum
+!
+      tmp = 1.0_GP/real(n,kind=GP)**6
+      IF (dir.eq.1) THEN ! E(k_x)
+         IF (ista.eq.1) THEN
+!$omp parallel do private (k,kmn,tmq)
+            DO j = 1,n
+               DO k = 1,n
+                  kmn = int(abs(ka(i))+1)
+                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     tmq = abs(a(k,j,1))**2*tmp
+!$omp atomic
+                     Ek(kmn) = Ek(kmn)+tmq                       
+                  ENDIF
+               END DO
+            END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+            DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
+               DO j = 1,n
+                  DO k = 1,n
+                     kmn = int(abs(ka(i))+1)
+                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                        tmq = 2*abs(a(k,j,i))**2*tmp
+!$omp atomic
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                  END DO
+               END DO
+            END DO
+         ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
+               DO j = 1,n
+                  DO k = 1,n
+                     kmn = int(abs(ka(i))+1)
+                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                        tmq = 2*abs(a(k,j,i))**2*tmp
+!$omp atomic
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                  END DO
+               END DO
+            END DO
+         ENDIF
+      ELSEIF (dir.eq.2) THEN ! E(k_y)
+         IF (ista.eq.1) THEN
+!$omp parallel do private (k,kmn,tmq)
+            DO j = 1,n
+               DO k = 1,n
+                  kmn = int(abs(ka(j))+1)
+                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     tmq = abs(a(k,j,1))**2*tmp
+!$omp atomic
+                     Ek(kmn) = Ek(kmn)+tmq                       
+                  ENDIF
+               END DO
+            END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+            DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
+               DO j = 1,n
+                  DO k = 1,n
+                     kmn = int(abs(ka(j))+1)
+                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                        tmq = 2*abs(a(k,j,i))**2*tmp
+!$omp atomic
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                  END DO
+               END DO
+            END DO
+         ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
+               DO j = 1,n
+                  DO k = 1,n
+                     kmn = int(abs(ka(j))+1)
+                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                        tmq = 2*abs(a(k,j,i))**2*tmp
+!$omp atomic
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                  END DO
+               END DO
+            END DO
+         ENDIF
+      ELSE                   ! E(k_z)
+         IF (ista.eq.1) THEN
+!$omp parallel do private (k,kmn,tmq)
+            DO j = 1,n
+               DO k = 1,n
+                  kmn = int(abs(ka(k))+1)
+                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     tmq = abs(a(k,j,1))**2*tmp
+!$omp atomic
+                     Ek(kmn) = Ek(kmn)+tmq                       
+                  ENDIF
+               END DO
+            END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+            DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
+               DO j = 1,n
+                  DO k = 1,n
+                     kmn = int(abs(ka(k))+1)
+                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                        tmq = 2*abs(a(k,j,i))**2*tmp
+!$omp atomic
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                  END DO
+               END DO
+            END DO
+         ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
+               DO j = 1,n
+                  DO k = 1,n
+                     kmn = int(abs(ka(k))+1)
+                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                        tmq = 2*abs(a(k,j,i))**2*tmp
+!$omp atomic
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                  END DO
+               END DO
+            END DO
+         ENDIF
+      ENDIF
+!
+! Computes the reduction between nodes
+! and exports the result to a file
+!
+      CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+                      MPI_COMM_WORLD,ierr)
+      coord = 'xyz'
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='kspec1d' // coord(cmp:cmp) // kcoord(dir:dir)  &
+              // '.' // nmb // '.txt')
+         WRITE(1,40) Ektot
+   40    FORMAT( E23.15 ) 
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE spectr1d
 
 !*****************************************************************
       SUBROUTINE entrans(a,b,c,d,e,f,nmb,kin)
@@ -1565,8 +1761,8 @@
          ELSEIF (kin.eq.4) THEN
             OPEN(1,file='kcrostran.' // nmb // '.txt')
          ENDIF
-         WRITE(1,40) Ektot
-   40    FORMAT( E23.15 ) 
+         WRITE(1,50) Ektot
+   50    FORMAT( E23.15 ) 
          CLOSE(1)
       ENDIF
 
@@ -1686,8 +1882,8 @@
          ELSE
             OPEN(1,file='hktransfer.' // nmb // '.txt')
          ENDIF
-         WRITE(1,40) Hktot
-   40    FORMAT( E23.15 ) 
+         WRITE(1,60) Hktot
+   60    FORMAT( E23.15 ) 
          CLOSE(1)
       ENDIF
 
