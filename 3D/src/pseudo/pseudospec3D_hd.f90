@@ -1441,72 +1441,70 @@
       tmp = 1.0_GP/real(n,kind=GP)**6
       IF (dir.eq.1) THEN ! E(k_x)
          IF (ista.eq.1) THEN
+            kmn = int(abs(ka(1))+1)
 !$omp parallel do private (k,kmn,tmq)
             DO j = 1,n
                DO k = 1,n
-                  kmn = int(abs(ka(i))+1)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                     tmq = abs(a(k,j,1))**2*tmp
+                  tmq = abs(a(k,j,1))**2*tmp
 !$omp atomic
-                     Ek(kmn) = Ek(kmn)+tmq                       
-                  ENDIF
+                  Ek(kmn) = Ek(kmn)+tmq                       
                END DO
             END DO
 !$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
             DO i = 2,iend
+               kmn = int(abs(ka(i))+1)
+               IF (kmn.le.n/2+1) THEN
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(abs(ka(i))+1)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                  DO j = 1,n
+                     DO k = 1,n
                         tmq = 2*abs(a(k,j,i))**2*tmp
 !$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
-                     ENDIF
+                     END DO
                   END DO
-               END DO
+               ENDIF
             END DO
          ELSE
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
             DO i = ista,iend
+               kmn = int(abs(ka(i))+1)
+               IF (kmn.le.n/2+1) THEN
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(abs(ka(i))+1)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                  DO j = 1,n
+                     DO k = 1,n
                         tmq = 2*abs(a(k,j,i))**2*tmp
 !$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
-                     ENDIF
+                     END DO
                   END DO
-               END DO
+               ENDIF
             END DO
          ENDIF
       ELSEIF (dir.eq.2) THEN ! E(k_y)
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn,tmq)
             DO j = 1,n
-               DO k = 1,n
-                  kmn = int(abs(ka(j))+1)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               kmn = int(abs(ka(j))+1)
+               IF (kmn.le.n/2+1) THEN
+                  DO k = 1,n
                      tmq = abs(a(k,j,1))**2*tmp
 !$omp atomic
                      Ek(kmn) = Ek(kmn)+tmq                       
-                  ENDIF
-               END DO
+                  END DO
+               ENDIF
             END DO
 !$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
             DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
                DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(abs(ka(j))+1)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                  kmn = int(abs(ka(j))+1)
+                  IF (kmn.le.n/2+1) THEN
+                     DO k = 1,n
                         tmq = 2*abs(a(k,j,i))**2*tmp
 !$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
-                     ENDIF
-                  END DO
+                     END DO
+                  ENDIF
                END DO
             END DO
          ELSE
@@ -1514,14 +1512,14 @@
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
                DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(abs(ka(j))+1)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                  kmn = int(abs(ka(j))+1)
+                  IF (kmn.le.n/2+1) THEN
+                     DO k = 1,n
                         tmq = 2*abs(a(k,j,i))**2*tmp
 !$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
-                     ENDIF
-                  END DO
+                     END DO
+                  ENDIF
                END DO
             END DO
          ENDIF
@@ -1531,7 +1529,7 @@
             DO j = 1,n
                DO k = 1,n
                   kmn = int(abs(ka(k))+1)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                  IF (kmn.le.n/2+1) THEN
                      tmq = abs(a(k,j,1))**2*tmp
 !$omp atomic
                      Ek(kmn) = Ek(kmn)+tmq                       
@@ -1544,7 +1542,7 @@
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(abs(ka(k))+1)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     IF (kmn.le.n/2+1) THEN
                         tmq = 2*abs(a(k,j,i))**2*tmp
 !$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
@@ -1559,7 +1557,7 @@
                DO j = 1,n
                   DO k = 1,n
                      kmn = int(abs(ka(k))+1)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     IF (kmn.le.n/2+1) THEN
                         tmq = 2*abs(a(k,j,i))**2*tmp
 !$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
