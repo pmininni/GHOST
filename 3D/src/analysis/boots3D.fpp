@@ -128,14 +128,18 @@
         iExclude(1,1) = ntprocs
         iExclude(2,1) = nprocs-1
         iExclude(3,1) = 1
+      CALL MPI_COMM_GROUP(MPI_COMM_WORLD, groupworld, ierr)
+      commtrunc  = MPI_COMM_NULL
         CALL MPI_GROUP_RANGE_EXCL(groupworld, 1, iExclude, grouptrunc, ierr)   
+      CALL MPI_COMM_GROUP(MPI_COMM_WORLD, groupworld, ierr)
+      commtrunc  = MPI_COMM_NULL
         CALL MPI_COMM_CREATE(MPI_COMM_WORLD, grouptrunc, commtrunc, ierr)
       ELSE IF ( ntprocs .EQ. nprocs ) THEN
         CALL MPI_COMM_DUP(MPI_COMM_WORLD,commtrunc,ierr)
         CALL MPI_COMM_GROUP(MPI_COMM_WORLD,grouptrunc,ierr)
       ENDIF
-      CALL trrange(1,n    ,nt    ,nprocs,myrank,ktsta,ktend)
-      CALL trrange(1,n/2+1,nt/2+1,nprocs,myrank,itsta,itend)
+      CALL range(1,nt    ,ntprocs,myrank,ktsta,ktend)
+      CALL range(1,nt/2+1,ntprocs,myrank,itsta,itend)
 
 
 !     kprol  = real(n,kind=GP)/2.0 - 1.0
@@ -158,12 +162,16 @@
       flags  = FFTW_MEASURE
 
       CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, flags)
-      CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, flags)
-      CALL trrange(1,n    ,nt    ,nprocs,myrank,ksta,kend)
-      CALL trrange(1,n/2+1,nt/2+1,nprocs,myrank,ista,iend)
-      CALL fftp3d_create_trplan(planrct,n,nt,FFTW_REAL_TO_COMPLEX,flags)
-      CALL range(1,n/2+1,nprocs,myrank,ista,iend)
-      CALL range(1,n,nprocs,myrank,ksta,kend)
+
+      IF ( myrank .LT. ntprocs ) THEN
+        npkeep = nprocs; nprocs = ntprocs
+        CALL range(1,nt    ,ntprocs,myrank,ksta,kend)
+        CALL range(1,nt/2+1,ntprocs,myrank,ista,iend)
+        CALL fftp3d_create_plan(planrct,nt,FFTW_REAL_TO_COMPLEX,flags)
+        nprocs = npkeep
+        CALL range(1,n/2+1,nprocs,myrank,ista,iend)
+        CALL range(1,n,nprocs,myrank,ksta,kend)
+      ENDIF
 !
       DO i = 1,n/2
          ka(i) = real(i-1,kind=GP)
@@ -223,11 +231,16 @@
 
 !
 ! Compute FT of variable on smaller grid:
-         CALL trrange(1,n    ,nt    ,nprocs,myrank,ksta,kend)
-         CALL trrange(1,n/2+1,nt/2+1,nprocs,myrank,ista,iend)
-         CALL fftp3d_real_to_complex(planrct,vvt,C1t,MPI_COMM_WORLD)
+      IF ( myrank .LT. ntprocs ) THEN
+         npkeep = nprocs; nprocs = ntprocs
+         CALL range(1,nt    ,ntprocs,myrank,ksta,kend)
+         CALL range(1,nt/2+1,ntprocs,myrank,ista,iend)
+         CALL fftp3d_real_to_complex(planrct,vvt,C1t,commtrunc)
+         nprocs = npkeep
          CALL range(1,n/2+1,nprocs,myrank,ista,iend)
          CALL range(1,n,nprocs,myrank,ksta,kend)
+      ENDIF
+
 !
 ! Prolongate in Fourier space:
          fact = 1.0_GP/real(nt,kind=GP)**3
@@ -279,7 +292,7 @@
          CALL io_write(1,idir,fout,1,planio,br)
          bmangle = 1
          IF ( myrank .EQ. 0 ) THEN
-         WRITE(*,*) 'main: ',trim(fout),' written.'
+           WRITE(*,*) 'main: ',trim(fout),' written.'
          ENDIF
       ENDDO ! end of file loop
 !
