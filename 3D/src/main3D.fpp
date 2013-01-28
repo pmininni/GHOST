@@ -298,7 +298,7 @@
 !$    INTEGER, EXTERNAL :: omp_get_max_threads
 
 #if defined(DEF_GHOST_CUDA_)
-       TYPE(cudaDeviceProp) :: devprop
+       TYPE(cudaDevicePropG) :: devprop
 #endif
       TYPE(IOPLAN) :: planio
       CHARACTER(len=100) :: odir,idir
@@ -381,7 +381,7 @@
        idevice, '; myrank=',myrank, '; NUM_CUDA_DEV=',ncuda
        STOP
      ENDIF
-     iret = cudaGetDeviceProperties(devprop,idevice)
+     CALL cudaGetDeviceProperties(devprop,idevice)
      IF ( devprop%major .GT. 999 ) THEN
        WRITE(*,*)'MAIN: CUDA device emulation not allowed!'
        STOP
