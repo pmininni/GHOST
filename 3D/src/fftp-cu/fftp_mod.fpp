@@ -109,7 +109,7 @@
         cudaErrorApiFailureBase           =39
       END ENUM
 
-      TYPE, BIND(C) :: cudaDeviceProp
+      TYPE, BIND(C) :: cudaDevicePropG
         INTEGER   (C_INT) :: canMapHostMemory
         INTEGER   (C_INT) :: clockRate
         INTEGER   (C_INT) :: computeMode
@@ -130,7 +130,7 @@
         INTEGER(C_SIZE_T) :: totalConstMem
         INTEGER(C_SIZE_T) :: totalGlobalMem
         INTEGER   (C_INT) :: warpSize
-      END TYPE cudaDeviceProp
+      END TYPE cudaDevicePropG
 
   END MODULE cutypes
 !=================================================================

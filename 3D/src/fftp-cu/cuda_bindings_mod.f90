@@ -10,6 +10,7 @@
 !=================================================================
 
 MODULE cuda_bindings
+ USE iso_c_binding
  IMPLICIT  NONE
 
  INTERFACE
@@ -78,19 +79,21 @@ MODULE cuda_bindings
     INTEGER(C_INT),value :: flag
   END FUNCTION cudaSetDeviceFlags
 
-!*****************************************************************
-!*****************************************************************
-! cudaGetDeviceProperties
-!    prop : struct cudaDeviceProp pointer
-!    idev : integer device id
-!*****************************************************************
-  INTEGER(C_INT) function cudaGetDeviceProperties(prop,idev) bind(C,name="cudaGetDeviceProperties")
-    USE iso_c_binding
-    USE cutypes
-    IMPLICIT NONE
-    INTEGER(C_INT),value :: idev
-    TYPE(cudaDeviceProp) :: prop
-  END FUNCTION cudaGetDeviceProperties
+!!!*****************************************************************
+!!!*****************************************************************
+!   cudaGetDeviceProperties
+!     gets 'standardized' set of device properties using wrapper
+!     method.
+!      prop : struct cudaDeviceProp pointer
+!      idev : integer device id
+!  *****************************************************************
+    SUBROUTINE cudaGetDeviceProperties(prop,idev) bind(C,name="w_cudagetdeviceproperties_")
+      USE iso_c_binding
+      USE cutypes
+      IMPLICIT NONE
+      INTEGER(C_INT)        :: idev
+      TYPE(cudaDevicePropG) :: prop
+    END SUBROUTINE cudaGetDeviceProperties
 
 
 !!!!!!!!!!!!!!!!!!!! Mem/compute utilities !!!!!!!!!!!!!!!!!!!!!!!
@@ -250,9 +253,10 @@ MODULE cuda_bindings
 !     cutype     : transform data type: CUFFT_R2C (0x2a), CUFFT_C2R(0x2c), CUFFT_C2C (0x29)
 !
 !*****************************************************************
- INTEGER(C_INT) function cufftPlanMany(pplan,rank,pn,&
-pinembed,istride,idist,ponembed,ostride,odist,cutype,batch)  bind(C,name="cufftPlanMany")
-   USE, INTRINSIC :: iso_c_binding
+  INTEGER(C_INT) function cufftPlanMany(pplan,rank,pn,&
+ pinembed,istride,idist,ponembed,ostride,odist,cutype,batch)  bind(C,name="cufftPlanMany")
+!  USE, INTRINSIC :: iso_c_binding
+   USE  :: iso_c_binding
   IMPLICIT NONE
   INTEGER(C_INT)        :: pplan
   INTEGER(C_INT),value  :: rank
@@ -265,7 +269,7 @@ pinembed,istride,idist,ponembed,ostride,odist,cutype,batch)  bind(C,name="cufftP
   INTEGER(C_INT),value  :: odist
   INTEGER(C_INT),value  :: cutype
   INTEGER(C_INT),value  :: batch
- END FUNCTION cufftPlanMany
+  END FUNCTION cufftPlanMany
 
 !*****************************************************************
 !*****************************************************************
