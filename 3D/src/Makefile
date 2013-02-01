@@ -134,6 +134,10 @@ trans triad: edit $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(TRAN_OBJS)
 	$(MAKE) $@$(SOLVER)
 	$(MAKE) undo
 
+cancel: edit $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS)
+	$(MAKE) $@$(SOLVER)
+	$(MAKE) undo
+
 struc:	edit $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(STRU_OBJS)
 	$(MAKE) $@$(SOLVER)
 	$(MAKE) undo
@@ -167,10 +171,9 @@ clean:  undo
         done
 
 dist:
-	rm -f $(BIN)/HD* $(BIN)/MHD* $(BIN)/HMHD* $(BIN)/ROTH* $(BIN)/*BOUSS* \
-              $(BIN)/boots* $(BIN)/trunc* $(BIN)/vt* *HD* *MHD* *HMHD* *ROTH*\
+	rm -f $(BIN)/*HD* $(BIN)/*MHD* $(BIN)/*ROT* $(BIN)/*BOUSS* \
+              $(BIN)/boots* $(BIN)/trunc* $(BIN)/vt* *HD* *MHD* *ROT* \
               *BOUSS* *boots* *trunc* *vt*
-	
 	$(MAKE) clean
 
 edit:
@@ -224,6 +227,12 @@ trans$(SOLVER) triad$(SOLVER):
 	$(COMPILE) $@.f90
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(OBJS) \
            $(TRAN_OBJS) $@.o $(LDFLAGS) -o ../bin/$@
+
+cancel$(SOLVER):
+	$(PREPROCESS) $(EXTRASDIR)/$(@:$(SOLVER)=3D).fpp -o $@.f90
+	$(COMPILE) $@.f90
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTP)/*.o $(IOLIB)/*.o $(OBJS) \
+           $@.o $(LDFLAGS) -o ../bin/$@
 
 struc$(SOLVER):
 	$(PREPROCESS) $(EXTRASDIR)/$(@:$(SOLVER)=3D).fpp -o $@.f90
