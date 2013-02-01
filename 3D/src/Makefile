@@ -31,6 +31,22 @@ CUARCH       = $(CUARCH_$(CUCOMPILER))
 GHOME       = $(PWD)
 CONTRIB     = $(GHOME)/contrib
 
+# IO library variables:
+IODEFvdcpio  = -DDEF_VDCPIO_
+IODEFmpiioa  = 
+IODEFposixio = 
+
+IOLDIRvdcpio = -L$(IOLIBDIR)/lib
+IOLDIRmpiio  = 
+IOLDIRposixio= 
+
+IOINCvdcpio  = -I$(IOLIBDIR)/include
+IOINCmpiio   = 
+IOINCposixio = 
+
+IOINCDIR     =  $(IOINC$(IOLIB))
+IOLIBFLG     =  $(IOLDIR$(IOLIB))
+
 # FFTW library variables:
 FFTW2SINGLE = s
 FFTW2DOUBLE = d
@@ -73,9 +89,10 @@ FFTTLDFLAGS = $(FFT$(FFTTYPE)LDFLAGS)
 
 FFTPDIR     = $(GHOME)/$(FFTPDIR$(P_CUDA))
 
-LDFLAGS     = $(MPILIB) -L$(FFTTLIBDIR) $(FFTTLIB)$(MPILDFLAGS) $(FFTTLDFLAGS)
-INCLUDE     = $(MPIINC) -I$(FFTTINC) -I$(FFTPDIR) -I$(GHOME)/$(IOLIB) -I$(GHOME)/utils -I$(GHOME)/include
-CPPFLAGS    = -D$(SOLVER)_SOL $(CUDA_GHOST$(P_CUDA))
+
+LDFLAGS     = $(MPILIB) -L$(FFTTLIBDIR) $(FFTTLIB)$(MPILDFLAGS) $(FFTTLDFLAGS) $(IOLIBFLG)
+INCLUDE     = $(MPIINC) -I$(FFTTINC) -I$(FFTPDIR) -I$(GHOME)/$(IOLIB) -I$(GHOME)/utils -I$(GHOME)/include $(IOINCDIR)
+CPPFLAGS    = -D$(SOLVER)_SOL $(CUDA_GHOST$(P_CUDA)) $(IODEF$(IOLIB))
 PREPROCESS  = $(CPP) $(CPPFLAGS)
 COMPILE     = $(FC) $(FFLAGS) $(DO_HYBRID$(P_HYBRID)) $(INCLUDE) $(TARGET_ARCH) -c
 CCOMPILE    = $(CC) $(CFLAGS) $(INCLUDE) $(TARGET_ARCH) -c
@@ -100,6 +117,7 @@ LAMHD_OBJS     = $(MHD_OBJS) $(ALPHA_OBJS) pseudospec3D_lles.o pseudospec3D_lahd
 EDQNM_OBJS     = module_edqnm.o pseudospec3D_edqnm.o
 EDQNMHD_OBJS   = $(HD_OBJS) $(EDQNM_OBJS)
 EDQNMROTH_OBJS = $(ROTH_OBJS) $(EDQNM_OBJS)
+EDQNMBUSS_OBJS = $(BOUSS_OBJS) $(EDQNM_OBJS)
 TRAN_OBJS      = pseudospec3D_trn.o
 STRU_OBJS      = pseudospec3D_shf.o
 OBJS           = $($(SOLVER)_OBJS)
@@ -108,7 +126,7 @@ OBJSDIR        = pseudo
 SUBDIRS        = posix mpiio fftp-2 fftp-3 fftp-cu utils $(CONTRIB)/nvidia
 EXTRASDIR      = analysis
 
-all: edit $(CONTRIBOBJS) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(UTILS)/gutils_mod.o $(OBJS) $(SOLVER) undo
+all: edit $(CONTRIBOBJS) $(UTILS)/gtimer_mod.o $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(UTILS)/gtimer_mod.o $(OBJS) $(SOLVER) undo
 
 main: all
 
@@ -120,21 +138,21 @@ struc:	edit $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(STRU_OBJS)
 	$(MAKE) $@$(SOLVER)
 	$(MAKE) undo
 
-trunc:	edit $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(UTILS)/gutils_mod.o $(OBJS) $(UTILS)/regridutils.o
+trunc:	edit $(UTILS)/gutils_mod.o $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(UTILS)/gutils_mod.o $(OBJS) $(UTILS)/regridutils.o
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(UTILS)/*.o $(OBJS) \
            $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
-boots: edit $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(UTILS)/gutils_mod.o $(UTILS)/regridutils.o
+boots: edit $(UTILS)/gtimer_mod.o $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(UTILS)/gtimer_mod.o $(OBJS) $(UTILS)/regridutils.o 
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(UTILS)/*.o $(OBJS) \
            $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
-vt: edit $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(UTILS)/gutils_mod.o 
+vt: edit $(UTILS)/gutils_mod.o $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(UTILS)/gtimer_mod.o 
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(UTILS)/*.o $(OBJS) \
@@ -195,10 +213,10 @@ undo:
 	 done ; \
 	fi
 
-$(SOLVER):
+$(SOLVER): 
 	$(PREPROCESS) main3D.fpp -o $(SOLVER).f90
 	$(COMPILE) $(SOLVER).f90
-	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(CONTRIBOBJS) $(OBJS) \
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(UTILS)/*.o $(CONTRIBOBJS) $(OBJS) \
            $(SOLVER).o $(LDFLAGS) -o ../bin/$(SOLVER)
 
 trans$(SOLVER) triad$(SOLVER):
@@ -213,11 +231,17 @@ struc$(SOLVER):
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(OBJS) \
            $(STRU_OBJS) $@.o $(LDFLAGS) -o ../bin/$@
 
-$(FFTPDIR)/fftp3D.o:
+$(FFTPDIR)/fftp3D.o: 
 	cd $(FFTPDIR) && $(MAKE) COMPILE='$(COMPILE)' CUCOMPILE='$(CUCOMPILE)'
 
 $(UTILS)/gutils_mod.o:
-	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)' 
+	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)' gutils_mod.o 
+
+$(UTILS)/gtimer_mod.o:
+	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)' gtimer_mod.o
+
+$(UTILS)/regridutils.o:
+	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)' regridutils.o
 
 $(IOLIB)/binary_io.o:
 	cd $(IOLIB) && $(MAKE) COMPILE='$(COMPILE)' 

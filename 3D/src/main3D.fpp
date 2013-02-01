@@ -159,6 +159,7 @@
       USE order
       USE random
       USE threads
+      USE gtimer
 #ifdef DNS_
       USE dns
 #endif
@@ -232,10 +233,10 @@
       COMPLEX(KIND=GP) :: cdumr,jdumr
       DOUBLE PRECISION :: tmp,tmq
       DOUBLE PRECISION :: eps,epm
-      DOUBLE PRECISION :: cputime1,cputime2      ! rreddy@psc.edu
-      DOUBLE PRECISION :: cputime3,cputime4      ! rreddy@psc.edu 
-      DOUBLE PRECISION :: omptime1,omptime2
-      DOUBLE PRECISION :: omptime3,omptime4
+!!    DOUBLE PRECISION :: cputime1,cputime2      ! rreddy@psc.edu
+!!    DOUBLE PRECISION :: cputime3,cputime4      ! rreddy@psc.edu 
+!!    DOUBLE PRECISION :: omptime1,omptime2
+!!    DOUBLE PRECISION :: omptime3,omptime4
 !$    DOUBLE PRECISION, EXTERNAL :: omp_get_wtime
 
       REAL(KIND=GP)    :: dt,nu,mu,kappa,bvfreq,xmom,xtemp
@@ -288,6 +289,9 @@
       INTEGER :: tind,sind
       INTEGER :: timet,timec
       INTEGER :: times,timef
+      INTEGER :: ihcpu1,ihcpu2
+      INTEGER :: ihomp1,ihomp2
+      INTEGER :: ihwtm1,ihwtm2
 #ifdef SCALAR_
       INTEGER :: injt
 #endif
@@ -358,7 +362,7 @@
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
 
 #if defined(DEF_GHOST_CUDA_)
-#if 1
+#if 0
 ! Initializes CUDA for Linux-based systems. This is a call to an
 ! NVIDIA-developed intermediary code that gets the GPU dev. no. 
 ! by looking in cpu_info and finding the device that resides on 
@@ -406,8 +410,9 @@
 #endif
       IF (bench.eq.2) THEN
          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-         CALL CPU_Time(cputime3)
-!$       omptime3 = omp_get_wtime()
+         CALL GTStart(ihcpu2,GT_CPUTIME)
+         CALL GTStart(ihomp2,GT_OMPTIME)
+         CALL GTStart(ihwtm2,GT_WTIME)
       ENDIF
       CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
                              FFTW_ESTIMATE)
@@ -415,8 +420,9 @@
                              FFTW_ESTIMATE)
       IF (bench.eq.2) THEN
          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-         CALL CPU_Time(cputime4)
-!$       omptime4 = omp_get_wtime()
+         CALL GTStop(ihcpu2)
+         CALL GTStop(ihomp2)
+         CALL GTStop(ihwtm2)
       ENDIF
 
 !
@@ -861,6 +867,7 @@
       CALL MPI_BCAST(heli,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 #endif
 
+
 !
 ! Initializes arrays to keep track of the forcing 
 ! amplitude if constant energy is used, and 
@@ -1068,8 +1075,16 @@
 
       IF (bench.eq.1) THEN
          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-         CALL CPU_Time(cputime1)
-!$       omptime1 = omp_get_wtime()
+         CALL GTStart(ihcpu1,GT_CPUTIME)
+         CALL GTStart(ihomp1,GT_OMPTIME)
+         CALL GTStart(ihwtm1,GT_WTIME)
+! Must reset FFT internal timers after initialization:
+         ffttime = 0.0D0
+         tratime = 0.0D0
+#if defined(DEF_GHOST_CUDA_)
+         memtime = 0.0D0
+#endif
+
       ENDIF
 
  RK : DO t = ini,step
@@ -1077,7 +1092,6 @@
 ! Updates the external forcing. Every 'fsteps'
 ! the phase or amplitude is changed according 
 ! to the value of 'rand'.
-
          IF (timef.eq.fstep) THEN
             timef = 0
 
@@ -1692,31 +1706,43 @@
 
       IF (bench.eq.1) THEN
          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-         CALL CPU_Time(cputime2)
-!$       omptime2 = omp_get_wtime()
+         CALL GTStop(ihcpu1)
+         CALL GTStop(ihomp1)
+         CALL GTStop(ihwtm1)
          IF (myrank.eq.0) THEN
             OPEN(1,file='benchmark.txt',position='append')
 #if defined(DEF_GHOST_CUDA_)
             WRITE(1,*) n,(step-ini+1),nprocs,nth, &
-                       (cputime2-cputime1)/(step-ini+1),&
-                       (omptime2-omptime1)/(step-ini+1), &
+                       GTGetTime(ihcpu1)/(step-ini+1), &
+                       GTGetTime(ihomp1)/(step-ini+1), &
+                       GTGetTime(ihwtm1)/(step-ini+1), &
                        ffttime/(step-ini+1), tratime/(step-ini+1), memtime/(step-ini+1)
 #else
             WRITE(1,*) n,(step-ini+1),nprocs,nth, &
-                       (cputime2-cputime1)/(step-ini+1),&
-                       (omptime2-omptime1)/(step-ini+1),&
+                       GTGetTime(ihcpu1)/(step-ini+1), &
+                       GTGetTime(ihomp1)/(step-ini+1), &
+                       GTGetTime(ihwtm1)/(step-ini+1), &
                        ffttime/(step-ini+1), tratime/(step-ini+1)
 
 #endif
             IF (bench.eq.2) THEN
                WRITE(1,*) 'FFTW: Create_plan = ', &
-                       (cputime4-cputime3),(omptime4-omptime3)
+                       GTGetTime(ihcpu2)/(step-ini+1), &
+                       GTGetTime(ihomp2)/(step-ini+1), &
+                       GTGetTime(ihwtm2)/(step-ini+1)
             ENDIF
             CLOSE(1)
          ENDIF
       ENDIF
 !
 ! End of MAIN3D
+
+      CALL GTFree(ihcpu1)
+      CALL GTFree(ihomp1)
+      CALL GTFree(ihwtm1)
+      CALL GTFree(ihcpu2)
+      CALL GTFree(ihomp2)
+      CALL GTFree(ihwtm2)
 
       CALL MPI_FINALIZE(ierr)
       CALL fftp3d_destroy_plan(plancr)
