@@ -179,6 +179,7 @@
       USE fprecision
       USE mpivars
       USE fftplans
+      USE gtimer
 !$    USE threads
       IMPLICIT NONE
 
@@ -199,11 +200,12 @@
       INTEGER :: irank
       INTEGER :: isendTo,igetFrom
       INTEGER :: istrip,iproc
+      INTEGER :: jfft,htra
 
 !
 ! 2D FFT in each node using the FFTW library
 !
-      CALL CPU_TIME(t0)
+      CALL GTStart(hfft,GT_WTIME)
 #ifdef DO_HYBRIDyes
       CALL rfftwnd_f77_threads_real_to_complex(nth,plan%planr,kend-ksta+1, &
                           in,1,plan%n*plan%n,c1,1,plan%n*(plan%n/2+1))
@@ -211,12 +213,12 @@
       CALL rfftwnd_f77_real_to_complex(plan%planr,kend-ksta+1,in,          &
                           1,plan%n*plan%n,c1,1,plan%n*(plan%n/2+1))
 #endif
-      CALL CPU_TIME(t1); ffttime = ffttime + t1-t0
+      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 !
 ! Transposes the result between nodes using 
 ! strip mining when nstrip>1 (rreddy@psc.edu)
 !
-      CALL CPU_TIME(t0)
+      CALL GTStart(htra,GT_WTIME)
       do iproc = 0, nprocs-1, nstrip
          do istrip=0, nstrip-1
             irank = iproc + istrip
@@ -257,12 +259,12 @@
             END DO
          END DO
       END DO
-      CALL CPU_TIME(t1); tratime = tratime + t1-t0
+      CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
 
 !
 ! 1D FFT in each node using the FFTW library
 !
-      CALL CPU_TIME(t0)
+      CALL GTStart(hfft)
 #ifdef DO_HYBRIDyes
       CALL fftw_f77_threads(nth,plan%planc,plan%n*(iend-ista+1),out,1, &
                    plan%n,c2,1,plan%n)
@@ -270,7 +272,10 @@
       CALL fftw_f77(plan%planc,plan%n*(iend-ista+1),out,1,plan%n,      &
                    c2,1,plan%n)
 #endif
-      CALL CPU_TIME(t1); ffttime = ffttime + t1-t0
+      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
+
+      CALL  GTFree(hfft); CALL GTFree(htra)
+
 
       RETURN
       END SUBROUTINE fftp3d_real_to_complex
@@ -296,6 +301,7 @@
       USE mpivars
       USE commtypes
       USE fftplans
+      USE gtimer
 !$    USE threads
       IMPLICIT NONE
 
@@ -316,11 +322,12 @@
       INTEGER :: irank
       INTEGER :: isendTo, igetFrom
       INTEGER :: istrip,iproc
+      INTEGER :: hfft,htra
 
 !
 ! 1D FFT in each node using the FFTW library
 !
-      CALL CPU_TIME(t0)
+      CALL GTStart(hfft,GT_WTIME)
 #ifdef DO_HYBRIDyes
       CALL fftw_f77_threads(nth,plan%planc,plan%n*(iend-ista+1),in,1, &
                    plan%n,c2,1,plan%n)
@@ -328,12 +335,12 @@
       CALL fftw_f77(plan%planc,plan%n*(iend-ista+1),in,1,plan%n, &
                    c2,1,plan%n)
 #endif
-      CALL CPU_TIME(t1); ffttime = ffttime + t1-t0
+      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 !
 ! Cache friendly transposition
 !
 
-      CALL CPU_TIME(t0)
+      CALL GTStart(htra,GT_WTIME)
 !$omp parallel do if ((iend-ista)/csize.ge.nth) private (jj,kk,i,j,k)
       DO ii = ista,iend,csize
 !$omp parallel do if ((iend-ista)/csize.lt.nth) private (kk,i,j,k)
@@ -375,12 +382,12 @@
             CALL MPI_WAIT(ireq2(irank),istatus,ierr)
          enddo
       enddo
-      CALL CPU_TIME(t1); tratime = tratime + t1-t0
+      CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
 
 !
 ! 2D FFT in each node using the FFTW library
 !
-      CALL CPU_TIME(t0)
+      CALL GTStart(hfft)
 #ifdef DO_HYBRIDyes
       CALL rfftwnd_f77_threads_complex_to_real(nth,plan%planr,kend-ksta+1, &
                          c1,1,plan%n*(plan%n/2+1),out,1,plan%n*plan%n)
@@ -388,7 +395,9 @@
       CALL rfftwnd_f77_complex_to_real(plan%planr,kend-ksta+1,c1,          &
                          1,plan%n*(plan%n/2+1),out,1,plan%n*plan%n)
 #endif
-      CALL CPU_TIME(t1); ffttime = ffttime + t1-t0
+      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
+
+      CALL  GTFree(hfft); CALL GTFree(htra)
 
       RETURN
       END SUBROUTINE fftp3d_complex_to_real

@@ -196,6 +196,7 @@
       USE fprecision
       USE mpivars
       USE fftplans
+      USE gtimer
 !$    USE threads
       IMPLICIT NONE
 
@@ -205,8 +206,6 @@
       COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%n,plan%n)              :: c1
       REAL(KIND=GP), INTENT(IN), DIMENSION(plan%n,plan%n,ksta:kend)     :: in
 
-      DOUBLE PRECISION                    :: t0, t1
-
       INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
       INTEGER, INTENT(IN)                 :: comm
@@ -215,21 +214,21 @@
       INTEGER :: irank
       INTEGER :: isendTo,igetFrom
       INTEGER :: istrip,iproc
+      INTEGER :: hfft,htra
 
 !
 ! 2D FFT in each node using the FFTW library
 !
-      CALL CPU_TIME(t0)
+      CALL GTStart(hfft,GT_WTIME)
       CALL GPMANGLE(execute_dft_r2c)(plan%planr,in,plan%carr)
-      CALL CPU_TIME(t1); ffttime = ffttime + t1-t0
-
+      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft); 
 
 !
 !
 ! Transposes the result between nodes using 
 ! strip mining when nstrip>1 (rreddy@psc.edu)
 !
-      CALL CPU_TIME(t0)
+      CALL GTStart(htra,GT_WTIME)
       do iproc = 0, nprocs-1, nstrip
          do istrip=0, nstrip-1
             irank = iproc + istrip
@@ -242,6 +241,7 @@
 
             CALL MPI_IRECV(c1,1,plan%itype2(igetFrom),igetFrom,      & 
                           1,comm,ireq2(irank),ierr)
+
             CALL MPI_ISEND(plan%carr,1,plan%itype1(isendTo),isendTo, &
                           1,comm,ireq1(irank),ierr)
          enddo
@@ -270,13 +270,16 @@
             END DO
          END DO
       END DO
-      CALL CPU_TIME(t1); tratime = tratime + t1-t0
+      CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
 !
 ! 1D FFT in each node using the FFTW library
 !
-      CALL CPU_TIME(t0)
+      CALL GTStart(hfft)
       CALL GPMANGLE(execute_dft)(plan%planc,out,out)
-      CALL CPU_TIME(t1); ffttime = ffttime + t1-t0
+      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
+
+      CALL GTFree(hfft); CALL GTFree(htra)
+
 
       RETURN
       END SUBROUTINE fftp3d_real_to_complex
@@ -302,6 +305,7 @@
       USE mpivars
       USE commtypes
       USE fftplans
+      USE gtimer
 !$    USE threads
       IMPLICIT NONE
 
@@ -321,15 +325,16 @@
       INTEGER :: irank
       INTEGER :: isendTo, igetFrom
       INTEGER :: istrip,iproc
+      INTEGER :: hfft,htra
 
 !
 ! 1D FFT in each node using the FFTW library
 
-      CALL CPU_TIME(t0)
+      CALL GTStart(hfft,GT_WTIME)
       CALL GPMANGLE(execute_dft)(plan%planc,in,in)
-      CALL CPU_TIME(t1); ffttime = ffttime + t1-t0
+      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 
-      CALL CPU_TIME(t0)
+      CALL GTStart(htra,GT_WTIME)
 !
 ! Cache friendly transposition
 !
@@ -374,13 +379,15 @@
             CALL MPI_WAIT(ireq2(irank),istatus,ierr)
          enddo
       enddo
-      CALL CPU_TIME(t1); tratime = tratime + t1-t0
+      CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
 !
 ! 2D FFT in each node using the FFTW library
 !
-      CALL CPU_TIME(t0)
+      CALL GTStart(hfft)
       CALL GPMANGLE(execute_dft_c2r)(plan%planr,plan%carr,out)
-      CALL CPU_TIME(t1); ffttime = ffttime + t1-t0
+      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
+
+      CALL  GTFree(hfft); CALL GTFree(htra)
 
       RETURN
       END SUBROUTINE fftp3d_complex_to_real
@@ -427,6 +434,11 @@
       INTEGER :: itemp,itemp2
       INTEGER :: ierr
 
+!      INTEGER :: ierr1,nerr=1024
+!      CHARACTER*1024 serr
+!      
+!      nerr = 1024
+
       CALL MPI_TYPE_EXTENT(ioldtype,isize,ierr)
       ilen = iend-ista+1
       jlen = jend-jsta+1
@@ -443,8 +455,10 @@
       itype(1) = MPI_LB
       itype(2) = itemp2
       CALL MPI_TYPE_STRUCT(2,iblock,idisp,itype,inewtype,ierr)
+
       CALL MPI_TYPE_FREE(itemp2,ierr)
       CALL MPI_TYPE_COMMIT(inewtype,ierr)
+
 
       RETURN
       END SUBROUTINE block3d

@@ -5,7 +5,7 @@
 ! Performs parallel real-to-complex and complex-to-real FFTs 
 ! using MPI and the CUDA library in each node. You should use 
 ! the FFTPLANS and MPIVARS modules (see the file 'fftp_mod.f90') 
-! in each program that calls any of the subroutines in this 
+! in each program that CALLs any of the subroutines in this 
 ! file. Also, you must create plans for the parallel FFT using 
 ! the 'fftp3d_create_plan' subroutine, which creates in turn 
 ! derived data types for message passing using the subroutine 
@@ -55,6 +55,7 @@
       INTEGER             :: istr, idist, ostr, odist, nrank
       INTEGER             :: iret, i1(3), i2(3), i3(3)
       INTEGER             :: na(2), pinembed(2), ponembed(2)
+      INTEGER             :: iplan
 
 
       plan%szccd_= 2* n     *n*(iend-ista+1)*GP
@@ -68,9 +69,9 @@
       i1(1) = n    ; i1(2) = n; i1(3) = iend-ista+1;
       i2(1) = n/2+1; i2(2) = n; i2(3) = kend-ksta+1; 
       i3(1) = n    ; i3(2) = n; i3(3) = kend-ksta+1; 
-      call c_f_pointer ( plan%pccarr_, plan%ccarr, i1 )
-      call c_f_pointer ( plan%pcarr_ , plan%carr , i2 )
-      call c_f_pointer ( plan%prarr_ , plan%rarr , i3 )
+      CALL c_f_pointer ( plan%pccarr_, plan%ccarr, i1 )
+      CALL c_f_pointer ( plan%pcarr_ , plan%carr , i2 )
+      CALL c_f_pointer ( plan%prarr_ , plan%rarr , i3 )
 
 
       iret = cudaMalloc(plan%cu_ccd_, plan%szccd_)
@@ -83,7 +84,7 @@
         istr        = 1            ; idist       = n*n            ;
         ponembed(1) = n/2+1        ; ponembed(2) = n*(kend-ksta+1);            
         ostr        = 1            ; odist       = n*(n/2+1)      ;
-        iret = cufftPlanMany(plan%icuplanr_,nrank,na,pinembed,istr,idist,&
+        iret = cufftPlanMany(plan%icuplanr_,2,na,pinembed,istr,idist,&
                              ponembed,ostr,odist,CUFFT_R2C,kend-ksta+1);
         nrank       = 1
         na      (1) = n                ; 
@@ -228,6 +229,7 @@
       USE cuda_bindings
       USE cutypes
       USE threads
+      USE gtimer
       IMPLICIT NONE
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
@@ -235,7 +237,6 @@
       COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%n,plan%n)              :: c1
       REAL(KIND=GP), INTENT(IN), DIMENSION(plan%n,plan%n,ksta:kend)     :: in
 
-      DOUBLE PRECISION                    :: t0, t1
       INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
       INTEGER, INTENT(IN)                 :: comm
@@ -244,6 +245,7 @@
       INTEGER :: irank
       INTEGER :: isendTo,igetFrom
       INTEGER :: istrip,iproc
+      INTEGER :: hfft,htra,hmem
 
 !
 ! 2D real-to-complex FFT in each node using the FFTCU library
@@ -251,21 +253,21 @@
       plan%rarr = in
 !
 ! Data sent to cufftXXXXXX must reside on device:
-      call CPU_TIME(t0)
+      CALL GTStart(hmem,GT_WTIME)
       iret = cudaMemCpyHost2Dev(plan%cu_rd_, plan%prarr_, plan%szrd_ )
-      call CPU_TIME(t1); memtime = memtime + t1-t0
+      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
  
-      call CPU_TIME(t0)
+      CALL GTStart(hfft,GT_WTIME)
       IF ( GP.EQ. 4 ) THEN
         iret = cufftExecR2C(plan%icuplanr_, plan%cu_rd_, plan%cu_cd_ )
       ELSE
         iret = cufftExecD2Z(plan%icuplanr_, plan%cu_rd_, plan%cu_cd_ )
       ENDIF
 
-      call CPU_TIME(t1); ffttime = ffttime + t1-t0
-      call CPU_TIME(t0)
+      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
+      CALL GTStart(hmem)
       iret = cudaMemCpyDev2Host(plan%pcarr_, plan%cu_cd_, plan%szcd_ )
-      call CPU_TIME(t1); memtime = memtime + t1-t0
+      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
 
 ! NOTE: If nrocs = 1, then we can carry out the transpose directly
 !       on the CUDA device.
@@ -273,7 +275,7 @@
 ! Transposes the result between nodes using 
 ! strip mining when nstrip>1 (rreddy@psc.edu)
 !
-      call CPU_TIME(t0)
+      CALL GTStart(htra,GT_WTIME)
       DO iproc = 0, nprocs-1, nstrip
          DO istrip=0, nstrip-1
             irank = iproc + istrip
@@ -308,7 +310,7 @@
                DO i = ii,min(iend,ii+csize-1)
                DO j = jj,min(plan%n,jj+csize-1)
                DO k = kk,min(plan%n,kk+csize-1)
-                 !Recall that ccarr is dimensioned (:,:), starting at (1,1):
+                 !ReCALL that ccarr is dimensioned (:,:), starting at (1,1):
                   plan%ccarr(k,j,i-ista+1) = c1(i,j,k)
                END DO
                END DO
@@ -316,23 +318,25 @@
             END DO
          END DO
       END DO
-      call CPU_TIME(t1); tratime = tratime + t1-t0
+      CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
 !
 ! 1D FFT in each node using the FFTCU library
 !
-      call CPU_TIME(t0); 
+      CALL GTStart(hmem)
       iret = cudaMemCpyHost2Dev(plan%cu_ccd_, plan%pccarr_, plan%szccd_ )
-      call CPU_TIME(t1); memtime = memtime + t1-t0
-      call CPU_TIME(t0); 
+      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
+      CALL GTStart(hfft)
       IF ( GP.EQ. 4 ) THEN
       iret = cufftExecC2C(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_REAL_TO_COMPLEX)
       ELSE
       iret = cufftExecZ2Z(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_REAL_TO_COMPLEX)
       ENDIF
-      call CPU_TIME(t1); ffttime = ffttime + t1-t0
-      call CPU_TIME(t0); 
+      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
+      CALL GTStart(hmem)
       iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd_, plan%szccd_ )
-      call CPU_TIME(t1); memtime = memtime + t1-t0
+      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
+
+      CALL  GTFree(hfft); CALL GTFree(htra); CALL GTFree(hmem)
 
       out = plan%ccarr
 
@@ -364,6 +368,7 @@
       USE cuda_bindings
       USE cutypes
       USE threads
+      USE gtimer
       IMPLICIT NONE
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
@@ -373,8 +378,6 @@
       REAL(KIND=GP), INTENT(OUT), DIMENSION(plan%n,plan%n,ksta:kend)   :: out
 
 
-      DOUBLE PRECISION                                          :: t0, t1
-
       INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
       INTEGER, INTENT(IN)                 :: comm
@@ -383,16 +386,17 @@
       INTEGER :: irank
       INTEGER :: isendTo, igetFrom
       INTEGER :: istrip,iproc
+      INTEGER :: hfft,htra,hmem
 
 !
 ! 1D FFT in each node using the FFTCU library
 !
       plan%ccarr = in
      
-      call CPU_TIME(t0);
+      CALL GTStart(hmem,GT_WTIME);
       iret = cudaMemCpyHost2Dev(plan%cu_ccd_, plan%pccarr_, plan%szccd_ )
-      call CPU_TIME(t1); memtime = memtime + t1-t0
-      call CPU_TIME(t0);
+      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
+      CALL GTStart(hfft);
       IF ( GP.EQ. 4 ) THEN
         iret = cufftExecC2C(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_COMPLEX_TO_REAL)
 !       iret = cufftExecC2R(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_)
@@ -400,12 +404,12 @@
         iret = cufftExecZ2Z(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_COMPLEX_TO_REAL)
       ENDIF
 
-      call CPU_TIME(t1); ffttime = ffttime + t1-t0
-      call CPU_TIME(t0);
+      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
+      CALL GTStart(hmem);
       iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd_, plan%szccd_ )
-      call CPU_TIME(t1); memtime = memtime + t1-t0
+      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
 
-      call CPU_TIME(t0);
+      CALL GTStart(htra,GT_WTIME);
 !
 ! Cache friendly transposition
 !
@@ -417,7 +421,7 @@
                DO i = ii,min(iend,ii+csize-1)
                DO j = jj,min(plan%n,jj+csize-1)
                DO k = kk,min(plan%n,kk+csize-1)
-                 !Recall that ccarr is dimensioned (:,:,:), starting at (1,1,1):
+                 !ReCALL that ccarr is dimensioned (:,:,:), starting at (1,1,1):
                   c1(i,j,k) = plan%ccarr(k,j,i-ista+1)
                END DO
                END DO
@@ -452,24 +456,26 @@
          enddo
       enddo
 
-      call CPU_TIME(t1); tratime = tratime + t1-t0
+      CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
 !
 ! 2D FFT in each node using the FFTCU library
 !
-      call CPU_TIME(t0);
+      CALL GTStart(hmem);
       iret = cudaMemCpyHost2Dev(plan%cu_cd_, plan%pcarr_, plan%szcd_ )
-      call CPU_TIME(t1); memtime = memtime + t1-t0
-      call CPU_TIME(t0);
+      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
+      CALL GTStart(hfft);
       IF ( GP.EQ. 4 ) THEN
       iret = cufftExecC2R(plan%icuplanr_, plan%cu_cd_, plan%cu_rd_)
       ELSE
       iret = cufftExecZ2D(plan%icuplanr_, plan%cu_cd_, plan%cu_rd_)
       ENDIF
-      call CPU_TIME(t1); ffttime = ffttime + t1-t0
-      call CPU_TIME(t0);
+      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
+      CALL GTStart(hmem)
       iret = cudaMemCpyDev2Host(plan%prarr_, plan%cu_rd_, plan%szrd_ )
-      call CPU_TIME(t1); memtime = memtime + t1-t0
+      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
       out = plan%rarr
+
+      CALL  GTFree(hfft); CALL GTFree(htra); CALL GTFree(hmem)
 
       RETURN
       END SUBROUTINE fftp3d_complex_to_real
