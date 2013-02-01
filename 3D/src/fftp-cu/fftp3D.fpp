@@ -263,8 +263,8 @@
       ELSE
         iret = cufftExecD2Z(plan%icuplanr_, plan%cu_rd_, plan%cu_cd_ )
       ENDIF
-
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
+
       CALL GTStart(hmem)
       iret = cudaMemCpyDev2Host(plan%pcarr_, plan%cu_cd_, plan%szcd_ )
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
@@ -325,6 +325,7 @@
       CALL GTStart(hmem)
       iret = cudaMemCpyHost2Dev(plan%cu_ccd_, plan%pccarr_, plan%szccd_ )
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
+
       CALL GTStart(hfft)
       IF ( GP.EQ. 4 ) THEN
       iret = cufftExecC2C(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_REAL_TO_COMPLEX)
@@ -332,6 +333,7 @@
       iret = cufftExecZ2Z(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_REAL_TO_COMPLEX)
       ENDIF
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
+
       CALL GTStart(hmem)
       iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd_, plan%szccd_ )
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
@@ -391,20 +393,20 @@
 !
 ! 1D FFT in each node using the FFTCU library
 !
-      plan%ccarr = in
-     
       CALL GTStart(hmem,GT_WTIME);
+      plan%ccarr = in
       iret = cudaMemCpyHost2Dev(plan%cu_ccd_, plan%pccarr_, plan%szccd_ )
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
-      CALL GTStart(hfft);
+
+      CALL GTStart(hfft,GT_WTIME);
       IF ( GP.EQ. 4 ) THEN
         iret = cufftExecC2C(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_COMPLEX_TO_REAL)
 !       iret = cufftExecC2R(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_)
       ELSE
         iret = cufftExecZ2Z(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_COMPLEX_TO_REAL)
       ENDIF
-
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
+
       CALL GTStart(hmem);
       iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd_, plan%szccd_ )
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
@@ -463,6 +465,7 @@
       CALL GTStart(hmem);
       iret = cudaMemCpyHost2Dev(plan%cu_cd_, plan%pcarr_, plan%szcd_ )
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
+
       CALL GTStart(hfft);
       IF ( GP.EQ. 4 ) THEN
       iret = cufftExecC2R(plan%icuplanr_, plan%cu_cd_, plan%cu_rd_)
@@ -470,10 +473,11 @@
       iret = cufftExecZ2D(plan%icuplanr_, plan%cu_cd_, plan%cu_rd_)
       ENDIF
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
+
       CALL GTStart(hmem)
       iret = cudaMemCpyDev2Host(plan%prarr_, plan%cu_rd_, plan%szrd_ )
-      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
       out = plan%rarr
+      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
 
       CALL  GTFree(hfft); CALL GTFree(htra); CALL GTFree(hmem)
 
