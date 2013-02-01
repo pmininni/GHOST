@@ -306,12 +306,12 @@
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ekp,Eptot
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ekz,Eztot
-      DOUBLE PRECISION    :: tmq
+      DOUBLE PRECISION    :: tmq,tmr
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL(KIND=GP)       :: tmp,tmr
+      REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin,hel
-      INTEGER             :: i,j,k,kz
+      INTEGER             :: i,j,k
       INTEGER             :: kmn
       CHARACTER(len=*), INTENT(IN) :: nmb
 
@@ -337,7 +337,7 @@
       tmp = 1.0_GP/real(n,kind=GP)**6
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq)
+!$omp parallel do private (k,kmn,tmq,tmr)
             DO j = 1,n
                kmn = int(sqrt(ka(1)**2+ka(j)**2)+.501)
                IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
@@ -356,9 +356,9 @@
                   END DO
                ENDIF
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq,tmr)
             DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq,tmr)
                DO j = 1,n
                   kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
@@ -379,9 +379,9 @@
                END DO
             END DO
           ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq,tmr)
             DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq,tmr)
                DO j = 1,n
                   kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
@@ -407,7 +407,7 @@
 !
       ELSE IF (kin.eq.0) THEN
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq)
+!$omp parallel do private (k,kmn,tmq,tmr)
             DO j = 1,n
                kmn = int(sqrt(ka(1)**2+ka(j)**2)+.501)
                IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
@@ -426,9 +426,9 @@
                   END DO
                ENDIF
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq,tmr)
             DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq,tmr)
                DO j = 1,n
                   kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
@@ -449,9 +449,9 @@
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq,tmr)
             DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq,tmr)
                DO j = 1,n
                   kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
@@ -507,7 +507,7 @@
             Ekz(i) = 0.0D0
          END DO
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq)
+!$omp parallel do private (k,kmn,tmq,tmr)
             DO j = 1,n
                kmn = int(sqrt(ka(1)**2+ka(j)**2)+.501)
                IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
@@ -528,9 +528,9 @@
                   END DO
                ENDIF
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq,tmr)
             DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq,tmr)
                DO j = 1,n
                   kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
@@ -553,9 +553,9 @@
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq,tmr)
             DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq,tmr)
                DO j = 1,n
                   kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN

@@ -524,14 +524,16 @@
          meth(i) = 0.0_GP
          methv(i) = 0.0_GP
       END DO
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i) reduction(max:dloc)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i) reduction(max:dloc)
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,n
             DO i = 1,n
+!$omp critical
                mev(i) = mev(i)+r1(i,j,k)
                meth(i) = meth(i)+r2(i,j,k)
                methv(i) = methv(i)+r1(i,j,k)*r2(i,j,k)
+!$omp end critical
             END DO
          END DO
       END DO
@@ -616,14 +618,16 @@
          meth(i) = 0.0_GP
          methv(i) = 0.0_GP
       END DO
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i) reduction(max:dloc)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i) reduction(max:dloc)
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,n
             DO i = 1,n
+!$omp critical
                mev(k) =  mev(k)+r1(i,j,k)
                meth(k) = meth(k)+r2(i,j,k)
                methv(k) = methv(k)+r1(i,j,k)*r2(i,j,k)  
+!$omp end critical
             END DO
          END DO
       END DO
