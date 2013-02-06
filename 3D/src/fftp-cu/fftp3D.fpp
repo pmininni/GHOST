@@ -245,7 +245,7 @@
       INTEGER :: irank
       INTEGER :: isendTo,igetFrom
       INTEGER :: istrip,iproc
-      INTEGER :: hfft,htra,hmem
+      INTEGER :: hcom,hfft,hmem,htra
 
 !
 ! 2D real-to-complex FFT in each node using the FFTCU library
@@ -275,7 +275,7 @@
 ! Transposes the result between nodes using 
 ! strip mining when nstrip>1 (rreddy@psc.edu)
 !
-      CALL GTStart(htra,GT_WTIME)
+      CALL GTStart(hcom,GT_WTIME)
       DO iproc = 0, nprocs-1, nstrip
          DO istrip=0, nstrip-1
             irank = iproc + istrip
@@ -298,10 +298,12 @@
             CALL MPI_WAIT(ireq2(irank),istatus,ierr)
          ENDDO
       ENDDO
+      CALL GTStop(hcom); comtime = comtime + GTGetTime(hcom)
 !
 ! Cache friendly transposition
 !
 !
+      CALL GTStart(htra,GT_WTIME)
 !$omp parallel do if ((iend-ista)/csize.ge.nth) private (jj,kk,i,j,k)
       DO ii = ista,iend,csize
 !$omp parallel do if ((iend-ista)/csize.lt.nth) private (kk,i,j,k)
@@ -338,7 +340,7 @@
       iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd_, plan%szccd_ )
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
 
-      CALL  GTFree(hfft); CALL GTFree(htra); CALL GTFree(hmem)
+      CALL  GTFree(hcom); CALL GTFree(hfft); CALL GTFree(htra); CALL GTFree(hmem)
 
       out = plan%ccarr
 
@@ -388,7 +390,7 @@
       INTEGER :: irank
       INTEGER :: isendTo, igetFrom
       INTEGER :: istrip,iproc
-      INTEGER :: hfft,htra,hmem
+      INTEGER :: hcom,hmem,hfft,htra
 
 !
 ! 1D FFT in each node using the FFTCU library
@@ -431,10 +433,12 @@
             END DO
          END DO
       END DO
+      CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
 !
 ! Transposes the result between nodes using 
 ! strip mining when nstrip>1 (rreddy@psc.edu)
 !
+      CALL GTStart(hcom,GT_WTIME);
       do iproc = 0, nprocs-1, nstrip
          do istrip=0, nstrip-1
             irank = iproc + istrip
@@ -458,7 +462,7 @@
          enddo
       enddo
 
-      CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
+      CALL GTStop(hcom); comtime = comtime + GTGetTime(hcom)
 !
 ! 2D FFT in each node using the FFTCU library
 !
@@ -479,7 +483,7 @@
       out = plan%rarr
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
 
-      CALL  GTFree(hfft); CALL GTFree(htra); CALL GTFree(hmem)
+      CALL  GTFree(hcom); CALL GTFree(hfft); CALL GTFree(htra); CALL GTFree(hmem); 
 
       RETURN
       END SUBROUTINE fftp3d_complex_to_real

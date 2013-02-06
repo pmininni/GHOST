@@ -132,6 +132,7 @@
       END SUBROUTINE fftp3d_destroy_plan
 
 !*****************************************************************
+!*****************************************************************
       SUBROUTINE fftp3d_create_block(n,nprocs,myrank,itype1,itype2)
 !-----------------------------------------------------------------
 !
@@ -214,7 +215,7 @@
       INTEGER :: irank
       INTEGER :: isendTo,igetFrom
       INTEGER :: istrip,iproc
-      INTEGER :: hfft,htra
+      INTEGER :: hcom,hfft,htra
 
 !
 ! 2D FFT in each node using the FFTW library
@@ -228,7 +229,7 @@
 ! Transposes the result between nodes using 
 ! strip mining when nstrip>1 (rreddy@psc.edu)
 !
-      CALL GTStart(htra,GT_WTIME)
+      CALL GTStart(hcom,GT_WTIME)
       do iproc = 0, nprocs-1, nstrip
          do istrip=0, nstrip-1
             irank = iproc + istrip
@@ -238,7 +239,6 @@
 
             igetFrom = myrank - irank
             if ( igetFrom .lt. 0 ) igetFrom = igetFrom + nprocs
-
             CALL MPI_IRECV(c1,1,plan%itype2(igetFrom),igetFrom,      & 
                           1,comm,ireq2(irank),ierr)
 
@@ -252,9 +252,11 @@
             CALL MPI_WAIT(ireq2(irank),istatus,ierr)
          enddo
       enddo
+      CALL GTStop(hcom); comtime = comtime + GTGetTime(hcom)
 !
 ! Cache friendly transposition
 !
+      CALL GTStart(htra,GT_WTIME)
 !$omp parallel do if ((iend-ista)/csize.ge.nth) private (jj,kk,i,j,k)
       DO ii = ista,iend,csize
 !$omp parallel do if ((iend-ista)/csize.lt.nth) private (kk,i,j,k)
@@ -278,7 +280,7 @@
       CALL GPMANGLE(execute_dft)(plan%planc,out,out)
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 
-      CALL GTFree(hfft); CALL GTFree(htra)
+      CALL GTFree(hcom); CALL GTFree(hfft); CALL GTFree(htra)
 
 
       RETURN
@@ -325,7 +327,7 @@
       INTEGER :: irank
       INTEGER :: isendTo, igetFrom
       INTEGER :: istrip,iproc
-      INTEGER :: hfft,htra
+      INTEGER :: hcom,hfft,htra
 
 !
 ! 1D FFT in each node using the FFTW library
@@ -353,10 +355,12 @@
             END DO
          END DO
       END DO
+      CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
 !
 ! Transposes the result between nodes using 
 ! strip mining when nstrip>1 (rreddy@psc.edu)
 !
+      CALL GTStart(hcom,GT_WTIME)
       do iproc = 0, nprocs-1, nstrip
          do istrip=0, nstrip-1
             irank = iproc + istrip
@@ -366,7 +370,6 @@
 
             igetFrom = myrank - irank
             if ( igetFrom .lt. 0 ) igetFrom = igetFrom + nprocs
-
             CALL MPI_IRECV(plan%carr,1,plan%itype1(igetFrom),igetFrom, & 
                           1,comm,ireq2(irank),ierr)
             CALL MPI_ISEND(c1,1,plan%itype2(isendTo),isendTo, &
@@ -379,7 +382,7 @@
             CALL MPI_WAIT(ireq2(irank),istatus,ierr)
          enddo
       enddo
-      CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
+      CALL GTStop(hcom); comtime = comtime + GTGetTime(hcom)
 !
 ! 2D FFT in each node using the FFTW library
 !
@@ -387,7 +390,7 @@
       CALL GPMANGLE(execute_dft_c2r)(plan%planr,plan%carr,out)
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 
-      CALL  GTFree(hfft); CALL GTFree(htra)
+      CALL GTFree(hcom); CALL GTFree(hfft); CALL GTFree(htra)
 
       RETURN
       END SUBROUTINE fftp3d_complex_to_real
