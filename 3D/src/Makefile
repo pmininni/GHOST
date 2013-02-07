@@ -126,7 +126,7 @@ OBJSDIR        = pseudo
 SUBDIRS        = posix mpiio fftp-2 fftp-3 fftp-cu utils $(CONTRIB)/nvidia
 EXTRASDIR      = analysis
 
-all: edit $(CONTRIBOBJS) $(UTILS)/gtimer_mod.o $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(UTILS)/gtimer_mod.o $(OBJS) $(SOLVER) undo
+all: edit $(CONTRIBOBJS) $(UTILS)/gtimer_mod.o $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(UTILS)/gutils_mod.o $(OBJS) $(SOLVER) undo
 
 main: all
 
