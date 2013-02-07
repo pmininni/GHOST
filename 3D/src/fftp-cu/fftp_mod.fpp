@@ -31,6 +31,7 @@
       INTEGER, PARAMETER  :: FFTW_MEASURE =  0
       INTEGER, PARAMETER  :: FFTW_PATIENT =  0
       INTEGER, PARAMETER  :: FFTW_ESTIMATE=  0
+      DOUBLE PRECISION    :: comtime = 0.0
       DOUBLE PRECISION    :: ffttime = 0.0
       DOUBLE PRECISION    :: memtime = 0.0
       DOUBLE PRECISION    :: tratime = 0.0
