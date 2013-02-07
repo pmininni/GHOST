@@ -24,8 +24,9 @@
       INTEGER, PARAMETER  :: ikind = IKIND_
       INTEGER, PARAMETER  :: csize = CSIZE_
       INTEGER, PARAMETER  :: nstrip = NSTRIP_
-      DOUBLE PRECISION    :: ffttime = 0.0
-      DOUBLE PRECISION    :: tratime = 0.0
+      DOUBLE PRECISION    :: comtime = 0.0D0
+      DOUBLE PRECISION    :: ffttime = 0.0D0
+      DOUBLE PRECISION    :: tratime = 0.0D0
       TYPE FFTPLAN
          INTEGER(kind=ikind) :: planr,planc
          INTEGER :: n
