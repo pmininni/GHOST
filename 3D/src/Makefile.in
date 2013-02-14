@@ -28,6 +28,11 @@ P_HYBRID = no
 # P_CUDA=no     # MPI- or hybrid- parallelization only
 P_CUDA   = no
 
+# Lagrangian particles:
+# PARTICLES = no        # Do not build Lag. particles
+# PARTICLES = yes       # Build Lag. particles
+PARTICLES = no
+
 # FFTP:
 # fftp-2   builds FFTP-2 (links with FFTW 2.x)
 # fftp-3   builds FFTP-3 (links with FFTW 3.x)
