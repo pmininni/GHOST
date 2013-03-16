@@ -143,6 +143,10 @@
 #define ROTATION_
 #endif
 
+#ifdef DEF_GHOST_LAGP
+#define LAGPART_           
+#endif
+
 !
 ! Modules
 
@@ -176,6 +180,9 @@
       USE, INTRINSIC :: iso_c_binding
       USE cuda_bindings
       USE cutypes
+#endif
+#if defined(LAGPART_)
+      USE class_GPart 
 #endif
 
       IMPLICIT NONE
@@ -224,6 +231,9 @@
 #endif
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: R1,R2,R3
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)     :: Faux1,Faux2
+#ifdef LAGPART_
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: R4,R5
+#endif
 
 !
 ! Auxiliary variables
@@ -289,6 +299,7 @@
       INTEGER :: tind,sind
       INTEGER :: timet,timec
       INTEGER :: times,timef
+      INTEGER :: timep,pstep
       INTEGER :: ihcpu1,ihcpu2
       INTEGER :: ihomp1,ihomp2
       INTEGER :: ihwtm1,ihwtm2
@@ -299,13 +310,24 @@
       INTEGER :: dyna
       INTEGER :: corr
 #endif
+#ifdef LAGPART_
+      INTEGER                :: maxparts
+      TYPE          (GPINIT) :: ilginittype
+      TYPE         (GPINTRP) :: ilgintrptype
+      TYPE      (GPEXCHTYPE) :: ilgexchtype
+      TYPE           (GPart) :: lagpart
+#endif
 !$    INTEGER, EXTERNAL :: omp_get_max_threads
 
 #if defined(DEF_GHOST_CUDA_)
        TYPE(cudaDevicePropG) :: devprop
 #endif
       TYPE(IOPLAN) :: planio
-      CHARACTER(len=100) :: odir,idir
+      CHARACTER (len=100) :: odir,idir
+
+#ifdef LAGPART_
+      CHARACTER(len=1024) :: lgseedfile
+#endif
 
 !
 ! Namelists for the input files
@@ -354,8 +376,10 @@
 #ifdef EDQNM_
       NAMELIST / edqnmles / kolmo,heli
 #endif
+#ifdef LAGPART_
+      NAMELIST / lagpart / pstep,maxparts,ilginittype,ilgintrptype,ilgexchtype,lgseedfile
+#endif
 
-!
 ! Initializes the MPI and I/O libraries
       CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
@@ -463,6 +487,12 @@
       ALLOCATE( R1(n,n,ksta:kend) )
       ALLOCATE( R2(n,n,ksta:kend) )
       ALLOCATE( R3(n,n,ksta:kend) )
+
+#ifdef LAGPART_
+      ALLOCATE( R4(n,n,ksta:kend) )
+      ALLOCATE( R5(n,n,ksta:kend) )
+#endif
+
 #ifdef EDQNM_
       ALLOCATE( C19(n,n,ista:iend) )
       ALLOCATE( Eden(n,n,ista:iend) )
@@ -867,6 +897,26 @@
       CALL MPI_BCAST(heli,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 #endif
 
+#ifdef LAGPART_
+      maxparts     = 100000
+      ilginittype  = GPINIT_RANDLOC
+      ilgintrptype = GPINTRP_CSPLINE
+      ilgexchtype  = GPEXCHTYPE_VDB
+      pstep        = 10
+      lgseedfile   = 'gplog.dat'
+!
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         READ(1,NML=lagpart)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(maxparts    ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(pstep       ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ilginittype ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ilgintrptype,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ilgexchtype ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      lagpart%SetSeedFile(lgseedfile)
+#endif
 
 !
 ! Initializes arrays to keep track of the forcing 
@@ -928,6 +978,11 @@
 #endif
       ENDIF
 
+#ifdef LAGPART_
+      CALL lagpart%GPart_ctor(MPI_COMM_WORLD,MAXPARTS,igpinit,&
+           GPINTRP_CSPLINE,3,GPEXCHTYPE_VDB)
+#endif
+
 !
 ! Sets the external forcing
 
@@ -949,6 +1004,7 @@
       timet = tstep
       timec = cstep
       times = sstep
+      timep = pstep
       INCLUDE 'initialv.f90'            ! initial velocity
 #ifdef SCALAR_
       INCLUDE 'initials.f90'            ! initial concentration
@@ -968,6 +1024,7 @@
       times = 0
       timet = 0
       timec = 0
+      timep = 0
 
       CALL io_read(1,idir,'vx',ext,planio,R1)
       CALL io_read(1,idir,'vy',ext,planio,R2)
@@ -1065,6 +1122,10 @@
       ENDIF DYN
 #endif
 
+#ifdef LAGPART_
+      CALL lagpart%io_read(1,idir,'',ext)
+#endif
+
       ENDIF IC
 
 !
@@ -1079,6 +1140,7 @@
          CALL GTStart(ihomp1,GT_OMPTIME)
          CALL GTStart(ihwtm1,GT_WTIME)
 ! Must reset FFT internal timers after initialization:
+         comtime = 0.0D0
          ffttime = 0.0D0
          tratime = 0.0D0
 #if defined(DEF_GHOST_CUDA_)
@@ -1425,6 +1487,13 @@
 #endif
          ENDIF
 
+#ifdef LAGPART_
+         IF ((timep.eq.pstep).and.(bench.eq.0)) THEN
+           timep = 0
+           CALL lagpart%io_write(1,odir,'lgpart',ext,(t-1)*dt)
+         ENDIF
+#endif
+
 ! Every 'cstep' steps, generates external files 
 ! with global quantities. If mean=1 also updates 
 ! the mean fields.
@@ -1637,6 +1706,10 @@
          END DO
          END DO
 
+#ifdef LAGPART_
+         CALL lagpart%SetStep()
+#endif
+
 ! Runge-Kutta step 2
 ! Evolves the system in time
 
@@ -1690,6 +1763,24 @@
          INCLUDE 'edqnmroth_rkstep2.f90'
 #endif
 
+#ifdef LAGPART_
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,n
+          DO k = 1,n
+            C1(k,j,i) = vx(k,j,i)/real(n,kind=GP)**3
+            C2(k,j,i) = vy(k,j,i)/real(n,kind=GP)**3
+            C3(k,j,i) = vz(k,j,i)/real(n,kind=GP)**3
+          END DO
+        END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+      CALL lagpart%Step(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),R4,R5)
+#endif
+
          END DO
 
          timet = timet+1
@@ -1698,6 +1789,10 @@
          timef = timef+1
 
       END DO RK
+
+#ifdef LAGPART_
+      CALL lagpart%FinalStep()
+#endif
 
 !
 ! End of Runge-Kutta
@@ -1716,13 +1811,15 @@
                        GTGetTime(ihcpu1)/(step-ini+1), &
                        GTGetTime(ihomp1)/(step-ini+1), &
                        GTGetTime(ihwtm1)/(step-ini+1), &
-                       ffttime/(step-ini+1), tratime/(step-ini+1), memtime/(step-ini+1)
+                       ffttime/(step-ini+1), tratime/(step-ini+1), &
+                       comtime/(step-ini+1), memtime/(step-ini+1)
 #else
             WRITE(1,*) n,(step-ini+1),nprocs,nth, &
                        GTGetTime(ihcpu1)/(step-ini+1), &
                        GTGetTime(ihomp1)/(step-ini+1), &
                        GTGetTime(ihwtm1)/(step-ini+1), &
-                       ffttime/(step-ini+1), tratime/(step-ini+1)
+                       ffttime/(step-ini+1), tratime/(step-ini+1), &
+                       comtime/(step-ini+1)
 
 #endif
             IF (bench.eq.2) THEN
