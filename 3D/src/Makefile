@@ -31,11 +31,12 @@ CUARCH       = $(CUARCH_$(CUCOMPILER))
 GHOME        = $(PWD)
 CONTRIB      = $(GHOME)/contrib
 UTILS        = $(GHOME)/utils
+LAGP         = $(GHOME)/lagpart
 #
 # Lagrangian particle variables:
 LAGPDEFyes   = -DDEF_GHOST_LAGP   
 LAGPDEFno    =   
-LAGPOBJSyes  = $(UTILS)/gpartcomm_mod.o 
+LAGPOBJSyes  = $(LAGP)/gpdbrec_mod.o $(LAGP)/gpartcomm_mod.o $(LAGP)/gpsplineint_mod.o $(LAGP)/gparts_mod.o
 LAGPOBJSno   =  
 
 # IO library variables:
@@ -128,10 +129,11 @@ TRAN_OBJS      = pseudospec3D_trn.o
 STRU_OBJS      = pseudospec3D_shf.o
 OBJS           = $($(SOLVER)_OBJS) 
 OBJSDIR        = pseudo
-SUBDIRS        = posix mpiio fftp-2 fftp-3 fftp-cu utils $(CONTRIB)/nvidia
+SUBDIRS        = posix mpiio fftp-2 fftp-3 fftp-cu utils $(CONTRIB)/nvidia $(LAGP)
 EXTRASDIR      = analysis
 GTIMER         = $(UTILS)/gtimer_mod.o
-GMISC          = $(UTILS)/gutils_mod.o $(UTILS)/regridutils.o
+GUTILS         = $(UTILS)/gutils_mod.o 
+GMISC          = $(GUTILS) $(UTILS)/regridutils.o
 
 all: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(UTILS)/gutils_mod.o $(LAGPOBJS$(PARTICLES)) $(OBJS) $(SOLVER) undo
 
@@ -257,11 +259,17 @@ $(UTILS)/gutils_mod.o:
 $(UTILS)/gtimer_mod.o:
 	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)' gtimer_mod.o
 
-$(UTILS)/gpartcomm_mod.o:
-	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)' gpartcomm_mod.o
+$(LAGP)/gpdbrec_mod.o:
+	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' gpdbrec_mod.o
 
-$(UTILS)/gparts_mod.o:
-	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)' gparts_mod.o
+$(LAGP)/gpartcomm_mod.o:
+	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' gpartcomm_mod.o
+
+$(LAGP)/gpsplineint_mod.o:
+	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' gpsplineint_mod.o
+
+$(LAGP)/gparts_mod.o:
+	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' gparts_mod.o
 
 $(UTILS)/regridutils.o:
 	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)' regridutils.o
