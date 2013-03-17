@@ -55,7 +55,7 @@ MODULE class_GPartComm
         PROCEDURE,PUBLIC :: ConcatV           => GPartComm_ConcatV
 
         GENERIC  ,PUBLIC :: PartExchange      => PartExchangePDB,PartExchangeV
-        GENERIC  ,PUBLIC :: SlabDataExchange  => SlabDataExchangeMF,SlabDataExchangeSF
+!       GENERIC  ,PUBLIC :: SlabDataExchange  => SlabDataExchangeMF,SlabDataExchangeSF
         GENERIC  ,PUBLIC :: Concat            => ConcatPDB,ConcatV
       END TYPE GPartComm
 

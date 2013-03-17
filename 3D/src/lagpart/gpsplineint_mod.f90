@@ -1032,7 +1032,7 @@ MODULE class_GPSplineInt
 ! distributed in z. To do interpolation, we must set up 
 ! spline coeffs in array extended in z by 2 control points
 ! so that spline interpolation can be done:
-   CALL this%gpcomm_%SlabDataExchange(this%esplfld_,field)
+     CALL this%gpcomm_%SlabDataExchangeSF(this%esplfld_,field)
 
    RETURN
 
