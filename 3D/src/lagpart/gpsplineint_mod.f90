@@ -954,7 +954,7 @@ MODULE class_GPSplineInt
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Must transpose data so that it is z-y complete, in order to
 ! carry out computation in z:
-    CALL gpcomm_%GTranspose(field,tmp2,this%ldims_,3,tmp1)
+    CALL this%gpcomm_%GTranspose(field,tmp2,this%ldims_,3,tmp1)
     nx = this%nd_(3)
     ny = this%nd_(2)
     nz = this%ldims_(3)
@@ -1017,7 +1017,7 @@ MODULE class_GPSplineInt
     idims(1) = this%nd_   (1)
     idims(2) = this%nd_   (2)
     idims(3) = this%ldims_(3)
-    CALL gpcomm_%GTranspose(field,tmp2,idims,3,tmp1)
+    CALL this%gpcomm_%GTranspose(field,tmp2,idims,3,tmp1)
  
 !! DO k=1,nz
 !!   DO j=1,ny

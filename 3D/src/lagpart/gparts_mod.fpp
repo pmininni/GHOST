@@ -84,7 +84,7 @@ MODULE class_GPart
 ! Methods:
   CONTAINS
 
-  SUBROUTINE GPart_ctor(this, comm, mparts, inittype, iinterp, intorder, iexchtyp)
+  SUBROUTINE GPart_ctor(this, comm, mparts, inittype, iinterp, intorder, iexchtyp, csize, nstrip)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Main explicit constructor
@@ -107,13 +107,15 @@ MODULE class_GPart
 !              of the 'master' particle d.b., so that passing between
 !              neighbors is not necessary. But the VDB form does require
 !              a global reduction, and may be more expensive.
+!    csize    : cache size param for local transposes
+!    nstrip   : 'strip-mining' size for local transposes
 !-----------------------------------------------------------------
     USE grid
     USE mpivars
 
     IMPLICIT NONE
     CLASS(GPart)                         :: this
-    INTEGER          , INTENT(IN)        :: comm,idatatyp,mparts
+    INTEGER          , INTENT(IN)        :: comm,idatatyp,mparts,csize
     INTEGER                              :: disp(3),lens(3),types(3),szreal
     TYPE(GPINIT)     , INTENT(IN)        :: inittype
     TYPE(GPINTRP)    , INTENT(IN)        :: iinterp
@@ -142,6 +144,7 @@ MODULE class_GPart
     CALL MPI_COMM_RANK(this%comm_,this%myrank_,this%ierr_)
 
     CALL this%exchop_%GPartComm_ctor(1,this%maxparts_,this%nd_,this%intorder_-1,this%comm_)
+    CALL this%exchop_%SetCacheQ(csize,nstrip)
     CALL this%exchop_%Init()
 
     this%libnds_(1,1) = 1    ; this%lxbnds_(1,1) = 0.0
