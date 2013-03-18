@@ -52,7 +52,7 @@ MODULE class_GPSplineInt
         PROCEDURE,PUBLIC :: CompSpline2D => GPSplineInt_CompSpline2D
         PROCEDURE,PUBLIC :: CompSpline3D => GPSplineInt_CompSpline3D
 
-        GENERIC  ,PUBLIC :: PartUpdate   => PartUpdate2D,PartUpdate3D
+!!      GENERIC  ,PUBLIC :: PartUpdate   => PartUpdate2D,PartUpdate3D
       END TYPE GPSplineInt
 
       ! Private methods:

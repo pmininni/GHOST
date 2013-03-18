@@ -48,7 +48,7 @@ MODULE class_GPart
         INTEGER                                      :: inittype_
         INTEGER                                      :: iinterp_
         INTEGER                                      :: iexchtype_
-        TYPE(GPartComm)                              :: exchop_
+        TYPE(GPartComm)                              :: gpcomm_
         TYPE(GPSplineInt)                            :: intop_
         INTEGER                                      :: intorder_,itorder_,nd_(3),libnds_(3,2)
         INTEGER                                      :: myrank_,nprocs_
@@ -157,9 +157,9 @@ MODULE class_GPart
     CALL MPI_COMM_SIZE(this%comm_,this%nprocs_,this%ierr_)
     CALL MPI_COMM_RANK(this%comm_,this%myrank_,this%ierr_)
 
-    CALL this%exchop_%GPartComm_ctor(1,this%maxparts_,this%nd_,this%intorder_-1,this%comm_)
-    CALL this%exchop_%SetCacheParam(csize,nstrip)
-    CALL this%exchop_%Init()
+    CALL this%gpcomm_%GPartComm_ctor(1,this%maxparts_,this%nd_,this%intorder_-1,this%comm_)
+    CALL this%gpcomm_%SetCacheParam(csize,nstrip)
+    CALL this%gpcomm_%Init()
 
     this%libnds_(1,1) = 1    ; this%lxbnds_(1,1) = 0.0
     this%libnds_(1,2) = n    ; this%lxbnds_(1,2) = real(n-1,kind=GP)
@@ -173,7 +173,7 @@ MODULE class_GPart
       this%gxbnds_(j,2) = real(this%nd_(j)-1,kind=GP)
       this%gext_    (j) = this%gxbnds_(j,2) - this%gxbnds_(j,1)
     ENDDO
-    CALL this%intop_%GPSplineInt_ctor(3,this%nd_,this%libnds_,this%lxbnds_,this%maxparts_,this%exchop_)
+    CALL this%intop_%GPSplineInt_ctor(3,this%nd_,this%libnds_,this%lxbnds_,this%maxparts_,this%gpcomm_)
 
     ! Create part. d.b. structure type for I/O
     CALL MPI_TYPE_SIZE(GC_REAL,szreal)
@@ -215,7 +215,7 @@ MODULE class_GPart
     TYPE(GPart)                      :: this
 
 
-!!  CALL this%exchop_%GPartComm_dtor()
+!!  CALL this%gpcomm_%GPartComm_dtor()
     CALL MPI_TYPE_FREE(this%iotype_,this%ierr_)
 
     IF ( ALLOCATED    (this%px_) ) DEALLOCATE(this%px_)
@@ -742,7 +742,7 @@ MODULE class_GPart
     ! If there is a global VDB for data 'exchanges', create it here:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
       this%nvdb_ = nt
-      CALL this%exchop_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
            this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     ENDIF
 
@@ -876,7 +876,7 @@ MODULE class_GPart
     ! IF using nearest-neighbor interfcae, do particle exchange 
     ! between nearest-neighbor tasks BEFORE PERIODIZING particle coordinates:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
-      CALL this%exchop_%PartExchange(this%id_,this%px_,this%py_,this%pz_, &
+      CALL this%gpcomm_%PartExchange(this%id_,this%px_,this%py_,this%pz_, &
            this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2))
     ENDIF
 
@@ -886,7 +886,7 @@ MODULE class_GPart
     ! If using VDB interface, do synch-up, and get of local work:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
       ! Synch up VDB, if necessary:
-      CALL this%exchop_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
            this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
       ! If using VDB, get local particles to work on:
       CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,&
@@ -938,7 +938,7 @@ MODULE class_GPart
     IF ( doupdate ) THEN
       CALL this%intop_%PartUpdate3D(this%px_,this%py_,this%pz_,this%nparts_)
     ENDIF
-    CALL this%exchop_%CompSpline3D(evar,tmp1,tmp2)
+    CALL this%intop_%CompSpline3D(evar,tmp1,tmp2)
     CALL this%intop_%DoInterp3D(lag,nl)
 
   END SUBROUTINE GPart_EulerToLag

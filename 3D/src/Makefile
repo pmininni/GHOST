@@ -98,7 +98,7 @@ FFTTLDFLAGS = $(FFT$(FFTTYPE)LDFLAGS)
 FFTPDIR     = $(GHOME)/$(FFTPDIR$(P_CUDA))
 
 LDFLAGS     = $(MPILIB) -L$(FFTTLIBDIR) $(FFTTLIB)$(MPILDFLAGS) $(FFTTLDFLAGS) $(IOLIBFLG)
-INCLUDE     = $(MPIINC) -I$(FFTTINC) -I$(FFTPDIR) -I$(GHOME)/$(IOLIB) -I$(GHOME)/utils -I$(GHOME)/include $(IOINCDIR) $(LAGPDEF$(PARTICLES))
+INCLUDE     = $(MPIINC) -I$(FFTTINC) -I$(FFTPDIR) -I$(GHOME)/$(IOLIB) -I$(GHOME)/utils -I$(GHOME)/include $(IOINCDIR) $(LAGPDEF$(PARTICLES)) -I$(GHOME)
 CPPFLAGS    = -D$(SOLVER)_SOL $(CUDA_GHOST$(P_CUDA)) $(IODEF$(IOLIB))
 PREPROCESS  = $(CPP) $(CPPFLAGS)
 COMPILE     = $(FC) $(FFLAGS) $(DO_HYBRID$(P_HYBRID)) $(INCLUDE) $(TARGET_ARCH) -c
@@ -135,7 +135,7 @@ GTIMER         = $(UTILS)/gtimer_mod.o
 GUTILS         = $(UTILS)/gutils_mod.o 
 GMISC          = $(GUTILS) $(UTILS)/regridutils.o
 
-all: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(UTILS)/gutils_mod.o $(LAGPOBJS$(PARTICLES)) $(OBJS) $(SOLVER) undo
+all: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(UTILS)/gutils_mod.o $(OBJS) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
 
 main: all
 
@@ -260,16 +260,16 @@ $(UTILS)/gtimer_mod.o:
 	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)' gtimer_mod.o
 
 $(LAGP)/gpdbrec_mod.o:
-	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' gpdbrec_mod.o
+	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' INCLUDE='$(INCLUDE)'  gpdbrec_mod.o
 
 $(LAGP)/gpartcomm_mod.o:
-	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' gpartcomm_mod.o
+	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' INCLUDE='$(INCLUDE)' gpartcomm_mod.o
 
 $(LAGP)/gpsplineint_mod.o:
-	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' gpsplineint_mod.o
+	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' INCLUDE='$(INCLUDE)' gpsplineint_mod.o
 
 $(LAGP)/gparts_mod.o:
-	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' gparts_mod.o
+	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' INCLUDE='$(INCLUDE)' gparts_mod.o
 
 $(UTILS)/regridutils.o:
 	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)' regridutils.o

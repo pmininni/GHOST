@@ -11,7 +11,7 @@ CUDA_GHOSTyes  = -DDEF_GHOST_CUDA_
 all: $(OBJS)
 
 $(OBJS):
-	$(COMPILE) $(@:.o=.f90)
+	$(COMPILE) $(INCLUDE) $(@:.o=.f90)
 gpdbrec_mod.o:
 	$(COMPILE) gpdbrec_mod.f90
 gpartcomm_mod.o:
