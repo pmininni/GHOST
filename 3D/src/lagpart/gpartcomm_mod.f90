@@ -17,6 +17,7 @@ MODULE class_GPartComm
       USE mpivars
       USE fprecision
       IMPLICIT NONE
+      INCLUDE 'mpif.h'
       
       INTEGER,PARAMETER                              :: GPNULL=-1 ! particle NULL value
       TYPE, PUBLIC :: GPartComm
