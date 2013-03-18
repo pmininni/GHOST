@@ -980,7 +980,7 @@
 
 #ifdef LAGPART_
       CALL lagpart%GPart_ctor(MPI_COMM_WORLD,MAXPARTS,igpinit,&
-           GPINTRP_CSPLINE,3,GPEXCHTYPE_VDB)
+           GPINTRP_CSPLINE,3,GPEXCHTYPE_VDB,CSIZE_,NSTRIP_)
 #endif
 
 !
@@ -1123,7 +1123,7 @@
 #endif
 
 #ifdef LAGPART_
-      CALL lagpart%io_read(1,idir,'',ext)
+      CALL lagpart%io_read(1,idir,lgpart,ext)
 #endif
 
       ENDIF IC
