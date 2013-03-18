@@ -49,8 +49,8 @@ MODULE class_GPSplineInt
         PROCEDURE,PUBLIC :: SetDeriv     => GPSplineInt_SetDeriv
         PROCEDURE,PUBLIC :: PartUpdate2D => GPSplineInt_PartUpdate2D
         PROCEDURE,PUBLIC :: PartUpdate3D => GPSplineInt_PartUpdate3D
-        PROCEDURE,PUBLIC :: CompSpline3D => GPSplineInt_CompSpline3D
         PROCEDURE,PUBLIC :: CompSpline2D => GPSplineInt_CompSpline2D
+        PROCEDURE,PUBLIC :: CompSpline3D => GPSplineInt_CompSpline3D
 
         GENERIC  ,PUBLIC :: PartUpdate   => PartUpdate2D,PartUpdate3D
       END TYPE GPSplineInt
@@ -78,8 +78,6 @@ MODULE class_GPSplineInt
 !    xbnds   : starting and stopping coordinates in each direction for this
 !              task. Real array of size (rank,2)
 !    maxpart : max no. interpolation points/Lag. particles
-!    x_i_min,
-!        max : local grid bounds for this MPI task 
 !    gpcomm  : GHOST particle communicator object
 !-----------------------------------------------------------------
     IMPLICIT NONE

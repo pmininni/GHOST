@@ -51,21 +51,23 @@ MODULE class_GPart
         TYPE(GPartComm)                              :: exchop_
         TYPE(GPSplineInt)                            :: intop_
         INTEGER                                      :: intorder_,itorder_,nd_(3),libnds_(3,2)
-        INTEGER                                      :: myrank,nprocs_
-        INTEGER                                      :: ierr_,nwrk_,seed_
+        INTEGER                                      :: myrank_,nprocs_
+        INTEGER                                      :: ierr_,iseed_
         INTEGER                                      :: maxparts_,nparts_,nvdb_
         INTEGER                                      :: iotype_,sziotype_
+        INTEGER                                      :: comm_
+        INTEGER      , ALLOCATABLE, DIMENSION    (:) :: id_
 !!      TYPE(GPDBrec), ALLOCATABLE, DIMENSION    (:) :: pdb_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: px_,py_,pz_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:,:) :: ptmp0_,ptmp1_,vdb_
-        REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: ltmp0_ltmp1_
+        REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: ltmp0_,ltmp1_
         REAL(KIND=GP)                                :: lxbnds_(3,2),gxbnds_(3,2),gext_(3)
         CHARACTER(len=1024)                          :: seedfile_,serr_,sfile_
       CONTAINS
         ! Public methods:
         PROCEDURE,PUBLIC :: GPart_ctor
         FINAL            :: GPart_dtor
-        PROCEDURE,PUBLIC :: Init            => GPart_init
+        PROCEDURE,PUBLIC :: Init            => GPart_Init
         PROCEDURE,PUBLIC :: Step            => GPart_StepRKK
         PROCEDURE,PUBLIC :: SetStep         => GPart_SetStepRKK
         PROCEDURE,PUBLIC :: FinalStep       => GPart_FinalizeRKK
@@ -85,7 +87,7 @@ MODULE class_GPart
         GENERIC  ,PUBLIC :: io_write        => io_write_euler,io_write_pdb
       END TYPE GPart
 
-      PRIVATE :: GPart_init        , GPart_StepRKK     , GPart_io_write_euler
+      PRIVATE :: GPart_Init        , GPart_StepRKK     , GPart_io_write_euler
       PRIVATE :: GPart_SetStepRKK  , GPart_FinalizeRKK
       PRIVATE :: GPart_io_write_pdb, GPart_io_read     
       PRIVATE :: GPart_InitRandSeed, GPart_InitUserSeed 
@@ -124,8 +126,9 @@ MODULE class_GPart
 !    csize    : cache size param for local transposes
 !    nstrip   : 'strip-mining' size for local transposes
 !-----------------------------------------------------------------
-!!  USE grid
+    USE grid
     USE mpivars
+    USE commtypes
 
     IMPLICIT NONE
     CLASS(GPart)                         :: this
@@ -139,13 +142,12 @@ MODULE class_GPart
     this%comm_     = comm
     this%maxparts_ = mparts
     this%nd_(1:3)  = n
-    this%nwrk_     = 0
     this%seedfile_ = 'gploc.dat'
     this%iinterp_  = 3          ! fixed for now
     this%inittype_ = inittype
     this%itorder_  = 2
     this%intorder_ = max(intorder,1)
-    this%seed_     = 1000
+    this%iseed_     = 1000
     this%iexchtype_=  iexchtyp
 
     IF ( this%intorder_ .NE. 3 ) THEN
@@ -156,14 +158,14 @@ MODULE class_GPart
     CALL MPI_COMM_RANK(this%comm_,this%myrank_,this%ierr_)
 
     CALL this%exchop_%GPartComm_ctor(1,this%maxparts_,this%nd_,this%intorder_-1,this%comm_)
-    CALL this%exchop_%SetCacheQ(csize,nstrip)
+    CALL this%exchop_%SetCacheParam(csize,nstrip)
     CALL this%exchop_%Init()
 
     this%libnds_(1,1) = 1    ; this%lxbnds_(1,1) = 0.0
     this%libnds_(1,2) = n    ; this%lxbnds_(1,2) = real(n-1,kind=GP)
     this%libnds_(2,1) = 1    ; this%lxbnds_(2,1) = 0.0
     this%libnds_(2,2) = n    ; this%lxbnds_(2,2) = real(n-1,kind=GP)
-    this%libnds_(3,1) = kstaa; this%lxbnds_(3,1) = real(ksta-1,kind=GP)
+    this%libnds_(3,1) = ksta ; this%lxbnds_(3,1) = real(ksta-1,kind=GP)
     this%libnds_(3,2) = kend ; this%lxbnds_(3,2) = real(kend-1,kind=GP)
 
     DO j = 1,3
@@ -171,20 +173,21 @@ MODULE class_GPart
       this%gxbnds_(j,2) = real(this%nd_(j)-1,kind=GP)
       this%gext_    (j) = this%gxbnds_(j,2) - this%gxbnds_(j,1)
     ENDDO
-    CALL intop_%GPSplineInt_ctor(3,this%nd_,ibnds,xbnds,this%maxparts_,this%exchop_)
+    CALL this%intop_%GPSplineInt_ctor(3,this%nd_,this%libnds_,this%lxbnds_,this%maxparts_,this%exchop_)
 
     ! Create part. d.b. structure type for I/O
     CALL MPI_TYPE_SIZE(GC_REAL,szreal)
     disp (1)=0 
     disp (2)=szreal
     disp (3)=2*szreal
-    types(1)=MPI_FLOAT 
-    types(2)=MPI_FLOAT 
-    types(3)=MPI_FLOAT
+    types(1)=GC_REAL
+    types(2)=GC_REAL
+    types(3)=GC_REAL
     CALL_TYPE_CREATE_STRUCT(3,lens,disp,this%iotype_,this%ierr_)
     CALL_TYPE_COMMIT(this%iotype_,this%ierr_)
     CALL MPI_TYPE_SIZE(this%iotype_,this%sziotype_,this%ierr_)
 
+    ALLOCATE(this%id_      (this%maxparts_))
     ALLOCATE(this%px_      (this%maxparts_))
     ALLOCATE(this%py_      (this%maxparts_))
     ALLOCATE(this%pz_      (this%maxparts_))
@@ -212,26 +215,24 @@ MODULE class_GPart
     TYPE(GPart)                      :: this
 
 
-    CALL this%exchop_%GPartComm_dtor()
-    CALL_TYPE_FREE(this%iotype_,this%ierr_)
+!!  CALL this%exchop_%GPartComm_dtor()
+    CALL MPI_TYPE_FREE(this%iotype_,this%ierr_)
 
     IF ( ALLOCATED    (this%px_) ) DEALLOCATE(this%px_)
     IF ( ALLOCATED    (this%py_) ) DEALLOCATE(this%py_)
     IF ( ALLOCATED    (this%pz_) ) DEALLOCATE(this%pz_)
-    IF ( ALLOCATED   (this%pid_) ) DEALLOCATE(this%pid_ )
+    IF ( ALLOCATED    (this%id_) ) DEALLOCATE(this%id_ )
     IF ( ALLOCATED (this%ptmp0_) ) DEALLOCATE(this%ptmp0_)
-    IF ( ALLOCATED  (this%ptmp1) ) DEALLOCATE(this%ptmp1_)
+    IF ( ALLOCATED (this%ptmp1_) ) DEALLOCATE(this%ptmp1_)
     IF ( ALLOCATED   (this%vdb_) ) DEALLOCATE(this%vdb_)
     IF ( ALLOCATED (this%ltmp0_) ) DEALLOCATE(this%ltmp0_)
     IF ( ALLOCATED (this%ltmp1_) ) DEALLOCATE(this%ltmp1_)
-    IF ( ALLOCATED (this%sbbuf_) ) DEALLOCATE(this%sbbuff_)
-    IF ( ALLOCATED (this%stbuf_) ) DEALLOCATE(this%stbuff_)
   
   END SUBROUTINE GPart_dtor
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-  SUBROUTINE GPart_init(this)
+  SUBROUTINE GPart_Init(this)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : Init
@@ -243,13 +244,13 @@ MODULE class_GPart
     IMPLICIT NONE
     CLASS(GPart)                      :: this
 
-    IF      ( inittype_ .EQ. GPINIT_RANDLOC ) THEN
-      CALL GPart_InitRandSeed ()   
-    ELSE IF ( inittype_ .EQ. GPINIT_USERLOC ) THEN
-      CALL GPart_InitUserSeed ()
+    IF      ( this%inittype_ .EQ. GPINIT_RANDLOC ) THEN
+      CALL GPart_InitRandSeed (this)   
+    ELSE IF ( this%inittype_ .EQ. GPINIT_USERLOC ) THEN
+      CALL GPart_InitUserSeed (this)
     ENDIF
 
-  END SUBROUTINE GPart_init
+  END SUBROUTINE GPart_Init
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -285,6 +286,7 @@ MODULE class_GPart
     IMPLICIT NONE
     CLASS(GPart)                      :: this
     INTEGER                           :: iseed
+    INTEGER                           :: get_res
 
     get_res = this%itorder_ 
    
@@ -306,7 +308,7 @@ MODULE class_GPart
     CLASS(GPart)                      :: this
     INTEGER, INTENT(IN)               :: iseed
 
-    this%seed_ = iseed;
+    this%iseed_ = iseed;
    
   END SUBROUTINE GPart_SetRandSeed
 !-----------------------------------------------------------------
@@ -324,7 +326,7 @@ MODULE class_GPart
     CLASS(GPart)                      :: this
     INTEGER                           :: get_res
 
-    get_res = this%seed_
+    get_res = this%iseed_
    
   END FUNCTION GPart_GetRandSeed
 !-----------------------------------------------------------------
@@ -351,7 +353,7 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 
 
-  FUNCTION GPart_GetInitType(this, itype) result(get_res)
+  FUNCTION GPart_GetInitType(this) result(get_res)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : GetInitType
@@ -363,7 +365,7 @@ MODULE class_GPart
     CLASS(GPart)                      :: this
     INTEGER                           :: get_res
 
-    get_res   = this%inittype_ 
+    get_res = this%inittype_ 
    
   END FUNCTION GPart_GetInitType
 !-----------------------------------------------------------------
@@ -432,14 +434,14 @@ MODULE class_GPart
     this%nparts_ = this%maxparts_/this%nprocs_
     DO j = 1, this%nparts_
        this%id_(j)    = (this%myrank_-1)*this%nparts_ + j - 1
-       r         = 0.5*(randu(seed_)+1.0)
-       this%px_(j)    = min(int(r*(this%nd_(1)-1)+0.5_GP),real(this%nd_(1)-1,kind=GP) )
-       r         = 0.5*(randu(seed_)+1.0)
-       this%py_(j)    = min(int(r*(this%nd_(2)-1)+0.5_GP),real(this%nd_(2)-1,kind=GP) )
-       r         = 0.5*(randu(seed_)+1.0)
+       r         = 0.5*(randu(this%iseed_)+1.0)
+       this%px_(j)    = min(r*(this%nd_(1)-1)+0.5_GP,real(this%nd_(1)-1,kind=GP) )
+       r         = 0.5*(randu(this%iseed_)+1.0)
+       this%py_(j)    = min(r*(this%nd_(2)-1)+0.5_GP,real(this%nd_(2)-1,kind=GP) )
+       r         = 0.5*(randu(this%iseed_)+1.0)
        x         = real(ksta-1,kind=GP) &
-                 + min(int(ksta+r*(kend-ksta+1)+0.5_GP),real(kend-1,kind=GP) )
-       this%pz_(j)    = max(x,ksta-1)
+                 + min(ksta+r*(kend-ksta+1)+0.5_GP,real(kend-1,kind=GP) )
+       this%pz_(j)   = max(x,real(ksta-1,kind=GP))
     ENDDO
 
   END SUBROUTINE GPart_InitRandSeed
@@ -462,7 +464,7 @@ MODULE class_GPart
     IMPLICIT NONE
     CLASS(GPart)                      :: this
 
-    INTEGER                           :: navg,nl,nt
+    INTEGER                           :: navg,nl,nowned,nt
     INTEGER,ALLOCATABLE,DIMENSION(:)  :: iproc,ilproc
     REAL(KIND=GP)                     :: x,y,z
 
@@ -479,8 +481,8 @@ MODULE class_GPart
     ALLOCATE(ilproc(this%nprocs_))
     ALLOCATE(iproc (this%nprocs_))
     ! Find no. parts on each MPI task; only read up to maxparts:
-    nt          = 0 
-    this%iproc_ = 0
+    nt    = 0 
+    iproc = 0
     DO WHILE ( this%ierr_.EQ.0 .AND. nt.LT.this%maxparts_ )
       READ(1,*,IOSTAT=this%ierr_) x, y, z
       IF ( this%ierr_ .NE. 0 ) EXIT
@@ -489,7 +491,7 @@ MODULE class_GPart
       nt = nt + 1
     ENDDO
     CLOSE(1)
-    CALL MPI_ALLREDUCE(ilproc,iproc,this%nprocs_,GC_INTEGER,      &
+    CALL MPI_ALLREDUCE(ilproc,iproc,this%nprocs_,MPI_INTEGER,      &
                         MPI_SUM,this%comm_,this%ierr_)
 
     DEALLOCATE(ilproc)
@@ -519,7 +521,7 @@ MODULE class_GPart
     DO WHILE ( this%ierr_.EQ.0 .AND. nt.LT.this%maxparts_ )
       READ(1,*,IOSTAT=this%ierr_) x, y, z
       IF ( this%ierr_ .NE. 0 ) EXIT
-      IF ( z.LE.zmax .AND. z.GE.zmin ) THEN
+      IF ( z.LT.this%lxbnds_(3,2) .AND. z.GT.this%lxbnds_(3,1) ) THEN
         nl = nl + 1
         this%id_(nl) = nt
         this%px_(nl) = x
@@ -555,7 +557,8 @@ MODULE class_GPart
 !    time    : real time
 !    evar    : Eulerian data from which to compute Lagrangian 
 !              quantity: theta(y) = theta(x(y),t). Interpolation
-!              of evar is done internally before write.
+!              of evar is done internally before write. Note that
+!              data in evar is lost on exit.
 !    doupdate: if true, do interp point update in interpolator; else don't
 !    tmp1/2  : temp arrays of size of evar. Required for interpolation
 !-----------------------------------------------------------------
@@ -566,12 +569,12 @@ MODULE class_GPart
 
     IMPLICIT NONE
     CLASS(GPart)                                        :: this
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(n,n,ksta:kend):: evar(n,n,ksta:kend)
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend):: evar(n,n,ksta:kend)
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend):: tmp1,tmp2
     REAL(KIND=GP),INTENT   (IN)                         :: time
     INTEGER      ,INTENT   (IN)                         :: iunit
     INTEGER                                             :: fh,offset,nt,szint,szreal
-    INTEGER                                             :: i
+    INTEGER                                             :: j
     LOGICAL      ,INTENT   (IN)                         :: doupdate
     CHARACTER(len=100), INTENT(IN)                      :: dir
     CHARACTER(len=*)  , INTENT(IN)                      :: nmb
@@ -579,16 +582,16 @@ MODULE class_GPart
     CHARACTER(len=1024)                                 :: sfile
 
 
-    CALL GPart_EulerToLag(this,this%ltmp1_,evar,doupdate,tmp1,tmp2)
+    CALL GPart_EulerToLag(this,this%ltmp1_,this%nparts_,evar,doupdate,tmp1,tmp2)
 
     CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname // &
          '.' // nmb // '.lag',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
-          MPI_INFO_NULL,fh,ioerr)
+          MPI_INFO_NULL,fh,this%ierr_)
 
     ! Must write part. data to correct spot in file:
     CALL MPI_TYPE_SIZE(MPI_INTEGER,szint)
     CALL MPI_TYPE_SIZE(GC_REAL    ,szreal)
-    CALL MPI_ALLREDUCE(this%nparts_,nt,this%nprocs_,GC_INTEGER,      &
+    CALL MPI_ALLREDUCE(this%nparts_,nt,this%nprocs_,MPI_INTEGER,      &
                         MPI_SUM,this%comm_,this%ierr_)
     IF ( this%myrank_ .EQ. 0 ) THEN
         CALL MPI_FILE_WRITE_AT(fh,0,nt,1,MPI_INTEGER,this%istatus_,this%ierr_)
@@ -596,10 +599,10 @@ MODULE class_GPart
     IF ( this%nparts_ .GT. 0 ) THEN
       DO j = 1, this%nparts_
         offset = this%id_(j)*szreal+szint
-        CALL MPI_FILE_WRITE_AT_ALL(fh,offset,this%ltmp1(j),1,GC_REAL,this%istatus_,this%ierr_)
+        CALL MPI_FILE_WRITE_AT_ALL(fh,offset,this%ltmp1_(j),1,GC_REAL,this%istatus_,this%ierr_)
       ENDDO
     ELSE
-        CALL MPI_FILE_WRITE_AT_ALL(fh,0,this%ltmp1_(j),0,GC_REAL,this%istatus_,this%ierr_)
+        CALL MPI_FILE_WRITE_AT_ALL(fh,0     ,this%ltmp1_(j),0,GC_REAL,this%istatus_,this%ierr_)
     ENDIF
     CALL MPI_FILE_CLOSE(fh,this%ierr_)
 
@@ -662,10 +665,10 @@ MODULE class_GPart
     CALL MPI_TYPE_SIZE(GC_REAL    ,szreal)
     CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // trim(spref) // &
          '.' // nmb // '.lag',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
-          MPI_INFO_NULL,fh,ioerr)
+          MPI_INFO_NULL,fh,this%ierr_)
 
     ! Must write part. data to correct position in file:
-    CALL MPI_ALLREDUCE(this%nparts_,nt,this%nprocs_,GC_INTEGER,      &
+    CALL MPI_ALLREDUCE(this%nparts_,nt,this%nprocs_,MPI_INTEGER,      &
                         MPI_SUM,this%comm_,this%ierr_)
     IF ( this%myrank_ .EQ. 0 ) THEN
         CALL MPI_FILE_WRITE_AT(fh,     0,real(nt,kind=GP),1,GC_REAL,this%istatus_,this%ierr_)
@@ -720,7 +723,7 @@ MODULE class_GPart
     CALL MPI_TYPE_SIZE(GC_REAL,szreal)
     CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // trim(spref) // &
          '.' // nmb // '.lag',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
-          MPI_INFO_NULL,fh,ioerr)
+          MPI_INFO_NULL,fh,this%ierr_)
 
     ! Must read part. data from correct spot in file:
     CALL MPI_FILE_READ_AT_ALL(fh,0,rvar,1,GC_REAL,this%istatus_,this%ierr_)    !  no.parts
@@ -729,21 +732,21 @@ MODULE class_GPart
       WRITE(*,*) 'GPart_io_read: Attempt to read too many particles'
       STOP
     ENDIF
-    CALL MPI_FILE_READ_AT_ALL(fh,szvar,rvar,1,GC_REAL,this%istatus_,this%ierr_) ! time
-    CALL MPI_FILE_READ_AT_ALL(fh,szreal,this%ptmp0_,nt,1,this%iotype_,this%istatus_,this%ierr_)
+    CALL MPI_FILE_READ_AT_ALL(fh,  szreal,rvar,1,GC_REAL,this%istatus_,this%ierr_) ! time
+    CALL MPI_FILE_READ_AT_ALL(fh,2*szreal,this%ptmp0_,nt,1,this%iotype_,this%istatus_,this%ierr_)
     CALL MPI_FILE_CLOSE(fh,this%ierr_)
     
     ! From global temp 'd.b.' of particle positions, get local particles to work on:
-    CALL GPart_GetLocalWrk(this%id_,this%px_,this%py_,this%pz_,this%nparts,ptmp0_,nt)
+    CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,this%nparts_,this%ptmp0_,nt)
 
     ! If there is a global VDB for data 'exchanges', create it here:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
       this%nvdb_ = nt
       CALL this%exchop_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
-           this%px_,this%py_,this%pz_,this%nparts_)
+           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     ENDIF
 
-    CALL GPart_Delete(this,this%pdb_,nt,this%nparts_)
+!!  CALL GPart_Delete(this,this%pdb_,nt,this%nparts_)
 
   END SUBROUTINE GPart_io_read
 !-----------------------------------------------------------------
@@ -774,12 +777,9 @@ MODULE class_GPart
  
     ! Cycle over JST loop to update state:
     DO i = 1, this%nparts_
-       ptmp0_(1,i) = this%px_(i)  ! u_0
-       ptmp0_(2,i) = this%py_(i)  ! u_0
-       ptmp0_(3,i) = this%pz_(i)  ! u_0
-       ptmp1_(1,i) = this%px_(i)  ! u*
-       ptmp1_(2,i) = this%py_(i)  ! u*
-       ptmp1_(3,i) = this%pz_(i)  ! u*
+       this%ptmp0_(1,i) = this%px_(i)  ! u_0
+       this%ptmp0_(2,i) = this%py_(i)  ! u_0
+       this%ptmp0_(3,i) = this%pz_(i)  ! u_0
     ENDDO 
     
 
@@ -848,28 +848,28 @@ MODULE class_GPart
 
     ! Find F(u*):
     ! ... x:
-    CALL GPart_EulerToLag(this,ltmp1_,this%nparts_,vx,.true.,tmp1,tmp2)
+    CALL GPart_EulerToLag(this,this%ltmp1_,this%nparts_,vx,.true.,tmp1,tmp2)
     ! ux* <-- ux + dt * F(U*)*xk:
     DO j = 1, this%nparts_
-      this%px_(j) = ptmp0_(1,j) + dtfact*ltmp1_(j)
+      this%px_(j) = this%ptmp0_(1,j) + dtfact*this%ltmp1_(j)
     ENDDO
 
     ! ... y:
     ! Exchange bdy data for velocities, so that we
     ! can perform local interpolations:
-    CALL GPart_EulerToLag(this,ltmp1_,this%nparts_,vy,.false.,tmp1,tmp2)
+    CALL GPart_EulerToLag(this,this%ltmp1_,this%nparts_,vy,.false.,tmp1,tmp2)
     ! uy* <-- uy + dt * F(U*)*xk:
     DO j = 1, this%nparts_
-      this%py_(j) = ptmp0_(2,j) + dtfact*ltmp1_(j)
+      this%py_(j) = this%ptmp0_(2,j) + dtfact*this%ltmp1_(j)
     ENDDO
 
     ! ... z:
     ! Exchange bdy data for velocities, so that we
     ! can perform local interpolations:
-    CALL GPart_EulerToLag(this,ltmp1_,this%nparts_,vz,.false.,tmp1,tmp2)
+    CALL GPart_EulerToLag(this,this%ltmp1_,this%nparts_,vz,.false.,tmp1,tmp2)
     ! uz* <-- uz + dt * F(U*)*xk:
     DO j = 1, this%nparts_
-      this%pz_(j) = ptmp0_(3,j) + dtfact*ltmp1_(j)
+      this%pz_(j) = this%ptmp0_(3,j) + dtfact*this%ltmp1_(j)
     ENDDO
 !
 
@@ -881,16 +881,16 @@ MODULE class_GPart
     ENDIF
 
     ! Enforce periodicity:
-    CALL GPart_MakePeriodicP(this,this%ptmp1_,this%nwrk_)
+    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_)
 
     ! If using VDB interface, do synch-up, and get of local work:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
       ! Synch up VDB, if necessary:
       CALL this%exchop_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
-           this%px_,this%py_,this%pz_,this%nparts_)
+           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
       ! If using VDB, get local particles to work on:
-      CALL GPart_GetLocalWrk(this%id_,this%px_,this%py_,this%pz_,&
-           this%nparts_,this%this%vdb_,this%maxparts_)
+      CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,&
+           this%nparts_,this%vdb_,this%maxparts_)
     ENDIF
 
   END SUBROUTINE GPart_stepRKK
@@ -936,10 +936,10 @@ MODULE class_GPart
     INTEGER                                               :: j
 
     IF ( doupdate ) THEN
-      CALL this%intop_%PartUpdate(this%px_,this%py_,this%pz_,this%nparts_)
+      CALL this%intop_%PartUpdate3D(this%px_,this%py_,this%pz_,this%nparts_)
     ENDIF
-    CALL this%exchop_%ComputeSpline3D(evar,tmp1,tmp2)
-    CALL this%intop_%Interp3D(lag,nl)
+    CALL this%exchop_%CompSpline3D(evar,tmp1,tmp2)
+    CALL this%intop_%DoInterp3D(lag,nl)
 
   END SUBROUTINE GPart_EulerToLag
 !-----------------------------------------------------------------
@@ -971,9 +971,9 @@ MODULE class_GPart
     INTEGER                                          :: j
 
     DO j = 1, npdb
-      px(j) = amod(px(j)+10.0D0*this%gext_(1),this%gext_(1))
-      py(j) = amod(py(j)+10.0D0*this%gext_(2),this%gext_(2))
-      pz(j) = amod(pz(j)+10.0D0*this%gext_(3),this%gext_(3))
+      px(j) = amod(px(j)+10.0_GP*this%gext_(1),this%gext_(1))
+      py(j) = amod(py(j)+10.0_GP*this%gext_(2),this%gext_(2))
+      pz(j) = amod(pz(j)+10.0_GP*this%gext_(3),this%gext_(3))
     ENDDO
 
   END SUBROUTINE GPart_MakePeriodicP
@@ -999,10 +999,10 @@ MODULE class_GPart
 
     IMPLICIT NONE
     CLASS(GPart)                                     :: this
-    INTEGER,INTENT(IN)                               :: nx,ny,kb,ke
+    INTEGER,INTENT(IN)                               :: nc,nx,ny,kb,ke
     REAL(KIND=GP),INTENT(INOUT)                      :: v(nx,ny,kb:ke)
 
-    INTEGER                                          :: j
+    INTEGER                                          :: i,j,k
 
     ! Recall: nx, ny are the dimensions _including_ ghost zones:
     !
@@ -1112,7 +1112,7 @@ MODULE class_GPart
     nl = 0
     DO j = 1, ngvdb
       id = GPNULL
-      IF ( lz(j).GT.this%zmin_ .OR. lz(j).LT.this%zmax_) THEN 
+      IF ( lz(j).GT.this%lxbnds_(3,1) .OR. lz(j).LT.this%lxbnds_(3,2) ) THEN 
         id  (j) = j-1
         lx  (j) = gvdb(1,j)
         ly  (j) = gvdb(2,j)
