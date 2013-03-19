@@ -29,7 +29,7 @@ MODULE class_GPartComm
         INTEGER                                      :: nprocs_    ,myrank_    ,comm_    
         INTEGER                                      :: csize_     ,nstrip_
         INTEGER                                      :: ntop_      ,nbot_      ,ierr_    ,istatus_
-        INTEGER                                      :: btransinit_,iextperp_
+        INTEGER                                      :: btransinit_,iextperp_  ,nth_
         INTEGER, ALLOCATABLE, DIMENSION(:,:)         :: ibsnd_     ,itsnd_     ,ibrcv_   ,itrcv_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibsh_      ,itsh_      ,ibrh_    ,itrh_ 
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: igsh_      ,igrh_  
@@ -96,6 +96,7 @@ MODULE class_GPartComm
     CLASS(GPartComm),INTENT(INOUT):: this
     INTEGER, INTENT(IN)           :: intrface,maxparts,nd(3),nzghost
     INTEGER, INTENT(IN)           :: comm
+!$  INTEGER, EXTERNAL             :: omp_get_max_threads
 
     this%intrfc_    = intrface
     this%maxparts_  = maxparts
@@ -105,6 +106,9 @@ MODULE class_GPartComm
     this%csize_     = 8;
     this%nstrip_    = 1;
     this%iextperp_  = 0;     ! set extended grid in perp direction (x-y) too?
+    this%nth_       = 1
+!$    this%nth_ = omp_get_max_threads()
+
     CALL MPI_COMM_SIZE(this%comm_,this%nprocs_,this%ierr_)
     CALL MPI_COMM_RANK(this%comm_,this%myrank_,this%ierr_)
     this%btransinit_ = .FALSE.
@@ -1607,9 +1611,9 @@ MODULE class_GPartComm
 
     IF ( rank .EQ. 3 ) THEN
 
-!$omp parallel do if ((idims(3)-1)/this%csize_.ge.nth) private (jj,kk,i,j,k)
+!$omp parallel do if ((idims(3)-1)/this%csize_.ge.this%nth_) private (jj,kk,i,j,k)
     DO ii = 1,nz,this%csize_
-!$omp parallel do if ((idims(3)-1)/this%csize_.lt.nth) private (kk,i,j,k)
+!$omp parallel do if ((idims(3)-1)/this%csize_.lt.this%nth_) private (kk,i,j,k)
        DO jj = 1,ny,this%csize_
           DO kk = 1,nx,this%csize_
 
