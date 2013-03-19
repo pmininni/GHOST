@@ -16,8 +16,8 @@
 MODULE class_GPartComm
       USE mpivars
       USE fprecision
+      USE commtypes
       IMPLICIT NONE
-      INCLUDE 'mpif.h'
       
       INTEGER,PARAMETER                              :: GPNULL=-1 ! particle NULL value
       TYPE, PUBLIC :: GPartComm
@@ -322,8 +322,6 @@ MODULE class_GPartComm
 !                        be of size nd_ set in constructor
 !    
 !-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
     USE mpivars
 
     IMPLICIT NONE
@@ -382,8 +380,6 @@ MODULE class_GPartComm
 !                        be of size nd_ set in constructor
 !    
 !-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
     USE mpivars
 
     IMPLICIT NONE
@@ -466,8 +462,6 @@ MODULE class_GPartComm
 !    sdir    : 't' for top, 'b' for bottom
 !    
 !-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
     IMPLICIT NONE
 
     CLASS(GPartComm),INTENT(INOUT)          :: this
@@ -605,8 +599,6 @@ MODULE class_GPartComm
 !                  in phys. space (IN)
 !    
 !-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
     USE mpivars
     IMPLICIT NONE
 
@@ -680,8 +672,6 @@ MODULE class_GPartComm
 !                        be of size nd_ set in constructor
 !    
 !-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
     USE mpivars
 
     IMPLICIT NONE
@@ -732,8 +722,6 @@ MODULE class_GPartComm
 !                be of size nd_ set in constructor
 !    
 !-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
     USE mpivars
 
     IMPLICIT NONE
@@ -818,8 +806,6 @@ MODULE class_GPartComm
 !    sdir    : 't' for top, 'b' for bottom
 !    
 !-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
     IMPLICIT NONE
 
     CLASS(GPartComm),INTENT(INOUT)          :: this
@@ -910,8 +896,6 @@ MODULE class_GPartComm
 !                  in phys. space (IN)
 !    
 !-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
     USE mpivars
     IMPLICIT NONE
 
@@ -965,8 +949,6 @@ MODULE class_GPartComm
 !!!    nparts  : number of particles in pdb
 !!!    zmin/max: min/max z-dimensions of current MPI task
 !!!-----------------------------------------------------------------
-!!    USE fprecision
-!!    USE commtypes
 !!    USE mpivars
 !!    USE pdbtypes
 !!    IMPLICIT NONE
@@ -1058,8 +1040,6 @@ MODULE class_GPartComm
 !    gext    : (3,2) real array containing global grid extents (start and
 !              stop boundaries in each direction).
 !-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
     USE mpivars
     USE pdbtypes
     IMPLICIT NONE
@@ -1141,8 +1121,6 @@ MODULE class_GPartComm
 !              particles to pack
 !    nind    : no. particles to pack
 !-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
     USE mpivars
     USE pdbtypes
     IMPLICIT NONE
@@ -1188,8 +1166,6 @@ MODULE class_GPartComm
 !    itind   : list of indices of parts sent to top
 !    ntind   : no. indices in itind
 !-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
     IMPLICIT NONE
 
     CLASS(GPartComm),INTENT(INOUT)                :: this
@@ -1245,8 +1221,6 @@ MODULE class_GPartComm
 !    buff    : buffer from which particle data is read
 !    nbuff   : buffer length
 !-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
     USE mpivars
     IMPLICIT NONE
 
@@ -1297,8 +1271,6 @@ MODULE class_GPartComm
 !    nparts  : number of particles in pdb
 !    zmin/max: min/max z-dimensions of current MPI task
 !-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
     USE mpivars
     USE pdbtypes
     IMPLICIT NONE
@@ -1406,8 +1378,6 @@ MODULE class_GPartComm
 !              particles to pack
 !    nind    : no. particles to pack
 !-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
     USE mpivars
     USE pdbtypes
     IMPLICIT NONE
@@ -1451,8 +1421,6 @@ MODULE class_GPartComm
 !    itind   : list of indices of parts sent to top
 !    ntind   : no. indices in itind
 !-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
     USE pdbtypes
     IMPLICIT NONE
 
@@ -1508,8 +1476,6 @@ MODULE class_GPartComm
 !    buff    : buffer from which particle data is read
 !    nbuff   : buffer length
 !-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
     USE mpivars
     USE pdbtypes
     IMPLICIT NONE
@@ -1554,8 +1520,6 @@ MODULE class_GPartComm
 !              transpose locally. Must be the same size on all 
 !              MPI tasks
 !-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
     USE mpivars
     USE gtimer
     IMPLICIT NONE
@@ -1661,7 +1625,6 @@ MODULE class_GPartComm
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
 !-----------------------------------------------------------------
-    USE commtypes
     IMPLICIT NONE
 
     CLASS(GPartComm),INTENT(INOUT)             :: this
@@ -1707,7 +1670,6 @@ MODULE class_GPartComm
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
 !-----------------------------------------------------------------
-    USE commtypes
     IMPLICIT NONE
 
     CLASS(GPartComm),INTENT(INOUT)             :: this
@@ -1775,7 +1737,6 @@ MODULE class_GPartComm
 !    nl      : no. parts. in local pdb
 !    ptmp    : tmp array of size of gvdb
 !-----------------------------------------------------------------
-    USE commtypes
     IMPLICIT NONE
 
     CLASS(GPartComm),INTENT(INOUT)                  :: this
