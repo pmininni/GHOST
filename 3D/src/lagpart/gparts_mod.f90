@@ -183,8 +183,8 @@ MODULE class_GPart
     types(1)=GC_REAL
     types(2)=GC_REAL
     types(3)=GC_REAL
-    CALL_TYPE_CREATE_STRUCT(3,lens,disp,this%iotype_,this%ierr_)
-    CALL_TYPE_COMMIT(this%iotype_,this%ierr_)
+    CALL MPI_TYPE_CREATE_STRUCT(3,lens,disp,this%iotype_,this%ierr_)
+    CALL MPI_TYPE_COMMIT(this%iotype_,this%ierr_)
     CALL MPI_TYPE_SIZE(this%iotype_,this%sziotype_,this%ierr_)
 
     ALLOCATE(this%id_      (this%maxparts_))
@@ -584,7 +584,7 @@ MODULE class_GPart
 
     CALL GPart_EulerToLag(this,this%ltmp1_,this%nparts_,evar,doupdate,tmp1,tmp2)
 
-    CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname // &
+    CALL MPI_FILE_OPEN(this%comm_,trim(dir) // '/' // fname // &
          '.' // nmb // '.lag',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
           MPI_INFO_NULL,fh,this%ierr_)
 
@@ -663,7 +663,7 @@ MODULE class_GPart
 !!  ENDIF
 
     CALL MPI_TYPE_SIZE(GC_REAL    ,szreal)
-    CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // trim(spref) // &
+    CALL MPI_FILE_OPEN(this%comm_,trim(dir) // '/' // trim(spref) // &
          '.' // nmb // '.lag',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
           MPI_INFO_NULL,fh,this%ierr_)
 
@@ -721,7 +721,7 @@ MODULE class_GPart
 
 
     CALL MPI_TYPE_SIZE(GC_REAL,szreal)
-    CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // trim(spref) // &
+    CALL MPI_FILE_OPEN(this%comm_,trim(dir) // '/' // trim(spref) // &
          '.' // nmb // '.lag',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
           MPI_INFO_NULL,fh,this%ierr_)
 
