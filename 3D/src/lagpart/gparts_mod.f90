@@ -218,13 +218,13 @@ MODULE class_GPart
 !!  CALL this%gpcomm_%GPartComm_dtor()
     CALL MPI_TYPE_FREE(this%iotype_,this%ierr_)
 
-    IF ( ALLOCATED    (this%px_) ) DEALLOCATE(this%px_)
-    IF ( ALLOCATED    (this%py_) ) DEALLOCATE(this%py_)
-    IF ( ALLOCATED    (this%pz_) ) DEALLOCATE(this%pz_)
-    IF ( ALLOCATED    (this%id_) ) DEALLOCATE(this%id_ )
+    IF ( ALLOCATED    (this%px_) ) DEALLOCATE   (this%px_)
+    IF ( ALLOCATED    (this%py_) ) DEALLOCATE   (this%py_)
+    IF ( ALLOCATED    (this%pz_) ) DEALLOCATE   (this%pz_)
+    IF ( ALLOCATED    (this%id_) ) DEALLOCATE  (this%id_ )
     IF ( ALLOCATED (this%ptmp0_) ) DEALLOCATE(this%ptmp0_)
     IF ( ALLOCATED (this%ptmp1_) ) DEALLOCATE(this%ptmp1_)
-    IF ( ALLOCATED   (this%vdb_) ) DEALLOCATE(this%vdb_)
+    IF ( ALLOCATED   (this%vdb_) ) DEALLOCATE  (this%vdb_)
     IF ( ALLOCATED (this%ltmp0_) ) DEALLOCATE(this%ltmp0_)
     IF ( ALLOCATED (this%ltmp1_) ) DEALLOCATE(this%ltmp1_)
   

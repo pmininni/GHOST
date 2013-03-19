@@ -118,8 +118,8 @@ MODULE class_GPartComm
     ALLOCATE(this%stbuff_ (this%nbuff_))
     ALLOCATE(this%rbbuff_ (this%nbuff_))
     ALLOCATE(this%rtbuff_ (this%nbuff_))
-    ALLOCATE(this%ibot_   (maxparts))
-    ALLOCATE(this%itop_   (maxparts))
+    ALLOCATE   (this%ibot_   (maxparts))
+    ALLOCATE   (this%itop_   (maxparts))
 
   END SUBROUTINE GPartComm_ctor
 !-----------------------------------------------------------------
@@ -158,6 +158,8 @@ MODULE class_GPartComm
     IF ( ALLOCATED (this%ibsnddst_) ) DEALLOCATE(this%ibsnddst_)
     IF ( ALLOCATED (this%itsnddst_) ) DEALLOCATE(this%itsnddst_)
 
+    CALL GPartComm_Init(this)
+
   END SUBROUTINE GPartComm_dtor
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -180,18 +182,18 @@ MODULE class_GPartComm
     ! Compute the no. sendto and recv from tasks there are:
  
 
-    IF ( ALLOCATED(this%ibrcv_) ) DEALLOCATE(this%ibrcv_)
-    IF ( ALLOCATED(this%itrcv_) ) DEALLOCATE(this%itrcv_)
-    IF ( ALLOCATED(this%ibsnd_) ) DEALLOCATE(this%ibsnd_)
-    IF ( ALLOCATED(this%itsnd_) ) DEALLOCATE(this%itsnd_)
-    IF ( ALLOCATED (this%ibrh_) ) DEALLOCATE(this%ibrh_)
-    IF ( ALLOCATED (this%itrh_) ) DEALLOCATE(this%itrh_)
-    IF ( ALLOCATED (this%ibsh_) ) DEALLOCATE(this%ibsh_)
-    IF ( ALLOCATED (this%itsh_) ) DEALLOCATE(this%itsh_)
-    IF ( ALLOCATED (this%igrh_) ) DEALLOCATE(this%igrh_)
-    IF ( ALLOCATED (this%igsh_) ) DEALLOCATE(this%igsh_)
-    IF ( ALLOCATED   (this%itypes_) ) DEALLOCATE(this%itypes_)
-    IF ( ALLOCATED   (this%ityper_) ) DEALLOCATE(this%ityper_)
+    IF ( ALLOCATED    (this%ibrcv_) ) DEALLOCATE   (this%ibrcv_)
+    IF ( ALLOCATED    (this%itrcv_) ) DEALLOCATE   (this%itrcv_)
+    IF ( ALLOCATED    (this%ibsnd_) ) DEALLOCATE   (this%ibsnd_)
+    IF ( ALLOCATED    (this%itsnd_) ) DEALLOCATE   (this%itsnd_)
+    IF ( ALLOCATED     (this%ibrh_) ) DEALLOCATE    (this%ibrh_)
+    IF ( ALLOCATED     (this%itrh_) ) DEALLOCATE    (this%itrh_)
+    IF ( ALLOCATED     (this%ibsh_) ) DEALLOCATE    (this%ibsh_)
+    IF ( ALLOCATED     (this%itsh_) ) DEALLOCATE    (this%itsh_)
+    IF ( ALLOCATED     (this%igrh_) ) DEALLOCATE    (this%igrh_)
+    IF ( ALLOCATED     (this%igsh_) ) DEALLOCATE    (this%igsh_)
+    IF ( ALLOCATED   (this%itypes_) ) DEALLOCATE  (this%itypes_)
+    IF ( ALLOCATED   (this%ityper_) ) DEALLOCATE  (this%ityper_)
     IF ( ALLOCATED (this%ibsnddst_) ) DEALLOCATE(this%ibsnddst_)
     IF ( ALLOCATED (this%itsnddst_) ) DEALLOCATE(this%itsnddst_)
 
