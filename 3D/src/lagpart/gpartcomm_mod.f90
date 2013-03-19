@@ -613,7 +613,7 @@ MODULE class_GPartComm
     CLASS(GPartComm),INTENT(INOUT)          :: this
     INTEGER                                 :: i,j,k,m,ngp,ngz,nt,nx,nxy,ny
     INTEGER                                 :: jm,km
-    REAL(KIND=GP),INTENT  (OUT),DIMENSION(*):: buff
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(*):: buff
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(*):: vxe,vye,vze
 
     nx  = this%nd_(1)
@@ -918,7 +918,7 @@ MODULE class_GPartComm
     CLASS(GPartComm),INTENT(INOUT)          :: this
     INTEGER                                 :: i,j,k,m,ngp,ngz,nt,nx,nxy,ny
     INTEGER                                 :: jm,km
-    REAL(KIND=GP),INTENT  (OUT),DIMENSION(*):: buff
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(*):: buff
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(*):: vext
 
     nx   = this%nd_(1)
