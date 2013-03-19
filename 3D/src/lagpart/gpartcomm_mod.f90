@@ -398,7 +398,7 @@ MODULE class_GPartComm
     ENDIF
 
     IF ( this%nprocs_ .EQ. 1 ) THEN
-      CALL GPartComm_LocalDataExch(this,vxext,vyext,vzext,vx,vy,vz)
+      CALL GPartComm_LocalDataExchMF(this,vxext,vyext,vzext,vx,vy,vz)
       RETURN
     ENDIF
 
@@ -1366,10 +1366,10 @@ MODULE class_GPartComm
 
     !
     ! send data:
-    CALL GPartComm_PPack(this,this%sbbuff_,this%nbuff_,pdb,nparts,this%ibot_,this%nbot_)
+    CALL GPartComm_PPackPDB(this,this%sbbuff_,this%nbuff_,pdb,nparts,this%ibot_,this%nbot_)
     CALL MPI_ISEND(this%sbbuff_,this%nbuff_,GC_REAL,ibrank, &
                    this%comm_,this%itsh_(1),this%ierr_)
-    CALL GPartComm_PPack(this,this%sbbuff_,this%nbuff_,pdb,nparts,this%itop_,this%ntop_)
+    CALL GPartComm_PPackPDB(this,this%sbbuff_,this%nbuff_,pdb,nparts,this%itop_,this%ntop_)
     CALL MPI_ISEND(this%stbuff_,this%nbuff_,GC_REAL,itrank, &
                    this%comm_,this%itsh_(1),this%ierr_)
 
@@ -1383,8 +1383,8 @@ MODULE class_GPartComm
     CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
 
     ! Update particle list:
-    CALL GPartComm_PUnpack(this,pdb,nparts,this%rbbuff_,this%nbuff_)
-    CALL GPartComm_PUnpack(this,pdb,nparts,this%rtbuff_,this%nbuff_)
+    CALL GPartComm_PUnpackPDB(this,pdb,nparts,this%rbbuff_,this%nbuff_)
+    CALL GPartComm_PUnpackPDB(this,pdb,nparts,this%rtbuff_,this%nbuff_)
 
   END SUBROUTINE GPartComm_PartExchangePDB
 !-----------------------------------------------------------------
@@ -1670,18 +1670,21 @@ MODULE class_GPartComm
     INTEGER                                    :: irank,jrank
     INTEGER                                    :: itemp1,itemp2
     
+    write(*,*)'GPartComm_InitTrans2D: block2d not resolved'
+    stop
+
     CALL range(1,this%nd_(2),this%nprocs_,this%myrank_,jsta,jend)
     DO irank = 0,this%nprocs_-1
        CALL range(1,this%nd_(1),this%nprocs_,irank,ista,iend)
-       CALL block2d(1,this%nd_(1),jsta,ista,iend,jsta,jend, &
-                    GC_REAL,itemp1)
+!      CALL block2d(1,this%nd_(1),jsta,ista,iend,jsta,jend, &
+!                   GC_REAL,itemp1)
        this%itypes_(irank) = itemp1
     END DO
     CALL range(1,this%nd_(1),this%nprocs_,this%myrank_,ista,iend)
     DO jrank = 0,this%nprocs_-1
        CALL range(1,this%nd_(2),this%nprocs_,jrank,jsta,jend)
-       CALL block2d(ista,iend,1,ista,iend,jsta,jend,  &
-                   GC_REAL,itemp2)
+!      CALL block2d(ista,iend,1,ista,iend,jsta,jend,  &
+!                  GC_REAL,itemp2)
        this%ityper_(jrank) = itemp2
     END DO
     this%btransinit_ = .TRUE.
