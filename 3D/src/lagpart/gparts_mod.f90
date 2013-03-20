@@ -41,6 +41,7 @@ MODULE class_GPart
       INTEGER,PARAMETER,PUBLIC                       :: GPEXCHTYPE_NN  =0
       INTEGER,PARAMETER,PUBLIC                       :: GPEXCHTYPE_VDB =1
 
+      PRIVATE
       TYPE, PUBLIC :: GPart
         PRIVATE
         ! Member data:
@@ -74,7 +75,6 @@ MODULE class_GPart
         PROCEDURE,PUBLIC :: io_write_euler  => GPart_io_write_euler
         PROCEDURE,PUBLIC :: io_write_pdb    => GPart_io_write_pdb
         PROCEDURE,PUBLIC :: io_read         => GPart_io_read
-!       PROCEDURE,PUBLIC :: GetPos
         PROCEDURE,PUBLIC :: EulerToLag      => GPart_EulerToLag
         PROCEDURE,PUBLIC :: SetInitType     => GPart_SetInitType
         PROCEDURE,PUBLIC :: SetSeedFile     => GPart_SetSeedFile
@@ -83,6 +83,7 @@ MODULE class_GPart
         PROCEDURE,PUBLIC :: GetSeedFile     => GPart_GetSeedFile
         PROCEDURE,PUBLIC :: GetRandSeed     => GPart_GetRandSeed
         PROCEDURE,PUBLIC :: GetTimeOrder    => GPart_GetTimeOrder
+!       PROCEDURE,PUBLIC :: GetPos
         GENERIC  ,PUBLIC :: io_write        => io_write_euler,io_write_pdb
       END TYPE GPart
 
@@ -480,8 +481,9 @@ MODULE class_GPart
     ALLOCATE(ilproc(this%nprocs_))
     ALLOCATE(iproc (this%nprocs_))
     ! Find no. parts on each MPI task; only read up to maxparts:
-    nt    = 0 
-    iproc = 0
+    nt     = 0 
+    iproc  = 0
+    nowned = 0
     DO WHILE ( this%ierr_.EQ.0 .AND. nt.LT.this%maxparts_ )
       READ(1,*,IOSTAT=this%ierr_) x, y, z
       IF ( this%ierr_ .NE. 0 ) EXIT
@@ -601,7 +603,7 @@ MODULE class_GPart
         CALL MPI_FILE_WRITE_AT_ALL(fh,offset,this%ltmp1_(j),1,GC_REAL,this%istatus_,this%ierr_)
       ENDDO
     ELSE
-        CALL MPI_FILE_WRITE_AT_ALL(fh,0     ,this%ltmp1_(j),0,GC_REAL,this%istatus_,this%ierr_)
+        CALL MPI_FILE_WRITE_AT_ALL(fh,0     ,this%ltmp1_(1),0,GC_REAL,this%istatus_,this%ierr_)
     ENDIF
     CALL MPI_FILE_CLOSE(fh,this%ierr_)
 
@@ -1100,13 +1102,13 @@ MODULE class_GPart
     USE commtypes
 
     IMPLICIT NONE
-    CLASS(GPart)                                  :: this
-    INTEGER      ,INTENT(OUT)                     :: nl
-    INTEGER      ,INTENT(OUT),DIMENSION(nl)       :: id
-    INTEGER      ,INTENT (IN)                     :: ngvdb
-    INTEGER                                       :: i,j
-    REAL(KIND=GP),INTENT(OUT),DIMENSION(nl)       :: lx,ly,lz
-    REAL(KIND=GP),INTENT (IN),DIMENSION(3,ngvdb)  :: gvdb
+    CLASS(GPart)                                          :: this
+    INTEGER      ,INTENT  (OUT)                           :: nl
+    INTEGER      ,INTENT(INOUT),DIMENSION(this%maxparts_) :: id
+    INTEGER      ,INTENT   (IN)                           :: ngvdb
+    INTEGER                                               :: i,j
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%maxparts_) :: lx,ly,lz
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(3,ngvdb)        :: gvdb
 
     nl = 0
     DO j = 1, ngvdb

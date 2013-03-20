@@ -203,13 +203,14 @@ MODULE class_GPSplineInt
     nxy = nx*ny
 !
 ! Do the interpolation stricto sensu :
-    sixth  = 1.0/6.0
-    four   = 4.0
-    three  = 3.0
-    six    = 6.0
+    sixth  = 1.0_GP/6.0_GP
+    four   = 4.0_GP
+    three  = 3.0_GP
+    six    = 6.0_GP
+    half   = 0.5_GP
     halfm  = -half
-    threeh = 3.0/2.0
-    two    = 2.0
+    threeh = 3.0_GP/2.0_GP
+    two    = 2.0_GP
 !
     IF ( this%ider_(1).EQ.0 ) THEN
     xsm=1.0
@@ -816,7 +817,7 @@ MODULE class_GPSplineInt
 !!!!!!!!!!!!!!!!!!!!!!!!!! x-field computation !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     DO k=1,nz
-      km = j-1
+      km = k-1
       DO j=1,ny
         jm = j-1
         tmp2 (1+jm*nx+km*nxy) = field(1+jm*nx+km*nxy)*this%betx_(1)
@@ -854,7 +855,9 @@ MODULE class_GPSplineInt
 !
     DO  i=nx-2,1,-1
       DO j=1,ny
+        jm = j-1
         DO k=1,nz
+        km = k-1
         tmp2(i+jm*nx+km*nxy) = tmp2(i+jm*nx+km*nxy) &
                       - this%gamx_(i+1)*tmp2(i+1+jm*nx+km*nxy) - this%px_(i)*tmp2(nx+jm*nx+km*nxy)
         ENDDO
@@ -912,8 +915,10 @@ MODULE class_GPSplineInt
     ENDDO
 !
     DO  j=ny-2,1,-1
+      jm = j-1
       DO i=1,nx
         DO k=1,nz
+          km = k-1
           tmp2(i+jm*nx+km*nxy) = tmp2(i+jm*nx+km*nxy)  &
                          - this%gamy_(j+1)*tmp2(i+(jm+1)*nx+km*nxy) - this%py_(j)*tmp2(i+(ny-1)*nx+km*nxy)
         ENDDO

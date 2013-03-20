@@ -31,7 +31,8 @@ MODULE class_GPartComm
         INTEGER                                      :: nprocs_    ,myrank_    ,comm_    
         INTEGER                                      :: csize_     ,nstrip_
         INTEGER                                      :: ntop_      ,nbot_      ,ierr_    ,istatus_
-        INTEGER                                      :: btransinit_,iextperp_  ,nth_
+        INTEGER                                      :: iextperp_  ,nth_
+        LOGICAL                                      :: btransinit_
         INTEGER, ALLOCATABLE, DIMENSION(:,:)         :: ibsnd_     ,itsnd_     ,ibrcv_   ,itrcv_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibsh_      ,itsh_      ,ibrh_    ,itrh_ 
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: igsh_      ,igrh_  
@@ -72,7 +73,6 @@ MODULE class_GPartComm
       PRIVATE :: GPartComm_PPackPDB          , GPartComm_PUnpackPDB
       PRIVATE :: GPartComm_PPackV            , GPartComm_PUnpackV 
       PRIVATE :: GPartComm_SetCacheParam
-
 
 ! Methods:
   CONTAINS
@@ -328,7 +328,7 @@ MODULE class_GPartComm
 
     IMPLICIT NONE
     CLASS(GPartComm),INTENT(INOUT)                      :: this
-    INTEGER                                             :: i,j,k,ngp,ngz,ney,nexy,nez
+    INTEGER                                             :: i,j,k,ngp,ngz,nex,nexy,nez
     INTEGER                                             :: nx,nxy,ny,nz
     INTEGER                                             :: jm,km
     REAL(KIND=GP),INTENT   (IN),DIMENSION(*)            :: vx,vy,vz
@@ -337,7 +337,8 @@ MODULE class_GPartComm
     ngz  = this%nzghost_
     ngp  = ngz * this%iextperp_
     nexy = (this%nd_(1)+2*ngp) * (this%nd_(2)+2*ngp)
-    ney  = this%nd_(2)+2*ngp
+    nex  = this%nd_(1)+2*ngp
+    nez  = this%nd_(3)+  ngp
     nx   = this%nd_(1)
     ny   = this%nd_(2)
     nz   = this%nd_(3)
@@ -349,14 +350,14 @@ MODULE class_GPartComm
         jm = j-1
         DO i=1,nx
           ! set bottom bcs:
-          vxext(i+ngp+(j+ngp-1)*ney+    (k-1)*nexy) = vx(i+(j-1)*nx+(nz-ngz+k-2)*nxy)
-          vyext(i+ngp+(j+ngp-1)*ney+    (k-1)*nexy) = vy(i+(j-1)*nx+(nz-ngz+k-2)*nxy)
-          vzext(i+ngp+(j+ngp-1)*ney+    (k-1)*nexy) = vz(i+(j-1)*nx+(nz-ngz+k-2)*nxy)
+          vxext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy) = vx(i+(j-1)*nx+(nz-ngz+k-2)*nxy)
+          vyext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy) = vy(i+(j-1)*nx+(nz-ngz+k-2)*nxy)
+          vzext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy) = vz(i+(j-1)*nx+(nz-ngz+k-2)*nxy)
 
           ! set top bcs:
-          vxext(i+ngp+(j+ngp-1)*ney+(nez+k-1)*nexy) = vx(i+(j-1)*nx+k*nxy)
-          vyext(i+ngp+(j+ngp-1)*ney+(nez+k-1)*nexy) = vy(i+(j-1)*nx+k*nxy)
-          vzext(i+ngp+(j+ngp-1)*ney+(nez+k-1)*nexy) = vz(i+(j-1)*nx+k*nxy)
+          vxext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy) = vx(i+(j-1)*nx+k*nxy)
+          vyext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy) = vy(i+(j-1)*nx+k*nxy)
+          vzext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy) = vz(i+(j-1)*nx+k*nxy)
 
         ENDDO
       ENDDO
@@ -497,7 +498,7 @@ MODULE class_GPartComm
     !  ...data
       DO m = 1,this%ibsndnz_(isnd)
         k = this%ibsnd_(isnd,m)
-        k = k-1
+        km = k-1
         DO j = 1, ny
           jm = j-1
           DO i = 1, nx
@@ -620,7 +621,7 @@ MODULE class_GPartComm
     nt = 1
     DO m = 1,int(buff(1))
       k = int(buff(m+1))
-      k = k-1
+      km = k-1
       DO j = 1, ny
         jm = j-1
         DO i = 1, nx
@@ -678,7 +679,7 @@ MODULE class_GPartComm
 
     IMPLICIT NONE
     CLASS(GPartComm),INTENT(INOUT)                      :: this
-    INTEGER                                             :: i,j,k,ngp,ngz,ney,nexy,nez
+    INTEGER                                             :: i,j,k,ngp,ngz,nex,nexy,nez
     INTEGER                                             :: nx,nxy,ny,nz
     REAL(KIND=GP),INTENT   (IN),DIMENSION(*)            :: v
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)            :: vext
@@ -686,7 +687,8 @@ MODULE class_GPartComm
     ngz  = this%nzghost_
     ngp  = ngz * this%iextperp_
     nexy = (this%nd_(1)+2*ngp) * (this%nd_(2)+2*ngp)
-    ney  = this%nd_(2)+2*ngp
+    nex  = this%nd_(1)+2*ngp
+    nez  = this%nd_(3)+  ngp
     nx   = this%nd_(1)
     ny   = this%nd_(2)
     nz   = this%nd_(3)
@@ -696,10 +698,10 @@ MODULE class_GPartComm
       DO j=1,ny
         DO i=1,nx
           ! set bottom bcs:
-          vext(i+ngp+(j+ngp-1)*ney+    (k-1)*nexy) = v(i+(j-1)*nx+(nz-ngz+k-2)*nxy)
+          vext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy) = v(i+(j-1)*nx+(nz-ngz+k-2)*nxy)
 
           ! set top bcs:
-          vext(i+ngp+(j+ngp-1)*ney+(nez+k-1)*nexy) = v(i+(j-1)*nx+k*nxy)
+          vext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy) = v(i+(j-1)*nx+k*nxy)
         ENDDO
       ENDDO
     ENDDO
