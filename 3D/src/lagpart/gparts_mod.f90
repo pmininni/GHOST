@@ -31,7 +31,7 @@ MODULE class_GPart
 !!      ENUMERATOR :: GPEXCHTYPE_VDB
 !!    ENDENUM GPINTRP
 
-       
+       ;
       INTEGER,PARAMETER,PUBLIC                       :: GPINIT_RANDLOC =0
       INTEGER,PARAMETER,PUBLIC                       :: GPINIT_USERLOC =1
 
@@ -131,11 +131,11 @@ MODULE class_GPart
     USE commtypes
 
     IMPLICIT NONE
-    CLASS(GPart)                         :: this
-    INTEGER          , INTENT(IN)        :: comm,mparts,csize,nstrip
-    INTEGER                              :: disp(3),lens(3),types(3),szreal
-    INTEGER          , INTENT(IN)        :: iexchtyp,iinterp,inittype,intorder
-    INTEGER                              :: j,nc
+    CLASS(GPart)     ,INTENT(INOUT)     :: this
+    INTEGER          ,INTENT   (IN)     :: comm,mparts,csize,nstrip
+    INTEGER                             :: disp(3),lens(3),types(3),szreal
+    INTEGER          ,INTENT   (IN)     :: iexchtyp,iinterp,inittype,intorder
+    INTEGER                             :: j,nc
 
     this%nparts_   = 0 
     this%nvdb_     = 0
@@ -212,7 +212,7 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 
     IMPLICIT NONE
-    TYPE(GPart)                      :: this
+    TYPE(GPart)   ,INTENT(INOUT)             :: this
 
 
 !!  CALL this%gpcomm_%GPartComm_dtor()
@@ -242,7 +242,7 @@ MODULE class_GPart
 !    this    : 'this' class instance
 !-----------------------------------------------------------------
     IMPLICIT NONE
-    CLASS(GPart)                      :: this
+    CLASS(GPart)   ,INTENT(INOUT)   :: this
 
     IF      ( this%inittype_ .EQ. GPINIT_RANDLOC ) THEN
       CALL GPart_InitRandSeed (this)   
@@ -265,8 +265,8 @@ MODULE class_GPart
 !    iorder  : value of time step order
 !-----------------------------------------------------------------
     IMPLICIT NONE
-    CLASS(GPart)                      :: this
-    INTEGER, INTENT(IN)               :: iorder
+    CLASS(GPart) ,INTENT(INOUT)        :: this
+    INTEGER      , INTENT(IN)          :: iorder
 
     this%itorder_ = iorder;
    
@@ -284,7 +284,7 @@ MODULE class_GPart
 !    this    : 'this' class instance
 !-----------------------------------------------------------------
     IMPLICIT NONE
-    CLASS(GPart)                      :: this
+    CLASS(GPart),INTENT(INOUT)        :: this
     INTEGER                           :: iseed
     INTEGER                           :: get_res
 
@@ -305,8 +305,8 @@ MODULE class_GPart
 !    seed    : value of seed
 !-----------------------------------------------------------------
     IMPLICIT NONE
-    CLASS(GPart)                      :: this
-    INTEGER, INTENT(IN)               :: iseed
+    CLASS(GPart) ,INTENT(INOUT)      :: this
+    INTEGER      ,INTENT  (IN)       :: iseed
 
     this%iseed_ = iseed;
    
@@ -323,7 +323,7 @@ MODULE class_GPart
 !    this    : 'this' class instance
 !-----------------------------------------------------------------
     IMPLICIT NONE
-    CLASS(GPart)                      :: this
+    CLASS(GPart) ,INTENT(INOUT)       :: this
     INTEGER                           :: get_res
 
     get_res = this%iseed_
@@ -343,8 +343,8 @@ MODULE class_GPart
 !    itype   : value of type GPINIT
 !-----------------------------------------------------------------
     IMPLICIT NONE
-    CLASS(GPart)                      :: this
-    INTEGER     , INTENT(IN)          :: itype
+    CLASS(GPart),INTENT(INOUT)          :: this
+    INTEGER     ,INTENT   (IN)          :: itype
 
     this%inittype_ = itype;
    
@@ -362,7 +362,7 @@ MODULE class_GPart
 !    this    : 'this' class instance
 !-----------------------------------------------------------------
     IMPLICIT NONE
-    CLASS(GPart)                      :: this
+    CLASS(GPart),INTENT(INOUT)        :: this
     INTEGER                           :: get_res
 
     get_res = this%inittype_ 
@@ -384,8 +384,8 @@ MODULE class_GPart
 !    sname   : character file name
 !-----------------------------------------------------------------
     IMPLICIT NONE
-    CLASS(GPart)                      :: this
-    CHARACTER(len=*),INTENT(IN)       :: sname
+    CLASS(GPart)    ,INTENT(INOUT)    :: this
+    CHARACTER(len=*),INTENT   (IN)    :: sname
 
     this%seedfile_ = sname;
    
@@ -402,8 +402,8 @@ MODULE class_GPart
 !    this    : 'this' class instance
 !-----------------------------------------------------------------
     IMPLICIT NONE
-    CLASS(GPart)                      :: this
-    CHARACTER(1024)                   :: get_res
+    CLASS(GPart)     ,INTENT(INOUT)  :: this
+    CHARACTER(1024)                  :: get_res
 
     get_res = this%seedfile_
 
@@ -425,7 +425,7 @@ MODULE class_GPart
     USE random
 
     IMPLICIT NONE
-    CLASS(GPart)                      :: this
+    CLASS(GPart)  ,INTENT(INOUT)      :: this
 
     INTEGER                           :: j
     REAL(KIND=GP)                     :: x,r
@@ -462,7 +462,7 @@ MODULE class_GPart
     USE mpivars
     USE fprecision
     IMPLICIT NONE
-    CLASS(GPart)                      :: this
+    CLASS(GPart) ,INTENT(INOUT)       :: this
 
     INTEGER                           :: navg,nl,nowned,nt
     INTEGER,ALLOCATABLE,DIMENSION(:)  :: iproc,ilproc
@@ -569,7 +569,7 @@ MODULE class_GPart
     USE mpivars
 
     IMPLICIT NONE
-    CLASS(GPart)                                        :: this
+    CLASS(GPart) ,INTENT(INOUT)                         :: this
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend):: evar(n,n,ksta:kend)
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend):: tmp1,tmp2
     REAL(KIND=GP),INTENT   (IN)                         :: time
@@ -633,14 +633,14 @@ MODULE class_GPart
     USE mpivars
 
     IMPLICIT NONE
-    CLASS(GPart)                      :: this
-    REAL(KIND=GP),INTENT(IN)          :: time
+    CLASS(GPart) ,INTENT(INOUT)       :: this
+    REAL(KIND=GP),INTENT   (IN)       :: time
     REAL(KIND=GP)                     :: prec(3)
     INTEGER,INTENT(IN)                :: iunit
     INTEGER                           :: fh,offset,nt,szreal
-    CHARACTER(len=*), INTENT(IN)      :: dir
-    CHARACTER(len=*), INTENT(IN)      :: nmb
-    CHARACTER(len=*), INTENT(IN)      :: spref
+    CHARACTER(len=*),INTENT(IN)       :: dir
+    CHARACTER(len=*),INTENT(IN)       :: nmb
+    CHARACTER(len=*),INTENT(IN)       :: spref
     TYPE(GPDBrec)                     :: pst
 
     INTEGER                           :: j
@@ -711,14 +711,14 @@ MODULE class_GPart
     USE mpivars
 
     IMPLICIT NONE
-    CLASS(GPart)                              :: this
+    CLASS(GPart)    ,INTENT(INOUT)            :: this
 !!  REAL(KIND=GP),INTENT(OUT),DIMENSION(:)    :: lvar
     REAL(KIND=GP)                             :: rvar
     INTEGER,INTENT(IN)                        :: iunit
     INTEGER                                   :: fh,j,nt,szreal
-    CHARACTER(len=*), INTENT(IN)              :: dir
-    CHARACTER(len=*), INTENT(IN)              :: nmb
-    CHARACTER(len=*), INTENT(IN)              :: spref
+    CHARACTER(len=*),INTENT   (IN)            :: dir
+    CHARACTER(len=*),INTENT   (IN)            :: nmb
+    CHARACTER(len=*),INTENT   (IN)            :: spref
 
 
     CALL MPI_TYPE_SIZE(GC_REAL,szreal)
@@ -769,9 +769,9 @@ MODULE class_GPart
     USE mpivars
 
     IMPLICIT NONE
-    CLASS(GPart)                                      :: this
+    CLASS(GPart)   ,INTENT(INOUT)          :: this
 
-    INTEGER                                           :: i,j
+    INTEGER                                :: i,j
 
     ! Initialize solution, u: 
     ! u* <-- u: 
@@ -804,7 +804,7 @@ MODULE class_GPart
     USE mpivars
 
     IMPLICIT NONE
-    CLASS(GPart)                                      :: this
+    CLASS(GPart) ,INTENT(INOUT)                 :: this
 
     ! u(t+dt) = u*: done already
     
@@ -838,7 +838,7 @@ MODULE class_GPart
     USE mpivars
 
     IMPLICIT NONE
-    CLASS(GPart)                                         :: this
+    CLASS(GPart) ,INTENT(INOUT)                          :: this
     INTEGER                                              :: i,j
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend) :: vx,vy,vz,tmp1,tmp2
     REAL(KIND=GP),INTENT   (IN)                          :: dt,xk
@@ -929,11 +929,11 @@ MODULE class_GPart
     USE mpivars
 
     IMPLICIT NONE
-    CLASS(GPart)                                          :: this
+    CLASS(GPart) ,INTENT(INOUT)                           :: this
     INTEGER      ,INTENT   (IN)                           :: nl
     LOGICAL      ,INTENT   (IN)                           :: doupdate
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend)  :: evar,tmp1,tmp2
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION            (nl)  :: lag
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION           (nl)  :: lag
     INTEGER                                               :: j
 
     IF ( doupdate ) THEN
@@ -965,7 +965,7 @@ MODULE class_GPart
     USE mpivars
 
     IMPLICIT NONE
-    CLASS(GPart)                                     :: this
+    CLASS(GPart) ,INTENT(INOUT)                      :: this
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(:)         :: px,py,pz
     INTEGER,INTENT(IN)                               :: npdb
 
@@ -999,8 +999,8 @@ MODULE class_GPart
     USE commtypes
 
     IMPLICIT NONE
-    CLASS(GPart)                                     :: this
-    INTEGER,INTENT(IN)                               :: nc,nx,ny,kb,ke
+    CLASS(GPart) ,INTENT(INOUT)                      :: this
+    INTEGER      ,INTENT(IN)                         :: nc,nx,ny,kb,ke
     REAL(KIND=GP),INTENT(INOUT)                      :: v(nx,ny,kb:ke)
 
     INTEGER                                          :: i,j,k
@@ -1052,10 +1052,10 @@ MODULE class_GPart
     USE commtypes
 
     IMPLICIT NONE
-    CLASS(GPart)                               :: this
-    INTEGER      ,INTENT (IN)                  :: npdb
+    CLASS(GPart) ,INTENT(INOUT)                :: this
+    INTEGER      ,INTENT   (IN)                :: npdb
     INTEGER      ,INTENT(INOUT),DIMENSION(npdb):: id
-    INTEGER      ,INTENT(OUT)                  :: nnew
+    INTEGER      ,INTENT  (OUT)                :: nnew
     INTEGER                                    :: i,j
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(npdb):: px,py,pz
 
@@ -1102,7 +1102,7 @@ MODULE class_GPart
     USE commtypes
 
     IMPLICIT NONE
-    CLASS(GPart)                                          :: this
+    CLASS(GPart) ,INTENT(INOUT)                           :: this
     INTEGER      ,INTENT  (OUT)                           :: nl
     INTEGER      ,INTENT(INOUT),DIMENSION(this%maxparts_) :: id
     INTEGER      ,INTENT   (IN)                           :: ngvdb
@@ -1145,10 +1145,10 @@ MODULE class_GPart
 !    USE commtypes
 !
 !    IMPLICIT NONE 
-!    CLASS(GPart)                                  :: this 
-!    INTEGER      ,INTENT(OUT)                     :: nl
-!    INTEGER      ,INTENT(OUT),DIMENSION(nl)       :: id
-!    INTEGER      ,INTENT (IN)                     :: ngvdb
+!    CLASS(GPart) ,INTENT(INOUT)                   :: this 
+!    INTEGER      ,INTENT  (OUT)                   :: nl
+!    INTEGER      ,INTENT  (OUT),DIMENSION(nl)     :: id
+!    INTEGER      ,INTENT   (IN)                   :: ngvdb
 !    INTEGER                                       :: i,j
 !    REAL(KIND=GP),INTENT(OUT),DIMENSION(nl)       :: lx,ly,lz
 !    REAL(KIND=GP),INTENT (IN),DIMENSION(3,ngvdb)  :: gvdb 
