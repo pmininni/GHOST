@@ -19,7 +19,9 @@ MODULE class_GPartComm
       USE commtypes
       IMPLICIT NONE
       
-      INTEGER,PARAMETER                              :: GPNULL=-1 ! particle NULL value
+      INTEGER,PARAMETER,PUBLIC                       :: GPNULL=-1 ! particle NULL value
+
+      PRIVATE
       TYPE, PUBLIC :: GPartComm
         PRIVATE
         ! Member data:
@@ -55,7 +57,7 @@ MODULE class_GPartComm
         PROCEDURE,PUBLIC :: ConcatPDB         => GPartComm_ConcatPDB
         PROCEDURE,PUBLIC :: ConcatV           => GPartComm_ConcatV
 
-        GENERIC  ,PUBLIC :: PartExchange      => PartExchangePDB,PartExchangeV
+!       GENERIC  ,PUBLIC :: PartExchange      => PartExchangePDB,PartExchangeV
 !       GENERIC  ,PUBLIC :: SlabDataExchange  => SlabDataExchangeMF,SlabDataExchangeSF
         GENERIC  ,PUBLIC :: Concat            => ConcatPDB,ConcatV
       END TYPE GPartComm

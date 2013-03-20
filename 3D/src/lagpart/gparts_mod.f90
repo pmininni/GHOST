@@ -14,7 +14,7 @@ MODULE class_GPart
       USE class_GPSplineInt
 
       IMPLICIT NONE
-      
+      INCLUDE 'mpif.h' 
 !!    ENUM, BIND(C) :: GPINIT
 !!      ENUMERATOR :: GPINIT_RANDLOC=0
 !!      ENUMERATOR :: GPINIT_USERLOC
@@ -31,15 +31,15 @@ MODULE class_GPart
 !!      ENUMERATOR :: GPEXCHTYPE_VDB
 !!    ENDENUM GPINTRP
 
-      INTEGER,PARAMETER                              :: GPINIT_RANDLOC =0
-      INTEGER,PARAMETER                              :: GPINIT_USERLOC =1
-
-      INTEGER,PARAMETER                              :: GPINTRP_CSPLINE=0
-      INTEGER,PARAMETER                              :: GPINTRP_LAGINT =1
-
-      INTEGER,PARAMETER                              :: GPEXCHTYPE_NN  =0
-      INTEGER,PARAMETER                              :: GPEXCHTYPE_VDB =1
        
+      INTEGER,PARAMETER,PUBLIC                       :: GPINIT_RANDLOC =0
+      INTEGER,PARAMETER,PUBLIC                       :: GPINIT_USERLOC =1
+
+      INTEGER,PARAMETER,PUBLIC                       :: GPINTRP_CSPLINE=0
+      INTEGER,PARAMETER,PUBLIC                       :: GPINTRP_LAGINT =1
+
+      INTEGER,PARAMETER,PUBLIC                       :: GPEXCHTYPE_NN  =0
+      INTEGER,PARAMETER,PUBLIC                       :: GPEXCHTYPE_VDB =1
 
       TYPE, PUBLIC :: GPart
         PRIVATE
@@ -83,7 +83,6 @@ MODULE class_GPart
         PROCEDURE,PUBLIC :: GetSeedFile     => GPart_GetSeedFile
         PROCEDURE,PUBLIC :: GetRandSeed     => GPart_GetRandSeed
         PROCEDURE,PUBLIC :: GetTimeOrder    => GPart_GetTimeOrder
-
         GENERIC  ,PUBLIC :: io_write        => io_write_euler,io_write_pdb
       END TYPE GPart
 
@@ -876,7 +875,7 @@ MODULE class_GPart
     ! IF using nearest-neighbor interfcae, do particle exchange 
     ! between nearest-neighbor tasks BEFORE PERIODIZING particle coordinates:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
-      CALL this%gpcomm_%PartExchange(this%id_,this%px_,this%py_,this%pz_, &
+      CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_, &
            this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2))
     ENDIF
 

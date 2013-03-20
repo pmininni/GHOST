@@ -18,7 +18,8 @@ MODULE class_GPSplineInt
       USE fprecision
       USE class_GPartComm
       IMPLICIT NONE
-
+  
+      PRIVATE
       TYPE, PUBLIC :: GPSplineInt
         PRIVATE
         ! Member data:
@@ -160,7 +161,6 @@ MODULE class_GPSplineInt
 !    xp,yp    : x,y locations of interpolation points
 !    np       : no. interploation points (lenghts of fp,xp,yp).
 !-----------------------------------------------------------------
-    USE fprecision
     IMPLICIT NONE
     CLASS(GPSplineInt)                        :: this
     INTEGER      ,INTENT   (IN)               :: np
@@ -188,7 +188,6 @@ MODULE class_GPSplineInt
 !    fp       : field interpolated at the points xp, yp, returned.
 !    np       : no. interploation points (lenghts of fp,xp,yp,zp).
 !-----------------------------------------------------------------
-    USE fprecision
     IMPLICIT NONE
     CLASS(GPSplineInt)                        :: this
     INTEGER      ,INTENT   (IN)              :: np
@@ -394,8 +393,6 @@ MODULE class_GPSplineInt
 !               relative to grid set in constructor call 
 !    np       : no. interp points or particles.
 !-----------------------------------------------------------------
-    USE fprecision
-
     IMPLICIT NONE
     CLASS(GPSplineInt)                     :: this
     REAL(KIND=GP),INTENT(IN),DIMENSION(*) :: xp,yp
@@ -465,8 +462,6 @@ MODULE class_GPSplineInt
 !               relative to grid set in constructor call 
 !    np       : no. interp points or particles.
 !-----------------------------------------------------------------
-    USE fprecision
-
     IMPLICIT NONE
     CLASS(GPSplineInt)                     :: this
     REAL(KIND=GP),INTENT(IN),DIMENSION(*) :: xp,yp,zp
@@ -675,8 +670,6 @@ MODULE class_GPSplineInt
 !  ARGUMENTS  : 
 !    this     : 'this' class instance
 !-----------------------------------------------------------------
-    USE fprecision
-
     IMPLICIT NONE
     CLASS(GPSplineInt)        :: this
     REAL(KIND=GP)            :: beta,sixth,twotrd
@@ -712,8 +705,6 @@ MODULE class_GPSplineInt
 !  ARGUMENTS  : 
 !    this     : 'this' class instance
 !-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
 
     IMPLICIT NONE
     CLASS(GPSplineInt)                       :: this
@@ -777,8 +768,6 @@ MODULE class_GPSplineInt
 !    tmp1/2  : temp arrays of size n X (jend-jsta+1) as in
 !              instantiating code.
 !-----------------------------------------------------------------
-    USE fprecision
-
     IMPLICIT NONE
     CLASS(GPSplineInt)                         :: this
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)  :: field,tmp1,tmp2
@@ -808,8 +797,6 @@ MODULE class_GPSplineInt
 !    tmp1/2:   temp arrays of size n X n X (kend-ksta+1) as in
 !              instantiating code.
 !-----------------------------------------------------------------
-    USE fprecision
-
     IMPLICIT NONE
     CLASS(GPSplineInt)                                :: this
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%ntot_) :: field
