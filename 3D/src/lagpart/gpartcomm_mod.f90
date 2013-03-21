@@ -127,6 +127,8 @@ MODULE class_GPartComm
     ALLOCATE   (this%ibot_   (maxparts))
     ALLOCATE   (this%itop_   (maxparts))
 
+    CALL GPartComm_Init(this)
+
   END SUBROUTINE GPartComm_ctor
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -163,6 +165,11 @@ MODULE class_GPartComm
     IF ( ALLOCATED   (this%ityper_) ) DEALLOCATE  (this%ityper_)
     IF ( ALLOCATED (this%ibsnddst_) ) DEALLOCATE(this%ibsnddst_)
     IF ( ALLOCATED (this%itsnddst_) ) DEALLOCATE(this%itsnddst_)
+    IF ( ALLOCATED  (this%ibrcvnz_) ) DEALLOCATE (this%ibrcvnz_)
+    IF ( ALLOCATED  (this%itrcvnz_) ) DEALLOCATE (this%itrcvnz_)
+    IF ( ALLOCATED  (this%ibsndnz_) ) DEALLOCATE (this%ibsndnz_)
+    IF ( ALLOCATED  (this%itsndnz_) ) DEALLOCATE (this%itsndnz_)
+
 
     CALL GPartComm_Init(this)
 
@@ -202,6 +209,10 @@ MODULE class_GPartComm
     IF ( ALLOCATED   (this%ityper_) ) DEALLOCATE  (this%ityper_)
     IF ( ALLOCATED (this%ibsnddst_) ) DEALLOCATE(this%ibsnddst_)
     IF ( ALLOCATED (this%itsnddst_) ) DEALLOCATE(this%itsnddst_)
+    IF ( ALLOCATED  (this%ibrcvnz_) ) DEALLOCATE (this%ibrcvnz_)
+    IF ( ALLOCATED  (this%itrcvnz_) ) DEALLOCATE (this%itrcvnz_)
+    IF ( ALLOCATED  (this%ibsndnz_) ) DEALLOCATE (this%ibsndnz_)
+    IF ( ALLOCATED  (this%itsndnz_) ) DEALLOCATE (this%itsndnz_)
 
     ! If there aren't enough 'slices' with nearest neighbors to 
     ! fill ghost zones, go to next furthest tasks, etc., to fill:
@@ -220,6 +231,10 @@ MODULE class_GPartComm
     ALLOCATE(this%itrh_(nt))
     ALLOCATE(this%ibsh_(nt))
     ALLOCATE(this%itsh_(nt))
+    ALLOCATE(this%ibrcvnz_(nt))
+    ALLOCATE(this%itrcvnz_(nt))
+    ALLOCATE(this%ibsndnz_(nt))
+    ALLOCATE(this%itsndnz_(nt))
     ALLOCATE(this%igrh_(0:this%nprocs_-1))
     ALLOCATE(this%igsh_(0:this%nprocs_-1))
     ALLOCATE(this%itypes_(0:this%nprocs_-1))
@@ -238,51 +253,52 @@ MODULE class_GPartComm
     ! Loop over possible tasks to find neighbor list info:
     DO WHILE ( j.LE.nt .AND. this%nbsnd_.LT.this%nzghost_ ) 
       itrank = mod(this%myrank_+j,this%nprocs_)
-      ibrank = this%myrank_-j
-      IF ( ibrank.lt.0 ) ibrank = this%nprocs_-j+1
+      ibrank = mod(this%myrank_-j+this%nprocs_,this%nprocs_)
       CALL range(1,this%nd_(3),this%nprocs_,ibrank,kbsta,kbend)
       CALL range(1,this%nd_(3),this%nprocs_,itrank,ktsta,ktend)
       this%ibrcv_(j,1) = ibrank    !bottom
       this%itrcv_(j,1) = itrank    !top
 
       k = 1
-      DO WHILE ( k.LE.kend-ksta+1 .AND. this%nbsnd_.LE.this%nzghost_ ) 
+      DO WHILE ( k.LT.kend-ksta+1 .AND. this%nbsnd_.LT.this%nzghost_ ) 
         ! local z-indices to send to bottom & top tasks:
-        this%ibsnd_   (j,k+1) = k               ! local z-index to be sent
-        this%itsnd_   (j,k+1) = kend-ksta+1-k+1 ! local z-index to be sent
-        this%ibsnddst_(j,k  ) = kend-ksta+1 + this%nzghost_ + k
-        this%itsnddst_(j,k  ) = k
+        this%ibsnd_   (j,k  ) = k               ! local z-index to be sent to b
+        this%itsnd_   (j,k  ) = kend-ksta+1-k+1 ! local z-index to be sent to t
+        ! destination indices in extended grid fpr itsnd and ibsnd:
+        ! These indices should be in local--not global--form
+        this%ibsnddst_(j,k  ) = kbend-kbsta+1+k
+        this%itsnddst_(j,k  ) = this%nzghost_-k+1
         this%nbsnd_ = this%nbsnd_ + 1
         this%ntsnd_ = this%ntsnd_ + 1
         k = k + 1
       ENDDO
 
       k = 1
-      DO WHILE ( k.LE.kbend-kbsta+1 .AND. this%nbrcv_.LE.this%nzghost_ ) 
+      DO WHILE ( k.LE.kbend-kbsta+1 .AND. this%nbrcv_.LT.this%nzghost_ ) 
         ! local z-indices received from bottom task;
         ! where to place locally in extended array:
         ! (dims of extended array are 1:kend-ksta+1+2*nzghost)
-        this%ibrcv_  (j,k+1) = this%nzghost_-k+1
-        this%nbrcv_      = this%nbrcv_ + 1
+        this%ibrcv_  (j,k  ) = this%nzghost_-k+1
+        this%nbrcv_          = this%nbrcv_ + 1
         k = k + 1
       ENDDO
 
       k = 1
-      DO WHILE ( k.LE.ktend-ktsta+1 .AND. this%ntrcv_.LE.this%nzghost_ ) 
+      DO WHILE ( k.LE.ktend-ktsta+1 .AND. this%ntrcv_.LT.this%nzghost_ ) 
         ! local z-indices received from top task;
         ! where to place locally in extended array:
         ! (dims of extended array are 1:kend-ksta+1+2*nzghost)
-        this%itrcv_(j,k+1) = (kend-ksta+1)+this%nzghost_+k
-        this%ntrcv_ = this%ntrcv_ + 1
+        this%itrcv_(j,k  ) = (kend-ksta+1)+this%nzghost_+k
+        this%ntrcv_        = this%ntrcv_ + 1
         k = k + 1
       ENDDO
       j = j + 1
     ENDDO
 
     IF ( this%nbrcv_ .NE. this%nzghost_ &
-    .OR. this%nbsnd_ .NE. this%nzghost_ & 
-    .OR. this%ntrcv_ .NE. this%nzghost_ & 
-    .OR. this%ntsnd_ .NE. this%nzghost_  ) THEN
+!   .OR. this%nbsnd_ .NE. this%nzghost_ & 
+    .OR. this%ntrcv_ .NE. this%nzghost_  ) THEN
+!   .OR. this%ntsnd_ .NE. this%nzghost_  ) THEN
        WRITE(*,*) 'GPartComm_Init: data incompatible with interpolation order' 
        STOP
     ENDIF
@@ -617,7 +633,7 @@ MODULE class_GPartComm
     ngz = this%nzghost_;
     ngp = ngz*this%iextperp_
 
-  ! Pack from either buffer:
+  ! Unpack from either top or bottom buffer:
     nt = 1
     DO m = 1,int(buff(1))
       k = int(buff(m+1))
@@ -1763,7 +1779,7 @@ MODULE class_GPartComm
       ptmp(2,i) = ly(j)
       ptmp(3,i) = lz(j)
     ENDDO
-    CALL MPI_ALLREDUCE(gvdb,ptmp,3*ngvdb,GC_REAL,   &
+    CALL MPI_ALLREDUCE(ptmp,gvdb,3*ngvdb,GC_REAL,   &
                        MPI_SUM,this%comm_,this%ierr_)
 
 
