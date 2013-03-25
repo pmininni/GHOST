@@ -36,7 +36,7 @@ MODULE class_GPartComm
         INTEGER, ALLOCATABLE, DIMENSION(:,:)         :: ibsnd_     ,itsnd_     ,ibrcv_   ,itrcv_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibsh_      ,itsh_      ,ibrh_    ,itrh_ 
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: igsh_      ,igrh_  
-        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: itypes_    ,ityper_
+        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: itypekp_    ,itypeip_    ,itypea_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibsndnz_   ,itsndnz_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: itop_      ,ibot_
         INTEGER, ALLOCATABLE, DIMENSION(:,:)         :: ibsnddst_  ,itsnddst_
@@ -49,6 +49,7 @@ MODULE class_GPartComm
         PROCEDURE,PUBLIC :: Init              => GPartComm_Init
         PROCEDURE,PUBLIC :: GetNumGhost       => GPartComm_GetNumGhost
         PROCEDURE,PUBLIC :: GTranspose        => GPartComm_Transpose
+        PROCEDURE,PUBLIC :: GITranspose       => GPartComm_ITranspose
         PROCEDURE,PUBLIC :: VDBSynch          => GPartComm_VDBSynch
         PROCEDURE,PUBLIC :: SetCacheParam     => GPartComm_SetCacheParam
         PROCEDURE,PUBLIC :: PartExchangePDB   => GPartComm_PartExchangePDB
@@ -161,8 +162,9 @@ MODULE class_GPartComm
     IF ( ALLOCATED     (this%itsh_) ) DEALLOCATE    (this%itsh_)
     IF ( ALLOCATED     (this%igrh_) ) DEALLOCATE    (this%igrh_)
     IF ( ALLOCATED     (this%igsh_) ) DEALLOCATE    (this%igsh_)
-    IF ( ALLOCATED   (this%itypes_) ) DEALLOCATE  (this%itypes_)
-    IF ( ALLOCATED   (this%ityper_) ) DEALLOCATE  (this%ityper_)
+    IF ( ALLOCATED   (this%itypekp_) ) DEALLOCATE  (this%itypekp_)
+    IF ( ALLOCATED   (this%itypeip_) ) DEALLOCATE  (this%itypeip_)
+    IF ( ALLOCATED   (this%itypea_) ) DEALLOCATE  (this%itypea_)
     IF ( ALLOCATED (this%ibsnddst_) ) DEALLOCATE(this%ibsnddst_)
     IF ( ALLOCATED (this%itsnddst_) ) DEALLOCATE(this%itsnddst_)
     IF ( ALLOCATED  (this%ibrcvnz_) ) DEALLOCATE (this%ibrcvnz_)
@@ -205,8 +207,9 @@ MODULE class_GPartComm
     IF ( ALLOCATED     (this%itsh_) ) DEALLOCATE    (this%itsh_)
     IF ( ALLOCATED     (this%igrh_) ) DEALLOCATE    (this%igrh_)
     IF ( ALLOCATED     (this%igsh_) ) DEALLOCATE    (this%igsh_)
-    IF ( ALLOCATED   (this%itypes_) ) DEALLOCATE  (this%itypes_)
-    IF ( ALLOCATED   (this%ityper_) ) DEALLOCATE  (this%ityper_)
+    IF ( ALLOCATED   (this%itypekp_) ) DEALLOCATE  (this%itypekp_)
+    IF ( ALLOCATED   (this%itypeip_) ) DEALLOCATE  (this%itypeip_)
+    IF ( ALLOCATED   (this%itypea_) ) DEALLOCATE  (this%itypea_)
     IF ( ALLOCATED (this%ibsnddst_) ) DEALLOCATE(this%ibsnddst_)
     IF ( ALLOCATED (this%itsnddst_) ) DEALLOCATE(this%itsnddst_)
     IF ( ALLOCATED  (this%ibrcvnz_) ) DEALLOCATE (this%ibrcvnz_)
@@ -237,8 +240,9 @@ MODULE class_GPartComm
     ALLOCATE(this%itsndnz_(nt))
     ALLOCATE(this%igrh_(0:this%nprocs_-1))
     ALLOCATE(this%igsh_(0:this%nprocs_-1))
-    ALLOCATE(this%itypes_(0:this%nprocs_-1))
-    ALLOCATE(this%ityper_(0:this%nprocs_-1))
+    ALLOCATE(this%itypekp_(0:this%nprocs_-1))
+    ALLOCATE(this%itypeip_(0:this%nprocs_-1))
+    ALLOCATE(this%itypea_(0:this%nprocs_-1))
     ALLOCATE(this%ibsnddst_(nt,this%nzghost_+1))
     ALLOCATE(this%itsnddst_(nt,this%nzghost_+1))
 
@@ -1522,7 +1526,7 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 
 
-  SUBROUTINE GPartComm_Transpose(this,ofield,ifield,idims,rank,tmp)
+  SUBROUTINE GPartComm_Transpose(this,ofield,od,ifield,id,rank,tmp)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : Transpose
@@ -1533,26 +1537,29 @@ MODULE class_GPartComm
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
 !    ofield  : output field, yz-complete 
+!    od      : local dimensions of ofield. 
 !    ifield  : input field that is xy complete
-!    idims   : local dimensions of ifield. 
-!    rank    : rank of field (how many 'idims' array elements)
+!    id      : local dimensions of ifield. 
+!    rank    : rank of field (how many 'od, id' array elements)
 !    tmp     : real field of size required to hold field and its
-!              transpose locally. Must be the same size on all 
-!              MPI tasks
+!              transpose locally. 
 !-----------------------------------------------------------------
     USE mpivars
     USE gtimer
     IMPLICIT NONE
 
     CLASS(GPartComm),INTENT(INOUT)             :: this
-    REAL(KIND=GP),INTENT  (OUT),DIMENSION(*)   :: ofield
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*)   :: ifield,tmp
-    INTEGER      ,INTENT   (IN),DIMENSION(*)   :: idims
+    INTEGER      ,INTENT(INOUT),DIMENSION(3,2) :: od,id
     INTEGER      ,INTENT   (IN)                :: rank
     INTEGER                                    :: i,ii,j,jj,k,kk
     INTEGER                                    :: igetfrom,iproc,irank,isendto,istrip
     INTEGER                                    :: nx,ny,nz,nxy,nzy
-
+    REAL(KIND=GP),INTENT(INOUT)                :: &
+      ofield(od(1,1):od(1,2),od(2,1):od(2,2),od(3,1):od(3,2))
+    REAL(KIND=GP),INTENT(INOUT)                :: &
+      ifield(id(1,1):id(1,2),id(2,1):id(2,2),id(3,1):id(3,2))
+    REAL(KIND=GP),INTENT(INOUT)                :: &
+      tmp   (od(3,1):od(3,2),od(2,1):od(2,2),od(1,1):od(1,2))
 
     IF ( .NOT.this%btransinit_ ) THEN
       IF ( rank.EQ.2 ) THEN
@@ -1563,55 +1570,76 @@ MODULE class_GPartComm
       ENDIF
     ENDIF 
 
-    ! NOTE: rank is transpose problem rank; irank is MPI rank...
-    nx = idims(1)
-    ny = idims(2)
-    IF ( rank .GT. 2 ) nz = idims(3)
-    nxy = nx*ny
-    nzy = nz*ny
 
-    DO iproc = 0, nprocs-1, this%nstrip_
+    ! NOTE: rank is transpose problem rank; irank is MPI rank...
+!   nx = idims(1)
+!   ny = idims(2)
+!   IF ( rank .GT. 2 ) nz = idims(3)
+!   nxy = nx*ny
+!   nzy = nz*ny
+
+    DO iproc = 0, this%nprocs_-1, this%nstrip_
        DO istrip=0, this%nstrip_-1
           irank = iproc + istrip
 
           isendto = this%myrank_ + irank
-          if ( isendto .ge. nprocs ) isendto = isendto - nprocs
+          if ( isendto .ge. this%nprocs_ ) isendto = isendto - this%nprocs_
 
           igetfrom = this%myrank_- irank
-          if ( igetfrom .lt. 0 ) igetfrom = igetfrom + nprocs
-          CALL MPI_IRECV(tmp,1,this%ityper_(igetfrom),igetfrom,      &
+          if ( igetfrom .lt. 0 ) igetfrom = igetfrom + this%nprocs_
+          CALL MPI_IRECV(tmp,1,this%itypeip_(igetfrom),igetfrom,      &
                         1,this%comm_,this%igrh_(irank),this%ierr_)
 
-          CALL MPI_ISEND(ifield,1,this%itypes_(isendto),isendto, &
+if ( this%ierr_ .ne. mpi_success ) then
+  write(*,*)'Transpose: irecv ierr=',this%ierr_
+  stop
+endif
+          CALL MPI_ISEND(ifield,1,this%itypekp_(isendto),isendto, &
                         1,this%comm_,this%igsh_(irank),this%ierr_)
+if ( this%ierr_ .ne. mpi_success ) then
+  write(*,*)'Transpose: isnd ierr=',this%ierr_
+  stop
+endif
        ENDDO
 
        DO istrip=0, this%nstrip_-1
           irank = iproc + istrip
           CALL MPI_WAIT(this%igsh_(irank),this%istatus_,this%ierr_)
+if ( this%ierr_ .ne. mpi_success ) then
+  write(*,*)'Transpose: Send Wait: ierr=',this%ierr_
+  stop
+endif
           CALL MPI_WAIT(this%igrh_(irank),this%istatus_,this%ierr_)
+if ( this%ierr_ .ne. mpi_success ) then
+  write(*,*)'Transpose: Rcv Wait: ierr=',this%ierr_
+  stop
+endif
        ENDDO
     ENDDO
 
     IF ( rank .EQ. 3 ) THEN
 
-!$omp parallel do if ((idims(3)-1)/this%csize_.ge.this%nth_) private (jj,kk,i,j,k)
-    DO ii = 1,nz,this%csize_
-!$omp parallel do if ((idims(3)-1)/this%csize_.lt.this%nth_) private (kk,i,j,k)
-       DO jj = 1,ny,this%csize_
-          DO kk = 1,nx,this%csize_
 
-             DO i = ii,min(nz,ii+this%csize_-1)
-               DO j = jj,min(ny,jj+this%csize_-1)
-                 DO k = kk,min(nx,kk+this%csize_-1)
-                    ofield(k+(j-1)*nz+(i-1)*nzy) = tmp(i+(j-1)*nx+(k-1)*nxy)
-                 END DO
-               END DO
-             END DO
+!!!$omp parallel do if ((idims(3)-1)/this%csize_.ge.this%nth_) private (jj,kk,i,j,k)
+     DO ii = od(3,1),od(3,2),this%csize_
+!!!$omp parallel do if ((idims(3)-1)/this%csize_.lt.this%nth_) private (kk,i,j,k)
+        DO jj = od(2,1),od(2,2),this%csize_
+           DO kk = od(1,1),od(1,2),this%csize_
+ 
+              DO i = ii,min(od(3,2)-od(3,1)+1,ii+this%csize_-1)
+                DO j = jj,min(od(2,2)-od(2,1)+1,jj+this%csize_-1)
+                  DO k = kk,min(od(1,2)-od(1,1)+1,kk+this%csize_-1)
+                     ofield(k,j,i) = tmp(i,j,k)
+!!                   ofield(k+(j-1)*nz+(i-1)*nzy) = tmp(i+(j-1)*nz+(k-1)*nzy)
+!!!                  ofield(k+(j-1)*nx+(i-1)*nxy) = tmp(i+(j-1)*nx+(k-1)*nxy)
+                  END DO
+                END DO
+              END DO
+ 
+           END DO
+        END DO
+     END DO
 
-          END DO
-       END DO
-    END DO
 
     ELSE
 
@@ -1620,7 +1648,7 @@ MODULE class_GPartComm
          DO jj = 1,nx,this%csize_
             DO i = ii,min(ny,ii+this%csize_-1)
               DO j = jj,min(nx,jj+this%csize_-1)
-                 ofield(j+(i-1)*ny) = tmp(i+(j-1)*nx)
+!                ofield(j+(i-1)*ny) = tmp(i+(j-1)*nx)
               END DO
             END DO
          END DO
@@ -1630,6 +1658,138 @@ MODULE class_GPartComm
 
 
   END SUBROUTINE GPartComm_Transpose
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE GPartComm_ITranspose(this,ofield,od,ifield,id,rank,tmp)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : ITranspose
+!  DESCRIPTION: Does global 'inverse'transpose to take a x-y complete field,
+!               infield, to a yz-complete field, outfield. Handles
+!               2D and 3D fields.
+!               
+!  ARGUMENTS  :
+!    this    : 'this' class instance (IN)
+!    ofield  : output field, yz-complete 
+!    od      : local dimensions of ofield. 
+!    ifield  : input field that is xy complete
+!    id      : local dimensions of ifield. 
+!    rank    : rank of field (how many 'od, id' array elements)
+!    tmp     : real field of size required to hold field and its
+!              transpose locally. 
+!-----------------------------------------------------------------
+    USE mpivars
+    USE gtimer
+    IMPLICIT NONE
+
+    CLASS(GPartComm),INTENT(INOUT)             :: this
+    INTEGER      ,INTENT(INOUT),DIMENSION(3,2) :: od,id
+    INTEGER      ,INTENT   (IN)                :: rank
+    INTEGER                                    :: i,ii,j,jj,k,kk
+    INTEGER                                    :: igetfrom,iproc,irank,isendto,istrip
+    INTEGER                                    :: nx,ny,nz,nxy,nzy
+    REAL(KIND=GP),INTENT(INOUT)                :: &
+      ofield(od(1,1):od(1,2),od(2,1):od(2,2),od(3,1):od(3,2))
+    REAL(KIND=GP),INTENT(INOUT)                :: &
+      ifield(id(1,1):id(1,2),id(2,1):id(2,2),id(3,1):id(3,2))
+    REAL(KIND=GP),INTENT(INOUT)                :: &
+      tmp   (od(3,1):od(3,2),od(2,1):od(2,2),od(1,1):od(1,2))
+
+    IF ( .NOT.this%btransinit_ ) THEN
+      IF ( rank.EQ.2 ) THEN
+        CALL GPartComm_InitTrans2D(this)
+      ENDIF
+      IF ( rank.EQ.3 ) THEN
+        CALL GPartComm_InitTrans3D(this)
+      ENDIF
+    ENDIF 
+
+
+    ! NOTE: rank is transpose problem rank; irank is MPI rank...
+!   nx = idims(1)
+!   ny = idims(2)
+!   IF ( rank .GT. 2 ) nz = idims(3)
+!   nxy = nx*ny
+!   nzy = nz*ny
+    IF ( rank .EQ. 3 ) THEN
+
+!!!$omp parallel do if ((idims(3)-1)/this%csize_.ge.this%nth_) private (jj,kk,i,j,k)
+     DO ii = od(3,1),od(3,2),this%csize_
+!!!$omp parallel do if ((idims(3)-1)/this%csize_.lt.this%nth_) private (kk,i,j,k)
+        DO jj = od(2,1),od(2,2),this%csize_
+           DO kk = od(1,1),od(1,2),this%csize_
+ 
+              DO i = ii,min(od(3,2)-od(3,1)+1,ii+this%csize_-1)
+                DO j = jj,min(od(2,2)-od(2,1)+1,jj+this%csize_-1)
+                  DO k = kk,min(od(1,2)-od(1,1)+1,kk+this%csize_-1)
+                     tmp(i,j,k) = ifield(k,j,i)
+!!                   ofield(k+(j-1)*nz+(i-1)*nzy) = tmp(i+(j-1)*nz+(k-1)*nzy)
+!!!                  ofield(k+(j-1)*nx+(i-1)*nxy) = tmp(i+(j-1)*nx+(k-1)*nxy)
+                  END DO
+                END DO
+              END DO
+ 
+           END DO
+        END DO
+     END DO
+
+    ELSE
+
+       DO ii = 1,ny,this%csize_
+         DO jj = 1,nx,this%csize_
+            DO i = ii,min(ny,ii+this%csize_-1)
+              DO j = jj,min(nx,jj+this%csize_-1)
+!                tmp(i,j) = ifield(j,i)
+              END DO
+            END DO
+         END DO
+      END DO
+
+    ENDIF
+
+    DO iproc = 0, this%nprocs_-1, this%nstrip_
+       DO istrip=0, this%nstrip_-1
+          irank = iproc + istrip
+
+          isendto = this%myrank_ + irank
+          if ( isendto .ge. this%nprocs_ ) isendto = isendto - this%nprocs_
+
+          igetfrom = this%myrank_- irank
+          if ( igetfrom .lt. 0 ) igetfrom = igetfrom + this%nprocs_
+          CALL MPI_IRECV(ofield,1,this%itypekp_(igetfrom),igetfrom,      &
+                        1,this%comm_,this%igrh_(irank),this%ierr_)
+
+if ( this%ierr_ .ne. mpi_success ) then
+  write(*,*)'ITranspose: irecv ierr=',this%ierr_
+  stop
+endif
+          CALL MPI_ISEND(tmp,1,this%itypeip_(isendto),isendto, &
+                        1,this%comm_,this%igsh_(irank),this%ierr_)
+if ( this%ierr_ .ne. mpi_success ) then
+  write(*,*)'ITranspose: isnd ierr=',this%ierr_
+  stop
+endif
+       ENDDO
+
+       DO istrip=0, this%nstrip_-1
+          irank = iproc + istrip
+          CALL MPI_WAIT(this%igsh_(irank),this%istatus_,this%ierr_)
+if ( this%ierr_ .ne. mpi_success ) then
+  write(*,*)'ITranspose: Send Wait: ierr=',this%ierr_
+  stop
+endif
+          CALL MPI_WAIT(this%igrh_(irank),this%istatus_,this%ierr_)
+if ( this%ierr_ .ne. mpi_success ) then
+  write(*,*)'ITranspose: Rcv Wait: ierr=',this%ierr_
+  stop
+endif
+       ENDDO
+    ENDDO
+
+
+
+  END SUBROUTINE GPartComm_ITranspose
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -1661,14 +1821,14 @@ MODULE class_GPartComm
        CALL range(1,this%nd_(1),this%nprocs_,irank,ista,iend)
 !      CALL block2d(1,this%nd_(1),jsta,ista,iend,jsta,jend, &
 !                   GC_REAL,itemp1)
-       this%itypes_(irank) = itemp1
+       this%itypekp_(irank) = itemp1
     END DO
     CALL range(1,this%nd_(1),this%nprocs_,this%myrank_,ista,iend)
     DO jrank = 0,this%nprocs_-1
        CALL range(1,this%nd_(2),this%nprocs_,jrank,jsta,jend)
 !      CALL block2d(ista,iend,1,ista,iend,jsta,jend,  &
 !                  GC_REAL,itemp2)
-       this%ityper_(jrank) = itemp2
+       this%itypeip_(jrank) = itemp2
     END DO
     this%btransinit_ = .TRUE.
 
@@ -1702,16 +1862,20 @@ MODULE class_GPartComm
     CALL range(1,this%nd_(3),this%nprocs_,this%myrank_,ksta,kend)
     DO irank = 0,this%nprocs_-1
        CALL range(1,this%nd_(1),this%nprocs_,irank,ista,iend)
+!      CALL block3d(1,this%nd_(1),1,this%nd_(2),ksta,1,iend-ista+1, &
+!                   1,this%nd_(2),1,kend-ksta+1,GC_REAL,itemp1)
        CALL block3d(1,this%nd_(1),1,this%nd_(2),ksta,ista,iend, &
                     1,this%nd_(2),ksta,kend,GC_REAL,itemp1)
-       this%itypes_(irank) = itemp1
+       this%itypekp_(irank) = itemp1
     END DO
     CALL range(1,this%nd_(1),this%nprocs_,this%myrank_,ista,iend)
     DO krank = 0,this%nprocs_-1
        CALL range(1,this%nd_(3),this%nprocs_,krank,ksta,kend)
-       CALL block3d(ista,iend,1,this%nd_(2),1,ista,iend,1,this%nd_(2), &
-                   ksta,kend,GC_REAL,itemp2)
-       this%ityper_(krank) = itemp2
+!      CALL block3d(ista,iend,1,this%nd_(2),1,ista,iend, &
+!                  1,this%nd_(2),1,kend-ksta+1,GC_REAL,itemp2)
+       CALL block3d(ista,iend,1,this%nd_(2),1,ista,iend, &
+                   1,this%nd_(2),ksta,kend,GC_REAL,itemp2)
+       this%itypeip_(krank) = itemp2
     END DO
     this%btransinit_ = .TRUE.
      
