@@ -229,8 +229,8 @@ MODULE gutils
         ALLOCATE(gpdf_(nbins))
         nbins_ = nbins
       ENDIF
-      fpdf_ = 0.0
-      gpdf_ = 0.0
+      fpdf_ = 0.0_GP
+      gpdf_ = 0.0_GP
 
       IF ( ifixdr .le. 0 ) THEN
         ! Compute dynamic range of PDF
@@ -247,21 +247,21 @@ MODULE gutils
       ! Compute local PDF:
 
       IF ( dolog .GT. 0 ) THEN
-        smin = sign(1.0,fmin)
-        smax = sign(1.0,fmax)
+        smin = sign(1.0_GP,fmin)
+        smax = sign(1.0_GP,fmax)
         del = ABS(log10(fmax)-log10(fmin+TINY(1.0_GP)))/dble(nbins)
         DO i = 1, nin
           sr   = sign(1.0,Rin(i))
           ibin = NINT( ( sr*log10(abs(Rin(i))) - smin*log10(abs(fmin+tiny(1.0_GP))) )/del )
           ibin = MIN(MAX(ibin,1),nbins_)
-          fpdf_(ibin) = fpdf_(ibin) + 1.0
+          fpdf_(ibin) = fpdf_(ibin) + 1.0_GP
         ENDDO
       ELSE
         del = (fmax-fmin)/dble(nbins)
         DO i = 1, nin
           ibin = NINT( (Rin(i) - fmin)/del )
           ibin = MIN(MAX(ibin,1),nbins_)
-          fpdf_(ibin) = fpdf_(ibin) + 1.0
+          fpdf_(ibin) = fpdf_(ibin) + 1.0_GP
         ENDDO
       ENDIF
 
