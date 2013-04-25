@@ -296,10 +296,10 @@
       INTEGER :: t,o
       INTEGER :: i,j,k
       INTEGER :: ki,kj,kk
-      INTEGER :: tind,sind
+      INTEGER :: pind,tind,sind
       INTEGER :: timet,timec
       INTEGER :: times,timef
-      INTEGER :: timep,pstep
+      INTEGER :: timep,pstep,lgmult
       INTEGER :: ihcpu1,ihcpu2
       INTEGER :: ihomp1,ihomp2
       INTEGER :: ihwtm1,ihwtm2
@@ -311,11 +311,12 @@
       INTEGER :: corr
 #endif
 #ifdef LAGPART_
-      INTEGER                :: maxparts
-      TYPE          (GPINIT) :: ilginittype
-      TYPE         (GPINTRP) :: ilgintrptype
-      TYPE      (GPEXCHTYPE) :: ilgexchtype
-      TYPE           (GPart) :: lagpart
+      INTEGER      :: maxparts
+      INTEGER      :: ilginittype
+      INTEGER      :: ilgintrptype
+      INTEGER      :: ilgexchtype
+      INTEGER      :: ilgouttype
+      TYPE (GPart) :: lagpart
 #endif
 !$    INTEGER, EXTERNAL :: omp_get_max_threads
 
@@ -377,7 +378,7 @@
       NAMELIST / edqnmles / kolmo,heli
 #endif
 #ifdef LAGPART_
-      NAMELIST / lagpart / pstep,maxparts,ilginittype,ilgintrptype,ilgexchtype,lgseedfile
+      NAMELIST / plagpart / lgmult,maxparts,ilginittype,ilgintrptype,ilgexchtype,ilgouttype,lgseedfile
 #endif
 
 ! Initializes the MPI and I/O libraries
@@ -385,8 +386,12 @@
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
 
-#if defined(DEF_GHOST_CUDA_)
-#if 0
+! NOTE: On systems with a single GPU per node (e.g., titan)
+!       we remove the following block. But on systems with 
+!       multiple devices per node, this will have to be 
+!       considered carefully, and possibly re-def'd:
+#if 0   
+  #if 0
 ! Initializes CUDA for Linux-based systems. This is a call to an
 ! NVIDIA-developed intermediary code that gets the GPU dev. no. 
 ! by looking in cpu_info and finding the device that resides on 
@@ -397,7 +402,7 @@
      idevice = -1
      iret    = setaffinity_for_nvidia(myrank,ppn,idevice)
      iret    = cudaSetDevice(idevice);
-#else
+  #else
 ! Initializes CUDA by selecting device. The list of devices can
 ! be changed by the modifying the env. variable CUDA_VISIBLE_DEVICES:
      iret    = cudaGetDeviceCount(ncuda)
@@ -415,7 +420,7 @@
        STOP
      ENDIF
      iret = cudaGetDevice(idevice)
-#endif
+  #endif
 #endif
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       CALL range(1,n,nprocs,myrank,ksta,kend)
@@ -898,24 +903,31 @@
 #endif
 
 #ifdef LAGPART_
-      maxparts     = 100000
+      maxparts     = 1000
       ilginittype  = GPINIT_RANDLOC
       ilgintrptype = GPINTRP_CSPLINE
       ilgexchtype  = GPEXCHTYPE_VDB
-      pstep        = 10
-      lgseedfile   = 'gplog.dat'
+      ilgouttype   = 0
+      lgmult       = 1
+      lgseedfile   = 'gplag.dat'
 !
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.txt',status='unknown',form="formatted")
-         READ(1,NML=lagpart)
+         READ(1,NML=plagpart)
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(maxparts    ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(pstep       ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(lgmult      ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilginittype ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilgintrptype,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilgexchtype ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      lagpart%SetSeedFile(lgseedfile)
+      CALL MPI_BCAST(ilgouttype  ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(lgseedfile,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      IF ( mod(tstep,lgmult).NE.0 ) THEN
+        WRITE(*,*)'main: lgmult must divide tstep evenly'
+        STOP
+      ENDIF  
+      pstep = tstep/lgmult
 #endif
 
 !
@@ -979,8 +991,9 @@
       ENDIF
 
 #ifdef LAGPART_
-      CALL lagpart%GPart_ctor(MPI_COMM_WORLD,MAXPARTS,igpinit,&
-           GPINTRP_CSPLINE,3,GPEXCHTYPE_VDB,CSIZE_,NSTRIP_)
+      CALL lagpart%GPart_ctor(MPI_COMM_WORLD,maxparts,ilginittype,&
+           ilgintrptype,3,ilgexchtype,ilgouttype,csize,nstrip)
+      CALL lagpart%SetSeedFile(trim(lgseedfile))
 #endif
 
 !
@@ -1001,6 +1014,7 @@
       ini = 1
       sind = 0                          ! index for the spectrum
       tind = 0                          ! index for the binaries
+      pind = 0                          ! index for the particles
       timet = tstep
       timec = cstep
       times = sstep
@@ -1012,6 +1026,9 @@
 #ifdef MAGFIELD_
       INCLUDE 'initialb.f90'            ! initial vector potential
 #endif
+#ifdef LAGPART_
+      CALL lagpart%Init()
+#endif
 
       ELSE
 
@@ -1020,6 +1037,7 @@
       ini = int((stat-1)*tstep)
       tind = int(stat)
       sind = int(real(ini,kind=GP)/real(sstep,kind=GP)+1)
+      pind = int(real(ini,kind=GP)/real(pstep,kind=GP)+1)
       WRITE(ext, fmtext) tind
       times = 0
       timet = 0
@@ -1077,9 +1095,11 @@
          ini = 1                     ! resets all counters (the
          sind = 0                    ! run starts at t=0)
          tind = 0
+         pind = 0
          timet = tstep
          timec = cstep
          times = sstep
+         timep = pstep
       ENDIF INJ
 #endif
 
@@ -1116,14 +1136,16 @@
          ini = 1                     ! resets all counters (the
          sind = 0                    ! dynamo run starts at t=0)
          tind = 0
+         pind = 0
          timet = tstep
          timec = cstep
          times = sstep
+         timep = pstep
       ENDIF DYN
 #endif
 
 #ifdef LAGPART_
-      CALL lagpart%io_read(1,idir,lgpart,ext)
+      CALL lagpart%io_read(1,idir,'lgpart',ext)
 #endif
 
       ENDIF IC
@@ -1490,7 +1512,9 @@
 #ifdef LAGPART_
          IF ((timep.eq.pstep).and.(bench.eq.0)) THEN
            timep = 0
-           CALL lagpart%io_write(1,odir,'lgpart',ext,(t-1)*dt)
+           pind = pind+1
+           WRITE(ext, fmtext) pind
+           CALL lagpart%io_write_pdb(1,odir,'lgpart',ext,(t-1)*dt)
          ENDIF
 #endif
 
@@ -1769,15 +1793,31 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
         DO j = 1,n
           DO k = 1,n
-            C1(k,j,i) = vx(k,j,i)/real(n,kind=GP)**3
-            C2(k,j,i) = vy(k,j,i)/real(n,kind=GP)**3
-            C3(k,j,i) = vz(k,j,i)/real(n,kind=GP)**3
+            C7(k,j,i) = vx(k,j,i)/real(n,kind=GP)**3
           END DO
         END DO
       END DO
-      CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,C7,R1,MPI_COMM_WORLD)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,n
+          DO k = 1,n
+            C7(k,j,i) = vy(k,j,i)/real(n,kind=GP)**3
+          END DO
+        END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,C7,R2,MPI_COMM_WORLD)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,n
+          DO k = 1,n
+            C7(k,j,i) = vz(k,j,i)/real(n,kind=GP)**3
+          END DO
+        END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,C7,R3,MPI_COMM_WORLD)
       CALL lagpart%Step(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),R4,R5)
 #endif
 
@@ -1787,6 +1827,7 @@
          times = times+1
          timec = timec+1
          timef = timef+1
+         timep = timep+1
 
       END DO RK
 
