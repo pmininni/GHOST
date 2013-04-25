@@ -6,6 +6,16 @@
 ! given in the book 'The theory of splines and their application'
 ! 1967, by Ahlberg, Nilson, Walsh.
 !
+! There are 3 main public calls to this class:
+!
+!   CALL this%intop_%PartUpdate3D(this%px_,this%py_,this%pz_,this%nparts_)
+!   CALL this%intop_%CompSpline3D(evar,tmp1,tmp2)
+!   CALL this%intop_%DoInterp3D(lag,nl)
+! 
+! The first updates the interpolation points; the second computes the
+! control point function, which, here, is global; the third ccarries out
+! the actual interpolation to the interpolation points. 
+!
 ! Note that this class assumes a regularly spaced grid.
 !
 ! 2013 A. Pumir (ENS, Lyon)
@@ -30,7 +40,7 @@ MODULE class_GPSplineInt
         REAL(KIND=GP),ALLOCATABLE,DIMENSION    (:)   :: az_,bz_,betz_,cz_,gamz_,pz_,xxz_
         REAL(KIND=GP),ALLOCATABLE,DIMENSION    (:)   :: xrk_,yrk_,zrk_
         REAL(KIND=GP),ALLOCATABLE,DIMENSION  (:,:)   :: wrkl_
-        REAL(KIND=GP)                                :: dxi_(3),xbnds_(3,2),zetax_,zetay_,zetaz_
+        REAL(KIND=GP)                                :: dx_(3),dxi_(3),xbnds_(3,2),zetax_,zetay_,zetaz_
         TYPE(GPartComm),POINTER                      :: gpcomm_
         INTEGER      ,ALLOCATABLE,DIMENSION  (:,:)   :: ilg_,jlg_,klg_
         INTEGER                                      :: maxint_
@@ -66,7 +76,7 @@ MODULE class_GPSplineInt
 ! Methods:
   CONTAINS
 
-  SUBROUTINE GPSplineInt_ctor(this,rank,nd,ibnds,xbnds,maxpart,gpcomm)
+  SUBROUTINE GPSplineInt_ctor(this,rank,nd,ibnds,maxpart,gpcomm)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Main explicit constructor
@@ -76,22 +86,17 @@ MODULE class_GPSplineInt
 !    nd      : global grid size in each direction
 !    ibnds   : starting and ending indices for each direction for this MPI task.
 !              Integer array of size (rank,2).
-!    xbnds   : starting and stopping coordinates in each direction for this
-!              task. Real array of size (rank,2)
 !    maxpart : max no. interpolation points/Lag. particles
 !    gpcomm  : GHOST particle communicator object
 !-----------------------------------------------------------------
     IMPLICIT NONE
-    CLASS(GPSplineInt)                         :: this
-    TYPE(GPartComm), TARGET                    :: gpcomm
-    INTEGER      ,INTENT(IN)                   :: rank,maxpart
-    INTEGER      ,INTENT(IN),DIMENSION  (rank) :: nd
-    INTEGER      ,INTENT(IN),DIMENSION(rank,2) :: ibnds
-    INTEGER                                    :: j,k
-    REAL(KIND=GP),INTENT(IN),DIMENSION(rank,2) :: xbnds
+    CLASS(GPSplineInt)                           :: this
+    TYPE(GPartComm),TARGET                       :: gpcomm
+    INTEGER        ,INTENT(IN)                   :: rank,maxpart
+    INTEGER        ,INTENT(IN),DIMENSION  (rank) :: nd
+    INTEGER        ,INTENT(IN),DIMENSION(rank,2) :: ibnds
+    INTEGER                                      :: j,k
 
-
-    
     this%gpcomm_ => gpcomm
     this%maxint_  = maxpart
     this%rank_    = rank
@@ -101,12 +106,16 @@ MODULE class_GPSplineInt
     DO j = 1, this%rank_
       DO k = 1,2
         this%ibnds_(j,k)  = ibnds(j,k)
-        this%xbnds_(j,k)  = xbnds(j,k)
+        this%xbnds_(j,k)  = real(ibnds(j,k),kind=GP)-1.0_GP
       ENDDO
       this%ldims_(j)  = ibnds(j,2) - ibnds(j,1) + 1
       this%nd_   (j)  = nd   (j)
       this%ntot_ = this%ntot_*this%ldims_(j)
     ENDDO
+    ! Note: the summand 2.0_GP is the number of z-ghost zones for
+    !       each MPI task:
+    this%xbnds_(3,1)  = this%xbnds_(3,1)-2.0_GP+epsilon(1.0_GP)
+    this%xbnds_(3,2)  = this%xbnds_(3,2)+2.0_GP-epsilon(1.0_GP)
 
     IF ( this%rank_.LT.2 .OR. this%rank_.GT.3 ) THEN
       WRITE(*,*)'GPSplineInt::ctor: Invalid rank'
@@ -213,10 +222,10 @@ MODULE class_GPSplineInt
     two    = 2.0_GP
 !
     IF ( this%ider_(1).EQ.0 ) THEN
-    xsm=1.0
+    xsm=1.0_GP
     DO lag=1,np
       xx = this%xrk_(lag)
-      xxm = (1.0-xx)
+      xxm = (1.0_GP-xx)
        this%wrkl_(1,lag) = sixth*xxm*xxm*xxm
        this%wrkl_(2,lag) = sixth*(four+xx*xx*(three*xx-six))
        this%wrkl_(3,lag) = sixth*(four+xxm*xxm*(three*xxm-six))
@@ -224,10 +233,10 @@ MODULE class_GPSplineInt
     ENDIF
 !
     IF ( this%ider_(1).EQ.1 ) THEN
-    xsm=0.0
+    xsm=0.0_GP
     DO lag=1,np
       xx = this%xrk_(lag)
-      xxm = (1.0-xx)
+      xxm = (1.0_GP-xx)
        this%wrkl_(1,lag) = halfm*xxm*xxm*this%dxi_(1)
        this%wrkl_(2,lag) = xx*(threeh*xx-two)*this%dxi_(1)
        this%wrkl_(3,lag) = -xxm*(threeh*xxm-two)*this%dxi_(1)
@@ -235,10 +244,10 @@ MODULE class_GPSplineInt
     ENDIF
 !
     IF ( this%ider_(2).EQ.0 ) THEN
-    ysm=1.0
+    ysm=1.0_GP
     DO lag=1,np
       yy = this%yrk_(lag)
-      yym = (1.0-yy)
+      yym = (1.0_GP-yy)
        this%wrkl_(4,lag) = sixth*yym*yym*yym
        this%wrkl_(5,lag) = sixth*(four+yy*yy*(three*yy-six))
        this%wrkl_(6,lag) = sixth*(four+yym*yym*(three*yym-six))
@@ -246,10 +255,10 @@ MODULE class_GPSplineInt
     ENDIF
 !
     IF( this%ider_(2).EQ.1 ) THEN
-    ysm=0.0
+    ysm=0.0_GP
     DO lag=1,np
       yy = this%yrk_(lag)
-      yym = (1.0-yy)
+      yym = (1.0_GP-yy)
        this%wrkl_(4,lag) = halfm*yym*yym*this%dxi_(2)
        this%wrkl_(5,lag) = yy*(threeh*yy-two)*this%dxi_(2)
        this%wrkl_(6,lag) = -yym*(threeh*yym-two)*this%dxi_(2)
@@ -257,10 +266,10 @@ MODULE class_GPSplineInt
     ENDIF
 !
     IF ( this%ider_(3).EQ.0 ) THEN
-    zsm=1.0
+    zsm=1.0_GP
     DO lag=1,np
       zz = this%zrk_(lag)
-      zzm = (1.0-zz)
+      zzm = (1.0_GP-zz)
        this%wrkl_(7,lag) = sixth*zzm*zzm*zzm
        this%wrkl_(8,lag) = sixth*(four+zz*zz*(three*zz-six))
        this%wrkl_(9,lag) = sixth*(four+zzm*zzm*(three*zzm-six))
@@ -271,34 +280,37 @@ MODULE class_GPSplineInt
     zsm=0.0
     DO lag=1,np
       zz = this%zrk_(lag)
-      zzm = (1.0-zz)
+      zzm = (1.0_GP-zz)
        this%wrkl_(7,lag) = halfm*zzm*zzm*this%dxi_(3)
        this%wrkl_(8,lag) = zz*(threeh*zz-two)*this%dxi_(3)
        this%wrkl_(9,lag) = -zzm*(threeh*zzm-two)*this%dxi_(3)
     ENDDO
     ENDIF
 !
-    IF(this%ider_(1).eq.0) xsm = 1.
-    IF(this%ider_(1).eq.1) xsm = 0.
-    IF(this%ider_(1).eq.0) ysm = 1.
-    IF(this%ider_(1).eq.1) ysm = 0.
-    IF(this%ider_(1).eq.0) ysm = 1.
-    IF(this%ider_(1).eq.1) ysm = 0.
+    IF(this%ider_(1).eq.0) xsm = 1.0_GP
+    IF(this%ider_(1).eq.1) xsm = 0.0_GP
+    IF(this%ider_(2).eq.0) ysm = 1.0_GP
+    IF(this%ider_(2).eq.1) ysm = 0.0_GP
+    IF(this%ider_(3).eq.0) zsm = 1.0_GP
+    IF(this%ider_(3).eq.1) zsm = 0.0_GP
 
 !
     DO lag=1,np
       xx1 = this%wrkl_(1,lag)
       xx2 = this%wrkl_(2,lag)
       xx3 = this%wrkl_(3,lag)
-      xx4 = xsm - xx1 -xx2 - xx3
+      xx4 = xsm - xx1 - xx2 - xx3
       yy1 = this%wrkl_(4,lag)
       yy2 = this%wrkl_(5,lag)
       yy3 = this%wrkl_(6,lag)
-      yy4 = ysm - yy1 -yy2 - yy3
+      yy4 = ysm - yy1 - yy2 - yy3
       zz1 = this%wrkl_(7,lag)
       zz2 = this%wrkl_(8,lag)
       zz3 = this%wrkl_(9,lag)
-      zz4 = zsm - zz1 -zz2 - zz3
+      zz4 = zsm - zz1 - zz2 - zz3
+!write(*,*)'part=',lag,' xx1=',xx1,' xx2=',xx2,' xx3=',xx3,' xx4=',xx4
+!write(*,*)'part=',lag,' yy1=',yy1,' yy2=',yy2,' yy3=',yy3,' ty4=',yy4
+!write(*,*)'part=',lag,' zz1=',zz1,' zz2=',zz2,' zz3=',zz3,' zz4=',zz4
 
       fp(lag) =  &
         this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx1*yy1*zz1 &
@@ -427,7 +439,7 @@ MODULE class_GPSplineInt
       bok = bok .AND. (yp(j).GE.this%xbnds_(2,1).AND.yp(j).LE.this%xbnds_(2,2))
     ENDDO
     IF ( .NOT. bok ) THEN
-      WRITE(*,*) 'GPSplineInt::PartUpdate2D: Invalid particle z-range'
+      WRITE(*,*) 'GPSplineInt::PartUpdate2D: Invalid particle y-range'
       STOP
     ENDIF
     DO j = 1, np
@@ -464,7 +476,7 @@ MODULE class_GPSplineInt
 !    np       : no. interp points or particles.
 !-----------------------------------------------------------------
     IMPLICIT NONE
-    CLASS(GPSplineInt)                     :: this
+    CLASS(GPSplineInt)                    :: this
     REAL(KIND=GP),INTENT(IN),DIMENSION(*) :: xp,yp,zp
     INTEGER      ,INTENT(IN)              :: np
     INTEGER                               :: j,nx,ny,nz
@@ -478,36 +490,45 @@ MODULE class_GPSplineInt
  
     ! x-coords:
     DO j = 1, np
-      this%ilg_(1,j) = xp(j)*this%dxi_(1)
-      this%xrk_  (j) = xp(j)*this%dxi_(1) - real(this%ilg_(1,j),kind=GP)
+      this%ilg_(1,j) = (xp(j)-this%xbnds_(1,1))*this%dxi_(1)
+      this%xrk_  (j) = (xp(j)-this%xbnds_(1,1))*this%dxi_(1) - real(this%ilg_(1,j),kind=GP)
       this%ilg_(2,j) = this%ilg_(1,j) + 1
       this%ilg_(3,j) = mod(this%ilg_(2,j),nx) + 1
       this%ilg_(4,j) = mod(this%ilg_(3,j),nx) + 1
       this%ilg_(1,j) = mod(nx+this%ilg_(2,j)-2,nx) + 1
+if ( this%ilg_(2,j).le.0 .or. this%ilg_(2,j).gt.nx ) then
+write(*,*)'PartUpdate3D: j=',j,' p=',xp(j),yp(j),zp(j)
+stop
+endif
     ENDDO
       
     ! y-coords:
     DO j = 1, np
-      this%jlg_(1,j) = yp(j)*this%dxi_(2)
-      this%yrk_  (j) = yp(j)*this%dxi_(2) - real(this%jlg_(1,j),kind=GP)
+      this%jlg_(1,j) = (yp(j)-this%xbnds_(2,1))*this%dxi_(2)
+      this%yrk_  (j) = (yp(j)-this%xbnds_(2,1))*this%dxi_(2) - real(this%jlg_(1,j),kind=GP)
       this%jlg_(2,j) = this%jlg_(1,j) + 1
       this%jlg_(3,j) = mod(this%jlg_(2,j),ny) + 1
       this%jlg_(4,j) = mod(this%jlg_(3,j),ny) + 1
       this%jlg_(1,j) = mod(ny+this%jlg_(2,j)-2,ny) + 1
+if ( this%jlg_(2,j).le.0 .or. this%jlg_(2,j).gt.ny ) then
+write(*,*)'PartUpdate3D: j=',j,' p=',xp(j),yp(j),zp(j)
+stop
+endif
     ENDDO
 
     ! z-coords:
     ! Note that the zp are on the _global_ grid, so
-    ! we have to restrict to this M{PI task's slab 
+    ! we have to restrict to this MPI task's slab 
     ! before computing local indices and spline coordinates....
     ! 
     ! First, do a check:
     bok = .true.
     DO j = 1, np
-      bok = bok .AND. (zp(j).GE.this%xbnds_(3,1).AND.zp(j).LE.this%xbnds_(3,2))
+      bok = bok .AND. (zp(j).GT.this%xbnds_(3,1).AND.zp(j).LT.this%xbnds_(3,2))
     ENDDO
     IF ( .NOT. bok ) THEN
       WRITE(*,*) 'GPSplineInt::PartUpdate3D: Invalid particle z-range'
+      WRITE(*,*) 'GPSplineInt::zbnd_0=',this%xbnds_(3,1),';  zbnd_1=',this%xbnds_(3,2), 'zp=',zp(j)
       STOP
     ENDIF
     DO j = 1, np
@@ -517,8 +538,28 @@ MODULE class_GPSplineInt
       this%klg_(2,j) = this%klg_(1,j) + 1
       this%klg_(3,j) = this%klg_(2,j) + 1
       this%klg_(4,j) = this%klg_(3,j) + 1
-      this%klg_(1,j) = this%klg_(2,j) - 1
+!!    this%klg_(1,j) = this%klg_(2,j) - 1
+
+
+!     this%klg_(1,j) = (zp(j)-this%xbnds_(3,1))*this%dxi_(3)
+!     this%zrk_  (j) = (zp(j)-this%xbnds_(3,1))*this%dxi_(3) - real(this%klg_(1,j),kind=GP)
+!     this%klg_(2,j) = this%klg_(1,j) + 1
+!     this%klg_(3,j) = mod(this%klg_(2,j),nz) + 1
+!     this%klg_(4,j) = mod(this%klg_(3,j),nz) + 1
+!     this%klg_(1,j) = mod(nz+this%klg_(2,j)-2,nz) + 1
     ENDDO
+!!write(*,*)'PartUpdate3D: '
+!!do j=1, np
+!!  write(*,*)'xp=',xp(j),' ilg=',this%ilg_(2,j)
+!!enddo
+!!write(*,*)'...'
+!!do j=1, np
+!!  write(*,*)'yp=',yp(j),' jlg=',this%jlg_(2,j)
+!!enddo
+!!write(*,*)'...'
+!!do j=1, np
+!!  write(*,*)'zp=',zp(j),' zrk=',this%zrk_(j),' klg=',this%klg_(2,j)
+!!enddo
 
   END SUBROUTINE GPSplineInt_PartUpdate3D
 !-----------------------------------------------------------------
@@ -580,17 +621,21 @@ MODULE class_GPSplineInt
       ALLOCATE(this%esplfld_(this%ldims_(1),this%ldims_(2),(this%ldims_(3)+2*nzg)) )
     ENDIF
 
-    ALLOCATE(this%ax_   (this%ldims_(1)) )
-    ALLOCATE(this%bx_   (this%ldims_(1)) )
-    ALLOCATE(this%cx_   (this%ldims_(1)) )
-    ALLOCATE(this%gamx_ (this%ldims_(1)) )
-    ALLOCATE(this%xxx_  (this%ldims_(1)) )
+    ALLOCATE(this%ax_   (this%nd_(1)) )
+    ALLOCATE(this%bx_   (this%nd_(1)) )
+    ALLOCATE(this%cx_   (this%nd_(1)) )
+    ALLOCATE(this%betx_ (this%nd_(1)) )
+    ALLOCATE(this%gamx_ (this%nd_(1)) )
+    ALLOCATE(this%px_   (this%nd_(1)) )
+    ALLOCATE(this%xxx_  (this%nd_(1)) )
 
-    ALLOCATE(this%ay_   (this%ldims_(2)) )
-    ALLOCATE(this%by_   (this%ldims_(2)) )
-    ALLOCATE(this%cy_   (this%ldims_(2)) )
-    ALLOCATE(this%gamy_ (this%ldims_(2)) )
-    ALLOCATE(this%xxy_  (this%ldims_(2)) )
+    ALLOCATE(this%ay_   (this%nd_(2)) )
+    ALLOCATE(this%by_   (this%nd_(2)) )
+    ALLOCATE(this%cy_   (this%nd_(2)) )
+    ALLOCATE(this%bety_ (this%nd_(1)) )
+    ALLOCATE(this%gamy_ (this%nd_(2)) )
+    ALLOCATE(this%py_   (this%nd_(1)) )
+    ALLOCATE(this%xxy_  (this%nd_(2)) )
 
     ALLOCATE(this%wrkl_(9,this%maxint_))
     ALLOCATE(this%ilg_(4,this%maxint_))
@@ -601,11 +646,13 @@ MODULE class_GPSplineInt
     ALLOCATE(this%zrk_(this%maxint_))
 
     IF ( this%rank_ .GT. 2 ) THEN
-    ALLOCATE(this%az_   (this%ldims_(3)) )
-    ALLOCATE(this%bz_   (this%ldims_(3)) )
-    ALLOCATE(this%cz_   (this%ldims_(3)) )
-    ALLOCATE(this%gamz_ (this%ldims_(3)) )
-    ALLOCATE(this%xxz_  (this%ldims_(3)) )
+    ALLOCATE(this%az_   (this%nd_(3)) )
+    ALLOCATE(this%bz_   (this%nd_(3)) )
+    ALLOCATE(this%cz_   (this%nd_(3)) )
+    ALLOCATE(this%betz_ (this%nd_(1)) )
+    ALLOCATE(this%gamz_ (this%nd_(3)) )
+    ALLOCATE(this%pz_   (this%nd_(1)) )
+    ALLOCATE(this%xxz_  (this%nd_(3)) )
     ENDIF
 
   END SUBROUTINE GPSplineInt_DoAlloc
@@ -673,23 +720,22 @@ MODULE class_GPSplineInt
 !-----------------------------------------------------------------
     IMPLICIT NONE
     CLASS(GPSplineInt)        :: this
-    REAL(KIND=GP)            :: beta,sixth,twotrd
-    INTEGER                  :: j
+    INTEGER                   :: j
 
 
     CALL GPSplineInt_DoAlloc(this)
 
     ! Compute interval widths:
     DO j = 1, this%rank_
-      this%dxi_(j) = real(this%ldims_(j)-1,kind=GP)/ ( this%xbnds_(j,2) - this%xbnds_(j,1) )
+      this%dxi_(j) = 1.0_GP  !real(this%ldims_(j)-1,kind=GP)/ ( this%xbnds_(j,2) - this%xbnds_(j,1) )
     ENDDO
 
-    CALL GPSplineInt_MatInvQ(this,this%ldims_(1),this%ax_,this%bx_,this%cx_,&
+    CALL GPSplineInt_MatInvQ(this,this%nd_(1),this%ax_,this%bx_,this%cx_,&
          this%px_,this%gamx_,this%betx_,this%xxx_,this%zetax_)
-    CALL GPSplineInt_MatInvQ(this,this%ldims_(2),this%ay_,this%by_,this%cy_,&
+    CALL GPSplineInt_MatInvQ(this,this%nd_(2),this%ay_,this%by_,this%cy_,&
     this%py_,this%gamy_,this%bety_,this%xxy_,this%zetay_)
     IF ( this%rank_ .GT. 2 ) THEN
-    CALL GPSplineInt_MatInvQ(this,this%ldims_(3),this%az_,this%bz_,this%cz_,&
+    CALL GPSplineInt_MatInvQ(this,this%nd_(3),this%az_,this%bz_,this%cz_,&
     this%pz_,this%gamz_,this%betz_,this%xxz_,this%zetaz_)
     ENDIF
 
@@ -717,8 +763,8 @@ MODULE class_GPSplineInt
 
 
 !  Setup the arrays for the inversion:
-        sixth = 1.0/6.0
-        twotrd=2.0/3.0
+        sixth = 1.0_GP/6.0_GP
+        twotrd= 2.0_GP/3.0_GP
         DO i = 1, n
           a(i) = sixth
           c(i) = sixth
@@ -804,14 +850,13 @@ MODULE class_GPSplineInt
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%ntot_) :: tmp1,tmp2
     INTEGER                                           :: i,j,k
     INTEGER                                           :: jm,km
-    INTEGER                                           :: nx,nxy,ny,nz,idims(3)
+    INTEGER                                           :: nx,nxy,ny,nz
+    INTEGER                                           :: ibnds(3,2)
 
     nx = this%ldims_(1)
     ny = this%ldims_(2)
     nz = this%ldims_(3)
     nxy = nx*ny
-
-!   tmp2 = reshape(tmp2,(/nx,ny,nz/))
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!! x-field computation !!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -895,7 +940,7 @@ MODULE class_GPSplineInt
          DO i=1,nx
            tmp2    (i+jm*nx+km*nxy) = &
            ( field(i+jm*nx+km*nxy) - this%ay_(j)*tmp2(i+(jm-1)*nx+km*nxy) )*this%bety_(j)
-           tmp2   (i+(ny-1)*nx+km*nxy) = tmp2(i+(ny-1)*jm+km*nxy) - this%xxy_(j-1)*tmp2(i+(jm-1)*nx+km*nxy)
+           tmp2   (i+(ny-1)*nx+km*nxy) = tmp2(i+(ny-1)*nx+km*nxy) - this%xxy_(j-1)*tmp2(i+(jm-1)*nx+km*nxy)
          ENDDO
        ENDDO
     ENDDO
@@ -904,7 +949,7 @@ MODULE class_GPSplineInt
       km = k-1
       DO i=1,nx
         tmp2    (i+(ny-2)*nx+km*nxy) = &
-        (field(i+(ny-1)*nx+km*nxy) - this%ay_(ny-1)*tmp2(i+(ny-3)*nx+km*nxy))*this%bety_(ny-1)
+        (field(i+(ny-2)*nx+km*nxy) - this%ay_(ny-1)*tmp2(i+(ny-3)*nx+km*nxy))*this%bety_(ny-1)
         tmp2      (i+(ny-1)*nx+km*nxy) = tmp2(i+(ny-1)*nx+km*nxy) - this%xxy_(ny-2)*tmp2(i+(ny-2)*nx+km*nxy)
 !  ** n  **
         tmp2(i+(ny-1)*nx+km*nxy) = (tmp2(i+(ny-1)*nx+km*nxy) - tmp2(i+(ny-2)*nx+km*nxy)*this%zetay_) &
@@ -924,17 +969,17 @@ MODULE class_GPSplineInt
         ENDDO
       ENDDO
     ENDDO
-!
+ 
 !  Copy splfld -> field :
-!!  DO k=1,nz
-!!    km = k-1
-!!    DO j=1,ny
-!!      jm = j-1
-!!      DO i=1,nx
-!!        field(i+jm*nx+km*nxy) = tmp2(i,j,k)
-!!      ENDDO
-!!    ENDDO
-!!  ENDDO
+    DO k=1,nz
+      km = k-1
+      DO j=1,ny
+        jm = j-1
+        DO i=1,nx
+          field(i+jm*nx+km*nxy) = tmp2(i+jm*nx+km*nxy)
+        ENDDO
+      ENDDO
+    ENDDO
 
 ! Note tmp2 now contains the contributions for full tensor product
 ! field from x, y only....
@@ -944,11 +989,26 @@ MODULE class_GPSplineInt
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Must transpose data so that it is z-y complete, in order to
 ! carry out computation in z:
-    CALL this%gpcomm_%GTranspose(field,tmp2,this%ldims_,3,tmp1)
+!!    call gpcomm%GTranspose (vt,obnds,v ,ibnds,3,tmp1) ! make z-y complete
+!!    call gpcomm%GITranspose(vb,ibnds,vt,obnds,3,tmp1) ! make x-y complete again
+
+    ibnds(1,1) = 1
+    ibnds(1,2) = this%nd_(1)
+    ibnds(2,1) = 1
+    ibnds(2,2) = this%nd_(2)
+    ibnds(3,1) = 1  
+    ibnds(3,2) = this%ldims_(3)
+
+    CALL this%gpcomm_%GTranspose(field,ibnds,tmp2,ibnds,3,tmp1)
     nx = this%nd_(3)
     ny = this%nd_(2)
     nz = this%ldims_(3)
     nxy = nx*ny
+
+!!  nx = this%nd_(1)
+!!  ny = this%nd_(2)
+!!  nz = this%ldims_(3)
+!!  nxy = nx*ny
 !
 !  Compute the k-equation (coefficient in z) :
 !  Note that the we work on the transposed system here...;
@@ -959,7 +1019,7 @@ MODULE class_GPSplineInt
       km = k-1
       DO j=1,ny
         jm = j-1
-        tmp2 (1+jm*nx+km*nxy) = field(1+jm*nx+km*nxy)*this%betx_(1)
+        tmp2 (1+jm*nx+km*nxy) = field(1+jm*nx+km*nxy)*this%betz_(1)
         tmp2(nx+jm*nx+km*nxy) = field(nx+jm*nx+km*nxy)
       ENDDO
     ENDDO
@@ -970,8 +1030,8 @@ MODULE class_GPSplineInt
         DO j=1,ny
           jm = j-1
           tmp2 (i+jm*nx+km*nxy) =  &
-          (field(i+jm*nx+km*nxy) - this%ax_(i)*tmp2(i-1+jm*nx+km*nxy) )*this%betx_(i) 
-          tmp2(nx+jm*nx+km*nxy) = tmp2(nx+jm*nx+km*nxy) - this%xxx_(i-1)*tmp2(i-1+jm*nx+km*nxy)
+          (field(i+jm*nx+km*nxy) - this%az_(i)*tmp2(i-1+jm*nx+km*nxy) )*this%betz_(i) 
+          tmp2(nx+jm*nx+km*nxy) = tmp2(nx+jm*nx+km*nxy) - this%xxz_(i-1)*tmp2(i-1+jm*nx+km*nxy)
         ENDDO
       ENDDO
     ENDDO
@@ -982,47 +1042,104 @@ MODULE class_GPSplineInt
         jm = j-1
 !  ** n-1 **
         tmp2 (nx-1+jm*nx+km*nxy) = &
-        (field(nx-1+jm*nx+km*nxy) - this%ax_(nx-1)*tmp2(nx-2+jm*nx+km*nxy))*this%betx_(nx-1)
-        tmp2 (nx+jm*nx+km*nxy) = tmp2(nx+jm*nx+km*nxy) - this%xxx_(nx-2)*tmp2(nx-1+jm*nx+km*nxy)
+        (field(nx-1+jm*nx+km*nxy) - this%az_(nx-1)*tmp2(nx-2+jm*nx+km*nxy))*this%betz_(nx-1)
+        tmp2 (nx+jm*nx+km*nxy) = tmp2(nx+jm*nx+km*nxy) - this%xxz_(nx-2)*tmp2(nx-1+jm*nx+km*nxy)
 !  ** n  **
-        tmp2 (nx+jm*nx+km*nxy) = (tmp2(nx+jm*nx+km*nxy) - tmp2(nx-1+jm*nx+km*nxy)*this%zetax_) &
-                                * this%betx_(nx)
+        tmp2 (nx+jm*nx+km*nxy) = (tmp2(nx+jm*nx+km*nxy) - tmp2(nx-1+jm*nx+km*nxy)*this%zetaz_) &
+                                * this%betz_(nx)
 !  Backsubstitution phase :
-        tmp2(nx-1+jm*nx+km*nxy) = tmp2(nx-1+jm*nx+km*nxy) - this%gamx_(nx)*tmp2(nx+jm*nx+km*nxy)
+        tmp2(nx-1+jm*nx+km*nxy) = tmp2(nx-1+jm*nx+km*nxy) - this%gamz_(nx)*tmp2(nx+jm*nx+km*nxy)
       ENDDO
     ENDDO
 !
-    DO  i=nx-2,1,-1
+    DO i=nx-2,1,-1
       DO j=1,ny
         jm = j-1
         DO k=1,nz
           km = k-1
           tmp2(i+jm*nx+km*nxy) = tmp2(i+jm*nx+km*nxy) &
-          - this%gamx_(i+1)*tmp2(i+1+jm*nx+km*nxy) - this%px_(i)*tmp2(nx+jm*nx+km*nxy)
+          - this%gamz_(i+1)*tmp2(i+1+jm*nx+km*nxy) - this%pz_(i)*tmp2(nx+jm*nx+km*nxy)
         ENDDO
       ENDDO
     ENDDO
 !
-!  Transpose back to standard coords:
-    idims(1) = this%nd_   (1)
-    idims(2) = this%nd_   (2)
-    idims(3) = this%ldims_(3)
-    CALL this%gpcomm_%GTranspose(field,tmp2,idims,3,tmp1)
+!  Transpose back to standard orientation:
+    CALL this%gpcomm_%GITranspose(field,ibnds,tmp2,ibnds,3,tmp1)
  
 !! DO k=1,nz
+!!   km = k-1
 !!   DO j=1,ny
+!!     jm = j-1
 !!     DO i=1,nx
-!!         field(i+j*nx+k*nxy) = this%splfld_(i+j*nx+k*nxy)
+!!       write(*,*)' i=',i,' j=',j,' k=',k,' v=',field(i+jm*nx+km*nxy)
 !!     ENDDO
 !!   ENDDO
 !! ENDDO
 !
+!!      do j=1,ny
+!!      jm = j-1
+!!      do i=1,nx
+!!      tmp2(i+jm*nx  ) = field(i+jm*nx)*this%betz_(1)
+!!      tmp2(i+jm*nx+(nz-1)*nxy) = field(i+jm*nx+(nz-1)*nxy)
+!!      enddo
+!!      enddo
+!
+!!      do k=2,nz-2
+!!       km = k-1
+!!       do j=1,ny
+!!       jm = j-1
+!!       do i=1,nx
+!!      tmp2(i+jm*nx+km*nxy) = &
+!!      ( field(i+jm*nx+km*nxy) -this%az_(k)*tmp2(i+jm*nx+(km-1)*nxy) )*this%betz_(k)
+!!      tmp2(i+jm*nx+(nz-1)*nxy) = tmp2(i+jm*nx+(nz-1)*nxy) - this%xxz_(k-1)*tmp2(i+jm*nx+(km-1)*nxy)
+!!       enddo
+!!       enddo
+!!      enddo
+!! ** n-1 **
+!!      do j=1,ny
+!!      jm = j-1
+!!      do i=1,nx
+!!      tmp2(i+jm*nx+(nz-2)*nxy) = &
+!!      (field(i+jm*nx+(nz-2)*nxy) - this%az_(nz-1)*tmp2(i+jm*nx+(nz-3)*nxy))*this%betz_(nz-1) 
+!!      tmp2(i+jm*nx+(nz-1)*nxy) = tmp2(i+jm*nx+(nz-1)*nxy) - this%xxz_(nz-2)*tmp2(i+jm*nx+(nz-2)*nxy)
+!! ** n  **
+!!      tmp2(i+jm*nx+(nz-1)*nxy) = (tmp2(i+jm*nx+(nz-1)*nxy) - tmp2(i+jm*nx+(nz-2)*nxy)*this%zetaz_) &
+!!                     * this%betz_(nz)
+!  backsubstitution phase :
+!!      tmp2(i+jm*nx+(nz-2)*nxy) = tmp2(i+jm*nx+(nz-2)*nxy) - this%gamz_(nz)*tmp2(i+jm*nx+(nz-1)*nxy)
+!!      enddo
+!!      enddo
+
+!!      do  k=nz-2,1,-1
+!!      km = k-1
+!!      do j=1,ny
+!!      jm = j-1
+!!      do i=1,nx
+!!      tmp2(i+jm*nx+km*nxy) = tmp2(i+jm*nx+km*nxy) &
+!!                    - this%gamz_(k+1)*tmp2(i+jm*nx+k*nxy) - this%pz_(k)*tmp2(i+jm*nx+(nz-1)*nxy)
+!!      enddo
+!!      enddo
+!!      enddo
+
+!!  DO k=1,nz
+!!    km = k-1
+!!    DO j=1,ny
+!!      jm = j-1
+!!      DO i=1,nx
+!!        field(i+jm*nx+km*nxy) = tmp2(i+jm*nx+km*nxy)
+!!      ENDDO
+!!    ENDDO
+!!  ENDDO
 ! 
 ! Spline coeff field is now slab-decomposed to be xy complete, and 
 ! distributed in z. To do interpolation, we must set up 
 ! spline coeffs in array extended in z by 2 control points
 ! so that spline interpolation can be done:
      CALL this%gpcomm_%SlabDataExchangeSF(this%esplfld_,field)
+!!write(*,*)'esplfld1=',this%esplfld_(1:10,1:10,1)
+!!write(*,*)'esplfld2=',this%esplfld_(1:10,1:10,2)
+!!write(*,*)'v1     =',field(1:100)
+!!write(*,*)'v2     =',field(1:100+nxy)
 
    RETURN
 

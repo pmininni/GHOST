@@ -18,7 +18,9 @@ MODULE class_GPartComm
       USE commtypes
       IMPLICIT NONE
       
-      INTEGER,PARAMETER,PUBLIC                       :: GPNULL=-1 ! particle NULL value
+      INTEGER,PARAMETER,PUBLIC                       :: GPNULL=-1          ! particle NULL value
+      INTEGER,PARAMETER,PUBLIC                       :: GPCOMM_INTRFC_SF=0 ! single-field interface
+      INTEGER,PARAMETER,PUBLIC                       :: GPCOMM_INTRFC_MF=1 ! multi-field interface
 
       PRIVATE
       TYPE, PUBLIC :: GPartComm
@@ -30,10 +32,10 @@ MODULE class_GPartComm
         INTEGER                                      :: nprocs_    ,myrank_    ,comm_    
         INTEGER                                      :: csize_     ,nstrip_
         INTEGER                                      :: ntop_      ,nbot_      ,ierr_    
-        INTEGER                                      :: iextperp_  ,nth_
+        INTEGER                                      :: iextperp_  ,ksta_      ,kend_    ,nth_
         LOGICAL                                      :: btransinit_
         INTEGER, ALLOCATABLE, DIMENSION(:,:)         :: ibsnd_     ,itsnd_     
-        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibrcv_     ,itrcv_
+        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibrcv_     ,itrcv_     ,nbbrcv_   ,ntbrcv_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibsh_      ,itsh_      ,ibrh_    ,itrh_ 
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: igsh_      ,igrh_  
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: itypekp_    ,itypeip_    ,itypea_
@@ -43,7 +45,8 @@ MODULE class_GPartComm
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibrcvnz_   ,itrcvnz_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibsndp_    ,ibrcvp_    ,itsndp_  ,itrcvp_
         INTEGER, DIMENSION (MPI_STATUS_SIZE)         :: istatus_
-        REAL(KIND=GP), ALLOCATABLE, DIMENSION(:)     :: sbbuff_    ,stbuff_    ,rbbuff_  ,rtbuff_
+        REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:)   :: sbbuff_    ,stbuff_    
+        REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:)   :: rbbuff_    ,rtbuff_
       CONTAINS
         ! Public methods:
         PROCEDURE,PUBLIC :: GPartComm_ctor
@@ -60,6 +63,7 @@ MODULE class_GPartComm
         PROCEDURE,PUBLIC :: SlabDataExchangeSF=> GPartComm_SlabDataExchangeSF
         PROCEDURE,PUBLIC :: ConcatPDB         => GPartComm_ConcatPDB
         PROCEDURE,PUBLIC :: ConcatV           => GPartComm_ConcatV
+        PROCEDURE,PUBLIC :: Copy2Ext          => GPartComm_Copy2Ext
 
 !       GENERIC  ,PUBLIC :: PartExchange      => PartExchangePDB,PartExchangeV
 !       GENERIC  ,PUBLIC :: SlabDataExchange  => SlabDataExchangeMF,SlabDataExchangeSF
@@ -124,13 +128,12 @@ MODULE class_GPartComm
       WRITE(*,*) 'GPartComm::ctor: MPI_COMM_RANK: err=',this%ierr_
       STOP
     ENDIF
-    WRITE(*,*) 'GPartComm::ctor: nprocs: ',this%nprocs_,' myrank=',this%myrank_
     this%btransinit_ = .FALSE.
 
     IF ( this%intrfc_ .GE. 1 ) THEN
-      this%nbuff_  = MAX(maxparts*4*(GP),3*nd(1)*nd(2)*nzghost*GP+nzghost+1) + 1
+      this%nbuff_  = MAX(maxparts*4,3*nd(1)*nd(2)*nzghost+nzghost+1) + 1
     ELSE
-      this%nbuff_  = MAX(maxparts*4*(GP),nd(1)*nd(2)*nzghost*GP+nzghost+1) + 1
+      this%nbuff_  = MAX(maxparts*4,  nd(1)*nd(2)*nzghost+nzghost+1) + 1
     ENDIF
 
     CALL GPartComm_Init(this)
@@ -179,7 +182,9 @@ MODULE class_GPartComm
     IF ( ALLOCATED   (this%itrcvp_) ) DEALLOCATE  (this%itrcvp_)
     IF ( ALLOCATED   (this%itsndp_) ) DEALLOCATE  (this%itsndp_)
     IF ( ALLOCATED    (this%ibrcv_) ) DEALLOCATE   (this%ibrcv_)
+    IF ( ALLOCATED   (this%nbbrcv_) ) DEALLOCATE  (this%nbbrcv_)
     IF ( ALLOCATED    (this%itrcv_) ) DEALLOCATE   (this%itrcv_)
+    IF ( ALLOCATED   (this%ntbrcv_) ) DEALLOCATE  (this%ntbrcv_)
     IF ( ALLOCATED    (this%ibsnd_) ) DEALLOCATE   (this%ibsnd_)
     IF ( ALLOCATED    (this%itsnd_) ) DEALLOCATE   (this%itsnd_)
     IF ( ALLOCATED     (this%ibrh_) ) DEALLOCATE    (this%ibrh_)
@@ -215,18 +220,12 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
     IMPLICIT NONE
     CLASS(GPartComm),INTENT(INOUT)        :: this
-    INTEGER                               :: i,j,jb,jt,k,ibrank,itrank,ksta,kend
-    INTEGER                               :: kbsta,kbend,ktsta,ktend,n2p,nt
+    INTEGER                               :: i,ibrank,itrank,j,jf,k,kf,kend,ksta
+    INTEGER                               :: kbend,kbsta,ktend,ktsta
+    INTEGER                               :: jbr,jtr,n2p,nt,nxy
+    INTEGER,ALLOCATABLE,DIMENSION(:)      :: jfwd,kfend,kfsta,nzf
 
 
-    CALL GPartComm_DoDealloc(this) 
- 
-    ALLOCATE(this%sbbuff_ (this%nbuff_))
-    ALLOCATE(this%stbuff_ (this%nbuff_))
-    ALLOCATE(this%rbbuff_ (this%nbuff_))
-    ALLOCATE(this%rtbuff_ (this%nbuff_))
-    ALLOCATE(this%ibot_(this%maxparts_))
-    ALLOCATE(this%itop_(this%maxparts_))
 
     ! Compute the no. sendto and recv from tasks there are:
 
@@ -237,14 +236,25 @@ MODULE class_GPartComm
     this%nbrcv_ = 0
     this%ntrcv_ = 0
     n2p = this%nd_(3)/this%nprocs_
-    nt  = this%nzghost_/n2p + 1 ! max no. tasks needed for ghost zones
+    nt  = (this%nzghost_+n2p-1)/n2p  ! max no. tasks needed for ghost zones
+
+    CALL GPartComm_DoDealloc(this) 
+ 
+    ALLOCATE(this%sbbuff_ (this%nbuff_))
+    ALLOCATE(this%stbuff_ (this%nbuff_))
+    ALLOCATE(this%rbbuff_ (this%nbuff_,nt))
+    ALLOCATE(this%rtbuff_ (this%nbuff_,nt))
+    ALLOCATE(this%ibot_(this%maxparts_))
+    ALLOCATE(this%itop_(this%maxparts_))
 
     ALLOCATE(this%ibrcvp_(nt))
     ALLOCATE(this%ibsndp_(nt))
     ALLOCATE(this%itrcvp_(nt))
     ALLOCATE(this%itsndp_(nt))
     ALLOCATE(this%ibrcv_(nt))
+    ALLOCATE(this%nbbrcv_(nt))
     ALLOCATE(this%itrcv_(nt))
+    ALLOCATE(this%ntbrcv_(nt))
     ALLOCATE(this%ibsnd_(nt,this%nzghost_+1))
     ALLOCATE(this%itsnd_(nt,this%nzghost_+1))
     ALLOCATE(this%ibrh_(nt))
@@ -266,103 +276,173 @@ MODULE class_GPartComm
     ! Initialize all task/neighbor  lists with GPNULL:
     this%ibrcv_   =GPNULL; this%itrcv_   =GPNULL; this%ibsnd_  =GPNULL; this%itsnd_ =GPNULL;
     this%ibsnddst_=GPNULL; this%itsnddst_=GPNULL;
-    this%itrcvnz_ = 0
-    this%ibrcvnz_ = 0
 
     ! Get global z-bounds on this rank:
     CALL range(1,this%nd_(3),this%nprocs_,this%myrank_,ksta,kend)
+    this%ksta_ = ksta
+    this%kend_ = kend
 
+    this%ntsnd_   = 0
+    this%ntrcv_   = 0
+    this%nbrcv_   = 0
+    this%nbsnd_   = 0
 
-    this%ntsnd_ = 0
-    this%ntrcv_ = 0
-    j = 0
-    ! Loop over possible tasks to find neighbor list info:
-    DO WHILE ( this%ntsnd_.LE.nt .AND. j.LT.this%nzghost_ ) 
-      itrank = mod(this%myrank_+this%ntsnd_+1,this%nprocs_)
+    this%itrcvnz_ = 0
+    this%itsndnz_ = 0 
+    this%ibrcvnz_ = 0
+    this%ibsndnz_ = 0 
+
+    ALLOCATE(jfwd (nt))
+    ALLOCATE(kfend(nt))
+    ALLOCATE(kfsta(nt))
+    ALLOCATE(nzf  (nt))
+
+    ! *** Find top neighbors to send to:
+    DO jf = 1, nt
+      jfwd(jf) = mod(this%myrank_+jf,this%nprocs_)
+      CALL range(1,this%nd_(3),this%nprocs_,jfwd(jf),kfsta(jf),kfend(jf))
+      nzf (jf) = kfend(jf)-kfsta(jf)+1
+    ENDDO
+    
+    ! Send to myrank + 1 at top:
+    this%itsndp_(1) = jfwd(1)
+    DO k = 1, min(kend-ksta+1, this%nzghost_)
+      this%itsnd_   (1,k) = kend-ksta+2-k ! local z-index to be sent to top
+      ! Destination z-indices in _extended_ grid for itsnd.
+      ! These indices should be in local--not global--form:
+      this%itsnddst_(1,k) = this%nzghost_-k+1
+      ! Set no. z-indices to send to top task; used to
+      ! set where in recv buffer to store recvd data:
+      this%itsndnz_   (1) = this%itsndnz_(1) + 1
+    ENDDO
+    this%ntsnd_ = 1
+
+    ! Send to other top neighbors that need data:
+    DO jf = 2, nt
+      IF ( nzf(jf-1) .LT. this%nzghost_ ) THEN
+        kf = this%nzghost_-nzf(jf-1)
+        IF ( kf .GE. 1 ) THEN
+          this%ntsnd_ =  this%ntsnd_ + 1
+          this%itsndp_(this%ntsnd_) = jfwd(jf)   ! top task to send to
+          DO k = 1, min(kend-ksta+1, kf)
+            this%itsnd_   (this%ntsnd_,k) = kend-ksta+2-k ! local z-index to be sent to top
+            this%itsnddst_(this%ntsnd_,k) = this%nzghost_-kf-k+1 ! local destination z-index 
+            this%itsndnz_ (this%ntsnd_  ) = this%itsndnz_(this%ntsnd_) + 1 ! gives position in top recv buffer
+          ENDDO
+        ENDIF
+      ENDIF
+    ENDDO
+
+    ! Find top neighbors to receive from:
+    jf = 0
+    DO WHILE ( this%ntrcv_.LE.nt .AND. jf.LT.this%nzghost_ )
+      itrank = mod(this%myrank_+this%ntrcv_+1,this%nprocs_)
       CALL range(1,this%nd_(3),this%nprocs_,itrank,ktsta,ktend)
-      this%itsndp_(this%ntsnd_+1) = itrank    !top snd task
       this%itrcvp_(this%ntrcv_+1) = itrank    !top rcv task
-      DO k = 1, min(ktend-ktsta+1,this%nzghost_)
-        j = j + 1
-        this%itsnd_   (j,k  ) = kend-ksta+1-k+1 ! local z-index to be sent to t
-        ! destination z-indices in extended grid fpr itsnd 
-        ! These indices should be in local--not global--form
-        this%itsnddst_ (j,k ) = this%nzghost_-k+1
-        ! set no. z-indices to recv from this task; used to
-        ! set where in recv buffer to store recvd data:
-        this%itrcvnz_  (j)    = this%itrcvnz_(j) + 1
+      k = 1
+      DO WHILE ( k.LE.ktend-ktsta+1 .AND. jf.LT.this%nzghost_ )
+        jf = jf + 1
+        this%itrcvnz_  (this%ntrcv_+1)    = this%itrcvnz_(this%ntrcv_+1) + 1
+        k = k + 1
       ENDDO
-      this%ntsnd_ = this%ntsnd_ + 1 ! no. procs to send to at top
       this%ntrcv_ = this%ntrcv_ + 1 ! no. procs to recv from at top
     ENDDO
-    jt = j
-
-    this%nbsnd_ = 0
-    this%nbrcv_ = 0
-    j = 0
-    DO WHILE ( this%nbsnd_.LE.nt .AND. j.LT.this%nzghost_ )
-      ibrank = mod(this%myrank_-this%nbsnd_-1+this%nprocs_,this%nprocs_)
-      CALL range(1,this%nd_(3),this%nprocs_,ibrank,kbsta,kbend)
-      this%ibsndp_(this%nbsnd_+1) = ibrank    !bottom snd task
-      this%ibrcvp_(this%nbrcv_+1) = ibrank    !bottom rcv task
-
-      DO k = 1, min(kbend-kbsta+1,this%nzghost_)
-        j = j + 1
-        this%ibsnd_   (j,k  ) = k               ! local z-index to be sent to b
-        ! destination indices in extended grid for ibsnd:
-        ! These indices should be in local--not global--form:
-        this%ibsnddst_(j,k  ) = kbend-kbsta+1+k
-        ! set no. z-indices to recv from this task; used to
-        ! set where in recv buffer to store recvd data:
-        this%ibrcvnz_  (j)    = this%ibrcvnz_(j) + 1
-      ENDDO
-      this%nbsnd_ = this%nbsnd_ + 1 ! no. procs to send to at bottom
-      this%nbrcv_ = this%nbrcv_ + 1 ! no. procs to recv from at bottom
-    ENDDO
-    jb = j
-
-    IF ( jb.NE.this%nzghost_ .OR. jt.NE.this%nzghost_ ) THEN
-       WRITE(*,*) 'GPartComm_Init: neighbor data incompatible with interpolation order' 
+    IF ( jf.NE.this%nzghost_ ) THEN
+       WRITE(*,*) 'GPartComm_Init: top neighbor data incompatible with interpolation order' 
+       WRITE(*,*) 'GPartComm_Init: nghost=',this%nzghost_, ' nt=',jf
        STOP
     ENDIF
 
-    ! Collect some data for easier sends, recvs:
-    DO j=1,nt
-      this%ibsndnz_ = 0
-      this%itsndnz_ = 0
-      DO k=2,this%nzghost_
-        IF ( this%ibsnd_(j,k).GE.0 ) this%ibsndnz_(j) = this%ibsndnz_(j) + 1
-        IF ( this%itsnd_(j,k).GE.0 ) this%itsndnz_(j) = this%itsndnz_(j) + 1
-      ENDDO
+    ! *** Find bottom neighbors to send to:
+    DO jf = 1, nt
+      jfwd(jf) = mod(this%myrank_-jf+this%nprocs_,this%nprocs_)
+      CALL range(1,this%nd_(3),this%nprocs_,jfwd(jf),kfsta(jf),kfend(jf))
+      nzf (jf) = kfend(jf)-kfsta(jf)+1
     ENDDO
+
+    ! Send to myrank - 1 at bottom :
+    this%ibsndp_(1) = jfwd(1)
+    DO k = 1, min(kend-ksta+1, this%nzghost_)
+      this%ibsnd_   (1,k) = k ! local z-index to be sent to bottom
+      ! Destination z-indices in _extended_ grid for bottom snd.
+      ! These indices should be in local--not global--form:
+      this%ibsnddst_(1,k) = this%nzghost_+nzf(1)+k
+      ! Set no. z-indices to send to bottom task; used to
+      ! set where in recv buffer to store recvd data:
+      this%ibsndnz_   (1) = this%ibsndnz_(1) + 1
+    ENDDO
+    this%nbsnd_ = 1
+
+    ! Send to other bottom neighbors that need data:
+    DO jf = 2, nt
+      IF ( nzf(jf-1) .LT. this%nzghost_ ) THEN
+        kf = this%nzghost_-nzf(jf-1)
+        IF ( kf .GE. 1 ) THEN
+          this%nbsnd_ =  this%nbsnd_ + 1
+          this%ibsndp_(this%nbsnd_) = jfwd(jf)   ! bottom task to send to
+          DO k = 1, min(kend-ksta+1, kf)
+            this%ibsnd_   (this%nbsnd_,k) = k ! local z-index to be sent to bottom
+            this%ibsnddst_(this%nbsnd_,k) = this%nzghost_+nzf(jf)+kf+k ! local destination z-index 
+            this%ibsndnz_ (this%nbsnd_  ) = this%ibsndnz_(this%nbsnd_) + 1 ! gives position in bottom recv buffer
+          ENDDO
+        ENDIF
+      ENDIF
+    ENDDO
+
+    ! Find bottom receives:
+    jf = 0
+    DO WHILE ( this%nbrcv_.LE.nt .AND. jf.LT.this%nzghost_ )
+      ibrank = mod(this%myrank_-this%nbrcv_-1+this%nprocs_,this%nprocs_)
+      CALL range(1,this%nd_(3),this%nprocs_,ibrank,kbsta,kbend)
+      this%ibrcvp_(this%nbrcv_+1) = ibrank    !bottom rcv task
+      k = 1
+      DO WHILE ( k.LE.kbend-kbsta+1 .AND. jf.LT.this%nzghost_ )
+        jf = jf + 1
+        this%ibrcvnz_  (this%nbrcv_+1)    = this%ibrcvnz_(this%nbrcv_+1) + 1
+        k = k + 1
+      ENDDO
+      this%nbrcv_ = this%nbrcv_ + 1 ! no. procs to recv from at bottom
+    ENDDO
+    IF ( jf.NE.this%nzghost_ ) THEN
+       WRITE(*,*) 'GPartComm_Init: bottom neighbor data incompatible with interpolation order' 
+       WRITE(*,*) 'GPartComm_Init: nghost=',this%nzghost_, ' nb=',jf
+       STOP
+    ENDIF
 
     ! Indices in recv buff to put data recvd from task j;
     ! includes 2 integer header:
 !
-    ! For multufield interfaces, the starting indices are different:
+    ! For multifield interfaces, the rcv buff starting indices are different:
     ! than for single field interface:
+    nxy = this%nd_(1)*this%nd_(2)
     IF ( this%intrfc_ .GT. 0 ) THEN  ! multi-field interface
       DO j=1,nt
-        jt = 0; jb = 0
+        jtr = 0; jbr = 0
         DO i = 1,j-1
-          jt = jt + this%itrcvnz_(j)
-          jb = jb + this%ibrcvnz_(j)
+          jtr = jtr + this%itrcvnz_(j)
+          jbr = jbr + this%ibrcvnz_(j)
         ENDDO
-        this%itrcv_  (j)    = 3*jt * (this%nd_(1)*this%nd_(2) + 1)+jt+2
-        this%ibrcv_  (j)    = 3*jb * (this%nd_(1)*this%nd_(2) + 1)+jb+2
+        this%itrcv_  (j)    = jtr * (3*nxy+1)+1
+        this%ibrcv_  (j)    = jbr * (3*nxy+1)+1
+        this%ntbrcv_ (j)    = this%itrcvnz_(j) * (3*nxy+1)+1
+        this%nbbrcv_ (j)    = this%ibrcvnz_(j) * (3*nxy+1)+1
       ENDDO
     ELSE                              ! single-field interface
       DO j=1,nt
-        jt = 0; jb = 0
+        jtr = 0; jbr = 0
         DO i = 1,j-1
-          jt = jt + this%itrcvnz_(j)
-          jb = jb + this%ibrcvnz_(j)
+          jtr = jtr + this%itrcvnz_(i)
+          jbr = jbr + this%ibrcvnz_(i)
         ENDDO
-        this%itrcv_  (j)    = jt * (this%nd_(1)*this%nd_(2))+jt+2
-        this%ibrcv_  (j)    = jb * (this%nd_(1)*this%nd_(2))+jb+2
+        ! where to put the data from other procs in this rcv buffer:
+        this%itrcv_  (j)    = jtr * (nxy+1)+1
+        this%ibrcv_  (j)    = jbr * (nxy+1)+1
+        this%ntbrcv_ (j)    = this%itrcvnz_(j) * (nxy+1)+1
+        this%nbbrcv_ (j)    = this%ibrcvnz_(j) * (nxy+1)+1
       ENDDO
     ENDIF
 
+    DEALLOCATE(jfwd,kfend,kfsta,nzF)
 
   END SUBROUTINE GPartComm_Init
 !-----------------------------------------------------------------
@@ -380,8 +460,7 @@ MODULE class_GPartComm
 !                        grid (that used to hold ghost zones). Only z-conditions
 !                        are imposed; lateral periodicity is not handled here.
 !                        Lateral ghost zones can be accounted for by setting
-!                        this%iextperp_=1 in contructor, but, again, these are
-!                        bot filled here..
+!                        this%iextperp_=1 in contructor.
 !    vx,vy,vz          : Eulerian velocity components on regular grid. Must
 !                        be of size nd_ set in constructor
 !    
@@ -400,26 +479,29 @@ MODULE class_GPartComm
     ngp  = ngz * this%iextperp_
     nexy = (this%nd_(1)+2*ngp) * (this%nd_(2)+2*ngp)
     nex  = this%nd_(1)+2*ngp
-    nez  = this%nd_(3)+  ngp
+    nez  = this%nd_(3)+  ngz
     nx   = this%nd_(1)
     ny   = this%nd_(2)
     nz   = this%nd_(3)
     nxy  = nx*ny
 
+    CALL GPartComm_Copy2Ext(this,vxext,vx)
+    CALL GPartComm_Copy2Ext(this,vyext,vy)
+    CALL GPartComm_Copy2Ext(this,vzext,vz)
     DO k = 1, ngz  ! bottom extended zones
       km = k-1
       DO j=1,ny
         jm = j-1
         DO i=1,nx
-          ! set bottom bcs:
-          vxext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy) = vx(i+(j-1)*nx+(nz-ngz+k-2)*nxy)
-          vyext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy) = vy(i+(j-1)*nx+(nz-ngz+k-2)*nxy)
-          vzext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy) = vz(i+(j-1)*nx+(nz-ngz+k-2)*nxy)
-
           ! set top bcs:
-          vxext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy) = vx(i+(j-1)*nx+k*nxy)
-          vyext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy) = vy(i+(j-1)*nx+k*nxy)
-          vzext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy) = vz(i+(j-1)*nx+k*nxy)
+          vxext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy) = vx(i+(j-1)*nx+(k-1)*nxy)
+          vyext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy) = vy(i+(j-1)*nx+(k-1)*nxy)
+          vzext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy) = vz(i+(j-1)*nx+(k-1)*nxy)
+
+          ! set bottom bcs:
+          vxext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy) = vx(i+(j-1)*nx+(nz-ngz+k-1)*nxy)
+          vyext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy) = vy(i+(j-1)*nx+(nz-ngz+k-1)*nxy)
+          vzext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy) = vz(i+(j-1)*nx+(nz-ngz+k-1)*nxy)
 
         ENDDO
       ENDDO
@@ -450,7 +532,7 @@ MODULE class_GPartComm
     REAL(KIND=GP),INTENT   (IN),DIMENSION(*)            :: vx,vy,vz
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)            :: vxext,vyext,vzext
 
-    INTEGER                                             :: itask,j,m
+    INTEGER                                             :: itask,j
     IF ( this%intrfc_ .LT. 1 ) THEN
       WRITE(*,*) 'GPartComm_SlabDataExchangeMF: SF interface expected'
       STOP
@@ -460,34 +542,37 @@ MODULE class_GPartComm
       CALL GPartComm_LocalDataExchMF(this,vxext,vyext,vzext,vx,vy,vz)
       RETURN
     ENDIF
+    CALL GPartComm_Copy2Ext(this,vxext,vx)
+    CALL GPartComm_Copy2Ext(this,vyext,vy)
+    CALL GPartComm_Copy2Ext(this,vzext,vz)
 
     ! post receives:
-    DO m=1,this%nbrcv_  ! from bottom task:
-      itask = this%ibrcvp_(m)
-      CALL MPI_IRECV(this%rbbuff_(this%ibrcv_(m)),this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%ibrh_(m),this%ierr_) 
+    DO j=1,this%nbrcv_  ! from bottom task:
+      itask = this%ibrcvp_(j)
+      CALL MPI_IRECV(this%rbbuff_(:,j),this%nbuff_,GC_REAL,itask, &
+                     1,this%comm_,this%ibrh_(j),this%ierr_) 
     ENDDO
 
-    DO m=1,this%ntrcv_  ! from top task:
-      itask = this%itrcvp_(m)
-      CALL MPI_IRECV(this%rtbuff_(this%itrcv_(m)),this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%itrh_(m),this%ierr_) 
+    DO j=1,this%ntrcv_  ! from top task:
+      itask = this%itrcvp_(j)
+      CALL MPI_IRECV(this%rtbuff_(:,j),this%nbuff_,GC_REAL,itask, &
+                     1,this%comm_,this%itrh_(j),this%ierr_) 
     ENDDO
 
 
     !
     ! send data:
-    DO m=1,this%nbsnd_  ! to bottom task:
-      itask = this%ibsndp_(m)
-      CALL GPartComm_PackMF(this,this%sbbuff_,vx,vy,vz,m,'b')
+    DO j=1,this%nbsnd_  ! to bottom task:
+      itask = this%ibsndp_(j)
+      CALL GPartComm_PackMF(this,this%sbbuff_,vx,vy,vz,j,'b')
       CALL MPI_ISEND(this%sbbuff_,this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%ibsh_(m),this%ierr_)  
+                     1,this%comm_,this%ibsh_(j),this%ierr_)  
     ENDDO
-    DO m=1,this%ntsnd_  ! to top task:
-      itask = this%itsndp_(m)
-      CALL GPartComm_PackMF(this,this%stbuff_,vx,vy,vz,m,'t')
+    DO j=1,this%ntsnd_  ! to top task:
+      itask = this%itsndp_(j)
+      CALL GPartComm_PackMF(this,this%stbuff_,vx,vy,vz,j,'t')
       CALL MPI_ISEND(this%stbuff_,this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%itsh_(m),this%ierr_) 
+                     1,this%comm_,this%itsh_(j),this%ierr_) 
     ENDDO
 
     DO j=1,this%nbsnd_
@@ -505,10 +590,10 @@ MODULE class_GPartComm
 
     ! Unpack received data:
     DO j=1,this%nbrcv_
-      CALL GPartComm_UnpackMF(this,vxext,vyext,vzext,this%rbbuff_(this%ibrcv_(j)))
+      CALL GPartComm_UnpackMF(this,vxext,vyext,vzext,this%rbbuff_(:,j))
     ENDDO
     DO j=1,this%ntrcv_
-      CALL GPartComm_UnpackMF(this,vxext,vyext,vzext,this%rtbuff_(this%itrcv_(j)))
+      CALL GPartComm_UnpackMF(this,vxext,vyext,vzext,this%rtbuff_(:,j))
     ENDDO
 
 
@@ -750,20 +835,21 @@ MODULE class_GPartComm
     ngp  = ngz * this%iextperp_
     nexy = (this%nd_(1)+2*ngp) * (this%nd_(2)+2*ngp)
     nex  = this%nd_(1)+2*ngp
-    nez  = this%nd_(3)+  ngp
+    nez  = this%nd_(3)+  ngz
     nx   = this%nd_(1)
     ny   = this%nd_(2)
     nz   = this%nd_(3)
     nxy  = nx*ny
 
+    CALL GPartComm_Copy2Ext(this,vext,v)
     DO k = 1, ngz  ! extended zones
       DO j=1,ny
         DO i=1,nx
           ! set top bcs:
-          vext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy) = v(i+(j-1)*nx+k*nxy)
+          vext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy) = v(i+(j-1)*nx+(k-1)*nxy)
 
           ! set bottom bcs:
-          vext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy) = v(i+(j-1)*nx+(nz-ngz+k-2)*nxy)
+          vext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy) = v(i+(j-1)*nx+(nz-ngz+k-1)*nxy)
 
         ENDDO
       ENDDO
@@ -794,55 +880,57 @@ MODULE class_GPartComm
     REAL(KIND=GP),INTENT   (IN),DIMENSION(*)            :: v
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)            :: vext
 
-    INTEGER                                             :: itask,j,m
+    INTEGER                                             :: itask,j
 
     IF ( this%intrfc_ .GE. 1 ) THEN
       WRITE(*,*) 'GPartComm_SlabDataExchangeSF: MF interface expected'
       STOP
     ENDIF
-
     IF ( this%nprocs_ .EQ. 1 ) THEN
       CALL GPartComm_LocalDataExchSF(this,vext,v)
       RETURN
     ENDIF
 
+    CALL GPartComm_Copy2Ext(this,vext,v)
+
     ! post receives:
-    DO m=1,this%nbrcv_  ! from bottom task:
-      itask = this%ibrcvp_(m)
-      CALL MPI_IRECV(this%rbbuff_(this%ibrcv_(m)),this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%ibrh_(m),this%ierr_) 
+    DO j=1,this%nbrcv_  ! from bottom task:
+      itask = this%ibrcvp_(j)
+      CALL MPI_IRECV(this%rbbuff_(:,j),this%nbuff_,GC_REAL,itask, &
+                     1,this%comm_,this%ibrh_(j),this%ierr_) 
     ENDDO
 
-    DO m=1,this%ntrcv_  ! from top task:
-      itask = this%itrcvp_(m)
-      CALL MPI_IRECV(this%rtbuff_(this%itrcv_(m)),this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%itrh_(m),this%ierr_) 
-    ENDDO
-
-
-    !
     ! send data:
-    DO m=1,this%nbsnd_  ! to bottom task:
-      itask = this%ibsndp_(m)
-      CALL GPartComm_PackSF(this,this%sbbuff_,v,m,'b')
+    DO j=1,this%nbsnd_  ! to bottom task:
+      itask = this%ibsndp_(j)
+      CALL GPartComm_PackSF(this,this%sbbuff_,v,j,'b')
       CALL MPI_ISEND(this%sbbuff_,this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%ibsh_(m),this%ierr_)  
+                     1,this%comm_,this%ibsh_(j),this%ierr_)  
     ENDDO
-    DO m=1,this%ntsnd_  ! to top task:
-      itask = this%itsndp_(m)
-      CALL GPartComm_PackSF(this,this%stbuff_,v,m,'t')
+!
+    DO j=1,this%ntrcv_  ! from top task:
+      itask = this%itrcvp_(j)
+      CALL MPI_IRECV(this%rtbuff_(:,j),this%nbuff_,GC_REAL,itask, &
+                     1,this%comm_,this%itrh_(j),this%ierr_) 
+    ENDDO
+
+    DO j=1,this%ntsnd_  ! to top task:
+      itask = this%itsndp_(j)
+      CALL GPartComm_PackSF(this,this%stbuff_,v,j,'t')
       CALL MPI_ISEND(this%stbuff_,this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%itsh_(m),this%ierr_) 
+                     1,this%comm_,this%itsh_(j),this%ierr_) 
     ENDDO
 
     DO j=1,this%nbsnd_
       CALL MPI_WAIT(this%ibsh_(j),this%istatus_,this%ierr_)
     ENDDO
-    DO j=1,this%ntsnd_
-      CALL MPI_WAIT(this%itsh_(j),this%istatus_,this%ierr_)
-    ENDDO
     DO j=1,this%nbrcv_
       CALL MPI_WAIT(this%ibrh_(j),this%istatus_,this%ierr_)
+    ENDDO
+
+
+    DO j=1,this%ntsnd_
+      CALL MPI_WAIT(this%itsh_(j),this%istatus_,this%ierr_)
     ENDDO
     DO j=1,this%ntrcv_
       CALL MPI_WAIT(this%itrh_(j),this%istatus_,this%ierr_)
@@ -850,12 +938,11 @@ MODULE class_GPartComm
 
     ! Unpack received data:
     DO j=1,this%nbrcv_
-      CALL GPartComm_UnpackSF(this,vext,this%rbbuff_(this%ibrcv_(j)))
+       CALL GPartComm_UnpackSF(this,vext,this%rbbuff_(:,j),this%nbuff_,'b',this%ierr_)
     ENDDO
     DO j=1,this%ntrcv_
-      CALL GPartComm_UnpackSF(this,vext,this%rtbuff_(this%itrcv_(j)))
+      CALL GPartComm_UnpackSF(this,vext,this%rtbuff_(:,j),this%nbuff_,'t',this%ierr_)
     ENDDO
-
 
   END SUBROUTINE GPartComm_SlabDataExchangeSF
 !-----------------------------------------------------------------
@@ -913,8 +1000,8 @@ MODULE class_GPartComm
         DO j = 1, ny
           jm = j-1
           DO i = 1, nx
-            buff(nt) = v(i+jm*nx+km*nxy)
             nt = nt + 1
+            buff(nt) = v(i+jm*nx+km*nxy)
           ENDDO
         ENDDO
       ENDDO
@@ -936,8 +1023,8 @@ MODULE class_GPartComm
         DO j = 1, ny
           jm = j-1
           DO i = 1, nx
-            buff(nt) = v(i+jm*nx+km*nxy)
             nt = nt + 1
+            buff(nt) = v(i+jm*nx+km*nxy)
           ENDDO
         ENDDO
       ENDDO
@@ -950,7 +1037,7 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 
 
-  SUBROUTINE GPartComm_UnpackSF(this,vext,buff)
+  SUBROUTINE GPartComm_UnpackSF(this,vext,buff,nbuff,sb,ierr)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : UnpackSF
@@ -960,39 +1047,49 @@ MODULE class_GPartComm
 !               'b' designation required for unpacking.
 !  ARGUMENTS  :
 !    this        : 'this' class instance (IN)
-!    buff        : packed buffer (input) from which to store into 
-!                  extended grid quantities.
 !    vext        : Eulerian velocity component on extended grid
 !                  in phys. space (IN)
+!    buff        : packed buffer (input) from which to store into 
+!                  extended grid quantities.
+!    nbuff       : maximum buff size
+!    sb          : optional buffer name ,'t' or 'b'.
+!    ierr        : err flag: 0 if success; else 1
 !    
 !-----------------------------------------------------------------
     IMPLICIT NONE
 
     CLASS(GPartComm),INTENT(INOUT)          :: this
-    INTEGER                                 :: i,j,k,m,ngp,ngz,nx,nxy,ny,nz
-    INTEGER                                 :: ip,ixy,iz,jm,km,nh
+    INTEGER                                 :: i,j,k,m,ngp,nx,nex,nxy,nexy,ny,nz
+    INTEGER                                 :: im,ip,ir,ixy,iz,jm,km,nh
+    INTEGER      ,INTENT   (IN)             :: nbuff
+    INTEGER      ,INTENT(INOUT)             :: ierr ! not used now
     REAL(KIND=GP),INTENT   (IN),DIMENSION(*):: buff
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(*):: vext
+    CHARACTER(len=1),INTENT(IN),OPTIONAL    :: sb
 
+    ierr = 0
     nx   = this%nd_(1)
     ny   = this%nd_(2)
     nxy  = nx*ny
-    ngz  = this%nzghost_
-    ngp  = ngz*this%iextperp_
+    ngp  = this%nzghost_*this%iextperp_
+    nex  = nx+2*ngp
+    nexy = (nx+2*ngp)*(ny+2*ngp)
 
-    ! Pack from either buffer:
+    ! Unpack from either buffer:
     ! For each task, message is of form:
     !     #z-indices:z-index_0:z-index_1:...:nx*ny_0:nx*ny_1: ...
     nz = int(buff(1))
     nh = nz + 1 ! no. items in header
-    DO m = 1,nz
+    DO m = 1, nz
       k   = int(buff(m+1))
       km  = k-1
       ixy = 1
       DO j = 1, ny
         jm = j-1
         DO i = 1, nx
-          vext(i+ngp+(jm+ngp)*nx+km*nxy) = buff(nh+(m-1)*nxy+ixy) 
+          im = i+ngp+(jm+ngp)*nex+km*nexy
+          ir = nh+(m-1)*nxy+ixy
+          vext(im) = buff(ir)
           ixy = ixy + 1
         ENDDO
       ENDDO
@@ -1623,37 +1720,37 @@ MODULE class_GPartComm
           irank = iproc + istrip
 
           isendto = this%myrank_ + irank
-          if ( isendto .ge. this%nprocs_ ) isendto = isendto - this%nprocs_
+          IF ( isendto .ge. this%nprocs_ ) isendto = isendto - this%nprocs_
 
           igetfrom = this%myrank_- irank
-          if ( igetfrom .lt. 0 ) igetfrom = igetfrom + this%nprocs_
+          IF ( igetfrom .lt. 0 ) igetfrom = igetfrom + this%nprocs_
           CALL MPI_IRECV(tmp,1,this%itypeip_(igetfrom),igetfrom,      &
                         1,this%comm_,this%igrh_(irank),this%ierr_)
 
-if ( this%ierr_ .ne. mpi_success ) then
-  write(*,*)'Transpose: irecv ierr=',this%ierr_
-  stop
-endif
+          IF ( this%ierr_ .ne. mpi_success ) THEN
+            WRITE(*,*)'Transpose: irecv ierr=',this%ierr_
+            STOP
+          endif
           CALL MPI_ISEND(ifield,1,this%itypekp_(isendto),isendto, &
                         1,this%comm_,this%igsh_(irank),this%ierr_)
-if ( this%ierr_ .ne. mpi_success ) then
-  write(*,*)'Transpose: isnd ierr=',this%ierr_
-  stop
-endif
+          IF ( this%ierr_ .ne. mpi_success ) THEN
+            WRITE(*,*)'Transpose: isnd ierr=',this%ierr_
+            STOP
+          ENDIF
        ENDDO
 
        DO istrip=0, this%nstrip_-1
           irank = iproc + istrip
           CALL MPI_WAIT(this%igsh_(irank),this%istatus_,this%ierr_)
-if ( this%ierr_ .ne. mpi_success ) then
-  write(*,*)'Transpose: Send Wait: ierr=',this%ierr_
-  stop
-endif
+          IF ( this%ierr_ .ne. mpi_success ) THEN
+            WRITE(*,*)'Transpose: Send Wait: ierr=',this%ierr_
+            STOP
+          ENDIF
           CALL MPI_WAIT(this%igrh_(irank),this%istatus_,this%ierr_)
-if ( this%ierr_ .ne. mpi_success ) then
-  write(*,*)'Transpose: Rcv Wait: ierr=',this%ierr_
-  stop
-endif
+          IF ( this%ierr_ .ne. mpi_success ) THEN
+            WRITE(*,*)'Transpose: Rcv Wait: ierr=',this%ierr_
+            STOP
+          ENDIF
        ENDDO
     ENDDO
 
@@ -1670,8 +1767,6 @@ endif
                 DO j = jj,min(od(2,2)-od(2,1)+1,jj+this%csize_-1)
                   DO k = kk,min(od(1,2)-od(1,1)+1,kk+this%csize_-1)
                      ofield(k,j,i) = tmp(i,j,k)
-!!                   ofield(k+(j-1)*nz+(i-1)*nzy) = tmp(i+(j-1)*nz+(k-1)*nzy)
-!!!                  ofield(k+(j-1)*nx+(i-1)*nxy) = tmp(i+(j-1)*nx+(k-1)*nxy)
                   END DO
                 END DO
               END DO
@@ -1792,37 +1887,37 @@ endif
           irank = iproc + istrip
 
           isendto = this%myrank_ + irank
-          if ( isendto .ge. this%nprocs_ ) isendto = isendto - this%nprocs_
+          IF ( isendto .ge. this%nprocs_ ) isendto = isendto - this%nprocs_
 
           igetfrom = this%myrank_- irank
-          if ( igetfrom .lt. 0 ) igetfrom = igetfrom + this%nprocs_
+          IF ( igetfrom .lt. 0 ) igetfrom = igetfrom + this%nprocs_
           CALL MPI_IRECV(ofield,1,this%itypekp_(igetfrom),igetfrom,      &
                         1,this%comm_,this%igrh_(irank),this%ierr_)
 
-if ( this%ierr_ .ne. mpi_success ) then
-  write(*,*)'ITranspose: irecv ierr=',this%ierr_
-  stop
-endif
+          IF  ( this%ierr_ .ne. mpi_success ) THEN
+            WRITE (*,*)'ITranspose: irecv ierr=',this%ierr_
+            STOP
+         ENDIF
           CALL MPI_ISEND(tmp,1,this%itypeip_(isendto),isendto, &
                         1,this%comm_,this%igsh_(irank),this%ierr_)
-if ( this%ierr_ .ne. mpi_success ) then
-  write(*,*)'ITranspose: isnd ierr=',this%ierr_
-  stop
-endif
+          IF ( this%ierr_ .ne. mpi_success ) THEN
+            WRITE (*,*)'ITranspose: isnd ierr=',this%ierr_
+            STOP
+          ENDIF
        ENDDO
 
        DO istrip=0, this%nstrip_-1
           irank = iproc + istrip
           CALL MPI_WAIT(this%igsh_(irank),this%istatus_,this%ierr_)
-if ( this%ierr_ .ne. mpi_success ) then
-  write(*,*)'ITranspose: Send Wait: ierr=',this%ierr_
-  stop
-endif
+          IF ( this%ierr_ .ne. mpi_success ) THEN
+            WRITE(*,*)'ITranspose: Send Wait: ierr=',this%ierr_
+            STOP
+          endif
           CALL MPI_WAIT(this%igrh_(irank),this%istatus_,this%ierr_)
-if ( this%ierr_ .ne. mpi_success ) then
-  write(*,*)'ITranspose: Rcv Wait: ierr=',this%ierr_
-  stop
-endif
+          IF ( this%ierr_ .ne. mpi_success ) THEN
+            WRITE (*,*)'ITranspose: Rcv Wait: ierr=',this%ierr_
+            STOP
+          ENDIF
        ENDDO
     ENDDO
 
@@ -2011,6 +2106,48 @@ endif
     this%nstrip_ = nstrip
 
   END SUBROUTINE GPartComm_SetCacheParam
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+  SUBROUTINE GPartComm_Copy2Ext(this,vext,v)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Copy2Ext
+!  DESCRIPTION: Copy field from regular to extended grid
+!               
+!  ARGUMENTS  :
+!    this    : 'this' class instance (IN)
+!    vext    : extended-grid field
+!    v       : regular-grid field
+!    ldims   : local dims of v
+!-----------------------------------------------------------------
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)                      :: this
+    INTEGER                                             :: i,j,jm,k,km,ngp,ngz,nex,nexy
+    INTEGER                                             :: nx,nxy,ny
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(*)            :: v
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)            :: vext
+
+    ngz  = this%nzghost_
+    ngp  = ngz * this%iextperp_
+    nexy = (this%nd_(1)+2*ngp) * (this%nd_(2)+2*ngp)
+    nex  = this%nd_(1)+2*ngp
+    nx   = this%nd_(1)
+    ny   = this%nd_(2)
+    nxy  = nx*ny
+
+    DO k = 1,this%kend_-this%ksta_+1
+      km = k-1
+      DO j=1,ny
+        jm = j-1
+        DO i=1,nx
+          vext(i+ngp+(jm+ngp)*nex+(km+ngz)*nexy) = v(i+jm*nx+km*nxy)
+        ENDDO
+      ENDDO
+    ENDDO
+
+  END SUBROUTINE GPartComm_Copy2Ext
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
