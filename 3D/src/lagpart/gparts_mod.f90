@@ -94,7 +94,8 @@ MODULE class_GPart
 !     PRIVATE :: GPart_GetParts    , GPart_MakePeriodicP
       PRIVATE :: GPart_MakePeriodicP
       PRIVATE :: GPart_GetLocalWrk , GPart_MakePeriodicExt
-      PRIVATE :: GPart_ascii_write
+      PRIVATE :: GPart_ascii_write , GPart_binary_write
+      PRIVATE :: GPart_ascii_read  , GPart_binary_read
 
 ! Methods:
   CONTAINS
@@ -612,7 +613,8 @@ MODULE class_GPart
 !  METHOD     : io_write_pdb
 !  DESCRIPTION: Does write of Lagrangian position d.b. to file. 
 !               Position of the particle structure in file is the
-!               particle's id.
+!               particle's id. Main entry point for both ASCII and
+!               binary writes.
 !  ARGUMENTS  :
 !    this    : 'this' class instance
 !    iunit   : unit number
@@ -631,14 +633,12 @@ MODULE class_GPart
     REAL(KIND=GP),INTENT   (IN)       :: time
     REAL(KIND=GP)                     :: prec(3)
     INTEGER,INTENT(IN)                :: iunit
-    INTEGER                           :: fh,nt,szreal
+    INTEGER                           :: fh,j,nt
     INTEGER(kind=MPI_OFFSET_KIND)     :: offset
     CHARACTER(len=*),INTENT(IN)       :: dir
     CHARACTER(len=*),INTENT(IN)       :: nmb
     CHARACTER(len=*),INTENT(IN)       :: spref
     TYPE(GPDBrec)                     :: pst
-
-    INTEGER                           :: j,gc,lc
 
     ! Do a sanity check:
     CALL MPI_ALLREDUCE(this%nparts_,nt,1,MPI_INTEGER, MPI_SUM,this%comm_,this%ierr_)
@@ -647,14 +647,59 @@ MODULE class_GPart
       STOP
     ENDIF
 
-    IF ( this%iouttype_ .GT. 0 ) THEN
-      IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
-        CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,&
-                               this%nparts_,this%vdb_,this%maxparts_)
-      ENDIF
-      CALL GPart_ascii_write(this,iunit,dir,'gpwchk',nmb,time)
-      RETURN
+    IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
+      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp0_)
+    ELSE
+      Do j = 1, this%maxparts_
+        this%ptmp0_(1:3,j) = this%vdb_(1:3,j)
+      ENDDO
     ENDIF
+
+    IF ( this%iouttype_ .EQ. 0 ) THEN
+      CALL GPart_binary_write(this,iunit,dir,spref,nmb,time,this%ptmp0_)
+    ELSE
+      CALL GPart_ascii_write (this,iunit,dir,spref,nmb,time,this%ptmp0_)
+    ENDIF
+
+  END SUBROUTINE GPart_io_write_pdb
+
+
+  SUBROUTINE GPart_binary_write(this, iunit, dir, spref, nmb, time, pdb)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : binary write
+!  DESCRIPTION: Does binary write of Lagrangian position d.b. to file. 
+!               Position of the particle structure in file is the
+!               particle's id.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    iunit   : unit number
+!    dir     : output directory
+!    spref   : filename prefix
+!    nmd     : time index
+!    time    : real time
+!    pdb     : particle d.b. in (3,maxparts) array
+!    
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPart) ,INTENT(INOUT)       :: this
+    REAL(KIND=GP),INTENT   (IN)       :: time
+    REAL(KIND=GP),INTENT   (IN)       :: pdb(3,this%maxparts_)
+    REAL(KIND=GP)                     :: prec(3)
+    INTEGER,INTENT(IN)                :: iunit
+    INTEGER                           :: fh,nt,szreal
+    INTEGER(kind=MPI_OFFSET_KIND)     :: offset
+    CHARACTER(len=*),INTENT(IN)       :: dir
+    CHARACTER(len=*),INTENT(IN)       :: nmb
+    CHARACTER(len=*),INTENT(IN)       :: spref
+    TYPE(GPDBrec)                     :: pst
+
+    INTEGER                           :: j,gc,lc
 
     ! Must write part. data to correct position in file:
     CALL MPI_TYPE_SIZE(GC_REAL    ,szreal,this%ierr_)
@@ -683,7 +728,60 @@ MODULE class_GPart
       STOP
     ENDIF
 
-  END SUBROUTINE GPart_io_write_pdb
+  END SUBROUTINE GPart_binary_write
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+ SUBROUTINE GPart_ascii_write(this, iunit, dir, spref, nmb, time,pdb)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : ascii_write
+!  DESCRIPTION: Does ASCII write of Lagrangian position d.b. to file.
+!               The local MPI tasks write to a file with prefix
+!               spref, in the following format:
+!                     dir/spref.TTT.PPP.txt
+!               where TTT is the time index, given by nmb, and
+!               PPP is the MPI rank.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    iunit   : unit number
+!    dir     : output directory
+!    spref   : filename prefix
+!    nmd     : time index
+!    time    : real time
+!    pdb     : part. d.b. in (4,maxparts) array
+!
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPart) ,INTENT(INOUT)       :: this
+    REAL(KIND=GP),INTENT   (IN)       :: time
+    REAL(KIND=GP),INTENT   (IN)       :: pdb(3,this%maxparts_)
+    INTEGER      ,INTENT   (IN)       :: iunit
+    INTEGER                           :: j
+    CHARACTER(len=*),INTENT(IN)       :: dir
+    CHARACTER(len=*),INTENT(IN)       :: nmb
+    CHARACTER(len=*),INTENT(IN)       :: spref
+    CHARACTER(len=3)                  :: sind
+
+      ! Write global VDB, with time header, indexed only
+      ! by time index: dir/spref.TTT.txt:
+     IF ( this%myrank_.EQ.0 ) THEN
+       OPEN(iunit,file=trim(dir)// '/' // trim(spref) // '.' // &
+                 nmb //  '.txt')
+       WRITE(iunit,*) this%maxparts_
+       WRITE(iunit,*) time
+       DO j = 1, this%maxparts_
+         WRITE(iunit,600) pdb(1,j),pdb(2,j),pdb(3,j)
+  600    FORMAT(3(E23.15,1X))
+       ENDDO
+      CLOSE(iunit)
+    ENDIF
+
+  END SUBROUTINE GPart_ascii_write
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -691,7 +789,9 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : io_read
-!  DESCRIPTION: Does read of Lagrangian particle data from file
+!  DESCRIPTION: Does read of Lagrangian particle data from file. 
+!               This is the main entry point for both binary and
+!               ASCII reads.
 !  ARGUMENTS  :
 !    this    : 'this' class instance
 !    iunit   : unit number
@@ -706,49 +806,140 @@ MODULE class_GPart
     IMPLICIT NONE
     CLASS(GPart)    ,INTENT(INOUT)            :: this
 !!  REAL(KIND=GP),INTENT(OUT),DIMENSION(:)    :: lvar
-    REAL(KIND=GP)                             :: rvar
+    REAL(KIND=GP)                             :: rvar,time
     INTEGER,INTENT(IN)                        :: iunit
-    INTEGER                                   :: fh,j,lc,nt,szreal
+    INTEGER                                   :: fh,j
     INTEGER(kind=MPI_OFFSET_KIND)             :: offset
     CHARACTER(len=*),INTENT   (IN)            :: dir
     CHARACTER(len=*),INTENT   (IN)            :: nmb
     CHARACTER(len=*),INTENT   (IN)            :: spref
 
+    IF ( this%iouttype_ .EQ. 0 ) THEN
+      CALL GPart_binary_read(this,iunit,dir,spref,nmb,time,this%ptmp0_)
+    ELSE
+      CALL GPart_ascii_read (this,iunit,dir,spref,nmb,time,this%ptmp0_)
+    ENDIF
+
+    CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,this%nparts_,this%ptmp0_,this%maxparts_)
+
+    ! If there is a global VDB for data 'exchanges', create it here:
+    IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
+      DO j = 1, this%maxparts_
+        this%vdb_(1:3,j) = this%ptmp0_(1:3,j)
+      ENDDO
+    ENDIF
+
+
+  END SUBROUTINE GPart_io_read
+
+
+  SUBROUTINE GPart_binary_read(this,iunit,dir,spref,nmb,time,pdb)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : binary_read
+!  DESCRIPTION: Does read of binary Lagrangian particle data from file. 
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    iunit   : unit number
+!    dir     : input directory
+!    spref   : filename prefix
+!    nmb     : time index
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPart) ,INTENT(INOUT)               :: this
+    REAL(KIND=GP)                             :: rvar,time
+    REAL(KIND=GP),INTENT(INOUT)               :: pdb(3,this%maxparts_)
+    INTEGER,INTENT(IN)                        :: iunit
+    INTEGER                                   :: fh,j,lc,szreal
+    INTEGER(kind=MPI_OFFSET_KIND)             :: offset
+    CHARACTER(len=*),INTENT   (IN)            :: dir
+    CHARACTER(len=*),INTENT   (IN)            :: nmb
+    CHARACTER(len=*),INTENT   (IN)            :: spref
 
     CALL MPI_TYPE_SIZE(GC_REAL,szreal,this%ierr_)
     CALL MPI_FILE_OPEN(this%comm_,trim(dir) // '/' // trim(spref) // &
          '.' // nmb // '.lag',MPI_MODE_RDONLY,MPI_INFO_NULL,fh,this%ierr_)
-
+  
     ! Must read part. data from correct spot in file:
     offset = 0
-    CALL MPI_FILE_READ_AT(fh,offset,rvar,1,GC_REAL,this%istatus_,this%ierr_)    !  no.parts
-    nt = int(rvar)
-    IF ( nt.NE.this%maxparts_ ) THEN
-      WRITE(*,*) 'GPart_io_read: Attempt to read different number of particles: maxparts:',&
-                  this%maxparts_,' no attempted: ',nt
+    CALL MPI_FILE_READ_AT_ALL(fh,offset,rvar,1,GC_REAL,this%istatus_,this%ierr_)    !  no.parts
+    IF ( int(rvar).NE.this%maxparts_ ) THEN
+      WRITE(*,*) 'GPart_io_read: Attempt to read incorrect number of particles: required:',&
+                  this%maxparts_,' no attempted: ',int(rvar)
       STOP
     ENDIF
     offset = szreal
-    CALL MPI_FILE_READ_AT(fh, offset,rvar,1,GC_REAL,this%istatus_,this%ierr_) ! time
+    CALL MPI_FILE_READ_AT_ALL(fh, offset,rvar,1,GC_REAL,this%istatus_,this%ierr_) ! time
     offset = 2*szreal
-    CALL MPI_FILE_READ_AT_ALL(fh,offset,this%ptmp0_,3*nt,GC_REAL,this%istatus_,this%ierr_)
+    CALL MPI_FILE_READ_AT_ALL(fh,offset,pdb,3*this%maxparts_,GC_REAL,this%istatus_,this%ierr_)
     CALL MPI_FILE_CLOSE(fh,this%ierr_)
-    
-    ! From global temp 'd.b.' of particle positions, get local particles to work on:
-    CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,this%nparts_,this%ptmp0_,nt)
-!!  write(*,*) this%myrank_,': io_read: nparts=',this%nparts_
+
 !!  CALL GPart_ascii_write(this,iunit,dir,'gprchk',nmb,0.0)
-
-    ! If there is a global VDB for data 'exchanges', create it here:
-    IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
-      this%nvdb_ = nt
-      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
-           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-    ENDIF
-
 !!  CALL GPart_Delete(this,this%pdb_,nt,this%nparts_)
 
-  END SUBROUTINE GPart_io_read
+  END SUBROUTINE GPart_binary_read
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+ SUBROUTINE GPart_ascii_read(this,iunit,dir,spref,nmb,time,pdb)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : ascii_read
+!  DESCRIPTION: Does ASCII read of Lagrangian position d.b. from file.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    iunit   : unit number
+!    dir     : output directory
+!    spref   : filename prefix
+!    nmd     : time index
+!    time    : real time
+!    pdb     : part. d.b. in (4,maxparts) array
+!
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPart) ,INTENT(INOUT)       :: this
+    REAL(KIND=GP),INTENT(INOUT)       :: time
+    REAL(KIND=GP),INTENT(INOUT)       :: pdb(3,this%maxparts_)
+    INTEGER      ,INTENT   (IN)       :: iunit
+    INTEGER                           :: j,kstat,nt
+    CHARACTER(len=*),INTENT(IN)       :: dir
+    CHARACTER(len=*),INTENT(IN)       :: nmb
+    CHARACTER(len=*),INTENT(IN)       :: spref
+    CHARACTER(len=3)                  :: sind
+
+    ! Read global VDB, with time header, indexed only
+    ! by time index: dir/spref.TTT.txt:
+    IF ( this%myrank_.EQ.0 ) THEN
+      OPEN(iunit,file=trim(dir)// '/' // trim(spref) // '.' // &
+                nmb //  '.txt',iostat=kstat)
+      IF ( kstat.NE.0 ) THEN
+        WRITE(*,*)'GPart_ascii_read: could not open file for reading: ',&
+        trim(dir)// '/' // trim(spref) // '.' // nmb //  '.txt'
+        STOP
+      ENDIF
+      READ(iunit,*,iostat=kstat) nt
+      READ(iunit,*,iostat=kstat) time
+      IF ( nt.NE.this%maxparts_ ) THEN
+        WRITE(*,*)this%myrank_, ': GPart_ascii_read: particle inconsistency: no. required=',this%nparts_,' no. found=',nt
+        STOP
+      ENDIF
+      DO j = 1, this%maxparts_
+        READ(iunit,*,iostat=kstat) pdb(1,j),pdb(2,j),pdb(3,j)
+  600   FORMAT(3(E23.15,1X))
+      ENDDO
+      CLOSE(iunit)
+    ENDIF
+    CALL MPI_BCAST(pdb,this%maxparts_,GC_REAL,0,this%comm_,this%ierr_)
+
+  END SUBROUTINE GPart_ascii_read
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -1154,74 +1345,6 @@ MODULE class_GPart
 !
 !
 !  END SUBROUTINE GPart_GetParts
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
- SUBROUTINE GPart_ascii_write(this, iunit, dir, spref, nmb, time)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : ascii_write
-!  DESCRIPTION: Does ASCII write of Lagrangian position d.b. to file.
-!               The local MPI tasks write to a file with prefix
-!               spref, in the following format:
-!                     dir/spref.TTT.PPP.txt
-!               where TTT is the time index, given by nmb, and
-!               PPP is the MPI rank.
-!  ARGUMENTS  :
-!    this    : 'this' class instance
-!    iunit   : unit number
-!    dir     : output directory
-!    spref   : filename prefix
-!    nmd     : time index
-!    time    : real time
-!
-!-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
-    USE mpivars
-
-    IMPLICIT NONE
-    CLASS(GPart) ,INTENT(INOUT)       :: this
-    REAL(KIND=GP),INTENT   (IN)       :: time
-    INTEGER      ,INTENT   (IN)       :: iunit
-    INTEGER                           :: j
-    CHARACTER(len=*),INTENT(IN)       :: dir
-    CHARACTER(len=*),INTENT(IN)       :: nmb
-    CHARACTER(len=*),INTENT(IN)       :: spref
-    CHARACTER(len=3)                  :: sind
-
-
-    IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
-      ! Then write individual task output in files labelled:
-      ! dir/spref.TTT.PPP.txt, where TTT is time index, and
-      ! PPP is MPI task rank:
-      IF ( log10(real(this%nprocs_)).LT. 3.0 ) THEN
-        WRITE(sind,'(i3.3)') this%myrank_
-      ELSE 
-        WRITE(sind,'(i5.5)') this%myrank_
-      ENDIF
-      OPEN(iunit,file=trim(dir)// '/' // trim(spref) // '.' // &
-                nmb // '.' // sind // '.txt')
-      DO j = 1, this%nparts_
-        WRITE(iunit,*) this%id_(j),this%px_(j),this%py_(j),this%pz_(j)
-      ENDDO
-      CLOSE(iunit)
-    ELSE
-      ! Then write global VDB, with time header, indexed only
-      ! by time index: dir/spref.TTT.txt:
-      IF ( this%myrank_.EQ.0 ) THEN
-        OPEN(iunit,file=trim(dir)// '/' // trim(spref) // '.' // &
-                  nmb //  '.txt')
-        WRITE(iunit,*) time
-        DO j = 1, this%maxparts_
-          WRITE(iunit,600) this%vdb_(1,j),this%vdb_(2,j),this%vdb_(3,j)
-  600     FORMAT(3(E23.15,1X))
-        ENDDO
-        CLOSE(iunit)
-      ENDIF
-    ENDIF
-
-  END SUBROUTINE GPart_ascii_write
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
