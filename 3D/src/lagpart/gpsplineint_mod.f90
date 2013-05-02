@@ -496,10 +496,6 @@ MODULE class_GPSplineInt
       this%ilg_(3,j) = mod(this%ilg_(2,j),nx) + 1
       this%ilg_(4,j) = mod(this%ilg_(3,j),nx) + 1
       this%ilg_(1,j) = mod(nx+this%ilg_(2,j)-2,nx) + 1
-if ( this%ilg_(2,j).le.0 .or. this%ilg_(2,j).gt.nx ) then
-write(*,*)'PartUpdate3D: j=',j,' p=',xp(j),yp(j),zp(j)
-stop
-endif
     ENDDO
       
     ! y-coords:
@@ -510,10 +506,6 @@ endif
       this%jlg_(3,j) = mod(this%jlg_(2,j),ny) + 1
       this%jlg_(4,j) = mod(this%jlg_(3,j),ny) + 1
       this%jlg_(1,j) = mod(ny+this%jlg_(2,j)-2,ny) + 1
-if ( this%jlg_(2,j).le.0 .or. this%jlg_(2,j).gt.ny ) then
-write(*,*)'PartUpdate3D: j=',j,' p=',xp(j),yp(j),zp(j)
-stop
-endif
     ENDDO
 
     ! z-coords:
@@ -538,28 +530,7 @@ endif
       this%klg_(2,j) = this%klg_(1,j) + 1
       this%klg_(3,j) = this%klg_(2,j) + 1
       this%klg_(4,j) = this%klg_(3,j) + 1
-!!    this%klg_(1,j) = this%klg_(2,j) - 1
-
-
-!     this%klg_(1,j) = (zp(j)-this%xbnds_(3,1))*this%dxi_(3)
-!     this%zrk_  (j) = (zp(j)-this%xbnds_(3,1))*this%dxi_(3) - real(this%klg_(1,j),kind=GP)
-!     this%klg_(2,j) = this%klg_(1,j) + 1
-!     this%klg_(3,j) = mod(this%klg_(2,j),nz) + 1
-!     this%klg_(4,j) = mod(this%klg_(3,j),nz) + 1
-!     this%klg_(1,j) = mod(nz+this%klg_(2,j)-2,nz) + 1
     ENDDO
-!!write(*,*)'PartUpdate3D: '
-!!do j=1, np
-!!  write(*,*)'xp=',xp(j),' ilg=',this%ilg_(2,j)
-!!enddo
-!!write(*,*)'...'
-!!do j=1, np
-!!  write(*,*)'yp=',yp(j),' jlg=',this%jlg_(2,j)
-!!enddo
-!!write(*,*)'...'
-!!do j=1, np
-!!  write(*,*)'zp=',zp(j),' zrk=',this%zrk_(j),' klg=',this%klg_(2,j)
-!!enddo
 
   END SUBROUTINE GPSplineInt_PartUpdate3D
 !-----------------------------------------------------------------
