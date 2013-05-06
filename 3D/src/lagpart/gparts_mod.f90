@@ -53,14 +53,14 @@ MODULE class_GPart
         TYPE(GPSplineInt)                            :: intop_
         INTEGER                                      :: intorder_,itorder_,nd_(3),libnds_(3,2)
         INTEGER                                      :: myrank_,nprocs_
-        INTEGER                                      :: ierr_,iseed_
+        INTEGER                                      :: ierr_,iseed_,istep_
         INTEGER                                      :: maxparts_,nparts_,nvdb_
         INTEGER                                      :: comm_
         INTEGER      , ALLOCATABLE, DIMENSION    (:) :: id_
 !!      TYPE(GPDBrec), ALLOCATABLE, DIMENSION    (:) :: pdb_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: px_,py_,pz_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:,:) :: ptmp0_,ptmp1_,vdb_
-        REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: ltmp0_
+        REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: ltmp0_,ltmp1_
         REAL(KIND=GP)                                :: lxbnds_(3,2),gxbnds_(3,2),gext_(3)
         CHARACTER(len=1024)                          :: seedfile_,serr_,sfile_
       CONTAINS
@@ -69,6 +69,7 @@ MODULE class_GPart
         FINAL            :: GPart_dtor
         PROCEDURE,PUBLIC :: Init            => GPart_Init
         PROCEDURE,PUBLIC :: Step            => GPart_StepRKK
+        PROCEDURE,PUBLIC :: StepGet         => GPart_StepGet
         PROCEDURE,PUBLIC :: SetStep         => GPart_SetStepRKK
         PROCEDURE,PUBLIC :: FinalStep       => GPart_FinalizeRKK
         PROCEDURE,PUBLIC :: io_write_euler  => GPart_io_write_euler
@@ -82,6 +83,7 @@ MODULE class_GPart
         PROCEDURE,PUBLIC :: GetSeedFile     => GPart_GetSeedFile
         PROCEDURE,PUBLIC :: GetRandSeed     => GPart_GetRandSeed
         PROCEDURE,PUBLIC :: GetTimeOrder    => GPart_GetTimeOrder
+        PROCEDURE,PUBLIC :: GetVDB          => GPart_GetVDB
 !       PROCEDURE,PUBLIC :: GetPos
       END TYPE GPart
 
@@ -96,6 +98,7 @@ MODULE class_GPart
       PRIVATE :: GPart_GetLocalWrk , GPart_MakePeriodicExt
       PRIVATE :: GPart_ascii_write , GPart_binary_write
       PRIVATE :: GPart_ascii_read  , GPart_binary_read
+      PRIVATE :: GPart_StepGet     , GPart_GetVDB
 
 ! Methods:
   CONTAINS
@@ -149,6 +152,7 @@ MODULE class_GPart
     this%itorder_  = 2
     this%intorder_ = max(intorder,1)
     this%iseed_     = 1000
+    this%istep_     = 0   
     this%iexchtype_=  iexchtyp
     this%iouttype_ =  iouttyp
 
@@ -163,12 +167,16 @@ MODULE class_GPart
     CALL this%gpcomm_%SetCacheParam(csize,nstrip)
     CALL this%gpcomm_%Init()
 
-    this%libnds_(1,1) = 1    ; this%lxbnds_(1,1) = 0.0
-    this%libnds_(1,2) = n    ; this%lxbnds_(1,2) = real(n-1,kind=GP)
-    this%libnds_(2,1) = 1    ; this%lxbnds_(2,1) = 0.0
-    this%libnds_(2,2) = n    ; this%lxbnds_(2,2) = real(n-1,kind=GP)
-    this%libnds_(3,1) = ksta ; this%lxbnds_(3,1) = real(ksta-1,kind=GP)-0.50_GP+epsilon(1.0_GP)
-    this%libnds_(3,2) = kend ; this%lxbnds_(3,2) = real(kend-1,kind=GP)+0.50_GP-epsilon(1.0_GP)
+    DO j = 1,2
+      this%libnds_(j,1) = 1 ; 
+      this%libnds_(j,2) = n ; 
+      this%lxbnds_(j,1) = real(this%libnds_(j,1),kind=GP)
+      this%lxbnds_(j,2) = real(this%libnds_(j,2),kind=GP)
+    ENDDO
+    this%libnds_(3,1) = ksta ; 
+    this%libnds_(3,2) = kend ; 
+    this%lxbnds_(3,1) = real(ksta-1,kind=GP)-0.50_GP+epsilon(1.0_GP)
+    this%lxbnds_(3,2) = real(kend-1,kind=GP)+0.50_GP-epsilon(1.0_GP)
 
     DO j = 1,3
       this%gxbnds_(j,1) = 0.0_GP 
@@ -190,6 +198,7 @@ MODULE class_GPart
       ALLOCATE(this%vdb_(3,this%maxparts_))
     ENDIF
     ALLOCATE(this%ltmp0_ (this%maxparts_))
+    ALLOCATE(this%ltmp1_ (this%maxparts_))
 
   END SUBROUTINE GPart_ctor
 !-----------------------------------------------------------------
@@ -217,6 +226,7 @@ MODULE class_GPart
     IF ( ALLOCATED (this%ptmp1_) ) DEALLOCATE(this%ptmp1_)
     IF ( ALLOCATED   (this%vdb_) ) DEALLOCATE  (this%vdb_)
     IF ( ALLOCATED (this%ltmp0_) ) DEALLOCATE(this%ltmp0_)
+    IF ( ALLOCATED (this%ltmp1_) ) DEALLOCATE(this%ltmp1_)
   
   END SUBROUTINE GPart_dtor
 !-----------------------------------------------------------------
@@ -508,7 +518,7 @@ MODULE class_GPart
     DO WHILE ( this%ierr_.EQ.0 .AND. nt.LT.this%maxparts_ )
       READ(1,*,IOSTAT=this%ierr_) x, y, z
       IF ( this%ierr_ .NE. 0 ) EXIT
-      IF ( z.GT.this%lxbnds_(3,1) .AND. z.LT.this%lxbnds_(3,2) .AND. &
+      IF ( z.GE.this%lxbnds_(3,1) .AND. z.LE.this%lxbnds_(3,2) .AND. &
            y.GE.this%lxbnds_(2,1) .AND. y.LE.this%lxbnds_(2,2) .AND. &
            x.GE.this%lxbnds_(1,1) .AND. x.LE.this%lxbnds_(1,2) ) THEN
         nl = nl + 1
@@ -641,15 +651,18 @@ MODULE class_GPart
     TYPE(GPDBrec)                     :: pst
 
     ! Do a sanity check:
-    CALL MPI_ALLREDUCE(this%nparts_,nt,1,MPI_INTEGER, MPI_SUM,this%comm_,this%ierr_)
-    IF ( nt .NE. this%maxparts_ ) THEN
-      WRITE(*,*)this%myrank_, ': GPart_io_write_pdb: particle inconsistency: no. required=',this%nparts_,' no. found=',nt
-      STOP
-    ENDIF
+!!  CALL MPI_ALLREDUCE(this%nparts_,nt,1,MPI_INTEGER,MPI_SUM,this%comm_,this%ierr_)
+!!  IF ( nt .NE. this%maxparts_ ) THEN
+!!    WRITE(*,*) this%myrank_, ': GPart_io_write_pdb: particle inconsistency: no. required=',&
+!!               this%maxparts_,' no. found=',nt
+!!    STOP
+!!  ENDIF
 
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
       CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
            this%px_,this%py_,this%pz_,this%nparts_,this%ptmp0_)
+      CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,&
+                             this%nparts_,this%ptmp0_,this%maxparts_)
     ELSE
       Do j = 1, this%maxparts_
         this%ptmp0_(1:3,j) = this%vdb_(1:3,j)
@@ -724,7 +737,7 @@ MODULE class_GPart
     CALL MPI_FILE_CLOSE(fh,this%ierr_)
 
     IF ( gc .NE. this%nparts_*3 ) THEN
-      WRITE(*,*)this%myrank_, ': GPart_io_write_pdb: insufficient amount of data written; no. required=',this%nparts_*3,' no. written=',gc
+      WRITE(*,*)this%myrank_, ': GPart_binary_write: insufficient amount of data written; no. required=',this%nparts_*3,' no. written=',gc
       STOP
     ENDIF
 
@@ -961,18 +974,17 @@ MODULE class_GPart
     IMPLICIT NONE
     CLASS(GPart)   ,INTENT(INOUT)          :: this
 
-    INTEGER                                :: i,j
+    INTEGER                                :: j
 
     ! Initialize solution, u: 
     ! u* <-- u: 
  
     ! Cycle over JST loop to update state:
-    DO i = 1, this%nparts_
-       this%ptmp0_(1,i) = this%px_(i)  ! u_0
-       this%ptmp0_(2,i) = this%py_(i)  ! u_0
-       this%ptmp0_(3,i) = this%pz_(i)  ! u_0
+    DO j = 1, this%nparts_
+       this%ptmp0_(1,j) = this%px_(j)  ! u_0
+       this%ptmp0_(2,j) = this%py_(j)  ! u_0
+       this%ptmp0_(3,j) = this%pz_(j)  ! u_0
     ENDDO 
-    
 
   END SUBROUTINE GPart_SetStepRKK
 !-----------------------------------------------------------------
@@ -1034,6 +1046,8 @@ MODULE class_GPart
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend) :: vx,vy,vz,tmp1,tmp2
     REAL(KIND=GP),INTENT   (IN)                          :: dt,xk
     REAL(KIND=GP)                                        :: dtfact
+    REAL(KIND=GP),ALLOCATABLE  ,DIMENSION            (:) :: lid,gid
+
 
     dtfact = dt*xk
 
@@ -1044,7 +1058,7 @@ MODULE class_GPart
     DO j = 1, this%nparts_
       this%px_(j) = this%ptmp0_(1,j) + dtfact*this%ltmp0_(j)
     ENDDO
-
+    !
     ! ... y:
     ! Exchange bdy data for velocities, so that we
     ! can perform local interpolations:
@@ -1063,7 +1077,128 @@ MODULE class_GPart
       this%pz_(j) = this%ptmp0_(3,j) + dtfact*this%ltmp0_(j)
     ENDDO
 !
+    ! IF using nearest-neighbor interface, do particle exchange 
+    ! between nearest-neighbor tasks BEFORE PERIODIZING particle coordinates:
+    IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
+      CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_, &
+           this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2))
+    ENDIF
 
+    ! Enforce periodicity:
+    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_)
+
+    ! If using VDB interface, do synch-up, and get local work:
+    IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
+      ! Synch up VDB, if necessary:
+      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+
+      ! If using VDB, get local particles to work on:
+      CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,&
+           this%nparts_,this%vdb_,this%maxparts_)
+    ENDIF
+    
+!   ALLOCATE  (lid(this%maxparts_))
+!   ALLOCATE  (gid(this%maxparts_))
+!   lid = 0
+!   gid = 0
+!   do j=1,this%maxparts_
+!     lid(this%id_(j)+1) = 1
+!   enddo
+!   call mpi_allreduce(lid,gid,this%maxparts_,MPI_INTEGER,MPI_SUM,this%comm_,this%ierr_)
+!   if ( this%myrank_.eq. 0 ) then
+!     do j=1,this%maxparts_
+!       if ( gid(j) .gt.1 ) then
+!         write(*,*)this%myrank_,': StepRKK: multiplicity > 1: id=',j-1,' p=', &
+!                   this%vdb_(1,j),this%vdb_(2,j),this%vdb_(3,j)
+!       else if ( gid(j).eq.0 ) then
+!         write(*,*)this%myrank_,': StepRKK: particle missing: id=',j-1
+!       endif    
+!     enddo
+!   endif
+!
+!   DEALLOCATE(lid,gid)
+
+  END SUBROUTINE GPart_StepRKK
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+  SUBROUTINE GPart_StepGet(this, vx, vy, vz, dt, xk, tmp1, tmp2,&
+                           pvdb, vxl, vyl, vzl)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : StepGet
+!  DESCRIPTION: Carries out one stage of explicit RK-like time
+!               inegration step.  Intended for explicit step within 
+!               an outer stepper method of the form:
+!
+!               X = X_0 + dt * V(X(t),t) * xk,
+!       
+!               Note that the vx, vy, vz, will be overwritten here.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    vz,vy,vz: compoments of velocity field, in real space, partially
+!              updated, possibly. These will be overwritten!
+!    dt      : integration timestep
+!    xk      : multiplicative RK time stage factor
+!    pvdb    : return array for VDB
+!    vxl,vyl,
+!        vzl : return arrays for interpolated velocities
+!-----------------------------------------------------------------
+    USE grid
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPart) ,INTENT(INOUT)                            :: this
+    INTEGER                                                :: i,j
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend)   :: vx,vy,vz,tmp1,tmp2
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,this%maxparts_):: pvdb
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION  (this%maxparts_):: vxl,vyl,vzl 
+    REAL(KIND=GP),INTENT   (IN)                            :: dt,xk
+    REAL(KIND=GP)                                          :: dtfact
+
+    dtfact = dt*xk
+
+    this%ltmp0_ = 0.0_GP
+    this%ltmp1_ = 0.0_GP
+    DO j = 1, this%maxparts_
+      this%ltmp0_(j) = 0.0_GP
+      this%ltmp1_(j) = 0.0_GP
+      vxl(j) = 0.0; vyl(j) = 0.0; vzl(j) = 0.0
+    ENDDO
+    ! Find F(u*):
+    ! ... x:
+    CALL GPart_EulerToLag(this,this%ltmp0_,this%nparts_,vx,.true.,tmp1,tmp2)
+    ! ux* <-- ux + dt * F(U*)*xk:
+    DO j = 1, this%nparts_
+      this%px_(j) = this%ptmp0_(1,j) + dtfact*this%ltmp0_(j)
+      this%ltmp1_(this%id_(j)+1) = this%ltmp0_(j)
+    ENDDO
+    CALL MPI_ALLREDUCE(this%ltmp1_,vxl,this%maxparts_,GC_REAL,MPI_SUM,this%comm_,this%ierr_)
+    !
+    ! ... y:
+    CALL GPart_EulerToLag(this,this%ltmp0_,this%nparts_,vy,.false.,tmp1,tmp2)
+    ! uy* <-- uy + dt * F(U*)*xk:
+    DO j = 1, this%nparts_
+      this%py_(j) = this%ptmp0_(2,j) + dtfact*this%ltmp0_(j)
+      this%ltmp1_(this%id_(j)+1) = this%ltmp0_(j)
+    ENDDO
+    CALL MPI_ALLREDUCE(this%ltmp1_,vyl,this%maxparts_,GC_REAL,MPI_SUM,this%comm_,this%ierr_)
+
+    ! ... z:
+    ! Exchange bdy data for velocities, so that we
+    ! can perform local interpolations:
+    CALL GPart_EulerToLag(this,this%ltmp0_,this%nparts_,vz,.false.,tmp1,tmp2)
+    ! uz* <-- uz + dt * F(U*)*xk:
+    DO j = 1, this%nparts_
+      this%pz_(j) = this%ptmp0_(3,j) + dtfact*this%ltmp0_(j)
+      this%ltmp1_(this%id_(j)+1) = this%ltmp0_(j)
+    ENDDO
+    CALL MPI_ALLREDUCE(this%ltmp1_,vzl,this%maxparts_,GC_REAL,MPI_SUM,this%comm_,this%ierr_)
+!
     ! IF using nearest-neighbor interface, do particle exchange 
     ! between nearest-neighbor tasks BEFORE PERIODIZING particle coordinates:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
@@ -1079,12 +1214,25 @@ MODULE class_GPart
       ! Synch up VDB, if necessary:
       CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
            this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+      DO j=1,this%maxparts_
+        pvdb(1,j) = this%vdb_(1,j)
+        pvdb(2,j) = this%vdb_(2,j)
+        pvdb(3,j) = this%vdb_(3,j)
+      ENDDO
+
       ! If using VDB, get local particles to work on:
+j = this%nparts_
       CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,&
            this%nparts_,this%vdb_,this%maxparts_)
+if ( j.ne.this%nparts_) then
+write(*,*)this%myrank_,': StepGet: no. parts changed: was: ',j,' now: ',this%nparts_
+endif
+    ELSE
+      CALL this%gpcomm_%VDBSynch(pvdb,this%maxparts_,this%id_, &
+           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     ENDIF
 
-  END SUBROUTINE GPart_stepRKK
+  END SUBROUTINE GPart_StepGet
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -1161,10 +1309,14 @@ MODULE class_GPart
 
     INTEGER                                          :: j
 
+
     DO j = 1, npdb
-      px(j) = mod(px(j)+10.0_GP*this%gext_(1),this%gext_(1))
-      py(j) = mod(py(j)+10.0_GP*this%gext_(2),this%gext_(2))
-      pz(j) = mod(pz(j)+10.0_GP*this%gext_(3),this%gext_(3))
+!     px(j) = mod(px(j)+10.0_GP*this%gext_(1),this%gext_(1))
+!     py(j) = mod(py(j)+10.0_GP*this%gext_(2),this%gext_(2))
+!     pz(j) = mod(pz(j)+10.0_GP*this%gext_(3),this%gext_(3))
+      px(j) = mod(px(j)+this%gext_(1),this%gext_(1))
+      py(j) = mod(py(j)+this%gext_(2),this%gext_(2))
+      pz(j) = mod(pz(j)+this%gext_(3),this%gext_(3))
     ENDDO
 
   END SUBROUTINE GPart_MakePeriodicP
@@ -1303,7 +1455,7 @@ MODULE class_GPart
     nl = 0
     id = GPNULL
     DO j = 1, ngvdb
-      IF ( gvdb(3,j).GT.this%lxbnds_(3,1) .AND. gvdb(3,j).LT.this%lxbnds_(3,2) ) THEN 
+      IF ( gvdb(3,j).GE.this%lxbnds_(3,1) .AND. gvdb(3,j).LE.this%lxbnds_(3,2) ) THEN 
         nl = nl + 1
         id (nl) = j-1
         lx (nl) = gvdb(1,j)
@@ -1313,6 +1465,32 @@ MODULE class_GPart
     ENDDO
 
   END SUBROUTINE GPart_GetLocalWrk
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE GPart_GetVDB(this,pdb,npdb)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : GPart_GetVDB
+!  DESCRIPTION: Gets particle d.b.
+!  ARGUMENTS  :
+!    this    : 'this' class instance (IN)
+!    pdb     : part pdb
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+
+    IMPLICIT NONE 
+    CLASS(GPart) ,INTENT(INOUT)                   :: this 
+    INTEGER      ,INTENT   (IN)                   :: npdb
+    INTEGER                                       :: j
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,npdb):: pdb 
+
+    DO j = 1, npdb
+      pdb(1:3,j) = this%vdb_(1:3,j)
+    ENDDO
+
+   END SUBROUTINE GPart_GetVDB
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
