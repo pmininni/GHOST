@@ -170,8 +170,8 @@ MODULE class_GPart
     DO j = 1,2
       this%libnds_(j,1) = 1 ; 
       this%libnds_(j,2) = n ; 
-      this%lxbnds_(j,1) = real(this%libnds_(j,1),kind=GP)
-      this%lxbnds_(j,2) = real(this%libnds_(j,2),kind=GP)
+      this%lxbnds_(j,1) = 0.0_GP
+      this%lxbnds_(j,2) = real(n-1,kind=GP)
     ENDDO
     this%libnds_(3,1) = ksta ; 
     this%libnds_(3,2) = kend ; 
@@ -1311,12 +1311,9 @@ endif
 
 
     DO j = 1, npdb
-!     px(j) = mod(px(j)+10.0_GP*this%gext_(1),this%gext_(1))
-!     py(j) = mod(py(j)+10.0_GP*this%gext_(2),this%gext_(2))
-!     pz(j) = mod(pz(j)+10.0_GP*this%gext_(3),this%gext_(3))
-      px(j) = mod(px(j)+this%gext_(1),this%gext_(1))
-      py(j) = mod(py(j)+this%gext_(2),this%gext_(2))
-      pz(j) = mod(pz(j)+this%gext_(3),this%gext_(3))
+      px(j) = modulo(px(j)+2.0*this%gext_(1),this%gext_(1))
+      py(j) = modulo(py(j)+2.0*this%gext_(2),this%gext_(2))
+      pz(j) = modulo(pz(j)+2.0*this%gext_(3),this%gext_(3))
     ENDDO
 
   END SUBROUTINE GPart_MakePeriodicP
