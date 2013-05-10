@@ -181,6 +181,48 @@ MODULE gutils
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+      SUBROUTINE parsestr(strin, sep, astr, astrlen, nmax, nind)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Parses string of names, separated by 'sep' delimiter, and
+! returns them in an array.
+!
+! Parameters
+!     strin: 'sep'-separated string of strings(IN)
+!     sep  : separator string (IN)
+!     astr : array containing strings found in 'strin' (IN)
+!     nmax : max size of 'astr' array (OUT)
+!     nstr : num. strings found in 'strin' (OUT)
+!-----------------------------------------------------------------
+      INTEGER               , INTENT(IN)  :: astrlen,nmax
+      CHARACTER(len=*)      , INTENT (IN) :: strin,sep
+      CHARACTER(len=astrlen), INTENT(OUT) :: astr(nmax)
+      CHARACTER(len=astrlen)              :: tstr
+      INTEGER                             :: i, ib, ie
+
+      ib = 1;
+      ie = len(strin)
+      nind = 0
+      DO WHILE ( len(trim(strin(ib:ie))) .GT. 0 )
+        i = index(strin(ib:ie),sep)
+        IF ( i .eq. 0 ) THEN
+          astr(nind+1) = trim(adjustl(strin(ib:ie)))
+          ib = ie + 1
+        ELSE
+          astr(nind+1) = trim(adjustl(strin(ib:(ib+i-2))))
+          ib = ib + i
+        ENDIF
+        nind = nind + 1
+        IF ( nind.GE.nmax ) RETURN
+      ENDDO
+      RETURN
+
+      END SUBROUTINE parsestr
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
 !
 !
       SUBROUTINE dopdfr(Rin, nin, spref, nmb, nbins, ifixdr, fmin, fmax, dolog)
