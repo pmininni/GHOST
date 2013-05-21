@@ -59,6 +59,7 @@ MODULE class_GPart
         INTEGER      , ALLOCATABLE, DIMENSION    (:) :: id_
 !!      TYPE(GPDBrec), ALLOCATABLE, DIMENSION    (:) :: pdb_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: px_,py_,pz_
+        REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: lvx_,lvy_,lvz_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:,:) :: ptmp0_,ptmp1_,vdb_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: ltmp0_,ltmp1_
         REAL(KIND=GP)                                :: lxbnds_(3,2),gxbnds_(3,2),gext_(3)
@@ -74,6 +75,7 @@ MODULE class_GPart
         PROCEDURE,PUBLIC :: FinalStep       => GPart_FinalizeRKK
         PROCEDURE,PUBLIC :: io_write_euler  => GPart_io_write_euler
         PROCEDURE,PUBLIC :: io_write_pdb    => GPart_io_write_pdb
+        PROCEDURE,PUBLIC :: io_write_vel    => GPart_io_write_vel
         PROCEDURE,PUBLIC :: io_read         => GPart_io_read
         PROCEDURE,PUBLIC :: EulerToLag      => GPart_EulerToLag
         PROCEDURE,PUBLIC :: SetInitType     => GPart_SetInitType
@@ -84,21 +86,24 @@ MODULE class_GPart
         PROCEDURE,PUBLIC :: GetRandSeed     => GPart_GetRandSeed
         PROCEDURE,PUBLIC :: GetTimeOrder    => GPart_GetTimeOrder
         PROCEDURE,PUBLIC :: GetVDB          => GPart_GetVDB
+        PROCEDURE,PUBLIC :: GetVel          => GPart_GetVel
 !       PROCEDURE,PUBLIC :: GetPos
       END TYPE GPart
 
-      PRIVATE :: GPart_Init        , GPart_StepRKK     , GPart_io_write_euler
-      PRIVATE :: GPart_SetStepRKK  , GPart_FinalizeRKK
-      PRIVATE :: GPart_io_write_pdb, GPart_io_read     
-      PRIVATE :: GPart_InitRandSeed, GPart_InitUserSeed 
-      PRIVATE :: GPart_SetInitType , GPart_SetSeedFile
-      PRIVATE :: GPart_SetRandSeed , GPart_Delete
-!     PRIVATE :: GPart_GetParts    , GPart_MakePeriodicP
+      PRIVATE :: GPart_Init            , GPart_StepRKK     
+      PRIVATE :: GPart_SetStepRKK      , GPart_FinalizeRKK
+      PRIVATE :: GPart_io_write_pdb    , GPart_io_read     
+      PRIVATE :: GPart_io_write_euler  , GPart_io_write_vel
+      PRIVATE :: GPart_InitRandSeed    , GPart_InitUserSeed 
+      PRIVATE :: GPart_SetInitType     , GPart_SetSeedFile
+      PRIVATE :: GPart_SetRandSeed     , GPart_Delete
       PRIVATE :: GPart_MakePeriodicP
-      PRIVATE :: GPart_GetLocalWrk , GPart_MakePeriodicExt
-      PRIVATE :: GPart_ascii_write , GPart_binary_write
-      PRIVATE :: GPart_ascii_read  , GPart_binary_read
-      PRIVATE :: GPart_StepGet     , GPart_GetVDB
+      PRIVATE :: GPart_GetLocalWrk     , GPart_MakePeriodicExt
+      PRIVATE :: GPart_ascii_write_pdb , GPart_binary_write_pdb
+!     PRIVATE :: GPart_ascii_write_fld , GPart_binary_write_fld
+      PRIVATE :: GPart_ascii_read_pdb  , GPart_binary_read_pdb
+      PRIVATE :: GPart_StepGet         , GPart_GetVDB
+      PRIVATE :: GPart_GetVel
 
 ! Methods:
   CONTAINS
@@ -192,6 +197,9 @@ MODULE class_GPart
     ALLOCATE(this%px_      (this%maxparts_))
     ALLOCATE(this%py_      (this%maxparts_))
     ALLOCATE(this%pz_      (this%maxparts_))
+    ALLOCATE(this%lvx_     (this%maxparts_))
+    ALLOCATE(this%lvy_     (this%maxparts_))
+    ALLOCATE(this%lvz_     (this%maxparts_))
     ALLOCATE(this%ptmp0_ (3,this%maxparts_))
     ALLOCATE(this%ptmp1_ (3,this%maxparts_))
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
@@ -222,11 +230,16 @@ MODULE class_GPart
     IF ( ALLOCATED    (this%px_) ) DEALLOCATE   (this%px_)
     IF ( ALLOCATED    (this%py_) ) DEALLOCATE   (this%py_)
     IF ( ALLOCATED    (this%pz_) ) DEALLOCATE   (this%pz_)
+    IF ( ALLOCATED   (this%lvx_) ) DEALLOCATE  (this%lvx_)
+    IF ( ALLOCATED   (this%lvy_) ) DEALLOCATE  (this%lvy_)
+    IF ( ALLOCATED   (this%lvz_) ) DEALLOCATE  (this%lvz_)
     IF ( ALLOCATED (this%ptmp0_) ) DEALLOCATE(this%ptmp0_)
     IF ( ALLOCATED (this%ptmp1_) ) DEALLOCATE(this%ptmp1_)
     IF ( ALLOCATED   (this%vdb_) ) DEALLOCATE  (this%vdb_)
     IF ( ALLOCATED (this%ltmp0_) ) DEALLOCATE(this%ltmp0_)
     IF ( ALLOCATED (this%ltmp1_) ) DEALLOCATE(this%ltmp1_)
+    IF ( ALLOCATED   (this%lvy_) ) DEALLOCATE  (this%lvy_)
+    IF ( ALLOCATED   (this%lvz_) ) DEALLOCATE  (this%lvz_)
   
   END SUBROUTINE GPart_dtor
 !-----------------------------------------------------------------
@@ -436,7 +449,7 @@ MODULE class_GPart
     ! VDBSynch afterwards, and a GetLocalWrk call to get the
     ! particles a task owns:
     iwrk1 = this%maxparts_/this%nprocs_
-    iwrk2 = mod(this%maxparts_,this%nprocs_)
+    iwrk2 = modulo(this%maxparts_,this%nprocs_)
     IF ( iwrk1.GT.0 ) THEN
       ib = this%myrank_*iwrk1+1+min(this%myrank_,iwrk2)
       ie = ib+iwrk1-1
@@ -617,6 +630,7 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+
   SUBROUTINE GPart_io_write_pdb(this, iunit, dir, spref, nmb, time)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -659,10 +673,8 @@ MODULE class_GPart
 !!  ENDIF
 
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
-      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
-           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp0_)
-      CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,&
-                             this%nparts_,this%ptmp0_,this%maxparts_)
+      CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     ELSE
       Do j = 1, this%maxparts_
         this%ptmp0_(1:3,j) = this%vdb_(1:3,j)
@@ -670,15 +682,58 @@ MODULE class_GPart
     ENDIF
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
-      CALL GPart_binary_write(this,iunit,dir,spref,nmb,time,this%ptmp0_)
+      CALL GPart_binary_write_pdb(this,iunit,dir,spref,nmb,time,this%ptmp0_)
     ELSE
-      CALL GPart_ascii_write (this,iunit,dir,spref,nmb,time,this%ptmp0_)
+      CALL GPart_ascii_write_pdb (this,iunit,dir,spref,nmb,time,this%ptmp0_)
     ENDIF
 
   END SUBROUTINE GPart_io_write_pdb
 
 
-  SUBROUTINE GPart_binary_write(this, iunit, dir, spref, nmb, time, pdb)
+  SUBROUTINE GPart_io_write_vel(this, iunit, dir, spref, nmb, time)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : io_write_vel
+!  DESCRIPTION: Does write of Lagrangian velocities that are
+!               currently stored.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    iunit   : unit number
+!    dir     : output directory
+!    spref   : filename prefix
+!    nmd     : time index
+!    time    : real time
+!    
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPart) ,INTENT(INOUT)       :: this
+    REAL(KIND=GP),INTENT   (IN)       :: time
+    REAL(KIND=GP)                     :: prec(3)
+    INTEGER,INTENT(IN)                :: iunit
+    INTEGER                           :: fh,j,nt
+    INTEGER(kind=MPI_OFFSET_KIND)     :: offset
+    CHARACTER(len=*),INTENT(IN)       :: dir
+    CHARACTER(len=*),INTENT(IN)       :: nmb
+    CHARACTER(len=*),INTENT(IN)       :: spref
+    TYPE(GPDBrec)                     :: pst
+
+    CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+         this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp1_)
+
+    IF ( this%iouttype_ .EQ. 0 ) THEN
+      CALL GPart_binary_write_pdb(this,iunit,dir,spref,nmb,time,this%ptmp0_)
+    ELSE
+      CALL GPart_ascii_write_pdb (this,iunit,dir,spref,nmb,time,this%ptmp0_)
+    ENDIF
+
+  END SUBROUTINE GPart_io_write_vel
+
+
+  SUBROUTINE GPart_binary_write_pdb(this, iunit, dir, spref, nmb, time, pdb)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : binary write
@@ -737,18 +792,18 @@ MODULE class_GPart
     CALL MPI_FILE_CLOSE(fh,this%ierr_)
 
     IF ( gc .NE. this%nparts_*3 ) THEN
-      WRITE(*,*)this%myrank_, ': GPart_binary_write: insufficient amount of data written; no. required=',this%nparts_*3,' no. written=',gc
+      WRITE(*,*)this%myrank_, ': GPart_binary_write_pdb: insufficient amount of data written; no. required=',this%nparts_*3,' no. written=',gc
       STOP
     ENDIF
 
-  END SUBROUTINE GPart_binary_write
+  END SUBROUTINE GPart_binary_write_pdb
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
- SUBROUTINE GPart_ascii_write(this, iunit, dir, spref, nmb, time,pdb)
+ SUBROUTINE GPart_ascii_write_pdb(this, iunit, dir, spref, nmb, time,pdb)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!  METHOD     : ascii_write
+!  METHOD     : ascii_write_pdb
 !  DESCRIPTION: Does ASCII write of Lagrangian position d.b. to file.
 !               The local MPI tasks write to a file with prefix
 !               spref, in the following format:
@@ -794,7 +849,7 @@ MODULE class_GPart
       CLOSE(iunit)
     ENDIF
 
-  END SUBROUTINE GPart_ascii_write
+  END SUBROUTINE GPart_ascii_write_pdb
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -828,9 +883,9 @@ MODULE class_GPart
     CHARACTER(len=*),INTENT   (IN)            :: spref
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
-      CALL GPart_binary_read(this,iunit,dir,spref,nmb,time,this%ptmp0_)
+      CALL GPart_binary_read_pdb(this,iunit,dir,spref,nmb,time,this%ptmp0_)
     ELSE
-      CALL GPart_ascii_read (this,iunit,dir,spref,nmb,time,this%ptmp0_)
+      CALL GPart_ascii_read_pdb (this,iunit,dir,spref,nmb,time,this%ptmp0_)
     ENDIF
 
     CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,this%nparts_,this%ptmp0_,this%maxparts_)
@@ -846,10 +901,10 @@ MODULE class_GPart
   END SUBROUTINE GPart_io_read
 
 
-  SUBROUTINE GPart_binary_read(this,iunit,dir,spref,nmb,time,pdb)
+  SUBROUTINE GPart_binary_read_pdb(this,iunit,dir,spref,nmb,time,pdb)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!  METHOD     : binary_read
+!  METHOD     : binary_read_pdb
 !  DESCRIPTION: Does read of binary Lagrangian particle data from file. 
 !  ARGUMENTS  :
 !    this    : 'this' class instance
@@ -891,17 +946,14 @@ MODULE class_GPart
     CALL MPI_FILE_READ_AT_ALL(fh,offset,pdb,3*this%maxparts_,GC_REAL,this%istatus_,this%ierr_)
     CALL MPI_FILE_CLOSE(fh,this%ierr_)
 
-!!  CALL GPart_ascii_write(this,iunit,dir,'gprchk',nmb,0.0)
-!!  CALL GPart_Delete(this,this%pdb_,nt,this%nparts_)
-
-  END SUBROUTINE GPart_binary_read
+  END SUBROUTINE GPart_binary_read_pdb
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
- SUBROUTINE GPart_ascii_read(this,iunit,dir,spref,nmb,time,pdb)
+ SUBROUTINE GPart_ascii_read_pdb(this,iunit,dir,spref,nmb,time,pdb)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!  METHOD     : ascii_read
+!  METHOD     : ascii_read_pdb
 !  DESCRIPTION: Does ASCII read of Lagrangian position d.b. from file.
 !  ARGUMENTS  :
 !    this    : 'this' class instance
@@ -934,14 +986,14 @@ MODULE class_GPart
       OPEN(iunit,file=trim(dir)// '/' // trim(spref) // '.' // &
                 nmb //  '.txt',iostat=kstat)
       IF ( kstat.NE.0 ) THEN
-        WRITE(*,*)'GPart_ascii_read: could not open file for reading: ',&
+        WRITE(*,*)'GPart_ascii_read_pdb: could not open file for reading: ',&
         trim(dir)// '/' // trim(spref) // '.' // nmb //  '.txt'
         STOP
       ENDIF
       READ(iunit,*,iostat=kstat) nt
       READ(iunit,*,iostat=kstat) time
       IF ( nt.NE.this%maxparts_ ) THEN
-        WRITE(*,*)this%myrank_, ': GPart_ascii_read: particle inconsistency: no. required=',this%nparts_,' no. found=',nt
+        WRITE(*,*)this%myrank_, ': GPart_ascii_read_pdb: particle inconsistency: no. required=',this%nparts_,' no. found=',nt
         STOP
       ENDIF
       DO j = 1, this%maxparts_
@@ -952,7 +1004,7 @@ MODULE class_GPart
     ENDIF
     CALL MPI_BCAST(pdb,this%maxparts_,GC_REAL,0,this%comm_,this%ierr_)
 
-  END SUBROUTINE GPart_ascii_read
+  END SUBROUTINE GPart_ascii_read_pdb
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -1009,6 +1061,20 @@ MODULE class_GPart
     CLASS(GPart) ,INTENT(INOUT)                 :: this
 
     ! u(t+dt) = u*: done already
+
+    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,7)
+
+    ! If using VDB interface, do synch-up, and get local work:
+    IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
+      ! Synch up VDB, if necessary:
+      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+
+      ! If using VDB, get local particles to work on:
+      CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,&
+           this%nparts_,this%vdb_,this%maxparts_)
+    ENDIF
+    
     
     RETURN
 
@@ -1053,51 +1119,40 @@ MODULE class_GPart
 
     ! Find F(u*):
     ! ... x:
-    CALL GPart_EulerToLag(this,this%ltmp0_,this%nparts_,vx,.true.,tmp1,tmp2)
+    CALL GPart_EulerToLag(this,this%lvx_,this%nparts_,vx,.true.,tmp1,tmp2)
     ! ux* <-- ux + dt * F(U*)*xk:
     DO j = 1, this%nparts_
-      this%px_(j) = this%ptmp0_(1,j) + dtfact*this%ltmp0_(j)
+      this%px_(j) = this%ptmp0_(1,j) + dtfact*this%lvx_(j)
     ENDDO
     !
     ! ... y:
     ! Exchange bdy data for velocities, so that we
     ! can perform local interpolations:
-    CALL GPart_EulerToLag(this,this%ltmp0_,this%nparts_,vy,.false.,tmp1,tmp2)
+    CALL GPart_EulerToLag(this,this%lvy_,this%nparts_,vy,.false.,tmp1,tmp2)
     ! uy* <-- uy + dt * F(U*)*xk:
     DO j = 1, this%nparts_
-      this%py_(j) = this%ptmp0_(2,j) + dtfact*this%ltmp0_(j)
+      this%py_(j) = this%ptmp0_(2,j) + dtfact*this%lvy_(j)
     ENDDO
 
     ! ... z:
     ! Exchange bdy data for velocities, so that we
     ! can perform local interpolations:
-    CALL GPart_EulerToLag(this,this%ltmp0_,this%nparts_,vz,.false.,tmp1,tmp2)
+    CALL GPart_EulerToLag(this,this%lvz_,this%nparts_,vz,.false.,tmp1,tmp2)
     ! uz* <-- uz + dt * F(U*)*xk:
     DO j = 1, this%nparts_
-      this%pz_(j) = this%ptmp0_(3,j) + dtfact*this%ltmp0_(j)
+      this%pz_(j) = this%ptmp0_(3,j) + dtfact*this%lvz_(j)
     ENDDO
 !
     ! IF using nearest-neighbor interface, do particle exchange 
-    ! between nearest-neighbor tasks BEFORE PERIODIZING particle coordinates:
+    ! between nearest-neighbor tasks BEFORE z-PERIODIZING particle coordinates:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
       CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_, &
            this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2))
     ENDIF
 
     ! Enforce periodicity:
-    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_)
+    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3)
 
-    ! If using VDB interface, do synch-up, and get local work:
-    IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
-      ! Synch up VDB, if necessary:
-      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
-           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-
-      ! If using VDB, get local particles to work on:
-      CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,&
-           this%nparts_,this%vdb_,this%maxparts_)
-    ENDIF
-    
 !   ALLOCATE  (lid(this%maxparts_))
 !   ALLOCATE  (gid(this%maxparts_))
 !   lid = 0
@@ -1207,7 +1262,7 @@ MODULE class_GPart
     ENDIF
 
     ! Enforce periodicity:
-    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_)
+    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3)
 
     ! If using VDB interface, do synch-up, and get of local work:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
@@ -1222,8 +1277,8 @@ MODULE class_GPart
 
       ! If using VDB, get local particles to work on:
 j = this%nparts_
-      CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,&
-           this%nparts_,this%vdb_,this%maxparts_)
+!     CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,&
+!          this%nparts_,this%vdb_,this%maxparts_)
 if ( j.ne.this%nparts_) then
 write(*,*)this%myrank_,': StepGet: no. parts changed: was: ',j,' now: ',this%nparts_
 endif
@@ -1285,7 +1340,7 @@ endif
 !-----------------------------------------------------------------
 
 
-  SUBROUTINE GPart_MakePeriodicP(this,px,py,pz,npdb)
+  SUBROUTINE GPart_MakePeriodicP(this,px,py,pz,npdb,idir)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : MakePeriodicP
@@ -1296,6 +1351,8 @@ endif
 !    py      : particle x loc. d.b.
 !    pz      : particle x loc. d.b.
 !    npdb    : no. particles in pdb
+!    idir    : first three bits provide which directions to periodize.
+!              So, 1==>x, 2==>y, 4==>z; 3==>x & y, etc.
 !    
 !-----------------------------------------------------------------
     USE fprecision
@@ -1305,16 +1362,28 @@ endif
     IMPLICIT NONE
     CLASS(GPart) ,INTENT(INOUT)                      :: this
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(:)         :: px,py,pz
-    INTEGER,INTENT(IN)                               :: npdb
+    INTEGER,INTENT(IN)                               :: idir,npdb
 
     INTEGER                                          :: j
 
 
-    DO j = 1, npdb
-      px(j) = modulo(px(j)+2.0*this%gext_(1),this%gext_(1))
-      py(j) = modulo(py(j)+2.0*this%gext_(2),this%gext_(2))
-      pz(j) = modulo(pz(j)+2.0*this%gext_(3),this%gext_(3))
-    ENDDO
+    IF ( btest(idir,0) .eq. 1 ) THEN
+      DO j = 1, npdb
+        px(j) = modulo(px(j)+2.0*this%gext_(1),this%gext_(1))
+      ENDDO
+    ENDIF
+    
+    IF ( btest(idir,1) .eq. 1 ) THEN
+      DO j = 1, npdb
+        py(j) = modulo(py(j)+2.0*this%gext_(2),this%gext_(2))
+      ENDDO
+    ENDIF
+
+    IF ( btest(idir,2) .eq. 1 ) THEN
+      DO j = 1, npdb
+        pz(j) = modulo(pz(j)+2.0*this%gext_(3),this%gext_(3))
+      ENDDO
+    ENDIF
 
   END SUBROUTINE GPart_MakePeriodicP
 !-----------------------------------------------------------------
@@ -1472,7 +1541,8 @@ endif
 !  DESCRIPTION: Gets particle d.b.
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
-!    pdb     : part pdb
+!    pdb     : part pdb, of size (3,npdb)
+!    npdb    : size of pdb array (2nd dimension); must be >= maxparts_
 !-----------------------------------------------------------------
     USE fprecision
     USE commtypes
@@ -1483,11 +1553,44 @@ endif
     INTEGER                                       :: j
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,npdb):: pdb 
 
-    DO j = 1, npdb
-      pdb(1:3,j) = this%vdb_(1:3,j)
-    ENDDO
+    IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
+      CALL this%gpcomm_%VDBSynch(pdb,this%maxparts_,this%id_, &
+           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp0_)
+    ELSE
+      DO j = 1, npdb
+        pdb(1:3,j) = this%vdb_(1:3,j)
+     ENDDO
+    ENDIF
 
    END SUBROUTINE GPart_GetVDB
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE GPart_GetVel(this,lvel,nparts)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : GPart_GetVel
+!  DESCRIPTION: Gets current particle velocities by doing 'synch'
+!               of local velocities
+!         
+!  ARGUMENTS  :
+!    this     : 'this' class instance (IN)
+!    lvel     : part velocity array, of size (3,nparts)
+!    nparts   : size of lvel array, must be >= maxparts_
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+
+    IMPLICIT NONE 
+    CLASS(GPart) ,INTENT(INOUT)                    :: this 
+    INTEGER      ,INTENT   (IN)                    :: nparts
+    INTEGER                                        :: j
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,nparts):: lvel
+
+    CALL this%gpcomm_%VDBSynch(lvel,this%maxparts_,this%id_, &
+         this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp0_)
+
+   END SUBROUTINE GPart_GetVel
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 

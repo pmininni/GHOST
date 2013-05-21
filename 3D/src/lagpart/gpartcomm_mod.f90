@@ -299,7 +299,7 @@ MODULE class_GPartComm
 
     ! *** Find top neighbors to send to:
     DO jf = 1, nt
-      jfwd(jf) = mod(this%myrank_+jf,this%nprocs_)
+      jfwd(jf) = modulo(this%myrank_+jf,this%nprocs_)
       CALL range(1,this%nd_(3),this%nprocs_,jfwd(jf),kfsta(jf),kfend(jf))
       nzf (jf) = kfend(jf)-kfsta(jf)+1
     ENDDO
@@ -336,7 +336,7 @@ MODULE class_GPartComm
     ! Find top neighbors to receive from:
     jf = 0
     DO WHILE ( this%ntrcv_.LE.nt .AND. jf.LT.this%nzghost_ )
-      itrank = mod(this%myrank_+this%ntrcv_+1,this%nprocs_)
+      itrank = modulo(this%myrank_+this%ntrcv_+1,this%nprocs_)
       CALL range(1,this%nd_(3),this%nprocs_,itrank,ktsta,ktend)
       this%itrcvp_(this%ntrcv_+1) = itrank    !top rcv task
       k = 1
@@ -355,7 +355,7 @@ MODULE class_GPartComm
 
     ! *** Find bottom neighbors to send to:
     DO jf = 1, nt
-      jfwd(jf) = mod(this%myrank_-jf+this%nprocs_,this%nprocs_)
+      jfwd(jf) = modulo(this%myrank_-jf+this%nprocs_,this%nprocs_)
       CALL range(1,this%nd_(3),this%nprocs_,jfwd(jf),kfsta(jf),kfend(jf))
       nzf (jf) = kfend(jf)-kfsta(jf)+1
     ENDDO
@@ -392,7 +392,7 @@ MODULE class_GPartComm
     ! Find bottom receives:
     jf = 0
     DO WHILE ( this%nbrcv_.LE.nt .AND. jf.LT.this%nzghost_ )
-      ibrank = mod(this%myrank_-this%nbrcv_-1+this%nprocs_,this%nprocs_)
+      ibrank = modulo(this%myrank_-this%nbrcv_-1+this%nprocs_,this%nprocs_)
       CALL range(1,this%nd_(3),this%nprocs_,ibrank,kbsta,kbend)
       this%ibrcvp_(this%nbrcv_+1) = ibrank    !bottom rcv task
       k = 1
@@ -1130,7 +1130,7 @@ MODULE class_GPartComm
 !!
 !!    IF ( this%nprocs_ .EQ. 1 ) RETURN ! nothing to do
 !!
-!!    itrank = mod(this%myrank_,this%nprocs_)
+!!    itrank = modulo(this%myrank_,this%nprocs_)
 !!    ibrank = this%myrank_-1
 !!    IF ( ibrank.LT.0 ) ibrank = nprocs-1
 !!
@@ -1221,7 +1221,7 @@ MODULE class_GPartComm
 
     IF ( this%nprocs_ .EQ. 1 ) RETURN ! nothing to do
 
-    itrank = mod(this%myrank_+1,this%nprocs_)
+    itrank = modulo(this%myrank_+1,this%nprocs_)
     ibrank = this%myrank_-1
     IF ( ibrank.LT.0 ) ibrank = this%nprocs_-1
 
@@ -1448,7 +1448,7 @@ MODULE class_GPartComm
 
     IF ( this%nprocs_ .EQ. 1 ) RETURN ! nothing to do
 
-    itrank = mod(this%myrank_,this%nprocs_)
+    itrank = modulo(this%myrank_,this%nprocs_)
     ibrank = this%myrank_-1
     IF ( ibrank.LT.0 ) ibrank = this%nprocs_-1
 
@@ -2076,7 +2076,7 @@ MODULE class_GPartComm
     ENDIF
 
     DO j = 1, ngvdb
-      gvdb(1:3,j) = -1.0_GP
+      gvdb(1:3,j) = 0.0_GP
       ptmp(1:3,j) = 0.0_GP
     ENDDO
     

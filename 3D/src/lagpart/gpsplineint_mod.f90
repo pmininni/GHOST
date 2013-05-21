@@ -423,9 +423,9 @@ MODULE class_GPSplineInt
        this%ilg_(1,j) = xp(j)*this%dxi_(1)
        this%xrk_  (j) = xp(j)*this%dxi_(1) - real(this%ilg_(1,j),kind=GP)
        this%ilg_(2,j) = this%ilg_(1,j) + 1
-       this%ilg_(3,j) = mod(this%ilg_(2,j),nx) + 1
-       this%ilg_(4,j) = mod(this%ilg_(3,j),nx) + 1
-       this%ilg_(1,j) = mod(nx+this%ilg_(2,j)-2,nx) + 1
+       this%ilg_(3,j) = modulo(this%ilg_(2,j),nx) + 1
+       this%ilg_(4,j) = modulo(this%ilg_(3,j),nx) + 1
+       this%ilg_(1,j) = modulo(nx+this%ilg_(2,j)-2,nx) + 1
     ENDDO
       
     ! y-coords:
@@ -493,9 +493,9 @@ MODULE class_GPSplineInt
       this%ilg_(1,j) = (xp(j)-this%xbnds_(1,1))*this%dxi_(1)
       this%xrk_  (j) = (xp(j)-this%xbnds_(1,1))*this%dxi_(1) - real(this%ilg_(1,j),kind=GP)
       this%ilg_(2,j) = this%ilg_(1,j) + 1
-      this%ilg_(3,j) = mod(this%ilg_(2,j),nx) + 1
-      this%ilg_(4,j) = mod(this%ilg_(3,j),nx) + 1
-      this%ilg_(1,j) = mod(nx+this%ilg_(2,j)-2,nx) + 1
+      this%ilg_(3,j) = modulo(this%ilg_(2,j),nx) + 1
+      this%ilg_(4,j) = modulo(this%ilg_(3,j),nx) + 1
+      this%ilg_(1,j) = modulo(nx+this%ilg_(2,j)-2,nx) + 1
     ENDDO
       
     ! y-coords:
@@ -503,9 +503,9 @@ MODULE class_GPSplineInt
       this%jlg_(1,j) = (yp(j)-this%xbnds_(2,1))*this%dxi_(2)
       this%yrk_  (j) = (yp(j)-this%xbnds_(2,1))*this%dxi_(2) - real(this%jlg_(1,j),kind=GP)
       this%jlg_(2,j) = this%jlg_(1,j) + 1
-      this%jlg_(3,j) = mod(this%jlg_(2,j),ny) + 1
-      this%jlg_(4,j) = mod(this%jlg_(3,j),ny) + 1
-      this%jlg_(1,j) = mod(ny+this%jlg_(2,j)-2,ny) + 1
+      this%jlg_(3,j) = modulo(this%jlg_(2,j),ny) + 1
+      this%jlg_(4,j) = modulo(this%jlg_(3,j),ny) + 1
+      this%jlg_(1,j) = modulo(ny+this%jlg_(2,j)-2,ny) + 1
     ENDDO
 
     ! z-coords:
