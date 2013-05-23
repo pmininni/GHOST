@@ -303,7 +303,7 @@
       INTEGER :: ihcpu1,ihcpu2
       INTEGER :: ihomp1,ihomp2
       INTEGER :: ihwtm1,ihwtm2
-#ifdef SCALAR_
+#ifdef SCALAR_ 
       INTEGER :: injt
 #endif
 #ifdef MAGFIELD_
@@ -312,6 +312,7 @@
 #endif
 #ifdef LAGPART_
       INTEGER      :: maxparts
+      INTEGER      :: injtp
       INTEGER      :: ilginittype
       INTEGER      :: ilgintrptype
       INTEGER      :: ilgexchtype
@@ -378,7 +379,8 @@
       NAMELIST / edqnmles / kolmo,heli
 #endif
 #ifdef LAGPART_
-      NAMELIST / plagpart / lgmult,maxparts,ilginittype,ilgintrptype,ilgexchtype,ilgouttype,lgseedfile
+      NAMELIST / plagpart / lgmult,maxparts,ilginittype,ilgintrptype
+      NAMELIST / plagpart / ilgexchtype,ilgouttype,lgseedfile,injtp
 #endif
 
 ! Initializes the MPI and I/O libraries
@@ -904,6 +906,12 @@
 
 #ifdef LAGPART_
       maxparts     = 1000
+!     injtp: = 0 when stat=0 generates initial v and initial part seeds 
+!            = 1 when stat.ne.0 imports v and generates initial 
+!              part seeds. If injtp=0 when stat.ne.0, then the 
+!              particle restart file is read that corresp. to 
+!              stat.
+      injtp        = 0
       ilginittype  = GPINIT_RANDLOC
       ilgintrptype = GPINTRP_CSPLINE
       ilgexchtype  = GPEXCHTYPE_VDB
@@ -917,6 +925,7 @@
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(maxparts    ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(injtp       ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(lgmult      ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilginittype ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilgintrptype,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -1145,7 +1154,12 @@
 #endif
 
 #ifdef LAGPART_
-      CALL lagpart%io_read(1,idir,'lgpart',ext)
+      IF (injtp.eq.0) THEN
+        WRITE(ext, fmtext) pind
+        CALL lagpart%io_read(1,idir,'lgpart',ext)
+      ELSE
+        CALL lagpart%Init()
+      ENDIF
 #endif
 
       ENDIF IC
@@ -1514,7 +1528,8 @@
            timep = 0
            pind = pind+1
            WRITE(ext, fmtext) pind
-           CALL lagpart%io_write_pdb(1,odir,'lgpart',ext,(t-1)*dt)
+           CALL lagpart%io_write_pdb(1,odir,'xlg',ext,(t-1)*dt)
+           CALL lagpart%io_write_vel(1,odir,'vlg',ext,(t-1)*dt)
          ENDIF
 #endif
 
