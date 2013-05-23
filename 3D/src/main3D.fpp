@@ -1823,6 +1823,9 @@
 
          END DO
 
+#ifdef LAGPART_
+      CALL lagpart%FinalStep()
+#endif
          timet = timet+1
          times = times+1
          timec = timec+1
@@ -1831,9 +1834,6 @@
 
       END DO RK
 
-#ifdef LAGPART_
-      CALL lagpart%FinalStep()
-#endif
 
 !
 ! End of Runge-Kutta
