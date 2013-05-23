@@ -313,6 +313,7 @@
 #ifdef LAGPART_
       INTEGER      :: maxparts
       INTEGER      :: injtp
+      INTEGER      :: creset
       INTEGER      :: ilginittype
       INTEGER      :: ilgintrptype
       INTEGER      :: ilgexchtype
@@ -380,7 +381,7 @@
 #endif
 #ifdef LAGPART_
       NAMELIST / plagpart / lgmult,maxparts,ilginittype,ilgintrptype
-      NAMELIST / plagpart / ilgexchtype,ilgouttype,lgseedfile,injtp
+      NAMELIST / plagpart / ilgexchtype,ilgouttype,lgseedfile,injtp,creset
 #endif
 
 ! Initializes the MPI and I/O libraries
@@ -911,7 +912,10 @@
 !              part seeds. If injtp=0 when stat.ne.0, then the 
 !              particle restart file is read that corresp. to 
 !              stat.
+!     creset = 0: don't reset counters when injtp=1;
+!            = 1: _do_ reset counters when injtp=1.
       injtp        = 0
+      creset       = 0
       ilginittype  = GPINIT_RANDLOC
       ilgintrptype = GPINTRP_CSPLINE
       ilgexchtype  = GPEXCHTYPE_VDB
@@ -926,6 +930,7 @@
       ENDIF
       CALL MPI_BCAST(maxparts    ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(injtp       ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(creset      ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(lgmult      ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilginittype ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilgintrptype,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -1046,7 +1051,8 @@
       ini = int((stat-1)*tstep)
       tind = int(stat)
       sind = int(real(ini,kind=GP)/real(sstep,kind=GP)+1)
-      pind = int(real(ini,kind=GP)/real(pstep,kind=GP)+1)
+!     pind = int(real(ini,kind=GP)/real(pstep,kind=GP)+1)
+      pind = int((stat-1)*lgmult+1)
       WRITE(ext, fmtext) tind
       times = 0
       timet = 0
@@ -1156,9 +1162,19 @@
 #ifdef LAGPART_
       IF (injtp.eq.0) THEN
         WRITE(ext, fmtext) pind
-        CALL lagpart%io_read(1,idir,'lgpart',ext)
+        CALL lagpart%io_read(1,idir,'xlg',ext)
       ELSE
         CALL lagpart%Init()
+        IF (creset.ne.0) THEN
+          ini = 1                   ! resets all counters (the
+          sind = 0                  ! particle run starts at t=0)
+          tind = 0
+          pind = 0
+          timet = tstep
+          timec = cstep
+          times = sstep
+          timep = pstep
+        ENDIF
       ENDIF
 #endif
 
