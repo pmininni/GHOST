@@ -876,7 +876,7 @@ MODULE class_GPart
 !!  REAL(KIND=GP),INTENT(OUT),DIMENSION(:)    :: lvar
     REAL(KIND=GP)                             :: rvar,time
     INTEGER,INTENT(IN)                        :: iunit
-    INTEGER                                   :: fh,j
+    INTEGER                                   :: fh,j,ng
     INTEGER(kind=MPI_OFFSET_KIND)             :: offset
     CHARACTER(len=*),INTENT   (IN)            :: dir
     CHARACTER(len=*),INTENT   (IN)            :: nmb
@@ -889,6 +889,15 @@ MODULE class_GPart
     ENDIF
 
     CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,this%nparts_,this%ptmp0_,this%maxparts_)
+
+    CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
+                       MPI_SUM,this%comm_,this%ierr_)
+    IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_ ) THEN
+      WRITE(*,*)'GPart_io_read: inconsistent d.b.: expected: ', &
+                 this%maxparts_, '; found: ',ng
+      STOP
+    ENDIF
+
 
     ! If there is a global VDB for data 'exchanges', create it here:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
@@ -984,7 +993,7 @@ MODULE class_GPart
     ! by time index: dir/spref.TTT.txt:
     IF ( this%myrank_.EQ.0 ) THEN
       OPEN(iunit,file=trim(dir)// '/' // trim(spref) // '.' // &
-                nmb //  '.txt',iostat=kstat)
+                nmb //  '.txt',status='old',form='formatted',iostat=kstat)
       IF ( kstat.NE.0 ) THEN
         WRITE(*,*)'GPart_ascii_read_pdb: could not open file for reading: ',&
         trim(dir)// '/' // trim(spref) // '.' // nmb //  '.txt'
@@ -993,7 +1002,8 @@ MODULE class_GPart
       READ(iunit,*,iostat=kstat) nt
       READ(iunit,*,iostat=kstat) time
       IF ( nt.NE.this%maxparts_ ) THEN
-        WRITE(*,*)this%myrank_, ': GPart_ascii_read_pdb: particle inconsistency: no. required=',this%nparts_,' no. found=',nt
+        WRITE(*,*)this%myrank_, ': GPart_ascii_read_pdb: particle inconsistency: no. required=',this%maxparts_,' no. found=',nt, ' file=',trim(dir)// '/' // trim(spref) // '.' // &
+                nmb //  '.txt'
         STOP
       ENDIF
       DO j = 1, this%maxparts_
@@ -1002,7 +1012,11 @@ MODULE class_GPart
       ENDDO
       CLOSE(iunit)
     ENDIF
-    CALL MPI_BCAST(pdb,this%maxparts_,GC_REAL,0,this%comm_,this%ierr_)
+    CALL MPI_BCAST(pdb,3*this%maxparts_,GC_REAL,0,this%comm_,this%ierr_)
+    IF ( this%ierr_.NE.MPI_SUCCESS ) THEN
+        WRITE(*,*)this%myrank_, ': GPart_ascii_read_pdb: Broadcast failed: file=',&
+        trim(dir)// '/' // trim(spref) // '.' // nmb //  '.txt'
+    ENDIF
 
   END SUBROUTINE GPart_ascii_read_pdb
 !-----------------------------------------------------------------
@@ -1067,6 +1081,7 @@ MODULE class_GPart
     ! If using VDB interface, do synch-up, and get local work:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
       ! Synch up VDB, if necessary:
+write(*,*)'FinalizeRKK: nparts=',this%nparts_
       CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
            this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
 
@@ -1511,7 +1526,7 @@ endif
 
     IMPLICIT NONE
     CLASS(GPart) ,INTENT(INOUT)                           :: this
-    INTEGER      ,INTENT  (OUT)                           :: nl
+    INTEGER      ,INTENT(INOUT)                           :: nl
     INTEGER      ,INTENT(INOUT),DIMENSION(this%maxparts_) :: id
     INTEGER      ,INTENT   (IN)                           :: ngvdb
     INTEGER                                               :: i,j
@@ -1521,7 +1536,7 @@ endif
     nl = 0
     id = GPNULL
     DO j = 1, ngvdb
-      IF ( gvdb(3,j).GE.this%lxbnds_(3,1) .AND. gvdb(3,j).LE.this%lxbnds_(3,2) ) THEN 
+      IF ( gvdb(3,j).GE.this%lxbnds_(3,1) .AND. gvdb(3,j).LT.this%lxbnds_(3,2) ) THEN 
         nl = nl + 1
         id (nl) = j-1
         lx (nl) = gvdb(1,j)
