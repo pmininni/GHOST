@@ -62,7 +62,7 @@ MODULE class_GPart
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: lvx_,lvy_,lvz_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:,:) :: ptmp0_,ptmp1_,vdb_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: ltmp0_,ltmp1_
-        REAL(KIND=GP)                                :: lxbnds_(3,2),gxbnds_(3,2),gext_(3)
+        REAL(KIND=GP)                                :: lxbnds_(3,2),gext_(3)
         CHARACTER(len=1024)                          :: seedfile_,serr_,sfile_
       CONTAINS
         ! Public methods:
@@ -180,13 +180,11 @@ MODULE class_GPart
     ENDDO
     this%libnds_(3,1) = ksta ; 
     this%libnds_(3,2) = kend ; 
-    this%lxbnds_(3,1) = real(ksta-1,kind=GP)-0.50_GP+epsilon(1.0_GP)
-    this%lxbnds_(3,2) = real(kend-1,kind=GP)+0.50_GP-epsilon(1.0_GP)
+    this%lxbnds_(3,1) = real(ksta-1,kind=GP)-0.50_GP+1.0_GP*epsilon(1.0_GP)
+    this%lxbnds_(3,2) = real(kend-1,kind=GP)+0.50_GP-1.0_GP*epsilon(1.0_GP)
 
     DO j = 1,3
-      this%gxbnds_(j,1) = 0.0_GP 
-      this%gxbnds_(j,2) = real(this%nd_(j)-1,kind=GP)
-      this%gext_    (j) = this%gxbnds_(j,2) - this%gxbnds_(j,1)
+      this%gext_ (j) = real(this%nd_(j)-1,kind=GP)
     ENDDO
     CALL this%intop_%GPSplineInt_ctor(3,this%nd_,this%libnds_,this%maxparts_,this%gpcomm_)
 
@@ -531,9 +529,9 @@ MODULE class_GPart
     DO WHILE ( this%ierr_.EQ.0 .AND. nt.LT.this%maxparts_ )
       READ(1,*,IOSTAT=this%ierr_) x, y, z
       IF ( this%ierr_ .NE. 0 ) EXIT
-      IF ( z.GE.this%lxbnds_(3,1) .AND. z.LE.this%lxbnds_(3,2) .AND. &
-           y.GE.this%lxbnds_(2,1) .AND. y.LE.this%lxbnds_(2,2) .AND. &
-           x.GE.this%lxbnds_(1,1) .AND. x.LE.this%lxbnds_(1,2) ) THEN
+      IF ( z.GE.this%lxbnds_(3,1) .AND. z.LT.this%lxbnds_(3,2) .AND. &
+           y.GE.this%lxbnds_(2,1) .AND. y.LT.this%lxbnds_(2,2) .AND. &
+           x.GE.this%lxbnds_(1,1) .AND. x.LT.this%lxbnds_(1,2) ) THEN
         nl = nl + 1
         this%id_(nl) = nt
         this%px_(nl) = x
@@ -1073,6 +1071,7 @@ MODULE class_GPart
 
     IMPLICIT NONE
     CLASS(GPart) ,INTENT(INOUT)                 :: this
+    INTEGER                                     :: j,ng
 
     ! u(t+dt) = u*: done already
 
@@ -1081,13 +1080,21 @@ MODULE class_GPart
     ! If using VDB interface, do synch-up, and get local work:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
       ! Synch up VDB, if necessary:
-write(*,*)'FinalizeRKK: nparts=',this%nparts_
       CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
            this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
 
       ! If using VDB, get local particles to work on:
       CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,&
            this%nparts_,this%vdb_,this%maxparts_)
+      CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
+                         MPI_SUM,this%comm_,this%ierr_)
+
+      IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_) THEN
+        WRITE(*,*)'GPart_FinalizeRKK: inconsistent d.b.: expected: ', &
+                 this%maxparts_, '; found: ',ng
+        STOP
+      ENDIF
+
     ENDIF
     
     
@@ -1291,12 +1298,8 @@ write(*,*)'FinalizeRKK: nparts=',this%nparts_
       ENDDO
 
       ! If using VDB, get local particles to work on:
-j = this%nparts_
 !     CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,&
 !          this%nparts_,this%vdb_,this%maxparts_)
-if ( j.ne.this%nparts_) then
-write(*,*)this%myrank_,': StepGet: no. parts changed: was: ',j,' now: ',this%nparts_
-endif
     ELSE
       CALL this%gpcomm_%VDBSynch(pvdb,this%maxparts_,this%id_, &
            this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
@@ -1367,7 +1370,7 @@ endif
 !    pz      : particle x loc. d.b.
 !    npdb    : no. particles in pdb
 !    idir    : first three bits provide which directions to periodize.
-!              So, 1==>x, 2==>y, 4==>z; 3==>x & y, etc.
+!              So, 1==>x, 2==>y, 4==>z; 3==>x & y; 7==>x & y & z
 !    
 !-----------------------------------------------------------------
     USE fprecision
@@ -1376,25 +1379,25 @@ endif
 
     IMPLICIT NONE
     CLASS(GPart) ,INTENT(INOUT)                      :: this
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:)         :: px,py,pz
     INTEGER,INTENT(IN)                               :: idir,npdb
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)         :: px,py,pz
 
     INTEGER                                          :: j
 
 
-    IF ( btest(idir,0) .eq. 1 ) THEN
+    IF ( btest(idir,0) ) THEN
       DO j = 1, npdb
         px(j) = modulo(px(j)+2.0*this%gext_(1),this%gext_(1))
       ENDDO
     ENDIF
     
-    IF ( btest(idir,1) .eq. 1 ) THEN
+    IF ( btest(idir,1) ) THEN
       DO j = 1, npdb
         py(j) = modulo(py(j)+2.0*this%gext_(2),this%gext_(2))
       ENDDO
     ENDIF
 
-    IF ( btest(idir,2) .eq. 1 ) THEN
+    IF ( btest(idir,2) ) THEN
       DO j = 1, npdb
         pz(j) = modulo(pz(j)+2.0*this%gext_(3),this%gext_(3))
       ENDDO
