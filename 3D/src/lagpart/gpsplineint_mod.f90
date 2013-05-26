@@ -436,7 +436,7 @@ MODULE class_GPSplineInt
     ! First, do a check:
     bok = .true.
     DO j = 1, np
-      bok = bok .AND. (yp(j).GE.this%xbnds_(2,1).AND.yp(j).LE.this%xbnds_(2,2))
+      bok = bok .AND. (yp(j).GE.this%xbnds_(2,1).AND.yp(j).LT.this%xbnds_(2,2))
     ENDDO
     IF ( .NOT. bok ) THEN
       WRITE(*,*) 'GPSplineInt::PartUpdate2D: Invalid particle y-range'
@@ -516,7 +516,7 @@ MODULE class_GPSplineInt
     ! First, do a check:
     bok = .true.
     DO j = 1, np
-      bok = bok .AND. (zp(j).GT.this%xbnds_(3,1).AND.zp(j).LT.this%xbnds_(3,2))
+      bok = bok .AND. (zp(j).GE.this%xbnds_(3,1).AND.zp(j).LT.this%xbnds_(3,2))
     ENDDO
     IF ( .NOT. bok ) THEN
       WRITE(*,*) 'GPSplineInt::PartUpdate3D: Invalid particle z-range'
@@ -1036,71 +1036,6 @@ MODULE class_GPSplineInt
 !
 !  Transpose back to standard orientation:
     CALL this%gpcomm_%GITranspose(field,ibnds,tmp2,ibnds,3,tmp1)
- 
-!! DO k=1,nz
-!!   km = k-1
-!!   DO j=1,ny
-!!     jm = j-1
-!!     DO i=1,nx
-!!       write(*,*)' i=',i,' j=',j,' k=',k,' v=',field(i+jm*nx+km*nxy)
-!!     ENDDO
-!!   ENDDO
-!! ENDDO
-!
-!!      do j=1,ny
-!!      jm = j-1
-!!      do i=1,nx
-!!      tmp2(i+jm*nx  ) = field(i+jm*nx)*this%betz_(1)
-!!      tmp2(i+jm*nx+(nz-1)*nxy) = field(i+jm*nx+(nz-1)*nxy)
-!!      enddo
-!!      enddo
-!
-!!      do k=2,nz-2
-!!       km = k-1
-!!       do j=1,ny
-!!       jm = j-1
-!!       do i=1,nx
-!!      tmp2(i+jm*nx+km*nxy) = &
-!!      ( field(i+jm*nx+km*nxy) -this%az_(k)*tmp2(i+jm*nx+(km-1)*nxy) )*this%betz_(k)
-!!      tmp2(i+jm*nx+(nz-1)*nxy) = tmp2(i+jm*nx+(nz-1)*nxy) - this%xxz_(k-1)*tmp2(i+jm*nx+(km-1)*nxy)
-!!       enddo
-!!       enddo
-!!      enddo
-!! ** n-1 **
-!!      do j=1,ny
-!!      jm = j-1
-!!      do i=1,nx
-!!      tmp2(i+jm*nx+(nz-2)*nxy) = &
-!!      (field(i+jm*nx+(nz-2)*nxy) - this%az_(nz-1)*tmp2(i+jm*nx+(nz-3)*nxy))*this%betz_(nz-1) 
-!!      tmp2(i+jm*nx+(nz-1)*nxy) = tmp2(i+jm*nx+(nz-1)*nxy) - this%xxz_(nz-2)*tmp2(i+jm*nx+(nz-2)*nxy)
-!! ** n  **
-!!      tmp2(i+jm*nx+(nz-1)*nxy) = (tmp2(i+jm*nx+(nz-1)*nxy) - tmp2(i+jm*nx+(nz-2)*nxy)*this%zetaz_) &
-!!                     * this%betz_(nz)
-!  backsubstitution phase :
-!!      tmp2(i+jm*nx+(nz-2)*nxy) = tmp2(i+jm*nx+(nz-2)*nxy) - this%gamz_(nz)*tmp2(i+jm*nx+(nz-1)*nxy)
-!!      enddo
-!!      enddo
-
-!!      do  k=nz-2,1,-1
-!!      km = k-1
-!!      do j=1,ny
-!!      jm = j-1
-!!      do i=1,nx
-!!      tmp2(i+jm*nx+km*nxy) = tmp2(i+jm*nx+km*nxy) &
-!!                    - this%gamz_(k+1)*tmp2(i+jm*nx+k*nxy) - this%pz_(k)*tmp2(i+jm*nx+(nz-1)*nxy)
-!!      enddo
-!!      enddo
-!!      enddo
-
-!!  DO k=1,nz
-!!    km = k-1
-!!    DO j=1,ny
-!!      jm = j-1
-!!      DO i=1,nx
-!!        field(i+jm*nx+km*nxy) = tmp2(i+jm*nx+km*nxy)
-!!      ENDDO
-!!    ENDDO
-!!  ENDDO
 ! 
 ! Spline coeff field is now slab-decomposed to be xy complete, and 
 ! distributed in z. To do interpolation, we must set up 

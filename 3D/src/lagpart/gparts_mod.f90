@@ -1071,6 +1071,7 @@ MODULE class_GPart
 
     ! u(t+dt) = u*: done already
 
+    ! Enforce periodicity in x, y, & z:
     CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,7)
 
     ! If using VDB interface, do synch-up, and get local work:
@@ -1169,7 +1170,7 @@ MODULE class_GPart
            this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2))
     ENDIF
 
-    ! Enforce periodicity:
+    ! Enforce periodicity in x-y only:
     CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3)
 
 !   ALLOCATE  (lid(this%maxparts_))
