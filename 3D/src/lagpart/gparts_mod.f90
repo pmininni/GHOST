@@ -102,8 +102,7 @@ MODULE class_GPart
       PRIVATE :: GPart_ascii_write_pdb , GPart_binary_write_pdb
 !     PRIVATE :: GPart_ascii_write_fld , GPart_binary_write_fld
       PRIVATE :: GPart_ascii_read_pdb  , GPart_binary_read_pdb
-      PRIVATE :: GPart_StepGet         , GPart_GetVDB
-      PRIVATE :: GPart_GetVel
+      PRIVATE :: GPart_GetVDB          , GPart_GetVel
 
 ! Methods:
   CONTAINS
