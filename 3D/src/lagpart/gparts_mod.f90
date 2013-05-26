@@ -70,8 +70,8 @@ MODULE class_GPart
         FINAL            :: GPart_dtor
         PROCEDURE,PUBLIC :: Init            => GPart_Init
         PROCEDURE,PUBLIC :: Step            => GPart_StepRKK
-        PROCEDURE,PUBLIC :: StepGet         => GPart_StepGet
         PROCEDURE,PUBLIC :: SetStep         => GPart_SetStepRKK
+        PROCEDURE,PUBLIC :: SetLagVel       => GPart_SetLagVel
         PROCEDURE,PUBLIC :: FinalStep       => GPart_FinalizeRKK
         PROCEDURE,PUBLIC :: io_write_euler  => GPart_io_write_euler
         PROCEDURE,PUBLIC :: io_write_pdb    => GPart_io_write_pdb
@@ -710,10 +710,7 @@ MODULE class_GPart
     IMPLICIT NONE
     CLASS(GPart) ,INTENT(INOUT)       :: this
     REAL(KIND=GP),INTENT   (IN)       :: time
-    REAL(KIND=GP)                     :: prec(3)
     INTEGER,INTENT(IN)                :: iunit
-    INTEGER                           :: fh,j,nt
-    INTEGER(kind=MPI_OFFSET_KIND)     :: offset
     CHARACTER(len=*),INTENT(IN)       :: dir
     CHARACTER(len=*),INTENT(IN)       :: nmb
     CHARACTER(len=*),INTENT(IN)       :: spref
@@ -1122,6 +1119,7 @@ MODULE class_GPart
 !              updated, possibly. These will be overwritten!
 !    dt      : integration timestep
 !    xk      : multiplicative RK time stage factor
+!    tmp1(2) : temp arrays the same size as vx, vy, vz
 !-----------------------------------------------------------------
     USE grid
     USE fprecision
@@ -1137,7 +1135,7 @@ MODULE class_GPart
     REAL(KIND=GP),ALLOCATABLE  ,DIMENSION            (:) :: lid,gid
 
 
-    dtfact = dt*xk
+    dtfact = dt*xk*real(n,kind=GP)/(8.0_GP*atan(1.0_GP))
 
     ! Find F(u*):
     ! ... x:
@@ -1201,27 +1199,17 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 
 
-  SUBROUTINE GPart_StepGet(this, vx, vy, vz, dt, xk, tmp1, tmp2,&
-                           pvdb, vxl, vyl, vzl)
+  SUBROUTINE GPart_SetLagVel(this, vx, vy, vz, tmp1, tmp2)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!  METHOD     : StepGet
-!  DESCRIPTION: Carries out one stage of explicit RK-like time
-!               inegration step.  Intended for explicit step within 
-!               an outer stepper method of the form:
+!  METHOD     : SetLagVel
+!  DESCRIPTION: Sets internal velocity at Lagrangian particle positions
 !
-!               X = X_0 + dt * V(X(t),t) * xk,
-!       
-!               Note that the vx, vy, vz, will be overwritten here.
 !  ARGUMENTS  :
 !    this    : 'this' class instance
 !    vz,vy,vz: compoments of velocity field, in real space, partially
 !              updated, possibly. These will be overwritten!
-!    dt      : integration timestep
-!    xk      : multiplicative RK time stage factor
-!    pvdb    : return array for VDB
-!    vxl,vyl,
-!        vzl : return arrays for interpolated velocities
+!    tmp1(2) : temp arrays the same size as vx, vy, vz
 !-----------------------------------------------------------------
     USE grid
     USE fprecision
@@ -1229,83 +1217,21 @@ MODULE class_GPart
     USE mpivars
 
     IMPLICIT NONE
-    CLASS(GPart) ,INTENT(INOUT)                            :: this
-    INTEGER                                                :: i,j
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend)   :: vx,vy,vz,tmp1,tmp2
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,this%maxparts_):: pvdb
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION  (this%maxparts_):: vxl,vyl,vzl 
-    REAL(KIND=GP),INTENT   (IN)                            :: dt,xk
-    REAL(KIND=GP)                                          :: dtfact
+    CLASS(GPart) ,INTENT(INOUT)                          :: this
+    INTEGER                                              :: i,j
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend) :: vx,vy,vz,tmp1,tmp2
+    REAL(KIND=GP)                                        :: dtfact
+    REAL(KIND=GP),ALLOCATABLE  ,DIMENSION            (:) :: lid,gid
 
-    dtfact = dt*xk
 
-    this%ltmp0_ = 0.0_GP
-    this%ltmp1_ = 0.0_GP
-    DO j = 1, this%maxparts_
-      this%ltmp0_(j) = 0.0_GP
-      this%ltmp1_(j) = 0.0_GP
-      vxl(j) = 0.0; vyl(j) = 0.0; vzl(j) = 0.0
-    ENDDO
-    ! Find F(u*):
     ! ... x:
-    CALL GPart_EulerToLag(this,this%ltmp0_,this%nparts_,vx,.true.,tmp1,tmp2)
-    ! ux* <-- ux + dt * F(U*)*xk:
-    DO j = 1, this%nparts_
-      this%px_(j) = this%ptmp0_(1,j) + dtfact*this%ltmp0_(j)
-      this%ltmp1_(this%id_(j)+1) = this%ltmp0_(j)
-    ENDDO
-    CALL MPI_ALLREDUCE(this%ltmp1_,vxl,this%maxparts_,GC_REAL,MPI_SUM,this%comm_,this%ierr_)
-    !
+    CALL GPart_EulerToLag(this,this%lvx_,this%nparts_,vx,.true.,tmp1,tmp2)
     ! ... y:
-    CALL GPart_EulerToLag(this,this%ltmp0_,this%nparts_,vy,.false.,tmp1,tmp2)
-    ! uy* <-- uy + dt * F(U*)*xk:
-    DO j = 1, this%nparts_
-      this%py_(j) = this%ptmp0_(2,j) + dtfact*this%ltmp0_(j)
-      this%ltmp1_(this%id_(j)+1) = this%ltmp0_(j)
-    ENDDO
-    CALL MPI_ALLREDUCE(this%ltmp1_,vyl,this%maxparts_,GC_REAL,MPI_SUM,this%comm_,this%ierr_)
-
+    CALL GPart_EulerToLag(this,this%lvy_,this%nparts_,vy,.false.,tmp1,tmp2)
     ! ... z:
-    ! Exchange bdy data for velocities, so that we
-    ! can perform local interpolations:
-    CALL GPart_EulerToLag(this,this%ltmp0_,this%nparts_,vz,.false.,tmp1,tmp2)
-    ! uz* <-- uz + dt * F(U*)*xk:
-    DO j = 1, this%nparts_
-      this%pz_(j) = this%ptmp0_(3,j) + dtfact*this%ltmp0_(j)
-      this%ltmp1_(this%id_(j)+1) = this%ltmp0_(j)
-    ENDDO
-    CALL MPI_ALLREDUCE(this%ltmp1_,vzl,this%maxparts_,GC_REAL,MPI_SUM,this%comm_,this%ierr_)
-!
-    ! IF using nearest-neighbor interface, do particle exchange 
-    ! between nearest-neighbor tasks BEFORE PERIODIZING particle coordinates:
-    IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
-      CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_, &
-           this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2))
-    ENDIF
+    CALL GPart_EulerToLag(this,this%lvz_,this%nparts_,vz,.false.,tmp1,tmp2)
 
-    ! Enforce periodicity:
-    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3)
-
-    ! If using VDB interface, do synch-up, and get of local work:
-    IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
-      ! Synch up VDB, if necessary:
-      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
-           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-      DO j=1,this%maxparts_
-        pvdb(1,j) = this%vdb_(1,j)
-        pvdb(2,j) = this%vdb_(2,j)
-        pvdb(3,j) = this%vdb_(3,j)
-      ENDDO
-
-      ! If using VDB, get local particles to work on:
-!     CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,&
-!          this%nparts_,this%vdb_,this%maxparts_)
-    ELSE
-      CALL this%gpcomm_%VDBSynch(pvdb,this%maxparts_,this%id_, &
-           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-    ENDIF
-
-  END SUBROUTINE GPart_StepGet
+  END SUBROUTINE GPart_SetLagVel
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
