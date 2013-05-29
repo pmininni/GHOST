@@ -195,7 +195,7 @@
 
         IF ( myrank.EQ. 0 ) THEN
           write(*,*)'main: fntmp=',fntmp,' ktrunc=',ktrunc
-          write(*,*)'main: time index ', trim(ext) ' done.'
+          write(*,*)'main: time index ', trim(ext), ' done.'
         ENDIF
         CALL pspectrum(ctmp,fntmp,int(ktrunc))
 
