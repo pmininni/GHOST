@@ -52,7 +52,7 @@
       INTEGER :: inorm,istat(1024), nstat
 
       TYPE(IOPLAN) :: planio
-      CHARACTER(len=8)    :: suff
+      CHARACTER(len=10)   :: suff
       CHARACTER(len=128)  :: pref
       CHARACTER(len=256)  :: odir,idir
       CHARACTER(len=1024) :: fnout
@@ -95,7 +95,7 @@
       ENDIF
       CALL MPI_BCAST(idir  ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(odir  ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(pref  ,128 ,,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(pref  ,128 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(stat  ,4096,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(btrunc,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ktrunc,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
@@ -185,26 +185,30 @@
         CALL fftp3d_real_to_complex(planrc,lamb,ctmp,MPI_COMM_WORLD)
 !
 ! Compute power spectrum and output it:
-        IF ( ktrunc.GE.kmax ) THEN
+        IF ( btrunc.EQ.0 ) THEN
           fnout = trim(pref) // '.' // ext  // '.txt';
         ELSE
-          WRITE(suff,'(a2,i5.5)') '_T', ktrunc
-          fnout = trim(pref) // '.' // ext //  suff // '.txt'
+          WRITE(suff,'(a2,i5.5)') '_T', int(ktrunc)
+          fnout = trim(pref) // '.' // ext //  trim(suff) // '.txt'
         ENDIF
         fntmp = trim(odir) // '/' // trim(fnout)
-        CALL pspectrum(ctmp,fntmp,ktrunc)
+
+        IF ( myrank.EQ. 0 ) THEN
+          write(*,*)'main: fntmp=',fntmp,' ktrunc=',ktrunc
+          write(*,*)'main: time index ', trim(ext) ' done.'
+        ENDIF
+        CALL pspectrum(ctmp,fntmp,int(ktrunc))
 
       ENDDO   ! time (stat) loop
 !
       CALL fftp3d_destroy_plan(plancr)
       CALL fftp3d_destroy_plan(planrc)
+      CALL MPI_FINALIZE(ierr)
 
       DEALLOCATE (ctmp,sij,vx,vy,vz)
       DEALLOCATE (lamb,R1,R2,R3,R4,R5)
-      DEALLOCATE (ka)
-      DEALLOCATE (ka2)
+      DEALLOCATE (ka,ka2)
 
-      CALL MPI_FINALIZE(ierr)
 
       END PROGRAM SHEAR3D
 !-----------------------------------------------------------------
@@ -236,7 +240,7 @@
       COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(n,n,ista:iend) :: vx,vy,vz
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: ctmp,sij
       REAL   (KIND=GP), INTENT   (IN)                           :: ktrunc
-      REAL   (KIND=GP)                                          :: tmp
+      REAL   (KIND=GP)                                          :: ktrunc2,tmp
 !
       INTEGER         , INTENT   (IN)                           :: inorm,ir,jc
       INTEGER                                                   :: i,j,k
@@ -246,6 +250,8 @@
         WRITE(*,*)'Strain: invalid row/column specification: ', ir, jc
         STOP
       ENDIF
+
+      ktrunc2 = ktrunc**2
 
       IF ( ir.EQ.1 ) THEN
         CALL derivk3(vx, sij, jc)
@@ -310,7 +316,7 @@
       DO i = ista,iend
         DO j = 1,n
           DO k = 1,n
-            IF ((ka2(k,j,i).gt.ktrunc ).and.(ka2(k,j,i).ge.tiny)) THEN
+            IF ((ka2(k,j,i).gt.ktrunc2 ).and.(ka2(k,j,i).ge.tiny)) THEN
               sij(k,j,i) = 0.0_GP
             ENDIF
           END DO
@@ -361,6 +367,7 @@
       REAL   (KIND=GP)                                        :: a,b,c,d
       REAL   (KIND=GP)                                        :: del0,del1,ll(3),lmax
       COMPLEX(KIND=GP)                                        :: CC,u(3)
+      COMPLEX(KIND=GP)                                        :: D0,D1
 
 !
       INTEGER                                                :: i,j,k,l
@@ -379,12 +386,19 @@
             d    = sa*se**2 + sf*sb**2 + sd*sc**2 - sa*sd*sf - 2.0_GP*sb*sc*se
             del0 = b**2 - 3.0_GP*a*c
             del1 = 2.0_GP*b**3 - 9.0_GP*a*b*c + 27.0_GP*d*a**2
-            CC   = (0.5*del1 + 0.5*sqrt(del1**2 -4.0_GP*del0**3) )**(1.0_GP/3.0_GP)
+            D0   = cmplx(del0,0)
+            D1   = cmplx(del1,0)
+            CC   = (0.5*D1 + 0.5*sqrt(D1**2 -4.0_GP*D0**3) )**(1.0_GP/3.0_GP)
             lmax = 0.0_GP
             DO l = 1,3
               ll(l) = real(-( b + u(l)*CC + del0/(u(l)*CC))/(3.0_GP*a),kind=GP)
               lmax = max(lmax,abs(ll(l)))
             ENDDO
+!if ( i.eq.10 .and. j.eq.10 .and. k.gt.10 .and. k.lt.15) then
+!!write(*,*)'Eigen: sa=',sa,' sb=',sb,' sc=',sc,' sd=',sd, 'se=',se
+!write(*,*)'Eigen: u=',u,' CC=', CC,' del0=',del0,' del1=',del1,' lmax=',lmax, ' ll=',ll
+!endif
+
             lamb(i,j,k) = lmax
           END DO
         END DO
