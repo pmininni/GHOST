@@ -114,8 +114,8 @@ MODULE class_GPSplineInt
     ENDDO
     ! Note: the summand 2.0_GP is the number of z-ghost zones for
     !       each MPI task:
-    this%xbnds_(3,1)  = this%xbnds_(3,1)-2.0_GP+epsilon(1.0_GP)
-    this%xbnds_(3,2)  = this%xbnds_(3,2)+2.0_GP-epsilon(1.0_GP)
+    this%xbnds_(3,1)  = this%xbnds_(3,1)-2.0_GP
+    this%xbnds_(3,2)  = this%xbnds_(3,2)+2.0_GP
 
     IF ( this%rank_.LT.2 .OR. this%rank_.GT.3 ) THEN
       WRITE(*,*)'GPSplineInt::ctor: Invalid rank'
@@ -479,14 +479,16 @@ MODULE class_GPSplineInt
     CLASS(GPSplineInt)                    :: this
     REAL(KIND=GP),INTENT(IN),DIMENSION(*) :: xp,yp,zp
     INTEGER      ,INTENT(IN)              :: np
-    INTEGER                               :: j,nx,ny,nz
+    INTEGER                               :: j,km,nx,ny,nz
     LOGICAL                               :: bok
+
 
     ! Compute interval-normalized positions and
     ! indices into control point array in x, y directions:
     nx = this%ldims_(1)
     ny = this%ldims_(2)
     nz = this%ldims_(3)
+    km = nz+2*this%gpcomm_%GetNumGhost() - 3
  
     ! x-coords:
     DO j = 1, np
@@ -525,11 +527,28 @@ MODULE class_GPSplineInt
     ENDIF
     DO j = 1, np
       this%klg_(1,j) = (zp(j)-this%xbnds_(3,1))*this%dxi_(3)
+      this%klg_(1,j) = min(this%klg_(1,j),km)
+!if ( this%klg_(1,j).gt.km+3 ) then
+!write(*,*)myrank,': j=',j,' klg(1)=',this%klg_(1,j),' ldim=',this%ldims_(3),' zbnd=',this%xbnds_(3,1:2),' zp=',zp(j)
+!stop
+!endif
       this%zrk_  (j) = (zp(j)-this%xbnds_(3,1))*this%dxi_(3) &
                      - real(this%klg_(1,j),kind=GP)
       this%klg_(2,j) = this%klg_(1,j) + 1
+!if ( this%klg_(2,j).gt.km+3 ) then
+!write(*,*)myrank,': j=',j,' klg(2)=',this%klg_(2,j),' ldim=',this%ldims_(3),' zbnd=',this%xbnds_(3,1:2),' zp=',zp(j)
+!stop
+!endif
       this%klg_(3,j) = this%klg_(2,j) + 1
+!if ( this%klg_(3,j).gt.km+3 ) then
+!write(*,*)myrank,': j=',j,' klg(3)=',this%klg_(3,j),' ldim=',this%ldims_(3),' zbnd=',this%xbnds_(3,1:2),' zp=',zp(j)
+!stop
+!endif
       this%klg_(4,j) = this%klg_(3,j) + 1
+!if ( this%klg_(4,j).gt.km+3 ) then
+!write(*,*)myrank,': j=',j,' klg(4)=',this%klg_(4,j),' ldim=',this%ldims_(3),' zbnd=',this%xbnds_(3,1:2),' zp=',zp(j)
+!stop
+!endif
     ENDDO
 
   END SUBROUTINE GPSplineInt_PartUpdate3D
