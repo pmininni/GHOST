@@ -183,6 +183,13 @@ vt:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(GMISC) $(OBJS)
            $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
+shear : edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(GMISC) $(OBJS)
+	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
+	$(COMPILE) $@.f90 -o $@.o
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(GMISC) $(GTIMER) $(OBJS) \
+           $@.o $(LDFLAGS) -o $(BIN)/$@
+	$(MAKE) undo
+
 clean:  undo
 	rm -f *.o *.d *.s *.int *.inf *.mod work.pc* ifc*
 	rm -f $(OBJSDIR)/pseudospec3D_mod.f90
