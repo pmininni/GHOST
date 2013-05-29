@@ -175,15 +175,15 @@ MODULE class_GPart
       this%libnds_(j,1) = 1 ; 
       this%libnds_(j,2) = n ; 
       this%lxbnds_(j,1) = 0.0_GP
-      this%lxbnds_(j,2) = real(n-1,kind=GP)
+      this%lxbnds_(j,2) = real(n,kind=GP)
     ENDDO
     this%libnds_(3,1) = ksta ; 
     this%libnds_(3,2) = kend ; 
-    this%lxbnds_(3,1) = real(ksta-1,kind=GP)-0.50_GP+1.0_GP*epsilon(1.0_GP)
-    this%lxbnds_(3,2) = real(kend-1,kind=GP)+0.50_GP-1.0_GP*epsilon(1.0_GP)
+    this%lxbnds_(3,1) = real(ksta-1,kind=GP) ! + 1.0_GP*epsilon(1.0_GP)
+    this%lxbnds_(3,2) = real(kend  ,kind=GP) ! - 2.0_GP*epsilon(1.0_GP)
 
     DO j = 1,3
-      this%gext_ (j) = real(this%nd_(j)-1,kind=GP)
+      this%gext_ (j) = real(this%nd_(j),kind=GP)
     ENDDO
     CALL this%intop_%GPSplineInt_ctor(3,this%nd_,this%libnds_,this%maxparts_,this%gpcomm_)
 
@@ -1069,6 +1069,10 @@ MODULE class_GPart
     CLASS(GPart) ,INTENT(INOUT)                 :: this
     INTEGER                                     :: j,ng
 
+!integer :: nold
+!nold = this%nparts_
+!this%ltmp0_(1:nold) = this%pz_(1:nold)
+
     ! u(t+dt) = u*: done already
 
     ! Enforce periodicity in x, y, & z:
@@ -1086,9 +1090,17 @@ MODULE class_GPart
       CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
                          MPI_SUM,this%comm_,this%ierr_)
 
+!if ( ng.NE.this%maxparts_) then
+!if ( this%nparts_.ne.nold ) then
+!write(*,*)this%myrank_,'z_bnds=',this%lxbnds_(3,1:2)
+!write(*,*)this%myrank_,'z_old=',this%ltmp0_(1:nold)
+!write(*,*)this%myrank_,'z_new=',this%pz_   (1:this%nparts_)
+!endif
+!endif
       IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_) THEN
         WRITE(*,*)'GPart_FinalizeRKK: inconsistent d.b.: expected: ', &
                  this%maxparts_, '; found: ',ng
+        CALL GPART_ascii_write_pdb(this,1,'.','xlgerr','000',0.0,this%vdb_)
         STOP
       ENDIF
 
