@@ -109,7 +109,8 @@
       ALLOCATE( vy(n,n,ista:iend) )
       ALLOCATE( vz(n,n,ista:iend) )
       ALLOCATE( lamb(n,n,ista:iend) )
-      ALLOCATE( ka(n),ka2(n,n,ista:iend) )
+      ALLOCATE( ka(n) )
+      ALLOCATE( ka2(n,n,ista:iend) )
       ALLOCATE( R1(n,n,ksta:kend) )
       ALLOCATE( R2(n,n,ksta:kend) )
       ALLOCATE( R3(n,n,ksta:kend) )
@@ -205,10 +206,32 @@
       CALL fftp3d_destroy_plan(planrc)
       CALL MPI_FINALIZE(ierr)
 
-      DEALLOCATE (ctmp,sij,vx,vy,vz)
-      DEALLOCATE (lamb,R1,R2,R3,R4,R5)
-      DEALLOCATE (ka,ka2)
-
+      IF ( ALLOCATED(ctmp) ) DEALLOCATE(ctmp)
+write(*,*)'main: after ctmp'
+      IF ( ALLOCATED (sij) ) DEALLOCATE (sij)
+write(*,*)'main: after sij'
+      IF ( ALLOCATED  (vx) ) DEALLOCATE  (vx)
+write(*,*)'main: after vx'
+      IF ( ALLOCATED  (vy) ) DEALLOCATE  (vy)
+write(*,*)'main: after vy'
+      IF ( ALLOCATED  (vz) ) DEALLOCATE  (vz)
+write(*,*)'main: after vz'
+      IF ( ALLOCATED(lamb) ) DEALLOCATE(lamb)
+write(*,*)'main: after lamb'
+      IF ( ALLOCATED  (R1) ) DEALLOCATE  (R1)
+write(*,*)'main: after R1'
+      IF ( ALLOCATED  (R2) ) DEALLOCATE  (R2)
+write(*,*)'main: after R2'
+      IF ( ALLOCATED  (R3) ) DEALLOCATE  (R3)
+write(*,*)'main: after R3'
+      IF ( ALLOCATED  (R4) ) DEALLOCATE  (R4)
+write(*,*)'main: after R4'
+      IF ( ALLOCATED  (R5) ) DEALLOCATE  (R5)
+write(*,*)'main: after R5'
+      IF ( ALLOCATED  (ka) ) DEALLOCATE  (ka)
+write(*,*)'main: after ka'
+!!    IF ( ALLOCATED (ka2) ) DEALLOCATE (ka2)
+!!write(*,*)'main: after ka2'
 
       END PROGRAM SHEAR3D
 !-----------------------------------------------------------------
@@ -361,23 +384,23 @@
 !$    USE threads
       IMPLICIT NONE
 
-      REAL   (KIND=GP), INTENT (IN), DIMENSION(n,n,ksta:kend) :: S11,S12,S13,S22,S23
-      REAL   (KIND=GP), INTENT(OUT), DIMENSION(n,n,ksta:kend) :: lamb
-      REAL   (KIND=GP)                                        :: sa,sb,sc,sd,se,sf
-      REAL   (KIND=GP)                                        :: a,b,c,d
-      REAL   (KIND=GP)                                        :: del0,del1,ll(3),lmax
-      COMPLEX(KIND=GP)                                        :: CC,u(3)
-      COMPLEX(KIND=GP)                                        :: D0,D1
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: S11,S12,S13,S22,S23
+      REAL   (KIND=GP), INTENT  (OUT), DIMENSION(n,n,ksta:kend) :: lamb
+      REAL   (KIND=GP)                                          :: sa,sb,sc,sd,se,sf
+      REAL   (KIND=GP)                                          :: a,b,c,d
+      REAL   (KIND=GP)                                          :: del0,del1,ll(3),lmax
+      COMPLEX(KIND=GP)                                          :: CC,u(3)
+      COMPLEX(KIND=GP)                                          :: D0,D1
 
 !
-      INTEGER                                                :: i,j,k,l
+      INTEGER                                                   :: i,j,k,l
 
       u(1) = cmplx(1.0_GP , 0.0_GP)
       u(2) = cmplx(-0.5_GP, 0.5_GP*sqrt(3.0_GP))
       u(3) = cmplx(-0.5_GP,-0.5_GP*sqrt(3.0_GP))
-      DO k = ksta,kend
-        DO j = 1,n
-          DO i = 1,n
+      DO k = ksta,ksta  !kend
+        DO j = 1,1 !n
+          DO i = 1,1 !n
             sa = S11(i,j,k); sb = S12(i,j,k); sc = S13(i,j,k); 
             sd = S22(i,j,k); se = S23(i,j,k); sf = -(sa + sd);
             a    = 1.0_GP
@@ -403,6 +426,7 @@
           END DO
         END DO
       END DO
+
 
       END SUBROUTINE Eigen
 
