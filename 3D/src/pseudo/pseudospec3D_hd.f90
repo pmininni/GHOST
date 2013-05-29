@@ -1887,3 +1887,135 @@
 
       RETURN
       END SUBROUTINE heltrans
+
+
+      SUBROUTINE pspectrum(a,fnout,nmax)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Computes the 'power' spectrum of specified 
+! scalar quantity. The output is written to a 
+! file by the first node.
+!
+! Parameters
+!     a    : input complex array
+!     fnout: output file name 
+!     nmax : number of spectral values to output
+!
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, DIMENSION(n/2+1)                     :: Ek
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
+      INTEGER         , INTENT(IN)                           :: nmax
+      CHARACTER(len=*), INTENT(IN)                           :: fnout
+!
+! Computes the energy and/or helicity spectra
+      CALL pspectrumc(a,Ek,nmax)
+!
+! Exports the energy spectrum to a file
+!
+      IF (myrank.eq.0) THEN
+         OPEN(1,file=trim(fnout))
+         WRITE(1,20) Ek(1:nmax)
+   20    FORMAT( E23.15 )
+         CLOSE(1)
+      ENDIF
+!
+      RETURN
+      END SUBROUTINE pspectrum
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+      SUBROUTINE pspectrumc(a,Ektot)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Computes the 'power' spectrum of a, returning it
+!
+! Parameters
+!     a    : input array
+!     Ektot: output power spectrum
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+!$    USE threads
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek
+      DOUBLE PRECISION, INTENT(OUT), DIMENSION(n/2+1) :: Ektot
+      DOUBLE PRECISION    :: tmq
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1
+      REAL(KIND=GP)       :: tmp
+      INTEGER             :: i,j,k
+      INTEGER             :: kmn
+
+!
+! Computes the kinetic energy spectrum
+!
+      tmp = 1.0_GP/real(n,kind=GP)**6
+       DO i = 1,n/2+1
+          Ek   (i) = 0.0D0
+          Ektot(i) = 0.0D0
+       END DO
+       IF (ista.eq.1) THEN
+!$omp parallel do private (k,kmn,tmq)
+          DO j = 1,n
+             DO k = 1,n
+                kmn = int(sqrt(ka2(k,j,1))+.501)
+                IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                   tmq = (abs(a(k,j,1))**2 )*tmp
+!$omp atomic
+                   Ek(kmn) = Ek(kmn)+tmq
+                ENDIF
+             END DO
+          END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+          DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
+             DO j = 1,n
+                DO k = 1,n
+                   kmn = int(sqrt(ka2(k,j,i))+.501)
+                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                      tmq = 2*(abs(a(k,j,i))**2 )*tmp
+!$omp atomic
+                      Ek(kmn) = Ek(kmn)+tmq
+                   ENDIF
+                END DO
+             END DO
+          END DO
+        ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
+          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
+             DO j = 1,n
+                DO k = 1,n
+                   kmn = int(sqrt(ka2(k,j,i))+.501)
+                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                      tmq = 2*(abs(a(k,j,i))**2)*tmp
+!$omp atomic
+                      Ek(kmn) = Ek(kmn)+tmq
+                   ENDIF
+                END DO
+             END DO
+          END DO
+       ENDIF
+!
+! Computes the reduction between nodes
+!
+       CALL MPI_ALLREDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,      &
+                      MPI_SUM,MPI_COMM_WORLD,ierr)
+!
+       RETURN
+       END SUBROUTINE pspectrumc
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
