@@ -156,12 +156,6 @@ struc:	edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(STRU_OB
 	$(MAKE) $@$(SOLVER)
 	$(MAKE) undo
 
-lagtest: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(GMISC) $(OBJS) $(LAGPOBJS$(PARTICLES)) 
-	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) $(INCLUDE) $(EXTRASDIR)/$(@).fpp -o $@.f90
-	$(COMPILE) $@.f90 -o $@.o
-	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(GMISC) $(GTIMER) $(OBJS) \
-           $(LAGPOBJS$(PARTICLES)) $@.o $(LDFLAGS) -o $(BIN)/$@
-	$(MAKE) undo
 trunc:	edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(GMISC) $(OBJS) 
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
@@ -200,7 +194,7 @@ clean:  undo
 dist:
 	rm -f $(BIN)/*HD* $(BIN)/*MHD* $(BIN)/*ROT* $(BIN)/*BOUSS* \
               $(BIN)/boots* $(BIN)/trunc* $(BIN)/vt* *HD* *MHD* *ROT* \
-              *BOUSS* *boots* *trunc* *vt* lagtest
+              *BOUSS* *boots* *trunc* *vt* 
 	$(MAKE) clean
 
 edit:
