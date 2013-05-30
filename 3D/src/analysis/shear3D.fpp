@@ -108,7 +108,6 @@
       ALLOCATE( vx(n,n,ista:iend) )
       ALLOCATE( vy(n,n,ista:iend) )
       ALLOCATE( vz(n,n,ista:iend) )
-      ALLOCATE( lamb(n,n,ista:iend) )
       ALLOCATE( ka(n) )
       ALLOCATE( ka2(n,n,ista:iend) )
       ALLOCATE( R1(n,n,ksta:kend) )
@@ -116,6 +115,7 @@
       ALLOCATE( R3(n,n,ksta:kend) )
       ALLOCATE( R4(n,n,ksta:kend) )
       ALLOCATE( R5(n,n,ksta:kend) )
+      ALLOCATE( lamb(n,n,ksta:kend) )
 !
 
       CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
@@ -195,7 +195,7 @@
         fntmp = trim(odir) // '/' // trim(fnout)
 
         IF ( myrank.EQ. 0 ) THEN
-          write(*,*)'main: fntmp=',fntmp,' ktrunc=',ktrunc
+          write(*,*)'main: fntmp=',trim(fntmp),' ktrunc=',ktrunc
           write(*,*)'main: time index ', trim(ext), ' done.'
         ENDIF
         CALL pspectrum(ctmp,fntmp,int(ktrunc))
@@ -207,29 +207,17 @@
       CALL MPI_FINALIZE(ierr)
 
       IF ( ALLOCATED(ctmp) ) DEALLOCATE(ctmp)
-write(*,*)'main: after ctmp'
       IF ( ALLOCATED (sij) ) DEALLOCATE (sij)
-write(*,*)'main: after sij'
       IF ( ALLOCATED  (vx) ) DEALLOCATE  (vx)
-write(*,*)'main: after vx'
       IF ( ALLOCATED  (vy) ) DEALLOCATE  (vy)
-write(*,*)'main: after vy'
       IF ( ALLOCATED  (vz) ) DEALLOCATE  (vz)
-write(*,*)'main: after vz'
       IF ( ALLOCATED(lamb) ) DEALLOCATE(lamb)
-write(*,*)'main: after lamb'
       IF ( ALLOCATED  (R1) ) DEALLOCATE  (R1)
-write(*,*)'main: after R1'
       IF ( ALLOCATED  (R2) ) DEALLOCATE  (R2)
-write(*,*)'main: after R2'
       IF ( ALLOCATED  (R3) ) DEALLOCATE  (R3)
-write(*,*)'main: after R3'
       IF ( ALLOCATED  (R4) ) DEALLOCATE  (R4)
-write(*,*)'main: after R4'
       IF ( ALLOCATED  (R5) ) DEALLOCATE  (R5)
-write(*,*)'main: after R5'
       IF ( ALLOCATED  (ka) ) DEALLOCATE  (ka)
-write(*,*)'main: after ka'
 !!    IF ( ALLOCATED (ka2) ) DEALLOCATE (ka2)
 !!write(*,*)'main: after ka2'
 
@@ -398,23 +386,26 @@ write(*,*)'main: after ka'
       u(1) = cmplx(1.0_GP , 0.0_GP)
       u(2) = cmplx(-0.5_GP, 0.5_GP*sqrt(3.0_GP))
       u(3) = cmplx(-0.5_GP,-0.5_GP*sqrt(3.0_GP))
-      DO k = ksta,ksta  !kend
-        DO j = 1,1 !n
-          DO i = 1,1 !n
+      DO k = ksta,kend
+        DO j = 1,n
+          DO i = 1,n
             sa = S11(i,j,k); sb = S12(i,j,k); sc = S13(i,j,k); 
             sd = S22(i,j,k); se = S23(i,j,k); sf = -(sa + sd);
             a    = 1.0_GP
-            b    = 0.0_GP
+            b    = 0.0_GP ! sa + sd + sf
             c    = sa*sd+sa*sf+sd*sf-sb**2 - sc**2 - se**2
             d    = sa*se**2 + sf*sb**2 + sd*sc**2 - sa*sd*sf - 2.0_GP*sb*sc*se
-            del0 = b**2 - 3.0_GP*a*c
-            del1 = 2.0_GP*b**3 - 9.0_GP*a*b*c + 27.0_GP*d*a**2
+!           del0 = b**2 - 3.0_GP*a*c
+!           del1 = 2.0_GP*b**3 - 9.0_GP*a*b*c + 27.0_GP*d*a**2
+            del0 = -3.0_GP*a*c
+            del1 =  27.0_GP*d*a**2
             D0   = cmplx(del0,0)
             D1   = cmplx(del1,0)
             CC   = (0.5*D1 + 0.5*sqrt(D1**2 -4.0_GP*D0**3) )**(1.0_GP/3.0_GP)
             lmax = 0.0_GP
             DO l = 1,3
-              ll(l) = real(-( b + u(l)*CC + del0/(u(l)*CC))/(3.0_GP*a),kind=GP)
+!             ll(l) = real(-( b + u(l)*CC + D0/(u(l)*CC))/(3.0_GP*a),kind=GP)
+              ll(l) = real(-( u(l)*CC + D0/(u(l)*CC))/(3.0_GP*a),kind=GP)
               lmax = max(lmax,abs(ll(l)))
             ENDDO
 !if ( i.eq.10 .and. j.eq.10 .and. k.gt.10 .and. k.lt.15) then
