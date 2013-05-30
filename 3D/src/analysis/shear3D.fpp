@@ -45,11 +45,13 @@
 
       REAL   (KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: lamb,R1,R2,R3,R4,R5
       REAL   (KIND=GP)                                 :: btrunc,ktrunc,tmp
+
 !
 ! Auxiliary variables
 
       INTEGER :: i,ic,iir,ind,ir,iswap,it,j,jc,jjc,k
       INTEGER :: inorm,istat(1024), nstat
+!$    INTEGER, EXTERNAL :: omp_get_max_threads
 
       TYPE(IOPLAN) :: planio
       CHARACTER(len=10)   :: suff
@@ -69,6 +71,9 @@
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       CALL range(1,n,nprocs,myrank,ksta,kend)
       CALL io_init(myrank,n,ksta,kend,planio)
+      nth = 1
+!$    nth = omp_get_max_threads()
+!$    CALL fftp3d_init_threads(ierr)
      
       kmax   = real(n/2+1,kind=GP)
 
@@ -138,7 +143,10 @@
          ka(i) = REAL(i-1,KIND=GP)
          ka(i+n/2) = REAL(i-n/2-1,KIND=GP)
       END DO
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,n
             DO k = 1,n
                ka2(k,j,i) = ka(i)**2+ka(j)**2+ka(k)**2
@@ -268,7 +276,9 @@
         CALL derivk3(vx, sij, jc)
         SELECT CASE (jc)
           CASE(1)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
               DO j = 1,n
                 DO k = 1,n
                   ctmp(k,j,i) = sij(k,j,i)
@@ -286,7 +296,9 @@
           CASE(1)
             CALL derivk3(vx, ctmp, 2)
           CASE(2)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
               DO j = 1,n
                 DO k = 1,n
                   ctmp(k,j,i) = sij(k,j,i)
@@ -304,7 +316,9 @@
           CASE(2)
             CALL derivk3(vy, ctmp, 3)
           CASE(3)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
               DO j = 1,n
                 DO k = 1,n
                   ctmp(k,j,i) = sij(k,j,i)
@@ -314,7 +328,9 @@
         END SELECT
       ENDIF
 
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
         DO j = 1,n
           DO k = 1,n
             sij(k,j,i) = 0.50_GP*(sij(k,j,i)+ctmp(k,j,i)) 
@@ -324,7 +340,9 @@
 
 
       ! truncate spherically:
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
         DO j = 1,n
           DO k = 1,n
             IF ((ka2(k,j,i).gt.ktrunc2 ).and.(ka2(k,j,i).ge.tiny)) THEN
@@ -338,7 +356,9 @@
       IF ( inorm.GT.0 ) THEN
         
         tmp = 1.0_GP/REAL(n,KIND=GP)**3
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,n
             DO k = 1,n
               sij(k,j,i) = sij(k,j,i)*tmp
@@ -386,7 +406,9 @@
       u(1) = cmplx(1.0_GP , 0.0_GP)
       u(2) = cmplx(-0.5_GP, 0.5_GP*sqrt(3.0_GP))
       u(3) = cmplx(-0.5_GP,-0.5_GP*sqrt(3.0_GP))
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
         DO j = 1,n
           DO i = 1,n
             sa = S11(i,j,k); sb = S12(i,j,k); sc = S13(i,j,k); 
