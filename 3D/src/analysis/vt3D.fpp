@@ -192,7 +192,9 @@
             bmangle = 0
             CALL io_write(1,odir,fout,0,planio,rv)
             bmangle = 1
-            WRITE(*,*)'main: ', trim(fout), ' written.'
+            IF ( myrank.EQ.0 ) THEN
+              WRITE(*,*)'main: ', trim(fout), ' written.'
+            ENDIF
           ENDDO ! tensor column loop
         ENDDO   ! tensor row loop
       ENDDO     ! time index loop
