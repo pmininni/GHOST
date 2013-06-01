@@ -15,21 +15,6 @@ MODULE class_GPart
 
       IMPLICIT NONE
       INCLUDE 'mpif.h' 
-!!    ENUM, BIND(C) :: GPINIT
-!!      ENUMERATOR :: GPINIT_RANDLOC=0
-!!      ENUMERATOR :: GPINIT_USERLOC
-!!    ENDENUM GPINIT
-
-!!    ENUM, BIND(C) :: GPINTRP
-!!      ENUMERATOR :: GPINTRP_CSPLINE=0
-!!      ENUMERATOR :: GPINTRP_LAGINT 
-!!      ENUMERATOR :: GPINTRP_SPECTRAL
-!!    ENDENUM GPINTRP
-
-!!    ENUM, BIND(C) :: GPEXCHTYPE
-!!      ENUMERATOR :: GPEXCHTYPE_NN =0
-!!      ENUMERATOR :: GPEXCHTYPE_VDB
-!!    ENDENUM GPINTRP
 
       INTEGER,PARAMETER,PUBLIC                       :: GPINIT_RANDLOC =0
       INTEGER,PARAMETER,PUBLIC                       :: GPINIT_USERLOC =1
@@ -100,7 +85,7 @@ MODULE class_GPart
       PRIVATE :: GPart_MakePeriodicP
       PRIVATE :: GPart_GetLocalWrk     , GPart_MakePeriodicExt
       PRIVATE :: GPart_ascii_write_pdb , GPart_binary_write_pdb
-!     PRIVATE :: GPart_ascii_write_fld , GPart_binary_write_fld
+      PRIVATE :: GPart_ascii_write_eul , GPart_binary_write_eul
       PRIVATE :: GPart_ascii_read_pdb  , GPart_binary_read_pdb
       PRIVATE :: GPart_GetVDB          , GPart_GetVel
 
@@ -556,78 +541,6 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 
 
-  SUBROUTINE GPart_io_write_euler(this, iunit, dir, fname, nmb, &
-             time, evar, doupdate, tmp1, tmp2)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : io_write_euler
-!  DESCRIPTION: Converts specified Eulerian real-space variable to
-!               a Lagrangian quantity by interpolating to particle positions;
-!               does write of Lagrangian variable to file.
-!  ARGUMENTS  :
-!    this    : 'this' class instance
-!    iunit   : unit number
-!    dir     : output directory
-!    fname   : filename prefix
-!    nmb     : time index
-!    time    : real time
-!    evar    : Eulerian data from which to compute Lagrangian 
-!              quantity: theta(y) = theta(x(y),t). Interpolation
-!              of evar is done internally before write. Note that
-!              data in evar is lost on exit.
-!    doupdate: if true, do interp point update in interpolator; else don't
-!    tmp1/2  : temp arrays of size of evar. Required for interpolation
-!-----------------------------------------------------------------
-    USE grid
-    USE fprecision
-    USE commtypes
-    USE mpivars
-
-    IMPLICIT NONE
-    CLASS(GPart) ,INTENT(INOUT)                         :: this
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend):: evar(n,n,ksta:kend)
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend):: tmp1,tmp2
-    REAL(KIND=GP),INTENT   (IN)                         :: time
-    INTEGER      ,INTENT   (IN)                         :: iunit
-    INTEGER                                             :: fh,offset,nt,szint,szreal
-    INTEGER                                             :: j
-    LOGICAL      ,INTENT   (IN)                         :: doupdate
-    CHARACTER(len=100), INTENT(IN)                      :: dir
-    CHARACTER(len=*)  , INTENT(IN)                      :: nmb
-    CHARACTER(len=*)  , INTENT(IN)                      :: fname
-    CHARACTER(len=1024)                                 :: sfile
-
-
-    CALL GPart_EulerToLag(this,this%ltmp0_,this%nparts_,evar,doupdate,tmp1,tmp2)
-
-    CALL MPI_FILE_OPEN(this%comm_,trim(dir) // '/' // fname // &
-         '.' // nmb // '.lag',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
-          MPI_INFO_NULL,fh,this%ierr_)
-
-    ! Must write part. data to correct spot in file:
-    CALL MPI_TYPE_SIZE(MPI_INTEGER,szint,this%ierr_)
-    CALL MPI_TYPE_SIZE(GC_REAL    ,szreal,this%ierr_)
-    CALL MPI_ALLREDUCE(this%nparts_,nt,this%nprocs_,MPI_INTEGER,      &
-                        MPI_SUM,this%comm_,this%ierr_)
-    IF ( this%myrank_ .EQ. 0 ) THEN
-        CALL MPI_FILE_WRITE_AT(fh,0,nt,1,MPI_INTEGER,this%istatus_,this%ierr_)
-    ENDIF
-    IF ( this%nparts_ .GT. 0 ) THEN
-      DO j = 1, this%nparts_
-        offset = this%id_(j)*szreal+szint
-        CALL MPI_FILE_WRITE_AT_ALL(fh,offset,this%ltmp0_(j),1,GC_REAL,this%istatus_,this%ierr_)
-      ENDDO
-    ELSE
-        CALL MPI_FILE_WRITE_AT_ALL(fh,0     ,this%ltmp0_(1),0,GC_REAL,this%istatus_,this%ierr_)
-    ENDIF
-    CALL MPI_FILE_CLOSE(fh,this%ierr_)
-
-    
-  END SUBROUTINE GPart_io_write_euler
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-
   SUBROUTINE GPart_io_write_pdb(this, iunit, dir, spref, nmb, time)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -725,6 +638,8 @@ MODULE class_GPart
     ENDIF
 
   END SUBROUTINE GPart_io_write_vel
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 
 
   SUBROUTINE GPart_binary_write_pdb(this, iunit, dir, spref, nmb, time, pdb)
@@ -846,6 +761,231 @@ MODULE class_GPart
   END SUBROUTINE GPart_ascii_write_pdb
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
+
+
+  SUBROUTINE GPart_io_write_euler(this, iunit, dir, spref, nmb, &
+             time, evar, doupdate, tmp1, tmp2)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : io_write_euler
+!  DESCRIPTION: Converts specified Eulerian real-space variable to
+!               a Lagrangian quantity by interpolating to particle positions;
+!               does write of Lagrangian variable to file.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    iunit   : unit number
+!    dir     : output directory
+!    fname   : filename prefix
+!    nmb     : time index
+!    time    : real time
+!    evar    : Eulerian data from which to compute Lagrangian 
+!              quantity: theta(y) = theta(x(y),t). Interpolation
+!              of evar is done internally before write. Note that
+!              data in evar is lost on exit.
+!    doupdate: if true, do interp point update in interpolator; else don't
+!    tmp1/2  : temp arrays of size of evar. Required for interpolation
+!-----------------------------------------------------------------
+    USE grid
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPart) ,INTENT(INOUT)                         :: this
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend):: evar(n,n,ksta:kend)
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend):: tmp1,tmp2
+    REAL(KIND=GP),INTENT   (IN)                         :: time
+    INTEGER      ,INTENT   (IN)                         :: iunit
+    INTEGER                                             :: fh,offset,nt,szint,szreal
+    INTEGER                                             :: j
+    LOGICAL      ,INTENT   (IN)                         :: doupdate
+    CHARACTER(len=100), INTENT(IN)                      :: dir
+    CHARACTER(len=*)  , INTENT(IN)                      :: nmb
+    CHARACTER(len=*)  , INTENT(IN)                      :: spref
+    CHARACTER(len=1024)                                 :: sfile
+
+
+    CALL GPart_EulerToLag(this,this%ltmp0_,this%nparts_,evar,doupdate,tmp1,tmp2)
+
+    IF ( this%iouttype_ .EQ. 0 ) THEN
+      CALL GPart_binary_write_eul(this,iunit,dir,spref,nmb,time,this%ltmp0_)
+    ELSE
+      CALL GPart_ascii_write_eul (this,iunit,dir,spref,nmb,time,this%ltmp0_)
+    ENDIF
+
+    
+  END SUBROUTINE GPart_io_write_euler
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+  SUBROUTINE GPart_binary_write_eul(this, iunit, dir, spref, nmb, time, &
+             fld0, fld1, fld2, fld3, fld4, fld5, fld6, fld7, fld8)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : GPart_binary_write_eul
+!  DESCRIPTION: Does binary write of Lagrangian field to file. 
+!               Position of the particle structure in file is the
+!               particle's id. This method allows for up to 9
+!               Lagranian variables to be outputted. At least one
+!               variable _must_ be present (fld0).
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    iunit   : unit number
+!    dir     : output directory
+!    spref   : filename prefix
+!    nmd     : time index
+!    time    : real time
+!    fld0-8  : Lagrangian field
+!    
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPart) ,INTENT(INOUT)          :: this
+    REAL(KIND=GP),INTENT   (IN)          :: time
+    REAL(KIND=GP),INTENT   (IN)          :: fld0(this%maxparts_)
+    REAL(KIND=GP),INTENT   (IN),OPTIONAL,&
+    DIMENSION(this%maxparts_)            :: fld1,fld2,fld3,fld4,fld5,fld6,fld7,fld8
+    REAL(KIND=GP)                        :: vout(9)
+    INTEGER,INTENT(IN)                   :: iunit
+    INTEGER                              :: fh,nt,nv,szreal
+    INTEGER(kind=MPI_OFFSET_KIND)        :: offset
+    CHARACTER(len=*),INTENT(IN)          :: dir
+    CHARACTER(len=*),INTENT(IN)          :: nmb
+    CHARACTER(len=*),INTENT(IN)          :: spref
+    TYPE(GPDBrec)                        :: pst
+
+    INTEGER                              :: j,gc,lc
+
+    nv = 1 
+    IF ( present(fld1) ) nv=nv+1
+    IF ( present(fld2) ) nv=nv+1
+    IF ( present(fld3) ) nv=nv+1
+    IF ( present(fld4) ) nv=nv+1
+    IF ( present(fld5) ) nv=nv+1
+    IF ( present(fld6) ) nv=nv+1
+    IF ( present(fld7) ) nv=nv+1
+    IF ( present(fld8) ) nv=nv+1
+
+    ! Must write part. data to correct position in file:
+    CALL MPI_TYPE_SIZE(GC_REAL    ,szreal,this%ierr_)
+    CALL MPI_FILE_OPEN(this%comm_,trim(dir) // '/' // trim(spref) // &
+         '.' // nmb // '.lag',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
+          MPI_INFO_NULL,fh,this%ierr_)
+    offset = 0
+    CALL MPI_FILE_WRITE_AT_ALL(fh,offset,real(nt,kind=GP),1,GC_REAL,this%istatus_,this%ierr_)
+    offset = szreal
+    CALL MPI_FILE_WRITE_AT_ALL(fh,offset,time   ,1,GC_REAL,this%istatus_,this%ierr_)
+    gc = 0
+    DO j = 1, this%nparts_
+      offset  = (nv*this%id_(j)+2)*szreal
+      vout(1) = fld0(j)
+      IF ( present(fld1) ) vout(2) = fld1(j)
+      IF ( present(fld2) ) vout(3) = fld2(j)
+      IF ( present(fld3) ) vout(4) = fld3(j)
+      IF ( present(fld4) ) vout(5) = fld4(j)
+      IF ( present(fld5) ) vout(6) = fld5(j)
+      IF ( present(fld6) ) vout(7) = fld6(j)
+      IF ( present(fld7) ) vout(8) = fld7(j)
+      IF ( present(fld8) ) vout(9) = fld8(j)
+      CALL MPI_FILE_WRITE_AT(fh,offset,vout,nv,GC_REAL,this%istatus_,this%ierr_)
+      CALL MPI_GET_COUNT(this%istatus_,GC_REAL,lc,this%ierr_)
+      gc = gc+lc
+    ENDDO
+    CALL MPI_FILE_CLOSE(fh,this%ierr_)
+
+    IF ( gc .NE. this%nparts_*nv ) THEN
+      WRITE(*,*)this%myrank_, ': GPart_binary_write_eul: insufficient amount of data written; no. required=',this%nparts_*nv,' no. written=',gc
+      STOP
+    ENDIF
+
+  END SUBROUTINE GPart_binary_write_eul
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+ SUBROUTINE GPart_ascii_write_eul(this, iunit, dir, spref, nmb, time, &
+            fld0, fld1, fld2, fld3, fld4, fld5, fld6, fld7, fld8)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : GPart_ascii_write_eul
+!  DESCRIPTION: Does ASCII write of Lagrangian fld to file.
+!               The local MPI tasks write to a file with prefix
+!               spref, in the following format:
+!                     dir/spref.TTT.PPP.txt
+!               where TTT is the time index, given by nmb, and
+!               PPP is the MPI rank.  This method allows for up to 9
+!               Lagranian variables to be outputted. At least one
+!               variable _must_ be present (fld0). Do not use keywords
+!               to specify optional arguments.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    iunit   : unit number
+!    dir     : output directory
+!    spref   : filename prefix
+!    nmd     : time index
+!    time    : real time
+!    fld0-8  : Lagrangian fields
+!
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPart) ,INTENT(INOUT)       :: this
+    REAL(KIND=GP),INTENT   (IN)       :: time
+    REAL(KIND=GP),INTENT   (IN)       :: fld0(this%maxparts_)
+    REAL(KIND=GP),INTENT   (IN),OPTIONAL,&
+    DIMENSION(this%maxparts_)         :: fld1,fld2,fld3,fld4,fld5,fld6,fld7,fld8
+    REAL(KIND=GP)                     :: vout(9)
+    INTEGER      ,INTENT   (IN)       :: iunit
+    INTEGER                           :: j,nv
+    CHARACTER(len=*),INTENT(IN)       :: dir
+    CHARACTER(len=*),INTENT(IN)       :: nmb
+    CHARACTER(len=*),INTENT(IN)       :: spref
+    CHARACTER(len=3)                  :: sind
+
+    nv = 1 
+    IF ( present(fld1) ) nv=nv+1
+    IF ( present(fld2) ) nv=nv+1
+    IF ( present(fld3) ) nv=nv+1
+    IF ( present(fld4) ) nv=nv+1
+    IF ( present(fld5) ) nv=nv+1
+    IF ( present(fld6) ) nv=nv+1
+    IF ( present(fld7) ) nv=nv+1
+    IF ( present(fld8) ) nv=nv+1
+
+    ! Write global VDB, with time header, indexed only
+    ! by time index: dir/spref.TTT.txt:
+    IF ( this%myrank_.EQ.0 ) THEN
+      OPEN(iunit,file=trim(dir)// '/' // trim(spref) // '.' // &
+            nmb //  '.txt')
+      WRITE(iunit,*) this%maxparts_
+      WRITE(iunit,*) time
+      DO j = 1, this%maxparts_
+        vout(1) = fld0(j)
+        IF ( present(fld1) ) vout(2) = fld1(j)
+        IF ( present(fld2) ) vout(3) = fld2(j)
+        IF ( present(fld3) ) vout(4) = fld3(j)
+        IF ( present(fld4) ) vout(5) = fld4(j)
+        IF ( present(fld5) ) vout(6) = fld5(j)
+        IF ( present(fld6) ) vout(7) = fld6(j)
+        IF ( present(fld7) ) vout(8) = fld7(j)
+        IF ( present(fld8) ) vout(9) = fld8(j)
+        WRITE(iunit,600) vout(1:nv)
+  600   FORMAT(9(E23.15,1X))
+      ENDDO
+     CLOSE(iunit)
+   ENDIF
+
+  END SUBROUTINE GPart_ascii_write_eul
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
 
   SUBROUTINE GPart_io_read(this, iunit, dir, spref, nmb)
 !-----------------------------------------------------------------
