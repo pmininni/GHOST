@@ -133,7 +133,7 @@ MODULE gtimer
    
       ierr = GTValidHandle(ih)
       IF ( ierr.NE.GTERR_GOOD_HANDLE ) THEN
-        CALL GTHandleCatch(ih,ierr,'GTStart')
+        CALL GTHandleCatch(ih,ierr,'GTStop')
       ENDIF
 
       t1_(ih) = GTbasic(itype_(ih)) - t0_(ih);
@@ -164,7 +164,7 @@ MODULE gtimer
 
       ierr = GTValidHandle(ih)
       IF ( ierr.NE.GTERR_GOOD_HANDLE ) THEN
-        CALL GTHandleCatch(ih,ierr,'GTStart')
+        CALL GTHandleCatch(ih,ierr,'GTAcc')
       ENDIF
 
       t1_(ih) = t1_(ih) + (GTbasic(itype_(ih)) - t0_(ih))
@@ -189,7 +189,7 @@ MODULE gtimer
 
       ierr = GTValidHandle(ih)
       IF ( ierr.NE.GTERR_GOOD_HANDLE ) THEN
-        CALL GTHandleCatch(ih,ierr,'GTStart')
+        CALL GTHandleCatch(ih,ierr,'GTGetTime')
       ENDIF
 
       GTGetTime = t1_(ih);
