@@ -430,11 +430,6 @@
               ll(l) = real(-( u(l)*CC + D0/(u(l)*CC))/(3.0_GP*a),kind=GP)
               lmax = max(lmax,abs(ll(l)))
             ENDDO
-!if ( i.eq.10 .and. j.eq.10 .and. k.gt.10 .and. k.lt.15) then
-!!write(*,*)'Eigen: sa=',sa,' sb=',sb,' sc=',sc,' sd=',sd, 'se=',se
-!write(*,*)'Eigen: u=',u,' CC=', CC,' del0=',del0,' del1=',del1,' lmax=',lmax, ' ll=',ll
-!endif
-
             lamb(i,j,k) = lmax
           END DO
         END DO
