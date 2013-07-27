@@ -1888,9 +1888,8 @@
       RETURN
       END SUBROUTINE heltrans
 
-
+!*****************************************************************
       SUBROUTINE pspectrum(a,fnout,nmax)
-!-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
 ! Computes the 'power' spectrum of specified 
@@ -1914,7 +1913,7 @@
       CHARACTER(len=*), INTENT(IN)                           :: fnout
 !
 ! Computes the energy and/or helicity spectra
-      CALL pspectrumc(a,Ek,nmax)
+      CALL pspectrumc(a,Ek)
 !
 ! Exports the energy spectrum to a file
 !
@@ -1927,12 +1926,9 @@
 !
       RETURN
       END SUBROUTINE pspectrum
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
 
-
+!*****************************************************************
       SUBROUTINE pspectrumc(a,Ektot)
-!-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
 ! Computes the 'power' spectrum of a, returning it
@@ -1959,7 +1955,7 @@
       INTEGER             :: kmn
 
 !
-! Computes the kinetic energy spectrum
+! Computes the power spectrum
 !
       tmp = 1.0_GP/real(n,kind=GP)**6
        DO i = 1,n/2+1
@@ -2016,6 +2012,4 @@
 !
        RETURN
        END SUBROUTINE pspectrumc
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
 

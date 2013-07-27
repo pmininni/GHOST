@@ -101,7 +101,7 @@ INTEL_OMP     = -openmp
 TARGET_INTEL  = 
 #
 # GFortran compiler (GNU)
-CPP_GNU       = /usr/bin/cpp -traditional-cpp
+CPP_GNU       = /usr/local/bin/cpp -traditional-cpp
 FC_GNU        = gfortran
 CC_GNU        = gcc
 FFLAGS_GNU    = -O4
