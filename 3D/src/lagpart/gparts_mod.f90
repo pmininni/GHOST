@@ -87,6 +87,7 @@ MODULE class_GPart
         PROCEDURE,PUBLIC :: GetNParts       => GPart_GetNParts
         PROCEDURE,PUBLIC :: GetVel          => GPart_GetVel
         PROCEDURE,PUBLIC :: GetTime         => GPart_GetTime
+        PROCEDURE,PUBLIC :: GetLoadBal      => GPart_GetLoadBal
 !       PROCEDURE,PUBLIC :: GetPos
       END TYPE GPart
 
@@ -103,7 +104,7 @@ MODULE class_GPart
       PRIVATE :: GPart_ascii_write_eul , GPart_binary_write_eul
       PRIVATE :: GPart_ascii_read_pdb  , GPart_binary_read_pdb
       PRIVATE :: GPart_GetVDB          , GPart_GetVel
-      PRIVATE :: GPart_GetTime
+      PRIVATE :: GPart_GetTime         , GPart_GetLoadBal
 
 ! Methods:
   CONTAINS
@@ -1777,6 +1778,27 @@ MODULE class_GPart
      GPart_GetNParts = ngp
 
   END FUNCTION GPart_GetNParts
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  REAL FUNCTION GPart_GetLoadBal(this)
+!!-----------------------------------------------------------------
+!!-----------------------------------------------------------------
+!!  METHOD     : GPart_GetLoadBal
+!!  DESCRIPTION: Gets current load (im)balance measure
+!!  ARGUMENTS  :
+!!    this    : 'this' class instance (IN)
+!!-----------------------------------------------------------------
+     CLASS(GPart) ,INTENT(INOUT)                   :: this 
+     REAL                                          :: rbal      
+     INTEGER                                       :: gnmax,gnmin
+    
+     CALL MPI_ALLREDUCE(this%nparts_,gnmin,1,MPI_INTEGER,MPI_MIN,this%comm_,this%ierr_)
+     CALL MPI_ALLREDUCE(this%nparts_,gnmax,1,MPI_INTEGER,MPI_MAX,this%comm_,this%ierr_)
+     rbal = real(gnmax) / (real(gnmin)+tiny(1.0))
+     GPart_GetLoadBal = rbal
+
+  END FUNCTION GPart_GetLoadBal
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
