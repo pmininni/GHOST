@@ -25,8 +25,28 @@ cudaError_t cudaMemcpyHost2Dev( void *devdst, const void *hostsrc,  size_t count
 
 cudaError_t cudaMemcpyDev2Host( void *hostdst, const void *devsrc,  size_t count)
 {
-  return cudaMemcpy( hostdst , devsrc, count,  cudaMemcpyDeviceToHost ); 
+  cudaError_t iret;
+  iret = cudaMemcpy( hostdst , devsrc, count,  cudaMemcpyDeviceToHost ); 
+  return iret;
 }
+
+/* New interface for cufftPlanMany: */
+int  MycufftPlanMany(cufftHandle *plan, int rank, int *n, int *inembed,
+                       int istride, int idist, int *onembed, int ostride,
+                       int odist, cufftType type, int batch) 
+{
+  int iret;
+  
+  if ( inembed != NULL && inembed[0] <= 0 ) {
+    iret = (int)cufftPlanMany(plan,rank,n,NULL,istride,idist,
+                                     NULL,ostride,odist,type,batch);
+  } else {
+    iret = (int)cufftPlanMany(plan,rank,n,inembed,istride,idist,
+                                           onembed,ostride,odist,type,batch);
+  }
+  return iret;
+}
+
 
 } /* end, extern "C" interface */
 

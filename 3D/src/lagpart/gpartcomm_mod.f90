@@ -16,6 +16,7 @@
 MODULE class_GPartComm
       USE fprecision
       USE commtypes
+      USE gtimer 
       IMPLICIT NONE
       
       INTEGER,PARAMETER,PUBLIC                       :: GPNULL=-1          ! particle NULL value
@@ -33,6 +34,7 @@ MODULE class_GPartComm
         INTEGER                                      :: csize_     ,nstrip_
         INTEGER                                      :: ntop_      ,nbot_      ,ierr_    
         INTEGER                                      :: iextperp_  ,ksta_      ,kend_    ,nth_
+        INTEGER                                      :: hcomm_
         LOGICAL                                      :: btransinit_
         INTEGER, ALLOCATABLE, DIMENSION(:,:)         :: ibsnd_     ,itsnd_     
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibrcv_     ,itrcv_     ,nbbrcv_   ,ntbrcv_
@@ -84,7 +86,7 @@ MODULE class_GPartComm
 ! Methods:
   CONTAINS
 
-  SUBROUTINE GPartComm_ctor(this,intrface,maxparts,nd,nzghost,comm)
+  SUBROUTINE GPartComm_ctor(this,intrface,maxparts,nd,nzghost,comm,hcomm)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Main explicit constructor
@@ -99,12 +101,12 @@ MODULE class_GPartComm
 !              adjacent tasks, method will go 'adjacent' tasks to find 
 !              the information to fill ghost zones.
 !    comm    : MPI communicator
-!    csize   : cache-size for local transposes
+!    hcomm   : externally-managed comm-timer handle; must be non-null on entry
 !-----------------------------------------------------------------
     IMPLICIT NONE
     CLASS(GPartComm),INTENT(INOUT):: this
     INTEGER, INTENT(IN)           :: intrface,maxparts,nd(3),nzghost
-    INTEGER, INTENT(IN)           :: comm
+    INTEGER, INTENT(IN)           :: comm,hcomm
 !$  INTEGER, EXTERNAL             :: omp_get_max_threads
 
     this%intrfc_    = intrface
@@ -116,6 +118,11 @@ MODULE class_GPartComm
     this%nstrip_    = 1;
     this%iextperp_  = 0;     ! set extended grid in perp direction (x-y) too?
     this%nth_       = 1
+    IF ( GTValidHandle(hcomm).NE.GTERR_GOOD_HANDLE ) THEN
+      WRITE(*,*) 'GPPartComm_ctor: invalid comm timer handle: ',hcomm
+      STOP
+    ENDIF
+    this%hcomm_     = hcomm;
 !$    this%nth_ = omp_get_max_threads()
 
     CALL MPI_COMM_SIZE(this%comm_,this%nprocs_,this%ierr_)
@@ -546,35 +553,44 @@ MODULE class_GPartComm
     CALL GPartComm_Copy2Ext(this,vyext,vy)
     CALL GPartComm_Copy2Ext(this,vzext,vz)
 
-    ! post receives:
+    ! Post receives:
+    CALL GTStart(this%hcomm_)
     DO j=1,this%nbrcv_  ! from bottom task:
       itask = this%ibrcvp_(j)
       CALL MPI_IRECV(this%rbbuff_(:,j),this%nbuff_,GC_REAL,itask, &
                      1,this%comm_,this%ibrh_(j),this%ierr_) 
     ENDDO
+    CALL GTAcc(this%hcomm_)
 
+    CALL GTStart(this%hcomm_)
     DO j=1,this%ntrcv_  ! from top task:
       itask = this%itrcvp_(j)
       CALL MPI_IRECV(this%rtbuff_(:,j),this%nbuff_,GC_REAL,itask, &
                      1,this%comm_,this%itrh_(j),this%ierr_) 
     ENDDO
-
+    CALL GTAcc(this%hcomm_)
 
     !
     ! send data:
     DO j=1,this%nbsnd_  ! to bottom task:
       itask = this%ibsndp_(j)
       CALL GPartComm_PackMF(this,this%sbbuff_,vx,vy,vz,j,'b')
+      CALL GTStart(this%hcomm_)
       CALL MPI_ISEND(this%sbbuff_,this%nbuff_,GC_REAL,itask, &
                      1,this%comm_,this%ibsh_(j),this%ierr_)  
+      CALL GTAcc(this%hcomm_)
     ENDDO
     DO j=1,this%ntsnd_  ! to top task:
       itask = this%itsndp_(j)
       CALL GPartComm_PackMF(this,this%stbuff_,vx,vy,vz,j,'t')
+      CALL GTStart(this%hcomm_)
       CALL MPI_ISEND(this%stbuff_,this%nbuff_,GC_REAL,itask, &
                      1,this%comm_,this%itsh_(j),this%ierr_) 
+      CALL GTAcc(this%hcomm_)
+
     ENDDO
 
+    CALL GTStart(this%hcomm_)
     DO j=1,this%nbsnd_
       CALL MPI_WAIT(this%ibsh_(j),this%istatus_,this%ierr_)
     ENDDO
@@ -587,6 +603,8 @@ MODULE class_GPartComm
     DO j=1,this%ntrcv_
       CALL MPI_WAIT(this%itrh_(j),this%istatus_,this%ierr_)
     ENDDO
+    CALL GTAcc(this%hcomm_)
+
 
     ! Unpack received data:
     DO j=1,this%nbrcv_
@@ -894,33 +912,45 @@ MODULE class_GPartComm
     CALL GPartComm_Copy2Ext(this,vext,v)
 
     ! post receives:
+    CALL GTStart(this%hcomm_)
     DO j=1,this%nbrcv_  ! from bottom task:
       itask = this%ibrcvp_(j)
       CALL MPI_IRECV(this%rbbuff_(:,j),this%nbuff_,GC_REAL,itask, &
                      1,this%comm_,this%ibrh_(j),this%ierr_) 
     ENDDO
+    CALL GTAcc(this%hcomm_)
+
 
     ! send data:
     DO j=1,this%nbsnd_  ! to bottom task:
       itask = this%ibsndp_(j)
       CALL GPartComm_PackSF(this,this%sbbuff_,v,j,'b')
+      CALL GTStart(this%hcomm_)
       CALL MPI_ISEND(this%sbbuff_,this%nbuff_,GC_REAL,itask, &
                      1,this%comm_,this%ibsh_(j),this%ierr_)  
+      CALL GTAcc(this%hcomm_)
     ENDDO
 !
+
+    CALL GTStart(this%hcomm_)
     DO j=1,this%ntrcv_  ! from top task:
       itask = this%itrcvp_(j)
       CALL MPI_IRECV(this%rtbuff_(:,j),this%nbuff_,GC_REAL,itask, &
                      1,this%comm_,this%itrh_(j),this%ierr_) 
     ENDDO
+    CALL GTAcc(this%hcomm_)
+
 
     DO j=1,this%ntsnd_  ! to top task:
       itask = this%itsndp_(j)
       CALL GPartComm_PackSF(this,this%stbuff_,v,j,'t')
+      CALL GTStart(this%hcomm_)
       CALL MPI_ISEND(this%stbuff_,this%nbuff_,GC_REAL,itask, &
                      1,this%comm_,this%itsh_(j),this%ierr_) 
+      CALL GTAcc(this%hcomm_)
     ENDDO
 
+    CALL GTStart(this%hcomm_)
     DO j=1,this%nbsnd_
       CALL MPI_WAIT(this%ibsh_(j),this%istatus_,this%ierr_)
     ENDDO
@@ -935,6 +965,8 @@ MODULE class_GPartComm
     DO j=1,this%ntrcv_
       CALL MPI_WAIT(this%itrh_(j),this%istatus_,this%ierr_)
     ENDDO
+    CALL GTAcc(this%hcomm_)
+
 
     ! Unpack received data:
     DO j=1,this%nbrcv_
@@ -1241,28 +1273,39 @@ MODULE class_GPartComm
     ENDDO
 
     ! Post receives:
+    CALL GTStart(this%hcomm_)
     CALL MPI_IRECV(this%rbbuff_,this%nbuff_,GC_REAL,ibrank, &
                    1,this%comm_,this%ibrh_(1),this%ierr_)
     CALL MPI_IRECV(this%rtbuff_,this%nbuff_,GC_REAL,itrank, &
                    1,this%comm_,this%itrh_(1),this%ierr_)
+    CALL GTAcc(this%hcomm_)
+
 
     !
     ! send data:
     CALL GPartComm_PPackV(this,this%sbbuff_,this%nbuff_,id,px,py,pz,nparts,this%ibot_,this%nbot_)
+    CALL GTStart(this%hcomm_)
     CALL MPI_ISEND(this%sbbuff_,this%nbuff_,GC_REAL,ibrank, &
                    1,this%comm_,this%itsh_(1),this%ierr_)
+    CALL GTAcc(this%hcomm_)
+
     CALL GPartComm_PPackV(this,this%sbbuff_,this%nbuff_,id,px,py,pz,nparts,this%itop_,this%ntop_)
+    CALL GTStart(this%hcomm_)
     CALL MPI_ISEND(this%stbuff_,this%nbuff_,GC_REAL,itrank, &
                    1,this%comm_,this%itsh_(1),this%ierr_)
+    CALL GTAcc(this%hcomm_)
+
 
     ! Concatenate partcle list to remove particles sent away:
     CALL GPartComm_ConcatV(this,id,px,py,pz,nparts,this%ibot_,&
                           this%nbot_,this%itop_,this%ntop_)
 
+    CALL GTStart(this%hcomm_)
     CALL MPI_WAIT(this%ibrh_(1),this%istatus_,this%ierr_)
     CALL MPI_WAIT(this%ibrh_(1),this%istatus_,this%ierr_)
     CALL MPI_WAIT(this%ibsh_(1),this%istatus_,this%ierr_)
     CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
+    CALL GTAcc(this%hcomm_)
 
     ! Update particle list:
     CALL GPartComm_PUnpackV(this,id,px,py,pz,nparts,this%rbbuff_,this%nbuff_)
@@ -1496,28 +1539,40 @@ MODULE class_GPartComm
     ENDIF
 
     ! Post receives:
+    CALL GTStart(this%hcomm_)
     CALL MPI_IRECV(this%rbbuff_,this%nbuff_,GC_REAL,ibrank, &
                    1,this%comm_,this%ibrh_(1),this%ierr_)
     CALL MPI_IRECV(this%rtbuff_,this%nbuff_,GC_REAL,itrank, &
                    1,this%comm_,this%itrh_(1),this%ierr_)
+    CALL GTAcc(this%hcomm_)
+
 
     !
     ! send data:
     CALL GPartComm_PPackPDB(this,this%sbbuff_,this%nbuff_,pdb,nparts,this%ibot_,this%nbot_)
+    CALL GTStart(this%hcomm_)
     CALL MPI_ISEND(this%sbbuff_,this%nbuff_,GC_REAL,ibrank, &
                    1,this%comm_,this%itsh_(1),this%ierr_)
+    CALL GTAcc(this%hcomm_)
+
     CALL GPartComm_PPackPDB(this,this%sbbuff_,this%nbuff_,pdb,nparts,this%itop_,this%ntop_)
+    CALL GTStart(this%hcomm_)
     CALL MPI_ISEND(this%stbuff_,this%nbuff_,GC_REAL,itrank, &
                    1,this%comm_,this%itsh_(1),this%ierr_)
+    CALL GTAcc(this%hcomm_)
+
 
     ! Concatenate partcle list to remove particles sent away:
     CALL GPartComm_ConcatPDB(this,pdb,nparts,this%ibot_,&
                           this%nbot_,this%itop_,this%ntop_)
 
+    CALL GTStart(this%hcomm_)
     CALL MPI_WAIT(this%ibrh_(1),this%istatus_,this%ierr_)
     CALL MPI_WAIT(this%ibrh_(1),this%istatus_,this%ierr_)
     CALL MPI_WAIT(this%ibsh_(1),this%istatus_,this%ierr_)
     CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
+    CALL GTAcc(this%hcomm_)
+
 
     ! Update particle list:
     CALL GPartComm_PUnpackPDB(this,pdb,nparts,this%rbbuff_,this%nbuff_)
@@ -1715,6 +1770,7 @@ MODULE class_GPartComm
 !   nxy = nx*ny
 !   nzy = nz*ny
 
+    CALL GTStart(this%hcomm_)
     DO iproc = 0, this%nprocs_-1, this%nstrip_
        DO istrip=0, this%nstrip_-1
           irank = iproc + istrip
@@ -1753,6 +1809,7 @@ MODULE class_GPartComm
           ENDIF
        ENDDO
     ENDDO
+    CALL GTAcc(this%hcomm_)
 
     IF ( rank .EQ. 3 ) THEN
 
@@ -1778,17 +1835,8 @@ MODULE class_GPartComm
 
     ELSE
 
-
-       DO ii = 1,ny,this%csize_
-         DO jj = 1,nx,this%csize_
-            DO i = ii,min(ny,ii+this%csize_-1)
-              DO j = jj,min(nx,jj+this%csize_-1)
-!                ofield(j+(i-1)*ny) = tmp(i+(j-1)*nx)
-              END DO
-            END DO
-         END DO
-      END DO
-
+      write(*,*) 'GPartComm_Transpose: rank two not implemented'
+      stop
     ENDIF
 
 
@@ -1882,6 +1930,7 @@ MODULE class_GPartComm
 
     ENDIF
 
+    CALL GTStart(this%hcomm_)
     DO iproc = 0, this%nprocs_-1, this%nstrip_
        DO istrip=0, this%nstrip_-1
           irank = iproc + istrip
@@ -1920,7 +1969,7 @@ MODULE class_GPartComm
           ENDIF
        ENDDO
     ENDDO
-
+    CALL GTAcc(this%hcomm_)
 
 
   END SUBROUTINE GPartComm_ITranspose
@@ -2066,8 +2115,11 @@ MODULE class_GPartComm
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,ngvdb)  :: gvdb,ptmp
 
 
+    CALL GTStart(this%hcomm_)
     CALL MPI_ALLREDUCE(nl,ng,1,MPI_INTEGER,   &
                        MPI_SUM,this%comm_,this%ierr_)
+    CALL GTAcc(this%hcomm_)
+
 
     IF ( this%myrank_.EQ.0 .AND. ng.NE.ngvdb ) THEN
       WRITE(*,*)'GPartComm_VDBSynch: inconsistent d.b.: expected: ', &
@@ -2086,8 +2138,11 @@ MODULE class_GPartComm
       ptmp(2,i) = ly(j)
       ptmp(3,i) = lz(j)
     ENDDO
+    CALL GTStart(this%hcomm_)
     CALL MPI_ALLREDUCE(ptmp,gvdb,3*ngvdb,GC_REAL,   &
                        MPI_SUM,this%comm_,this%ierr_)
+    CALL GTAcc(this%hcomm_)
+
 
 
   END SUBROUTINE GPartComm_VDBSynch

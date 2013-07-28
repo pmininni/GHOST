@@ -10,6 +10,7 @@ MODULE class_GPart
       USE mpivars
       USE fprecision
       USE pdbtypes
+      USE gtimer
       USE class_GPartComm
       USE class_GPSplineInt
 
@@ -25,6 +26,16 @@ MODULE class_GPart
       INTEGER,PARAMETER,PUBLIC                       :: GPEXCHTYPE_NN  =0
       INTEGER,PARAMETER,PUBLIC                       :: GPEXCHTYPE_VDB =1
 
+      INTEGER,PARAMETER,PUBLIC                       :: GPTIME_STEP    =1
+      INTEGER,PARAMETER,PUBLIC                       :: GPTIME_COMM    =2
+      INTEGER,PARAMETER,PUBLIC                       :: GPTIME_SPLINE  =3
+      INTEGER,PARAMETER,PUBLIC                       :: GPTIME_TRANSP  =4
+      INTEGER,PARAMETER,PUBLIC                       :: GPTIME_DATAEX  =5
+      INTEGER,PARAMETER,PUBLIC                       :: GPTIME_INTERP  =6
+      INTEGER,PARAMETER,PUBLIC                       :: GPTIME_PUPDATE =7
+
+      INTEGER,PARAMETER,PRIVATE                      :: GPMAXTIMERS    =7  ! no. GPTIME parameters
+
       PRIVATE
       TYPE, PUBLIC :: GPart
         PRIVATE
@@ -34,10 +45,12 @@ MODULE class_GPart
         INTEGER                                      :: iinterp_
         INTEGER                                      :: iexchtype_
         INTEGER                                      :: iouttype_
+        INTEGER                                      :: itimetype_
         TYPE(GPartComm)                              :: gpcomm_
         TYPE(GPSplineInt)                            :: intop_
         INTEGER                                      :: intorder_,itorder_,nd_(3),libnds_(3,2)
         INTEGER                                      :: myrank_,nprocs_
+        INTEGER                                      :: htimers_(GPMAXTIMERS)
         INTEGER                                      :: ierr_,iseed_,istep_
         INTEGER                                      :: maxparts_,nparts_,nvdb_
         INTEGER                                      :: comm_
@@ -71,7 +84,9 @@ MODULE class_GPart
         PROCEDURE,PUBLIC :: GetRandSeed     => GPart_GetRandSeed
         PROCEDURE,PUBLIC :: GetTimeOrder    => GPart_GetTimeOrder
         PROCEDURE,PUBLIC :: GetVDB          => GPart_GetVDB
+        PROCEDURE,PUBLIC :: GetNParts       => GPart_GetNParts
         PROCEDURE,PUBLIC :: GetVel          => GPart_GetVel
+        PROCEDURE,PUBLIC :: GetTime         => GPart_GetTime
 !       PROCEDURE,PUBLIC :: GetPos
       END TYPE GPart
 
@@ -88,6 +103,7 @@ MODULE class_GPart
       PRIVATE :: GPart_ascii_write_eul , GPart_binary_write_eul
       PRIVATE :: GPart_ascii_read_pdb  , GPart_binary_read_pdb
       PRIVATE :: GPart_GetVDB          , GPart_GetVel
+      PRIVATE :: GPart_GetTime
 
 ! Methods:
   CONTAINS
@@ -144,6 +160,7 @@ MODULE class_GPart
     this%istep_     = 0   
     this%iexchtype_=  iexchtyp
     this%iouttype_ =  iouttyp
+    this%itimetype_=  GT_WTIME
 
     IF ( this%intorder_ .NE. 3 ) THEN
       WRITE(*,*) 'GPart::ctor: Only 3rd order allowed for now' 
@@ -151,8 +168,18 @@ MODULE class_GPart
 
     CALL MPI_COMM_SIZE(this%comm_,this%nprocs_,this%ierr_)
     CALL MPI_COMM_RANK(this%comm_,this%myrank_,this%ierr_)
+    
+    ! Iniitialze timers (get handles):
+    DO j = 1, GPMAXTIMERS
+!!    this%htimers_(j) = GTGetHandle()
+      CALL GTStart(this%htimers_(j),this%itimetype_)
+      IF ( this%htimers_(j).EQ.GTNULLHANDLE ) THEN
+        WRITE(*,*) 'GPart_ctor: Not enough timers available'
+        STOP
+      ENDIF
+    ENDDO
 
-    CALL this%gpcomm_%GPartComm_ctor(GPCOMM_INTRFC_SF,this%maxparts_,this%nd_,this%intorder_-1,this%comm_)
+    CALL this%gpcomm_%GPartComm_ctor(GPCOMM_INTRFC_SF,this%maxparts_,this%nd_,this%intorder_-1,this%comm_,this%htimers_(GPTIME_COMM))
     CALL this%gpcomm_%SetCacheParam(csize,nstrip)
     CALL this%gpcomm_%Init()
 
@@ -170,7 +197,12 @@ MODULE class_GPart
     DO j = 1,3
       this%gext_ (j) = real(this%nd_(j),kind=GP)
     ENDDO
-    CALL this%intop_%GPSplineInt_ctor(3,this%nd_,this%libnds_,this%maxparts_,this%gpcomm_)
+
+    ! Instantiate interp operation. Remember that a valid timer 
+    ! handle must be passed:
+    CALL this%intop_%GPSplineInt_ctor(3,this%nd_,this%libnds_,&
+         this%maxparts_,this%gpcomm_,this%htimers_(GPTIME_DATAEX),&
+         this%htimers_(GPTIME_TRANSP))
 
     ! Create part. d.b. structure type for I/O
     CALL MPI_TYPE_SIZE(GC_REAL,szreal,this%ierr_)
@@ -190,6 +222,7 @@ MODULE class_GPart
     ALLOCATE(this%ltmp0_ (this%maxparts_))
     ALLOCATE(this%ltmp1_ (this%maxparts_))
 
+
   END SUBROUTINE GPart_ctor
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -204,11 +237,12 @@ MODULE class_GPart
 
     IMPLICIT NONE
     TYPE(GPart)   ,INTENT(INOUT)             :: this
+    INTEGER                                  :: j
 
 
 !!  CALL this%gpcomm_%GPartComm_dtor()
 
-    IF ( ALLOCATED    (this%id_) ) DEALLOCATE  (this%id_ )
+    IF ( ALLOCATED    (this%id_) ) DEALLOCATE   (this%id_)
     IF ( ALLOCATED    (this%px_) ) DEALLOCATE   (this%px_)
     IF ( ALLOCATED    (this%py_) ) DEALLOCATE   (this%py_)
     IF ( ALLOCATED    (this%pz_) ) DEALLOCATE   (this%pz_)
@@ -222,6 +256,11 @@ MODULE class_GPart
     IF ( ALLOCATED (this%ltmp1_) ) DEALLOCATE(this%ltmp1_)
     IF ( ALLOCATED   (this%lvy_) ) DEALLOCATE  (this%lvy_)
     IF ( ALLOCATED   (this%lvz_) ) DEALLOCATE  (this%lvz_)
+
+    ! Destroy timers:
+    DO j = 1, GPMAXTIMERS
+      CALL GTFree(this%htimers_(j))
+    ENDDO
   
   END SUBROUTINE GPart_dtor
 !-----------------------------------------------------------------
@@ -238,6 +277,7 @@ MODULE class_GPart
 !-----------------------------------------------------------------
     IMPLICIT NONE
     CLASS(GPart)   ,INTENT(INOUT)   :: this
+    INTEGER                         :: j
 
     IF      ( this%inittype_ .EQ. GPINIT_RANDLOC ) THEN
       CALL GPart_InitRandSeed (this)   
@@ -1180,6 +1220,7 @@ MODULE class_GPart
     ! u* <-- u: 
  
     ! Cycle over JST loop to update state:
+!$omp parallel do
     DO j = 1, this%nparts_
        this%ptmp0_(1,j) = this%px_(j)  ! u_0
        this%ptmp0_(2,j) = this%py_(j)  ! u_0
@@ -1209,11 +1250,16 @@ MODULE class_GPart
     CLASS(GPart) ,INTENT(INOUT)                 :: this
     INTEGER                                     :: j,ng
 
-!integer :: nold
-!nold = this%nparts_
-!this%ltmp0_(1:nold) = this%pz_(1:nold)
-
     ! u(t+dt) = u*: done already
+
+    ! IF using nearest-neighbor interface, do particle exchange 
+    ! between nearest-neighbor tasks BEFORE z-PERIODIZING particle coordinates:
+    IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
+      CALL GTStart(this%htimers_(GPTIME_COMM))
+      CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_, &
+           this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2))
+      CALL GTAcc(this%htimers_(GPTIME_COMM))
+    ENDIF
 
     ! Enforce periodicity in x, y, & z:
     CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,7)
@@ -1221,8 +1267,10 @@ MODULE class_GPart
     ! If using VDB interface, do synch-up, and get local work:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
       ! Synch up VDB, if necessary:
+      CALL GTStart(this%htimers_(GPTIME_COMM))
       CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
            this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+      CALL GTAcc(this%htimers_(GPTIME_COMM))
 
       ! If using VDB, get local particles to work on:
       CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,&
@@ -1230,13 +1278,6 @@ MODULE class_GPart
       CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
                          MPI_SUM,this%comm_,this%ierr_)
 
-!if ( ng.NE.this%maxparts_) then
-!if ( this%nparts_.ne.nold ) then
-!write(*,*)this%myrank_,'z_bnds=',this%lxbnds_(3,1:2)
-!write(*,*)this%myrank_,'z_old=',this%ltmp0_(1:nold)
-!write(*,*)this%myrank_,'z_new=',this%pz_   (1:this%nparts_)
-!endif
-!endif
       IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_) THEN
         WRITE(*,*)'GPart_FinalizeRKK: inconsistent d.b.: expected: ', &
                  this%maxparts_, '; found: ',ng
@@ -1286,8 +1327,9 @@ MODULE class_GPart
     REAL(KIND=GP)                                        :: dtfact
     REAL(KIND=GP),ALLOCATABLE  ,DIMENSION            (:) :: lid,gid
 
-
     dtfact = dt*xk*real(n,kind=GP)/(8.0_GP*atan(1.0_GP))
+
+    CALL GTStart(this%htimers_(GPTIME_STEP))
 
     ! Find F(u*):
     ! ... x:
@@ -1315,16 +1357,10 @@ MODULE class_GPart
       this%pz_(j) = this%ptmp0_(3,j) + dtfact*this%lvz_(j)
     ENDDO
 !
-    ! IF using nearest-neighbor interface, do particle exchange 
-    ! between nearest-neighbor tasks BEFORE z-PERIODIZING particle coordinates:
-    IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
-      CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_, &
-           this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2))
-    ENDIF
-
     ! Enforce periodicity in x-y only:
     CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3)
 
+    CALL GTAcc(this%htimers_(GPTIME_STEP))
 !   ALLOCATE  (lid(this%maxparts_))
 !   ALLOCATE  (gid(this%maxparts_))
 !   lid = 0
@@ -1374,7 +1410,6 @@ MODULE class_GPart
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend) :: vx,vy,vz,tmp1,tmp2
     REAL(KIND=GP)                                        :: dtfact
     REAL(KIND=GP),ALLOCATABLE  ,DIMENSION            (:) :: lid,gid
-
 
     ! ... x:
     CALL GPart_EulerToLag(this,this%lvx_,this%nparts_,vx,.true.,tmp1,tmp2)
@@ -1426,10 +1461,17 @@ MODULE class_GPart
     INTEGER                                               :: j
 
     IF ( doupdate ) THEN
+      CALL GTStart(this%htimers_(GPTIME_PUPDATE))
       CALL this%intop_%PartUpdate3D(this%px_,this%py_,this%pz_,this%nparts_)
+      CALL GTAcc(this%htimers_(GPTIME_PUPDATE))
     ENDIF
+    CALL GTStart(this%htimers_(GPTIME_SPLINE))
     CALL this%intop_%CompSpline3D(evar,tmp1,tmp2)
+    CALL GTAcc(this%htimers_(GPTIME_SPLINE))
+
+    CALL GTStart(this%htimers_(GPTIME_INTERP))
     CALL this%intop_%DoInterp3D(lag,nl)
+    CALL GTAcc(this%htimers_(GPTIME_INTERP))
 
   END SUBROUTINE GPart_EulerToLag
 !-----------------------------------------------------------------
@@ -1690,6 +1732,53 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+
+  DOUBLE PRECISION FUNCTION GPart_GetTime(this,itime)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : GPart_GetTime
+!  DESCRIPTION: gets elapsed time from timer index itime
+!         
+!  ARGUMENTS  :
+!    this     : 'this' class instance (IN)
+!    itime    : 'GPTIME' parameter (above)
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+
+    IMPLICIT NONE
+    CLASS(GPart) ,INTENT(INOUT)                    :: this
+    INTEGER      ,INTENT   (IN)                    :: itime
+    INTEGER                                        :: j
+
+    IF ( itime.LT.GPTIME_STEP .OR. itime.GT.GPMAXTIMERS ) THEN
+      WRITE(*,*)'GPart_GetTime: invalid time specification'
+      STOP
+    ENDIF
+
+    GPart_GetTime = GTGetTime(this%htimers_(itime))
+
+   END FUNCTION GPart_GetTime
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  INTEGER FUNCTION GPart_GetNParts(this)
+!!-----------------------------------------------------------------
+!!-----------------------------------------------------------------
+!!  METHOD     : GPart_GetNParts
+!!  DESCRIPTION: Gets no. particles on grid
+!!  ARGUMENTS  :
+!!    this    : 'this' class instance (IN)
+!!-----------------------------------------------------------------
+     CLASS(GPart) ,INTENT(INOUT)                   :: this 
+     INTEGER                                       :: ngp
+    
+     CALL MPI_ALLREDUCE(this%nparts_,ngp,1,MPI_INTEGER,MPI_SUM,this%comm_,this%ierr_)
+     GPart_GetNParts = ngp
+
+  END FUNCTION GPart_GetNParts
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 
 ! SUBROUTINE GPart_GetParts(this,)
 !!-----------------------------------------------------------------

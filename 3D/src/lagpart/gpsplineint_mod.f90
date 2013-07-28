@@ -27,6 +27,7 @@ MODULE class_GPSplineInt
       USE mpivars
       USE fprecision
       USE class_GPartComm
+      USE gtimer
       IMPLICIT NONE
   
       PRIVATE
@@ -45,6 +46,7 @@ MODULE class_GPSplineInt
         INTEGER      ,ALLOCATABLE,DIMENSION  (:,:)   :: ilg_,jlg_,klg_
         INTEGER                                      :: maxint_
         INTEGER                                      :: ierr_,ibnds_(3,2),ldims_(3),ider_(3),nd_(3)
+        INTEGER                                      :: hdataex_,htransp_
         INTEGER                                      :: ntot_
         INTEGER                                      :: rank_
         CHARACTER(len=1024)                          :: serr_
@@ -76,7 +78,7 @@ MODULE class_GPSplineInt
 ! Methods:
   CONTAINS
 
-  SUBROUTINE GPSplineInt_ctor(this,rank,nd,ibnds,maxpart,gpcomm)
+  SUBROUTINE GPSplineInt_ctor(this,rank,nd,ibnds,maxpart,gpcomm,hdataex,htransp)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Main explicit constructor
@@ -88,11 +90,13 @@ MODULE class_GPSplineInt
 !              Integer array of size (rank,2).
 !    maxpart : max no. interpolation points/Lag. particles
 !    gpcomm  : GHOST particle communicator object
+!    hdataex  : handle to data exchange. Must be valid.
+!    htransp  : handle to timer for transpose. Must be valid.
 !-----------------------------------------------------------------
     IMPLICIT NONE
     CLASS(GPSplineInt)                           :: this
     TYPE(GPartComm),TARGET                       :: gpcomm
-    INTEGER        ,INTENT(IN)                   :: rank,maxpart
+    INTEGER        ,INTENT(IN)                   :: hdataex,htransp,maxpart,rank
     INTEGER        ,INTENT(IN),DIMENSION  (rank) :: nd
     INTEGER        ,INTENT(IN),DIMENSION(rank,2) :: ibnds
     INTEGER                                      :: j,k
@@ -103,6 +107,18 @@ MODULE class_GPSplineInt
     this%ider_    = 0
     this%ldims_   = 0
     this%ntot_    = 1
+    j = GTValidHandle(htransp)
+    IF ( j.NE.GTERR_GOOD_HANDLE ) THEN
+      WRITE(*,*) 'GPSplineInt_ctor: invalid transpose timer handle: ',j
+      STOP
+    ENDIF
+    this%htransp_  = htransp
+    j = GTValidHandle(hdataex)
+    IF ( j.NE.GTERR_GOOD_HANDLE ) THEN
+      WRITE(*,*) 'GPSplineInt_ctor: invalid data exch. timer handle: ',j
+      STOP
+    ENDIF
+    this%hdataex_  = hdataex
     DO j = 1, this%rank_
       DO k = 1,2
         this%ibnds_(j,k)  = ibnds(j,k)
@@ -989,7 +1005,10 @@ MODULE class_GPSplineInt
     ibnds(3,1) = 1  
     ibnds(3,2) = this%ldims_(3)
 
+    CALL GTStart(this%htransp_)
     CALL this%gpcomm_%GTranspose(field,ibnds,tmp2,ibnds,3,tmp1)
+    CALL GTAcc(this%htransp_)
+
     nx = this%nd_(3)
     ny = this%nd_(2)
     nz = this%ldims_(3)
@@ -1054,13 +1073,17 @@ MODULE class_GPSplineInt
     ENDDO
 !
 !  Transpose back to standard orientation:
+    CALL GTStart(this%htransp_)
     CALL this%gpcomm_%GITranspose(field,ibnds,tmp2,ibnds,3,tmp1)
+    CALL GTAcc(this%htransp_)
 ! 
 ! Spline coeff field is now slab-decomposed to be xy complete, and 
 ! distributed in z. To do interpolation, we must set up 
 ! spline coeffs in array extended in z by 2 control points
 ! so that spline interpolation can be done:
-     CALL this%gpcomm_%SlabDataExchangeSF(this%esplfld_,field)
+    CALL GTStart(this%hdataex_)
+    CALL this%gpcomm_%SlabDataExchangeSF(this%esplfld_,field)
+    CALL GTAcc(this%hdataex_)
 !!write(*,*)'esplfld1=',this%esplfld_(1:10,1:10,1)
 !!write(*,*)'esplfld2=',this%esplfld_(1:10,1:10,2)
 !!write(*,*)'v1     =',field(1:100)

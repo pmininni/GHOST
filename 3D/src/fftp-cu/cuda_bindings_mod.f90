@@ -386,6 +386,62 @@ MODULE cuda_bindings
  END FUNCTION cufftExecZ2Z
 
 
+!*****************************************************************
+!*****************************************************************
+! cuTranspose :: take tranpose of 'datain' and store in 'dataout'. Data
+!                must reside on device.
+!    dataout   : output data 
+!    datain    : input data 
+!    width     : no columns of input matrix
+!    height    : no. rows  of input matrix
+!
+!*****************************************************************
+ SUBROUTINE cuTranspose(dataout, datain, width, height) bind(C,name="w_cudatranspose_")
+  USE, INTRINSIC :: iso_c_binding
+  IMPLICIT NONE
+  TYPE(C_PTR),value    :: dataout
+  TYPE(C_PTR),value    :: datain
+  INTEGER(C_INT),value :: width
+  INTEGER(C_INT),value :: height
+ END SUBROUTINE cuTranspose
+
+
+!*****************************************************************
+!*****************************************************************
+! cuTranspose3:: take tranpose of real 'datain' and store in 'dataout',
+!                transposing x <-> z. Data must reside on device.
+!    dataout   : output data 
+!    datain    : input data 
+!    nx,ny,nz  : dimensions of input array
+!
+!*****************************************************************
+ SUBROUTINE cuTranspose3(dataout, datain, nx, ny, nz) bind(C,name="w_cudatranspose3_")
+  USE, INTRINSIC :: iso_c_binding
+  IMPLICIT NONE
+  TYPE(C_PTR),value    :: dataout
+  TYPE(C_PTR),value    :: datain
+  INTEGER(C_INT),value :: nx, ny, nz
+ END SUBROUTINE cuTranspose3
+
+
+!*****************************************************************
+!*****************************************************************
+! cuTranspose3C:: take tranpose of complex 'datain' and store in 'dataout',
+!                 transposing x <-> z. Data must reside on device.
+!    dataout   : output data 
+!    datain    : input data 
+!    nx,ny,nz  : dimensions of input array
+!
+!*****************************************************************
+ SUBROUTINE cuTranspose3C(dataout, datain, nx, ny, nz) bind(C,name="w_cudatranspose3C_")
+  USE, INTRINSIC :: iso_c_binding
+  IMPLICIT NONE
+  TYPE(C_PTR),value    :: dataout
+  TYPE(C_PTR),value    :: datain
+  INTEGER(C_INT),value :: nx, ny, nz
+ END SUBROUTINE cuTranspose3C
+
+
  END INTERFACE 
 
 
