@@ -311,6 +311,7 @@
       INTEGER :: corr
 #endif
 #ifdef LAGPART_
+      REAL         :: rbal
       INTEGER      :: maxparts
       INTEGER      :: injtp
       INTEGER      :: creset
@@ -667,7 +668,6 @@
 !     xmom  : multiplies bouyancy term in momentum equation
 !     xtemp : multiplies temperature-current term in 
 !             temperature/density equation
-
       xmom  = 1.0
       xtemp = 1.0
       IF (myrank.eq.0) THEN
@@ -922,6 +922,7 @@
       ilgouttype   = 0
       lgmult       = 1
       lgseedfile   = 'gplag.dat'
+      rbal         = 0.0
 !
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.txt',status='unknown',form="formatted")
@@ -1907,11 +1908,14 @@
 
 ! Computes the benchmark
 
-      IF (bench.eq.1) THEN
+      IF (bench.gt.0) THEN
          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
          CALL GTStop(ihcpu1)
          CALL GTStop(ihomp1)
          CALL GTStop(ihwtm1)
+#ifdef LAGPART_
+        rbal = rbal + lagpart%GetLoadBal()
+#endif
          IF (myrank.eq.0) THEN
             OPEN(1,file='benchmark.txt',position='append')
 #if defined(DEF_GHOST_CUDA_)
@@ -1937,6 +1941,18 @@
                        GTGetTime(ihwtm2)/(step-ini+1)
             ENDIF
             CLOSE(1)
+#if defined(LAGPART_)
+            OPEN(2,file='gpbenchmark.txt',position='append')
+              WRITE(2,*) n,maxparts,rbal/(step-ini+1),(step-ini+1),nprocs,nth, &
+                         lagpart%GetTime   (GPTIME_STEP)/(step-ini+1), &
+                         lagpart%GetTime (GPTIME_INTERP)/(step-ini+1), &
+                         lagpart%GetTime (GPTIME_TRANSP)/(step-ini+1), &
+                         lagpart%GetTime (GPTIME_DATAEX)/(step-ini+1), &
+                         lagpart%GetTime (GPTIME_SPLINE)/(step-ini+1), &
+                         lagpart%GetTime   (GPTIME_COMM)/(step-ini+1), &
+                         lagpart%GetTime(GPTIME_PUPDATE)/(step-ini+1)
+            CLOSE(2)
+#endif
          ENDIF
       ENDIF
 !
