@@ -1,0 +1,33 @@
+/***************************************************************
+! cuda_math.hcu
+!
+! Header for CUDA math routines used in GHOST. 
+!
+! 2013 Duane Rosenberg & Pablo D. Mininni
+!      National Center for Computational Sciences
+!      e-mail: mininni@df.uba.ar
+!
+***************************************************************/
+
+#include <stdio.h>
+#include <stdlib.h>
+#include "cuda.h"
+#include "cuda_runtime.h"
+#include "cufft.h"
+
+#if defined(GDOUBLE_PRECISION)
+#  define REALSZ    double
+#  define COMPLEXSZ cuDoubleComplex
+#elif defined(GSINGLE_PRECISION)
+#  define REALSZ    float
+#  define COMPLEXSZ cuComplex
+#else
+#  error 'cuda_math: PRECISION must be GDOUBLE_PRECISION or GSINGLE_PRECISION'
+#endif
+
+#define TILE_DIM    4
+
+__global__  void CUTranspose  (REALSZ *outdata, REALSZ *indata, int width, int height);
+__global__  void CUTranspose3 (REALSZ *outdata, REALSZ *indata, int nx, int ny, int nz);
+__global__  void CUTranspose3C(COMPLEXSZ *outdata, COMPLEXSZ *indata, int nx, int ny, int nz);
+

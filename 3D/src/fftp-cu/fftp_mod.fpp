@@ -37,14 +37,15 @@
       DOUBLE PRECISION    :: tratime = 0.0
       TYPE FFTPLAN
          COMPLEX(KIND=GP), POINTER, DIMENSION (:,:,:)  :: ccarr
+         COMPLEX(KIND=GP), POINTER, DIMENSION (:,:,:)  :: ccarrt
          COMPLEX(KIND=GP), POINTER, DIMENSION (:,:,:)  :: carr
          REAL   (KIND=GP), POINTER, DIMENSION (:,:,:)  :: rarr
-         TYPE     (C_PTR)                              :: cu_ccd_, cu_cd_, cu_rd_
-         TYPE     (C_PTR)                              :: pccarr_, pcarr_, prarr_
-         INTEGER  (C_INT)                              :: icuplanr_, icuplanc_
-         INTEGER  :: n
-         INTEGER(C_SIZE_T) :: szccd_, szcd_, szrd_
-         INTEGER, DIMENSION (:), POINTER :: itype1, itype2
+         TYPE     (C_PTR)                              :: cu_ccd_,cu_ccd1_,cu_cd_,cu_rd_
+         TYPE     (C_PTR)                              :: pccarr_,pcarr_,prarr_
+         INTEGER  (C_INT)                              :: icuplanr_,icuplanc_
+         INTEGER                                       :: n
+         INTEGER(C_SIZE_T)                             :: szccd_,szcd_,szrd_
+         INTEGER, DIMENSION (:), POINTER               :: itype1,itype2
       END TYPE FFTPLAN
       SAVE
 
@@ -82,7 +83,7 @@
       ENUM, BIND(C)
         ENUMERATOR ::                            &
         cudaSuccess                       =0 ,   &
-        cudaErrorMissingConfigurationa    =1 ,   &
+        cudaErrorMissingConfiguration     =1 ,   &
         cudaErrorMemoryAllocation         =2 ,   &
         cudaErrorInitializationError      =3 ,   &
         cudaErrorLaunchFailure            =4 ,   &
