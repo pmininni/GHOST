@@ -24,9 +24,9 @@ MODULE gtimer
 !
 ! Methods:
       PUBLIC                            :: GTStop, GTStart, GTAcc, GTFree
-      PUBLIC                            :: GTGetTime
+      PUBLIC                            :: GTGetTime, GTValidHandle, GTReset
+      PUBLIC                            :: GTGetHandle
       PRIVATE                           :: GTbasic, GTStartnew, GTStartold
-      PRIVATE                           :: GTGetHandle
 
       INTERFACE  GTStart 
         MODULE PROCEDURE GTStartnew, GTStartold
@@ -40,11 +40,12 @@ MODULE gtimer
       
       SUBROUTINE GTStartnew(ih,itype)
 !-----------------------------------------------------------------
-! Initializes time level, returns handle to it if successful. 
-! Handle is assumed not to be in use, and a new handle will
+!-----------------------------------------------------------------
+! DESCRIPTION: Initializes time level, returns handle to it if 
+! successful. Handle is assumed not to be in use, and a new handle will
 ! be found for this interface, even if the old is not stale. 
 !
-! Parameters
+! ARGUMENTS  :
 !     ih     : (returned), Integer handle to timer level
 !              (GTNULLHANDLE if unsuccessful)
 !     itype  : timer type to use. See GT PARAMETERS for valid types
@@ -83,15 +84,18 @@ MODULE gtimer
       RETURN
 
       END SUBROUTINE GTStartnew
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 !
 !
       SUBROUTINE GTStartold(ih)
 !-----------------------------------------------------------------
-! Initializes time level, returns handle to it if successful. 
+!-----------------------------------------------------------------
+! DESCRIPTION: Initializes time level, returns handle to it if successful. 
 ! Handle must not be stale, as it will be used to find time type
 ! and other data. 
 !
-! Parameters
+! ARGUMENTS  :
 !     ih     : (returned), Integer handle to timer level
 !              (GTNULLHANDLE if unsuccessful)
 !-----------------------------------------------------------------
@@ -112,16 +116,19 @@ MODULE gtimer
       RETURN
 
       END SUBROUTINE GTStartold
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 
 !
 !
       SUBROUTINE GTStop(ih)
 !-----------------------------------------------------------------
-! Finalizes time level, and computes elapsed time for specified handle..
-! The handle is not deleted with this call; caller is responsible for
+!-----------------------------------------------------------------
+! DESCRIPTION: Finalizes time level, and computes elapsed time for specified 
+! handle. The handle is not deleted with this call; caller is responsible for
 ! deleting it. 
 !
-! Parameters
+! ARGUMENTS  :
 !     ih : Input integer handle to timer level (checked for validity,
 !          but this won't affect elapsed time).
 !-----------------------------------------------------------------
@@ -141,19 +148,22 @@ MODULE gtimer
       RETURN
 
       END SUBROUTINE GTStop
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 !
 !
 
       SUBROUTINE GTAcc(ih)
 !-----------------------------------------------------------------
-! Accumulates time. GTStart must still be called to initialze handle
-! With each call, the total elapsed time is computed, and made
+!-----------------------------------------------------------------
+! DESCRIPTION: Accumulates time. GTStart must still be called to initialze 
+! handle. With each call, the total elapsed time is computed, and made
 ! available to caller. Caller must call GTFree explicitly.
 ! Do not call GTStop after this call, or the time history will end, 
 ! and accumulation will include only the time between the last
 ! GTAcc call, and the GTStop call.
 !
-! Parameters
+! ARGUMENTS  :
 !     ih : Input integer handle to timer level (checked for validity,
 !          but this won't affect elapsed time).
 !-----------------------------------------------------------------
@@ -173,14 +183,17 @@ MODULE gtimer
       RETURN
 
       END SUBROUTINE GTAcc
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 !
 !
       DOUBLE PRECISION FUNCTION GTGetTime(ih)
 !-----------------------------------------------------------------
-! Returns elapsed time for handle ih, after call to _either_ GTStop
+!-----------------------------------------------------------------
+! DESCRIPTION: Returns elapsed time for handle ih, after call to _either_ GTStop
 ! or GTAcc.
 !
-! Parameters
+! ARGUMENTS  :
 !     ih : Input integer handle to timer level (checked for validity,
 !          but this won't affect elapsed time).
 !-----------------------------------------------------------------
@@ -195,11 +208,14 @@ MODULE gtimer
       GTGetTime = t1_(ih);
 
       END FUNCTION GTGetTime
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 !
 !
       INTEGER FUNCTION GTGetHandle()
 !-----------------------------------------------------------------
-! Returns valid handle, or GTNULLHANDLE if unsuccessful
+!-----------------------------------------------------------------
+! DESCRIPTION: Returns valid handle, or GTNULLHANDLE if unsuccessful
 !
 !-----------------------------------------------------------------
 
@@ -216,14 +232,17 @@ MODULE gtimer
       ENDIF
 
       END FUNCTION GTGetHandle
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 !
 !
       SUBROUTINE GTFree(ih)
 !-----------------------------------------------------------------
-! Frees up all data associated with handle ih, and nullifies it
+!-----------------------------------------------------------------
+! DESCRIPTION: Frees up all data associated with handle ih, and nullifies it
 ! Nothing is done if handle is bad.
 !
-! Parameters
+! ARGUMENTS  :
 !     ih : Input integer handle to timer level (checked for validity,
 !          but this won't affect elapsed time).
 !
@@ -241,16 +260,19 @@ MODULE gtimer
       itype_  (ih) = 0
 
       END SUBROUTINE GTFree
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 !
 !
       INTEGER FUNCTION GTValidHandle(ih)
 !-----------------------------------------------------------------
-! Checks for handle validity, both that it's within bounds,
+!-----------------------------------------------------------------
+! DESCRIPTION: Checks for handle validity, both that it's within bounds,
 ! and that it's not stale. If ok, then return GTERR_GOOD_HANDLE. If out
 ! of bounds, return GTERR_INVAL_HANDLE, if stale, return 
 ! GTERR_STALE_HANDLE
 !
-! Parameters
+! ARGUMENTS  :
 !     ih : Input integer handle to timer level (checked for validity,
 !          but this won't affect elapsed time).
 !
@@ -269,15 +291,18 @@ MODULE gtimer
       ENDIF
 
       END FUNCTION GTValidHandle
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 !
 !
       SUBROUTINE GTHandleCatch(ih,ierr,scaller)
 !-----------------------------------------------------------------
+!-----------------------------------------------------------------
 ! 
-! Catches handle errors, given error id, ierr, and reports
+! DESCRIPTION: Catches handle errors, given error id, ierr, and reports
 ! errors & halts program
 !
-! Parameters
+! ARGUMENTS  :
 !     ih     : Input integer handle to timer level (checked for validity,
 !              but this won't affect elapsed time).
 !     ierr   : Input integer error code
@@ -299,14 +324,39 @@ MODULE gtimer
       END SELECT
 
       END SUBROUTINE GTHandleCatch
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+!
+      SUBROUTINE GTReset(ih)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+! DESCRIPTION: Resets time ranges. Useful for clearing times obtained
+! from GTAcc call.
+!
+! ARGUMENTS  :
+!     ih : input handle; must be valid 
+!-----------------------------------------------------------------
+      INTEGER, INTENT(INOUT)  :: ih
 
+      IF ( GTValidHandle(ih).NE.GTERR_GOOD_HANDLE ) THEN
+        RETURN
+      ENDIF
+
+      t0_     (ih) = 0.0D0
+      t1_     (ih) = 0.0D0
+
+      END SUBROUTINE GTReset
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 !
 !
       DOUBLE PRECISION FUNCTION GTbasic(itype)
 !-----------------------------------------------------------------
-! Returns time in seconds from arbitrary time in past
+!-----------------------------------------------------------------
+! DESCRIPTION: Returns time in seconds from arbitrary time in past
 !
-! Parameters
+! ARGUMENTS  :
 !     itype : time type
 !-----------------------------------------------------------------
       IMPLICIT NONE
@@ -330,6 +380,8 @@ MODULE gtimer
       GTBasic = tt
 
       END FUNCTION GTbasic
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 !
 !
 END MODULE gtimer
