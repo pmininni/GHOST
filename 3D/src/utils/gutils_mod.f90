@@ -256,7 +256,7 @@ MODULE gutils
       CHARACTER(len=*), INTENT(IN)               :: fname
 
       REAL(KIND=GP)                              :: del,gmin,gmax
-      REAL(KIND=GP)                              :: gavg,sumr
+      REAL(KIND=GP)                              :: gavg,sig,sumr,xnorm
       INTEGER                                    :: i,ibin
       CHARACTER(len=1024)                        :: shead
 
@@ -294,15 +294,26 @@ MODULE gutils
       ENDIF
   
       sumr = 0.0_GP
-!$omp parallel do 
+!$omp parallel do reduction(+:sumr)
       DO i = 1, nin
-!$omp atomic
         sumr  = sumr +  Rin(i)
       ENDDO
-
+      
+      xnorm = 1.0_GP / real(n,kind=GP)**3
       CALL MPI_ALLREDUCE(sumr, gavg, 1, GC_REAL, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
-      gavg = gavg/real(n,kind=GP)**3
+      gavg = gavg*xnorm
+
+      ! Compute standard deviation:
+      sumr = 0.0_GP
+!$omp parallel do reduction(+:sumr)
+      DO i = 1, nin
+        sumr  = sumr +  (Rin(i)-gavg)**2
+      ENDDO
+      CALL MPI_ALLREDUCE(sumr, sig, 1, GC_REAL, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
+      sig = sqrt(sig*xnorm)
+
 
       del = ABS(fmax-fmin)/dble(nbins)
       ! Compute local PDF:
@@ -335,10 +346,10 @@ MODULE gutils
       DO i = 1, nbins
         ibin = ibin + fpdf_(i) 
       ENDDO
-      if (ibin.ne.nin) then
-        write(*,*)'dopdfr: inconsistent data: expected: ',nin, ' found: ',ibin
-        stop
-      endif
+      IF (ibin.ne.nin) THEN
+        WRITE (*,*)'dopdfr: inconsistent data: expected: ',nin, ' found: ',ibin
+        STOP
+      ENDIF
 
       ! Write PDF to disk:
       IF ( myrank.eq.0 ) THEN
@@ -346,8 +357,8 @@ MODULE gutils
             fmin = 10.0_GP**fmin
             fmax = 10.0_GP**fmax
           ENDIF
-         WRITE(shead,'(A9,E16.8,A1,E16.8,A7,E16.8,A7,I4,A7,I1)') '# range=[', fmin, ',' , fmax, &
-           ']; avg=',gavg,'; nbin=', nbins, '; blog=', dolog   
+         WRITE(shead,'(A9,E16.8,A1,E16.8,A7,E16.8,A6,E16.8,A7,I4,A7,I1)') '# range=[', fmin, ',' , fmax, &
+           ']; avg=',gavg,'; sig=',sig,'; nbin=', nbins, '; blog=', dolog   
          OPEN(1,file=trim(fname))
          WRITE(1,'(A)') trim(shead)
          WRITE(1,40) gpdf_
@@ -396,7 +407,7 @@ MODULE gutils
       CHARACTER(len=*), INTENT   (IN)                :: sR1,sR2,fname
 
       REAL(KIND=GP)                                  :: del (2),fck,gmin(2),gmax(2)
-      REAL(KIND=GP)                                  :: aa,gavg(2),sumr(2)
+      REAL(KIND=GP)                                  :: aa,gavg(2),sumr(2),sig(2),xnorm
       INTEGER                                        :: i,j,jx,jy
       CHARACTER(len=2048)                            :: shead
 
@@ -448,9 +459,28 @@ MODULE gutils
       ENDDO
       sumr(2) = aa
 
+      xnorm = 1.0_GP/real(n,kind=GP)**3
       CALL MPI_ALLREDUCE(sumr, gavg, 2, GC_REAL, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
-      gavg = gavg/real(n,kind=GP)**3
+      gavg(1:2) = gavg(1:2)*xnorm
+
+      aa = 0.0_GP
+!$omp parallel do reduction(+:aa)
+      DO i = 1, nin
+        aa  = aa +  (R1(i)-gavg(1))**2
+      ENDDO
+      sumr(1) = aa
+
+      aa = 0.0_GP
+!$omp parallel do reduction(+:aa)
+      DO i = 1, nin
+        aa  = aa +  (R2(i)-gavg(2))**2
+      ENDDO
+      sumr(2) = aa
+      CALL MPI_ALLREDUCE(sumr, sig, 2, GC_REAL, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
+      sig(1:2) = sqrt(sig(1:2)*xnorm)
+
 
       ! Compute local PDF:
       DO j = 1, 2
@@ -522,9 +552,9 @@ MODULE gutils
           IF ( dolog(j) .GT. 0 ) fmax(j) = 10.0_GP**fmax(j)
         ENDDO
 
-        WRITE(shead,'(A1,2(A4,A6,E16.8,A1,E16.8,A3,A4,A5,E16.8,A2),A6,I4,A1,I4,A9,I1,A1,I1,A1)') '#',&
-        sR1(1:4),'_rng=[', fmin(1), ',' , fmax(1),']; ', sR1(1:4),'_avg=',gavg(1),'; ',&
-        sR2(1:4),'_rng=[', fmin(2), ',' , fmax(2), ']; ',sR2(1:4),'_avg=',gavg(2),'; ',&
+        WRITE(shead,'(A1,2(A4,A6,E16.8,A1,E16.8,A3,A4,A5,E16.8,A2,A4,A5,E16.8,A2),A6,I4,A1,I4,A9,I1,A1,I1,A1)') '#',&
+        sR1(1:4),'_rng=[',fmin(1),',',fmax(1),']; ',sR1(1:4),'_avg=',gavg(1),'; ',sR1(1:4),'_sig=',sig(1),'; ',&
+        sR2(1:4),'_rng=[',fmin(2),',',fmax(2),']; ',sR2(1:4),'_avg=',gavg(2),'; ',sR2(1:4),'_sig=',sig(2),'; ',&
         'nbin=[', nbins(1),',',nbins(2), ']; blog=[', dolog(1),',',dolog(2),']'   
          OPEN(1,file=fname)
          WRITE(1,'(A)') trim(shead)
