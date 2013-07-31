@@ -1945,11 +1945,11 @@
             OPEN(2,file='gpbenchmark.txt',position='append')
               WRITE(2,*) n,maxparts,rbal/(step-ini+1),(step-ini+1),nprocs,nth, &
                          lagpart%GetTime   (GPTIME_STEP)/(step-ini+1), &
-                         lagpart%GetTime (GPTIME_INTERP)/(step-ini+1), &
+                         lagpart%GetTime   (GPTIME_COMM)/(step-ini+1), &
+                         lagpart%GetTime (GPTIME_SPLINE)/(step-ini+1), &
                          lagpart%GetTime (GPTIME_TRANSP)/(step-ini+1), &
                          lagpart%GetTime (GPTIME_DATAEX)/(step-ini+1), &
-                         lagpart%GetTime (GPTIME_SPLINE)/(step-ini+1), &
-                         lagpart%GetTime   (GPTIME_COMM)/(step-ini+1), &
+                         lagpart%GetTime (GPTIME_INTERP)/(step-ini+1), &
                          lagpart%GetTime(GPTIME_PUPDATE)/(step-ini+1)
             CLOSE(2)
 #endif
