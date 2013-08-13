@@ -62,9 +62,12 @@
 
       REAL   (KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: lamb,R1,R2,R3,R4,R5
       REAL   (KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: evx,evy,evz
-      REAL   (KIND=GP)                                 :: btrunc,ktrunc,sg,sl,tmp
+      REAL   (KIND=GP)                                 :: btrunc,sg,sl,tmp
       REAL   (KIND=GP)                                 :: ensmin,ensmax,dismin,dismax
       REAL   (KIND=GP)                                 :: krmin,krmax,phase
+      REAL   (KIND=GP)                                 :: krmin2,krmax2 
+      REAL   (KIND=GP)                                 :: ktmin ,ktmax 
+      REAL   (KIND=GP)                                 :: ktmin2,ktmax2
 
 !
 ! Auxiliary variables
@@ -83,10 +86,11 @@
       CHARACTER(len=2048) :: fntmp1,fntmp2,fntmp3,fntmp4,fntmp5
       CHARACTER(len=4096) :: stat
 !
-      NAMELIST / shear / btrunc,demean,ilamb,isolve,iswap
-      NAMELIST / shear / dolog,ktrunc,oswap,idir,odir,pref,stat
+      NAMELIST / shear / demean,ilamb,isolve,iswap
+      NAMELIST / shear / dolog,oswap,idir,odir,pref,stat
       NAMELIST / shear / dismin,dismax,ensmin,ensmax,jpdf,nbinx,nbiny
       NAMELIST / shear / irand,krmin,krmax,seed
+      NAMELIST / shear / btrunc,ktmin,ktmax
 
 !
 ! Initializes the MPI and I/O libraries
@@ -110,7 +114,6 @@
       iswap  = 0
       oswap  = 0
       btrunc = 0
-      ktrunc = kmax
       demean = 0
       dolog  = 1
       ilamb  = 0
@@ -119,6 +122,8 @@
       jpdf   = 1
       krmin  = tiny
       krmax  = tiny
+      ktmin  = tiny
+      ktmax  = kmax
       seed   = 1000
       pref = 'ksplambda'
 !
@@ -126,14 +131,18 @@
 ! parameters that will be used to compute the transfer
 !     idir   : directory for unformatted input (field components)
 !     odir   : directory for unformatted output (prolongated data)
-!     stat  : time index for which to compute SHEAR, or a ';--separated list
-!     ktrunc: if set to  < n/2+1, will truncate strain in computing spectrum.
+!     stat   : time index for which to compute SHEAR, or a ';--separated list
+!     btrunc : if == 1, truncate spectral rante got [ktmin,ktmax]
+!     ktmin  : min wavenumber for truncation if btrunc=1
+!     ktmax  : max wavenumber for truncation if btrunc=1
 !     iswap  : do endian swap on input?
 !     oswap  : do endian swap on output?
 !     isolve : 0==>just max |eigenvale| field; 1==>max |eigenvalue| field plus
 !              corresponding eigenvector inevx,evy,evz
 !     ilamb  : 1==>write eigenvalue field to disk; 0==>don't
 !     irand  : randomize phases between [krmin,krmax] if 1; else, don't
+!     krmin  : min wavenumber for randomization if irand=1
+!     krmax  : max wavenumber for randomization if irand=1
 !     jpdf   : 1==>do joint pdf of energy diss and other things; 0==>don't
 !     demean : demean the eigenvalue field?
 !     dolog  : compute PDFs in log=space?
@@ -155,7 +164,8 @@
       CALL MPI_BCAST(ilamb ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(irand ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(jpdf  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(ktrunc,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ktmin ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ktmax ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nbinx ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nbiny ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(oswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
@@ -185,6 +195,10 @@
       ALLOCATE( evz(n,n,ksta:kend) )
       ENDIF
 !
+      krmin2 = krmin**2
+      krmax2 = krmax**2
+      ktmin2 = ktmin**2
+      ktmax2 = ktmax**2
 
       CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
           FFTW_MEASURE)
@@ -193,7 +207,10 @@
 !
 ! Some constants for the FFT
 !     kmax: maximum truncation for dealiasing
-      if ( btrunc.eq.0 ) ktrunc = kmax
+      IF ( btrunc.eq.0 ) THEN
+         ktmin  = tiny
+         ktmax  = kmax
+      ENDIF
 
 !
 ! Builds the wave number and the square wave 
@@ -245,18 +262,32 @@
           CALL Randomize(vx,vy,vz,krmin,krmax,phase)
         ENDIF
 
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,n
+            DO k = 1,n
+              IF ((ka2(k,j,i).lt.krmin2).and.(ka2(k,j,i).gt.krmax2)) THEN
+                vx(k,j,i) = 0.0_GP
+                vy(k,j,i) = 0.0_GP
+                vz(k,j,i) = 0.0_GP
+              ENDIF
+            END DO
+          END DO
+        END DO
+
 
 ! Compute required strain rate components:
         inorm = 1
-        CALL Strain(vx,vy,vz,1,1,ktrunc,inorm,sij,ctmp)
+        CALL Strain(vx,vy,vz,1,1,ktmin,ktmax,inorm,sij,ctmp)
         CALL fftp3d_complex_to_real(plancr,sij,R1,MPI_COMM_WORLD)
-        CALL Strain(vx,vy,vz,1,2,ktrunc,inorm,sij,ctmp)
+        CALL Strain(vx,vy,vz,1,2,ktmin,ktmax,inorm,sij,ctmp)
         CALL fftp3d_complex_to_real(plancr,sij,R2,MPI_COMM_WORLD)
-        CALL Strain(vx,vy,vz,1,3,ktrunc,inorm,sij,ctmp)
+        CALL Strain(vx,vy,vz,1,3,ktmin,ktmax,inorm,sij,ctmp)
         CALL fftp3d_complex_to_real(plancr,sij,R3,MPI_COMM_WORLD)
-        CALL Strain(vx,vy,vz,2,2,ktrunc,inorm,sij,ctmp)
+        CALL Strain(vx,vy,vz,2,2,ktmin,ktmax,inorm,sij,ctmp)
         CALL fftp3d_complex_to_real(plancr,sij,R4,MPI_COMM_WORLD)
-        CALL Strain(vx,vy,vz,2,3,ktrunc,inorm,sij,ctmp)
+        CALL Strain(vx,vy,vz,2,3,ktmin,ktmax,inorm,sij,ctmp)
         CALL fftp3d_complex_to_real(plancr,sij,R5,MPI_COMM_WORLD)
 
 ! Compute required eigenvalue field of strain:
@@ -301,12 +332,12 @@
         IF ( btrunc.EQ.0 ) THEN
           fnout = trim(pref) // '.' // ext  // '.txt';
         ELSE
-          WRITE(suff,'(a2,i5.5)') '_T', int(ktrunc)
+          WRITE(suff,'(a2,i5.5,a1,i5.5)') '_T', int(ktmin),'_',int(ktmax)
           fnout = trim(pref) // '.' // ext //  trim(suff) // '.txt'
         ENDIF
         fntmp = trim(odir) // '/' // trim(fnout)
 
-        CALL pspectrum(ctmp,fntmp,int(ktrunc))
+        CALL pspectrum(ctmp,fntmp,int(kmax))
 
 ! 
 ! Prepare eignesystem for output if necessary
@@ -353,7 +384,7 @@
         ENDIF
 
         IF ( myrank.EQ. 0 ) THEN
-          write(*,*)'main: fntmp=',trim(fntmp),' ktrunc=',ktrunc
+          write(*,*)'main: fntmp=',trim(fntmp),' ktmin=',ktmin,' ktmax=',ktmax
           write(*,*)'main: time index ', trim(ext), ' done.'
         ENDIF
 
@@ -385,7 +416,7 @@
 !-----------------------------------------------------------------
 
 
-      SUBROUTINE Strain(vx,vy,vz,ir,jc,ktrunc,inorm,sij,ctmp)
+      SUBROUTINE Strain(vx,vy,vz,ir,jc,ktmin,ktmax,inorm,sij,ctmp)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -395,7 +426,8 @@
 !     vi   : input velocities
 !     sij  : returned complex component of strain rate tensor 
 !     ir,jc: the row and col of sij
-!     krtunc: truncaton wavenumber for spherical truncation
+!     ktmin: truncaton min wavenumber for spherical truncation
+!     ktmax: truncaton max wavenumber for spherical truncation
 !     inorm : normalize (1), or not (0)
 !
       USE fprecision
@@ -409,8 +441,8 @@
 
       COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(n,n,ista:iend) :: vx,vy,vz
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: ctmp,sij
-      REAL   (KIND=GP), INTENT   (IN)                           :: ktrunc
-      REAL   (KIND=GP)                                          :: ktrunc2,tmp
+      REAL   (KIND=GP), INTENT   (IN)                           :: ktmin,ktmax
+      REAL   (KIND=GP)                                          :: ktmin2,ktmax2,tmp
 !
       INTEGER         , INTENT   (IN)                           :: inorm,ir,jc
       INTEGER                                                   :: i,j,k
@@ -421,7 +453,8 @@
         STOP
       ENDIF
 
-      ktrunc2 = ktrunc**2
+      ktmin2 = ktmin**2
+      ktmax2 = ktmax**2
 
       IF ( ir.EQ.1 ) THEN
         CALL derivk3(vx, sij, jc)
@@ -496,7 +529,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
         DO j = 1,n
           DO k = 1,n
-            IF ((ka2(k,j,i).gt.ktrunc2 ).and.(ka2(k,j,i).ge.tiny)) THEN
+            IF ((ka2(k,j,i).lt.ktmin2 ).and.(ka2(k,j,i).gt.ktmax2)) THEN
               sij(k,j,i) = 0.0_GP
             ENDIF
           END DO
