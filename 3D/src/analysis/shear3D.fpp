@@ -195,10 +195,6 @@
       ALLOCATE( evz(n,n,ksta:kend) )
       ENDIF
 !
-      krmin2 = krmin**2
-      krmax2 = krmax**2
-      ktmin2 = ktmin**2
-      ktmax2 = ktmax**2
 
       CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
           FFTW_MEASURE)
@@ -207,10 +203,18 @@
 !
 ! Some constants for the FFT
 !     kmax: maximum truncation for dealiasing
+      IF ( irand.eq.0 ) THEN
+         krmin  = tiny
+         krmax  = kmax
+      ENDIF
       IF ( btrunc.eq.0 ) THEN
          ktmin  = tiny
          ktmax  = kmax
       ENDIF
+      krmin2 = krmin**2
+      krmax2 = krmax**2
+      ktmin2 = ktmin**2
+      ktmax2 = ktmax**2
 
 !
 ! Builds the wave number and the square wave 
@@ -267,7 +271,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,n
             DO k = 1,n
-              IF ((ka2(k,j,i).lt.ktmin2).and.(ka2(k,j,i).gt.ktmax2)) THEN
+              IF ((ka2(k,j,i).lt.ktmin2).or.(ka2(k,j,i).gt.ktmax2)) THEN
                 vx(k,j,i) = 0.0_GP
                 vy(k,j,i) = 0.0_GP
                 vz(k,j,i) = 0.0_GP
@@ -276,7 +280,7 @@
           END DO
         END DO
 
-write(*,*)'main: ktmin=',ktmin2, ' ktmax=',ktmax2
+write(*,*)'main: ktmin2=',ktmin2, ' ktmax2=',ktmax2
 
 ! Compute required strain rate components:
         inorm = 1
@@ -530,7 +534,7 @@ write(*,*)'main: ktmin=',ktmin2, ' ktmax=',ktmax2
 !$omp parallel do if (iend-ista.lt.nth) private (k)
         DO j = 1,n
           DO k = 1,n
-            IF ((ka2(k,j,i).lt.ktmin2 ).and.(ka2(k,j,i).gt.ktmax2)) THEN
+            IF ((ka2(k,j,i).lt.ktmin2 ).or.(ka2(k,j,i).gt.ktmax2)) THEN
               sij(k,j,i) = 0.0_GP
             ENDIF
           END DO
