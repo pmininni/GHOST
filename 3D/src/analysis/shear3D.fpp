@@ -78,7 +78,7 @@
 !$    INTEGER, EXTERNAL :: omp_get_max_threads
 
       TYPE(IOPLAN) :: planio
-      CHARACTER(len=10)   :: suff
+      CHARACTER(len=16)   :: suff
       CHARACTER(len=128)  :: pref
       CHARACTER(len=256)  :: odir,idir
       CHARACTER(len=1024) :: fnout
@@ -121,7 +121,7 @@
       isolve = 0
       jpdf   = 1
       krmin  = tiny
-      krmax  = tiny
+      krmax  = kmax
       ktmin  = tiny
       ktmax  = kmax
       seed   = 1000
@@ -132,7 +132,7 @@
 !     idir   : directory for unformatted input (field components)
 !     odir   : directory for unformatted output (prolongated data)
 !     stat   : time index for which to compute SHEAR, or a ';--separated list
-!     btrunc : if == 1, truncate spectral rante got [ktmin,ktmax]
+!     btrunc : if == 1, truncate spectral range to [ktmin,ktmax]
 !     ktmin  : min wavenumber for truncation if btrunc=1
 !     ktmax  : max wavenumber for truncation if btrunc=1
 !     iswap  : do endian swap on input?
@@ -267,7 +267,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,n
             DO k = 1,n
-              IF ((ka2(k,j,i).lt.krmin2).and.(ka2(k,j,i).gt.krmax2)) THEN
+              IF ((ka2(k,j,i).lt.ktmin2).and.(ka2(k,j,i).gt.ktmax2)) THEN
                 vx(k,j,i) = 0.0_GP
                 vy(k,j,i) = 0.0_GP
                 vz(k,j,i) = 0.0_GP
@@ -276,6 +276,7 @@
           END DO
         END DO
 
+write(*,*)'main: ktmin=',ktmin2, ' ktmax=',ktmax2
 
 ! Compute required strain rate components:
         inorm = 1
