@@ -1491,3 +1491,101 @@
 
       RETURN
       END SUBROUTINE spec2d
+
+!*****************************************************************
+      SUBROUTINE write_fourier(a,fname,nmb,dir)
+!-----------------------------------------------------------------
+!
+! Writes slices with the Fourier modes in the plane kz=0 and
+! ky=0. The output is written to a binary file by the first 
+! node.
+!
+! Parameters
+!     a    : input matrix
+!     fname: name of the field component
+!     nmb  : the extension used when writting the file
+!     dir  : directory where the files are written
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
+      COMPLEX(KIND=GP), DIMENSION(n,n/2+1)                   :: uk1,uk2
+      COMPLEX(KIND=GP), DIMENSION(n,n/2+1)                   :: ut1,ut2
+      COMPLEX(KIND=GP), DIMENSION(n,n)                       :: ut3
+      REAL                :: tmp
+      INTEGER             :: i,j,k
+      CHARACTER(len=100), INTENT(IN) :: dir
+      CHARACTER(len=*), INTENT(IN)   :: nmb,fname
+
+!
+! Sets Hk to zero
+!
+!$omp parallel do private (j)
+      DO i = 1,n/2+1
+         DO j = 1,n
+            uk1(j,i) = 0.
+            uk2(j,i) = 0.
+         END DO
+      END DO
+!
+! Computes the kz=0 slice
+!
+      tmp = 1.0_GP/real(n,kind=GP)**3
+!$omp parallel do private (j)
+      DO i = ista,iend
+         DO j = 1,n
+            uk1(j,i) = a(1,j,i)*tmp
+         END DO
+      END DO
+!
+! Computes the ky=0 slice
+!
+!$omp parallel do private (j)
+      DO i = ista,iend
+         DO k = 1,n
+            uk2(k,i) = a(k,1,i)*tmp
+         END DO
+      END DO
+!
+! Computes the kx=0 slice
+!
+      IF (myrank.eq.0) THEN
+!$omp parallel do private (j)
+         DO j = 1,n
+            DO k = 1,n
+               ut3(k,j) = a(k,j,1)*tmp
+            END DO
+         END DO
+      ENDIF
+!
+! Computes the reduction between nodes
+! and exports the result to a file
+!
+      CALL MPI_REDUCE(uk1,ut1,n*(n/2+1),GC_COMPLEX,            &
+                      MPI_SUM,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_REDUCE(uk2,ut2,n*(n/2+1),GC_COMPLEX,            &
+                      MPI_SUM,0,MPI_COMM_WORLD,ierr)
+      IF (myrank.eq.0) THEN
+         OPEN(1,file=trim(dir) // '/' // trim(fname) // '_kz.' // &
+              nmb // '.out',form='unformatted')
+         WRITE(1) ut1
+         CLOSE(1)
+         OPEN(1,file=trim(dir) // '/' // trim(fname) // '_ky.' // &
+              nmb // '.out',form='unformatted')
+         WRITE(1) ut2
+         CLOSE(1)
+         OPEN(1,file=trim(dir) // '/' // trim(fname) // '_kx.' // &
+              nmb // '.out',form='unformatted')
+         WRITE(1) ut3
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE write_fourier
