@@ -336,9 +336,9 @@ MODULE gutils
       ENDIF
 
       ! Compute global reduction between MPI tasks:
-      CALL MPI_REDUCE(fpdf_, gpdf_, nbins_, MPI_FLOAT, &
+      CALL MPI_REDUCE(fpdf_, gpdf_, nbins_, MPI_REAL,    &
                       MPI_SUM, 0, MPI_COMM_WORLD,ierr)
-!     CALL MPI_ALLREDUCE(fpdf_, gpdf_, nbins_, MPI_FLOAT, &
+!     CALL MPI_ALLREDUCE(fpdf_, gpdf_, nbins_, MPI_REAL, &
 !                     MPI_SUM, MPI_COMM_WORLD,ierr)
 
       
@@ -531,7 +531,7 @@ MODULE gutils
       ENDIF
 
       ! Compute global reduction between MPI tasks:
-      CALL MPI_REDUCE(fpdf2_, gpdf2_, nbins(1)*nbins(2), MPI_FLOAT, &
+      CALL MPI_REDUCE(fpdf2_, gpdf2_, nbins(1)*nbins(2), MPI_REAL, &
                       MPI_SUM, 0, MPI_COMM_WORLD,ierr)
 
       ! Write PDF to disk:
