@@ -148,9 +148,11 @@
 !     dolog  : compute PDFs in log=space?
 
       IF (myrank.eq.0) THEN
+write(*,*)'main: opening shear.txt...'
          OPEN(1,file='shear.txt',status='unknown',form="formatted")
          READ(1,NML=shear)
          CLOSE(1)
+write(*,*)'main: shear.txt read.'
       ENDIF
       CALL MPI_BCAST(idir  ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(odir  ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
@@ -171,6 +173,7 @@
       CALL MPI_BCAST(oswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(krmin ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(krmax ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+if (myrank.eq.0) write(*,*)'main: broadcast done.'
 !
       nbins(1) = nbinx
       nbins(2) = nbiny
@@ -196,10 +199,12 @@
       ENDIF
 !
 
+if (myrank.eq.0) write(*,*)'main: creating plans...'
       CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
           FFTW_MEASURE)
       CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
           FFTW_MEASURE)
+if (myrank.eq.0) write(*,*)'main: plans done.'
 !
 ! Some constants for the FFT
 !     kmax: maximum truncation for dealiasing
@@ -215,6 +220,7 @@
       krmax2 = krmax**2
       ktmin2 = ktmin**2
       ktmax2 = ktmax**2
+if (myrank.eq.0) write(*,*)'main: d-extrema done.'
 
 !
 ! Builds the wave number and the square wave 
@@ -224,6 +230,7 @@
          ka(i) = REAL(i-1,KIND=GP)
          ka(i+n/2) = REAL(i-n/2-1,KIND=GP)
       END DO
+if (myrank.eq.0) write(*,*)'main: ka done.'
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
@@ -234,16 +241,23 @@
             END DO
          END DO
       END DO
+if (myrank.eq.0) write(*,*)'main: ka2 done.'
 
       CALL parseind(stat,';', istat , 1024, nstat) 
+if (myrank.eq.0) write(*,*)'main: index parsing done: nstat=',nstat
 
       tmp = 1.0_GP/REAL(n,KIND=GP)**3
       DO it = 1,nstat
+if (myrank.eq.0) write(*,*)'main: writing ext: fmtext:', fmtext,' istat=',istat(it)
         WRITE(ext, fmtext) istat(it)
 ! read in appropriate file:
+if (myrank.eq.0) write(*,*)'main: reading vx...'
         CALL io_read(1,idir,'vx',ext,planio,R1)
+if (myrank.eq.0) write(*,*)'main: reading vy...'
         CALL io_read(1,idir,'vy',ext,planio,R2)
+if (myrank.eq.0) write(*,*)'main: reading vz...'
         CALL io_read(1,idir,'vz',ext,planio,R3)
+if (myrank.eq.0) write(*,*)'main: reading done.'
 
 
 !
@@ -255,9 +269,13 @@
         ENDIF
 !
 ! take FFT of component:
+if (myrank.eq.0) write(*,*)'main: real 2 cmplex for vx...'
         CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
+if (myrank.eq.0) write(*,*)'main: real 2 cmplex for vy...'
         CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
+if (myrank.eq.0) write(*,*)'main: real 2 cmplex for vz...'
         CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
+if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
         IF ( irand.GT.0 ) THEN
           IF (myrank.eq.0) phase = 2*pi*randu(seed)
           CALL MPI_BCAST(phase,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
@@ -1009,6 +1027,8 @@ write(*,*)'main: ktmin2=',ktmin2, ' ktmax2=',ktmax2
       REAL   (KIND=GP)                                          :: s2,s3,s4
       REAL   (KIND=GP)                                          :: ws1,ws2,ws3
       REAL   (KIND=GP)                                          :: wf1,wf2,wf3
+      REAL   (KIND=GP)                                          :: fdiss,sdiss
+      REAL   (KIND=GP)                                          :: fenst,senst
       INTEGER         , INTENT   (IN)                           :: dolog,nbins(2)
       INTEGER                                                   :: i,j,k,nin,sr
       CHARACTER(len=*), INTENT   (IN)                           :: fnjde,fnjdl,fnjel,fnjdh,fnjeh,fndiss
@@ -1098,7 +1118,7 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
         ENDDO
       ENDDO
 
-!     fact  = 1.0_GP/real(n,kind=GP)**6 ! no  longer needed; is in vi now
+!     fact  = 1.0_GP/real(n,kind=GP)**6 ! no  longer needed; is in v_i now
       CALL rotor3(vy,vz,ctmp,1)
       CALL fftp3d_complex_to_real(plancr,ctmp,S23   ,MPI_COMM_WORLD)
       vtmp = vx
@@ -1116,7 +1136,7 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
       ENDDO
       CALL skewflat(rtmp,nin,n,ws1,wf1,s2,s3,s4)
       ! Compute, write, 1d \omega_i pdfs:
-!     CALL dopdfr(rtmp,nin,n,'w1pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(rtmp,nin,n,'w1pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
 
       CALL rotor3(vz,vx,ctmp,2)
       CALL fftp3d_complex_to_real(plancr,ctmp,S23   ,MPI_COMM_WORLD)
@@ -1135,7 +1155,7 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
       ENDDO
       CALL skewflat(rtmp,nin,n,ws2,wf2,s2,s3,s4)
       ! Compute, write, 1d \omega_i pdfs:
-!     CALL dopdfr(rtmp,nin,n,'w2pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(rtmp,nin,n,'w2pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
 
       CALL rotor3(vx,vy,ctmp,3)
       CALL fftp3d_complex_to_real(plancr,ctmp,S23,MPI_COMM_WORLD)
@@ -1153,16 +1173,18 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
         ENDDO
       ENDDO
       CALL skewflat(rtmp,nin,n,ws3,wf3,s2,s3,s4)
+      CALL skewflat(S11 ,nin,n,sdiss,fdiss,s2,s3,s4)
+      CALL skewflat(S22 ,nin,n,senst,fenst,s2,s3,s4)
       ! Compute, write, 1d \omega_i pdfs:
-!     CALL dopdfr(rtmp,nin,n,'w3pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(rtmp,nin,n,'w3pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
 
       ! Print out skewness and flatness data:
       IF ( myrank.EQ.0 ) THEN
         OPEN(1,file=trim(fnskew),position='append')
-        WRITE(1,*)ext,ss11,ss12,ss13,ss22,ss23,ss33,ws1,ws2,ws3
+        WRITE(1,*)ext,ss11,ss12,ss13,ss22,ss23,ss33,ws1,ws2,ws3,sdiss,senst
         CLOSE(1)
         OPEN(1,file=trim(fnflat),position='append')
-        WRITE(1,*)ext,sf11,sf12,sf13,sf22,sf23,sf33,wf1,wf2,wf3
+        WRITE(1,*)ext,sf11,sf12,sf13,sf22,sf23,sf33,wf1,wf2,wf3,fdiss,fenst
         CLOSE(1)
       ENDIF
 
@@ -1196,6 +1218,7 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
       CALL dojpdfr(S13,'rhel',S11,'diss',nin,n,fnjdh,nbins,0,fmin,fmax,[0,dolog])
       ! Compute joint PDF for rel. helicity and enstroph. density:
       CALL dojpdfr(S13,'rhel',S22,'enst',nin,n,fnjeh,nbins,0,fmin,fmax,[0,dolog])
+
 
       CALL dojpdfr(lambda,'lambda',S22,'enst',nin,n,fnjdl,nbins,0,fmin,fmax,[dolog,dolog])
 
