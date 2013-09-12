@@ -1029,6 +1029,8 @@ write(*,*)'main: ktmin2=',ktmin2, ' ktmax2=',ktmax2
       REAL   (KIND=GP)                                          :: wf1,wf2,wf3
       REAL   (KIND=GP)                                          :: fdiss,sdiss
       REAL   (KIND=GP)                                          :: fenst,senst
+      REAL   (KIND=GP)                                          :: fheli,sheli
+      REAL   (KIND=GP)                                          :: flamb,slamb
       INTEGER         , INTENT   (IN)                           :: dolog,nbins(2)
       INTEGER                                                   :: i,j,k,nin,sr
       CHARACTER(len=*), INTENT   (IN)                           :: fnjde,fnjdl,fnjel,fnjdh,fnjeh,fndiss
@@ -1136,7 +1138,7 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
       ENDDO
       CALL skewflat(rtmp,nin,n,ws1,wf1,s2,s3,s4)
       ! Compute, write, 1d \omega_i pdfs:
-      CALL dopdfr(rtmp,nin,n,'w1pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(S23,nin,n,'w1pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
 
       CALL rotor3(vz,vx,ctmp,2)
       CALL fftp3d_complex_to_real(plancr,ctmp,S23   ,MPI_COMM_WORLD)
@@ -1155,7 +1157,7 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
       ENDDO
       CALL skewflat(rtmp,nin,n,ws2,wf2,s2,s3,s4)
       ! Compute, write, 1d \omega_i pdfs:
-      CALL dopdfr(rtmp,nin,n,'w2pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(S23,nin,n,'w2pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
 
       CALL rotor3(vx,vy,ctmp,3)
       CALL fftp3d_complex_to_real(plancr,ctmp,S23,MPI_COMM_WORLD)
@@ -1175,16 +1177,18 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
       CALL skewflat(rtmp,nin,n,ws3,wf3,s2,s3,s4)
       CALL skewflat(S11 ,nin,n,sdiss,fdiss,s2,s3,s4)
       CALL skewflat(S22 ,nin,n,senst,fenst,s2,s3,s4)
+      CALL skewflat(lambda,nin,n,slamb,flamb,s2,s3,s4)
+      CALL skewflat(S13,nin,n,sheli,fheli,s2,s3,s4)
       ! Compute, write, 1d \omega_i pdfs:
-      CALL dopdfr(rtmp,nin,n,'w3pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(S23,nin,n,'w3pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
 
       ! Print out skewness and flatness data:
       IF ( myrank.EQ.0 ) THEN
         OPEN(1,file=trim(fnskew),position='append')
-        WRITE(1,*)ext,ss11,ss12,ss13,ss22,ss23,ss33,ws1,ws2,ws3,sdiss,senst
+        WRITE(1,*)ext,ss11,ss12,ss13,ss22,ss23,ss33,ws1,ws2,ws3,sdiss,senst,sheli,slamb
         CLOSE(1)
         OPEN(1,file=trim(fnflat),position='append')
-        WRITE(1,*)ext,sf11,sf12,sf13,sf22,sf23,sf33,wf1,wf2,wf3,fdiss,fenst
+        WRITE(1,*)ext,sf11,sf12,sf13,sf22,sf23,sf33,wf1,wf2,wf3,fdiss,fenst,fheli,flamb
         CLOSE(1)
       ENDIF
 
