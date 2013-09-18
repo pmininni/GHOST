@@ -542,13 +542,6 @@ MODULE class_GPart
       STOP
     ENDIF
 
-    OPEN(UNIT=1,FILE=trim(this%seedfile_),STATUS='OLD',ACTION='READ',&
-         IOSTAT=this%ierr_, IOMSG=this%serr_);
-    IF ( this%ierr_ .NE. 0 ) THEN
-      WRITE(*,*)'GPart::InitUserSeed: file:',this%seedfile_,' err: ', trim(this%serr_) 
-      STOP
-    ENDIF
-
     nt = 0  ! global part. record counter
     nl = 0  ! local particle counter
     DO WHILE ( this%ierr_.EQ.0 .AND. nt.LT.this%maxparts_ )
