@@ -1030,7 +1030,7 @@ write(*,*)'main: ktmin2=',ktmin2, ' ktmax2=',ktmax2
       REAL   (KIND=GP)                                          :: fact,fmin(2),fmax(2),xnorm,xnormi
       REAL   (KIND=GP)                                          :: ss11,ss12,ss13,ss22,ss23,ss33
       REAL   (KIND=GP)                                          :: sf11,sf12,sf13,sf22,sf23,sf33
-      REAL   (KIND=GP)                                          :: s2,s3,s4
+      DOUBLE PRECISION                                          :: s2,s3,s4
       REAL   (KIND=GP)                                          :: vs1,vs2,vs3
       REAL   (KIND=GP)                                          :: vf1,vf2,vf3
       REAL   (KIND=GP)                                          :: ws1,ws2,ws3
@@ -1271,42 +1271,42 @@ write(*,*)'DoDissJPDF: lamb: s2=',s2,' s3=',s3,' s4=',s4,' slamb=',slamb,' flamb
 
       REAL(KIND=GP), INTENT (IN), DIMENSION(nin) :: fx
       REAL(KIND=GP), INTENT(OUT)                 :: skew,flat
-      REAL(KIND=GP), INTENT(OUT)                 :: s2,s3,s4
-      REAL(KIND=GP)                              :: avg,gs(3),s(3),xnorm
+      DOUBLE PRECISION, INTENT(OUT)              :: s2,s3,s4
+      DOUBLE PRECISION                           :: avg,gs(3),s(3),xnorm
       INTEGER      , INTENT (IN)                 :: nin,n
       INTEGER                                    :: ierr,j
 
 
-      xnorm = 1.0_GP / real(n,kind=GP)**3
-      s2 = 0.0_GP
+      xnorm = 1.0_GP / dble(n)**3
+      s2 = 0.0D0
 !$omp parallel do private(j) reduction(+:s2)
       DO j = 1, nin
-        s2 = s2 + fx(j)
+        s2 = s2 + dble(fx(j))
       ENDDO
 
-      CALL MPI_ALLREDUCE(s2, avg, 1, GC_REAL, &
+      CALL MPI_ALLREDUCE(s2, avg, 1, MPI_DOUBLE_PRECISION, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
 
-      s2 = 0.0_GP
+      s2 = 0.0D0
 !$omp parallel do private(j) reduction(+:s2)
       DO j = 1, nin
-        s2 = s2 + xnorm*(fx(j)-avg)**2
+        s2 = s2 + xnorm*(dble(fx(j))-avg)**2
       ENDDO
 
-      s3 = 0.0_GP
+      s3 = 0.0D0
 !$omp parallel do private(j) reduction(+:s3)
       DO j = 1, nin
-        s3 = s3 + xnorm*(fx(j)-avg)**3
+        s3 = s3 + xnorm*(dble(fx(j))-avg)**3
       ENDDO
 
-      s4 = 0.0_GP
+      s4 = 0.0D0
 !$omp parallel do private(j) reduction(+:s4)
       DO j = 1, nin
-        s4 = s4 + xnorm*(fx(j)-avg)**4
+        s4 = s4 + xnorm*(dble(fx(j))-avg)**4
       ENDDO
 
       s(1)=s2; s(2)=s3; s(3)=s4
-      CALL MPI_ALLREDUCE(s, gs, 3, GC_REAL, &
+      CALL MPI_ALLREDUCE(s, gs, 3, MPI_DOUBLE_PRECISION, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
       if ( ierr.ne.MPI_SUCCESS ) then
         write(*,*)'skewflat: final allreduce failed'
@@ -1314,8 +1314,8 @@ write(*,*)'DoDissJPDF: lamb: s2=',s2,' s3=',s3,' s4=',s4,' slamb=',slamb,' flamb
       endif
       s2=gs(1); s3=gs(2); s4=gs(3)
 
-      skew = s3 / s2**(1.5)
-      flat = s4 / s2**(2.0)
+      skew = real(s3 / s2**(1.5),kind=GP)
+      flat = real(s4 / s2**(2.0),kind=GP)
 
       END SUBROUTINE skewflat
 !-----------------------------------------------------------------
