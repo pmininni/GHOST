@@ -345,13 +345,13 @@ write(*,*)'main: ktmin2=',ktmin2, ' ktmax2=',ktmax2
             DO i = 1,n
 !$omp atomic
               lamb(i,j,k) = lamb(i,j,k) - sg
-              R6  (i,j,k) = lamb(i,j,k)
            
              ENDDO
            ENDDO
          ENDDO
          ENDIF
 
+        R6  = lamb
         CALL fftp3d_real_to_complex(planrc,R6,ctmp,MPI_COMM_WORLD)
 !
 ! Compute power spectrum of e-value  and output it:
@@ -432,7 +432,7 @@ write(*,*)'main: ktmin2=',ktmin2, ' ktmax2=',ktmax2
       IF ( ALLOCATED  (R3) ) DEALLOCATE  (R3)
       IF ( ALLOCATED  (R4) ) DEALLOCATE  (R4)
       IF ( ALLOCATED  (R5) ) DEALLOCATE  (R5)
-      IF ( ALLOCATED  (R6) ) DEALLOCATE  (R5)
+      IF ( ALLOCATED  (R6) ) DEALLOCATE  (R6)
       IF ( ALLOCATED (evx) ) DEALLOCATE (evx)
       IF ( ALLOCATED (evy) ) DEALLOCATE (evy)
       IF ( ALLOCATED (evz) ) DEALLOCATE (evz)
@@ -1069,17 +1069,17 @@ write(*,*)'main: ktmin2=',ktmin2, ' ktmax2=',ktmax2
         ENDDO
       ENDDO
 
-      CALL skewflat(S11 ,nin,ss11,sf11,s2,s3,s4)
+      CALL skewflat(S11 ,nin,n,ss11,sf11,s2,s3,s4)
 if ( myrank.eq.0 ) write(*,*)' time=',ext,' s11_s2=',s2,' s11_s3=',s3,' s11_s4=',s4
-      CALL skewflat(S12 ,nin,ss12,sf12,s2,s3,s4)
+      CALL skewflat(S12 ,nin,n,ss12,sf12,s2,s3,s4)
 if ( myrank.eq.0 ) write(*,*)' time=',ext,' s12_s2=',s2,' s12_s3=',s3,' s12_s4=',s4
-      CALL skewflat(S13 ,nin,ss13,sf13,s2,s3,s4)
+      CALL skewflat(S13 ,nin,n,ss13,sf13,s2,s3,s4)
 if ( myrank.eq.0 ) write(*,*)' time=',ext,' s13_s2=',s2,' s13_s3=',s3,' s12_s4=',s4
-      CALL skewflat(S22 ,nin,ss22,sf22,s2,s3,s4)
+      CALL skewflat(S22 ,nin,n,ss22,sf22,s2,s3,s4)
 if ( myrank.eq.0 ) write(*,*)' time=',ext,' s22_s2=',s2,' s22_s3=',s3,' s22_s4=',s4
-      CALL skewflat(S23 ,nin,ss23,sf23,s2,s3,s4)
+      CALL skewflat(S23 ,nin,n,ss23,sf23,s2,s3,s4)
 if ( myrank.eq.0 ) write(*,*)' time=',ext,' s23_s2=',s2,' s23_s3=',s3,' s23_s4=',s4
-      CALL skewflat(rtmp,nin,ss33,sf33,s2,s3,s4)
+      CALL skewflat(rtmp,nin,n,ss33,sf33,s2,s3,s4)
 if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4=',s4
       ! Compute, write, 1d Sij pdfs:
       CALL dopdfr(S11 ,nin,n,'s11pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
@@ -1105,6 +1105,11 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
           ENDDO
         ENDDO
       ENDDO
+
+      CALL skewflat(S11   ,nin,n,sdiss,fdiss,s2,s3,s4) ! dissipation
+write(*,*)'DoDissJPDF: diss: s2=',s2,' s3=',s3,' s4=',s4,' sdiss=',sdiss,' fdiss=',fdiss
+      CALL skewflat(lambda,nin,n,slamb,flamb,s2,s3,s4) ! lambda
+write(*,*)'DoDissJPDF: lamb: s2=',s2,' s3=',s3,' s4=',s4,' slamb=',slamb,' flamb=',flamb
 
       ! Compute joint PDF for energy diss and lambda (order 
       ! switched, so that lambda is on x-axis, and energy diss on y axis:
@@ -1144,8 +1149,8 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
           ENDDO
         ENDDO
       ENDDO
-      CALL skewflat(rtmp,nin,vs1,vf1,s2,s3,s4) ! v1 
-      CALL skewflat(S23 ,nin,ws1,wf1,s2,s3,s4) ! omega1 
+      CALL skewflat(rtmp,nin,n,vs1,vf1,s2,s3,s4) ! v1 
+      CALL skewflat(S23 ,nin,n,ws1,wf1,s2,s3,s4) ! omega1 
 
       ! Compute, write, 1d vx, \omega_i pdfs:
       CALL dopdfr(rtmp,nin,n,'v1pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
@@ -1166,8 +1171,8 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
           ENDDO
         ENDDO
       ENDDO
-      CALL skewflat(rtmp,nin,vs2,vf2,s2,s3,s4) ! v2 
-      CALL skewflat(S23 ,nin,ws2,wf2,s2,s3,s4) ! omega2 
+      CALL skewflat(rtmp,nin,n,vs2,vf2,s2,s3,s4) ! v2 
+      CALL skewflat(S23 ,nin,n,ws2,wf2,s2,s3,s4) ! omega2 
       ! Compute, write, 1d vy, \omega_y pdfs:
       CALL dopdfr(rtmp,nin,n,'v2pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
       CALL dopdfr(S23 ,nin,n,'w2pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
@@ -1187,26 +1192,13 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
           ENDDO
         ENDDO
       ENDDO
-      CALL skewflat(rtmp,nin,vs3,vf3,s2,s3,s4)       ! v3 
-      CALL skewflat(S23 ,nin,ws3,wf3,s2,s3,s4)       ! omega3 
-
-      CALL skewflat(S11 ,nin,sdiss,fdiss,s2,s3,s4)   ! dissipation
-      CALL skewflat(S22 ,nin,senst,fenst,s2,s3,s4)   ! enstrophy density
-      CALL skewflat(lambda,nin,slamb,flamb,s2,s3,s4) ! lambda
+      CALL skewflat(rtmp,nin,n,vs3,vf3,s2,s3,s4)       ! v3 
+      CALL skewflat(S23 ,nin,n,ws3,wf3,s2,s3,s4)       ! omega3 
+      CALL skewflat(S22 ,nin,n,senst,fenst,s2,s3,s4)   ! enstrophy density
 
       ! Compute, write, 1d v_z, \omega_z pdfs:
       CALL dopdfr(rtmp,nin,n,'v3pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
       CALL dopdfr(S23 ,nin,n,'w3pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
-
-      ! Print out skewness and flatness data:
-      IF ( myrank.EQ.0 ) THEN
-        OPEN(1,file=trim(fnskew),position='append')
-        WRITE(1,*)ext,ss11,ss12,ss13,ss22,ss23,ss33,vs1,vs2,vs3,ws1,ws2,ws3,sdiss,senst,sheli,slamb
-        CLOSE(1)
-        OPEN(1,file=trim(fnflat),position='append')
-        WRITE(1,*)ext,sf11,sf12,sf13,sf22,sf23,sf33,vf1,vf2,vf3,wf1,wf2,wf3,fdiss,fenst,fheli,flamb
-        CLOSE(1)
-      ENDIF
 
 !     Compute relative helicity:
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1225,7 +1217,18 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
           ENDDO
         ENDDO
       ENDDO
-      CALL skewflat(S13,nin,sheli,fheli,s2,s3,s4)    ! v.omega/rel. helicity
+      CALL skewflat(S13,nin,n,sheli,fheli,s2,s3,s4)    ! v.omega/rel. helicity
+
+      ! Print out skewness and flatness data:
+      IF ( myrank.EQ.0 ) THEN
+        OPEN(1,file=trim(fnskew),position='append')
+        WRITE(1,*)ext,ss11,ss12,ss13,ss22,ss23,ss33,vs1,vs2,vs3,ws1,ws2,ws3,sdiss,senst,sheli,slamb
+        CLOSE(1)
+        OPEN(1,file=trim(fnflat),position='append')
+        WRITE(1,*)ext,sf11,sf12,sf13,sf22,sf23,sf33,vf1,vf2,vf3,wf1,wf2,wf3,fdiss,fenst,fheli,flamb
+        CLOSE(1)
+      ENDIF
+
 
       ! Compute, write, 1d enstrophy density pdf:
       CALL dopdfr(S22,nin,n,fnenst,nbins(1),0,fmin(1),fmax(1),dolog) 
@@ -1248,7 +1251,7 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
       END SUBROUTINE DoDissJPDF
 !
 !
-      SUBROUTINE skewflat(fx,nin,skew,flat,s2,s3,s4)
+      SUBROUTINE skewflat(fx,nin,n,skew,flat,s2,s3,s4)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -1258,6 +1261,7 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
 ! Parameters
 !     fx    : input real random variable. Must already be normalized!
 !     nin   : total size of input array
+!     n     : linear problem size, s.t. total no. gridpoints is n^3
 !     skew  : skewness, valid only for MPI taks 0
 !     flat  : flatness/kurtosis
 !-----------------------------------------------------------------
@@ -1268,11 +1272,12 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
       REAL(KIND=GP), INTENT (IN), DIMENSION(nin) :: fx
       REAL(KIND=GP), INTENT(OUT)                 :: skew,flat
       REAL(KIND=GP), INTENT(OUT)                 :: s2,s3,s4
-      REAL(KIND=GP)                              :: avg,gs(3),s(3)
-      INTEGER      , INTENT (IN)                 :: nin
+      REAL(KIND=GP)                              :: avg,gs(3),s(3),xnorm
+      INTEGER      , INTENT (IN)                 :: nin,n
       INTEGER                                    :: ierr,j
 
 
+      xnorm = 1.0_GP / real(n,kind=GP)**3
       s2 = 0.0_GP
 !$omp parallel do private(j) reduction(+:s2)
       DO j = 1, nin
@@ -1285,19 +1290,19 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
       s2 = 0.0_GP
 !$omp parallel do private(j) reduction(+:s2)
       DO j = 1, nin
-        s2 = s2 + (fx(j)-avg)**2
+        s2 = s2 + xnorm*(fx(j)-avg)**2
       ENDDO
 
       s3 = 0.0_GP
 !$omp parallel do private(j) reduction(+:s3)
       DO j = 1, nin
-        s3 = s3 + (fx(j)-avg)**3
+        s3 = s3 + xnorm*(fx(j)-avg)**3
       ENDDO
 
       s4 = 0.0_GP
 !$omp parallel do private(j) reduction(+:s4)
       DO j = 1, nin
-        s4 = s4 + (fx(j)-avg)**4
+        s4 = s4 + xnorm*(fx(j)-avg)**4
       ENDDO
 
       s(1)=s2; s(2)=s3; s(3)=s4
@@ -1312,7 +1317,7 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
       skew = s3 / s2**(1.5)
       flat = s4 / s2**(2.0)
 
-      END SUBROUTINE SkewFlat
+      END SUBROUTINE skewflat
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
