@@ -100,7 +100,7 @@
         ponembed(1) = n/2+1        ; ponembed(2) = n*(kend-ksta+1);            
         ostr        = 1            ; odist       = n*(n/2+1)      ;
         iret = cufftPlanMany(plan%icuplanr_,nrank,na,pinembed,istr,idist,&
-                             ponembed,ostr,odist,GDEFR2C,kend-ksta+1);
+                             ponembed,ostr,odist,GCUFFTDEFR2C,kend-ksta+1);
         IF ( iret.ne.CUFFT_SUCCESS ) THEN
           write(*,*)'fftp3d_create_plan: cufftPlanMany::icuplanr::r2c failed: iret=',iret
           stop
@@ -123,7 +123,7 @@
         ponembed(1) = n            ; ponembed(2) = n*(kend-ksta+1);
         ostr        = 1            ; odist       = n*n            ; 
         iret = cufftPlanMany(plan%icuplanr_,nrank,na,pinembed,istr,idist,&
-                             ponembed,ostr,odist,GDEFC2R,kend-ksta+1);
+                             ponembed,ostr,odist,GCUFFTDEFC2R,kend-ksta+1);
         IF ( iret.ne.CUFFT_SUCCESS) THEN
           write(*,*)'fftp3d_create_plan: cufftPlanMany::icuplanr::c2r failed: iret=',iret
           stop
@@ -147,7 +147,7 @@
       ponembed(1) = max(n*n*(iend-ista+1),1); 
       ostr        = 1                ; odist       = n ; 
       iret = cufftPlanMany(plan%icuplanc_,nrank,na,pinembed,istr,idist,&
-                           ponembed,ostr,odist,GDEFC2C,max(n*(iend-ista+1),1));
+                           ponembed,ostr,odist,GCUFFTDEFC2C,max(n*(iend-ista+1),1));
       IF ( iret.ne.CUFFT_SUCCESS) THEN
         write(*,*)myrank,': fftp3d_create_plan: cufftPlanMany::icuplanc::c2r failed: iret=',iret,&
                  ' na=',na(1),' pinembed=',pinembed(1),' ponembed=',ponembed(1), &
@@ -311,7 +311,7 @@
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
  
       CALL GTStart(hfft)
-      iret = GMANGLER2C(plan%icuplanr_, plan%cu_rd_, plan%cu_cd_ )
+      iret = GCUFFTEXECR2C(plan%icuplanr_, plan%cu_rd_, plan%cu_cd_ )
       IF ( iret.ne.CUFFT_SUCCESS) THEN
         write(*,*)'fftp3d_real_to_complex: cufftExecR2C failed: iret=',iret
         stop
@@ -411,7 +411,7 @@
 
 
       CALL GTStart(hfft)
-      iret = GMANGLEC2C(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_REAL_TO_COMPLEX)
+      iret = GCUFFTEXECC2C(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_REAL_TO_COMPLEX)
       IF ( iret.ne.CUFFT_SUCCESS ) THEN
         write(*,*)'fftp3d_real_to_complex: cufftExecC2C failed: iret=',iret
         stop
@@ -495,7 +495,7 @@
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
 
       CALL GTStart(hfft);
-      iret = GMANGLEC2C(plan%icuplanc_, plan%cu_ccd1_, plan%cu_ccd1_, FFTCU_COMPLEX_TO_REAL)
+      iret = GCUFFTEXECC2C(plan%icuplanc_, plan%cu_ccd1_, plan%cu_ccd1_, FFTCU_COMPLEX_TO_REAL)
       IF ( iret.ne.CUFFT_SUCCESS ) THEN
         write(*,*)'fftp3d_complex_to_real: cufftExecC2C failed: iret=',iret
         stop
@@ -595,7 +595,7 @@
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
 
       CALL GTStart(hfft);
-      iret = GMANGLEC2R(plan%icuplanr_, plan%cu_cd_, plan%cu_rd_)
+      iret = GCUFFTEXECC2R(plan%icuplanr_, plan%cu_cd_, plan%cu_rd_)
       IF ( iret.ne.CUFFT_SUCCESS ) THEN
         write(*,*)'fftp3d_complex_to_real: cufftExecC2R failed: iret=',iret
         stop
