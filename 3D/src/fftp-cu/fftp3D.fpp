@@ -353,7 +353,7 @@
       ENDDO
       CALL GTStop(hcom); comtime = comtime + GTGetTime(hcom)
 !
-#if 0
+#if 1
 !$omp parallel do  private (i,j)
       DO k = 1,plan%n
         DO j = 1,plan%n
@@ -377,7 +377,6 @@
       CALL cuTranspose3C(plan%cu_ccd_,plan%cu_ccd1_, (iend-ista+1), plan%n,plan%n)
       CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
 #else
-
 
       CALL GTStart(htra)
 !$omp parallel do if ((iend-ista)/csize.ge.nth) private (jj,kk,i,j,k)
@@ -502,9 +501,9 @@
       ENDIF
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 
-#if 0
+#if 1
       CALL GTStart(htra)
-      CALL cuTranspose3C(plan%cu_ccd_,plan%cu_ccd1_,iend-ista+1,plan%n,plan%n)
+      CALL cuTranspose3C(plan%cu_ccd_,plan%cu_ccd1_,plan%n,plan%n,iend-ista+1)
       CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
 
       CALL GTStart(hmem);
@@ -520,13 +519,14 @@
 !$omp parallel do if ((iend-ista)/csize.lt.nth) private (k)
          DO j = 1,plan%n
             DO k = 1,plan%n
-              c1(i,j,k) = plan%ccarr(k,j,i-ista+1)
+!           plan%ccarrt(i-ista+1,j,k) = c1(i,j,k)
+              c1(i,j,k) = plan%ccarrt(i-ista+1,j,k)
             END DO
          END DO
       END DO
 #else
       CALL GTStart(hmem);
-      iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd_, plan%szccd_ )
+      iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd1_, plan%szccd_ )
       IF ( iret.ne.cudaSuccess ) THEN
         write(*,*)'fftp3d_complex_to_real: cu_ccd_->pccarr_ copy failed: iret=',iret
         stop
