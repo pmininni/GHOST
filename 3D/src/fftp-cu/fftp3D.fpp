@@ -21,7 +21,7 @@
 ! Gomez DO, Mininni PD, Dmitruk P; Adv. Sp. Res. 35, 899 (2005)
 !=================================================================
 #include "fftcu_wrappers.h"
-
+#undef GGPU_TRA 
 
 
 !*****************************************************************
@@ -89,7 +89,9 @@
 
 
       iret = cudaMalloc(plan%cu_ccd_ , plan%szccd_)
+#if defined(GGPU_TRA)
       iret = cudaMalloc(plan%cu_ccd1_, plan%szccd_)
+#endif
       iret = cudaMalloc(plan%cu_cd_  , plan%szcd_ )
       iret = cudaMalloc(plan%cu_rd_  , plan%szrd_ )
       IF (fftdir.eq.FFTCU_REAL_TO_COMPLEX) THEN
@@ -192,7 +194,9 @@
       iret = cudaFreeHost (plan%pcarr_)
       iret = cudaFreeHost (plan%prarr_)
       iret = cudaFree(plan%cu_ccd_)
+#if defined(GGPU_TRA)
       iret = cudaFree(plan%cu_ccd1_)
+#endif
       iret = cudaFree(plan%cu_cd_)
       iret = cudaFree(plan%cu_rd_)
       DEALLOCATE( plan%itype1 )
@@ -353,7 +357,7 @@
       ENDDO
       CALL GTStop(hcom); comtime = comtime + GTGetTime(hcom)
 !
-#if 1
+#if defined(GGPU_TRA)
 !$omp parallel do  private (i,j)
       DO k = 1,plan%n
         DO j = 1,plan%n
@@ -486,7 +490,7 @@
 !
       CALL GTStart(hmem);
       plan%ccarr = in
-      iret = cudaMemCpyHost2Dev(plan%cu_ccd1_, plan%pccarr_, plan%szccd_ )
+      iret = cudaMemCpyHost2Dev(plan%cu_ccd_, plan%pccarr_, plan%szccd_ )
       IF ( iret.ne.cudaSuccess ) THEN
         write(*,*)'fftp3d_complex_to_real: pccarr_->cu_ccd_ copy failed: iret=',iret
         stop
@@ -494,20 +498,20 @@
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
 
       CALL GTStart(hfft);
-      iret = GCUFFTEXECC2C(plan%icuplanc_, plan%cu_ccd1_, plan%cu_ccd1_, FFTCU_COMPLEX_TO_REAL)
+      iret = GCUFFTEXECC2C(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_COMPLEX_TO_REAL)
       IF ( iret.ne.CUFFT_SUCCESS ) THEN
         write(*,*)'fftp3d_complex_to_real: cufftExecC2C failed: iret=',iret
         stop
       ENDIF
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 
-#if 1
+#if defined(GGPU_TRA)
       CALL GTStart(htra)
-      CALL cuTranspose3C(plan%cu_ccd_,plan%cu_ccd1_,plan%n,plan%n,iend-ista+1)
+      CALL cuTranspose3C(plan%cu_ccd1_,plan%cu_ccd_,plan%n,plan%n,iend-ista+1)
       CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
 
       CALL GTStart(hmem);
-      iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd_, plan%szccd_ )
+      iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd1_, plan%szccd_ )
       IF ( iret.ne.cudaSuccess ) THEN
         write(*,*)'fftp3d_complex_to_real: cu_ccd_->pccarr_ copy failed: iret=',iret
         stop
@@ -526,7 +530,7 @@
       END DO
 #else
       CALL GTStart(hmem);
-      iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd1_, plan%szccd_ )
+      iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd_, plan%szccd_ )
       IF ( iret.ne.cudaSuccess ) THEN
         write(*,*)'fftp3d_complex_to_real: cu_ccd_->pccarr_ copy failed: iret=',iret
         stop
