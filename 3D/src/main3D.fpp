@@ -1008,6 +1008,7 @@
 #ifdef LAGPART_
       CALL lagpart%GPart_ctor(MPI_COMM_WORLD,maxparts,ilginittype,&
            ilgintrptype,3,ilgexchtype,ilgouttype,csize,nstrip)
+      CALL lagpart%SetRandSeed(seed)
       CALL lagpart%SetSeedFile(trim(lgseedfile))
 #endif
 
