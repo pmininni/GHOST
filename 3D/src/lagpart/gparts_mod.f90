@@ -139,6 +139,7 @@ MODULE class_GPart
     USE grid
     USE mpivars
     USE commtypes
+    USE random
 
     IMPLICIT NONE
     CLASS(GPart)     ,INTENT(INOUT)     :: this
@@ -163,6 +164,7 @@ MODULE class_GPart
     this%iouttype_ =  iouttyp
     this%itimetype_=  GT_WTIME
 
+    CALL prandom_seed(this%iseed_)
     IF ( this%intorder_ .NE. 3 ) THEN
       WRITE(*,*) 'GPart::ctor: Only 3rd order allowed for now' 
     ENDIF
@@ -322,7 +324,6 @@ MODULE class_GPart
 !-----------------------------------------------------------------
     IMPLICIT NONE
     CLASS(GPart),INTENT(INOUT)        :: this
-    INTEGER                           :: iseed
     INTEGER                           :: get_res
 
     get_res = this%itorder_ 
@@ -341,11 +342,15 @@ MODULE class_GPart
 !    this    : 'this' class instance
 !    seed    : value of seed
 !-----------------------------------------------------------------
+    USE random
+
     IMPLICIT NONE
     CLASS(GPart) ,INTENT(INOUT)      :: this
     INTEGER      ,INTENT  (IN)       :: iseed
 
-    this%iseed_ = iseed;
+    this%iseed_     = iseed;
+    CALL prandom_seed(this%iseed_)
+    
    
   END SUBROUTINE GPart_SetRandSeed
 !-----------------------------------------------------------------
@@ -490,12 +495,17 @@ MODULE class_GPart
     this%nparts_ = ie - ib + 1
     DO j = 1, this%nparts_
        this%id_(j)    = ib + j - 1
-       r           = 0.5*(randu(this%iseed_)+1.0)
+       CALL prandom_number(r)
+!      r           = 0.5*(rn+1.0)
+write(*,*)this%myrank_,': r=', r, ' seed=',this%iseed_
        this%px_(j) = min(r*(this%nd_(1)-1)+0.5_GP,real(this%nd_(1)-1,kind=GP) )
-       r           = 0.5*(randu(this%iseed_)+1.0)
+       CALL prandom_number(r)
+!      r           = 0.5*(rn+1.0)
        this%py_(j) = min(r*(this%nd_(2)-1)+0.5_GP,real(this%nd_(2)-1,kind=GP) )
-       r           = 0.5*(randu(this%iseed_)+1.0)
-       this%pz_(j) = min(r*(this%nd_(3)-1)+0.5_GP,real(this%nd_(3)-1,kind=GP) )
+       CALL prandom_number(r)
+!      r           = 0.5*(rn+1.0)
+       this%pz_(j) = real(ib,kind=GP)  &
+                   + min(r*(ie-ib)+0.5_GP,real(this%nd_(3)-1,kind=GP) )
     ENDDO
     CALL MPI_ALLREDUCE(this%nparts_,nt,1,MPI_INTEGER,MPI_SUM,this%comm_,this%ierr_)
     IF ( this%myrank_.eq.0 .AND. nt.NE.this%maxparts_ ) THEN
