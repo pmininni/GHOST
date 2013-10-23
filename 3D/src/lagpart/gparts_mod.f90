@@ -190,12 +190,18 @@ MODULE class_GPart
       this%libnds_(j,1) = 1 ; 
       this%libnds_(j,2) = n ; 
       this%lxbnds_(j,1) = 0.0_GP
-      this%lxbnds_(j,2) = real(n,kind=GP)
+      this%lxbnds_(j,2) = real(n-1,kind=GP)
     ENDDO
     this%libnds_(3,1) = ksta ; 
     this%libnds_(3,2) = kend ; 
-    this%lxbnds_(3,1) = real(ksta-1,kind=GP) ! + 1.0_GP*epsilon(1.0_GP)
-    this%lxbnds_(3,2) = real(kend  ,kind=GP) ! - 2.0_GP*epsilon(1.0_GP)
+    this%lxbnds_(3,1) = real(ksta-1,kind=GP) - 0.50_GP
+    this%lxbnds_(3,2) = real(kend-1,kind=GP) + 0.50_GP !- 1.0_GP*epsilon(1.0_GP)
+    IF ( this%myrank_ .EQ. 0 ) THEN
+      this%lxbnds_(3,1) = -1.0_GP
+    ENDIF
+    IF ( this%myrank_ .EQ. this%nprocs_-1 ) THEN
+      this%lxbnds_(3,2) = real(kend,kind=GP) 
+    ENDIF
 
     DO j = 1,3
       this%gext_ (j) = real(this%nd_(j),kind=GP)
@@ -470,7 +476,7 @@ MODULE class_GPart
     CLASS(GPart)  ,INTENT(INOUT)      :: this
 
     INTEGER                           :: ib,ie,j,iwrk1,iwrk2,nt
-    REAL(KIND=GP)                     :: x,r
+    REAL(KIND=GP)                     :: del,x,r
   
     ! Note: Box is [0,N-1]^3.
     ! All tasks write to _global_ grid, expecting a 
@@ -493,30 +499,32 @@ MODULE class_GPart
     ib = ib - 1
     ie = ie - 1
     this%nparts_ = ie - ib + 1
+    del = this%lxbnds_(3,2) - this%lxbnds_(3,1)
     DO j = 1, this%nparts_
        this%id_(j)    = ib + j - 1
        CALL prandom_number(r)
-!      r           = 0.5*(rn+1.0)
-write(*,*)this%myrank_,': r=', r, ' seed=',this%iseed_
-       this%px_(j) = min(r*(this%nd_(1)-1)+0.5_GP,real(this%nd_(1)-1,kind=GP) )
+       this%px_(j) = min(r*(this%nd_(1)-1),this%lxbnds_(1,2))
        CALL prandom_number(r)
-!      r           = 0.5*(rn+1.0)
-       this%py_(j) = min(r*(this%nd_(2)-1)+0.5_GP,real(this%nd_(2)-1,kind=GP) )
+       this%py_(j) = min(r*(this%nd_(2)-1),this%lxbnds_(2,2) )
        CALL prandom_number(r)
-!      r           = 0.5*(rn+1.0)
-       this%pz_(j) = real(ib,kind=GP)  &
-                   + min(r*(ie-ib)+0.5_GP,real(this%nd_(3)-1,kind=GP) )
+       this%pz_(j) = min(this%lxbnds_(3,1)+r*del,this%lxbnds_(3,2))
     ENDDO
     CALL MPI_ALLREDUCE(this%nparts_,nt,1,MPI_INTEGER,MPI_SUM,this%comm_,this%ierr_)
     IF ( this%myrank_.eq.0 .AND. nt.NE.this%maxparts_ ) THEN
-      WRITE(*,*) 'GPart_InitRandSeed: Invalid particle count: maxparts=', &
+      WRITE(*,*) 'GPart_InitRandSeed: Inconsistent particle count: maxparts=', &
       this%maxparts_,' total created: ',nt
       STOP
     ENDIF
+!   CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3) !periodize in x-y
     CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,this%nparts_, &
                            this%vdb_,this%maxparts_)
+    CALL GPART_ascii_write_pdb(this,1,'.','xlgInitRndSeed','000',0.0,this%vdb_)
+    IF (  this%myrank_.eq.0 .AND. .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
+      WRITE(*,*) 'GPart_InitRandSeed: Invalid particle after GetLocalWrk call'
+      STOP
+    ENDIF
 
   END SUBROUTINE GPart_InitRandSeed
 !-----------------------------------------------------------------
@@ -572,7 +580,7 @@ write(*,*)this%myrank_,': r=', r, ' seed=',this%iseed_
     this%nparts_ = nl;
     CALL MPI_ALLREDUCE(nl,nt,1,MPI_INTEGER,MPI_SUM,this%comm_,this%ierr_)
     IF ( this%myrank_.eq.0 .AND. nt.NE.this%maxparts_ ) THEN
-      WRITE(*,*) 'GPart_InitUserSeed: Invalid particle count: maxparts=', &
+      WRITE(*,*) 'GPart_InitUserSeed: Inconsistent particle count: maxparts=', &
       this%maxparts_,' total read: ',nt
       STOP
     ENDIF
@@ -671,6 +679,11 @@ write(*,*)this%myrank_,': r=', r, ' seed=',this%iseed_
     CHARACTER(len=*),INTENT(IN)       :: nmb
     CHARACTER(len=*),INTENT(IN)       :: spref
     TYPE(GPDBrec)                     :: pst
+
+    IF (  this%myrank_.eq.0 .AND. .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
+      WRITE(*,*) 'GPart_io_write_vel: Inconsistent particle count'
+      STOP
+    ENDIF
 
     CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
          this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp1_)
@@ -1270,6 +1283,9 @@ write(*,*)this%myrank_,': r=', r, ' seed=',this%iseed_
 
     ! If using VDB interface, do synch-up, and get local work:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
+      IF (  this%myrank_.eq.0 .AND. .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
+        WRITE(*,*) 'GPart_FinalizeRKK: Inconsistent particle count'
+      ENDIF
       ! Synch up VDB, if necessary:
       CALL GTStart(this%htimers_(GPTIME_COMM))
       CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
@@ -1290,7 +1306,6 @@ write(*,*)this%myrank_,': r=', r, ' seed=',this%iseed_
       ENDIF
 
     ENDIF
-    
     
     RETURN
 
@@ -1696,6 +1711,11 @@ write(*,*)this%myrank_,': r=', r, ' seed=',this%iseed_
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,npdb):: pdb 
 
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
+      IF (  this%myrank_.eq.0 .AND.  .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
+        WRITE(*,*) 'GPart_io_write_vel: Inconsistent particle count'
+        STOP
+      ENDIF
+
       CALL this%gpcomm_%VDBSynch(pdb,this%maxparts_,this%id_, &
            this%px_,this%py_,this%pz_,this%nparts_,this%ptmp0_)
     ELSE
@@ -1729,6 +1749,10 @@ write(*,*)this%myrank_,': r=', r, ' seed=',this%iseed_
     INTEGER                                        :: j
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,nparts):: lvel
 
+    IF (  this%myrank_.eq.0 .AND.  .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
+      WRITE(*,*) 'GPart_GetVel: Inconsistent particle count'
+      STOP
+    ENDIF
     CALL this%gpcomm_%VDBSynch(lvel,this%maxparts_,this%id_, &
          this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp0_)
 
@@ -1767,13 +1791,13 @@ write(*,*)this%myrank_,': r=', r, ' seed=',this%iseed_
 !-----------------------------------------------------------------
 
   INTEGER FUNCTION GPart_GetNParts(this)
-!!-----------------------------------------------------------------
-!!-----------------------------------------------------------------
-!!  METHOD     : GPart_GetNParts
-!!  DESCRIPTION: Gets no. particles on grid
-!!  ARGUMENTS  :
-!!    this    : 'this' class instance (IN)
-!!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : GPart_GetNParts
+!  DESCRIPTION: Gets no. particles on grid
+!  ARGUMENTS  :
+!    this    : 'this' class instance (IN)
+!-----------------------------------------------------------------
      CLASS(GPart) ,INTENT(INOUT)                   :: this 
      INTEGER                                       :: ngp
     
@@ -1785,13 +1809,13 @@ write(*,*)this%myrank_,': r=', r, ' seed=',this%iseed_
 !-----------------------------------------------------------------
 
   REAL FUNCTION GPart_GetLoadBal(this)
-!!-----------------------------------------------------------------
-!!-----------------------------------------------------------------
-!!  METHOD     : GPart_GetLoadBal
-!!  DESCRIPTION: Gets current load (im)balance measure
-!!  ARGUMENTS  :
-!!    this    : 'this' class instance (IN)
-!!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : GPart_GetLoadBal
+!  DESCRIPTION: Gets current load (im)balance measure
+!  ARGUMENTS  :
+!    this    : 'this' class instance (IN)
+!-----------------------------------------------------------------
      CLASS(GPart) ,INTENT(INOUT)                   :: this 
      REAL                                          :: rbal      
      INTEGER                                       :: gnmax,gnmin
@@ -1802,6 +1826,28 @@ write(*,*)this%myrank_,': r=', r, ' seed=',this%iseed_
      GPart_GetLoadBal = rbal
 
   END FUNCTION GPart_GetLoadBal
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+  LOGICAL FUNCTION GPart_PartNumConsistent(this,nlocal)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : GPart_PartNumConsistent
+!  DESCRIPTION: Checks that sum of local particle counts equals
+!               maxparts_
+!  ARGUMENTS  :
+!    this    : 'this' class instance (IN)
+!-----------------------------------------------------------------
+     CLASS(GPart) ,INTENT(INOUT)                   :: this 
+     REAL                                          :: rbal      
+     INTEGER,INTENT(IN)                            :: nlocal
+     INTEGER                                       :: ng
+    
+     CALL MPI_ALLREDUCE(nlocal,ng,1,MPI_INTEGER,MPI_SUM,this%comm_,this%ierr_)
+     GPart_PartNumConsistent = ng .EQ. this%maxparts_
+
+  END FUNCTION GPart_PartNumConsistent
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
