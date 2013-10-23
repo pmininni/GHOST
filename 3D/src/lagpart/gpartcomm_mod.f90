@@ -2110,22 +2110,27 @@ MODULE class_GPartComm
     INTEGER      ,INTENT   (IN),DIMENSION(*)        :: id
     INTEGER      ,INTENT   (IN)                     :: nl
     INTEGER      ,INTENT   (IN)                     :: ngvdb
-    INTEGER                                         :: i,j,ng
+    INTEGER                                         :: i,j
     REAL(KIND=GP),INTENT   (IN),DIMENSION(*)        :: lx,ly,lz
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,ngvdb)  :: gvdb,ptmp
 
 
-    CALL GTStart(this%hcomm_)
-    CALL MPI_ALLREDUCE(nl,ng,1,MPI_INTEGER,   &
-                       MPI_SUM,this%comm_,this%ierr_)
-    CALL GTAcc(this%hcomm_)
+!   CALL GTStart(this%hcomm_)
+!   CALL MPI_ALLREDUCE(nl,ng,1,MPI_INTEGER,   &
+!                      MPI_SUM,this%comm_,this%ierr_)
+!   CALL GTAcc(this%hcomm_)
 
 
-    IF ( this%myrank_.EQ.0 .AND. ng.NE.ngvdb ) THEN
-      WRITE(*,*)'GPartComm_VDBSynch: inconsistent d.b.: expected: ', &
-                 ngvdb, '; found: ',ng
-      STOP
-    ENDIF
+!!  IF ( this%myrank_.EQ.0 .AND. ng.NE.ngvdb ) THEN
+!!    IF ( .NOT.present(scaller) ) THEN
+!!      WRITE(*,*)'GPartComm_VDBSynch: inconsistent d.b.: expected: ', &
+!!                 ngvdb, '; found: ',ng
+!!    ELSE
+!!      WRITE(*,*)'GPartComm_VDBSynch: caller:',trim(scaller),': inconsistent d.b.: expected: ', &
+!!                 ngvdb, '; found: ',ng
+!!    ENDIF
+!!    STOP
+!!  ENDIF
 
     DO j = 1, ngvdb
       gvdb(1:3,j) = 0.0_GP
