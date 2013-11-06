@@ -69,11 +69,11 @@ MODULE class_GPart
         PROCEDURE,PUBLIC :: Init            => GPart_Init
         PROCEDURE,PUBLIC :: Step            => GPart_StepRKK
         PROCEDURE,PUBLIC :: SetStep         => GPart_SetStepRKK
-        PROCEDURE,PUBLIC :: SetLagVel       => GPart_SetLagVel
+        PROCEDURE,PUBLIC :: SetLagVec       => GPart_SetLagVec
         PROCEDURE,PUBLIC :: FinalStep       => GPart_FinalizeRKK
         PROCEDURE,PUBLIC :: io_write_euler  => GPart_io_write_euler
         PROCEDURE,PUBLIC :: io_write_pdb    => GPart_io_write_pdb
-        PROCEDURE,PUBLIC :: io_write_vel    => GPart_io_write_vel
+        PROCEDURE,PUBLIC :: io_write_vec    => GPart_io_write_vec
         PROCEDURE,PUBLIC :: io_read         => GPart_io_read
         PROCEDURE,PUBLIC :: EulerToLag      => GPart_EulerToLag
         PROCEDURE,PUBLIC :: SetInitType     => GPart_SetInitType
@@ -94,7 +94,7 @@ MODULE class_GPart
       PRIVATE :: GPart_Init            , GPart_StepRKK     
       PRIVATE :: GPart_SetStepRKK      , GPart_FinalizeRKK
       PRIVATE :: GPart_io_write_pdb    , GPart_io_read     
-      PRIVATE :: GPart_io_write_euler  , GPart_io_write_vel
+      PRIVATE :: GPart_io_write_euler  , GPart_io_write_vec
       PRIVATE :: GPart_InitRandSeed    , GPart_InitUserSeed 
       PRIVATE :: GPart_SetInitType     , GPart_SetSeedFile
       PRIVATE :: GPart_SetRandSeed     , GPart_Delete
@@ -652,12 +652,15 @@ MODULE class_GPart
   END SUBROUTINE GPart_io_write_pdb
 
 
-  SUBROUTINE GPart_io_write_vel(this, iunit, dir, spref, nmb, time)
+  SUBROUTINE GPart_io_write_vec(this, iunit, dir, spref, nmb, time)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!  METHOD     : io_write_vel
-!  DESCRIPTION: Does write of Lagrangian velocities that are
-!               currently stored.
+!  METHOD     : io_write_vec
+!  DESCRIPTION: Does write of Lagrangian vector that are
+!               currently stored. This vector may not be the
+!               advecting velocities if a call to SetLagVec
+!               is made with a different vector.
+!               
 !  ARGUMENTS  :
 !    this    : 'this' class instance
 !    iunit   : unit number
@@ -681,7 +684,7 @@ MODULE class_GPart
     TYPE(GPDBrec)                     :: pst
 
     IF (  this%myrank_.eq.0 .AND. .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
-      WRITE(*,*) 'GPart_io_write_vel: Inconsistent particle count'
+      WRITE(*,*) 'GPart_io_write_vec: Inconsistent particle count'
       STOP
     ENDIF
 
@@ -694,7 +697,7 @@ MODULE class_GPart
       CALL GPart_ascii_write_pdb (this,iunit,dir,spref,nmb,time,this%ptmp0_)
     ENDIF
 
-  END SUBROUTINE GPart_io_write_vel
+  END SUBROUTINE GPart_io_write_vec
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -827,7 +830,7 @@ MODULE class_GPart
 !  METHOD     : io_write_euler
 !  DESCRIPTION: Converts specified Eulerian real-space variable to
 !               a Lagrangian quantity by interpolating to particle positions;
-!               does write of Lagrangian variable to file.
+!               does write of Lagrangian variable to file. 
 !  ARGUMENTS  :
 !    this    : 'this' class instance
 !    iunit   : unit number
@@ -862,11 +865,14 @@ MODULE class_GPart
     CHARACTER(len=1024)                                 :: sfile
 
 
-    CALL GPart_EulerToLag(this,this%ltmp0_,this%nparts_,evar,doupdate,tmp1,tmp2)
+    CALL GPart_EulerToLag(this,this%ltmp1_,this%nparts_,evar,doupdate,tmp1,tmp2)
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
-      CALL GPart_binary_write_eul(this,iunit,dir,spref,nmb,time,this%ltmp0_)
+      CALL GPart_binary_write_eul(this,iunit,dir,spref,nmb,time,this%ltmp1_)
     ELSE
+      ! First, must synch up the field data since only task 0 writes:
+      CALL this%gpcomm_%LagSynch(this%ltmp0_,this%maxparts_,this%id_, &
+                                 this%ltmp1_,this%nparts_,this%ptmp0_)
       CALL GPart_ascii_write_eul (this,iunit,dir,spref,nmb,time,this%ltmp0_)
     ENDIF
 
@@ -885,7 +891,13 @@ MODULE class_GPart
 !               Position of the particle structure in file is the
 !               particle's id. This method allows for up to 9
 !               Lagranian variables to be outputted. At least one
-!               variable _must_ be present (fld0).
+!               variable _must_ be present (fld0). Do not use keywords
+!               to specify optional arguments. 
+!
+!               Note that this call will have all MPI tasks write
+!               their data collectively, so no 'synching' of data 
+!               is required on unput.
+!
 !  ARGUMENTS  :
 !    this    : 'this' class instance
 !    iunit   : unit number
@@ -978,6 +990,11 @@ MODULE class_GPart
 !               Lagranian variables to be outputted. At least one
 !               variable _must_ be present (fld0). Do not use keywords
 !               to specify optional arguments.
+!
+!               Note that this call will have ony MPI task 0 write
+!               data, so data should be 'synched' before calling. 
+!               This is not done here.
+!
 !  ARGUMENTS  :
 !    this    : 'this' class instance
 !    iunit   : unit number
@@ -1406,16 +1423,23 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 
 
-  SUBROUTINE GPart_SetLagVel(this, vx, vy, vz, tmp1, tmp2)
+
+  SUBROUTINE GPart_SetLagVec(this, vx, vy, vz, doupdate, tmp1, tmp2)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!  METHOD     : SetLagVel
-!  DESCRIPTION: Sets internal velocity at Lagrangian particle positions
+!  METHOD     : SetLagVec
+!  DESCRIPTION: Sets internal vector at Lagrangian particle positions.
+!               This interface allows us to store the vectory in
+!               the internal velocity vector locations, for e.g., output.
+!               On entry, the interpolator is updated when this interface 
+!               is called, only if doupdate is set to true. This update is 
+!               done only for the first component, as it's not needed after this. 
 !
 !  ARGUMENTS  :
 !    this    : 'this' class instance
-!    vz,vy,vz: compoments of velocity field, in real space, partially
+!    vz,vy,vz: compoments of vector field, in real space, partially
 !              updated, possibly. These will be overwritten!
+!    doupdate: if true, do interp point update in interpolator; else don't
 !    tmp1(2) : temp arrays the same size as vx, vy, vz
 !-----------------------------------------------------------------
     USE grid
@@ -1425,19 +1449,20 @@ MODULE class_GPart
 
     IMPLICIT NONE
     CLASS(GPart) ,INTENT(INOUT)                          :: this
+    LOGICAL      ,INTENT   (IN)                          :: doupdate
     INTEGER                                              :: i,j
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend) :: vx,vy,vz,tmp1,tmp2
     REAL(KIND=GP)                                        :: dtfact
     REAL(KIND=GP),ALLOCATABLE  ,DIMENSION            (:) :: lid,gid
 
     ! ... x:
-    CALL GPart_EulerToLag(this,this%lvx_,this%nparts_,vx,.true.,tmp1,tmp2)
+    CALL GPart_EulerToLag(this,this%lvx_,this%nparts_,vx,doupdate,tmp1,tmp2)
     ! ... y:
     CALL GPart_EulerToLag(this,this%lvy_,this%nparts_,vy,.false.,tmp1,tmp2)
     ! ... z:
     CALL GPart_EulerToLag(this,this%lvz_,this%nparts_,vz,.false.,tmp1,tmp2)
 
-  END SUBROUTINE GPart_SetLagVel
+  END SUBROUTINE GPart_SetLagVec
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 

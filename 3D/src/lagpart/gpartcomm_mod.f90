@@ -58,6 +58,7 @@ MODULE class_GPartComm
         PROCEDURE,PUBLIC :: GTranspose        => GPartComm_Transpose
         PROCEDURE,PUBLIC :: GITranspose       => GPartComm_ITranspose
         PROCEDURE,PUBLIC :: VDBSynch          => GPartComm_VDBSynch
+        PROCEDURE,PUBLIC :: LagSynch          => GPartComm_LagSynch
         PROCEDURE,PUBLIC :: SetCacheParam     => GPartComm_SetCacheParam
         PROCEDURE,PUBLIC :: PartExchangePDB   => GPartComm_PartExchangePDB
         PROCEDURE,PUBLIC :: PartExchangeV     => GPartComm_PartExchangeV
@@ -2148,9 +2149,52 @@ MODULE class_GPartComm
                        MPI_SUM,this%comm_,this%ierr_)
     CALL GTAcc(this%hcomm_)
 
+ END SUBROUTINE GPartComm_VDBSynch
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 
 
-  END SUBROUTINE GPartComm_VDBSynch
+  SUBROUTINE GPartComm_LagSynch(this,gs,ngs,id,ls,nl,ptmp) 
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : LagSynch
+!  DESCRIPTION: Synch up global Lagrangian scalar from local scalar data
+!               
+!  ARGUMENTS  :
+!    this    : 'this' class instance (IN)
+!    gs      : global scalar containing 'synched' records, returned. 
+!    ngs     : no. records in global scalar. Fixed on entry.
+!    id      : local part. ids
+!    ls      : local scalar
+!    nl      : no. parts. in local Lag. scalar
+!    ptmp    : tmp array of size of gs
+!-----------------------------------------------------------------
+    IMPLICIT NONE
+
+    CLASS(GPartComm),INTENT(INOUT)                  :: this
+    INTEGER      ,INTENT   (IN),DIMENSION(*)        :: id
+    INTEGER      ,INTENT   (IN)                     :: nl
+    INTEGER      ,INTENT   (IN)                     :: ngs
+    INTEGER                                         :: i,j
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(*)        :: ls
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)        :: gs,ptmp
+
+
+    DO j = 1, ngs
+      gs  (j) = 0.0_GP
+      ptmp(j) = 0.0_GP
+    ENDDO
+    
+    DO j = 1, nl
+      i = id(j) + 1
+      ptmp(i) = ls(j)
+    ENDDO
+    CALL GTStart(this%hcomm_)
+    CALL MPI_ALLREDUCE(ptmp,gs,ngs,GC_REAL,   &
+                       MPI_SUM,this%comm_,this%ierr_)
+    CALL GTAcc(this%hcomm_)
+
+ END SUBROUTINE GPartComm_LagSynch
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
