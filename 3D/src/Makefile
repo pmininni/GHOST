@@ -24,10 +24,10 @@ DO_HYBRIDno =
 
 # CUDA FFT & RT library variables:
 CUCC         = $(CUCC_$(CUCOMPILER))
-CUFLAGS      = $(CUFLAGS_$(CUCOMPILER))
+CUFLAGS      = $(CUFLAGS_$(CUCOMPILER)) -DG$(PRECISION)_PRECISION
 CULIBDIR     = $(CULIBDIR_$(CUCOMPILER))
 CULIB        = $(CULIB_$(CUCOMPILER))
-CUINC        = $(CUINC_$(CUCOMPILER))
+CUINC        = $(CUINC_$(CUCOMPILER)) 
 CUGENCODE    = $(CUGENCODE_$(CUCOMPILER))
 CUARCH       = $(CUARCH_$(CUCOMPILER))
 
@@ -80,11 +80,6 @@ CUDA_GHOSTyes  = -DDEF_GHOST_CUDA_ -DG_PPN_=$(PPN)
 CUDA_OBJSno    =
 CUDA_OBJSyes   = $(CONTRIB)/nvidia/setaffinity_for_nvidia.o
 
-FFTCULIBDIR    = $(CULIBDIR)
-FFTCULIB       = $(CULIB)
-FFTCUINC       = $(CUINC)
-FFTCULDFLAGS   = $(CUFLAGS)
-
 GDEF           = $(IODEF$(IOLIB)) $(CUDA_GHOST$(P_CUDA)) $(LAGPDEF$(PARTICLES))
 
 CONTRIBOBJS    = $(CUDA_OBJS$(P_CUDA))
@@ -102,13 +97,18 @@ FFTTLDFLAGS = $(FFT$(FFTTYPE)LDFLAGS)
 
 FFTPDIR     = $(GHOME)/$(FFTPDIR$(P_CUDA))
 
+FFTCULIBDIR = $(CULIBDIR)
+FFTCULIB    = $(CULIB)
+FFTCUINC    = $(CUINC) -I$(FFTPDIR)
+FFTCULDFLAGS= $(CUFLAGS)
+
 LDFLAGS     = $(MPILIB) $(FFTTLIBDIR) $(FFTTLIB) $(MPILDFLAGS) $(FFTTLDFLAGS) $(IOLIBFLG)
 INCLUDE     = $(MPIINC) $(FFTTINC) -I$(FFTPDIR) -I$(GHOME)/$(IOLIB) -I$(GHOME)/utils -I$(GHOME)/include $(IOINCDIR) -I$(GHOME) -I$(LAGP)
 CPPFLAGS    = -D$(SOLVER)_SOL $(CUDA_GHOST$(P_CUDA)) $(IODEF$(IOLIB))
 PREPROCESS  = $(CPP) $(CPPFLAGS) $(GDEF)
 COMPILE     = $(FC) $(FFLAGS) $(DO_HYBRID$(P_HYBRID)) $(INCLUDE) $(TARGET_ARCH) -c
 CCOMPILE    = $(CC) $(CFLAGS) $(INCLUDE) $(TARGET_ARCH) -c
-CUCOMPILE   = $(CUCC) $(CUGENCODE) $(CUARCH) $(CUINC) $(CUFLAGS) -c
+CUCOMPILE   = $(CUCC) $(CUGENCODE) $(CUARCH) $(CUINC) -I$(FFTPDIR) $(CUFLAGS) -c
 BIN         = ../bin
 
 HD_OBJS        = pseudospec3D_mod.o module_dns.o pseudospec3D_hd.o  
@@ -177,7 +177,7 @@ vt:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(GMISC) $(OBJS)
            $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
-shear : edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(GMISC) $(OBJS)
+shear: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(GMISC) $(OBJS)
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(GMISC) $(GTIMER) $(OBJS) \
@@ -193,8 +193,8 @@ clean:  undo
 
 dist:
 	rm -f $(BIN)/*HD* $(BIN)/*MHD* $(BIN)/*ROT* $(BIN)/*BOUSS* \
-              $(BIN)/boots* $(BIN)/trunc* $(BIN)/vt* *HD* *MHD* *ROT* \
-              *BOUSS* *boots* *trunc* *vt* 
+              $(BIN)/boots $(BIN)/trunc $(BIN)/vt $(BIN)/shear  *HD* *MHD* *ROT* \
+              *BOUSS* boots trunc vt shear
 	$(MAKE) clean
 
 edit:
@@ -260,7 +260,7 @@ struc$(SOLVER):
 	$(PREPROCESS) $(EXTRASDIR)/$(@:$(SOLVER)=3D).fpp -o $@.f90
 	$(COMPILE) $@.f90
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(OBJS) \
-           $(STRU_OBJS) $@.o $(LDFLAGS) -o ../bin/$@
+           $(STRU_OBJS) $(GTIMER) $@.o $(LDFLAGS) -o ../bin/$@
 
 $(FFTPDIR)/fftp3D.o: 
 	cd $(FFTPDIR) && $(MAKE) COMPILE='$(COMPILE)' CUCOMPILE='$(CUCOMPILE)'

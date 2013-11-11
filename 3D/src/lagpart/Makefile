@@ -1,6 +1,6 @@
 #****************************************************************************
-# Makefile for compiling codes and linking with MPI, FFTP and FFTW libraries
-# Pablo Daniel Mininni - 10/04/2003
+# Makefile for compiling Lagrangian partivle modules
+# D. Rosenberg - 8/04/2013
 #****************************************************************************
 
 OBJS = 
