@@ -49,6 +49,17 @@
 #define SCALAR_
 #endif
 
+#ifdef ROTBOUSS_SOL
+#define SO2_
+#define SCALAR_
+#endif
+
+#ifdef BOUSS_SOL
+#define SO2_
+#define SCALAR_
+#endif
+
+
 !
 ! Modules
 
