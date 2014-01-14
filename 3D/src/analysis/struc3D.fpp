@@ -380,6 +380,7 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
 
       ELSE                              ! velocity or vorticity increments
 
+
       DO d = gini,ngen/2
          WRITE(ext, fmtext) d
          DO l = 1,n/2-1
