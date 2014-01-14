@@ -31,6 +31,7 @@
       USE commtypes
       USE grid
       USE mpivars
+      USE threads
       IMPLICIT NONE
 
       REAL(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: a
@@ -57,6 +58,7 @@
          zsend = kend
          zrecv = ksta
       ENDIF
+!$omp parallel do private (i)
       DO j = 1,n
          DO i = 1,n
             buffer2(i,j) = a(i,j,zsend)
@@ -66,7 +68,9 @@
       CALL MPI_IRECV(buffer1,n*n,GC_REAL,igetFrom,1,comm,ireq1,ierr)
       CALL MPI_ISEND(buffer2,n*n,GC_REAL,isendTo,1,comm,ireq2,ierr)
 
+!$omp parallel do if ((zrecv-dir-zsend)/dir.ge.nth) private (j,i)
       DO k = zsend,zrecv-dir,dir
+!$omp parallel do if ((zrecv-dir-zsend)/dir.ge.nth) private (i)
          DO j = 1,n
             DO i = 1,n
                a(i,j,k) = a(i,j,k+dir)
@@ -77,6 +81,7 @@
       CALL MPI_WAIT(ireq1,istatus,ierr)
       CALL MPI_WAIT(ireq2,istatus,ierr)
 
+!$omp parallel do private (i)
       DO j = 1,n
          DO i = 1,n
             a(i,j,zrecv) = buffer1(i,j)
@@ -99,6 +104,7 @@
       USE fprecision
       USE grid
       USE mpivars
+      USE threads
       IMPLICIT NONE
 
       REAL(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: a
@@ -121,21 +127,27 @@
          arig = 0
       ENDIF
 
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,n
             DO i = 1,d
                buffer(i,j,k) = a(i+inib,j,k)
             END DO
          END DO
       END DO
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,n
             DO i = 1,N-d,s
                a(i+alef,j,k) = a(i+arig,j,k)
             END DO
          END DO
       END DO
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,n
             DO i = 1,d
                a(i+endb,j,k) = buffer(i,j,k)
@@ -159,6 +171,7 @@
       USE fprecision
       USE grid
       USE mpivars
+      USE threads
       IMPLICIT NONE
 
       REAL(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: a
@@ -181,21 +194,27 @@
          arig = 0
       ENDIF
 
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,d
             DO i = 1,n
                buffer(i,j,k) = a(i,j+inib,k)
             END DO
          END DO
       END DO
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,N-d,s
             DO i = 1,n
                a(i,j+alef,k) = a(i,j+arig,k)
             END DO
          END DO
       END DO
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,d
             DO i = 1,n
                a(i,j+endb,k) = buffer(i,j,k)
