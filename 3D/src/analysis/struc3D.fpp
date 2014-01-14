@@ -73,6 +73,7 @@
       USE ali
       USE var
       USE kes
+      USE threads
       IMPLICIT NONE
 
 !
@@ -182,12 +183,17 @@
 ! short runs and FFTW_MEASURE in long runs.
 
       WRITE(ext, fmtext) stat
+if ( myrank.eq. 0 ) write(*,*)'main: opening vx stat=',stat
       CALL io_read(1,idir,'vx',ext,planio,vx)
+if ( myrank.eq. 0 ) write(*,*)'main: opening vy stat=',stat
       CALL io_read(1,idir,'vy',ext,planio,vy)
+if ( myrank.eq. 0 ) write(*,*)'main: opening vz stat=',stat
       CALL io_read(1,idir,'vz',ext,planio,vz)
 #ifdef SCALAR_
+if ( myrank.eq. 0 ) write(*,*)'main: opening th stat=',stat
       CALL io_read(1,idir,'th',ext,planio,th)
 #endif
+if ( myrank.eq. 0 ) write(*,*)'main: stat=',stat,' done.'
       IF (curl.gt.0) THEN
          ALLOCATE( C1(n,n,ista:iend), C2(n,n,ista:iend) )
          ALLOCATE( C3(n,n,ista:iend), C4(n,n,ista:iend) )
@@ -382,6 +388,7 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
 
 
       DO d = gini,ngen/2
+if ( myrank.eq. 0 ) write(*,*)'main: doing velocity increments... d=',d
          WRITE(ext, fmtext) d
          DO l = 1,n/2-1
             r(l) = 0.
@@ -397,6 +404,7 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
 #endif
             END DO
          END DO
+if ( myrank.eq. 0 ) write(*,*)'main: setting vxl...'
          DO k = ksta,kend
             DO j = 1,n
                DO i = 1,n
@@ -409,10 +417,12 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
                END DO
             END DO
          END DO
+if ( myrank.eq. 0 ) write(*,*)'main: setting of vxl,, thl, ... done.'
          norm = 1./SQRT(real(j1(d)**2+j2(d)**2+j3(d)**2,kind=GP))
          maxd = max(abs(j1(d)),abs(j2(d)))
          maxd = 2*max(maxd,abs(j3(d)))
          DO l = 1,INT(real(n-1,kind=GP)/maxd)
+if ( myrank.eq. 0 ) write(*,*)'main: shifting loop, l=',l,' maxd=',maxd
             IF ( abs(j3(d)).gt.0 ) THEN
                dis = j3(d)/abs(j3(d))
                DO i = 1,abs(j3(d))
@@ -440,10 +450,13 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
                CALL SHIFTY(thl,j2(d))
 #endif
             ENDIF
+if ( myrank.eq. 0 ) write(*,*)'main: shifting loop, l=',l,' done.'
             r(l) = 2*pi*real(l,kind=GP)/(norm*n)
  LP :       DO p = 1,pmax
                spaux = 0.               ! vector field increments
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
                DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
                   DO j = 1,n
                      DO i = 1,n
                         spaux = spaux+abs((((vxl(i,j,k)-vx(i,j,k))*j1(d)+ &
@@ -455,10 +468,13 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
                CALL MPI_REDUCE(spaux,tmp,1,GC_REAL,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
                sp(l,p) = tmp/real(n,kind=GP)**3
+if ( myrank.eq. 0 ) write(*,*)'main: velocity increments done.'
 #ifdef SCALAR_
                IF (curl.eq.0) THEN      ! passive scalar increments
                spaux = 0.
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
                DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
                   DO j = 1,n
                      DO i = 1,n
                         spaux = spaux+abs(thl(i,j,k)-th(i,j,k))**p
@@ -469,12 +485,16 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
                       MPI_COMM_WORLD,ierr)
                zp(l,p) = tmp/real(n,kind=GP)**3
                ENDIF
+if ( myrank.eq. 0 ) write(*,*)'main: scalar increments done.'
 #endif
+if ( myrank.eq. 0 ) write(*,*)'main: increments p=', p, ' done.'
             END DO LP
 #ifdef SCALAR_
             IF (curl.eq.0) THEN         ! passive scalar theorem
                spaux = 0.
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
                DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
                   DO j = 1,n
                      DO i = 1,n
                         spaux = spaux+abs(((vxl(i,j,k)-vx(i,j,k))*j1(d)+ &
@@ -491,6 +511,8 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
 #endif
          END DO
          IF (myrank.eq.0) THEN
+if ( myrank.eq. 0 ) write(*,*)'main: writing increment: ', ext
+
             OPEN(1,file=trim(odir) // '/increment.' &
               // ext // '.out' ,form='unformatted')
             WRITE(1) r
@@ -512,6 +534,7 @@ j3 = (/0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,-1/)
             CLOSE(1)
          ENDIF
 #endif         
+if ( myrank.eq. 0 ) write(*,*)'main: increment ', ext, ' written.'
       END DO
 
       ENDIF CU
