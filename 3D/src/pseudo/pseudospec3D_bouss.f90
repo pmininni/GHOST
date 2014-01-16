@@ -87,6 +87,7 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,n
               DO i = 1,n
+!$omp atomic
                  sh(k) = sh(k)+( r1(i,j,k)**2 + r2(i,j,k)**2 )
               END DO
            END DO
@@ -114,13 +115,14 @@
         IF ( itype .eq. 1 ) THEN
           sh  = 0.0D0
           gsh = 0.0D0
-          tmp = 1.0D0/dble(n)**5 ! fact of 1/n^3 for r1  * 1/n^2 for horiz. avg
+          tmp = 1.0D0/dble(n)**8 ! fact of 1/n^3 for r1  * 1/n^2 for horiz. avg
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
           DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
              DO j = 1,n
               DO i = 1,n
-                   sh(k) = sh(k) + r1(i,j,k) 
+!$omp atomic
+                   sh(k) = sh(k) + r1(i,j,k)**2 
                 END DO
              END DO
              sh(k) = sh(k) * tmp
@@ -151,6 +153,7 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,n
               DO i = 1,n
+!$omp atomic
                  sh(k) = sh(k) + ( r1(i,j,k)*r2(i,j,k) )
               END DO
            END DO
@@ -184,6 +187,7 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,n
               DO i = 1,n
+!$omp atomic
                  sh(k) = sh(k)+( r1(i,j,k)**2 + r2(i,j,k)**2 )
               END DO
            END DO
@@ -215,6 +219,7 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,n
               DO i = 1,n
+!$omp atomic
                  sh(k) = sh(k)+( r1(i,j,k)**2 )
               END DO
            END DO
@@ -249,6 +254,7 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,n
               DO i = 1,n
+!$omp atomic
                  sh(k) = sh(k)-( r1(i,j,k)*r2(i,j,k) )
               END DO
            END DO
@@ -264,6 +270,7 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,n
               DO i = 1,n
+!$omp atomic
                  sh(k) = sh(k)+( r1(i,j,k)*r2(i,j,k) )
               END DO
            END DO
@@ -295,6 +302,7 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,n
               DO i = 1,n
+!$omp atomic
                  sh(k) = sh(k)+r1(i,j,k)*r2(i,j,k)
               END DO
            END DO
@@ -326,6 +334,7 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,n
               DO i = 1,n
+!$omp atomic
                  r2(i,j,k) = r2(i,j,k) + fo*r1(i,j,k)*tmp
               END DO
            END DO
@@ -340,6 +349,7 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,n
               DO i = 1,n
+!$omp atomic
                  r2(i,j,k) = r2(i,j,k) - bv*r1(i,j,k)*tmp
               END DO
            END DO
@@ -357,6 +367,7 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,n
               DO i = 1,n
+!$omp atomic
                  r2(i,j,k) = r2(i,j,k) + r1(i,j,k)*tmp
               END DO
            END DO
@@ -369,6 +380,7 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,n
               DO i = 1,n
+!$omp atomic
                  r2(i,j,k) = r2(i,j,k) - fo*bv 
               END DO
            END DO
@@ -380,6 +392,7 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,n
               DO i = 1,n
+!$omp atomic
                  sh(k) = sh(k) + r2(i,j,k)**2
               END DO
            END DO
@@ -416,6 +429,7 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,n
               DO i = 1,n
+!$omp atomic
                  sh(k) = sh(k) + r3(i,j,k)*( r1(i,j,k)-r2(i,j,k) )
               END DO
            END DO
@@ -436,6 +450,7 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,n
               DO i = 1,n
+!$omp atomic
                  sh(k) = sh(k) + r3(i,j,k)*( r1(i,j,k)-r2(i,j,k) )
               END DO
            END DO
@@ -456,6 +471,7 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,n
               DO i = 1,n
+!$omp atomic
                  sh(k) = sh(k) + r3(i,j,k)*( r1(i,j,k)-r2(i,j,k) )
               END DO
            END DO
