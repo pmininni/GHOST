@@ -459,6 +459,7 @@ if ( myrank.eq. 0 ) write(*,*)'main: shifting loop, l=',l,' done.'
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
                   DO j = 1,n
                      DO i = 1,n
+!$omp atomic
                         spaux = spaux+abs((((vxl(i,j,k)-vx(i,j,k))*j1(d)+ &
                          (vyl(i,j,k)-vy(i,j,k))*j2(d)+ &
                          (vzl(i,j,k)-vz(i,j,k))*j3(d))*norm)**p)
@@ -477,6 +478,7 @@ if ( myrank.eq. 0 ) write(*,*)'main: velocity increments done.'
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
                   DO j = 1,n
                      DO i = 1,n
+!$omp atomic
                         spaux = spaux+abs(thl(i,j,k)-th(i,j,k))**p
                      END DO
                   END DO
@@ -497,6 +499,7 @@ if ( myrank.eq. 0 ) write(*,*)'main: increments p=', p, ' done.'
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
                   DO j = 1,n
                      DO i = 1,n
+!$omp atomic
                         spaux = spaux+abs(((vxl(i,j,k)-vx(i,j,k))*j1(d)+ &
                          (vyl(i,j,k)-vy(i,j,k))*j2(d)+ &
                          (vzl(i,j,k)-vz(i,j,k))*j3(d))*norm)* &
