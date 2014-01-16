@@ -56,7 +56,7 @@
 !
 ! Arrays for the fields and structure functions
 
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz,th
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: ctmp,sij
       COMPLEX(KIND=GP)                                 :: cdump,jdump
 
@@ -71,6 +71,7 @@
       REAL   (KIND=GP)                                 :: ktmin ,ktmax 
       REAL   (KIND=GP)                                 :: ktmin2,ktmax2
       REAL   (KIND=GP)                                 :: fmin(2),fmax(2)
+      REAL   (KIND=GP)                                 :: bvfreq,dt,omega
 
 !
 ! Auxiliary variables
@@ -78,6 +79,7 @@
       INTEGER :: i,ic,iir,ind,ir,isolve,iswap,it,j,jc,jjc,k,oswap
       INTEGER :: demean,dolog,ilamb,inorm,istat(1024),jpdf,nstat
       INTEGER :: irand,nbinx,nbiny,nbins(2),nin,seed
+      INTEGER :: indt,tstep
 !$    INTEGER, EXTERNAL :: omp_get_max_threads
 
       TYPE(IOPLAN) :: planio
@@ -94,6 +96,7 @@
       NAMELIST / shear / dismin,dismax,ensmin,ensmax,jpdf,nbinx,nbiny
       NAMELIST / shear / irand,krmin,krmax,seed
       NAMELIST / shear / btrunc,ktmin,ktmax
+      NAMELIST / shear / bvfreq,dt,omega,tstep
 
 !
 ! Initializes the MPI and I/O libraries
@@ -128,7 +131,12 @@
       ktmin  = tiny
       ktmax  = kmax
       seed   = 1000
-      pref = 'ksplambda'
+      pref   = 'ksplambda'
+
+      dt     = 1.5e-5
+      omega  = 1.333
+      bvfreq = 13.2
+      tstep  = 100
 !
 ! Reads from the external file 'vt`.txt' the 
 ! parameters that will be used to compute the transfer
@@ -186,6 +194,9 @@ if (myrank.eq.0) write(*,*)'main: broadcast done.'
       ALLOCATE( vx(n,n,ista:iend) )
       ALLOCATE( vy(n,n,ista:iend) )
       ALLOCATE( vz(n,n,ista:iend) )
+#if defined(SCALAR_)
+      ALLOCATE( th(n,n,ista:iend) )
+#endif
       ALLOCATE( ka(n) )
       ALLOCATE( ka2(n,n,ista:iend) )
       ALLOCATE( R1(n,n,ksta:kend) )
@@ -303,6 +314,10 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex for vy...'
         CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
 if (myrank.eq.0) write(*,*)'main: real 2 cmplex for vz...'
         CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
+#if defined(SCALAR_)
+if (myrank.eq.0) write(*,*)'main: real 2 cmplex for th...'
+        CALL fftp3d_real_to_complex(planrc,R4,th,MPI_COMM_WORLD)
+#endif
 if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
         IF ( irand.GT.0 ) THEN
           IF (myrank.eq.0) phase = 2*pi*randu(seed)
@@ -321,10 +336,18 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
                 vx(k,j,i) = 0.0_GP
                 vy(k,j,i) = 0.0_GP
                 vz(k,j,i) = 0.0_GP
+#if defined(SCALAR_)
+                th(k,j,i) = 0.0_GP
+#endif
               ENDIF
             END DO
           END DO
         END DO
+
+#if 1
+        indt = (istat(it)-1)*tstep
+        CALL tbouss(vx,vy,vz,th,indt,dt,omega,bvfreq)
+#endif
 
 write(*,*)'main: ktmin2=',ktmin2, ' ktmax2=',ktmax2
 
@@ -454,6 +477,7 @@ write(*,*)'main: ktmin2=',ktmin2, ' ktmax2=',ktmax2
       IF ( ALLOCATED  (vx) ) DEALLOCATE  (vx)
       IF ( ALLOCATED  (vy) ) DEALLOCATE  (vy)
       IF ( ALLOCATED  (vz) ) DEALLOCATE  (vz)
+      IF ( ALLOCATED  (th) ) DEALLOCATE  (th)
       IF ( ALLOCATED(lamb) ) DEALLOCATE(lamb)
       IF ( ALLOCATED  (R1) ) DEALLOCATE  (R1)
       IF ( ALLOCATED  (R2) ) DEALLOCATE  (R2)
