@@ -1,3 +1,5 @@
+#define SCALAR_
+
       PROGRAM SHEAR3D
 !=================================================================
 ! SHEAR3D code (part of the GHOST suite)
@@ -68,13 +70,14 @@
       REAL   (KIND=GP)                                 :: krmin2,krmax2 
       REAL   (KIND=GP)                                 :: ktmin ,ktmax 
       REAL   (KIND=GP)                                 :: ktmin2,ktmax2
+      REAL   (KIND=GP)                                 :: fmin(2),fmax(2)
 
 !
 ! Auxiliary variables
 
       INTEGER :: i,ic,iir,ind,ir,isolve,iswap,it,j,jc,jjc,k,oswap
       INTEGER :: demean,dolog,ilamb,inorm,istat(1024),jpdf,nstat
-      INTEGER :: irand,nbinx,nbiny,nbins(2),seed
+      INTEGER :: irand,nbinx,nbiny,nbins(2),nin,seed
 !$    INTEGER, EXTERNAL :: omp_get_max_threads
 
       TYPE(IOPLAN) :: planio
@@ -258,8 +261,10 @@ if (myrank.eq.0) write(*,*)'main: reading vy...'
         CALL io_read(1,idir,'vy',ext,planio,R2)
 if (myrank.eq.0) write(*,*)'main: reading vz...'
         CALL io_read(1,idir,'vz',ext,planio,R3)
+#if defined(SCALAR_)
+        CALL io_read(1,idir,'th',ext,planio,R4)
+#endif
 if (myrank.eq.0) write(*,*)'main: reading done.'
-
 
 !
 ! Byte-swap on input:
@@ -268,6 +273,28 @@ if (myrank.eq.0) write(*,*)'main: reading done.'
           CALL rarray_byte_swap(R2, n*n*(kend-ksta+1))
           CALL rarray_byte_swap(R3, n*n*(kend-ksta+1))
         ENDIF
+ 
+#if 1
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+          DO j = 1,n
+            DO i = 1,n
+!$omp atomic
+              R5(i,j,k) = sqrt(R1(i,j,k)**2 + R2(i,j,k)**2)
+             ENDDO
+           ENDDO
+         ENDDO
+
+! 1d PDFs ofr u_perp, u_parallel, theta:
+        nin = n*n*(kend-ksta+1)
+        CALL dopdfr(R5,nin,n,'uppdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
+        CALL dopdfr(R3,nin,n,'uzpdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
+#if defined(SCALAR_)
+        CALL dopdfr(R4,nin,n,'thpdf.'//ext//'.txt'   ,nbins(1),0,fmin(1),fmax(1),0) 
+#endif
+#endif
+
 !
 ! take FFT of component:
 if (myrank.eq.0) write(*,*)'main: real 2 cmplex for vx...'
@@ -364,6 +391,7 @@ write(*,*)'main: ktmin2=',ktmin2, ' ktmax2=',ktmax2
         fntmp = trim(odir) // '/' // trim(fnout)
 
         CALL pspectrum(ctmp,fntmp,int(kmax))
+
 
 ! 
 ! Prepare eignesystem for output if necessary
@@ -1281,7 +1309,7 @@ write(*,*)'DoDissJPDF: lamb: s2=',s2,' s3=',s3,' s4=',s4,' slamb=',slamb,' flamb
       s2 = 0.0D0
 !$omp parallel do private(j) reduction(+:s2)
       DO j = 1, nin
-        s2 = s2 + dble(fx(j))
+        s2 = s2 + xnorm*dble(fx(j))
       ENDDO
 
       CALL MPI_ALLREDUCE(s2, avg, 1, MPI_DOUBLE_PRECISION, &
