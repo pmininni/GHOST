@@ -51,6 +51,7 @@
       USE random
       USE threads
       USE gutils
+      USE gtimer
       IMPLICIT NONE
 
 !
@@ -61,6 +62,7 @@
       COMPLEX(KIND=GP)                                 :: cdump,jdump
 
 
+      DOUBLE PRECISION                                 :: s2,s3,s4
 
       REAL   (KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: lamb,R1,R2,R3,R4,R5,R6
       REAL   (KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: evx,evy,evz
@@ -72,6 +74,7 @@
       REAL   (KIND=GP)                                 :: ktmin2,ktmax2
       REAL   (KIND=GP)                                 :: fmin(2),fmax(2)
       REAL   (KIND=GP)                                 :: bvfreq,dt,omega
+      REAL   (KIND=GP)                                 :: sup,suz,sth,fup,fuz,fth
 
 !
 ! Auxiliary variables
@@ -273,6 +276,7 @@ if (myrank.eq.0) write(*,*)'main: reading vy...'
 if (myrank.eq.0) write(*,*)'main: reading vz...'
         CALL io_read(1,idir,'vz',ext,planio,R3)
 #if defined(SCALAR_)
+if (myrank.eq.0) write(*,*)'main: reading th...'
         CALL io_read(1,idir,'th',ext,planio,R4)
 #endif
 if (myrank.eq.0) write(*,*)'main: reading done.'
@@ -291,18 +295,40 @@ if (myrank.eq.0) write(*,*)'main: reading done.'
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
           DO j = 1,n
             DO i = 1,n
-!$omp atomic
               R5(i,j,k) = sqrt(R1(i,j,k)**2 + R2(i,j,k)**2)
              ENDDO
            ENDDO
          ENDDO
 
+! PDFs of anisotropic components:
 ! 1d PDFs ofr u_perp, u_parallel, theta:
         nin = n*n*(kend-ksta+1)
         CALL dopdfr(R5,nin,n,'uppdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
         CALL dopdfr(R3,nin,n,'uzpdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
+        CALL skewflat(R5 ,nin,n,sup,fup,s2,s3,s4)
+        CALL skewflat(R3 ,nin,n,suz,fuz,s2,s3,s4)
 #if defined(SCALAR_)
-        CALL dopdfr(R4,nin,n,'thpdf.'//ext//'.txt'   ,nbins(1),0,fmin(1),fmax(1),0) 
+        CALL dopdfr(R4,nin,n,'thpdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
+        CALL skewflat(R4 ,nin,n,sth,fth,s2,s3,s4)
+       ! Print out skewness and flatness data for up, uz, th:
+        IF ( myrank.EQ.0 ) THEN
+          OPEN(1,file=trim('anisoskew.txt'),position='append')
+          WRITE(1,*)ext,sup,suz,sth
+          CLOSE(1)
+          OPEN(1,file=trim('anisoflat.txt'),position='append')
+          WRITE(1,*)ext,fup,fuz,fth
+         CLOSE(1)
+       ENDIF
+#else
+       ! Print out skewness and flatness data for up, uz:
+        IF ( myrank.EQ.0 ) THEN
+          OPEN(1,file=trim('anisoskew.txt'),position='append')
+          WRITE(1,*)ext,sup,suz
+          CLOSE(1)
+          OPEN(1,file=trim('anisoflat.txt'),position='append')
+          WRITE(1,*)ext,fup,fuz
+         CLOSE(1)
+       ENDIF
 #endif
 #endif
 
@@ -349,7 +375,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
         CALL tbouss(vx,vy,vz,th,indt,dt,omega,bvfreq)
 #endif
 
-write(*,*)'main: ktmin2=',ktmin2, ' ktmax2=',ktmax2
+!write(*,*)'main: ktmin2=',ktmin2, ' ktmax2=',ktmax2
 
 ! Compute required strain rate components:
         inorm = 1
@@ -1110,6 +1136,7 @@ write(*,*)'main: ktmin2=',ktmin2, ' ktmax2=',ktmax2
         END DO
       END DO
 
+
       ! compute S33 for flatness/skewness:
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -1159,9 +1186,9 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
       ENDDO
 
       CALL skewflat(S11   ,nin,n,sdiss,fdiss,s2,s3,s4) ! dissipation
-write(*,*)'DoDissJPDF: diss: s2=',s2,' s3=',s3,' s4=',s4,' sdiss=',sdiss,' fdiss=',fdiss
+!write(*,*)'DoDissJPDF: diss: s2=',s2,' s3=',s3,' s4=',s4,' sdiss=',sdiss,' fdiss=',fdiss
       CALL skewflat(lambda,nin,n,slamb,flamb,s2,s3,s4) ! lambda
-write(*,*)'DoDissJPDF: lamb: s2=',s2,' s3=',s3,' s4=',s4,' slamb=',slamb,' flamb=',flamb
+!write(*,*)'DoDissJPDF: lamb: s2=',s2,' s3=',s3,' s4=',s4,' slamb=',slamb,' flamb=',flamb
 
       ! Compute joint PDF for energy diss and lambda (order 
       ! switched, so that lambda is on x-axis, and energy diss on y axis:
@@ -1300,6 +1327,26 @@ write(*,*)'DoDissJPDF: lamb: s2=',s2,' s3=',s3,' s4=',s4,' slamb=',slamb,' flamb
 
       CALL dojpdfr(lambda,'lambda',S22,'enst',nin,n,fnjdl,nbins,0,fmin,fmax,[dolog,dolog])
 
+      ! compute gradient Richardson no. and its pdf:
+      CALL derivk3(vx, ctmp, 3)
+      CALL derivk3(vy, vtmp, 3)
+      CALL fftp3d_complex_to_real(plancr,ctmp,rtmp  ,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,vtmp,lambda,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+        DO j = 1,n
+          DO i = 1,n
+            rtmp(i,j,k) = 174.24/(rtmp(i,j,k)**2 + lambda(i,j,k)**2)
+          ENDDO
+        ENDDO
+      ENDDO
+      CALL dopdfr(rtmp,nin,n,'ripdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
+      ! Compute joint PDF for Richardson no. and diss:
+      CALL dojpdfr(rtmp,'Ri' ,S11 ,'diss',nin,n,'jpdf_diss_ri'//ext//'.txt',nbins,0,fmin,fmax,[0,dolog])
+      CALL dojpdfr(rtmp,'Ri' ,S22 ,'enst',nin,n,'jpdf_enst_ri'//ext//'.txt',nbins,0,fmin,fmax,[0,dolog])
+      CALL dojpdfr(S13,'rhel',rtmp,'Ri'  ,nin,n,'jpdf_ri_rhel'//ext//'.txt',nbins,0,fmin,fmax,[0,dolog])
+
       END SUBROUTINE DoDissJPDF
 !
 !
@@ -1316,6 +1363,9 @@ write(*,*)'DoDissJPDF: lamb: s2=',s2,' s3=',s3,' s4=',s4,' slamb=',slamb,' flamb
 !     n     : linear problem size, s.t. total no. gridpoints is n^3
 !     skew  : skewness, valid only for MPI taks 0
 !     flat  : flatness/kurtosis
+!     s2,s3,
+!         s4: 2nd, 3rd and 4th order moments: sum( (x-<x>)^n ), where
+!             n=2, 3, 4.
 !-----------------------------------------------------------------
       USE fprecision
       USE commtypes
