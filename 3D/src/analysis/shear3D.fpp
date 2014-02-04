@@ -1337,7 +1337,7 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
         DO j = 1,n
           DO i = 1,n
-            rtmp(i,j,k) = 174.24/(rtmp(i,j,k)**2 + lambda(i,j,k)**2)
+            rtmp(i,j,k) = 174.24/(rtmp(i,j,k)**2 + lambda(i,j,k)**2 + 1.0e-8)
           ENDDO
         ENDDO
       ENDDO
