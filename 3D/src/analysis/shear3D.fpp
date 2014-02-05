@@ -1149,17 +1149,16 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       ENDDO
 
       CALL skewflat(S11 ,nin,n,ss11,sf11,s2,s3,s4)
-if ( myrank.eq.0 ) write(*,*)' time=',ext,' s11_s2=',s2,' s11_s3=',s3,' s11_s4=',s4
+!if ( myrank.eq.0 ) write(*,*)' time=',ext,' s11_s2=',s2,' s11_s3=',s3,' s11_s4=',s4
       CALL skewflat(S12 ,nin,n,ss12,sf12,s2,s3,s4)
-if ( myrank.eq.0 ) write(*,*)' time=',ext,' s12_s2=',s2,' s12_s3=',s3,' s12_s4=',s4
+!if ( myrank.eq.0 ) write(*,*)' time=',ext,' s12_s2=',s2,' s12_s3=',s3,' s12_s4=',s4
       CALL skewflat(S13 ,nin,n,ss13,sf13,s2,s3,s4)
-if ( myrank.eq.0 ) write(*,*)' time=',ext,' s13_s2=',s2,' s13_s3=',s3,' s12_s4=',s4
+!if ( myrank.eq.0 ) write(*,*)' time=',ext,' s13_s2=',s2,' s13_s3=',s3,' s12_s4=',s4
       CALL skewflat(S22 ,nin,n,ss22,sf22,s2,s3,s4)
-if ( myrank.eq.0 ) write(*,*)' time=',ext,' s22_s2=',s2,' s22_s3=',s3,' s22_s4=',s4
+!if ( myrank.eq.0 ) write(*,*)' time=',ext,' s22_s2=',s2,' s22_s3=',s3,' s22_s4=',s4
       CALL skewflat(S23 ,nin,n,ss23,sf23,s2,s3,s4)
-if ( myrank.eq.0 ) write(*,*)' time=',ext,' s23_s2=',s2,' s23_s3=',s3,' s23_s4=',s4
+!if ( myrank.eq.0 ) write(*,*)' time=',ext,' s23_s2=',s2,' s23_s3=',s3,' s23_s4=',s4
       CALL skewflat(rtmp,nin,n,ss33,sf33,s2,s3,s4)
-if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4=',s4
       ! Compute, write, 1d Sij pdfs:
       CALL dopdfr(S11 ,nin,n,'s11pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
       CALL dopdfr(S12 ,nin,n,'s12pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
@@ -1329,19 +1328,20 @@ if ( myrank.eq.0 ) write(*,*)' time=',ext,' s33_s2=',s2,' s33_s3=',s3,' s33_s4='
 
       ! compute gradient Richardson no. and its pdf:
       CALL derivk3(vx, ctmp, 3)
-      CALL derivk3(vy, vtmp, 3)
       CALL fftp3d_complex_to_real(plancr,ctmp,rtmp  ,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,vtmp,lambda,MPI_COMM_WORLD)
+      CALL derivk3(vy, ctmp, 3)
+      CALL fftp3d_complex_to_real(plancr,ctmp,lambda,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
         DO j = 1,n
           DO i = 1,n
-            rtmp(i,j,k) = 174.24/(rtmp(i,j,k)**2 + lambda(i,j,k)**2 + 1.0e-8)
+            slamb  = (rtmp(i,j,k)**2 + lambda(i,j,k)**2)
+            rtmp(i,j,k) = slamb
           ENDDO
         ENDDO
       ENDDO
-      CALL dopdfr(rtmp,nin,n,'ripdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(rtmp,nin,n,'riipdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
       ! Compute joint PDF for Richardson no. and diss:
       CALL dojpdfr(rtmp,'Ri' ,S11 ,'diss',nin,n,'jpdf_diss_ri'//ext//'.txt',nbins,0,fmin,fmax,[0,dolog])
       CALL dojpdfr(rtmp,'Ri' ,S22 ,'enst',nin,n,'jpdf_enst_ri'//ext//'.txt',nbins,0,fmin,fmax,[0,dolog])
