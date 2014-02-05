@@ -7,6 +7,7 @@
 ! 17 Nov 2010: Initial version
 !=================================================================
 MODULE gutils
+!
 ! Utils data, if any:
 !
 ! ...
@@ -15,7 +16,7 @@ MODULE gutils
       REAL, DIMENSION  (:), ALLOCATABLE   :: gpdf_
       REAL, DIMENSION(:,:), ALLOCATABLE   :: fpdf2_
       REAL, DIMENSION(:,:), ALLOCATABLE   :: gpdf2_
-      INTEGER                             :: nbins_=50,nbins2_(2)=(/50,50/)
+      INTEGER                             :: nbins_=1000,nbins2_(2)=(/1000,1000/)
 !
 !
 ! Methods:
@@ -321,7 +322,7 @@ MODULE gutils
 !$omp parallel do private (ibin)
         DO i = 1, nin
           ibin = NINT( ( log10(abs(Rin(i)+tiny(1.0_GP))) - fmin )/del )
-          ibin = MIN(MAX(ibin,1),nbins_)
+          ibin = MIN(MAX(ibin,1),nbins)
 !$omp atomic
           fpdf_(ibin) = fpdf_(ibin) + 1.0_GP
         ENDDO
@@ -329,41 +330,42 @@ MODULE gutils
 !$omp parallel do private (ibin)
         DO i = 1, nin
           ibin = NINT( (Rin(i) - fmin)/del )
-          ibin = MIN(MAX(ibin,1),nbins_)
+          ibin = MIN(MAX(ibin,1),nbins)
 !$omp atomic
           fpdf_(ibin) = fpdf_(ibin) + 1.0_GP
         ENDDO
       ENDIF
 
       ! Compute global reduction between MPI tasks:
-      CALL MPI_REDUCE(fpdf_, gpdf_, nbins_, MPI_REAL,    &
+      CALL MPI_REDUCE(fpdf_, gpdf_, nbins, MPI_REAL, &
                       MPI_SUM, 0, MPI_COMM_WORLD,ierr)
-!     CALL MPI_ALLREDUCE(fpdf_, gpdf_, nbins_, MPI_REAL, &
+!     CALL MPI_ALLREDUCE(fpdf_, gpdf_, nbins, MPI_REAL, &
 !                     MPI_SUM, MPI_COMM_WORLD,ierr)
 
-      
+      ! First, do a santy check:
       ibin = 0
       DO i = 1, nbins
         ibin = ibin + fpdf_(i) 
       ENDDO
       IF (ibin.ne.nin) THEN
         WRITE (*,*)'dopdfr: inconsistent data: expected: ',nin, ' found: ',ibin
+        WRITE (*,*)'dopdfr: fmin=',fmin,' fmax=',fmax,' nbins=',nbins,' dolog=',dolog,' ifixdr=',ifixdr,' del=',del
         STOP
       ENDIF
-
+     
       ! Write PDF to disk:
       IF ( myrank.eq.0 ) THEN
-          IF ( dolog .GT. 0 ) THEN
-            fmin = 10.0_GP**fmin
-            fmax = 10.0_GP**fmax
-          ENDIF
-         WRITE(shead,'(A9,E16.8,A1,E16.8,A7,E16.8,A6,E16.8,A7,I4,A7,I1)') '# range=[', fmin, ',' , fmax, &
-           ']; avg=',gavg,'; sig=',sig,'; nbin=', nbins, '; blog=', dolog   
-         OPEN(1,file=trim(fname))
-         WRITE(1,'(A)') trim(shead)
-         WRITE(1,40) gpdf_
-   40    FORMAT( E23.15 )
-         CLOSE(1)
+        IF ( dolog .GT. 0 ) THEN
+          fmin = 10.0_GP**fmin
+          fmax = 10.0_GP**fmax
+        ENDIF
+        WRITE(shead,'(A9,E16.8,A1,E16.8,A7,E16.8,A6,E16.8,A7,I7,A7,I1)') '# range=[', fmin, ',' , fmax, &
+          ']; avg=',gavg,'; sig=',sig,'; nbin=', nbins, '; blog=', dolog   
+        OPEN(1,file=trim(fname))
+        WRITE(1,'(A)') trim(shead)
+        WRITE(1,40) gpdf_
+   40   FORMAT( E23.15 )
+        CLOSE(1)
       ENDIF
  
       RETURN
@@ -552,7 +554,7 @@ MODULE gutils
           IF ( dolog(j) .GT. 0 ) fmax(j) = 10.0_GP**fmax(j)
         ENDDO
 
-        WRITE(shead,'(A1,2(A4,A6,E16.8,A1,E16.8,A3,A4,A5,E16.8,A2,A4,A5,E16.8,A2),A6,I4,A1,I4,A9,I1,A1,I1,A1)') '#',&
+        WRITE(shead,'(A1,2(A4,A6,E16.8,A1,E16.8,A3,A4,A5,E16.8,A2,A4,A5,E16.8,A2),A6,I7,A1,I7,A9,I1,A1,I1,A1)') '#',&
         sR1(1:4),'_rng=[',fmin(1),',',fmax(1),']; ',sR1(1:4),'_avg=',gavg(1),'; ',sR1(1:4),'_sig=',sig(1),'; ',&
         sR2(1:4),'_rng=[',fmin(2),',',fmax(2),']; ',sR2(1:4),'_avg=',gavg(2),'; ',sR2(1:4),'_sig=',sig(2),'; ',&
         'nbin=[', nbins(1),',',nbins(2), ']; blog=[', dolog(1),',',dolog(2),']'   
