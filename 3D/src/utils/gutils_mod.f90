@@ -280,8 +280,8 @@ MODULE gutils
 
       IF ( ifixdr .le. 0 ) THEN
         ! Compute dynamic range of PDF
-        fmin = MINVAL(Rin,nin)
-        fmax = MAXVAL(Rin,nin)
+        fmin = MINVAL(Rin(1:nin),nin)
+        fmax = MAXVAL(Rin(1:nin),nin)
         IF ( dolog .GT. 0 ) THEN
           fmin = log10(fmin+tiny(1.0_GP))
           fmax = log10(fmax+tiny(1.0_GP))
@@ -321,7 +321,7 @@ MODULE gutils
       IF ( dolog .GT. 0 ) THEN
 !$omp parallel do private (ibin)
         DO i = 1, nin
-          ibin = NINT( ( log10(abs(Rin(i)+tiny(1.0_GP))) - fmin )/del )
+          ibin = NINT( ( log10(abs(Rin(i)+tiny(1.0_GP))) - fmin )/del+1 )
           ibin = MIN(MAX(ibin,1),nbins)
 !$omp atomic
           fpdf_(ibin) = fpdf_(ibin) + 1.0_GP
@@ -344,13 +344,15 @@ MODULE gutils
 
       ! First, do a sanity check:
       fbin = 0.0_GP
+!$omp parallel do reduction(+:fbin)
       DO i = 1, nbins
         fbin = fbin + int(fpdf_(i))
       ENDDO
-      IF (fbin.ne.real(nin,kind=GP)) THEN
-        WRITE (*,*)'dopdfr: inconsistent data: expected: ',nin, ' found: ',ibin
+      IF (fbin.ne.real(nin,kind=GP) ) THEN
+        WRITE (*,*)'dopdfr: inconsistent data: expected: ',nin, ' found: ',fbin
         WRITE (*,*)'dopdfr: fmin=',fmin,' fmax=',fmax,' nbins=',nbins,' dolog=',dolog,' ifixdr=',ifixdr,' del=',del
-        STOP
+        WRITE (*,*)'dopdfr: file ', fname, ' not written.'
+        RETURN
       ENDIF
      
       ! Write PDF to disk:
@@ -430,10 +432,10 @@ MODULE gutils
 
       IF ( ifixdr .le. 0 ) THEN
         ! Compute dynamic range of PDF
-        fmin(1) = MINVAL(R1,nin)
-        fmax(1) = MAXVAL(R1,nin)
-        fmin(2) = MINVAL(R2,nin)
-        fmax(2) = MAXVAL(R2,nin)
+        fmin(1) = MINVAL(R1(1:nin),nin)
+        fmax(1) = MAXVAL(R1(1:nin),nin)
+        fmin(2) = MINVAL(R2(1:nin),nin)
+        fmax(2) = MAXVAL(R2(1:nin),nin)
         DO j = 1, 2
           IF ( dolog(j) .GT. 0 ) fmin(j) = log10(fmin(j)+tiny(1.0_GP))
           IF ( dolog(j) .GT. 0 ) fmax(j) = log10(fmax(j)+tiny(1.0_GP))
