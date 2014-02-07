@@ -211,8 +211,8 @@ if (myrank.eq.0) write(*,*)'main: broadcast done.'
       ALLOCATE( lamb(n,n,ksta:kend) )
       
       ALLOCATE( evx(n,n,ksta:kend) )
-      IF ( isolve.GT.0 ) THEN
       ALLOCATE( evy(n,n,ksta:kend) )
+      IF ( isolve.GT.0 ) THEN
       ALLOCATE( evz(n,n,ksta:kend) )
       ENDIF
 !
@@ -289,48 +289,6 @@ if (myrank.eq.0) write(*,*)'main: reading done.'
           CALL rarray_byte_swap(R3, n*n*(kend-ksta+1))
         ENDIF
  
-#if 1
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-        DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-          DO j = 1,n
-            DO i = 1,n
-              R5(i,j,k) = sqrt(R1(i,j,k)**2 + R2(i,j,k)**2)
-             ENDDO
-           ENDDO
-         ENDDO
-
-! PDFs of anisotropic components:
-! 1d PDFs ofr u_perp, u_parallel, theta:
-        nin = n*n*(kend-ksta+1)
-        CALL dopdfr(R5,nin,n,'uppdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
-        CALL dopdfr(R3,nin,n,'uzpdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
-        CALL skewflat(R5 ,nin,n,sup,fup,s2,s3,s4)
-        CALL skewflat(R3 ,nin,n,suz,fuz,s2,s3,s4)
-#if defined(SCALAR_)
-        CALL dopdfr(R4,nin,n,'thpdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
-        CALL skewflat(R4 ,nin,n,sth,fth,s2,s3,s4)
-       ! Print out skewness and flatness data for up, uz, th:
-        IF ( myrank.EQ.0 ) THEN
-          OPEN(1,file=trim('anisoskew.txt'),position='append')
-          WRITE(1,*)ext,sup,suz,sth
-          CLOSE(1)
-          OPEN(1,file=trim('anisoflat.txt'),position='append')
-          WRITE(1,*)ext,fup,fuz,fth
-         CLOSE(1)
-       ENDIF
-#else
-       ! Print out skewness and flatness data for up, uz:
-        IF ( myrank.EQ.0 ) THEN
-          OPEN(1,file=trim('anisoskew.txt'),position='append')
-          WRITE(1,*)ext,sup,suz
-          CLOSE(1)
-          OPEN(1,file=trim('anisoflat.txt'),position='append')
-          WRITE(1,*)ext,fup,fuz
-         CLOSE(1)
-       ENDIF
-#endif
-#endif
 
 !
 ! take FFT of component:
@@ -476,15 +434,9 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
           IF ( oswap .NE. 0 ) THEN
             CALL rarray_byte_swap(lamb, n*n*(kend-ksta+1))
           ENDIF
-          CALL DoDissJPDF(R1,R2,R3,R4,R5,vx,vy,vz,lamb,ext    , &
-               fntmp1,fntmp2,fntmp3,fntmp4,fntmp5,fntmp6,nbins,dolog , &
-               trim(odir) // '/disspdf.' // ext // '.txt' , &
-               trim(odir) // '/enstpdf.' // ext // '.txt' , & 
-               trim(odir) // '/lambpdf.' // ext // '.txt' , &
-               trim(odir) // '/helpdf.'  // ext // '.txt' , &
-               trim(odir) // '/flat'            // '.txt' , &
-               trim(odir) // '/skew'            // '.txt' , &
-               ctmp,sij,evx)
+
+          CALL DoKDissJPDF(R1,R2,R3,R4,R5,vx,vy,vz,th,lamb,bvfreq,ext    , &
+               odir,nbins,dolog,ctmp,sij,evx,evy)
         ENDIF
 
         IF ( myrank.EQ. 0 ) THEN
@@ -1052,9 +1004,8 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 !-----------------------------------------------------------------
 !
 !
-      SUBROUTINE DoDissJPDF(S11,S12,S13,S22,S23,vx,vy,vz,lambda,ext, &
-                            fnjde,fnjdl,fnjel,fnjdh,fnjeh,fnjhl, &
-                            nbins,dolog,fndiss,fnenst,fnlamb,fnhel,fnflat,fnskew,ctmp,vtmp,rtmp)
+      SUBROUTINE DoKDissJPDF(S11,S12,S13,S22,S23,vx,vy,vz,th,lambda,bvfreq,ext, &
+                            odir,nbins,dolog, ctmp,vtmp,rtmp,rtmp1)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -1070,24 +1021,15 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 !     vy,
 !     vz    : complex velocities
 !     lambda: e-value field
+!     bvfreq: Brunt-Vaisalla frequency
 !     ext   : string time index
-!     fnjde : output file name for diss-enstr JPDF
-!     fnjdl : output file name for diss-lambda JPDF
-!     fnjel : output file name for diss-enst JPDF
-!     fnjdh : output file name for diss-helicity JPDF
-!     fnjeh : output file name for enstrophy-helicity JPDF
-!     fnjhl : output file name for helicity-lambda JPDF
+!     odir  : output directory
 !     nbins : 2-elem array with no. bins for (enstrophy,energy diss)
 !     dolog : flag to do (1) or not (0) logs of ranges when computing bins
-!     fndiss: file name for 1d PDF of dissipation  
-!     fnenst: file name for 1d PDF of enstrophy density
-!     fnlamb: file name for 1d PDF of lambda
-!     fnflat: file name for flatness quantities
-!     fnskew: file name for skewness quantities
-!     fnhel : file name for 1d PDF of helicity
 !     ctmp  : complex temp array of size vx,vy,vz
 !     vtmp  : complex temp array of size vx,vy,vz
 !     rtmp  : real temp array of size lambda
+!     rtmp1 : real temp array of size lambda
 !
       USE fprecision
       USE commtypes
@@ -1102,13 +1044,16 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       USE gutils
       IMPLICIT NONE
 
-      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: lambda,rtmp,S11,S12,S13,S22,S23
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: lambda,rtmp,rtmp1,S11,S12,S13,S22,S23
+      REAL   (KIND=GP), INTENT   (IN)                           :: bvfreq
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: ctmp,vtmp
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
-      REAL   (KIND=GP)                                          :: fact,fmin(2),fmax(2),xnorm,xnormi
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz,th
+      REAL   (KIND=GP)                                          :: fact,fmin(2),fmax(2),xnorm,xnormi,xnormn
       REAL   (KIND=GP)                                          :: ss11,ss12,ss13,ss22,ss23,ss33
       REAL   (KIND=GP)                                          :: sf11,sf12,sf13,sf22,sf23,sf33
       DOUBLE PRECISION                                          :: s2,s3,s4
+      REAL   (KIND=GP)                                          :: rif,upf,thf
+      REAL   (KIND=GP)                                          :: ris,ups,ths
       REAL   (KIND=GP)                                          :: vs1,vs2,vs3
       REAL   (KIND=GP)                                          :: vf1,vf2,vf3
       REAL   (KIND=GP)                                          :: ws1,ws2,ws3
@@ -1119,19 +1064,21 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       REAL   (KIND=GP)                                          :: flamb,slamb
       INTEGER         , INTENT   (IN)                           :: dolog,nbins(2)
       INTEGER                                                   :: i,j,k,nin,sr
-      CHARACTER(len=*), INTENT   (IN)                           :: fnjde,fnjdl,fnjel,fnjdh,fnjeh,fndiss,fnjhl
-      CHARACTER(len=*), INTENT   (IN)                           :: fnenst,fnlamb,fnhel,fnflat,fnskew,ext
+      CHARACTER(len=*), INTENT   (IN)                           :: odir
+      CHARACTER(len=*), INTENT   (IN)                           :: ext
+      CHARACTER(len=1024)                                       :: fnout
 
 
       nin = n*n*(kend-ksta+1)
+      xnormn = 1.0_GP/ real(n,kind=GP)**3
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
         DO j = 1,n
           DO k = 1,n
-            vx(k,j,i) = vx(k,j,i)/real(n,kind=GP)**3
-            vy(k,j,i) = vy(k,j,i)/real(n,kind=GP)**3
-            vz(k,j,i) = vz(k,j,i)/real(n,kind=GP)**3
+            vx(k,j,i) = vx(k,j,i)*xnormn
+            vy(k,j,i) = vy(k,j,i)*xnormn
+            vz(k,j,i) = vz(k,j,i)*xnormn
           END DO
         END DO
       END DO
@@ -1160,12 +1107,19 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 !if ( myrank.eq.0 ) write(*,*)' time=',ext,' s23_s2=',s2,' s23_s3=',s3,' s23_s4=',s4
       CALL skewflat(rtmp,nin,n,ss33,sf33,s2,s3,s4)
       ! Compute, write, 1d Sij pdfs:
-      CALL dopdfr(S11 ,nin,n,'s11pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
-      CALL dopdfr(S12 ,nin,n,'s12pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
-      CALL dopdfr(S13 ,nin,n,'s13pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
-      CALL dopdfr(S22 ,nin,n,'s22pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
-      CALL dopdfr(S23 ,nin,n,'s23pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
-      CALL dopdfr(rtmp,nin,n,'s33pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
+   
+      fnout = trim(odir) // '/' // 's11pdf.' // ext // '.txt'
+      CALL dopdfr(S11 ,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      fnout = trim(odir) // '/' // 's12pdf.' // ext // '.txt'
+      CALL dopdfr(S12 ,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      fnout = trim(odir) // '/' // 's13pdf.' // ext // '.txt'
+      CALL dopdfr(S13 ,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      fnout = trim(odir) // '/' // 's22pdf.' // ext // '.txt'
+      CALL dopdfr(S22 ,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      fnout = trim(odir) // '/' // 's23pdf.' // ext // '.txt'
+      CALL dopdfr(S23 ,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      fnout = trim(odir) // '/' // 's33pdf.' // ext // '.txt'
+      CALL dopdfr(rtmp,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       ! Compute normalized energy dissipation field, store in ! S11:
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1185,18 +1139,21 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       ENDDO
 
       CALL skewflat(S11   ,nin,n,sdiss,fdiss,s2,s3,s4) ! dissipation
-!write(*,*)'DoDissJPDF: diss: s2=',s2,' s3=',s3,' s4=',s4,' sdiss=',sdiss,' fdiss=',fdiss
+!write(*,*)'DoKDissJPDF: diss: s2=',s2,' s3=',s3,' s4=',s4,' sdiss=',sdiss,' fdiss=',fdiss
       CALL skewflat(lambda,nin,n,slamb,flamb,s2,s3,s4) ! lambda
-!write(*,*)'DoDissJPDF: lamb: s2=',s2,' s3=',s3,' s4=',s4,' slamb=',slamb,' flamb=',flamb
+!write(*,*)'DoKDissJPDF: lamb: s2=',s2,' s3=',s3,' s4=',s4,' slamb=',slamb,' flamb=',flamb
 
       ! Compute joint PDF for energy diss and lambda (order 
       ! switched, so that lambda is on x-axis, and energy diss on y axis:
-      CALL dojpdfr(lambda,'lambda',S11,'diss',nin,n,fnjdl,nbins,0,fmin,fmax,[dolog,dolog])
+      fnout = trim(odir) // '/' // 'jpdf_diss_lamb.' // ext // '.txt'
+      CALL dojpdfr(lambda,'lambda',S11,'diss',nin,n,fnout,nbins,0,fmin,fmax,[dolog,dolog])
 
       ! Do 1d and jooint pdfs for diss and lambda:
-      CALL dopdfr(S11   ,nin,n,fndiss,nbins(2),0,fmin(2),fmax(2),dolog) 
+      fnout = trim(odir) // '/' // 'disspdf.' // ext // '.txt'
+      CALL dopdfr(S11   ,nin,n,fnout,nbins(2),0,fmin(2),fmax(2),dolog) 
       ! Compute, write, 1d lambda pdf:
-      CALL dopdfr(lambda,nin,n,fnlamb,nbins(1),0,fmin(1),fmax(1),dolog) 
+      fnout = trim(odir) // '/' // 'lambpdf.' // ext // '.txt'
+      CALL dopdfr(lambda,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),dolog) 
 
       ! Compute enstrophy density,helicity field, v^2; store in S22, S13, S12:
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1231,8 +1188,10 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       CALL skewflat(S23 ,nin,n,ws1,wf1,s2,s3,s4) ! omega1 
 
       ! Compute, write, 1d vx, \omega_i pdfs:
-      CALL dopdfr(rtmp,nin,n,'v1pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
-      CALL dopdfr(S23 ,nin,n,'w1pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
+      fnout = trim(odir) // '/' // 'v1pdf.' // ext // '.txt'
+      CALL dopdfr(rtmp,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      fnout = trim(odir) // '/' // 'w1pdf.' // ext // '.txt'
+      CALL dopdfr(S23 ,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       CALL rotor3(vz,vx,ctmp,2)
       CALL fftp3d_complex_to_real(plancr,ctmp,S23   ,MPI_COMM_WORLD)
@@ -1252,8 +1211,10 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       CALL skewflat(rtmp,nin,n,vs2,vf2,s2,s3,s4) ! v2 
       CALL skewflat(S23 ,nin,n,ws2,wf2,s2,s3,s4) ! omega2 
       ! Compute, write, 1d vy, \omega_y pdfs:
-      CALL dopdfr(rtmp,nin,n,'v2pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
-      CALL dopdfr(S23 ,nin,n,'w2pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
+      fnout = trim(odir) // '/' // 'v2pdf.' // ext // '.txt'
+      CALL dopdfr(rtmp,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      fnout = trim(odir) // '/' // 'w2pdf.' // ext // '.txt'
+      CALL dopdfr(S23 ,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       CALL rotor3(vx,vy,ctmp,3)
       CALL fftp3d_complex_to_real(plancr,ctmp,S23,MPI_COMM_WORLD)
@@ -1275,8 +1236,10 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       CALL skewflat(S22 ,nin,n,senst,fenst,s2,s3,s4)   ! enstrophy density
 
       ! Compute, write, 1d v_z, \omega_z pdfs:
-      CALL dopdfr(rtmp,nin,n,'v3pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
-      CALL dopdfr(S23 ,nin,n,'w3pdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
+      fnout = trim(odir) // '/' // 'v3pdf.' // ext // '.txt'
+      CALL dopdfr(rtmp,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      fnout = trim(odir) // '/' // 'w3pdf.' // ext // '.txt'
+      CALL dopdfr(S23 ,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
 !     Compute relative helicity:
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1297,57 +1260,129 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       ENDDO
       CALL skewflat(S13,nin,n,sheli,fheli,s2,s3,s4)    ! v.omega/rel. helicity
 
-      ! Print out skewness and flatness data:
-      IF ( myrank.EQ.0 ) THEN
-        OPEN(1,file=trim(fnskew),position='append')
-        WRITE(1,*)ext,ss11,ss12,ss13,ss22,ss23,ss33,vs1,vs2,vs3,ws1,ws2,ws3,sdiss,senst,sheli,slamb
-        CLOSE(1)
-        OPEN(1,file=trim(fnflat),position='append')
-        WRITE(1,*)ext,sf11,sf12,sf13,sf22,sf23,sf33,vf1,vf2,vf3,wf1,wf2,wf3,fdiss,fenst,fheli,flamb
-        CLOSE(1)
-      ENDIF
-
-
-      ! Compute, write, 1d enstrophy density pdf:
-      CALL dopdfr(S22,nin,n,fnenst,nbins(1),0,fmin(1),fmax(1),dolog) 
-      ! Compute, write, 1d relative helicity pdf:
-      CALL dopdfr(S13,nin,n,fnhel ,nbins(1),0,fmin(1),fmax(1),0) 
-
-      ! Compute joint PDF for enstrophy and diss (order switched, 
-      ! so that enstrophy is on x-axis, and energy diss on y axis:
-      CALL dojpdfr(S22,'enst',S11,'diss',nin,n,fnjde,nbins,0,fmin,fmax,[dolog,dolog])
-      ! Compute joint PDF for rel. helicity and diss :
-      CALL dojpdfr(S13,'rhel',S11,'diss',nin,n,fnjdh,nbins,0,fmin,fmax,[0,dolog])
-      ! Compute joint PDF for rel. helicity and enstroph. density:
-      CALL dojpdfr(S13,'rhel',S22,'enst',nin,n,fnjeh,nbins,0,fmin,fmax,[0,dolog])
-      ! Compute joint PDF for rel. helicity and lambda:
-      CALL dojpdfr(S13,'rhel',lambda,'lamb',nin,n,fnjhl,nbins,0,fmin,fmax,[0,dolog])
-
-
-      CALL dojpdfr(lambda,'lambda',S22,'enst',nin,n,fnjdl,nbins,0,fmin,fmax,[dolog,dolog])
-
-      ! compute gradient Richardson no. and its pdf:
-      CALL derivk3(vx, ctmp, 3)
-      CALL fftp3d_complex_to_real(plancr,ctmp,rtmp  ,MPI_COMM_WORLD)
-      CALL derivk3(vy, ctmp, 3)
-      CALL fftp3d_complex_to_real(plancr,ctmp,lambda,MPI_COMM_WORLD)
+! Stats for u_perp
+! NOTE: S12 and S23 overwritten here:
+      ctmp = vx;
+      CALL fftp3d_complex_to_real(plancr,ctmp,S12,MPI_COMM_WORLD)
+      ctmp = vy;
+      CALL fftp3d_complex_to_real(plancr,ctmp,S23,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
         DO j = 1,n
           DO i = 1,n
-            slamb  = (rtmp(i,j,k)**2 + lambda(i,j,k)**2)
-            rtmp(i,j,k) = slamb
+            rtmp(i,j,k) =  S12(i,j,k)**2 + S23(i,j,k)**2
           ENDDO
         ENDDO
       ENDDO
-      CALL dopdfr(rtmp,nin,n,'riipdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
-      ! Compute joint PDF for Richardson no. and diss:
-      CALL dojpdfr(rtmp,'Ri' ,S11 ,'diss',nin,n,'jpdf_diss_ri'//ext//'.txt',nbins,0,fmin,fmax,[0,dolog])
-      CALL dojpdfr(rtmp,'Ri' ,S22 ,'enst',nin,n,'jpdf_enst_ri'//ext//'.txt',nbins,0,fmin,fmax,[0,dolog])
-      CALL dojpdfr(S13,'rhel',rtmp,'Ri'  ,nin,n,'jpdf_ri_rhel'//ext//'.txt',nbins,0,fmin,fmax,[0,dolog])
+      fnout = trim(odir) // '/' // 'uppdf.' // ext // '.txt'
+      CALL dopdfr(rtmp,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL skewflat(rtmp,nin,n,ups,upf,s2,s3,s4)       ! up
 
-      END SUBROUTINE DoDissJPDF
+      ! Print out skewness and flatness data:
+      IF ( myrank.EQ.0 ) THEN
+        fnout = trim(odir) // '/' // 'skew.txt'
+        OPEN(1,file=trim(fnout),position='append')
+        WRITE(1,*)ext,ss11,ss12,ss13,ss22,ss23,ss33,vs1,vs2,vs3,ws1,ws2,ws3,sdiss,senst,sheli,slamb,ups
+        CLOSE(1)
+        fnout = trim(odir) // '/' // 'flat.txt'
+        OPEN(1,file=trim(fnout),position='append')
+        WRITE(1,*)ext,sf11,sf12,sf13,sf22,sf23,sf33,vf1,vf2,vf3,wf1,wf2,wf3,fdiss,fenst,fheli,flamb,upf
+        CLOSE(1)
+      ENDIF
+
+
+      ! Compute, write, 1d enstrophy density pdf:
+      fnout = trim(odir) // '/' // 'enstpdf.' // ext // '.txt'
+      CALL dopdfr(S22,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),dolog) 
+      ! Compute, write, 1d relative helicity pdf:
+      fnout = trim(odir) // '/' // 'helpdf.' // ext // '.txt'
+      CALL dopdfr(S13,nin,n,fnout ,nbins(1),0,fmin(1),fmax(1),0) 
+
+      ! Compute joint PDF for enstrophy and diss (order switched, 
+      ! so that enstrophy is on x-axis, and energy diss on y axis:
+      fnout = trim(odir) // '/' // 'jpdf_diss_enst.' // ext // '.txt'
+      CALL dojpdfr(S22,'enst',S11,'diss',nin,n,fnout,nbins,0,fmin,fmax,[dolog,dolog])
+      ! Compute joint PDF for rel. helicity and diss :
+      fnout = trim(odir) // '/' // 'jpdf_diss_hel.' // ext // '.txt'
+      CALL dojpdfr(S13,'rhel',S11,'diss',nin,n,fnout,nbins,0,fmin,fmax,[0,dolog])
+      ! Compute joint PDF for rel. helicity and enstroph. density:
+      fnout = trim(odir) // '/' // 'jpdf_enst_hel.' // ext // '.txt'
+      CALL dojpdfr(S13,'rhel',S22,'enst',nin,n,fnout,nbins,0,fmin,fmax,[0,dolog])
+      ! Compute joint PDF for rel. helicity and lambda:
+      fnout = trim(odir) // '/' // 'jpdf_lamb_hel.' // ext // '.txt'
+      CALL dojpdfr(S13,'rhel',lambda,'lamb',nin,n,fnout,nbins,0,fmin,fmax,[0,dolog])
+
+
+      fnout = trim(odir) // '/' // 'jpdf_enst_lamb.' // ext // '.txt'
+      CALL dojpdfr(lambda,'lambda',S22,'enst',nin,n,fnout,nbins,0,fmin,fmax,[dolog,dolog])
+
+      nin = n*n*(kend-ksta+1)
+
+#if defined(SCALAR_)
+! PDF for potl temperature:
+! NOTE: S12 and S23 overwritten here
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,n
+          DO k = 1,n
+            th(k,j,i) = th(k,j,i)*xnormn
+          END DO
+        END DO
+      END DO
+      ctmp = th;
+      CALL fftp3d_complex_to_real(plancr,ctmp,rtmp1,MPI_COMM_WORLD)
+      fnout = trim(odir) // '/' // 'thpdf.' // ext // '.txt'
+      CALL dopdfr(rtmp1,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL skewflat(rtmp1,nin,n,ths,thf,s2,s3,s4)       ! theta
+
+      ! Compute gradient Richardson no. and its pdf:
+      CALL derivk3(vx, ctmp, 3)
+      CALL fftp3d_complex_to_real(plancr,ctmp,S12,MPI_COMM_WORLD)
+      CALL derivk3(vy, ctmp, 3)
+      CALL fftp3d_complex_to_real(plancr,ctmp,S23,MPI_COMM_WORLD)
+      CALL derivk3(th, ctmp, 3)
+      CALL fftp3d_complex_to_real(plancr,ctmp,rtmp1,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+        DO j = 1,n
+          DO i = 1,n
+            rtmp(i,j,k) = bvfreq*(bvfreq-rtmp1(i,j,k)) / &
+                          ( S12(i,j,k)**2 + S23(i,j,k)**2 )
+          ENDDO
+        ENDDO
+      ENDDO
+      fnout = trim(odir) // '/' // 'riipdf.' // ext // '.txt'
+      CALL dopdfr(rtmp,nin,n,'riipdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
+      CALL skewflat(rtmp,nin,n,ris,rif,s2,s3,s4)       ! Ri
+      ! Compute joint PDF for Richardson no. and diss:
+      fnout = trim(odir) // '/' // 'jpdf_diss_ri.' // ext // '.txt'
+      CALL dojpdfr(rtmp,'Ri' ,S11 ,'diss',nin,n,fnout,nbins,0,fmin,fmax,[0,dolog])
+      fnout = trim(odir) // '/' // 'jpdf_enst_ri.' // ext // '.txt'
+      CALL dojpdfr(rtmp,'Ri' ,S22 ,'enst',nin,n,fnout,nbins,0,fmin,fmax,[0,dolog])
+      fnout = trim(odir) // '/' // 'jpdf_ri_hel.' // ext // '.txt'
+      CALL dojpdfr(S13,'rhel',rtmp,'Ri'  ,nin,n,fnout,nbins,0,fmin,fmax,[0,dolog])
+      fnout = trim(odir) // '/' // 'jpdf_lamb_ri.' // ext // '.txt'
+      CALL dojpdfr(rtmp,'Ri',lambda,'lambda',nin,n,fnout,nbins,0,fmin,fmax,[0,dolog])
+
+      ! Print out skewness and flatness SCALAR data:
+      IF ( myrank.EQ.0 ) THEN
+        fnout = trim(odir) // '/' // 'scskew.txt'
+        OPEN(1,file=trim(fnout),position='append')
+      ! Print out skewness and flatness SCALAR data:
+        WRITE(1,*)ext,ths,ris
+        CLOSE(1)
+        fnout = trim(odir) // '/' // 'scflat.txt'
+        OPEN(1,file=trim(fnout),position='append')
+        WRITE(1,*)ext,thf,rif
+        CLOSE(1)
+      ENDIF
+#endif
+
+      END SUBROUTINE DoKDissJPDF
+!
 !
 !
       SUBROUTINE skewflat(fx,nin,n,skew,flat,s2,s3,s4)
@@ -1536,5 +1571,3 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       END SUBROUTINE Randomize
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!
-!
