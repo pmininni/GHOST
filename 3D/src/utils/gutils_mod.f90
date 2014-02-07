@@ -256,7 +256,7 @@ MODULE gutils
       INTEGER, INTENT(IN)                        :: nin,n,nbins,ifixdr,dolog
       CHARACTER(len=*), INTENT(IN)               :: fname
 
-      REAL(KIND=GP)                              :: del,gmin,gmax
+      REAL(KIND=GP)                              :: del,fbin,gmin,gmax
       REAL(KIND=GP)                              :: gavg,sig,sumr,xnorm
       INTEGER                                    :: i,ibin
       CHARACTER(len=1024)                        :: shead
@@ -280,8 +280,8 @@ MODULE gutils
 
       IF ( ifixdr .le. 0 ) THEN
         ! Compute dynamic range of PDF
-        fmin = MINVAL(Rin(1:nin))
-        fmax = MAXVAL(Rin(1:nin))
+        fmin = MINVAL(Rin,nin)
+        fmax = MAXVAL(Rin,nin)
         IF ( dolog .GT. 0 ) THEN
           fmin = log10(fmin+tiny(1.0_GP))
           fmax = log10(fmax+tiny(1.0_GP))
@@ -329,7 +329,7 @@ MODULE gutils
       ELSE
 !$omp parallel do private (ibin)
         DO i = 1, nin
-          ibin = NINT( (Rin(i) - fmin)/del )
+          ibin = NINT( abs((Rin(i) - fmin)/del) )
           ibin = MIN(MAX(ibin,1),nbins)
 !$omp atomic
           fpdf_(ibin) = fpdf_(ibin) + 1.0_GP
@@ -342,12 +342,12 @@ MODULE gutils
 !     CALL MPI_ALLREDUCE(fpdf_, gpdf_, nbins, MPI_REAL, &
 !                     MPI_SUM, MPI_COMM_WORLD,ierr)
 
-      ! First, do a santy check:
-      ibin = 0
+      ! First, do a sanity check:
+      fbin = 0.0_GP
       DO i = 1, nbins
-        ibin = ibin + fpdf_(i) 
+        fbin = fbin + int(fpdf_(i))
       ENDDO
-      IF (ibin.ne.nin) THEN
+      IF (fbin.ne.real(nin,kind=GP)) THEN
         WRITE (*,*)'dopdfr: inconsistent data: expected: ',nin, ' found: ',ibin
         WRITE (*,*)'dopdfr: fmin=',fmin,' fmax=',fmax,' nbins=',nbins,' dolog=',dolog,' ifixdr=',ifixdr,' del=',del
         STOP
@@ -430,10 +430,10 @@ MODULE gutils
 
       IF ( ifixdr .le. 0 ) THEN
         ! Compute dynamic range of PDF
-        fmin(1) = MINVAL(R1(1:nin))
-        fmax(1) = MAXVAL(R1(1:nin))
-        fmin(2) = MINVAL(R2(1:nin))
-        fmax(2) = MAXVAL(R2(1:nin))
+        fmin(1) = MINVAL(R1,nin)
+        fmax(1) = MAXVAL(R1,nin)
+        fmin(2) = MINVAL(R2,nin)
+        fmax(2) = MAXVAL(R2,nin)
         DO j = 1, 2
           IF ( dolog(j) .GT. 0 ) fmin(j) = log10(fmin(j)+tiny(1.0_GP))
           IF ( dolog(j) .GT. 0 ) fmax(j) = log10(fmax(j)+tiny(1.0_GP))
