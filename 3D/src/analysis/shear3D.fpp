@@ -1062,6 +1062,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       REAL   (KIND=GP)                                          :: fenst,senst
       REAL   (KIND=GP)                                          :: fheli,sheli
       REAL   (KIND=GP)                                          :: flamb,slamb
+      REAL   (KIND=GP)                                          :: den
       INTEGER         , INTENT   (IN)                           :: dolog,nbins(2)
       INTEGER                                                   :: i,j,k,nin,sr
       CHARACTER(len=*), INTENT   (IN)                           :: odir
@@ -1349,8 +1350,8 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
         DO j = 1,n
           DO i = 1,n
-            rtmp(i,j,k) = bvfreq*(bvfreq-rtmp1(i,j,k)) / &
-                          ( S12(i,j,k)**2 + S23(i,j,k)**2 )
+            den = max(S12(i,j,k)**2 + S23(i,j,k)**2,1.0e-2)
+            rtmp(i,j,k) = bvfreq*(bvfreq-rtmp1(i,j,k)) / den
           ENDDO
         ENDDO
       ENDDO
