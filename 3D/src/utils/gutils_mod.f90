@@ -256,9 +256,10 @@ MODULE gutils
       INTEGER, INTENT(IN)                        :: nin,n,nbins,ifixdr,dolog
       CHARACTER(len=*), INTENT(IN)               :: fname
 
-      REAL(KIND=GP)                              :: del,fbin,gmin,gmax
+      REAL(KIND=GP)                              :: del,fbin,gmin,gmax,tmin,tmax,test
       REAL(KIND=GP)                              :: gavg,sig,sumr,xnorm
-      INTEGER                                    :: i,ibin
+      REAL(KIND=GP)                              :: fkeep, gkeep
+      INTEGER                                    :: i,ibin,nkeep
       CHARACTER(len=1024)                        :: shead
 
       IF ( nbins.GT.nbins_       .OR. &
@@ -282,10 +283,6 @@ MODULE gutils
         ! Compute dynamic range of PDF
         fmin = MINVAL(Rin(1:nin),nin)
         fmax = MAXVAL(Rin(1:nin),nin)
-        IF ( dolog .GT. 0 ) THEN
-          fmin = log10(fmin+tiny(1.0_GP))
-          fmax = log10(fmax+tiny(1.0_GP))
-        ENDIF
         CALL MPI_ALLREDUCE(fmin,gmin,1, GC_REAL,      &
                            MPI_MIN,MPI_COMM_WORLD,ierr)
         CALL MPI_ALLREDUCE(fmax,gmax,1, GC_REAL,      &
@@ -293,46 +290,78 @@ MODULE gutils
         fmin = gmin
         fmax = gmax
       ENDIF
+      IF ( dolog .GT. 0 ) THEN
+        fmin = log10(fmin+tiny(1.0_GP))
+        fmax = log10(fmax+tiny(1.0_GP))
+      ENDIF
   
+      tmin = fmin
+      tmax = fmax
+      IF ( dolog .GT. 0 ) THEN
+        tmin = 10.0_GP**(fmin)
+        tmax = 10.0_GP**(fmax)
+      ENDIF
+
+      fkeep = 0.0
       sumr = 0.0_GP
-!$omp parallel do reduction(+:sumr)
+!$omp parallel do private(i)
       DO i = 1, nin
-        sumr  = sumr +  Rin(i)
+        IF ( Rin(i).GE.tmin .AND. Rin(i).LE.tmax ) THEN
+!$omp critical
+          sumr  = sumr +  Rin(i)
+          fkeep = fkeep + 1.0
+!$omp end critical
+        ENDIF
       ENDDO
-      
-      xnorm = 1.0_GP / real(n,kind=GP)**3
+      CALL MPI_ALLREDUCE(fkeep, gkeep, 1, GC_REAL, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
+write(*,*)'dopdf: tmin=',tmin,' tmax=',tmax,' nkeep=',fkeep,' gkeep=',gkeep
+
+      IF ( gkeep .LE. 0.0 ) THEN
+        WRITE(*,*) 'dopdfr: no samples'
+        STOP
+      ENDIF        
+      xnorm = 1.0_GP / gkeep
       CALL MPI_ALLREDUCE(sumr, gavg, 1, GC_REAL, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
       gavg = gavg*xnorm
-
+ 
       ! Compute standard deviation:
       sumr = 0.0_GP
-!$omp parallel do reduction(+:sumr)
+!$omp parallel do 
       DO i = 1, nin
-        sumr  = sumr +  (Rin(i)-gavg)**2
+        IF ( Rin(i).GE.tmin.AND. Rin(i).LE.tmax ) THEN
+!$omp atomic
+          sumr  = sumr +  (Rin(i)-gavg)**2
+        ENDIF
       ENDDO
       CALL MPI_ALLREDUCE(sumr, sig, 1, GC_REAL, &
-                      MPI_SUM, MPI_COMM_WORLD,ierr)
+                        MPI_SUM, MPI_COMM_WORLD,ierr)
       sig = sqrt(sig*xnorm)
-
 
       del = ABS(fmax-fmin)/dble(nbins)
       ! Compute local PDF:
       IF ( dolog .GT. 0 ) THEN
-!$omp parallel do private (ibin)
+!$omp parallel do private (ibin,test)
         DO i = 1, nin
-          ibin = NINT( ( log10(abs(Rin(i)+tiny(1.0_GP))) - fmin )/del+1 )
-          ibin = MIN(MAX(ibin,1),nbins)
+          test = log10(abs(Rin(i))+tiny(1.0_GP))
+          IF ( test .GE.tmin .AND. test.LE.tmax ) THEN
+            ibin = NINT( ( test - fmin )/del+1 )
+            ibin = MIN(MAX(ibin,1),nbins)
 !$omp atomic
-          fpdf_(ibin) = fpdf_(ibin) + 1.0_GP
+            fpdf_(ibin) = fpdf_(ibin) + 1.0_GP
+          ENDIF
         ENDDO
       ELSE
-!$omp parallel do private (ibin)
+!$omp parallel do private (ibin,test)
         DO i = 1, nin
-          ibin = NINT( abs((Rin(i) - fmin)/del) )
-          ibin = MIN(MAX(ibin,1),nbins)
+          test = Rin(i)
+          IF ( test.GE.tmin .AND. test.LE.tmax ) THEN
+            ibin = NINT( ( test - fmin )/del+1 )
+            ibin = MIN(MAX(ibin,1),nbins)
 !$omp atomic
-          fpdf_(ibin) = fpdf_(ibin) + 1.0_GP
+            fpdf_(ibin) = fpdf_(ibin) + 1.0_GP
+          ENDIF
         ENDDO
       ENDIF
 
@@ -346,13 +375,12 @@ MODULE gutils
       fbin = 0.0_GP
 !$omp parallel do reduction(+:fbin)
       DO i = 1, nbins
-        fbin = fbin + int(fpdf_(i))
+        fbin = fbin + fpdf_(i)
       ENDDO
-      IF (fbin.ne.real(nin,kind=GP) ) THEN
-        WRITE (*,*)'dopdfr: inconsistent data: expected: ',nin, ' found: ',fbin
-        WRITE (*,*)'dopdfr: fmin=',fmin,' fmax=',fmax,' nbins=',nbins,' dolog=',dolog,' ifixdr=',ifixdr,' del=',del
-        WRITE (*,*)'dopdfr: file ', fname, ' not written.'
-        RETURN
+      IF (fbin.NE.fkeep ) THEN
+        WRITE (*,*)myrank, ': dopdfr: inconsistent data: expected: ',fkeep, ' found: ',fbin
+        WRITE (*,*)myrank,': dopdfr: fmin=',fmin,' fmax=',fmax,' nbins=',nbins,' dolog=',dolog,' ifixdr=',ifixdr,' del=',del
+        WRITE (*,*)myrank,': dopdfr: file ', fname, ' not written.'
       ENDIF
      
       ! Write PDF to disk:
@@ -361,11 +389,12 @@ MODULE gutils
           fmin = 10.0_GP**fmin
           fmax = 10.0_GP**fmax
         ENDIF
-        WRITE(shead,'(A9,E16.8,A1,E16.8,A7,E16.8,A6,E16.8,A7,I7,A7,I1)') '# range=[', fmin, ',' , fmax, &
-          ']; avg=',gavg,'; sig=',sig,'; nbin=', nbins, '; blog=', dolog   
+        WRITE(shead,'(A9,E16.8,A1,E16.8,A7,E16.8,A6,E16.8,A7,I7,A7,I1,A8,F12.0)') '# range=[', & 
+        fmin, ',' , fmax, ']; avg=',gavg,'; sig=',sig,'; nbin=', nbins, '; blog=', dolog,   &
+        '; nkeep=',gkeep   
         OPEN(1,file=trim(fname))
         WRITE(1,'(A)') trim(shead)
-        WRITE(1,40) gpdf_
+        WRITE(1,40) gpdf_(1:nbins)
    40   FORMAT( E23.15 )
         CLOSE(1)
       ENDIF
@@ -410,9 +439,10 @@ MODULE gutils
       INTEGER         , INTENT   (IN)                :: nin,n,nbins(2),ifixdr,dolog(2)
       CHARACTER(len=*), INTENT   (IN)                :: sR1,sR2,fname
 
-      REAL(KIND=GP)                                  :: del (2),fck,gmin(2),gmax(2)
-      REAL(KIND=GP)                                  :: aa,gavg(2),sumr(2),sig(2),xnorm
-      INTEGER                                        :: i,j,jx,jy
+      REAL(KIND=GP)                                  :: del (2),fck,gmin(2),gmax(2),tmin(2),tmax(2),test(2)
+      REAL(KIND=GP)                                  :: aa,gavg(2),sumr(2),sig(2),xnorm(2)
+      REAL(KIND=GP)                                  :: fkeep(2),gkeep(2),fkeep2,gkeep2
+      INTEGER                                        :: i,j,jx,jy,nkeep(2)
       CHARACTER(len=2048)                            :: shead
 
       IF ( nbins(1).GT.nbins2_(1) .OR. &
@@ -448,42 +478,75 @@ MODULE gutils
         fmax(1:2) = gmax(1:2)
       ENDIF
   
+      tmin(1:2) = fmin(1:2)
+      tmax(1:2) = fmax(1:2)
+      IF ( dolog(1).GT.0 ) THEN
+        tmin(1) = 10.0_GP**fmin(1)
+        tmin(2) = 10.0_GP**fmin(2)
+        tmax(1) = 10.0_GP**fmax(1)
+        tmax(2) = 10.0_GP**fmax(2)
+      ENDIF
 
+      fkeep(1)  = 0.0
       aa = 0.0_GP
-!$omp parallel do reduction(+:aa)
+!$omp parallel do private(i)
       DO i = 1, nin
-        aa  = aa +  R1(i)
+        IF ( R1(i).GE.tmin(1) .AND. R1(i).LE.tmax(1) ) THEN
+!$omp critical
+          aa  = aa +  R1(i)
+          fkeep(1) = fkeep(1) + 1.0
+!$omp end critical
+        ENDIF
       ENDDO
       sumr(1) = aa
-
+  
+      fkeep(2)  = 0.0
       aa = 0.0_GP
-!$omp parallel do reduction(+:aa)
+!$omp parallel do 
       DO i = 1, nin
-        aa  = aa +  R2(i)
-      ENDDO
-      sumr(2) = aa
+        IF ( R2(i).GE.tmin(2) .AND. R2(i).LE.tmax(2) ) THEN
+!$omp critical
+          aa  = aa +  R2(i)
+          fkeep(2) = fkeep(2) + 1.0
+!$omp end critical
+        ENDIF
+       ENDDO
+       sumr(2) = aa
 
-      xnorm = 1.0_GP/real(n,kind=GP)**3
+      CALL MPI_ALLREDUCE(fkeep, gkeep, 2, GC_REAL, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
+      IF ( gkeep(1) .LE. 0.0 .OR. gkeep(1).LE.0.0  ) THEN
+        WRITE(*,*) 'dopdfr: no samples'
+        STOP
+      ENDIF        
+
+      xnorm(1:2) = 1.0_GP/gkeep(1:2)
       CALL MPI_ALLREDUCE(sumr, gavg, 2, GC_REAL, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
-      gavg(1:2) = gavg(1:2)*xnorm
+      gavg(1:2) = gavg(1:2)*xnorm(1:2)
 
       aa = 0.0_GP
-!$omp parallel do reduction(+:aa)
+!$omp parallel do 
       DO i = 1, nin
-        aa  = aa +  (R1(i)-gavg(1))**2
+        IF ( R1(i).GE.tmin(1) .AND. R1(i).LE.tmax(1) ) THEN
+!$omp atomic
+          aa  = aa +  (R1(i)-gavg(1))**2
+        ENDIF
       ENDDO
       sumr(1) = aa
 
       aa = 0.0_GP
-!$omp parallel do reduction(+:aa)
+!$omp parallel do 
       DO i = 1, nin
-        aa  = aa +  (R2(i)-gavg(2))**2
+        IF ( R2(i).GE.tmin(2) .AND. R2(i).LE.tmax(2) ) THEN
+!$omp atomic
+         aa  = aa +  (R2(i)-gavg(2))**2
+        ENDIF
       ENDDO
       sumr(2) = aa
       CALL MPI_ALLREDUCE(sumr, sig, 2, GC_REAL, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
-      sig(1:2) = sqrt(sig(1:2)*xnorm)
+      sig(1:2) = sqrt(sig(1:2)*xnorm(1:2))
 
 
       ! Compute local PDF:
@@ -491,48 +554,80 @@ MODULE gutils
         del (j) = ABS(fmax(j)-fmin(j))/dble(nbins(j))
       ENDDO
 
+      fkeep2 = 0.0
       ! Compute local PDF:
-      IF        ( dolog(1).GT.0 .AND. dolog(2).GT.0 ) THEN
-!$omp parallel do private (jx,jy) 
+      IF ( dolog(1).GT.0 .AND. dolog(2).GT.0 ) THEN
+!$omp parallel do private (jx,jy,test) 
         DO i = 1, nin
-          jx  = NINT( ( log10(abs(R1(i))+tiny(1.0_GP)) - fmin(1) )/del(1) )
-          jx  = MIN(MAX(jx,1),nbins(1))
-          jy  = NINT( ( log10(abs(R2(i))+tiny(1.0_GP)) - fmin(2) )/del(2) )
-          jy  = MIN(MAX(jy,1),nbins(2))
+          test(1) = log10(abs(R1(i))+tiny(1.0_GP))
+          test(2) = log10(abs(R2(i))+tiny(1.0_GP))
+          IF ( test(1).GE.tmin(1) .AND. test(1).LE.tmax(1) .AND. &
+               test(2).GE.tmin(2) .AND. test(2).LE.tmax(2) ) THEN
+            jx  = NINT( ( test(1) - fmin(1) )/del(1) )
+            jx  = MIN(MAX(jx,1),nbins(1))
+            jy  = NINT( ( test(2) - fmin(2) )/del(2) )
+            jy  = MIN(MAX(jy,1),nbins(2))
 !$omp atomic
-          fpdf2_(jx,jy) = fpdf2_(jx,jy) + 1.0_GP
+            fpdf2_(jx,jy) = fpdf2_(jx,jy) + 1.0_GP
+!$omp atomic
+            fkeep2 = fkeep2 + 1.0
+          ENDIF
         ENDDO
       ELSE IF ( dolog(1).GT.0 .AND. dolog(2).LE.0 ) THEN
-!$omp parallel do private (jx,jy) 
+!$omp parallel do private (jx,jy,test) 
         DO i = 1, nin
-          jx  = NINT( ( log10(abs(R1(i))+tiny(1.0_GP)) - fmin(1) )/del(1) )
-          jx  = MIN(MAX(jx,1),nbins(1))
-          jy  = NINT( (R2(i) - fmin(2))/del(2))
-          jy  = MIN(MAX(jy,1),nbins(2))
+          test(1) = log10(abs(R1(i))+tiny(1.0_GP))
+          test(2) = R2(i)
+          IF ( test(1).GE.tmin(1) .AND. test(1).LE.tmax(1) .AND. &
+               test(2).GE.tmin(2) .AND. test(2).LE.tmax(2) ) THEN
+            jx  = NINT( ( test(1) - fmin(1) )/del(1) )
+            jx  = MIN(MAX(jx,1),nbins(1))
+            jy  = NINT( ( test(2) - fmin(2) )/del(2) )
+            jy  = MIN(MAX(jy,1),nbins(2))
 !$omp atomic
-          fpdf2_(jx,jy) = fpdf2_(jx,jy) + 1.0_GP
+            fpdf2_(jx,jy) = fpdf2_(jx,jy) + 1.0_GP
+!$omp atomic
+            fkeep2 = fkeep2 + 1.0
+          ENDIF
         ENDDO
       ELSE IF ( dolog(1).LE.0 .AND. dolog(2).GT.0 ) THEN
-!$omp parallel do private (jx,jy) 
+!$omp parallel do private (jx,jy,test) 
         DO i = 1, nin
-          jx  = NINT( (R1(i) - fmin(1))/del(1)) 
-          jx  = MIN(MAX(jx,1),nbins(1))
-          jy  = NINT( ( log10(abs(R2(i))+tiny(1.0_GP)) - fmin(2) )/del(2) )
-          jy  = MIN(MAX(jy,1),nbins(2))
+          test(1) = R1(i)
+          test(2) = log10(abs(R2(i))+tiny(1.0_GP))
+          IF ( test(1).GE.tmin(1) .AND. test(1).LE.tmax(1) .AND. &
+               test(2).GE.tmin(2) .AND. test(2).LE.tmax(2) ) THEN
+            jx  = NINT( ( test(1) - fmin(1) )/del(1) )
+            jx  = MIN(MAX(jx,1),nbins(1))
+            jy  = NINT( ( test(2) - fmin(2) )/del(2) )
+            jy  = MIN(MAX(jy,1),nbins(2))
 !$omp atomic
-          fpdf2_(jx,jy) = fpdf2_(jx,jy) + 1.0_GP
+            fpdf2_(jx,jy) = fpdf2_(jx,jy) + 1.0_GP
+!$omp atomic
+            fkeep2 = fkeep2 + 1.0
+          ENDIF
         ENDDO
       ELSE IF ( dolog(1).LE.0 .AND. dolog(2).LE.0 ) THEN
-!$omp parallel do private (jx,jy) 
+!$omp parallel do private (jx,jy,test) 
         DO i = 1, nin
-          jx  = NINT( (R1(i) - fmin(1))/del(1)) 
-          jx  = MIN(MAX(jx,1),nbins(1))
-          jy  = NINT( (R2(i) - fmin(2))/del(2))
-          jy  = MIN(MAX(jy,1),nbins(2))
+          test(1) = R1(i)
+          test(2) = R2(i)
+          IF ( test(1).GE.tmin(1) .AND. test(1).LE.tmax(1) .AND. &
+               test(2).GE.tmin(2) .AND. test(2).LE.tmax(2) ) THEN
+            jx  = NINT( ( test(1) - fmin(1) )/del(1) )
+            jx  = MIN(MAX(jx,1),nbins(1))
+            jy  = NINT( ( test(2) - fmin(2) )/del(2) )
+            jy  = MIN(MAX(jy,1),nbins(2))
 !$omp atomic
-          fpdf2_(jx,jy) = fpdf2_(jx,jy) + 1.0_GP
+            fpdf2_(jx,jy) = fpdf2_(jx,jy) + 1.0_GP
+!$omp atomic
+            fkeep2 = fkeep2 + 1.0
+          ENDIF
         ENDDO
       ENDIF
+     
+      CALL MPI_ALLREDUCE(fkeep2, gkeep2, 1, GC_REAL, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
 
       ! Compute global reduction between MPI tasks:
       CALL MPI_REDUCE(fpdf2_, gpdf2_, nbins(1)*nbins(2), MPI_REAL, &
@@ -542,13 +637,14 @@ MODULE gutils
       IF ( myrank.eq.0 ) THEN
 ! Check:
         fck = 0.0_GP
+!$omp parallel do private(j) reduction(+:fck)
         DO i = 1, nbins(1)
           DO j = 1, nbins(2)
             fck = fck + fpdf2_(i,j)
           ENDDO
         ENDDO
-        IF ( fck .ne. real(nin,kind=GP) ) THEN
-          WRITE(*,*)'dojpdfr: inconsistent data: nin=',nin, ' no. samples: ', fck
+        IF ( fck .ne. fkeep2 ) THEN
+          WRITE(*,*)'dojpdfr: inconsistent data: expected: fkeep=',fkeep2, ' found: ', fck
           STOP
         ENDIF
         DO j = 1, 2
@@ -556,10 +652,10 @@ MODULE gutils
           IF ( dolog(j) .GT. 0 ) fmax(j) = 10.0_GP**fmax(j)
         ENDDO
 
-        WRITE(shead,'(A1,2(A4,A6,E16.8,A1,E16.8,A3,A4,A5,E16.8,A2,A4,A5,E16.8,A2),A6,I7,A1,I7,A9,I1,A1,I1,A1)') '#',&
+        WRITE(shead,'(A1,2(A4,A6,E16.8,A1,E16.8,A3,A4,A5,E16.8,A2,A4,A5,E16.8,A2),A6,I7,A1,I7,A9,I1,A1,I1,A10,F12.0,A1,F12.0,A1)') '#',&
         sR1(1:4),'_rng=[',fmin(1),',',fmax(1),']; ',sR1(1:4),'_avg=',gavg(1),'; ',sR1(1:4),'_sig=',sig(1),'; ',&
         sR2(1:4),'_rng=[',fmin(2),',',fmax(2),']; ',sR2(1:4),'_avg=',gavg(2),'; ',sR2(1:4),'_sig=',sig(2),'; ',&
-        'nbin=[', nbins(1),',',nbins(2), ']; blog=[', dolog(1),',',dolog(2),']'   
+        'nbin=[', nbins(1),',',nbins(2), ']; blog=[', dolog(1),',',dolog(2),']; nkeep=',gkeep2
          OPEN(1,file=fname)
          WRITE(1,'(A)') trim(shead)
          WRITE(1,40) gpdf2_

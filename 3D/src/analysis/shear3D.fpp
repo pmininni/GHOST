@@ -1,4 +1,15 @@
+#ifdef PROTH_SOL
 #define SCALAR_
+#endif
+
+#ifdef BOUSS_SOL
+#define SCALAR_
+#endif
+
+#ifdef ROTBOUSS_SOL
+#define SCALAR_
+#endif
+
 
       PROGRAM SHEAR3D
 !=================================================================
@@ -328,7 +339,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
           END DO
         END DO
 
-#if 1
+#if defined(SCALAR_)
         indt = (istat(it)-1)*tstep
         CALL tbouss(vx,vy,vz,th,indt,dt,omega,bvfreq)
 #endif
@@ -1255,7 +1266,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
               xnormi = 1.0_GP/xnorm
             ENDIF
             S13 (i,j,k) = S13(i,j,k) * xnormi
-            S13 (i,j,k) = sr*min(abs(S13(i,j,k)),1.0)
+            S13 (i,j,k) = sr*min(abs(S13(i,j,k)),1.0_GP)
           ENDDO
         ENDDO
       ENDDO
@@ -1356,7 +1367,9 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
         ENDDO
       ENDDO
       fnout = trim(odir) // '/' // 'riipdf.' // ext // '.txt'
-      CALL dopdfr(rtmp,nin,n,'riipdf.'//ext//'.txt',nbins(1),0,fmin(1),fmax(1),0) 
+      fmin(1) = -10.0;
+      fmax(1) =  10.0;
+      CALL dopdfr(rtmp,nin,n,'riipdf.'//ext//'.txt',nbins(1),1,fmin(1),fmax(1),0) 
       CALL skewflat(rtmp,nin,n,ris,rif,s2,s3,s4)       ! Ri
       ! Compute joint PDF for Richardson no. and diss:
       fnout = trim(odir) // '/' // 'jpdf_diss_ri.' // ext // '.txt'
