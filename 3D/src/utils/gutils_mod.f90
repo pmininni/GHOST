@@ -257,8 +257,9 @@ MODULE gutils
       CHARACTER(len=*), INTENT(IN)               :: fname
 
       REAL(KIND=GP)                              :: del,fbin,gmin,gmax,tmin,tmax,test
+      REAL(KIND=GP)                              :: fmin1,fmax1
       REAL(KIND=GP)                              :: gavg,sig,sumr,xnorm
-      REAL(KIND=GP)                              :: fkeep, gkeep
+      REAL(KIND=GP)                              :: fkeep,gkeep
       INTEGER                                    :: i,ibin,nkeep
       CHARACTER(len=1024)                        :: shead
 
@@ -280,11 +281,11 @@ MODULE gutils
       ENDDO
 
       ! Compute dynamic range of PDF
-      fmin = MINVAL(Rin(1:nin),nin)
-      fmax = MAXVAL(Rin(1:nin),nin)
-      CALL MPI_ALLREDUCE(fmin,gmin,1, GC_REAL,      &
+      fmin1 = MINVAL(Rin(1:nin),nin)
+      fmax1 = MAXVAL(Rin(1:nin),nin)
+      CALL MPI_ALLREDUCE(fmin1,gmin,1, GC_REAL,      &
                          MPI_MIN,MPI_COMM_WORLD,ierr)
-      CALL MPI_ALLREDUCE(fmax,gmax,1, GC_REAL,      &
+      CALL MPI_ALLREDUCE(fmax1,gmax,1, GC_REAL,      &
                          MPI_MAX,MPI_COMM_WORLD,ierr)
       IF ( ifixdr .le. 0 ) THEN
         fmin = gmin
@@ -323,7 +324,7 @@ MODULE gutils
                       MPI_SUM, MPI_COMM_WORLD,ierr)
 !write(*,*)'dopdf: tmin=',tmin,' tmax=',tmax,' nkeep=',fkeep,' gkeep=',gkeep
 
-      IF ( gkeep .LE. 0.0 .AND.myrank.EQ.0 ) THEN
+      IF ( gkeep .LE. 0.0 ) THEN
         WRITE(*,*) myrank,': dopdfr: no samples: fmin,fmax=',fmin,fmax,'gmin,gmax=',gmin,gmax
         RETURN
       ENDIF        
@@ -384,7 +385,7 @@ MODULE gutils
         fbin = fbin + fpdf_(i)
       ENDDO
       IF (fbin.NE.fkeep ) THEN
-        WRITE (*,*)myrank, ': dopdfr: inconsistent data: expected: ',fkeep, ' found: ',fbin
+        WRITE (*,*)myrank,': dopdfr: inconsistent data: expected: ',fkeep, ' found: ',fbin
         WRITE (*,*)myrank,': dopdfr: fmin=',fmin,' fmax=',fmax,' nbins=',nbins,' dolog=',dolog,' ifixdr=',ifixdr,' del=',del
         WRITE (*,*)myrank,': dopdfr: file ', fname, ' not written.'
       ENDIF
@@ -397,7 +398,7 @@ MODULE gutils
         ENDIF
         WRITE(shead,'(A9,E16.8,A1,E16.8,A7,E16.8,A6,E16.8,A7,I7,A7,I1,A8,F12.0)') '# range=[', & 
         fmin, ',' , fmax, ']; avg=',gavg,'; sig=',sig,'; nbin=', nbins, '; blog=', dolog,   &
-        '; nkeep=',gkeep   
+        '; nkeep=',gkeep
         OPEN(1,file=trim(fname))
         WRITE(1,'(A)') trim(shead)
         WRITE(1,40) gpdf_(1:nbins)
@@ -446,6 +447,7 @@ MODULE gutils
       CHARACTER(len=*), INTENT   (IN)                :: sR1,sR2,fname
 
       REAL(KIND=GP)                                  :: del (2),fck,gmin(2),gmax(2),tmin(2),tmax(2),test(2)
+      REAL(KIND=GP)                                  :: fmin1(2),fmax1(2)
       REAL(KIND=GP)                                  :: aa,gavg(2),sumr(2),sig(2),xnorm(2)
       REAL(KIND=GP)                                  :: fkeep(2),gkeep(2),fkeep2,gkeep2
       INTEGER                                        :: i,j,jx,jy,nkeep(2)
@@ -467,22 +469,22 @@ MODULE gutils
       gpdf2_(1:nbins(1),1:nbins(2)) = 0.0_GP
 
       ! Compute dynamic range of PDF
-      fmin(1) = MINVAL(R1(1:nin),nin)
-      fmax(1) = MAXVAL(R1(1:nin),nin)
-      fmin(2) = MINVAL(R2(1:nin),nin)
-      fmax(2) = MAXVAL(R2(1:nin),nin)
-      DO j = 1, 2
-        IF ( dolog(j) .GT. 0 ) fmin(j) = log10(fmin(j)+tiny(1.0_GP))
-        IF ( dolog(j) .GT. 0 ) fmax(j) = log10(fmax(j)+tiny(1.0_GP))
-      ENDDO
-      CALL MPI_ALLREDUCE(fmin,gmin,2, GC_REAL,      &
+      fmin1(1) = MINVAL(R1(1:nin),nin)
+      fmax1(1) = MAXVAL(R1(1:nin),nin)
+      fmin1(2) = MINVAL(R2(1:nin),nin)
+      fmax1(2) = MAXVAL(R2(1:nin),nin)
+      CALL MPI_ALLREDUCE(fmin1,gmin,2, GC_REAL,      &
                          MPI_MIN,MPI_COMM_WORLD,ierr)
-      CALL MPI_ALLREDUCE(fmax,gmax,2, GC_REAL,      &
+      CALL MPI_ALLREDUCE(fmax1,gmax,2, GC_REAL,      &
                          MPI_MAX,MPI_COMM_WORLD,ierr)
       IF ( ifixdr .le. 0 ) THEN
         fmin(1:2) = gmin(1:2)
         fmax(1:2) = gmax(1:2)
       ENDIF
+      DO j = 1, 2
+        IF ( dolog(j) .GT. 0 ) fmin(j) = log10(fmin(j)+tiny(1.0_GP))
+        IF ( dolog(j) .GT. 0 ) fmax(j) = log10(fmax(j)+tiny(1.0_GP))
+      ENDDO
   
       tmin(1:2) = fmin(1:2)
       tmax(1:2) = fmax(1:2)
@@ -522,7 +524,7 @@ MODULE gutils
       CALL MPI_ALLREDUCE(fkeep, gkeep, 2, GC_REAL, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
       IF ( gkeep(1) .LE. 0.0 .OR. gkeep(1).LE.0.0  ) THEN
-        WRITE(*,*) 'dopdfr: no samples, fmin=',fmin(1:2), ' fmax=',fmax(1:2), ' gmin==',gmin(1:2),' gmax=',gmax(1:2)
+        WRITE(*,*) 'dojpdfr: no samples, fmin=',fmin(1:2), ' fmax=',fmax(1:2), ' gmin==',gmin(1:2),' gmax=',gmax(1:2)
         STOP
       ENDIF        
 
