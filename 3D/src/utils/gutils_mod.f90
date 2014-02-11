@@ -279,14 +279,14 @@ MODULE gutils
        gpdf_(i) = 0.0_GP
       ENDDO
 
+      ! Compute dynamic range of PDF
+      fmin = MINVAL(Rin(1:nin),nin)
+      fmax = MAXVAL(Rin(1:nin),nin)
+      CALL MPI_ALLREDUCE(fmin,gmin,1, GC_REAL,      &
+                         MPI_MIN,MPI_COMM_WORLD,ierr)
+      CALL MPI_ALLREDUCE(fmax,gmax,1, GC_REAL,      &
+                         MPI_MAX,MPI_COMM_WORLD,ierr)
       IF ( ifixdr .le. 0 ) THEN
-        ! Compute dynamic range of PDF
-        fmin = MINVAL(Rin(1:nin),nin)
-        fmax = MAXVAL(Rin(1:nin),nin)
-        CALL MPI_ALLREDUCE(fmin,gmin,1, GC_REAL,      &
-                           MPI_MIN,MPI_COMM_WORLD,ierr)
-        CALL MPI_ALLREDUCE(fmax,gmax,1, GC_REAL,      &
-                           MPI_MAX,MPI_COMM_WORLD,ierr)
         fmin = gmin
         fmax = gmax
       ENDIF
@@ -302,24 +302,30 @@ MODULE gutils
         tmax = 10.0_GP**(fmax)
       ENDIF
 
-      fkeep = 0.0
       sumr = 0.0_GP
 !$omp parallel do private(i)
       DO i = 1, nin
         IF ( Rin(i).GE.tmin .AND. Rin(i).LE.tmax ) THEN
-!$omp critical
+!$omp atomic
           sumr  = sumr +  Rin(i)
+        ENDIF
+      ENDDO
+
+      fkeep = 0.0
+!$omp parallel do private(i)
+      DO i = 1, nin
+        IF ( Rin(i).GE.tmin .AND. Rin(i).LE.tmax ) THEN
+!$omp atomic
           fkeep = fkeep + 1.0
-!$omp end critical
         ENDIF
       ENDDO
       CALL MPI_ALLREDUCE(fkeep, gkeep, 1, GC_REAL, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
-write(*,*)'dopdf: tmin=',tmin,' tmax=',tmax,' nkeep=',fkeep,' gkeep=',gkeep
+!write(*,*)'dopdf: tmin=',tmin,' tmax=',tmax,' nkeep=',fkeep,' gkeep=',gkeep
 
-      IF ( gkeep .LE. 0.0 ) THEN
-        WRITE(*,*) 'dopdfr: no samples'
-        STOP
+      IF ( gkeep .LE. 0.0 .AND.myrank.EQ.0 ) THEN
+        WRITE(*,*) myrank,': dopdfr: no samples: fmin,fmax=',fmin,fmax,'gmin,gmax=',gmin,gmax
+        RETURN
       ENDIF        
       xnorm = 1.0_GP / gkeep
       CALL MPI_ALLREDUCE(sumr, gavg, 1, GC_REAL, &
@@ -460,20 +466,20 @@ write(*,*)'dopdf: tmin=',tmin,' tmax=',tmax,' nkeep=',fkeep,' gkeep=',gkeep
       fpdf2_(1:nbins(1),1:nbins(2)) = 0.0_GP
       gpdf2_(1:nbins(1),1:nbins(2)) = 0.0_GP
 
+      ! Compute dynamic range of PDF
+      fmin(1) = MINVAL(R1(1:nin),nin)
+      fmax(1) = MAXVAL(R1(1:nin),nin)
+      fmin(2) = MINVAL(R2(1:nin),nin)
+      fmax(2) = MAXVAL(R2(1:nin),nin)
+      DO j = 1, 2
+        IF ( dolog(j) .GT. 0 ) fmin(j) = log10(fmin(j)+tiny(1.0_GP))
+        IF ( dolog(j) .GT. 0 ) fmax(j) = log10(fmax(j)+tiny(1.0_GP))
+      ENDDO
+      CALL MPI_ALLREDUCE(fmin,gmin,2, GC_REAL,      &
+                         MPI_MIN,MPI_COMM_WORLD,ierr)
+      CALL MPI_ALLREDUCE(fmax,gmax,2, GC_REAL,      &
+                         MPI_MAX,MPI_COMM_WORLD,ierr)
       IF ( ifixdr .le. 0 ) THEN
-        ! Compute dynamic range of PDF
-        fmin(1) = MINVAL(R1(1:nin),nin)
-        fmax(1) = MAXVAL(R1(1:nin),nin)
-        fmin(2) = MINVAL(R2(1:nin),nin)
-        fmax(2) = MAXVAL(R2(1:nin),nin)
-        DO j = 1, 2
-          IF ( dolog(j) .GT. 0 ) fmin(j) = log10(fmin(j)+tiny(1.0_GP))
-          IF ( dolog(j) .GT. 0 ) fmax(j) = log10(fmax(j)+tiny(1.0_GP))
-        ENDDO
-        CALL MPI_ALLREDUCE(fmin,gmin,2, GC_REAL,      &
-                           MPI_MIN,MPI_COMM_WORLD,ierr)
-        CALL MPI_ALLREDUCE(fmax,gmax,2, GC_REAL,      &
-                           MPI_MAX,MPI_COMM_WORLD,ierr)
         fmin(1:2) = gmin(1:2)
         fmax(1:2) = gmax(1:2)
       ENDIF
@@ -516,7 +522,7 @@ write(*,*)'dopdf: tmin=',tmin,' tmax=',tmax,' nkeep=',fkeep,' gkeep=',gkeep
       CALL MPI_ALLREDUCE(fkeep, gkeep, 2, GC_REAL, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
       IF ( gkeep(1) .LE. 0.0 .OR. gkeep(1).LE.0.0  ) THEN
-        WRITE(*,*) 'dopdfr: no samples'
+        WRITE(*,*) 'dopdfr: no samples, fmin=',fmin(1:2), ' fmax=',fmax(1:2), ' gmin==',gmin(1:2),' gmax=',gmax(1:2)
         STOP
       ENDIF        
 
