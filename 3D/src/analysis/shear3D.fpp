@@ -31,9 +31,10 @@
 !   http://www.geometrictools.com
 !   (c) 1998-2012, May 2011 
 !
-! Finally, if jpdf=1, jpoint and 1d pdfs of energy dissipation and 
-! entrophy density, energy diss and lambda, and energy diss and (relative?)
-! helicity will be computed and written.
+! If jpdf=1, jpoint and 1d pdfs of energy dissipation and 
+! entrophy density, energy diss and lambda, energy diss and (relative?)
+! helicity will be computed and written, as will a variety of other 
+! 1d and joint PDFs.
 !
 !
 ! 2013 D. Rosenberg
@@ -85,14 +86,14 @@
       REAL   (KIND=GP)                                 :: ktmin2,ktmax2
       REAL   (KIND=GP)                                 :: fmin(2),fmax(2)
       REAL   (KIND=GP)                                 :: bvfreq,dt,omega
-      REAL   (KIND=GP)                                 :: sup,suz,sth,fup,fuz,fth
+      REAL   (KIND=GP)                                 :: sheb(3),sup,suz,sth,fup,fuz,fth
 
 !
 ! Auxiliary variables
 
       INTEGER :: i,ic,iir,ind,ir,isolve,iswap,it,j,jc,jjc,k,oswap
       INTEGER :: demean,dolog,ilamb,inorm,istat(1024),jpdf,nstat
-      INTEGER :: irand,nbinx,nbiny,nbins(2),nin,seed
+      INTEGER :: irand,isheb,nbinx,nbiny,nbins(2),nin,seed
       INTEGER :: indt,tstep
 !$    INTEGER, EXTERNAL :: omp_get_max_threads
 
@@ -105,7 +106,7 @@
       CHARACTER(len=2048) :: fntmp1,fntmp2,fntmp3,fntmp4,fntmp5,fntmp6
       CHARACTER(len=4096) :: stat
 !
-      NAMELIST / shear / demean,ilamb,isolve,iswap
+      NAMELIST / shear / demean,ilamb,isheb,isolve,iswap
       NAMELIST / shear / dolog,oswap,idir,odir,pref,stat
       NAMELIST / shear / dismin,dismax,ensmin,ensmax,jpdf,nbinx,nbiny
       NAMELIST / shear / irand,krmin,krmax,seed
@@ -138,6 +139,7 @@
       dolog  = 1
       ilamb  = 0
       irand  = 0
+      isheb  = 0
       isolve = 0
       jpdf   = 1
       krmin  = tiny
@@ -166,6 +168,10 @@
 !              corresponding eigenvector inevx,evy,evz
 !     ilamb  : 1==>write eigenvalue field to disk; 0==>don't
 !     irand  : randomize phases between [krmin,krmax] if 1; else, don't
+!     isheb  : compute Shebaliln angles for total energy, and ke and pe?
+!              ==0: don't compute them;
+!              ==1: Compute angles
+!              ==2: Compute angles and return
 !     krmin  : min wavenumber for randomization if irand=1
 !     krmax  : max wavenumber for randomization if irand=1
 !     jpdf   : 1==>do joint pdf of energy diss and other things; 0==>don't
@@ -186,6 +192,7 @@ write(*,*)'main: shear.txt read.'
       CALL MPI_BCAST(btrunc,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(demean,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(dolog ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(isheb ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(isolve,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilamb ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
@@ -299,8 +306,6 @@ if (myrank.eq.0) write(*,*)'main: reading done.'
           CALL rarray_byte_swap(R2, n*n*(kend-ksta+1))
           CALL rarray_byte_swap(R3, n*n*(kend-ksta+1))
         ENDIF
- 
-
 !
 ! take FFT of component:
 if (myrank.eq.0) write(*,*)'main: real 2 cmplex for vx...'
@@ -338,6 +343,46 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
             END DO
           END DO
         END DO
+
+! Do Shebalin angles:
+#if defined(SCALAR_)
+        IF ( isheb.GT.0 ) THEN
+          CALL  Shebalin(sheb(1),0,vx,vy,vz,th)
+          CALL  Shebalin(sheb(2),1,vx,vy,vz,th)
+          CALL  Shebalin(sheb(3),2,vx,vy,vz,th)
+          ! Print out Shebalin angles:
+          IF ( myrank.EQ.0 ) THEN
+            fnout = trim(odir) // '/' // 'shebalin.txt'
+            OPEN(1,file=trim(fnout),position='append')
+            WRITE(1,*)ext,sheb(1:3)
+            CLOSE(1)
+          ENDIF
+        ENDIF
+#else
+        IF ( isheb.GT.0 ) THEN
+          CALL  Shebalin(sheb(1),0,vx,vy,vz)
+          ! Print out Shebalin angles:
+          IF ( myrank.EQ.0 ) THEN
+            fnout = trim(odir) // '/' // 'shebalin.txt'
+            OPEN(1,file=trim(fnout),position='append')
+            WRITE(1,*)ext,sheb(1)
+            CLOSE(1)
+          ENDIF
+        ENDIF
+#endif
+      IF ( isheb.EQ.2 ) THEN
+        IF ( ALLOCATED(ctmp) ) DEALLOCATE(ctmp); IF ( ALLOCATED (sij) ) DEALLOCATE (sij)
+        IF ( ALLOCATED  (vx) ) DEALLOCATE  (vx); IF ( ALLOCATED  (vy) ) DEALLOCATE  (vy)
+        IF ( ALLOCATED  (vz) ) DEALLOCATE  (vz); IF ( ALLOCATED  (th) ) DEALLOCATE  (th)
+        IF ( ALLOCATED(lamb) ) DEALLOCATE(lamb); IF ( ALLOCATED  (R1) ) DEALLOCATE  (R1)
+        IF ( ALLOCATED  (R2) ) DEALLOCATE  (R2); IF ( ALLOCATED  (R3) ) DEALLOCATE  (R3)
+        IF ( ALLOCATED  (R4) ) DEALLOCATE  (R4); IF ( ALLOCATED  (R5) ) DEALLOCATE  (R5)
+        IF ( ALLOCATED  (R6) ) DEALLOCATE  (R6); IF ( ALLOCATED (evx) ) DEALLOCATE (evx)
+        IF ( ALLOCATED (evy) ) DEALLOCATE (evy); IF ( ALLOCATED (evz) ) DEALLOCATE (evz)
+        IF ( ALLOCATED  (ka) ) DEALLOCATE  (ka) 
+!!      IF ( ALLOCATED (ka2) ) DEALLOCATE (ka2)
+        STOP
+      ENDIF
 
 #if defined(SCALAR_)
         indt = (istat(it)-1)*tstep
@@ -1583,5 +1628,164 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
        ENDIF
   
       END SUBROUTINE Randomize
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+!
+      SUBROUTINE Shebalin(asheb,kin,vx,vy,vz,th)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Compute Shebalin angle measure of anisotrop.
+!
+! Parameters
+!     asheb : returned Shebalin angle measurement
+!     kin   : 
+!       == 0: do total energy; 
+!       == 1: do kinetic energy only; 
+!       == 2: do potential energy only; (done only if th is specified)
+!     vx,
+!     vy,
+!     vz    : complex velocities
+!     th    : optional complex potl temperature
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE gutils
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend)           :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend), OPTIONAL :: th
+      REAL   (KIND=GP), INTENT  (OUT)                           :: asheb
+      REAL   (KIND=GP)                                          :: lasheb
+      REAL   (KIND=GP)                                          :: tmp
+      DOUBLE PRECISION                                          :: kprp,kpar,tmq,lprp,lpar,gprp,gpar,la(2),ga(2)
+      INTEGER         , INTENT (IN)                             :: kin
+      INTEGER                                                   :: i,j,k
+
+      tmq  = 1.0D0/real(n,kind=GP)**6
+
+      lpar = 0.0D0
+      lprp = 0.0D0
+      IF (kin.eq.0 .OR. kin.eq.1) THEN ! total or kinetic energy
+        IF (ista.eq.1) THEN
+!$omp parallel do private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+           DO j = 1,n
+              DO k = 1,n
+                kprp = ka(1)**2 + ka(j)**2
+                kpar = ka(k)**2
+                tmp  = ( abs(vx(k,j,1))**2+abs(vy(k,j,1))**2+          &
+                         abs(vz(k,j,1))**2 )*tmq
+                lprp  = lprp + tmp*kprp
+                lpar  = lpar + tmp*kpar
+              END DO
+           END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+           DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+              DO j = 1,n
+                 DO k = 1,n
+                    kprp = ka(i)**2 + ka(j)**2
+                    kpar = ka(k)**2
+                    tmp  = ( abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+       &
+                             abs(vz(k,j,i))**2 )*tmq
+                    lprp  = lprp + tmp*kprp
+                    lpar  = lpar + tmp*kpar
+                 END DO
+              END DO
+           END DO
+        ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+           DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+              DO j = 1,n
+                 DO k = 1,n
+                    kprp = ka(i)**2 + ka(j)**2
+                    kpar = ka(k)**2
+                    tmp  = ( abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+       &
+                             abs(vz(k,j,i))**2 )*tmq
+                    lprp  = lprp + tmp*kprp
+                    lpar  = lpar + tmp*kpar
+                 END DO
+              END DO
+           END DO
+        ENDIF
+      ENDIF
+
+      IF (kin.EQ.1) THEN ! kinetic energy only
+        la(1) = lprp
+        la(2) = lpar
+        CALL MPI_REDUCE(la,ga,2,MPI_DOUBLE_PRECISION,MPI_SUM,   &
+                        MPI_COMM_WORLD,ierr)
+        asheb  = real(ga(1) / (ga(2) + tiny(1.0_GP)),kind=GP)
+        RETURN
+      ENDIF
+
+      IF (.NOT.PRESENT(th) ) THEN
+        WRITE(*,*) 'Shebalin: potential temperature not provided'
+        STOP
+      ENDIF
+
+      IF (kin.EQ.2) THEN ! if potential energy only
+        lprp = 0.0_GP
+        lpar = 0.0_GP
+      ENDIF
+
+      IF (ista.eq.1) THEN ! add in the potential component
+!$omp parallel do private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+         DO j = 1,n
+            DO k = 1,n
+              kprp = ka(1)**2 + ka(j)**2
+              kpar = ka(k)**2
+              tmp  = ( abs(th(k,j,1))**2 )*tmq
+              lprp  = lprp + tmp*kprp
+              lpar  = lpar + tmp*kpar
+            END DO
+         END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+         DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+            DO j = 1,n
+               DO k = 1,n
+                  kprp = ka(i)**2 + ka(j)**2
+                  kpar = ka(k)**2
+                  tmp  = ( abs(th(k,j,i))**2 )*tmq
+                  lprp  = lprp + tmp*kprp
+                  lpar  = lpar + tmp*kpar
+               END DO
+            END DO
+         END DO
+      ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+            DO j = 1,n
+               DO k = 1,n
+                  kprp = ka(i)**2 + ka(j)**2
+                  kpar = ka(k)**2
+                  tmp  = ( abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+       &
+                           abs(vz(k,j,i))**2 )*tmq
+                  lprp  = lprp + tmp*kprp
+                  lpar  = lpar + tmp*kpar
+               END DO
+            END DO
+         END DO
+      ENDIF
+!
+! Computes the reduction between nodes, store in return variable
+      la(1) = lprp
+      la(2) = lpar
+      CALL MPI_REDUCE(la,ga,2,MPI_DOUBLE_PRECISION,MPI_SUM,   &
+                      MPI_COMM_WORLD,ierr)
+      asheb  = real(ga(1) / (ga(2) + tiny(1.0_GP)),kind=GP)
+
+      END SUBROUTINE Shebalin
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
