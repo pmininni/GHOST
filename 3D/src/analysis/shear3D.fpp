@@ -370,6 +370,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
           ENDIF
         ENDIF
 #endif
+      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
       IF ( isheb.EQ.2 ) THEN
         IF ( ALLOCATED(ctmp) ) DEALLOCATE(ctmp); IF ( ALLOCATED (sij) ) DEALLOCATE (sij)
         IF ( ALLOCATED  (vx) ) DEALLOCATE  (vx); IF ( ALLOCATED  (vy) ) DEALLOCATE  (vy)
@@ -1694,8 +1695,8 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
                  DO k = 1,n
                     kprp = ka(i)**2 + ka(j)**2
                     kpar = ka(k)**2
-                    tmp  = ( abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+       &
-                             abs(vz(k,j,i))**2 )*tmq
+                    tmp  = 2.0*( abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+       &
+                                 abs(vz(k,j,i))**2 )*tmq
                     lprp  = lprp + tmp*kprp
                     lpar  = lpar + tmp*kpar
                  END DO
@@ -1709,8 +1710,8 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
                  DO k = 1,n
                     kprp = ka(i)**2 + ka(j)**2
                     kpar = ka(k)**2
-                    tmp  = ( abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+       &
-                             abs(vz(k,j,i))**2 )*tmq
+                    tmp  = 2.0*( abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+       &
+                                 abs(vz(k,j,i))**2 )*tmq
                     lprp  = lprp + tmp*kprp
                     lpar  = lpar + tmp*kpar
                  END DO
@@ -1722,7 +1723,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       IF (kin.EQ.1) THEN ! kinetic energy only
         la(1) = lprp
         la(2) = lpar
-        CALL MPI_REDUCE(la,ga,2,MPI_DOUBLE_PRECISION,MPI_SUM,   &
+        CALL MPI_ALLREDUCE(la,ga,2,MPI_DOUBLE_PRECISION,MPI_SUM,   &
                         MPI_COMM_WORLD,ierr)
         asheb  = real(ga(1) / (ga(2) + tiny(1.0_GP)),kind=GP)
         RETURN
@@ -1756,7 +1757,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
                DO k = 1,n
                   kprp = ka(i)**2 + ka(j)**2
                   kpar = ka(k)**2
-                  tmp  = ( abs(th(k,j,i))**2 )*tmq
+                  tmp  = 2.0*( abs(th(k,j,i))**2 )*tmq
                   lprp  = lprp + tmp*kprp
                   lpar  = lpar + tmp*kpar
                END DO
@@ -1770,7 +1771,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
                DO k = 1,n
                   kprp = ka(i)**2 + ka(j)**2
                   kpar = ka(k)**2
-                  tmp  = ( abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+       &
+                  tmp  = 2.0*( abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+       &
                            abs(vz(k,j,i))**2 )*tmq
                   lprp  = lprp + tmp*kprp
                   lpar  = lpar + tmp*kpar
@@ -1782,8 +1783,8 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 ! Computes the reduction between nodes, store in return variable
       la(1) = lprp
       la(2) = lpar
-      CALL MPI_REDUCE(la,ga,2,MPI_DOUBLE_PRECISION,MPI_SUM,   &
-                      MPI_COMM_WORLD,ierr)
+      CALL MPI_ALLREDUCE(la,ga,2,MPI_DOUBLE_PRECISION,MPI_SUM,   &
+                        MPI_COMM_WORLD,ierr)
       asheb  = real(ga(1) / (ga(2) + tiny(1.0_GP)),kind=GP)
 
       END SUBROUTINE Shebalin
