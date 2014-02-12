@@ -139,7 +139,7 @@
       dolog  = 1
       ilamb  = 0
       irand  = 0
-      isheb  = 0
+      isheb  = 1
       isolve = 0
       jpdf   = 1
       krmin  = tiny
