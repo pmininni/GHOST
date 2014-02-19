@@ -1476,31 +1476,35 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 
       xnorm = 1.0_GP / dble(n)**3
       s2 = 0.0D0
-!$omp parallel do private(j) reduction(+:s2)
+!$omp parallel do default(shared) private(j) reduction(+:s2)
       DO j = 1, nin
         s2 = s2 + xnorm*dble(fx(j))
       ENDDO
+!$omp end parallel do
 
       CALL MPI_ALLREDUCE(s2, avg, 1, MPI_DOUBLE_PRECISION, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
 
       s2 = 0.0D0
-!$omp parallel do private(j) reduction(+:s2)
+!$omp parallel do default(shared) private(j) reduction(+:s2)
       DO j = 1, nin
         s2 = s2 + xnorm*(dble(fx(j))-avg)**2
       ENDDO
+!$omp end parallel do
 
       s3 = 0.0D0
-!$omp parallel do private(j) reduction(+:s3)
+!$omp parallel do default(shared) private(j) reduction(+:s3)
       DO j = 1, nin
         s3 = s3 + xnorm*(dble(fx(j))-avg)**3
       ENDDO
+!$omp end parallel do
 
       s4 = 0.0D0
-!$omp parallel do private(j) reduction(+:s4)
+!$omp parallel do default(shared) private(j) reduction(+:s4)
       DO j = 1, nin
         s4 = s4 + xnorm*(dble(fx(j))-avg)**4
       ENDDO
+!$omp end parallel do
 
       s(1)=s2; s(2)=s3; s(3)=s4
       CALL MPI_ALLREDUCE(s, gs, 3, MPI_DOUBLE_PRECISION, &
@@ -1571,7 +1575,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
         ENDIF
       ENDDO
 
-      !$omp parallel do
+!$omp parallel do
       DO k = 2,n/2+1
         IF ( ka2(k,1,1).gt.krmin2 .and. ka2(k,1,1).lt.krmax2 ) THEN
         fx    (k,1,1) = fx    (k,1,1)*cdump
@@ -1582,6 +1586,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
         fz(n-k+2,1,1) = fz(n-k+2,1,1)*jdump
         ENDIF
       END DO
+!$omp end parallel do
       
 !$omp parallel do private (k)
       DO j = 2,n
@@ -1596,6 +1601,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
           ENDIF
         ENDDO
       ENDDO
+!$omp end parallel do
 
 
 !$omp parallel do if (iend-2.ge.nth) private (j,k)
