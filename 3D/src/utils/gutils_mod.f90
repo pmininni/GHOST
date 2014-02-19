@@ -249,6 +249,7 @@ MODULE gutils
       USE fprecision
       USE commtypes
       USE mpivars
+      USE gtimer
 !$    USE threads
       IMPLICIT NONE
 
@@ -261,7 +262,7 @@ MODULE gutils
       REAL(KIND=GP)                              :: fmin1,fmax1
       REAL(KIND=GP)                              :: gavg,sig,sumr,xnorm
       REAL                                       :: fbin,fkeep,gkeep
-      INTEGER                                    :: i,ibin,nkeep
+      INTEGER                                    :: hwrite,i,ibin,nkeep
       CHARACTER(len=1024)                        :: shead
 
       IF ( .NOT. ALLOCATED(ikeep_) .OR. nin.GT.nikeep_ ) THEN
@@ -320,6 +321,7 @@ MODULE gutils
 !$omp end critical
         ENDIF
       ENDDO
+!$omp end parallel do 
 
       nkeep = int(fkeep)
 
@@ -337,10 +339,11 @@ MODULE gutils
       xnorm = 1.0_GP / gkeep
 
       sumr = 0.0_GP
-!$omp parallel do private(i) reduction(+:sumr)
+!$omp parallel do default(shared) private(i) reduction(+:sumr)
       DO i = 1, nkeep
         sumr  = sumr +  Rin(ikeep_(i))
       ENDDO
+!$omp end parallel do 
 
       CALL MPI_ALLREDUCE(sumr, gavg, 1, GC_REAL, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
@@ -348,10 +351,11 @@ MODULE gutils
  
       ! Compute standard deviation:
       sumr = 0.0_GP
-!$omp parallel do private(i) reduction(+:sumr)
+!$omp parallel do default(shared) private(i) reduction(+:sumr)
       DO i = 1, nkeep
         sumr  = sumr +  (Rin(ikeep_(i))-gavg)**2
       ENDDO
+!$omp end parallel do 
       CALL MPI_ALLREDUCE(sumr, sig, 1, GC_REAL, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
       sig = sqrt(sig*xnorm)
@@ -367,6 +371,7 @@ MODULE gutils
 !$omp atomic
           fpdf_(ibin) = fpdf_(ibin) + 1.0_GP
         ENDDO
+!$omp end parallel do 
       ELSE
 !$omp parallel do private (ibin,test)
         DO i = 1, nkeep
@@ -376,14 +381,16 @@ MODULE gutils
 !$omp atomic
           fpdf_(ibin) = fpdf_(ibin) + 1.0_GP
         ENDDO
+!$omp end parallel do 
       ENDIF
 
       ! First, do a sanity check:
       fbin = 0.0
-!$omp parallel do reduction(+:fbin)
+!$omp parallel do default(shared) reduction(+:fbin)
       DO i = 1, nbins
         fbin = fbin + fpdf_(i)
       ENDDO
+!$omp end parallel do 
       IF (fbin.NE.fkeep ) THEN
         WRITE (*,*)myrank,': dopdfr: inconsistent data: expected: ',fkeep, ' found: ',fbin
         WRITE (*,*)myrank,': dopdfr: fmin=',fmin,' fmax=',fmax,' nbins=',nbins,' dolog=',dolog,' ifixdr=',ifixdr,' del=',del
@@ -399,7 +406,9 @@ MODULE gutils
       ENDIF
 
       ! Write PDF to disk:
+      CALL GTStart(hwrite,GT_WTIME)
       IF ( myrank.eq.0 ) THEN
+
         IF ( dolog .GT. 0 ) THEN
           fmin = 10.0_GP**fmin
           fmax = 10.0_GP**fmax
@@ -412,8 +421,10 @@ MODULE gutils
         WRITE(1,40) gpdf_(1:nbins)
    40   FORMAT( E23.15 )
         CLOSE(1)
+        CALL GTStop(hwrite)
+        write(*,*)'dopdf: file: ',trim(fname),': write time: ',GTGetTime(hwrite)
       ENDIF
- 
+      CALL GTFree(hwrite)
       RETURN
 
       END SUBROUTINE dopdfr
@@ -446,6 +457,7 @@ MODULE gutils
       USE fprecision
       USE commtypes
       USE mpivars
+      USE gtimer
 !$    USE threads
       IMPLICIT NONE
 
@@ -458,7 +470,7 @@ MODULE gutils
       REAL(KIND=GP)                                  :: fmin1(2),fmax1(2)
       REAL(KIND=GP)                                  :: aa,gavg(2),sumr(2),sig(2),xnorm(2)
       REAL                                           :: fbin,fkeep,gkeep
-      INTEGER                                        :: i,j,jx,jy,nkeep
+      INTEGER                                        :: hwrite,i,j,jx,jy,nkeep
       CHARACTER(len=2048)                            :: shead
 
       IF ( .NOT. ALLOCATED(ikeep_) .OR. nin.GT.nikeep_ ) THEN
@@ -526,6 +538,7 @@ MODULE gutils
 !$omp end critical
         ENDIF
       ENDDO
+!$omp end parallel do 
 
       CALL MPI_ALLREDUCE(fkeep, gkeep, 1, MPI_REAL, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
@@ -540,17 +553,19 @@ MODULE gutils
 
 
       aa = 0.0_GP
-!$omp parallel do private(i) reduction(+:aa)
+!$omp parallel do default(shared) private(i) reduction(+:aa)
       DO i = 1, nkeep
         aa  = aa +  R1(ikeep_(i))
       ENDDO
+!$omp end parallel do 
       sumr(1) = aa
   
       aa = 0.0_GP
-!$omp parallel do private(i) reduction(+:aa)
+!$omp parallel do default(shared) private(i) reduction(+:aa)
       DO i = 1, nkeep
         aa  = aa +  R2(ikeep_(i))
        ENDDO
+!$omp end parallel do 
        sumr(2) = aa
 
       xnorm(1:2) = 1.0_GP/gkeep
@@ -559,17 +574,19 @@ MODULE gutils
       gavg(1:2) = gavg(1:2)*xnorm(1:2)
 
       aa = 0.0_GP
-!$omp parallel do private(i) reduction(+:aa)
+!$omp parallel do default(shared) private(i) reduction(+:aa)
       DO i = 1, nkeep
         aa  = aa +  (R1(ikeep_(i))-gavg(1))**2
       ENDDO
+!$omp end parallel do 
       sumr(1) = aa
 
       aa = 0.0_GP
-!$omp parallel do private(i) reduction(+:aa)
+!$omp parallel do default(shared) private(i) reduction(+:aa)
       DO i = 1, nkeep
         aa  = aa +  (R2(ikeep_(i))-gavg(2))**2
       ENDDO
+!$omp end parallel do 
       sumr(2) = aa
       CALL MPI_ALLREDUCE(sumr, sig, 2, GC_REAL, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
@@ -596,6 +613,7 @@ MODULE gutils
 !$omp atomic
           fpdf2_(jx,jy) = fpdf2_(jx,jy) + 1.0_GP
         ENDDO
+!$omp end parallel do 
       ELSE IF ( dolog(1).GT.0 .AND. dolog(2).LE.0 ) THEN
 !$omp parallel do private (jx,jy,test) 
         DO i = 1, nkeep
@@ -608,6 +626,7 @@ MODULE gutils
 !$omp atomic
           fpdf2_(jx,jy) = fpdf2_(jx,jy) + 1.0_GP
         ENDDO
+!$omp end parallel do 
       ELSE IF ( dolog(1).LE.0 .AND. dolog(2).GT.0 ) THEN
 !$omp parallel do private (jx,jy,test) 
         DO i = 1, nkeep
@@ -620,6 +639,7 @@ MODULE gutils
 !$omp atomic
           fpdf2_(jx,jy) = fpdf2_(jx,jy) + 1.0_GP
         ENDDO
+!$omp end parallel do 
       ELSE IF ( dolog(1).LE.0 .AND. dolog(2).LE.0 ) THEN
 !$omp parallel do private (jx,jy,test) 
         DO i = 1, nkeep
@@ -632,16 +652,18 @@ MODULE gutils
 !$omp atomic
           fpdf2_(jx,jy) = fpdf2_(jx,jy) + 1.0_GP
         ENDDO
+!$omp end parallel do 
       ENDIF
 
 ! Check local data:
         fbin = 0.0
-!$omp parallel do private(j) reduction(+:fbin)
+!$omp parallel do default(shared) private(j) reduction(+:fbin)
         DO i = 1, nbins(1)
           DO j = 1, nbins(2)
             fbin = fbin + fpdf2_(i,j)
           ENDDO
         ENDDO
+!$omp end parallel do 
         IF ( fbin .ne. fkeep ) THEN
           WRITE(*,*) myrank,': dojpdfr: inconsistent data: expected: fkeep=',fkeep, ' found: ', &
                      fbin,' nbins=',nbins,' fmin=',fmin, ' fmax=',fmax,' dolog=',dolog,' ifixdr=',ifixdr
@@ -657,6 +679,7 @@ MODULE gutils
       ENDIF
 
       ! Write PDF to disk:
+      CALL GTStart(hwrite,GT_WTIME)
       IF ( myrank.eq.0 ) THEN
         DO j = 1, 2
           IF ( dolog(j) .GT. 0 ) fmin(j) = 10.0_GP**fmin(j)
@@ -672,7 +695,10 @@ MODULE gutils
          WRITE(1,40) gpdf2_
    40    FORMAT( E23.15 )
          CLOSE(1)
+         CALL GTStop(hwrite)
+         write(*,*)'dojpdf: file: ',trim(fname),': write time: ',GTGetTime(hwrite)
       ENDIF
+      CALL GTFree(hwrite)
  
       RETURN
 
