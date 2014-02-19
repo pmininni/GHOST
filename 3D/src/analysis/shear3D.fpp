@@ -1204,14 +1204,14 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       ! Compute joint PDF for energy diss and lambda (order 
       ! switched, so that lambda is on x-axis, and energy diss on y axis:
       fnout = trim(odir) // '/' // 'jpdf_diss_lamb.' // ext // '.txt'
-      CALL dojpdfr(lambda,'lambda',S11,'diss',nin,n,fnout,nbins,0,fmin,fmax,[dolog,dolog])
+      CALL dojpdfr(lambda,'lambda',S11,'diss',nin,n,fnout,nbins,[0,0],fmin,fmax,[dolog,dolog])
 
       ! Do 1d and jooint pdfs for diss and lambda:
       fnout = trim(odir) // '/' // 'disspdf.' // ext // '.txt'
-      CALL dopdfr(S11   ,nin,n,fnout,nbins(2),0,fmin(2),fmax(2),dolog) 
+      CALL dopdfr(S11   ,nin,n,fnout,nbins(2),0,fmin(2),fmax(2),0) 
       ! Compute, write, 1d lambda pdf:
       fnout = trim(odir) // '/' // 'lambpdf.' // ext // '.txt'
-      CALL dopdfr(lambda,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),dolog) 
+      CALL dopdfr(lambda,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       ! Compute enstrophy density,helicity field, v^2; store in S22, S13, S12:
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1352,7 +1352,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 
       ! Compute, write, 1d enstrophy density pdf:
       fnout = trim(odir) // '/' // 'enstpdf.' // ext // '.txt'
-      CALL dopdfr(S22,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),dolog) 
+      CALL dopdfr(S22,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ! Compute, write, 1d relative helicity pdf:
       fnout = trim(odir) // '/' // 'helpdf.' // ext // '.txt'
       CALL dopdfr(S13,nin,n,fnout ,nbins(1),0,fmin(1),fmax(1),0) 
@@ -1360,20 +1360,20 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       ! Compute joint PDF for enstrophy and diss (order switched, 
       ! so that enstrophy is on x-axis, and energy diss on y axis:
       fnout = trim(odir) // '/' // 'jpdf_diss_enst.' // ext // '.txt'
-      CALL dojpdfr(S22,'enst',S11,'diss',nin,n,fnout,nbins,0,fmin,fmax,[dolog,dolog])
+      CALL dojpdfr(S22,'enst',S11,'diss',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,0])
       ! Compute joint PDF for rel. helicity and diss :
       fnout = trim(odir) // '/' // 'jpdf_diss_hel.' // ext // '.txt'
-      CALL dojpdfr(S13,'rhel',S11,'diss',nin,n,fnout,nbins,0,fmin,fmax,[0,dolog])
+      CALL dojpdfr(S13,'rhel',S11,'diss',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,dolog])
       ! Compute joint PDF for rel. helicity and enstroph. density:
       fnout = trim(odir) // '/' // 'jpdf_enst_hel.' // ext // '.txt'
-      CALL dojpdfr(S13,'rhel',S22,'enst',nin,n,fnout,nbins,0,fmin,fmax,[0,dolog])
+      CALL dojpdfr(S13,'rhel',S22,'enst',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,dolog])
       ! Compute joint PDF for rel. helicity and lambda:
       fnout = trim(odir) // '/' // 'jpdf_lamb_hel.' // ext // '.txt'
-      CALL dojpdfr(S13,'rhel',lambda,'lamb',nin,n,fnout,nbins,0,fmin,fmax,[0,dolog])
+      CALL dojpdfr(S13,'rhel',lambda,'lamb',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,dolog])
 
 
       fnout = trim(odir) // '/' // 'jpdf_enst_lamb.' // ext // '.txt'
-      CALL dojpdfr(lambda,'lambda',S22,'enst',nin,n,fnout,nbins,0,fmin,fmax,[dolog,dolog])
+      CALL dojpdfr(lambda,'lambda',S22,'enst',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,0])
 
       nin = n*n*(kend-ksta+1)
 
@@ -1419,13 +1419,13 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       CALL skewflat(rtmp,nin,n,ris,rif,s2,s3,s4)       ! Ri
       ! Compute joint PDF for Richardson no. and diss:
       fnout = trim(odir) // '/' // 'jpdf_diss_ri.' // ext // '.txt'
-      CALL dojpdfr(rtmp,'Ri' ,S11 ,'diss',nin,n,fnout,nbins,0,fmin,fmax,[0,dolog])
+      CALL dojpdfr(rtmp,'Ri' ,S11 ,'diss',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_enst_ri.' // ext // '.txt'
-      CALL dojpdfr(rtmp,'Ri' ,S22 ,'enst',nin,n,fnout,nbins,0,fmin,fmax,[0,dolog])
+      CALL dojpdfr(rtmp,'Ri' ,S22 ,'enst',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_ri_hel.' // ext // '.txt'
-      CALL dojpdfr(S13,'rhel',rtmp,'Ri'  ,nin,n,fnout,nbins,0,fmin,fmax,[0,dolog])
+      CALL dojpdfr(S13,'rhel',rtmp,'Ri'  ,nin,n,fnout,nbins,[0,1],fmin,fmax,[0,dolog])
       fnout = trim(odir) // '/' // 'jpdf_lamb_ri.' // ext // '.txt'
-      CALL dojpdfr(rtmp,'Ri',lambda,'lambda',nin,n,fnout,nbins,0,fmin,fmax,[0,dolog])
+      CALL dojpdfr(rtmp,'Ri',lambda,'lambda',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,0])
 
       ! Print out skewness and flatness SCALAR data:
       IF ( myrank.EQ.0 ) THEN
