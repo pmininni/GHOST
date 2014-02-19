@@ -446,7 +446,7 @@ MODULE gutils
 !     n     : full linear domain size
 !     fname  : output interval id extension
 !     nbins  : 2D array giving number of bins to use for PDF (>0) 
-!              in each 'direction'
+!              in each 'direction'. Must be the same for all MPI tasks on entry.
 !     ifixdr : if > 0, will use fmin(*),fmax(*) as bounds for dynamic
 !              range; else it will compute them dynamically
 !     fmin   : highest dynamic range value, returned if ifixdr>0
@@ -481,8 +481,8 @@ MODULE gutils
       IF ( nbins(1).GT.nbins2_(1) .OR. &
            nbins(2).GT.nbins2_(2) .OR. &
           .NOT. ALLOCATED(fpdf2_) .OR. &
-          .NOT. ALLOCATED(gpdf2_) .OR. &
-          .NOT. ALLOCATED(ikeep_) ) THEN
+          .NOT. ALLOCATED(gpdf2_)      &
+         ) THEN
 
         ! Re-allocate if necessary:
         IF ( ALLOCATED(fpdf2_) ) DEALLOCATE(fpdf2_)
