@@ -687,8 +687,8 @@ MODULE gutils
         ENDDO
 
         WRITE(shead,'(A1,2(A4,A6,E16.8,A1,E16.8,A3,A4,A5,E16.8,A2,A4,A5,E16.8,A2),A6,I7,A1,I7,A9,I1,A1,I1,A10,F12.0,A1,F12.0,A1)') '#',&
-        sR1(1:4),'_rng=[',fmin(1),',',fmax(1),']; ',sR1(1:4),'_avg=',gavg(1),'; ',sR1(1:4),'_sig=',sig(1),'; ',&
-        sR2(1:4),'_rng=[',fmin(2),',',fmax(2),']; ',sR2(1:4),'_avg=',gavg(2),'; ',sR2(1:4),'_sig=',sig(2),'; ',&
+        trim(sR1),'_rng=[',fmin(1),',',fmax(1),']; ',trim(sR1),'_avg=',gavg(1),'; ',trim(sR1),'_sig=',sig(1),'; ',&
+        trim(sR2),'_rng=[',fmin(2),',',fmax(2),']; ',trim(sR2),'_avg=',gavg(2),'; ',trim(sR2),'_sig=',sig(2),'; ',&
         'nbin=[', nbins(1),',',nbins(2), ']; blog=[', dolog(1),',',dolog(2),']; nkeep=',gkeep
          OPEN(1,file=fname)
          WRITE(1,'(A)') trim(shead)
