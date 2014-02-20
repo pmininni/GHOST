@@ -14,8 +14,8 @@ MODULE gutils
 ! end, member data
       REAL   , DIMENSION  (:), ALLOCATABLE   :: fpdf_
       REAL   , DIMENSION  (:), ALLOCATABLE   :: gpdf_
-      REAL   , DIMENSION(:,:), ALLOCATABLE   :: fpdf2_
-      REAL   , DIMENSION(:,:), ALLOCATABLE   :: gpdf2_
+      REAL   , DIMENSION  (:), ALLOCATABLE   :: fpdf2_
+      REAL   , DIMENSION  (:), ALLOCATABLE   :: gpdf2_
       INTEGER, DIMENSION  (:), ALLOCATABLE   :: ikeep_
       INTEGER                             :: nbins_=2500,nbins2_(2)=(/2500,2500/),nikeep_=0
 !
@@ -487,12 +487,12 @@ MODULE gutils
         ! Re-allocate if necessary:
         IF ( ALLOCATED(fpdf2_) ) DEALLOCATE(fpdf2_)
         IF ( ALLOCATED(gpdf2_) ) DEALLOCATE(gpdf2_)
-        ALLOCATE(fpdf2_(nbins(1),nbins(2)))
-        ALLOCATE(gpdf2_(nbins(1),nbins(2)))
+        ALLOCATE(fpdf2_(nbins(1)*nbins(2)))
+        ALLOCATE(gpdf2_(nbins(1)*nbins(2)))
         nbins2_(1:2) = nbins(1:2)
       ENDIF
-      fpdf2_(1:nbins2_(1),1:nbins2_(2)) = 0.0_GP
-      gpdf2_(1:nbins2_(1),1:nbins2_(2)) = 0.0_GP
+      fpdf2_(1:nbins2_(1)*nbins2_(2)) = 0.0_GP
+      gpdf2_(1:nbins2_(1)*nbins2_(2)) = 0.0_GP
 
       ! Compute dynamic range of PDF
       fmin1(1) = MINVAL(R1(1:nin),nin)
@@ -611,7 +611,7 @@ MODULE gutils
           jy  = NINT( ( test(2) - fmin(2) )/del(2) )
           jy  = MIN(MAX(jy,1),nbins(2))
 !$omp atomic
-          fpdf2_(jx,jy) = fpdf2_(jx,jy) + 1.0_GP
+          fpdf2_(jx+(jy-1)*nbins(1)) = fpdf2_(jx+(jy-1)*nbins(1)) + 1.0_GP
         ENDDO
 !$omp end parallel do 
       ELSE IF ( dolog(1).GT.0 .AND. dolog(2).LE.0 ) THEN
@@ -624,7 +624,7 @@ MODULE gutils
           jy  = NINT( ( test(2) - fmin(2) )/del(2) )
           jy  = MIN(MAX(jy,1),nbins(2))
 !$omp atomic
-          fpdf2_(jx,jy) = fpdf2_(jx,jy) + 1.0_GP
+          fpdf2_(jx+(jy-1)*nbins(1)) = fpdf2_(jx+(jy-1)*nbins(1)) + 1.0_GP
         ENDDO
 !$omp end parallel do 
       ELSE IF ( dolog(1).LE.0 .AND. dolog(2).GT.0 ) THEN
@@ -637,7 +637,7 @@ MODULE gutils
           jy  = NINT( ( test(2) - fmin(2) )/del(2) )
           jy  = MIN(MAX(jy,1),nbins(2))
 !$omp atomic
-          fpdf2_(jx,jy) = fpdf2_(jx,jy) + 1.0_GP
+          fpdf2_(jx+(jy-1)*nbins(1)) = fpdf2_(jx+(jy-1)*nbins(1)) + 1.0_GP
         ENDDO
 !$omp end parallel do 
       ELSE IF ( dolog(1).LE.0 .AND. dolog(2).LE.0 ) THEN
@@ -650,17 +650,17 @@ MODULE gutils
           jy  = NINT( ( test(2) - fmin(2) )/del(2) )
           jy  = MIN(MAX(jy,1),nbins(2))
 !$omp atomic
-          fpdf2_(jx,jy) = fpdf2_(jx,jy) + 1.0_GP
+          fpdf2_(jx+(jy-1)*nbins(1)) = fpdf2_(jx+(jy-1)*nbins(1)) + 1.0_GP
         ENDDO
 !$omp end parallel do 
       ENDIF
 
 ! Check local data:
         fbin = 0.0
-!$omp parallel do default(shared) private(j) reduction(+:fbin)
-        DO i = 1, nbins(1)
-          DO j = 1, nbins(2)
-            fbin = fbin + fpdf2_(i,j)
+!$omp parallel do default(shared) private(i) reduction(+:fbin)
+        DO j = 1, nbins(2)
+          DO i = 1, nbins(1)
+            fbin = fbin + fpdf2_(i+(j-1)*nbins(1))
           ENDDO
         ENDDO
 !$omp end parallel do 
