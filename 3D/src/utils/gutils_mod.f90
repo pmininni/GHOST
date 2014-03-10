@@ -299,8 +299,8 @@ MODULE gutils
         fmax = gmax
       ENDIF
       IF ( dolog .GT. 0 ) THEN
-        fmin = log10(fmin+tiny(1.0_GP))
-        fmax = log10(fmax+tiny(1.0_GP))
+        fmin = log10(abs(fmin)+tiny(1.0_GP))
+        fmax = log10(abs(fmax)+tiny(1.0_GP))
       ENDIF
   
       tmin = fmin
@@ -398,8 +398,8 @@ MODULE gutils
       ENDIF
 
       ! Compute global reduction between MPI tasks:
-      CALL MPI_REDUCE(fpdf_, gpdf_, nbins_, MPI_REAL, &
-                      MPI_SUM, 0, MPI_COMM_WORLD,ierr)
+      CALL MPI_ALLREDUCE(fpdf_, gpdf_, nbins_, MPI_REAL, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
       IF ( ierr.NE.MPI_SUCCESS ) THEN
         WRITE(*,*)'dopdf: error in fpdf reduction'
         STOP
@@ -473,11 +473,14 @@ MODULE gutils
       INTEGER                                        :: hwrite,i,j,jx,jy,nkeep
       CHARACTER(len=2048)                            :: shead
 
+if ( myrank.eq. 0 ) write(*,*)'dojpdf: sR1=',sR1,' sR2=',sR2, ' nbins=',nbins, ' ifixdr=',ifixdr, ' dolog=',dolog
+
       IF ( .NOT. ALLOCATED(ikeep_) .OR. nin.GT.nikeep_ ) THEN
         IF ( ALLOCATED(ikeep_ ) )DEALLOCATE(ikeep_)
         ALLOCATE(ikeep_(nin))
         nikeep_ = nin
       ENDIF
+if ( myrank.eq. 0 ) write(*,*)'dojpdf: allocating fpdf2,gpdf2:'
       IF ( nbins(1).GT.nbins2_(1) .OR. &
            nbins(2).GT.nbins2_(2) .OR. &
           .NOT. ALLOCATED(fpdf2_) .OR. &
@@ -499,6 +502,7 @@ MODULE gutils
       fmax1(1) = MAXVAL(R1(1:nin),nin)
       fmin1(2) = MINVAL(R2(1:nin),nin)
       fmax1(2) = MAXVAL(R2(1:nin),nin)
+if ( myrank.eq. 0 ) write(*,*)'dojpdf: reductions for min/max:'
       CALL MPI_ALLREDUCE(fmin1,gmin,2, GC_REAL,      &
                          MPI_MIN,MPI_COMM_WORLD,ierr)
       CALL MPI_ALLREDUCE(fmax1,gmax,2, GC_REAL,      &
@@ -540,6 +544,7 @@ MODULE gutils
       ENDDO
 !$omp end parallel do 
 
+if ( myrank.eq. 0 ) write(*,*)'dojpdf: reductions for gkeep:'
       CALL MPI_ALLREDUCE(fkeep, gkeep, 1, MPI_REAL, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
       IF ( gkeep.LE.0.0 ) THEN
@@ -569,6 +574,7 @@ MODULE gutils
        sumr(2) = aa
 
       xnorm(1:2) = 1.0_GP/gkeep
+if ( myrank.eq. 0 ) write(*,*)'dojpdf: reductions for avg:'
       CALL MPI_ALLREDUCE(sumr, gavg, 2, GC_REAL, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
       gavg(1:2) = gavg(1:2)*xnorm(1:2)
@@ -588,6 +594,8 @@ MODULE gutils
       ENDDO
 !$omp end parallel do 
       sumr(2) = aa
+
+if ( myrank.eq. 0 ) write(*,*)'dojpdf: reductions for var:'
       CALL MPI_ALLREDUCE(sumr, sig, 2, GC_REAL, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
       DO i = 1,2
@@ -600,6 +608,7 @@ MODULE gutils
         del (j) = ABS(fmax(j)-fmin(j))/dble(nbins(j))
       ENDDO
 
+if ( myrank.eq. 0 ) write(*,*)'dojpdf: compute local pdf:'
       ! Compute local PDF:
       IF ( dolog(1).GT.0 .AND. dolog(2).GT.0 ) THEN
 !$omp parallel do private (jx,jy,test) 
@@ -664,12 +673,14 @@ MODULE gutils
           ENDDO
         ENDDO
 !$omp end parallel do 
+
         IF ( fbin .ne. fkeep ) THEN
           WRITE(*,*) myrank,': dojpdfr: inconsistent data: expected: fkeep=',fkeep, ' found: ', &
                      fbin,' nbins=',nbins,' fmin=',fmin, ' fmax=',fmax,' dolog=',dolog,' ifixdr=',ifixdr
           STOP
         ENDIF
      
+if ( myrank.eq. 0 ) write(*,*)'dojpdf: compute global pdf:'
       ! Compute global reduction between MPI tasks:
       CALL MPI_REDUCE(fpdf2_, gpdf2_, nbins2_(1)*nbins2_(2), MPI_REAL, &
                       MPI_SUM, 0, MPI_COMM_WORLD,ierr)
@@ -678,6 +689,7 @@ MODULE gutils
         STOP
       ENDIF
 
+if ( myrank.eq. 0 ) write(*,*)'dojpdf: writing to disk...'
       ! Write PDF to disk:
       CALL GTStart(hwrite,GT_WTIME)
       IF ( myrank.eq.0 ) THEN
@@ -698,8 +710,10 @@ MODULE gutils
          CALL GTStop(hwrite)
          write(*,*)'dojpdf: file: ',trim(fname),': write time: ',GTGetTime(hwrite)
       ENDIF
+if ( myrank.eq. 0 ) write(*,*)'dojpdf: writing to disk done.'
       CALL GTFree(hwrite)
- 
+      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr) 
+
       RETURN
 
       END SUBROUTINE dojpdfr
