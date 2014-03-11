@@ -25,7 +25,7 @@
 ! gsh, which must have a size >= N. The quantity to be computed
 ! is specified by flag itype, which can take the following 
 ! values:
-!    itype == 0 : hor. avg. of shear == <du_perp/dz>_perp
+!    itype == 0 : hor. avg. of shear == <du_perp/dz>_perp ^2
 !    itype == 1 : hor. avg. of vert. temp. gradient == <d\theta/dz>_perp
 !    itype == 2 : hor. avg. of correlation == <u_z d\theta/dz>_perp
 !    itype == 3 : hor. avg. of hor. kinetic energy == <u^2 + v^2>_perp
@@ -34,7 +34,7 @@
 !    itype == 6 : hor. avg. of correlation: <\omega_z \theta>_perp
 !    itype == 7 : hor. avg. of PV^2: <(fd\theta/dz - N \omega_z + omega.Grad\theta -fN)^2>_perp
 !    itype == 8 : hor. avg. of 'super-helicity': <\omega . curl \omega>_perp 
-!    itype == 9 : hor. avg. of <\omega . Grad \theta>_perp 
+!    itype == 9: hor. avg. of gradient Richardson no: !    N(N-d\theta/dz)/(du_\perp/dz)^2
 !
 ! Parameters
 !     gsh: return array, funcion of z of size >= N
@@ -69,7 +69,7 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
 
-      IF ( itype .eq. 0 ) THEN  ! <du_perp/dz>_perp
+      IF ( itype .eq. 0 .or. itype .eq. 9 ) THEN  ! <du_perp/dz>_perp^2
 !
 ! Find z-derivative of u, v:
         CALL derivk3(u,c1,3)
@@ -105,11 +105,11 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
 
-      IF ( itype .eq. 1 .or. itype .eq. 2 ) THEN  ! <d\theta/dz>_perp
+      IF ( itype .eq. 1 .or. itype .eq. 2  .or. itype .eq. 9 ) THEN  ! <d\theta/dz>_perp
 !
 ! Find z-derivative of s:
         CALL derivk3(s,c1,3)
-        CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+        CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
 !
 ! Do hor. average of vert. temp. gradient:
         IF ( itype .eq. 1 ) THEN
@@ -122,7 +122,7 @@
              DO j = 1,n
               DO i = 1,n
 !$omp atomic
-                   sh(k) = sh(k) + r1(i,j,k)**2 
+                   sh(k) = sh(k) + r3(i,j,k)**2 
                 END DO
              END DO
              sh(k) = sh(k) * tmp
@@ -488,12 +488,31 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
 
-      IF ( itype .eq. 9 ) THEN  ! <\omega . Grad \theta>_perp
-        r2  = 0.0_GP
+      IF ( itype .eq. 9 ) THEN  ! Ri = N (N-d\theta/dz)/(du_\perp/dz) 
+!
+!      Note, d\theta/dz should be in r3 already
+!      du_x/dz should be in r1 already, and du_y/dz in r2 from above
+!
         sh  = 0.0D0
         gsh = 0.0D0
-
+        tmp = 1.0D0/dble(n)**8 ! fact of 1/n^3 for r1  * 1/n^2 for horiz. avg
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+           DO j = 1,n
+            DO i = 1,n
+!$omp atomic
+                 sh(k) = sh(k) + bv*(bv-r3(i,j,k))/ (r1(i,j,k)**2+r2(i,j,k)**2) 
+              END DO
+           END DO
+           sh(k) = sh(k) * tmp
+        END DO
+!
+! Collect as a fcn of z:
+        CALL MPI_ALLREDUCE(sh,gsh,n,MPI_DOUBLE_PRECISION,      &
+                           MPI_SUM,MPI_COMM_WORLD,ierr)
         RETURN
+
       ENDIF
 
       RETURN
@@ -603,7 +622,7 @@
 ! Don't need reductions bec the results from havgcomp are globalized,
 ! so just do the outputs:
 
-! NOTE: col_2 == vol average/extremum of du_perp/dz
+! NOTE: col_2 == vol average/extremum of (du_perp/dz)^2
 !       col_3 == vol average/extremum of d\theta/dz
 !       col_4 == vol average/extremum of u_z d\theta/dz
 !       col_5 == vol average/extremum of u^2 + v^2
