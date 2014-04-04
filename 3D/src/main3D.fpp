@@ -319,6 +319,7 @@
       INTEGER      :: ilgintrptype
       INTEGER      :: ilgexchtype
       INTEGER      :: ilgouttype
+      INTEGER      :: dolag
       TYPE (GPart) :: lagpart
 #endif
 !$    INTEGER, EXTERNAL :: omp_get_max_threads
@@ -914,6 +915,12 @@
 !              stat.
 !     creset = 0: don't reset counters when injtp=1;
 !            = 1: _do_ reset counters when injtp=1.
+!     ilginittype : Inititialization type. either GPINIT_RANDLOC or GPINIT_USERLOC
+!     ilgintrptype: Interpolation type: only GPINTRP_CSPLINE currently
+!     ilgexchtype : Boundary exchange type: GPEXCHTYPE_VDB (voxel db) or GPEXCHTYPE_NN (nearest-neighbor)
+!     ilgouttype  : Particle output type: 0 = binary; 1= ASCII
+!     lgseedfile  : Name of seed file if ilginittype=GPINIT_USERLOC
+!     dolag       : 1 = run with particles; 0 = don't 
       injtp        = 0
       creset       = 0
       ilginittype  = GPINIT_RANDLOC
@@ -923,6 +930,7 @@
       lgmult       = 1
       lgseedfile   = 'gplag.dat'
       rbal         = 0.0
+      dolag        = 1
 !
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.txt',status='unknown',form="formatted")
@@ -937,6 +945,7 @@
       CALL MPI_BCAST(ilgintrptype,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilgexchtype ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilgouttype  ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dolag       ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(lgseedfile,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       IF ( mod(tstep,lgmult).NE.0 ) THEN
         WRITE(*,*)'main: lgmult must divide tstep evenly'
@@ -1006,10 +1015,12 @@
       ENDIF
 
 #ifdef LAGPART_
-      CALL lagpart%GPart_ctor(MPI_COMM_WORLD,maxparts,ilginittype,&
-           ilgintrptype,3,ilgexchtype,ilgouttype,csize,nstrip)
-      CALL lagpart%SetRandSeed(seed)
-      CALL lagpart%SetSeedFile(trim(lgseedfile))
+      IF ( dolag.GT.0 ) THEN
+        CALL lagpart%GPart_ctor(MPI_COMM_WORLD,maxparts,ilginittype,&
+             ilgintrptype,3,ilgexchtype,ilgouttype,csize,nstrip)
+        CALL lagpart%SetRandSeed(seed)
+        CALL lagpart%SetSeedFile(trim(lgseedfile))
+      ENDIF
 #endif
 
 !
@@ -1043,7 +1054,9 @@
       INCLUDE 'initialb.f90'            ! initial vector potential
 #endif
 #ifdef LAGPART_
-      CALL lagpart%Init()
+      IF ( dolag.GT.0 ) THEN
+        CALL lagpart%Init()
+      ENDIF
 #endif
 
       ELSE
@@ -1162,20 +1175,22 @@
 #endif
 
 #ifdef LAGPART_
-      IF (injtp.eq.0) THEN
-        WRITE(ext, fmtext) pind
-        CALL lagpart%io_read(1,idir,'xlg',ext)
-      ELSE
-        CALL lagpart%Init()
-        IF (creset.ne.0) THEN
-          ini = 1                   ! resets all counters (the
-          sind = 0                  ! particle run starts at t=0)
-          tind = 0
-          pind = 0
-          timet = tstep
-          timec = cstep
-          times = sstep
-          timep = pstep
+      IF ( dolag.GT.0 ) THEN
+        IF (injtp.eq.0) THEN
+          WRITE(ext, fmtext) pind
+          CALL lagpart%io_read(1,idir,'xlg',ext)
+        ELSE
+          CALL lagpart%Init()
+          IF (creset.ne.0) THEN
+            ini = 1                   ! resets all counters (the
+            sind = 0                  ! particle run starts at t=0)
+            tind = 0
+            pind = 0
+            timet = tstep
+            timec = cstep
+            times = sstep
+            timep = pstep
+          ENDIF
         ENDIF
       ENDIF
 #endif
@@ -1543,14 +1558,16 @@
 
 #ifdef LAGPART_
 
-         IF ((timep.eq.pstep).and.(bench.eq.0)) THEN
-           INCLUDE 'hd_lagpartout.f90'
+         IF ( dolag.GT.0 ) THEN
+           IF ((timep.eq.pstep).and.(bench.eq.0)) THEN
+             INCLUDE 'hd_lagpartout.f90'
 #if defined(SCALAR_)
-           INCLUDE 'scalar_lagpartout.f90'
+             INCLUDE 'scalar_lagpartout.f90'
 #endif
 #if defined(MAGFIELD_)
-           INCLUDE 'mhd_lagpartout.f90'
+             INCLUDE 'mhd_lagpartout.f90'
 #endif
+           ENDIF
          ENDIF
 #endif
 
@@ -1767,7 +1784,9 @@
          END DO
 
 #ifdef LAGPART_
-         CALL lagpart%SetStep()
+         IF ( dolag.GT.0 ) THEN
+           CALL lagpart%SetStep()
+         ENDIF
 #endif
 
 ! Runge-Kutta step 2
@@ -1824,6 +1843,7 @@
 #endif
 
 #ifdef LAGPART_
+      IF ( dolag.GT.0 ) THEN
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -1855,12 +1875,15 @@
       END DO
       CALL fftp3d_complex_to_real(plancr,C7,R3,MPI_COMM_WORLD)
       CALL lagpart%Step(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),R4,R5)
+      ENDIF
 #endif
 
          END DO
 
 #ifdef LAGPART_
-      CALL lagpart%FinalStep()
+      IF ( dolag.GT.0 ) THEN
+        CALL lagpart%FinalStep()
+      ENDIF
 #endif
          timet = timet+1
          times = times+1
@@ -1882,7 +1905,9 @@
          CALL GTStop(ihomp1)
          CALL GTStop(ihwtm1)
 #ifdef LAGPART_
-        rbal = rbal + lagpart%GetLoadBal()
+        IF ( dolag.GT.0 ) THEN
+          rbal = rbal + lagpart%GetLoadBal()
+        ENDIF
 #endif
          IF (myrank.eq.0) THEN
             OPEN(1,file='benchmark.txt',position='append')
@@ -1910,16 +1935,18 @@
             ENDIF
             CLOSE(1)
 #if defined(LAGPART_)
-            OPEN(2,file='gpbenchmark.txt',position='append')
-              WRITE(2,*) n,maxparts,rbal/(step-ini+1),(step-ini+1),nprocs,nth, &
-                         lagpart%GetTime   (GPTIME_STEP)/(step-ini+1), &
-                         lagpart%GetTime   (GPTIME_COMM)/(step-ini+1), &
-                         lagpart%GetTime (GPTIME_SPLINE)/(step-ini+1), &
-                         lagpart%GetTime (GPTIME_TRANSP)/(step-ini+1), &
-                         lagpart%GetTime (GPTIME_DATAEX)/(step-ini+1), &
-                         lagpart%GetTime (GPTIME_INTERP)/(step-ini+1), &
-                         lagpart%GetTime(GPTIME_PUPDATE)/(step-ini+1)
-            CLOSE(2)
+            IF ( dolag.GT.0 ) THEN
+              OPEN(2,file='gpbenchmark.txt',position='append')
+                WRITE(2,*) n,maxparts,rbal/(step-ini+1),(step-ini+1),nprocs,nth, &
+                           lagpart%GetTime   (GPTIME_STEP)/(step-ini+1), &
+                           lagpart%GetTime   (GPTIME_COMM)/(step-ini+1), &
+                           lagpart%GetTime (GPTIME_SPLINE)/(step-ini+1), &
+                           lagpart%GetTime (GPTIME_TRANSP)/(step-ini+1), &
+                           lagpart%GetTime (GPTIME_DATAEX)/(step-ini+1), &
+                           lagpart%GetTime (GPTIME_INTERP)/(step-ini+1), &
+                           lagpart%GetTime(GPTIME_PUPDATE)/(step-ini+1)
+              CLOSE(2)
+            ENDIF
 #endif
          ENDIF
       ENDIF
