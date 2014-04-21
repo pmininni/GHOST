@@ -78,7 +78,7 @@ MODULE class_GPSplineInt
 ! Methods:
   CONTAINS
 
-  SUBROUTINE GPSplineInt_ctor(this,rank,nd,ibnds,maxpart,gpcomm,hdataex,htransp)
+  SUBROUTINE GPSplineInt_ctor(this,rank,nd,ibnds,xbnds,maxpart,gpcomm,hdataex,htransp)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Main explicit constructor
@@ -88,6 +88,7 @@ MODULE class_GPSplineInt
 !    nd      : global grid size in each direction
 !    ibnds   : starting and ending indices for each direction for this MPI task.
 !              Integer array of size (rank,2).
+!    xbnds   : task's slab bounds
 !    maxpart : max no. interpolation points/Lag. particles
 !    gpcomm  : GHOST particle communicator object
 !    hdataex  : handle to data exchange. Must be valid.
@@ -100,6 +101,7 @@ MODULE class_GPSplineInt
     INTEGER        ,INTENT(IN),DIMENSION  (rank) :: nd
     INTEGER        ,INTENT(IN),DIMENSION(rank,2) :: ibnds
     INTEGER                                      :: j,k
+    REAL(KIND=GP)  ,INTENT(IN),DIMENSION(rank,2) :: xbnds
 
     this%gpcomm_ => gpcomm
     this%maxint_  = maxpart
@@ -119,9 +121,12 @@ MODULE class_GPSplineInt
       STOP
     ENDIF
     this%hdataex_  = hdataex
+
+
     DO j = 1, this%rank_
       DO k = 1,2
         this%ibnds_(j,k)  = ibnds(j,k)
+!!      this%xbnds_(j,k)  = xbnds(j,k)
         this%xbnds_(j,k)  = real(ibnds(j,k),kind=GP)-1.0_GP
       ENDDO
       this%ldims_(j)  = ibnds(j,2) - ibnds(j,1) + 1
@@ -132,6 +137,7 @@ MODULE class_GPSplineInt
     !       each MPI task:
     this%xbnds_(3,1)  = this%xbnds_(3,1)-2.0_GP
     this%xbnds_(3,2)  = this%xbnds_(3,2)+2.0_GP
+
 
     IF ( this%rank_.LT.2 .OR. this%rank_.GT.3 ) THEN
       WRITE(*,*)'GPSplineInt::ctor: Invalid rank'
@@ -510,20 +516,20 @@ MODULE class_GPSplineInt
     DO j = 1, np
       this%ilg_(1,j) = (xp(j)-this%xbnds_(1,1))*this%dxi_(1)
       this%xrk_  (j) = (xp(j)-this%xbnds_(1,1))*this%dxi_(1) - real(this%ilg_(1,j),kind=GP)
-      this%ilg_(2,j) = this%ilg_(1,j) + 1
+      this%ilg_(2,j) = modulo(this%ilg_(1,j),nx) + 1
       this%ilg_(3,j) = modulo(this%ilg_(2,j),nx) + 1
       this%ilg_(4,j) = modulo(this%ilg_(3,j),nx) + 1
-      this%ilg_(1,j) = modulo(nx+this%ilg_(2,j)-2,nx) + 1
+      this%ilg_(1,j) = modulo(nx+this%ilg_(2,j)-2,nx) + 1 
     ENDDO
       
     ! y-coords:
     DO j = 1, np
       this%jlg_(1,j) = (yp(j)-this%xbnds_(2,1))*this%dxi_(2)
       this%yrk_  (j) = (yp(j)-this%xbnds_(2,1))*this%dxi_(2) - real(this%jlg_(1,j),kind=GP)
-      this%jlg_(2,j) = this%jlg_(1,j) + 1
+      this%jlg_(2,j) = modulo(this%jlg_(1,j),ny) + 1 
       this%jlg_(3,j) = modulo(this%jlg_(2,j),ny) + 1
       this%jlg_(4,j) = modulo(this%jlg_(3,j),ny) + 1
-      this%jlg_(1,j) = modulo(ny+this%jlg_(2,j)-2,ny) + 1
+      this%jlg_(1,j) = modulo(ny+this%jlg_(2,j)-2,ny) + 1 
     ENDDO
 
     ! z-coords:
@@ -535,14 +541,14 @@ MODULE class_GPSplineInt
     bok = .true.
     DO j = 1, np
       bok = bok .AND. (zp(j).GE.this%xbnds_(3,1).AND.zp(j).LT.this%xbnds_(3,2))
+      IF ( .NOT. bok ) THEN
+        WRITE(*,*) 'GPSplineInt::PartUpdate3D: Invalid particle z-range'
+        WRITE(*,*) 'GPSplineInt::zbnd_0=',this%xbnds_(3,1),';  zbnd_1=',this%xbnds_(3,2), 'zp=',zp(j)
+        STOP
+      ENDIF
     ENDDO
-    IF ( .NOT. bok ) THEN
-      WRITE(*,*) 'GPSplineInt::PartUpdate3D: Invalid particle z-range'
-      WRITE(*,*) 'GPSplineInt::zbnd_0=',this%xbnds_(3,1),';  zbnd_1=',this%xbnds_(3,2), 'zp=',zp(j)
-      STOP
-    ENDIF
     DO j = 1, np
-      this%klg_(1,j) = (zp(j)-this%xbnds_(3,1))*this%dxi_(3)
+      this%klg_(1,j) = (zp(j)-this%xbnds_(3,1))*this%dxi_(3)+1
       this%klg_(1,j) = min(this%klg_(1,j),km)
 !if ( this%klg_(1,j).gt.km+3 ) then
 !write(*,*)myrank,': j=',j,' klg(1)=',this%klg_(1,j),' ldim=',this%ldims_(3),' zbnd=',this%xbnds_(3,1:2),' zp=',zp(j)

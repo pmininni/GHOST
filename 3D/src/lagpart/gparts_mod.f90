@@ -209,7 +209,7 @@ MODULE class_GPart
 
     ! Instantiate interp operation. Remember that a valid timer 
     ! handle must be passed:
-    CALL this%intop_%GPSplineInt_ctor(3,this%nd_,this%libnds_,&
+    CALL this%intop_%GPSplineInt_ctor(3,this%nd_,this%libnds_,this%lxbnds_,&
          this%maxparts_,this%gpcomm_,this%htimers_(GPTIME_DATAEX),&
          this%htimers_(GPTIME_TRANSP))
 
@@ -476,7 +476,7 @@ MODULE class_GPart
     CLASS(GPart)  ,INTENT(INOUT)      :: this
 
     INTEGER                           :: ib,ie,j,iwrk1,iwrk2,nt
-    REAL(KIND=GP)                     :: del,x,r
+    REAL(KIND=GP)                     :: c,r,x1,x2
   
     ! Note: Box is [0,N-1]^3.
     ! All tasks write to _global_ grid, expecting a 
@@ -499,15 +499,19 @@ MODULE class_GPart
     ib = ib - 1
     ie = ie - 1
     this%nparts_ = ie - ib + 1
-    del = this%lxbnds_(3,2) - this%lxbnds_(3,1)
     DO j = 1, this%nparts_
        this%id_(j)    = ib + j - 1
        CALL prandom_number(r)
-       this%px_(j) = min(r*(this%nd_(1)-1),this%lxbnds_(1,2))
+       x1 = real(this%libnds_(1,1)-1,kind=GP); x2 = real(this%libnds_(1,2)-1,kind=GP);
+       c = r*(this%nd_(1)-1);
+       this%px_(j) = min(max(c,x1),x2)
        CALL prandom_number(r)
-       this%py_(j) = min(r*(this%nd_(2)-1),this%lxbnds_(2,2) )
+       x1 = real(this%libnds_(2,1)-1,kind=GP); x2 = real(this%libnds_(2,2)-1,kind=GP);
+       c = r*(this%nd_(1)-1);
+       this%py_(j) = min(max(c,x1),x2)
        CALL prandom_number(r)
-       this%pz_(j) = min(this%lxbnds_(3,1)+r*del,this%lxbnds_(3,2))
+       x1 = real(this%libnds_(3,1)-1,kind=GP); x2 = real(this%libnds_(3,2)-1,kind=GP);
+       this%pz_(j) = min(max(x1+r*(x2-x1),x1),x2)
     ENDDO
     CALL MPI_ALLREDUCE(this%nparts_,nt,1,MPI_INTEGER,MPI_SUM,this%comm_,this%ierr_)
     IF ( this%myrank_.eq.0 .AND. nt.NE.this%maxparts_ ) THEN
@@ -743,7 +747,7 @@ MODULE class_GPart
     CALL MPI_FILE_OPEN(this%comm_,trim(dir) // '/' // trim(spref) // &
          '.' // nmb // '.lag',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
           MPI_INFO_NULL,fh,this%ierr_)
-    prec(1) = real(nt,kind=GP)
+    prec(1) = real(this%maxparts_,kind=GP)
     offset = 0
     CALL MPI_FILE_WRITE_AT_ALL(fh,offset,prec(1),1,GC_REAL,this%istatus_,this%ierr_)
     offset = szreal
@@ -945,7 +949,7 @@ MODULE class_GPart
          '.' // nmb // '.lag',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
           MPI_INFO_NULL,fh,this%ierr_)
     offset = 0
-    CALL MPI_FILE_WRITE_AT_ALL(fh,offset,real(nt,kind=GP),1,GC_REAL,this%istatus_,this%ierr_)
+    CALL MPI_FILE_WRITE_AT_ALL(fh,offset,real(this%maxparts_,kind=GP),1,GC_REAL,this%istatus_,this%ierr_)
     offset = szreal
     CALL MPI_FILE_WRITE_AT_ALL(fh,offset,time   ,1,GC_REAL,this%istatus_,this%ierr_)
     gc = 0
@@ -1300,6 +1304,7 @@ MODULE class_GPart
 
     ! If using VDB interface, do synch-up, and get local work:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
+
       IF (  this%myrank_.eq.0 .AND. .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
         WRITE(*,*) 'GPart_FinalizeRKK: Inconsistent particle count'
       ENDIF
