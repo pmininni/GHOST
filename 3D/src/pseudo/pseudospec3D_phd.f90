@@ -325,7 +325,58 @@
       END SUBROUTINE pscheck
 
 !*****************************************************************
-      SUBROUTINE spectrsc(a,nmb)
+      SUBROUTINE mpscheck(a1,b1,a2,b2,a3,b3,t,dt)
+!-----------------------------------------------------------------
+!
+! Consistency check for the conservation of 'multscalar' energy
+!
+! Parameters
+!     a_i : i_th scalar concentration
+!     b_i : i_th source of the scalar i
+!     t : number of time steps made
+!     dt: time step
+!
+      USE fprecision
+      USE grid
+      USE mpivars
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a1,a2,a3,b1,b2,b3
+      DOUBLE PRECISION    :: eng(3),ens(3),pot(3)
+      REAL(KIND=GP), INTENT(IN)    :: dt
+      INTEGER, INTENT(IN) :: t
+      INTEGER             :: i,j,k
+
+!
+! Computes the variance and the variance of k^2 times the scalar
+!
+      CALL variance(a1,eng(1),1)
+      CALL variance(a1,ens(1),0)
+      CALL variance(a2,eng(2),1)
+      CALL variance(a2,ens(2),0)
+      CALL variance(a3,eng(3),1)
+      CALL variance(a3,ens(3),0)
+!
+! Computes the scalar injection rate
+!
+      CALL product(a1,b1,pot(1))
+      CALL product(a2,b2,pot(2))
+      CALL product(a3,b3,pot(3))
+!
+! Creates external files to store the results
+!
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='mscalar.txt',position='append')
+         WRITE(1,10) (t-1)*dt,eng(1),ens(1),pot(1),eng(2),ens(2),pot(2),eng(3),ens(3),pot(3)
+   10    FORMAT( E13.6,E22.14,E22.14,E22.14,E22.14,E22.14,E22.14,E22.14,E22.14,E22.14 )
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE mpscheck
+
+!*****************************************************************
+      SUBROUTINE spectrsc(a,nmb,isc)
 !-----------------------------------------------------------------
 !
 ! Computes the passive/active scalar power spectrum. The 
@@ -334,6 +385,8 @@
 ! Parameters
 !     a  : input matrix with the scalar
 !     nmb: the extension used when writting the file
+!     isc: (OPTIONAL) index to specify which scalar the spectrum represents; 
+!          modifies output file name
 !
       USE fprecision
       USE commtypes
@@ -348,9 +401,11 @@
       DOUBLE PRECISION :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
       REAL(KIND=GP)    :: tmp
+      INTEGER,INTENT(IN),OPTIONAL                            :: isc
       INTEGER          :: i,j,k
       INTEGER          :: kmn
       CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=1)             :: si
 
 !
 ! Sets Ek to zero
@@ -413,7 +468,12 @@
 ! Exports the spectrum to a file
 !
       IF (myrank.eq.0) THEN
-         OPEN(1,file='sspectrum.' // nmb // '.txt')
+         IF ( present(isc) ) THEN
+           WRITE(si,'(i1.1)') isc
+           OPEN(1,file='s' // si // 'spectrum.' // nmb // '.txt')
+         ELSE
+           OPEN(1,file='sspectrum.' // nmb // '.txt')
+         ENDIF
          WRITE(1,20) Ektot
    20    FORMAT( E23.15 ) 
          CLOSE(1)
@@ -423,7 +483,7 @@
       END SUBROUTINE spectrsc
 
 !*****************************************************************
-      SUBROUTINE sctrans(a,b,nmb)
+      SUBROUTINE sctrans(a,b,nmb,isc)
 !-----------------------------------------------------------------
 !
 ! Computes the scalar transfer in Fourier space 
@@ -434,6 +494,11 @@
 !     a  : scalar
 !     b  : nonlinear term
 !     nmb: the extension used when writting the file
+!     isc: if doing multi-scalar, gives index of scalar 
+!          whose transfer is being computed (1, 2, or 3) and
+!          names file as s<isc>trasfer.XXX.txt. If isc=0, then
+!          filename is stransfer.XXX.txt
+!          
 !
       USE fprecision
       USE commtypes
@@ -444,14 +509,15 @@
 !$    USE threads
       IMPLICIT NONE
 
+      COMPLEX (KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
       DOUBLE PRECISION :: tmq
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
       REAL(KIND=GP)    :: tmp
+      INTEGER,           INTENT(IN)                           :: isc
       INTEGER          :: i,j,k
       INTEGER          :: kmn
-      CHARACTER(len=*), INTENT(IN) :: nmb
-
+      CHARACTER(len=*) , INTENT(IN)                           :: nmb
+      CHARACTER(len=1) :: si
 !
 ! Sets Ek to zero
 !
@@ -511,7 +577,13 @@
       CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
-         OPEN(1,file='stransfer.' // nmb // '.txt')
+        IF ( isc.LE.0 ) THEN
+          OPEN(1,file='stransfer.' // nmb // '.txt')
+        ELSE
+          WRITE(si,'(i1.1)') isc
+          OPEN(1,file='s' // trim(si) // 'transfer.' // nmb // '.txt')
+        ENDIF
+        
          WRITE(1,30) Ektot
    30    FORMAT( E23.15 ) 
          CLOSE(1)
