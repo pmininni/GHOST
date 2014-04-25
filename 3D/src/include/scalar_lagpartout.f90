@@ -10,3 +10,8 @@
            END DO
            CALL fftp3d_complex_to_real(plancr,C7,R1,MPI_COMM_WORLD)
            CALL lagpart%io_write_euler(1,odir,'thlg',ext,(t-1)*dt,R1,.true.,R2,R3)
+           
+           ! nonlinear term:
+           CALL advect3(vx,vy,vz,th,C7)
+           CALL fftp3d_complex_to_real(plancr,C7,R1,MPI_COMM_WORLD)
+           CALL lagpart%io_write_euler(1,odir,'stranslg',ext,(t-1)*dt,R1,.true.,R2,R3)
