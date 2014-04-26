@@ -577,11 +577,11 @@
       CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
-        IF ( isc.LE.0 ) THEN
-          OPEN(1,file='stransfer.' // nmb // '.txt')
-        ELSE
+        IF ( isc.GE.0 ) THEN
           WRITE(si,'(i1.1)') isc
           OPEN(1,file='s' // trim(si) // 'transfer.' // nmb // '.txt')
+        ELSE
+          OPEN(1,file='stransfer.' // nmb // '.txt')
         ENDIF
         
          WRITE(1,30) Ektot

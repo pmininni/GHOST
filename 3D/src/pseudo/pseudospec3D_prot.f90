@@ -242,7 +242,7 @@
       END SUBROUTINE specscpe
 
 !*****************************************************************
-      SUBROUTINE sctpara(a,b,nmb)
+      SUBROUTINE sctpara(a,b,nmb,isc)
 !-----------------------------------------------------------------
 !
 ! Computes the transfer function for the passive scalar in 
@@ -255,6 +255,7 @@
 !     a  : passive scalar
 !     b  : nonlinear term
 !     nmb: the extension used when writting the file
+!     isc: scalar id, used if isc >= 0
 !
       USE fprecision
       USE commtypes
@@ -269,9 +270,11 @@
       DOUBLE PRECISION :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
       REAL(KIND=GP)    :: tmp
+      INTEGER         , INTENT(IN)                           :: isc
       INTEGER          :: i,j,k
       INTEGER          :: kmn
       CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=1)             :: si
 
 !
 ! Sets Ek to zero
@@ -332,7 +335,12 @@
       CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
-         OPEN(1,file='stranpara.' // nmb // '.txt')
+         IF ( isc.GE.0 ) THEN
+           WRITE(si,'(i1.1)')isc
+           OPEN(1,file='s' // trim(si) // 'tranpara.' // nmb // '.txt')
+         ELSE
+           OPEN(1,file='stranpara.' // nmb // '.txt')
+         ENDIF
          WRITE(1,30) Ektot
    30    FORMAT( E23.15 ) 
          CLOSE(1)
@@ -342,7 +350,7 @@
       END SUBROUTINE sctpara
 
 !*****************************************************************
-      SUBROUTINE sctperp(a,b,nmb)
+      SUBROUTINE sctperp(a,b,nmb,isc)
 !-----------------------------------------------------------------
 !
 ! Computes the transfer function for the passive scalar in 
@@ -355,6 +363,7 @@
 !     a  : passive scalar
 !     b  : nonlinear term
 !     nmb: the extension used when writting the file
+!     isc: scalar id, used if isc >= 0
 !
       USE fprecision
       USE commtypes
@@ -369,9 +378,11 @@
       DOUBLE PRECISION :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
       REAL(KIND=GP)    :: tmp
+      INTEGER         , INTENT(IN)                            :: isc
       INTEGER          :: i,j,k
       INTEGER          :: kmn
       CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=1)             :: si
 
 !
 ! Sets Ek to zero
@@ -432,7 +443,12 @@
       CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
-         OPEN(1,file='stranperp.' // nmb // '.txt')
+        IF ( isc.GE.0 ) THEN
+           WRITE(si,'(i1.1)')isc
+           OPEN(1,file='s' // trim(si) // 'tranpara.' // nmb // '.txt')
+         ELSE
+           OPEN(1,file='stranperp.' // nmb // '.txt')
+         ENDIF
          WRITE(1,40) Ektot
    40    FORMAT( E23.15 ) 
          CLOSE(1)
