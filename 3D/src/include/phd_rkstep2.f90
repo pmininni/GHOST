@@ -13,7 +13,7 @@
          IF ((trans.eq.1).and.(times.eq.0).and.(bench.eq.0).and.(o.eq.ord)) &
             THEN
             CALL entrans(C1,C2,C3,C7,C8,C4,ext,1)
-            CALL sctrans(C20,C5,ext)
+            CALL sctrans(C20,C5,ext,0)
          ENDIF
 
          rmp = 1./REAL(o,KIND=GP)
