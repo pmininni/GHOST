@@ -28,9 +28,9 @@
             CALL heltrans(C1,C2,C3,C7,C8,C4,ext,1)
             CALL heltpara(C1,C2,C3,C7,C8,C4,ext,1)
             CALL heltperp(C1,C2,C3,C7,C8,C4,ext,1)
-            CALL sctrans(C20,C5,ext)
-            CALL sctpara(C20,C5,ext)
-            CALL sctperp(C20,C5,ext)
+            CALL sctrans(C20,C5,ext,0)
+            CALL sctpara(C20,C5,ext,0)
+            CALL sctperp(C20,C5,ext,0)
          ENDIF
 
          rmp = 1.0_GP/(real(o,kind=GP))
