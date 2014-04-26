@@ -1,0 +1,158 @@
+! External forcing for the scalar.
+! This file contains the expression used for the external 
+! forcing. You can use temporary real arrays 
+! R1-R3 of size (1:n,1:n,ksta:kend) and temporary complex 
+! arrays C1-C8 of size (n,n,ista:iend) to do intermediate 
+! computations. The variable si0 should control the global 
+! amplitude of the forcing, and variables siparam0-9 can be
+! used to control the amplitudes of individual terms, where
+! i is (1, 2, 3). At the end, the spectral space should be 
+! stored in the array fsi.
+
+! Superposition of harmonic modes with random phases 
+!     skdn   : minimum wave number, scalars
+!     skup   : maximum wave number, scalars
+!     s10,s20,s30: global forcing amplitude
+      IF (ista.eq.1) THEN
+         fs1(1,1,1) = 0.
+         fs2(1,1,1) = 0.
+         fs3(1,1,1) = 0.
+         DO j = 2,n/2+1
+
+            IF ((ka2(1,j,1).le.skup**2).and.(ka2(1,j,1).ge.skdn**2)) THEN
+               dump = 1./sqrt(ka2(1,j,1))
+               phase = 2*pi*randu(seed)
+               fs1(1,j,1) = (COS(phase)+im*SIN(phase))*dump
+               fs1(1,n-j+2,1) = conjg(fs1(1,j,1))
+               dump = 1./sqrt(ka2(1,j,1))
+               phase = 2*pi*randu(seed)
+               fs2(1,j,1) = (COS(phase)+im*SIN(phase))*dump
+               fs2(1,n-j+2,1) = conjg(fs2(1,j,1))
+               dump = 1./sqrt(ka2(1,j,1))
+               phase = 2*pi*randu(seed)
+               fs3(1,j,1) = (COS(phase)+im*SIN(phase))*dump
+               fs3(1,n-j+2,1) = conjg(fs3(1,j,1))
+            ELSE
+               fs1(1,j,1) = 0.
+               fs1(1,n-j+2,1) = 0.
+               fs2(1,j,1) = 0.
+               fs2(1,n-j+2,1) = 0.
+               fs3(1,j,1) = 0.
+               fs3(1,n-j+2,1) = 0.
+            ENDIF
+
+         END DO
+         DO k = 2,n/2+1
+
+            IF ((ka2(k,1,1).le.skup**2).and.(ka2(k,1,1).ge.skdn**2)) THEN
+               dump = 1./sqrt(ka2(k,1,1))
+               phase = 2*pi*randu(seed)
+               fs1(k,1,1) = (COS(phase)+im*SIN(phase))*dump
+               fs1(n-k+2,1,1) = conjg(fs1(k,1,1))
+               dump = 1./sqrt(ka2(k,1,1))
+               phase = 2*pi*randu(seed)
+               fs2(k,1,1) = (COS(phase)+im*SIN(phase))*dump
+               fs2(n-k+2,1,1) = conjg(fs2(k,1,1))
+               dump = 1./sqrt(ka2(k,1,1))
+               phase = 2*pi*randu(seed)
+               fs3(k,1,1) = (COS(phase)+im*SIN(phase))*dump
+               fs3(n-k+2,1,1) = conjg(fs3(k,1,1))
+            ELSE
+               fs2(k,1,1) = 0.
+               fs2(n-k+2,1,1) = 0.
+            ENDIF
+
+         END DO
+         DO j = 2,n
+            DO k = 2,n/2+1
+     
+            IF ((ka2(k,j,1).le.skup**2).and.(ka2(k,j,1).ge.skdn**2)) THEN
+               dump = 1./sqrt(ka2(k,j,1))
+               phase = 2*pi*randu(seed)
+               fs1(k,j,1) = (COS(phase)+im*SIN(phase))*dump
+               fs1(n-k+2,n-j+2,1) = conjg(fs1(k,j,1))
+               dump = 1./sqrt(ka2(k,j,1))
+               phase = 2*pi*randu(seed)
+               fs2(k,j,1) = (COS(phase)+im*SIN(phase))*dump
+               fs2(n-k+2,n-j+2,1) = conjg(fs2(k,j,1))
+               dump = 1./sqrt(ka2(k,j,1))
+               phase = 2*pi*randu(seed)
+               fs3(k,j,1) = (COS(phase)+im*SIN(phase))*dump
+               fs3(n-k+2,n-j+2,1) = conjg(fs3(k,j,1))
+            ELSE
+               fs1(k,j,1) = 0.
+               fs1(n-k+2,n-j+2,1) = 0.
+               fs2(k,j,1) = 0.
+               fs2(n-k+2,n-j+2,1) = 0.
+               fs3(k,j,1) = 0.
+               fs3(n-k+2,n-j+2,1) = 0.
+            ENDIF
+
+            END DO
+         END DO
+         DO i = 2,iend
+            DO j = 1,n
+               DO k = 1,n
+
+               IF ((ka2(k,j,i).le.skup**2).and.(ka2(k,j,i).ge.skdn**2)) THEN
+                  dump = 1./sqrt(ka2(k,j,i))
+                  phase = 2*pi*randu(seed)
+                  fs1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+                  dump = 1./sqrt(ka2(k,j,i))
+                  phase = 2*pi*randu(seed)
+                  fs2(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+                  dump = 1./sqrt(ka2(k,j,i))
+                  phase = 2*pi*randu(seed)
+                  fs3(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+               ELSE
+                  fs1(k,j,i) = 0.
+                  fs2(k,j,i) = 0.
+                  fs3(k,j,i) = 0.
+               ENDIF
+
+               END DO
+            END DO
+         END DO
+      ELSE
+         DO i = ista,iend
+            DO j = 1,n
+               DO k = 1,n
+
+               IF ((ka2(k,j,i).le.skup**2).and.(ka2(k,j,i).ge.skdn**2)) THEN
+                  dump = 1./sqrt(ka2(k,j,i))
+                  phase = 2*pi*randu(seed)
+                  fs1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+                  dump = 1./sqrt(ka2(k,j,i))
+                  phase = 2*pi*randu(seed)
+                  fs2(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+                  dump = 1./sqrt(ka2(k,j,i))
+                  phase = 2*pi*randu(seed)
+                  fs3(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+               ELSE
+                  fs1(k,j,i) = 0.
+                  fs2(k,j,i) = 0.
+                  fs3(k,j,i) = 0.
+               ENDIF
+
+               END DO
+            END DO
+        END DO
+      ENDIF
+
+      CALL variance(fs1,tmp1,1)
+      CALL variance(fs2,tmp2,1)
+      CALL variance(fs3,tmp3,1)
+      CALL MPI_BCAST(tmp1,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tmp2,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tmp3,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,n
+            DO k = 1,n
+               fs1(k,j,i) = fs1(k,j,i)*s10/sqrt(tmp1)
+               fs2(k,j,i) = fs2(k,j,i)*s20/sqrt(tmp2)
+               fs3(k,j,i) = fs3(k,j,i)*s30/sqrt(tmp3)
+            END DO
+         END DO
+      END DO
