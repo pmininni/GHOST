@@ -20,6 +20,7 @@
 ! Conditional compilation options:
 !           HD_SOL        builds the hydrodynamic (HD) solver
 !           PHD_SOL       builds the HD solver with passive scalar
+!           MPHD_SOL      builds the HD solver with multiple passive scalars
 !           MHD_SOL       builds the MHD solver
 !           MHDB_SOL      builds the MHD solver with uniform B_0
 !           HMHD_SOL      builds the Hall-MHD solver
@@ -64,6 +65,11 @@
 #ifdef PHD_SOL
 #define DNS_
 #define SCALAR_
+#endif
+
+#ifdef MPHD_SOL
+#define DNS_
+#define MULTISCALAR_
 #endif
 
 #ifdef MHD_SOL
@@ -196,6 +202,10 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: th
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fs
 #endif
+#ifdef MULTISCALAR_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: th1,th2,th3
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fs1,fs2,fs3
+#endif
 #ifdef MAGFIELD_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: ax,ay,az
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: mx,my,mz
@@ -212,6 +222,10 @@
 #ifdef SCALAR_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C20
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M7
+#endif
+#ifdef MULTISCALAR_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C21,C22,C23,C24
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M8,M9,M10
 #endif
 #ifdef MAGFIELD_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C9,C10,C11
@@ -268,6 +282,25 @@
       REAL(KIND=GP)    :: sparam0,sparam1,sparam2,sparam3,sparam4
       REAL(KIND=GP)    :: sparam5,sparam6,sparam7,sparam8,sparam9
 #endif
+#ifdef MULTISCALAR_
+      DOUBLE PRECISION :: tmp1,tmq1,tmp2,tmq2,tmp3,tmq3
+      REAL(KIND=GP)    :: kappa1,kappa2,kappa3
+      REAL(KIND=GP)    :: rmp1,rmq1,rmp2,rmq2,rmp3,rmq3
+      REAL(KIND=GP)    :: skup,skdn
+      REAL(KIND=GP)    :: c10,s10,c20,s20,c30,s30
+      REAL(KIND=GP)    :: c1param0,c1param1,c1param2,c1param3,c1param4
+      REAL(KIND=GP)    :: c1param5,c1param6,c1param7,c1param8,c1param9
+      REAL(KIND=GP)    :: s1param0,s1param1,s1param2,s1param3,s1param4
+      REAL(KIND=GP)    :: s1param5,s1param6,s1param7,s1param8,s1param9
+      REAL(KIND=GP)    :: c2param0,c2param1,c2param2,c2param3,c2param4
+      REAL(KIND=GP)    :: c2param5,c2param6,c2param7,c2param8,c2param9
+      REAL(KIND=GP)    :: s2param0,s2param1,s2param2,s2param3,s2param4
+      REAL(KIND=GP)    :: s2param5,s2param6,s2param7,s2param8,s2param9
+      REAL(KIND=GP)    :: c3param0,c3param1,c3param2,c3param3,c3param4
+      REAL(KIND=GP)    :: c3param5,c3param6,c3param7,c3param8,c3param9
+      REAL(KIND=GP)    :: s3param0,s3param1,s3param2,s3param3,s3param4
+      REAL(KIND=GP)    :: s3param5,s3param6,s3param7,s3param8,s3param9
+#endif
 #ifdef MAGFIELD_
       REAL(KIND=GP)    :: mkup,mkdn
       REAL(KIND=GP)    :: m0,a0
@@ -303,8 +336,9 @@
       INTEGER :: ihcpu1,ihcpu2
       INTEGER :: ihomp1,ihomp2
       INTEGER :: ihwtm1,ihwtm2
-#ifdef SCALAR_ 
+#if defined(SCALAR_) || defined(MULTISCALAR_) 
       INTEGER :: injt
+      INTEGER :: creset
 #endif
 #ifdef MAGFIELD_
       INTEGER :: dyna
@@ -314,7 +348,7 @@
       REAL         :: rbal
       INTEGER      :: maxparts
       INTEGER      :: injtp
-      INTEGER      :: creset
+      INTEGER      :: cresetp
       INTEGER      :: ilginittype
       INTEGER      :: ilgintrptype
       INTEGER      :: ilgexchtype
@@ -350,7 +384,26 @@
       NAMELIST / scalar / cparam7,cparam8,cparam9,sparam0,sparam1
       NAMELIST / scalar / sparam2,sparam3,sparam4,sparam5,sparam6
       NAMELIST / scalar / sparam7,sparam8,sparam9
-      NAMELIST / inject / injt
+#endif
+#ifdef MULTISCALAR_
+      NAMELIST / mscalar / c10,s10,c20,s20,c30,s30
+      NAMELIST / mscalar / skdn,skup
+      NAMELIST / mscalar / kappa1,kappa2,kappa3
+      NAMELIST / mscalar / c1param0,c1param1,c1param2,c1param3,c1param4 
+      NAMELIST / mscalar / c1param5,c1param6,c1param7,c1param8,c1param9 
+      NAMELIST / mscalar / s1param0,s1param1,s1param2,s1param3,s1param4 
+      NAMELIST / mscalar / s1param5,s1param6,s1param7,s1param8,s1param9 
+      NAMELIST / mscalar / c2param0,c2param1,c2param2,c2param3,c2param4 
+      NAMELIST / mscalar / c2param5,c2param6,c2param7,c2param8,c2param9 
+      NAMELIST / mscalar / s2param0,s2param1,s2param2,s2param3,s2param4 
+      NAMELIST / mscalar / s2param5,s2param6,s2param7,s2param8,s2param9 
+      NAMELIST / mscalar / c3param0,c3param1,c3param2,c3param3,c3param4 
+      NAMELIST / mscalar / c3param5,c3param6,c3param7,c3param8,c3param9 
+      NAMELIST / mscalar / s3param0,s3param1,s3param2,s3param3,s3param4 
+      NAMELIST / mscalar / s3param5,s3param6,s3param7,s3param8,s3param9 
+#endif
+#if defined(SCALAR_) || defined(MULTISCALAR_)
+      NAMELIST / inject / injt,creset
 #endif
 #ifdef MAGFIELD_
       NAMELIST / magfield / m0,a0,mkdn,mkup,mu,corr,mparam0,mparam1
@@ -383,7 +436,7 @@
 #endif
 #ifdef LAGPART_
       NAMELIST / plagpart / lgmult,maxparts,ilginittype,ilgintrptype
-      NAMELIST / plagpart / ilgexchtype,ilgouttype,lgseedfile,injtp,creset
+      NAMELIST / plagpart / ilgexchtype,ilgouttype,lgseedfile,injtp,cresetp,dolag
 #endif
 
 ! Initializes the MPI and I/O libraries
@@ -474,8 +527,20 @@
       ALLOCATE( fz(n,n,ista:iend) )
 #ifdef SCALAR_
       ALLOCATE( C20(n,n,ista:iend) )
-      ALLOCATE( th(n,n,ista:iend) )
-      ALLOCATE( fs(n,n,ista:iend) )
+      ALLOCATE( th (n,n,ista:iend) )
+      ALLOCATE( fs (n,n,ista:iend) )
+#endif
+#ifdef MULTISCALAR_
+      ALLOCATE( C21(n,n,ista:iend) )
+      ALLOCATE( C22(n,n,ista:iend) )
+      ALLOCATE( C23(n,n,ista:iend) )
+      ALLOCATE( C24(n,n,ista:iend) )
+      ALLOCATE( th1(n,n,ista:iend) )
+      ALLOCATE( th2(n,n,ista:iend) )
+      ALLOCATE( th3(n,n,ista:iend) )
+      ALLOCATE( fs1(n,n,ista:iend) )
+      ALLOCATE( fs2(n,n,ista:iend) )
+      ALLOCATE( fs3(n,n,ista:iend) )
 #endif
 #ifdef MAGFIELD_
       ALLOCATE( C9(n,n,ista:iend),  C10(n,n,ista:iend) )
@@ -691,13 +756,17 @@
 ! on the external file 'parameter.txt'
 !     injt : = 0 when stat=0 generates initial v and th (SCALAR_)
 !            = 1 when stat.ne.0 imports v and generates th (SCALAR_)
+!     creset: = 0: don't reset counters; 1 = reset counters 
 
+      injt   = 0
+      creset = 1
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.txt',status='unknown',form="formatted")
          READ(1,NML=inject)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(injt,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(injt  ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(creset,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
 !
 ! Reads parameters for the passive/active scalar from the 
@@ -742,6 +811,118 @@
       CALL MPI_BCAST(cparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(cparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(cparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+#endif
+
+#ifdef MULTISCALAR_
+!
+! Reads general configuration flags for runs with 
+! a passive/active scalar from the namelist 'inject' 
+! on the external file 'parameter.txt'
+!     injt : = 0 when stat=0 generates initial v and th (SCALAR_)
+!            = 1 when stat.ne.0 imports v and generates th (SCALAR_)
+!     creset: = 0: don't reset counters; 1 = reset counters 
+
+      injt   = 0
+      creset = 1
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         READ(1,NML=inject)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(injt  ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(creset,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+
+!
+! Reads parameters for the passive/active scalar from the 
+! namelist 'mscalar' on the external file 'parameter.txt'
+!     si0   : amplitude of the passive scalar source i
+!     ci0   : amplitude of the initial concentration i
+!     skdn  : minimum wave number in concentration/source
+!     skup  : maximum wave number in concentration/source
+!     kappa1: diffusivity for scalars 1
+!     kappa2: diffusivity for scalars 2
+!     kappa3: diffusivity for scalars 3
+!     sparam0-9 : ten real numbers to control properties of 
+!            the source
+!     cparam0-9 : ten real numbers to control properties of
+!            the initial concentration
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         READ(1,NML=mscalar)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(c10     ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c20     ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c30     ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s10     ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s20     ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s30     ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(skdn   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(skup   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kappa1  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kappa2  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kappa3  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s1param0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s1param1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s1param2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s1param3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s1param4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s1param5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s1param6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s1param7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s1param8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s1param9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c1param0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c1param1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c1param2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c1param3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c1param4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c1param5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c1param6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c1param7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c1param8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c1param9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s2param0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s2param1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s2param2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s2param3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s2param4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s2param5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s2param6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s2param7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s2param8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s2param9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c2param0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c2param1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c2param2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c2param3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c2param4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c2param5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c2param6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c2param7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c2param8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c2param9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s3param0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s3param1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s3param2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s3param3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s3param4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s3param5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s3param6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s3param7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s3param8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(s3param9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c3param0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c3param1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c3param2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c3param3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c3param4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c3param5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c3param6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c3param7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c3param8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(c3param9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #ifdef MAGFIELD_
@@ -913,7 +1094,7 @@
 !              part seeds. If injtp=0 when stat.ne.0, then the 
 !              particle restart file is read that corresp. to 
 !              stat.
-!     creset = 0: don't reset counters when injtp=1;
+!     cresetp = 0: don't reset counters when injtp=1;
 !            = 1: _do_ reset counters when injtp=1.
 !     ilginittype : Inititialization type. either GPINIT_RANDLOC or GPINIT_USERLOC
 !     ilgintrptype: Interpolation type: only GPINTRP_CSPLINE currently
@@ -922,7 +1103,7 @@
 !     lgseedfile  : Name of seed file if ilginittype=GPINIT_USERLOC
 !     dolag       : 1 = run with particles; 0 = don't 
       injtp        = 0
-      creset       = 0
+      cresetp       = 0
       ilginittype  = GPINIT_RANDLOC
       ilgintrptype = GPINTRP_CSPLINE
       ilgexchtype  = GPEXCHTYPE_VDB
@@ -939,7 +1120,7 @@
       ENDIF
       CALL MPI_BCAST(maxparts    ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(injtp       ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(creset      ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cresetp     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(lgmult      ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilginittype ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilgintrptype,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -996,6 +1177,22 @@
             END DO
          END DO
 #endif
+#ifdef MULTISCALAR_
+         ALLOCATE( M8 (n,n,ista:iend) )
+         ALLOCATE( M9 (n,n,ista:iend) )
+         ALLOCATE( M10(n,n,ista:iend) )
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,n
+               DO k = 1,n
+                  M8 (k,j,i) = 0.0_GP
+                  M9 (k,j,i) = 0.0_GP
+                  M10(k,j,i) = 0.0_GP
+               END DO
+            END DO
+         END DO
+#endif
 #ifdef MAGFIELD_
          ALLOCATE( M4(n,n,ista:iend) )
          ALLOCATE( M5(n,n,ista:iend) )
@@ -1030,6 +1227,9 @@
 #ifdef SCALAR_
       INCLUDE 'initialfs.f90'           ! scalar source
 #endif
+#ifdef MUJLTISCALAR_
+      INCLUDE 'initialfms.f90'          ! multiscalar sources
+#endif
 #ifdef MAGFIELD_
       INCLUDE 'initialfb.f90'           ! electromotive forcing
 #endif
@@ -1049,6 +1249,9 @@
       INCLUDE 'initialv.f90'            ! initial velocity
 #ifdef SCALAR_
       INCLUDE 'initials.f90'            ! initial concentration
+#endif
+#ifdef MULTISCALAR_
+      INCLUDE 'initialms.f90'           ! multiscalar initial concentration
 #endif
 #ifdef MAGFIELD_
       INCLUDE 'initialb.f90'            ! initial vector potential
@@ -1122,6 +1325,7 @@
          ENDIF
       ELSE
          INCLUDE 'initials.f90'      ! initial concentration
+         IF (creset.ne.0) THEN
          ini = 1                     ! resets all counters (the
          sind = 0                    ! run starts at t=0)
          tind = 0
@@ -1130,6 +1334,50 @@
          timec = cstep
          times = sstep
          timep = pstep
+         ENDIF
+      ENDIF INJ
+#endif
+
+#ifdef MULTISCALAR_
+ INJ: IF (injt.eq.0) THEN
+         CALL io_read(1,idir,'th1',ext,planio,R1)
+         CALL fftp3d_real_to_complex(planrc,R1,th1,MPI_COMM_WORLD)
+         CALL io_read(1,idir,'th2',ext,planio,R1)
+         CALL fftp3d_real_to_complex(planrc,R1,th1,MPI_COMM_WORLD)
+         CALL io_read(1,idir,'th3',ext,planio,R1)
+         CALL fftp3d_real_to_complex(planrc,R1,th1,MPI_COMM_WORLD)
+         IF (mean.eq.1) THEN
+            CALL io_read(1,idir,'mean_th1',ext,planio,R1)
+            CALL fftp3d_real_to_complex(planrc,R1,M8 ,MPI_COMM_WORLD)
+            CALL io_read(1,idir,'mean_th2',ext,planio,R1)
+            CALL fftp3d_real_to_complex(planrc,R1,M9 ,MPI_COMM_WORLD)
+            CALL io_read(1,idir,'mean_th3',ext,planio,R1)
+            CALL fftp3d_real_to_complex(planrc,R1,M10,MPI_COMM_WORLD)
+            dump = real(ini,kind=GP)/cstep
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+               DO j = 1,n
+                  DO k = 1,n
+                     M8 (k,j,i) = dump*M8 (k,j,i)
+                     M9 (k,j,i) = dump*M9 (k,j,i)
+                     M10(k,j,i) = dump*M10(k,j,i)
+                 END DO
+               END DO
+            END DO
+         ENDIF
+      ELSE
+         INCLUDE 'initialms.f90'     ! initial concentrations
+         IF (creset.ne.0) THEN
+         ini = 1                     ! resets all counters (the
+         sind = 0                    ! run starts at t=0)
+         tind = 0
+         pind = 0
+         timet = tstep
+         timec = cstep
+         times = sstep
+         timep = pstep
+         ENDIF
       ENDIF INJ
 #endif
 
@@ -1181,7 +1429,7 @@
           CALL lagpart%io_read(1,idir,'xlg',ext)
         ELSE
           CALL lagpart%Init()
-          IF (creset.ne.0) THEN
+          IF (cresetp.ne.0) THEN
             ini = 1                   ! resets all counters (the
             sind = 0                  ! particle run starts at t=0)
             tind = 0
@@ -1232,7 +1480,7 @@
                CALL MPI_BCAST(phase,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
                cdump = COS(phase)+im*SIN(phase)
                jdump = conjg(cdump)
-#ifdef SCALAR_
+#if defined(SCALAR_) || defined(MULTISCALAR_)
                IF (myrank.eq.0) phase = 2*pi*randu(seed)
                CALL MPI_BCAST(phase,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
                cdumr = COS(phase)+im*SIN(phase)
@@ -1257,6 +1505,14 @@
                      fs(1,j,1) = fs(1,j,1)*cdumr
                      fs(1,n-j+2,1) = fs(1,n-j+2,1)*jdumr
 #endif
+#ifdef MULTISCALAR_
+                     fs1(1,j,1) = fs1(1,j,1)*cdumr
+                     fs1(1,n-j+2,1) = fs1(1,n-j+2,1)*jdumr
+                     fs2(1,j,1) = fs2(1,j,1)*cdumr
+                     fs2(1,n-j+2,1) = fs2(1,n-j+2,1)*jdumr
+                     fs3(1,j,1) = fs3(1,j,1)*cdumr
+                     fs3(1,n-j+2,1) = fs3(1,n-j+2,1)*jdumr
+#endif
 #ifdef MAGFIELD_
                      mx(1,j,1) = mx(1,j,1)*cdumq
                      mx(1,n-j+2,1) = mx(1,n-j+2,1)*jdumq
@@ -1277,6 +1533,14 @@
 #ifdef SCALAR_
                      fs(k,1,1) = fs(k,1,1)*cdumr
                      fs(n-k+2,1,1) = fs(n-k+2,1,1)*jdumr
+#endif
+#ifdef MULTISCALAR_
+                     fs1(k,1,1) = fs1(k,1,1)*cdumr
+                     fs1(n-k+2,1,1) = fs1(n-k+2,1,1)*jdumr
+                     fs2(k,1,1) = fs2(k,1,1)*cdumr
+                     fs2(n-k+2,1,1) = fs2(n-k+2,1,1)*jdumr
+                     fs3(k,1,1) = fs3(k,1,1)*cdumr
+                     fs3(n-k+2,1,1) = fs3(n-k+2,1,1)*jdumr
 #endif
 #ifdef MAGFIELD_
                      mx(k,1,1) = mx(k,1,1)*cdumq
@@ -1300,6 +1564,14 @@
                         fs(k,j,1) = fs(k,j,1)*cdumr
                         fs(n-k+2,n-j+2,1) = fs(n-k+2,n-j+2,1)*jdumr
 #endif
+#ifdef MULTISCALAR_
+                        fs1(k,j,1) = fs1(k,j,1)*cdumr
+                        fs1(n-k+2,n-j+2,1) = fs1(n-k+2,n-j+2,1)*jdumr
+                        fs2(k,j,1) = fs2(k,j,1)*cdumr
+                        fs2(n-k+2,n-j+2,1) = fs2(n-k+2,n-j+2,1)*jdumr
+                        fs3(k,j,1) = fs3(k,j,1)*cdumr
+                        fs3(n-k+2,n-j+2,1) = fs3(n-k+2,n-j+2,1)*jdumr
+#endif
 #ifdef MAGFIELD_
                         mx(k,j,1) = mx(k,j,1)*cdumq
                         mx(n-k+2,n-j+2,1) = mx(n-k+2,n-j+2,1)*jdumq
@@ -1321,6 +1593,11 @@
 #ifdef SCALAR_
                            fs(k,j,i) = fs(k,j,i)*cdumr
 #endif
+#ifdef MULTISCALAR_
+                           fs1(k,j,i) = fs1(k,j,i)*cdumr
+                           fs2(k,j,i) = fs2(k,j,i)*cdumr
+                           fs3(k,j,i) = fs3(k,j,i)*cdumr
+#endif
 #ifdef MAGFIELD_
                            mx(k,j,i) = mx(k,j,i)*cdumq
                            my(k,j,i) = my(k,j,i)*cdumq
@@ -1340,6 +1617,11 @@
                            fz(k,j,i) = fz(k,j,i)*cdump
 #ifdef SCALAR_
                            fs(k,j,i) = fs(k,j,i)*cdumr
+#endif
+#ifdef MULTISCALAR_
+                           fs1(k,j,i) = fs1(k,j,i)*cdumr
+                           fs2(k,j,i) = fs2(k,j,i)*cdumr
+                           fs3(k,j,i) = fs3(k,j,i)*cdumr
 #endif
 #ifdef MAGFIELD_
                            mx(k,j,i) = mx(k,j,i)*cdumq
@@ -1493,6 +1775,45 @@
                CALL io_write(1,odir,'mean_th',ext,planio,R1)
             ENDIF
 #endif
+#ifdef MULTISCALAR_
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+               DO j = 1,n
+                  DO k = 1,n
+                     C1(k,j,i) = th1(k,j,i)/real(n,kind=GP)**3
+                     C2(k,j,i) = th2(k,j,i)/real(n,kind=GP)**3
+                     C3(k,j,i) = th3(k,j,i)/real(n,kind=GP)**3
+                  END DO
+               END DO
+            END DO
+            CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+            CALL io_write(1,odir,'th1',ext,planio,R1)
+            CALL fftp3d_complex_to_real(plancr,C2,R1,MPI_COMM_WORLD)
+            CALL io_write(1,odir,'th2',ext,planio,R1)
+            CALL fftp3d_complex_to_real(plancr,C3,R1,MPI_COMM_WORLD)
+            CALL io_write(1,odir,'th3',ext,planio,R1)
+            IF (mean.eq.1) THEN
+               dump = real(cstep,kind=GP)/t
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+               DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+                  DO j = 1,n
+                     DO k = 1,n
+                        C1(k,j,i) = dump*M8 (k,j,i)/real(n,kind=GP)**3
+                        C2(k,j,i) = dump*M9 (k,j,i)/real(n,kind=GP)**3
+                        C3(k,j,i) = dump*M10(k,j,i)/real(n,kind=GP)**3
+                     END DO
+                  END DO
+               END DO
+               CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+               CALL io_write(1,odir,'mean_th1',ext,planio,R1)
+               CALL fftp3d_complex_to_real(plancr,C2,R1,MPI_COMM_WORLD)
+               CALL io_write(1,odir,'mean_th2',ext,planio,R1)
+               CALL fftp3d_complex_to_real(plancr,C3,R1,MPI_COMM_WORLD)
+               CALL io_write(1,odir,'mean_th3',ext,planio,R1)
+            ENDIF
+#endif
 #ifdef MAGFIELD_
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
@@ -1564,6 +1885,9 @@
 #if defined(SCALAR_)
              INCLUDE 'scalar_lagpartout.f90'
 #endif
+#if defined(MULTISCALAR_)
+             INCLUDE 'mscalar_lagpartout.f90'
+#endif
 #if defined(MAGFIELD_)
              INCLUDE 'mhd_lagpartout.f90'
 #endif
@@ -1582,6 +1906,9 @@
 #endif
 #ifdef PHD_SOL
             INCLUDE 'phd_global.f90'
+#endif
+#ifdef MPHD_SOL
+            INCLUDE 'mphd_global.f90'
 #endif
 #ifdef MHD_SOL
             INCLUDE 'mhd_global.f90'
@@ -1648,6 +1975,19 @@
                   END DO
                END DO
 #endif
+#ifdef MULTISCALAR_
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+               DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+                  DO j = 1,n
+                     DO k = 1,n
+                        M8 (k,j,i) = M8 (k,j,i)+th1(k,j,i)
+                        M9 (k,j,i) = M9 (k,j,i)+th2(k,j,i)
+                        M10(k,j,i) = M10(k,j,i)+th3(k,j,i)
+                     END DO
+                  END DO
+               END DO
+#endif
 #ifdef MAGFIELD_
                CALL rotor3(ay,az,C1,1)
                CALL rotor3(ax,az,C2,2)
@@ -1679,6 +2019,9 @@
 #endif
 #ifdef PHD_SOL
             INCLUDE 'phd_spectrum.f90'
+#endif
+#ifdef MPHD_SOL
+            INCLUDE 'mphd_spectrum.f90'
 #endif
 #ifdef MHD_SOL
             INCLUDE 'mhd_spectrum.f90'
@@ -1739,6 +2082,9 @@
 #ifdef PHD_SOL
          INCLUDE 'phd_rkstep1.f90'
 #endif
+#ifdef MPHD_SOL
+         INCLUDE 'mphd_rkstep1.f90'
+#endif
 #ifdef MHD_SOL
          INCLUDE 'mhd_rkstep1.f90'
 #endif
@@ -1798,6 +2144,9 @@
 #endif
 #ifdef PHD_SOL
          INCLUDE 'phd_rkstep2.f90'
+#endif
+#ifdef MPHD_SOL
+         INCLUDE 'mphd_rkstep2.f90'
 #endif
 #ifdef MHD_SOL
          INCLUDE 'mhd_rkstep2.f90'
@@ -1875,15 +2224,16 @@
       END DO
       CALL fftp3d_complex_to_real(plancr,C7,R3,MPI_COMM_WORLD)
       CALL lagpart%Step(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),R4,R5)
+      CALL lagpart%FinalStep()
       ENDIF
 #endif
 
          END DO
 
 #ifdef LAGPART_
-      IF ( dolag.GT.0 ) THEN
-        CALL lagpart%FinalStep()
-      ENDIF
+!     IF ( dolag.GT.0 ) THEN
+!       CALL lagpart%FinalStep()
+!     ENDIF
 #endif
          timet = timet+1
          times = times+1
@@ -1971,7 +2321,13 @@
       IF (rand.eq.2) DEALLOCATE( Faux1, Faux2 )
 #ifdef SCALAR_
       DEALLOCATE( th,fs )
+      DEALLOCATE( C20 )
       IF (mean.eq.1) DEALLOCATE( M7 )
+#endif
+#ifdef MULTISCALAR_
+      DEALLOCATE( th1,fs1,th2,fs2,th3,fs3 )
+      DEALLOCATE( C21,C22,C23,C24 )
+      IF (mean.eq.1) DEALLOCATE( M8,M9,M10 )
 #endif
 #ifdef MAGFIELD_
       DEALLOCATE( ax,ay,az,mx,my,mz )

@@ -25,6 +25,7 @@ to build a solver other than the default):
 
    HD        Hydrodynamic (HD) solver [DEFAULT]
    PHD       Hydrodynamic solver with passive scalar
+   MPHD      Hydrodynamic solver with multi-scalar
    MHD       Magnetohydrodynamic (MHD) solver
    MHDB      MHD solver with a uniform magnetic field
    HMHD      Hall-MHD solver
