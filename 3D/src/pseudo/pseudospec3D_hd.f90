@@ -417,10 +417,11 @@
       USE kes
       USE grid
       USE mpivars
+      USE commtypes
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(n,n,ista:iend)  :: a,b,c
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: g
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
@@ -483,6 +484,7 @@
 ! Computes the z-component
 !
       ELSE
+
 !$omp parallel do if (iend-ista.ge.nth) private (j)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth)
@@ -501,7 +503,6 @@
             END DO
          END DO
       ENDIF
-
       RETURN
       END SUBROUTINE nonlhd3
 
@@ -1945,11 +1946,11 @@
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek
-      DOUBLE PRECISION, INTENT(OUT), DIMENSION(n/2+1) :: Ektot
-      DOUBLE PRECISION    :: tmq
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1
+      DOUBLE PRECISION,              DIMENSION(n/2+1)         :: Ek
+      DOUBLE PRECISION, INTENT(OUT), DIMENSION(n/2+1)         :: Ektot
+      DOUBLE PRECISION                                        :: tmq
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(n,n,ista:iend) :: a
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)              :: c1
       REAL(KIND=GP)       :: tmp
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -2006,7 +2007,7 @@
        ENDIF
 !
 ! Computes the reduction between nodes
-!
+
        CALL MPI_ALLREDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,      &
                       MPI_SUM,MPI_COMM_WORLD,ierr)
 !
