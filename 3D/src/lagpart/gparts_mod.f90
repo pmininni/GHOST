@@ -101,7 +101,7 @@ MODULE class_GPart
       PRIVATE :: GPart_MakePeriodicP
       PRIVATE :: GPart_GetLocalWrk     , GPart_MakePeriodicExt
       PRIVATE :: GPart_ascii_write_pdb , GPart_binary_write_pdb
-      PRIVATE :: GPart_ascii_write_eul , GPart_binary_write_eul
+      PRIVATE :: GPart_ascii_write_lag , GPart_binary_write_lag
       PRIVATE :: GPart_ascii_read_pdb  , GPart_binary_read_pdb
       PRIVATE :: GPart_GetVDB          , GPart_GetVel
       PRIVATE :: GPart_GetTime         , GPart_GetLoadBal
@@ -660,7 +660,7 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : io_write_vec
-!  DESCRIPTION: Does write of Lagrangian vector that are
+!  DESCRIPTION: Does write of Lagrangian vector that is
 !               currently stored. This vector may not be the
 !               advecting velocities if a call to SetLagVec
 !               is made with a different vector.
@@ -692,13 +692,13 @@ MODULE class_GPart
       STOP
     ENDIF
 
-    CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
-         this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp1_)
+!   CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+!        this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp1_)
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
-      CALL GPart_binary_write_pdb(this,iunit,dir,spref,nmb,time,this%ptmp0_)
+      CALL GPart_binary_write_lag(this,iunit,dir,spref,nmb,time,this%lvx_,this%lvy_,this%lvz_)
     ELSE
-      CALL GPart_ascii_write_pdb (this,iunit,dir,spref,nmb,time,this%ptmp0_)
+      CALL GPart_ascii_write_lag (this,iunit,dir,spref,nmb,time,this%lvx_,this%lvy_,this%lvz_)
     ENDIF
 
   END SUBROUTINE GPart_io_write_vec
@@ -872,12 +872,12 @@ MODULE class_GPart
     CALL GPart_EulerToLag(this,this%ltmp1_,this%nparts_,evar,doupdate,tmp1,tmp2)
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
-      CALL GPart_binary_write_eul(this,iunit,dir,spref,nmb,time,this%ltmp1_)
+      CALL GPart_binary_write_lag(this,iunit,dir,spref,nmb,time,this%ltmp1_)
     ELSE
       ! First, must synch up the field data since only task 0 writes:
       CALL this%gpcomm_%LagSynch(this%ltmp0_,this%maxparts_,this%id_, &
                                  this%ltmp1_,this%nparts_,this%ptmp0_)
-      CALL GPart_ascii_write_eul (this,iunit,dir,spref,nmb,time,this%ltmp0_)
+      CALL GPart_ascii_write_lag (this,iunit,dir,spref,nmb,time,this%ltmp0_)
     ENDIF
 
     
@@ -886,11 +886,11 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 
 
-  SUBROUTINE GPart_binary_write_eul(this, iunit, dir, spref, nmb, time, &
+  SUBROUTINE GPart_binary_write_lag(this, iunit, dir, spref, nmb, time, &
              fld0, fld1, fld2, fld3, fld4, fld5, fld6, fld7, fld8)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!  METHOD     : GPart_binary_write_eul
+!  METHOD     : GPart_binary_write_lag
 !  DESCRIPTION: Does binary write of Lagrangian field to file. 
 !               Position of the particle structure in file is the
 !               particle's id. This method allows for up to 9
@@ -971,20 +971,20 @@ MODULE class_GPart
     CALL MPI_FILE_CLOSE(fh,this%ierr_)
 
     IF ( gc .NE. this%nparts_*nv ) THEN
-      WRITE(*,*)this%myrank_, ': GPart_binary_write_eul: insufficient amount of data written; no. required=',this%nparts_*nv,' no. written=',gc
+      WRITE(*,*)this%myrank_, ': GPart_binary_write_lag: insufficient amount of data written; no. required=',this%nparts_*nv,' no. written=',gc
       STOP
     ENDIF
 
-  END SUBROUTINE GPart_binary_write_eul
+  END SUBROUTINE GPart_binary_write_lag
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
 
- SUBROUTINE GPart_ascii_write_eul(this, iunit, dir, spref, nmb, time, &
+ SUBROUTINE GPart_ascii_write_lag(this, iunit, dir, spref, nmb, time, &
             fld0, fld1, fld2, fld3, fld4, fld5, fld6, fld7, fld8)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!  METHOD     : GPart_ascii_write_eul
+!  METHOD     : GPart_ascii_write_lag
 !  DESCRIPTION: Does ASCII write of Lagrangian fld to file.
 !               The local MPI tasks write to a file with prefix
 !               spref, in the following format:
@@ -1060,7 +1060,7 @@ MODULE class_GPart
      CLOSE(iunit)
    ENDIF
 
-  END SUBROUTINE GPart_ascii_write_eul
+  END SUBROUTINE GPart_ascii_write_lag
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
