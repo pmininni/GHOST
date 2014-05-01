@@ -36,7 +36,7 @@ MODULE class_GPart
 
       INTEGER,PARAMETER,PRIVATE                      :: GPMAXTIMERS    =7  ! no. GPTIME parameters
       CHARACTER(len=8),PUBLIC                        :: lgext             ! string to hold time index
-      CHARACTER(len=6),PUBLIC,SAVE                   :: lgfmtext='(i8,8)' ! file time index format
+      CHARACTER(len=6),PUBLIC                        :: lgfmtext='(i8.8)' ! file time index format
 
       PRIVATE
       TYPE, PUBLIC :: GPart
@@ -559,7 +559,7 @@ MODULE class_GPart
 
     ! Note: each record (line) consists of x y z real positions
     ! within [0,N-1]^3 box
-    OPEN(UNIT=1,FILE=trim(this%seedfile_),STATUS='OLD',ACTION='READ',&
+    OPEN(UNIT=5,FILE=trim(this%seedfile_),STATUS='OLD',ACTION='READ',&
          IOSTAT=this%ierr_, IOMSG=this%serr_);
     IF ( this%ierr_ .NE. 0 ) THEN
       WRITE(*,*)'GPart::InitUserSeed: file:',this%seedfile_,' err: ', trim(this%serr_) 
@@ -569,7 +569,7 @@ MODULE class_GPart
     nt = 0  ! global part. record counter
     nl = 0  ! local particle counter
     DO WHILE ( this%ierr_.EQ.0 .AND. nt.LT.this%maxparts_ )
-      READ(1,*,IOSTAT=this%ierr_) x, y, z
+      READ(5,*,IOSTAT=this%ierr_) x, y, z
       IF ( this%ierr_ .NE. 0 ) EXIT
       IF ( z.GE.this%lxbnds_(3,1) .AND. z.LT.this%lxbnds_(3,2) .AND. &
            y.GE.this%lxbnds_(2,1) .AND. y.LT.this%lxbnds_(2,2) .AND. &
@@ -582,7 +582,8 @@ MODULE class_GPart
       ENDIF
       nt = nt + 1
     ENDDO
-    CLOSE(1)
+    CLOSE(5)
+
     this%nparts_ = nl;
     CALL MPI_ALLREDUCE(nl,nt,1,MPI_INTEGER,MPI_SUM,this%comm_,this%ierr_)
     IF ( this%myrank_.eq.0 .AND. nt.NE.this%maxparts_ ) THEN
