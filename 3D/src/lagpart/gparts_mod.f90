@@ -35,6 +35,8 @@ MODULE class_GPart
       INTEGER,PARAMETER,PUBLIC                       :: GPTIME_PUPDATE =7
 
       INTEGER,PARAMETER,PRIVATE                      :: GPMAXTIMERS    =7  ! no. GPTIME parameters
+      CHARACTER(len=8),PUBLIC                        :: lgext             ! string to hold time index
+      CHARACTER(len=6),PUBLIC,SAVE                   :: lgfmtext='(i8,8)' ! file time index format
 
       PRIVATE
       TYPE, PUBLIC :: GPart
