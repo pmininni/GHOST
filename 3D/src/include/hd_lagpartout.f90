@@ -37,9 +37,9 @@
 
            timep = 0
            pind = pind+1
-           WRITE(ext, fmtext) pind
-           CALL lagpart%io_write_pdb(1,odir,'xlg',ext,(t-1)*dt)
-           CALL lagpart%io_write_vec(1,odir,'vlg',ext,(t-1)*dt)
+           WRITE(lgext, lgfmtext) pind
+           CALL lagpart%io_write_pdb(1,odir,'xlg',lgext,(t-1)*dt)
+           CALL lagpart%io_write_vec(1,odir,'vlg',lgext,(t-1)*dt)
 
 ! Write nonlinear transfer:
            CALL prodre3(vx,vy,vz,C4,C5,C6)
@@ -77,5 +77,5 @@
                 END DO
              END DO
            END DO
-           CALL lagpart%io_write_euler(1,odir,'etranslg',ext,(t-1)*dt,R5,.false.,R2,R3)
+           CALL lagpart%io_write_euler(1,odir,'etranslg',lgext,(t-1)*dt,R5,.false.,R2,R3)
 

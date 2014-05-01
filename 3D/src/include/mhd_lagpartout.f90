@@ -17,5 +17,5 @@
            CALL rotor3(C1,C2,C6,3)
            CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD
            CALL lagpart%SetLagVec(R1,R2,R3,.false.,R4,R5)
-           CALL lagpart%io_write_vec(1,odir,'blg',ext,(t-1)*dt)
+           CALL lagpart%io_write_vec(1,odir,'blg',lgext,(t-1)*dt)
 
