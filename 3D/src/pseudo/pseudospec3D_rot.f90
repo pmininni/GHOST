@@ -1547,7 +1547,7 @@
 !
 ! Computes the ky=0 slice
 !
-!$omp parallel do private (j)
+!$omp parallel do private (k)
       DO i = ista,iend
          DO k = 1,n
             uk2(k,i) = a(k,1,i)*tmp
@@ -1557,7 +1557,7 @@
 ! Computes the kx=0 slice
 !
       IF (myrank.eq.0) THEN
-!$omp parallel do private (j)
+!$omp parallel do private (k)
          DO j = 1,n
             DO k = 1,n
                ut3(k,j) = a(k,j,1)*tmp

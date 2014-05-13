@@ -160,11 +160,15 @@
       USE mpivars
 
       INTEGER, INTENT(INOUT)   :: iseed
-      INTEGER                  :: iseed1(1)
+      INTEGER, ALLOCATABLE     :: iseed1(:)
+      INTEGER                  :: k
 
       iseed     = mod(iseed+myrank,abs(huge(0)-iseed)-1)
-      iseed1(1) = iseed
+      CALL random_seed(size=k)
+      ALLOCATE (iseed1(k))
+      iseed1 = (/ (j, j=iseed, k) /)
       CALL random_seed(put=iseed1)
+      DEALLOCATE(iseed1)
 
       END SUBROUTINE prandom_seed
 !-----------------------------------------------------------------

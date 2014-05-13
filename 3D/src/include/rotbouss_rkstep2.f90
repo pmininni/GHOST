@@ -31,7 +31,7 @@
          CALL laplak3(vz,vz)
          CALL laplak3(th,th)
 
-         IF ((trans.eq.1).and.(times.eq.0).and.(bench.eq.0).and.(o.eq.ord)) &
+         IF ((trans.eq.1).and.(times.eq.sstep).and.(bench.eq.0).and.(o.eq.ord)) &
             THEN
             CALL entrans(C1,C2,C3,C7,C8,C4,ext,1)
             CALL entpara(C1,C2,C3,C7,C8,C4,ext,1)

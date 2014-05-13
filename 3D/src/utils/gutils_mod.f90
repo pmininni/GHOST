@@ -443,7 +443,7 @@ MODULE gutils
 !     R1/R2  : real arrays (kind GP) of dimension nin
 !     sR1/sR2: descriptions of quantities R1 & R2; only 4 chars are used
 !     nin    : integer size of arrays R2/R2
-!     n     : full linear domain size
+!     n      : full linear domain size
 !     fname  : output interval id extension
 !     nbins  : 2D array giving number of bins to use for PDF (>0) 
 !              in each 'direction'. Must be the same for all MPI tasks on entry.
@@ -698,7 +698,9 @@ if ( myrank.eq. 0 ) write(*,*)'dojpdf: writing to disk...'
           IF ( dolog(j) .GT. 0 ) fmax(j) = 10.0_GP**fmax(j)
         ENDDO
 
-        WRITE(shead,'(A1,2(A4,A6,E16.8,A1,E16.8,A3,A4,A5,E16.8,A2,A4,A5,E16.8,A2),A6,I7,A1,I7,A9,I1,A1,I1,A10,F12.0,A1,F12.0,A1)') '#',&
+        WRITE(shead, &
+        '(A1,2(A4,A6,E16.8,A1,E16.8,A3,A4,A5,E16.8,A2,A4,A5,E16.8,A2),A6,I7,A1,I7,A9,I1,A1,I1,A10,F12.0,A1,F12.0,A1)')&
+        '#',&
         trim(sR1),'_rng=[',fmin(1),',',fmax(1),']; ',trim(sR1),'_avg=',gavg(1),'; ',trim(sR1),'_sig=',sig(1),'; ',&
         trim(sR2),'_rng=[',fmin(2),',',fmax(2),']; ',trim(sR2),'_avg=',gavg(2),'; ',trim(sR2),'_sig=',sig(2),'; ',&
         'nbin=[', nbins(1),',',nbins(2), ']; blog=[', dolog(1),',',dolog(2),']; nkeep=',gkeep

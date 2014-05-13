@@ -184,7 +184,8 @@ MODULE class_GPart
       ENDIF
     ENDDO
 
-    CALL this%gpcomm_%GPartComm_ctor(GPCOMM_INTRFC_SF,this%maxparts_,this%nd_,this%intorder_-1,this%comm_,this%htimers_(GPTIME_COMM))
+    CALL this%gpcomm_%GPartComm_ctor(GPCOMM_INTRFC_SF,this%maxparts_, &
+         this%nd_,this%intorder_-1,this%comm_,this%htimers_(GPTIME_COMM))
     CALL this%gpcomm_%SetCacheParam(csize,nstrip)
     CALL this%gpcomm_%Init()
 
@@ -768,7 +769,9 @@ MODULE class_GPart
     CALL MPI_FILE_CLOSE(fh,this%ierr_)
 
     IF ( gc .NE. this%nparts_*3 ) THEN
-      WRITE(*,*)this%myrank_, ': GPart_binary_write_pdb: insufficient amount of data written; no. required=',this%nparts_*3,' no. written=',gc
+      WRITE(*,*)this%myrank_, &
+        ': GPart_binary_write_pdb: insufficient amount of data written; no. required=',&
+        this%nparts_*3,' no. written=',gc
       STOP
     ENDIF
 
@@ -974,7 +977,9 @@ MODULE class_GPart
     CALL MPI_FILE_CLOSE(fh,this%ierr_)
 
     IF ( gc .NE. this%nparts_*nv ) THEN
-      WRITE(*,*)this%myrank_, ': GPart_binary_write_lag: insufficient amount of data written; no. required=',this%nparts_*nv,' no. written=',gc
+      WRITE(*,*)this%myrank_, &
+        ': GPart_binary_write_lag: insufficient amount of data written; no. required=',&
+        this%nparts_*nv,' no. written=',gc
       STOP
     ENDIF
 
@@ -1217,8 +1222,10 @@ MODULE class_GPart
       READ(iunit,*,iostat=kstat) nt
       READ(iunit,*,iostat=kstat) time
       IF ( nt.NE.this%maxparts_ ) THEN
-        WRITE(*,*)this%myrank_, ': GPart_ascii_read_pdb: particle inconsistency: no. required=',this%maxparts_,' no. found=',nt, ' file=',trim(dir)// '/' // trim(spref) // '.' // &
-                nmb //  '.txt'
+        WRITE(*,*)this%myrank_, &
+          ': GPart_ascii_read_pdb: particle inconsistency: no. required=',&
+          this%maxparts_,' no. found=',nt, &
+          ' file=',trim(dir)// '/' // trim(spref) // '.' // nmb //  '.txt'
         STOP
       ENDIF
       DO j = 1, this%maxparts_

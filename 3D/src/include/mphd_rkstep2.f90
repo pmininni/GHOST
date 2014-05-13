@@ -14,7 +14,7 @@
          CALL laplak3(th1,th1)
          CALL laplak3(th2,th2)
          CALL laplak3(th3,th3)
-         IF ((trans.eq.1).and.(times.eq.0).and.(bench.eq.0).and.(o.eq.ord)) &
+         IF ((trans.eq.1).and.(times.eq.sstep).and.(bench.eq.0).and.(o.eq.ord)) &
             THEN
             CALL entrans(C1,C2,C3,C7,C8,C4,ext,1)
             CALL sctrans(C21,C5 ,ext,1)

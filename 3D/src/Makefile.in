@@ -31,7 +31,7 @@ P_CUDA   = no
 # Lagrangian particles:
 # PARTICLES = no        # Do not build Lag. particles
 # PARTICLES = yes       # Build Lag. particles
-PARTICLES = no
+PARTICLES = yes
 
 # FFTP:
 # fftp-2   builds FFTP-2 (links with FFTW 2.x)
