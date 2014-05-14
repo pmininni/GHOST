@@ -436,7 +436,7 @@
 #endif
 #ifdef LAGPART_
       NAMELIST / plagpart / lgmult,maxparts,ilginittype,ilgintrptype
-      NAMELIST / plagpart / ilgexchtype,ilgouttype,lgseedfile,injtpg
+      NAMELIST / plagpart / ilgexchtype,ilgouttype,lgseedfile,injtp
       NAMELIST / plagpart / cresetp,dolag
 #endif
 
