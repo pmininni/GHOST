@@ -94,11 +94,12 @@
 !
 ! Auxiliary variables
 
-      INTEGER :: i,ic,iir,ind,ir,isolve,iswap,it,j,jc,jjc,k,oswap
-      INTEGER :: demean,dolog,ilamb,inorm,istat(1024),jpdf,nstat
+      INTEGER :: i,ic,iir,ind,ir,isolve,istrain,iswap,it,j,jc,jjc,k,oswap
+      INTEGER :: demean,dolog,ilamb,iolamb,inorm,istat(1024),jpdf,nstat
       INTEGER :: irand,isheb,nbinx,nbiny,nbins(2),nin,seed
       INTEGER :: indt,tstep
 !$    INTEGER, EXTERNAL :: omp_get_max_threads
+
 
       TYPE(IOPLAN) :: planio
       CHARACTER(len=16)   :: suff
@@ -109,7 +110,7 @@
       CHARACTER(len=2048) :: fntmp1,fntmp2,fntmp3,fntmp4,fntmp5,fntmp6
       CHARACTER(len=4096) :: stat
 !
-      NAMELIST / shear / demean,ilamb,isheb,isolve,iswap
+      NAMELIST / shear / demean,ilamb,iolamb,isheb,isolve,iswap
       NAMELIST / shear / dolog,oswap,idir,odir,pref,stat
       NAMELIST / shear / dismin,dismax,ensmin,ensmax,jpdf,nbinx,nbiny
       NAMELIST / shear / irand,krmin,krmax,seed
@@ -140,6 +141,7 @@
       btrunc = 0
       demean = 0
       dolog  = 1
+      iolamb = 0
       ilamb  = 0
       irand  = 0
       isheb  = 1
@@ -169,7 +171,8 @@
 !     oswap  : do endian swap on output?
 !     isolve : 0==>just max |eigenvale| field; 1==>max |eigenvalue| field plus
 !              corresponding eigenvector inevx,evy,evz
-!     ilamb  : 1==>write eigenvalue field to disk; 0==>don't
+!     ilamb  : 0: don't do evalue computation; 1: do it (is done for jpdf>0).
+!     iolamb : 1==>write eigenvalue field to disk; 0==>don't
 !     irand  : randomize phases between [krmin,krmax] if 1; else, don't
 !     isheb  : compute Shebaliln angles for total energy, and ke and pe?
 !              ==0: don't compute them;
@@ -202,6 +205,7 @@ write(*,*)'main: shear.txt read.'
       CALL MPI_BCAST(iswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(isolve,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilamb ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(iolamb,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(irand ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(jpdf  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ktmin ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
@@ -215,9 +219,18 @@ if (myrank.eq.0) write(*,*)'main: broadcast done.'
 !
       nbins(1) = nbinx
       nbins(2) = nbiny
+
+      istrain = 0
+      IF ( jpdf.GT.0    ) ilamb  = 1
+      IF ( isolve .GT.0 ) ilamb  = 1
+      IF ( jpdf.GT.0 .OR. isolve.GT.0 .OR. ilamb.GT.0 ) istrain = 1
+      IF ( ilamb  .LE.0 ) iolamb = 0
+
 !
       ALLOCATE( ctmp(n,n,ista:iend) )
+      IF ( istrain.GT.0 ) THEN
       ALLOCATE( sij (n,n,ista:iend) )
+      ENDIF
       ALLOCATE( vx(n,n,ista:iend) )
       ALLOCATE( vy(n,n,ista:iend) )
       ALLOCATE( vz(n,n,ista:iend) )
@@ -232,14 +245,15 @@ if (myrank.eq.0) write(*,*)'main: broadcast done.'
       ALLOCATE( R4(n,n,ksta:kend) )
       ALLOCATE( R5(n,n,ksta:kend) )
       ALLOCATE( R6(n,n,ksta:kend) )
+      IF ( ilamb.GT.0 ) THEN
       ALLOCATE( lamb(n,n,ksta:kend) )
+      ENDIF
       
       ALLOCATE( evx(n,n,ksta:kend) )
       ALLOCATE( evy(n,n,ksta:kend) )
       IF ( isolve.GT.0 ) THEN
       ALLOCATE( evz(n,n,ksta:kend) )
       ENDIF
-!
 
 if (myrank.eq.0) write(*,*)'main: creating plans...'
       CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
@@ -377,7 +391,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
         ENDIF
 #endif
       CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-      IF ( isheb.EQ.2 ) THEN
+      IF ( isheb.EQ.2 .AND. it.EQ.nstat ) THEN
         IF ( ALLOCATED(ctmp) ) DEALLOCATE(ctmp); IF ( ALLOCATED (sij) ) DEALLOCATE (sij)
         IF ( ALLOCATED  (vx) ) DEALLOCATE  (vx); IF ( ALLOCATED  (vy) ) DEALLOCATE  (vy)
         IF ( ALLOCATED  (vz) ) DEALLOCATE  (vz); IF ( ALLOCATED  (th) ) DEALLOCATE  (th)
@@ -394,12 +408,24 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 #if defined(SCALAR_)
         indt = (istat(it)-1)*tstep
         CALL tbouss(vx,vy,vz,th,indt,dt,omega,bvfreq)
+        CALL havgwrite(0,'shear'  ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg shear
+        CALL havgwrite(1,'tgradz' ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg dtheta/dz
+        CALL havgwrite(2,'hawdtdz',ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg u_z * dtheta/dz
+        CALL havgwrite(3,'hahke'  ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg hor. k.e.
+        CALL havgwrite(4,'havke'  ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg vert. k.e.
+!       CALL havgwrite(5,'haphel' ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg perp. helicity
+        CALL havgwrite(6,'haomzt' ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg ometa_z * theta
+        CALL havgwrite(7,'hapv2'  ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg pot'l vorticity^2
+        CALL havgwrite(8,'hasuph' ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg super-helicity
+        CALL havgwrite(9,'hari'   ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg Richardson no.
 #endif
 
 !write(*,*)'main: ktmin2=',ktmin2, ' ktmax2=',ktmax2
 
 ! Compute required strain rate components:
         inorm = 1
+
+        IF ( istrain.GT.0 ) THEN
         CALL Strain(vx,vy,vz,1,1,ktmin,ktmax,inorm,sij,ctmp)
         CALL fftp3d_complex_to_real(plancr,sij,R1,MPI_COMM_WORLD)
         CALL Strain(vx,vy,vz,1,2,ktmin,ktmax,inorm,sij,ctmp)
@@ -410,13 +436,15 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
         CALL fftp3d_complex_to_real(plancr,sij,R4,MPI_COMM_WORLD)
         CALL Strain(vx,vy,vz,2,3,ktmin,ktmax,inorm,sij,ctmp)
         CALL fftp3d_complex_to_real(plancr,sij,R5,MPI_COMM_WORLD)
+        ENDIF
 
 ! Compute required eigenvalue field of strain:
-        IF ( isolve.EQ.0 ) THEN
-          CALL EigenValMax(R1,R2,R3,R4,R5,lamb)
-        ELSE
-          CALL EigenSolveMax(R1,R2,R3,R4,R5,lamb,evx,evy,evz)
-        ENDIF
+        IF ( ilamb.GT. 0 ) THEN
+          IF ( isolve.GT.0 ) THEN
+            CALL EigenSolveMax(R1,R2,R3,R4,R5,lamb,evx,evy,evz)
+          ELSE 
+            CALL EigenValMax(R1,R2,R3,R4,R5,lamb)
+          ENDIF
 !
 ! Remove mean, if desired:
 
@@ -446,7 +474,8 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
              ENDDO
            ENDDO
          ENDDO
-         ENDIF
+
+         ENDIF ! demean
 
         R6  = lamb
         CALL fftp3d_real_to_complex(planrc,R6,ctmp,MPI_COMM_WORLD)
@@ -462,11 +491,11 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 
         CALL pspectrum(ctmp,fntmp,int(kmax))
 
-
+        ENDIF ! do lamb computation 
 ! 
 ! Prepare eignesystem for output if necessary
 ! (don't forget to undo swaps for later):
-        IF ( ilamb .GT. 0 ) THEN
+        IF ( iolamb.GT.0 ) THEN
           IF ( oswap .NE. 0 ) THEN
             CALL rarray_byte_swap(lamb, n*n*(kend-ksta+1))
           ENDIF
