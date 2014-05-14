@@ -106,3 +106,15 @@ alpm = 0.066     ! filter length for the magnetic field
 kolmo = 1.3      ! Kolmogorov constant
 heli = 1         ! Computes helical contribution to LES if 1
 /
+
+! Parameters for Lagrangian particles
+&plagpart
+dolag = 1        ! 1=run with particles, 0=don't
+maxparts = 1000  ! Maximum number of particles
+injtp = 0        ! Injects particles when 1
+cresetp = 0      ! Resets file number counters at time of injection when 1
+ilginittype = 0  ! Initialization type for locations (0=random, 1=user)
+ilgexchtype = 1  ! Boundary exchange type (0=nearest neighbor, 1=voxel db)
+ilgouttype = 1   ! Output type (0=binary, 1=ASCII)
+lgseedfile = 'user_seed_file.dat'
+/

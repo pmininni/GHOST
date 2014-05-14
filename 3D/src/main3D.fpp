@@ -436,7 +436,8 @@
 #endif
 #ifdef LAGPART_
       NAMELIST / plagpart / lgmult,maxparts,ilginittype,ilgintrptype
-      NAMELIST / plagpart / ilgexchtype,ilgouttype,lgseedfile,injtp,cresetp,dolag
+      NAMELIST / plagpart / ilgexchtype,ilgouttype,lgseedfile,injtpg
+      NAMELIST / plagpart / cresetp,dolag
 #endif
 
 ! Initializes the MPI and I/O libraries
@@ -1094,7 +1095,7 @@
 !              part seeds. If injtp=0 when stat.ne.0, then the 
 !              particle restart file is read that corresp. to 
 !              stat.
-!     cresetp = 0: don't reset counters when injtp=1;
+!     cresetp= 0: don't reset counters when injtp=1;
 !            = 1: _do_ reset counters when injtp=1.
 !     ilginittype : Inititialization type. either GPINIT_RANDLOC or GPINIT_USERLOC
 !     ilgintrptype: Interpolation type: only GPINTRP_CSPLINE currently
@@ -1103,7 +1104,7 @@
 !     lgseedfile  : Name of seed file if ilginittype=GPINIT_USERLOC
 !     dolag       : 1 = run with particles; 0 = don't 
       injtp        = 0
-      cresetp       = 0
+      cresetp      = 0
       ilginittype  = GPINIT_RANDLOC
       ilgintrptype = GPINTRP_CSPLINE
       ilgexchtype  = GPEXCHTYPE_VDB
