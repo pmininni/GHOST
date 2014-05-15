@@ -161,12 +161,11 @@
 
       INTEGER, INTENT(INOUT)   :: iseed
       INTEGER, ALLOCATABLE     :: iseed1(:)
-      INTEGER                  :: k
+      INTEGER                  :: j,k
 
       iseed     = mod(iseed+myrank,abs(huge(0)-iseed)-1)
       CALL random_seed(size=k)
-      ALLOCATE (iseed1(k))
-      iseed1 = (/ (j, j=iseed, k) /)
+      ALLOCATE (iseed1(k), source = iseed*[(j, j=0, k)])
       CALL random_seed(put=iseed1)
       DEALLOCATE(iseed1)
 
