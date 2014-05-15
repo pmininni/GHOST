@@ -1879,7 +1879,6 @@
          ENDIF
 
 #ifdef LAGPART_
-
          IF ( dolag.GT.0 ) THEN
            IF ((timep.eq.pstep).and.(bench.eq.0)) THEN
              INCLUDE 'hd_lagpartout.f90'
@@ -2231,11 +2230,6 @@
 
          END DO
 
-#ifdef LAGPART_
-!     IF ( dolag.GT.0 ) THEN
-!       CALL lagpart%FinalStep()
-!     ENDIF
-#endif
          timet = timet+1
          times = times+1
          timec = timec+1
