@@ -522,15 +522,16 @@ MODULE class_GPart
       this%maxparts_,' total created: ',nt
       STOP
     ENDIF
-!   CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3) !periodize in x-y
     CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,this%nparts_, &
                            this%vdb_,this%maxparts_)
     CALL GPART_ascii_write_pdb(this,1,'.','xlgInitRndSeed','000',0.0,this%vdb_)
-    IF (  this%myrank_.eq.0 .AND. .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
-      WRITE(*,*) 'GPart_InitRandSeed: Invalid particle after GetLocalWrk call'
-      STOP
+    IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
+      IF ( this%myrank_.eq.0 ) THEN
+        WRITE(*,*) 'GPart_InitRandSeed: Invalid particle after GetLocalWrk call'
+        STOP
+      ENDIF
     ENDIF
 
   END SUBROUTINE GPart_InitRandSeed
@@ -691,9 +692,11 @@ MODULE class_GPart
     CHARACTER(len=*),INTENT(IN)       :: spref
     TYPE(GPDBrec)                     :: pst
 
-    IF (  this%myrank_.eq.0 .AND. .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
-      WRITE(*,*) 'GPart_io_write_vec: Inconsistent particle count'
-      STOP
+    IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
+      IF ( this%myrank_.eq.0 ) THEN
+        WRITE(*,*) 'GPart_io_write_vec: Inconsistent particle count'
+        STOP
+      ENDIF
     ENDIF
 
 !   CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
@@ -1315,8 +1318,10 @@ MODULE class_GPart
     ! If using VDB interface, do synch-up, and get local work:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
 
-      IF (  this%myrank_.eq.0 .AND. .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
-        WRITE(*,*) 'GPart_FinalizeRKK: Inconsistent particle count'
+      IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
+        IF ( this%myrank_.eq.0 ) THEN
+          WRITE(*,*) 'GPart_FinalizeRKK: Inconsistent particle count'
+        ENDIF
       ENDIF
       ! Synch up VDB, if necessary:
       CALL GTStart(this%htimers_(GPTIME_COMM))
@@ -1751,9 +1756,11 @@ MODULE class_GPart
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,npdb):: pdb 
 
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
-      IF (  this%myrank_.eq.0 .AND.  .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
-        WRITE(*,*) 'GPart_io_write_vel: Inconsistent particle count'
-        STOP
+      IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
+          IF ( this%myrank_.eq.0 ) THEN
+            WRITE(*,*) 'GPart_io_write_vel: Inconsistent particle count'
+            STOP
+        ENDIF
       ENDIF
 
       CALL this%gpcomm_%VDBSynch(pdb,this%maxparts_,this%id_, &
@@ -1789,9 +1796,11 @@ MODULE class_GPart
     INTEGER                                        :: j
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,nparts):: lvel
 
-    IF (  this%myrank_.eq.0 .AND.  .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
-      WRITE(*,*) 'GPart_GetVel: Inconsistent particle count'
-      STOP
+    IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
+      IF ( this%myrank_.eq.0 ) THEN
+        WRITE(*,*) 'GPart_GetVel: Inconsistent particle count'
+        STOP
+      ENDIF
     ENDIF
     CALL this%gpcomm_%VDBSynch(lvel,this%maxparts_,this%id_, &
          this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp0_)
