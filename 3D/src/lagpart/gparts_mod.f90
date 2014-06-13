@@ -61,6 +61,7 @@ MODULE class_GPart
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: px_,py_,pz_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: lvx_,lvy_,lvz_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:,:) :: ptmp0_,ptmp1_,vdb_
+        REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:,:) :: gptmp0_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: ltmp0_,ltmp1_
         REAL(KIND=GP)                                :: lxbnds_(3,2),gext_(3)
         CHARACTER(len=1024)                          :: seedfile_,serr_,sfile_
@@ -102,6 +103,7 @@ MODULE class_GPart
       PRIVATE :: GPart_SetRandSeed     , GPart_Delete
       PRIVATE :: GPart_MakePeriodicP
       PRIVATE :: GPart_GetLocalWrk     , GPart_MakePeriodicExt
+      PRIVATE :: GPart_GetLocalWrk_aux 
       PRIVATE :: GPart_ascii_write_pdb , GPart_binary_write_pdb
       PRIVATE :: GPart_ascii_write_lag , GPart_binary_write_lag
       PRIVATE :: GPart_ascii_read_pdb  , GPart_binary_read_pdb
@@ -229,6 +231,7 @@ MODULE class_GPart
     ALLOCATE(this%ptmp0_ (3,this%maxparts_))
     ALLOCATE(this%ptmp1_ (3,this%maxparts_))
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
+      ALLOCATE(this%gptmp0_ (3,this%maxparts_))
       ALLOCATE(this%vdb_(3,this%maxparts_))
     ENDIF
     ALLOCATE(this%ltmp0_ (this%maxparts_))
@@ -262,6 +265,7 @@ MODULE class_GPart
     IF ( ALLOCATED   (this%lvy_) ) DEALLOCATE  (this%lvy_)
     IF ( ALLOCATED   (this%lvz_) ) DEALLOCATE  (this%lvz_)
     IF ( ALLOCATED (this%ptmp0_) ) DEALLOCATE(this%ptmp0_)
+    IF ( ALLOCATED (this%gptmp0_) ) DEALLOCATE(this%gptmp0_)
     IF ( ALLOCATED (this%ptmp1_) ) DEALLOCATE(this%ptmp1_)
     IF ( ALLOCATED   (this%vdb_) ) DEALLOCATE  (this%vdb_)
     IF ( ALLOCATED (this%ltmp0_) ) DEALLOCATE(this%ltmp0_)
@@ -524,6 +528,8 @@ MODULE class_GPart
     ENDIF
     CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+    CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+                          this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,this%nparts_, &
                            this%vdb_,this%maxparts_)
     CALL GPART_ascii_write_pdb(this,1,'.','xlgInitRndSeed','000',0.0,this%vdb_)
@@ -705,7 +711,11 @@ MODULE class_GPart
     IF ( this%iouttype_ .EQ. 0 ) THEN
       CALL GPart_binary_write_lag(this,iunit,dir,spref,nmb,time,this%lvx_,this%lvy_,this%lvz_)
     ELSE
-      CALL GPart_ascii_write_lag (this,iunit,dir,spref,nmb,time,this%lvx_,this%lvy_,this%lvz_)
+      !CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time,this%lvx_,this%lvy_,this%lvz_)
+      CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+           this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp1_)
+      CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time, &
+                                 this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
     ENDIF
 
   END SUBROUTINE GPart_io_write_vec
@@ -1111,7 +1121,8 @@ MODULE class_GPart
       CALL GPart_ascii_read_pdb (this,iunit,dir,spref,nmb,time,this%ptmp0_)
     ENDIF
 
-    CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,this%nparts_,this%ptmp0_,this%maxparts_)
+    CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
+                           this%nparts_,this%ptmp0_,this%maxparts_)
 
     CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
                        MPI_SUM,this%comm_,this%ierr_)
@@ -1327,11 +1338,17 @@ MODULE class_GPart
       CALL GTStart(this%htimers_(GPTIME_COMM))
       CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
            this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+                     this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
+                     this%nparts_,this%ptmp1_)
       CALL GTAcc(this%htimers_(GPTIME_COMM))
 
       ! If using VDB, get local particles to work on:
-      CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,&
-           this%nparts_,this%vdb_,this%maxparts_)
+      ! GPart_GetLocalWrk_aux also synchronizes auxiliary RK arrays, 
+      ! and is needed if the call is done in the middle of a RK step.
+      CALL GPart_GetLocalWrk_aux(this,this%id_,this%px_,this%py_,this%pz_,&
+                       this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
+                       this%nparts_,this%vdb_,this%gptmp0_,this%maxparts_)
       CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
                          MPI_SUM,this%comm_,this%ierr_)
 
@@ -1384,7 +1401,6 @@ MODULE class_GPart
     REAL(KIND=GP),ALLOCATABLE  ,DIMENSION            (:) :: lid,gid
 
     dtfact = dt*xk*real(n,kind=GP)/(8.0_GP*atan(1.0_GP))
-
     CALL GTStart(this%htimers_(GPTIME_STEP))
 
     ! Find F(u*):
@@ -1412,7 +1428,7 @@ MODULE class_GPart
     DO j = 1, this%nparts_
       this%pz_(j) = this%ptmp0_(3,j) + dtfact*this%lvz_(j)
     ENDDO
-!
+
     ! Enforce periodicity in x-y only:
     CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3)
 
@@ -1733,6 +1749,62 @@ MODULE class_GPart
     ENDDO
 
   END SUBROUTINE GPart_GetLocalWrk
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+  SUBROUTINE GPart_GetLocalWrk_aux(this,id,lx,ly,lz,tx,ty,tz,nl,gvdb,gtmp,ngvdb)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : GPart_GetLocalWrk_aux
+!  DESCRIPTION: Removes from PDB NULL particles, concatenates list,
+!               and sets new number of particles. This auxiliary 
+!               subroutines also updates arrays used during the 
+!               intermediate steps of the RK solver, and is needed 
+!               if local work is recomputed in the midde of a RK 
+!               iteration.
+!  ARGUMENTS  :
+!    this    : 'this' class instance (IN)
+!    id      : part ids
+!    lx,ly,lz: local part. d.b. vectors
+!    tx,ty,tz: local initial part. d.b. vectors
+!    nl      : no. parts. in local pdb
+!    gvdb    : global VDB containing part. position records. Location
+!              gives particle id.
+!    gtmp    : global VDB containing part. position records at the
+!              beginning of the RK loop. Location gives particle id.
+!    ngvdb   : no. records in global VDB
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+
+    IMPLICIT NONE
+    CLASS(GPart) ,INTENT(INOUT)                           :: this
+    INTEGER      ,INTENT(INOUT)                           :: nl
+    INTEGER      ,INTENT(INOUT),DIMENSION(this%maxparts_) :: id
+    INTEGER      ,INTENT   (IN)                           :: ngvdb
+    INTEGER                                               :: i,j
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%maxparts_) :: lx,ly,lz
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%maxparts_) :: tx,ty,tz
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(3,ngvdb)        :: gvdb
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(3,ngvdb)        :: gtmp
+
+    nl = 0
+    id = GPNULL
+    DO j = 1, ngvdb
+      IF ( gvdb(3,j).GE.this%lxbnds_(3,1) .AND. gvdb(3,j).LT.this%lxbnds_(3,2) ) THEN 
+        nl = nl + 1
+        id (nl) = j-1
+        lx (nl) = gvdb(1,j)
+        ly (nl) = gvdb(2,j)
+        lz (nl) = gvdb(3,j)
+        tx (nl) = gtmp(1,j)
+        ty (nl) = gtmp(2,j)
+        tz (nl) = gtmp(3,j)
+      ENDIF
+    ENDDO
+
+  END SUBROUTINE GPart_GetLocalWrk_aux
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 

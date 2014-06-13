@@ -1426,8 +1426,8 @@
 #ifdef LAGPART_
       IF ( dolag.GT.0 ) THEN
         IF (injtp.eq.0) THEN
-          WRITE(ext, fmtext) pind
-          CALL lagpart%io_read(1,idir,'xlg',ext)
+          WRITE(lgext, lgfmtext) pind
+          CALL lagpart%io_read(1,idir,'xlg',lgext)
         ELSE
           CALL lagpart%Init()
           IF (cresetp.ne.0) THEN
