@@ -64,7 +64,8 @@ MODULE class_GPart
         REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:,:) :: gptmp0_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: ltmp0_,ltmp1_
         REAL(KIND=GP)                                :: lxbnds_(3,2),gext_(3)
-        CHARACTER(len=1024)                          :: seedfile_,serr_,sfile_
+        CHARACTER(len=1024)                          :: seedfile_,sfile_
+        CHARACTER(len=MPI_MAX_ERROR_STRING)          :: serr_
       CONTAINS
         ! Public methods:
         PROCEDURE,PUBLIC :: GPart_ctor
@@ -750,7 +751,7 @@ MODULE class_GPart
     REAL(KIND=GP),INTENT   (IN)       :: pdb(3,this%maxparts_)
     REAL(KIND=GP)                     :: prec(3)
     INTEGER,INTENT(IN)                :: iunit
-    INTEGER                           :: fh,nt,szreal
+    INTEGER                           :: fh,ierr,nerr,nt,szreal
     INTEGER(kind=MPI_OFFSET_KIND)     :: offset
     CHARACTER(len=*),INTENT(IN)       :: dir
     CHARACTER(len=*),INTENT(IN)       :: nmb
@@ -764,6 +765,12 @@ MODULE class_GPart
     CALL MPI_FILE_OPEN(this%comm_,trim(dir) // '/' // trim(spref) // &
          '.' // nmb // '.lag',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
           MPI_INFO_NULL,fh,this%ierr_)
+    IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
+      CALL MPI_ERROR_STRING(this%ierr_, this%serr_, nerr, ierr);
+      WRITE(*,*) 'GPart_binary_write_pdb: Error reading opening : ', trim(dir) // '/' // trim(spref) // &
+         '.' // nmb // '.lag: ', trim(this%serr_)
+      STOP
+    ENDIF
     prec(1) = real(this%maxparts_,kind=GP)
     offset = 0
     CALL MPI_FILE_WRITE_AT_ALL(fh,offset,prec(1),1,GC_REAL,this%istatus_,this%ierr_)
@@ -943,7 +950,7 @@ MODULE class_GPart
     DIMENSION(this%maxparts_)            :: fld1,fld2,fld3,fld4,fld5,fld6,fld7,fld8
     REAL(KIND=GP)                        :: vout(9)
     INTEGER,INTENT(IN)                   :: iunit
-    INTEGER                              :: fh,nt,nv,szreal
+    INTEGER                              :: fh,ierr,nerr,nt,nv,szreal
     INTEGER(kind=MPI_OFFSET_KIND)        :: offset
     CHARACTER(len=*),INTENT(IN)          :: dir
     CHARACTER(len=*),INTENT(IN)          :: nmb
@@ -967,6 +974,12 @@ MODULE class_GPart
     CALL MPI_FILE_OPEN(this%comm_,trim(dir) // '/' // trim(spref) // &
          '.' // nmb // '.lag',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
           MPI_INFO_NULL,fh,this%ierr_)
+    IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
+      CALL MPI_ERROR_STRING(this%ierr_, this%serr_, nerr,ierr);
+      WRITE(*,*) 'GPart_binary_write_lag: Error reading opening : ', trim(dir) // '/' // trim(spref) // &
+         '.' // nmb // '.lag: ', trim(this%serr_)
+      STOP
+    ENDIF
     offset = 0
     CALL MPI_FILE_WRITE_AT_ALL(fh,offset,real(this%maxparts_,kind=GP),1,GC_REAL,this%istatus_,this%ierr_)
     offset = szreal
@@ -1165,7 +1178,7 @@ MODULE class_GPart
     REAL(KIND=GP)                             :: rvar,time
     REAL(KIND=GP),INTENT(INOUT)               :: pdb(3,this%maxparts_)
     INTEGER,INTENT(IN)                        :: iunit
-    INTEGER                                   :: fh,j,lc,szreal
+    INTEGER                                   :: fh,ierr,j,lc,nerr,szreal
     INTEGER(kind=MPI_OFFSET_KIND)             :: offset
     CHARACTER(len=*),INTENT   (IN)            :: dir
     CHARACTER(len=*),INTENT   (IN)            :: nmb
@@ -1174,13 +1187,21 @@ MODULE class_GPart
     CALL MPI_TYPE_SIZE(GC_REAL,szreal,this%ierr_)
     CALL MPI_FILE_OPEN(this%comm_,trim(dir) // '/' // trim(spref) // &
          '.' // nmb // '.lag',MPI_MODE_RDONLY,MPI_INFO_NULL,fh,this%ierr_)
+    IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
+      CALL MPI_ERROR_STRING(this%ierr_, this%serr_, nerr,ierr);
+      WRITE(*,*) 'GPart_binary_read_pdb: Error reading opening : ', trim(dir) // '/' // trim(spref) // &
+         '.' // nmb // '.lag: ', trim(this%serr_)
+      STOP
+    ENDIF
   
     ! Must read part. data from correct spot in file:
     offset = 0
     CALL MPI_FILE_READ_AT_ALL(fh,offset,rvar,1,GC_REAL,this%istatus_,this%ierr_)    !  no.parts
     IF ( int(rvar).NE.this%maxparts_ ) THEN
-      WRITE(*,*) 'GPart_io_read: Attempt to read incorrect number of particles: required:',&
-                  this%maxparts_,' no attempted: ',int(rvar)
+      WRITE(*,*) 'GPart_binary_read_pdb: Attempt to read incorrect number of particles: required:',&
+                  this%maxparts_,' no. read: ',int(rvar)
+      WRITE(*,*) 'GPart_binary_read_pdb: Error reading: ',trim(dir) // '/' // trim(spref) // &
+         '.' // nmb // '.lag'
       STOP
     ENDIF
     offset = szreal
