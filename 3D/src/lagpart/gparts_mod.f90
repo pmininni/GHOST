@@ -33,8 +33,10 @@ MODULE class_GPart
       INTEGER,PARAMETER,PUBLIC                       :: GPTIME_DATAEX  =5
       INTEGER,PARAMETER,PUBLIC                       :: GPTIME_INTERP  =6
       INTEGER,PARAMETER,PUBLIC                       :: GPTIME_PUPDATE =7
+      INTEGER,PARAMETER,PUBLIC                       :: GPTIME_GPREAD  =8
+      INTEGER,PARAMETER,PUBLIC                       :: GPTIME_GPWRITE =9
 
-      INTEGER,PARAMETER,PRIVATE                      :: GPMAXTIMERS    =7  ! no. GPTIME parameters
+      INTEGER,PARAMETER,PRIVATE                      :: GPMAXTIMERS    =9  ! no. GPTIME parameters
       CHARACTER(len=8),PUBLIC                        :: lgext             ! string to hold time index
       CHARACTER(len=6),PUBLIC                        :: lgfmtext='(i8.8)' ! file time index format
 
@@ -47,6 +49,7 @@ MODULE class_GPart
         INTEGER                                      :: iinterp_
         INTEGER                                      :: iexchtype_
         INTEGER                                      :: iouttype_
+        INTEGER                                      :: bcollective_
         INTEGER                                      :: itimetype_
         TYPE(GPartComm)                              :: gpcomm_
         TYPE(GPSplineInt)                            :: intop_
@@ -95,26 +98,27 @@ MODULE class_GPart
 !       PROCEDURE,PUBLIC :: GetPos
       END TYPE GPart
 
-      PRIVATE :: GPart_Init            , GPart_StepRKK     
-      PRIVATE :: GPart_SetStepRKK      , GPart_FinalizeRKK
-      PRIVATE :: GPart_io_write_pdb    , GPart_io_read     
-      PRIVATE :: GPart_io_write_euler  , GPart_io_write_vec
-      PRIVATE :: GPart_InitRandSeed    , GPart_InitUserSeed 
-      PRIVATE :: GPart_SetInitType     , GPart_SetSeedFile
-      PRIVATE :: GPart_SetRandSeed     , GPart_Delete
+      PRIVATE :: GPart_Init               , GPart_StepRKK     
+      PRIVATE :: GPart_SetStepRKK         , GPart_FinalizeRKK
+      PRIVATE :: GPart_io_write_pdb       , GPart_io_read     
+      PRIVATE :: GPart_io_write_euler     , GPart_io_write_vec
+      PRIVATE :: GPart_InitRandSeed       , GPart_InitUserSeed 
+      PRIVATE :: GPart_SetInitType        , GPart_SetSeedFile
+      PRIVATE :: GPart_SetRandSeed        , GPart_Delete
       PRIVATE :: GPart_MakePeriodicP
-      PRIVATE :: GPart_GetLocalWrk     , GPart_MakePeriodicExt
-      PRIVATE :: GPart_GetLocalWrk_aux 
-      PRIVATE :: GPart_ascii_write_pdb , GPart_binary_write_pdb
-      PRIVATE :: GPart_ascii_write_lag , GPart_binary_write_lag
-      PRIVATE :: GPart_ascii_read_pdb  , GPart_binary_read_pdb
-      PRIVATE :: GPart_GetVDB          , GPart_GetVel
-      PRIVATE :: GPart_GetTime         , GPart_GetLoadBal
+      PRIVATE :: GPart_GetLocalWrk        , GPart_MakePeriodicExt
+      PRIVATE :: GPart_GetLocalWrk_aux  
+      PRIVATE :: GPart_ascii_write_lag    
+      PRIVATE :: GPart_binary_write_lag_co, GPart_binary_write_lag_t0
+      PRIVATE :: GPart_ascii_read_pdb     
+      PRIVATE :: GPart_binary_read_pdb_co , GPart_binary_read_pdb_t0
+      PRIVATE :: GPart_GetVDB             , GPart_GetVel
+      PRIVATE :: GPart_GetTime            , GPart_GetLoadBal
 
 ! Methods:
   CONTAINS
 
-  SUBROUTINE GPart_ctor(this,comm,mparts,inittype,iinterp,intorder,iexchtyp,iouttyp,csize,nstrip)
+  SUBROUTINE GPart_ctor(this,comm,mparts,inittype,iinterp,intorder,iexchtyp,iouttyp,bcoll,csize,nstrip)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Main explicit constructor
@@ -138,6 +142,7 @@ MODULE class_GPart
 !              neighbors is not necessary. But the VDB form does require
 !              a global reduction, and may be more expensive.
 !    iouttup  : output type: 0==binary, 1=ASCII
+!    bcoll    : if doing binary I/O, do collective (==1); or not (==0)
 !    csize    : cache size param for local transposes
 !    nstrip   : 'strip-mining' size for local transposes
 !-----------------------------------------------------------------
@@ -148,7 +153,7 @@ MODULE class_GPart
 
     IMPLICIT NONE
     CLASS(GPart)     ,INTENT(INOUT)     :: this
-    INTEGER          ,INTENT   (IN)     :: comm,mparts,csize,nstrip
+    INTEGER          ,INTENT   (IN)     :: bcoll,comm,mparts,csize,nstrip
     INTEGER                             :: disp(3),lens(3),types(3),szreal
     INTEGER          ,INTENT   (IN)     :: iexchtyp,iinterp,inittype,intorder,iouttyp
     INTEGER                             :: j,nc
@@ -165,9 +170,10 @@ MODULE class_GPart
     this%intorder_ = max(intorder,1)
     this%iseed_     = 1000
     this%istep_     = 0   
-    this%iexchtype_=  iexchtyp
-    this%iouttype_ =  iouttyp
-    this%itimetype_=  GT_WTIME
+    this%iexchtype_   =  iexchtyp
+    this%iouttype_    =  iouttyp
+    this%bcollective_ =  bcoll
+    this%itimetype_   =  GT_WTIME
 
     CALL prandom_seed(this%iseed_)
     IF ( this%intorder_ .NE. 3 ) THEN
@@ -210,7 +216,7 @@ MODULE class_GPart
     ENDIF
 
     DO j = 1,3
-      this%gext_ (j) = real(this%nd_(j),kind=GP)
+      this%gext_ (j) = real(this%nd_(j)-1,kind=GP)
     ENDDO
 
     ! Instantiate interp operation. Remember that a valid timer 
@@ -533,7 +539,7 @@ MODULE class_GPart
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,this%nparts_, &
                            this%vdb_,this%maxparts_)
-    CALL GPART_ascii_write_pdb(this,1,'.','xlgInitRndSeed','000',0.0,this%vdb_)
+    CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0,this%vdb_(1,:),this%vdb_(2,:),this%vdb_(3,:))
     IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
       IF ( this%myrank_.eq.0 ) THEN
         WRITE(*,*) 'GPart_InitRandSeed: Invalid particle after GetLocalWrk call'
@@ -616,7 +622,9 @@ MODULE class_GPart
 !  DESCRIPTION: Does write of Lagrangian position d.b. to file. 
 !               Position of the particle structure in file is the
 !               particle's id. Main entry point for both ASCII and
-!               binary writes.
+!               binary writes. This is a special API for outputting 
+!               internal part. d.b. using underlying mehods that
+!               handle binary (collective or not) and ASCII I/O.
 !  ARGUMENTS  :
 !    this    : 'this' class instance
 !    iunit   : unit number
@@ -640,7 +648,6 @@ MODULE class_GPart
     CHARACTER(len=*),INTENT(IN)       :: dir
     CHARACTER(len=*),INTENT(IN)       :: nmb
     CHARACTER(len=*),INTENT(IN)       :: spref
-    TYPE(GPDBrec)                     :: pst
 
     ! Do a sanity check:
 !!  CALL MPI_ALLREDUCE(this%nparts_,nt,1,MPI_INTEGER,MPI_SUM,this%comm_,this%ierr_)
@@ -659,11 +666,25 @@ MODULE class_GPart
       ENDDO
     ENDIF
 
+    CALL GTStart(this%htimers_(GPTIME_GPWRITE))
+
     IF ( this%iouttype_ .EQ. 0 ) THEN
-      CALL GPart_binary_write_pdb(this,iunit,dir,spref,nmb,time,this%ptmp0_)
+      IF ( this%bcollective_.EQ. 1 ) THEN
+        ! pass in the current linear _local_ particle coord arrays
+        CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time, &
+             this%px_,this%py_,this%pz_)
+      ELSE
+        ! pass in the synched-up VDB (copied to ptmp0_):
+        CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time, &
+             this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
+      ENDIF
     ELSE
-      CALL GPart_ascii_write_pdb (this,iunit,dir,spref,nmb,time,this%ptmp0_)
+      ! pass in the synched-up VDB (copied to ptmp0_):
+      CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time, &
+           this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
     ENDIF
+
+    CALL GTAcc(this%htimers_(GPTIME_GPWRITE))
 
   END SUBROUTINE GPart_io_write_pdb
 
@@ -675,7 +696,10 @@ MODULE class_GPart
 !  DESCRIPTION: Does write of Lagrangian vector that is
 !               currently stored. This vector may not be the
 !               advecting velocities if a call to SetLagVec
-!               is made with a different vector.
+!               is made with a different vector. This is a 
+!               special API for outputting the class' internal 
+!               'velocity' vector using underlying mehods that
+!               handle binary (collective or not) and ASCII I/O.
 !               
 !  ARGUMENTS  :
 !    this    : 'this' class instance
@@ -697,158 +721,36 @@ MODULE class_GPart
     CHARACTER(len=*),INTENT(IN)       :: dir
     CHARACTER(len=*),INTENT(IN)       :: nmb
     CHARACTER(len=*),INTENT(IN)       :: spref
-    TYPE(GPDBrec)                     :: pst
+    INTEGER                           :: gsum
 
-    IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
+    IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_,gsum) ) THEN
+      write(*,*)'io_write_vec: global sum=',gsum,' maxparts=',this%maxparts_
       IF ( this%myrank_.eq.0 ) THEN
         WRITE(*,*) 'GPart_io_write_vec: Inconsistent particle count'
         STOP
       ENDIF
     ENDIF
 
-!   CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
-!        this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp1_)
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
-      CALL GPart_binary_write_lag(this,iunit,dir,spref,nmb,time,this%lvx_,this%lvy_,this%lvz_)
+      IF ( this%bcollective_.EQ. 1 ) THEN
+        CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%lvx_,this%lvy_,this%lvz_)
+      ELSE
+write(*,*)'io_write_vec: doing write_lag_t0...'
+ !      CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+ !           this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp1_)
+        CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time, &
+                                 this%lvx_,this%lvy_,this%lvz_);
+write(*,*)'io_write_vec: write_lag_t0 done.'
+      ENDIF
     ELSE
-      !CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time,this%lvx_,this%lvy_,this%lvz_)
-      CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
-           this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp1_)
+ !    CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+ !         this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp1_)
       CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time, &
-                                 this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
+                                 this%lvx_,this%lvy_,this%lvz_);
     ENDIF
 
   END SUBROUTINE GPart_io_write_vec
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-
-  SUBROUTINE GPart_binary_write_pdb(this, iunit, dir, spref, nmb, time, pdb)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : binary write
-!  DESCRIPTION: Does binary write of Lagrangian position d.b. to file. 
-!               Position of the particle structure in file is the
-!               particle's id.
-!  ARGUMENTS  :
-!    this    : 'this' class instance
-!    iunit   : unit number
-!    dir     : output directory
-!    spref   : filename prefix
-!    nmd     : time index
-!    time    : real time
-!    pdb     : particle d.b. in (3,maxparts) array
-!    
-!-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
-    USE mpivars
-
-    IMPLICIT NONE
-    CLASS(GPart) ,INTENT(INOUT)       :: this
-    REAL(KIND=GP),INTENT   (IN)       :: time
-    REAL(KIND=GP),INTENT   (IN)       :: pdb(3,this%maxparts_)
-    REAL(KIND=GP)                     :: prec(3)
-    INTEGER,INTENT(IN)                :: iunit
-    INTEGER                           :: fh,ierr,nerr,nt,szreal
-    INTEGER(kind=MPI_OFFSET_KIND)     :: offset
-    CHARACTER(len=*),INTENT(IN)       :: dir
-    CHARACTER(len=*),INTENT(IN)       :: nmb
-    CHARACTER(len=*),INTENT(IN)       :: spref
-    TYPE(GPDBrec)                     :: pst
-
-    INTEGER                           :: j,gc,lc
-
-    ! Must write part. data to correct position in file:
-    CALL MPI_TYPE_SIZE(GC_REAL    ,szreal,this%ierr_)
-    CALL MPI_FILE_OPEN(this%comm_,trim(dir) // '/' // trim(spref) // &
-         '.' // nmb // '.lag',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
-          MPI_INFO_NULL,fh,this%ierr_)
-    IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
-      CALL MPI_ERROR_STRING(this%ierr_, this%serr_, nerr, ierr);
-      WRITE(*,*) 'GPart_binary_write_pdb: Error reading opening : ', trim(dir) // '/' // trim(spref) // &
-         '.' // nmb // '.lag: ', trim(this%serr_)
-      STOP
-    ENDIF
-    prec(1) = real(this%maxparts_,kind=GP)
-    offset = 0
-    CALL MPI_FILE_WRITE_AT_ALL(fh,offset,prec(1),1,GC_REAL,this%istatus_,this%ierr_)
-    offset = szreal
-    CALL MPI_FILE_WRITE_AT_ALL(fh,offset,time   ,1,GC_REAL,this%istatus_,this%ierr_)
-    gc = 0
-    DO j = 1, this%nparts_
-      offset  = (this%id_(j)*3+2)*szreal
-      prec(1) = this%px_(j)
-      prec(2) = this%py_(j)
-      prec(3) = this%pz_(j)
-      CALL MPI_FILE_WRITE_AT(fh,offset,prec,3,GC_REAL,this%istatus_,this%ierr_)
-      CALL MPI_GET_COUNT(this%istatus_,GC_REAL,lc,this%ierr_)
-      gc = gc+lc
-    ENDDO
-    CALL MPI_FILE_CLOSE(fh,this%ierr_)
-
-    IF ( gc .NE. this%nparts_*3 ) THEN
-      WRITE(*,*)this%myrank_, &
-        ': GPart_binary_write_pdb: insufficient amount of data written; no. required=',&
-        this%nparts_*3,' no. written=',gc
-      STOP
-    ENDIF
-
-  END SUBROUTINE GPart_binary_write_pdb
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
- SUBROUTINE GPart_ascii_write_pdb(this, iunit, dir, spref, nmb, time,pdb)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : ascii_write_pdb
-!  DESCRIPTION: Does ASCII write of Lagrangian position d.b. to file.
-!               The local MPI tasks write to a file with prefix
-!               spref, in the following format:
-!                     dir/spref.TTT.PPP.txt
-!               where TTT is the time index, given by nmb, and
-!               PPP is the MPI rank.
-!  ARGUMENTS  :
-!    this    : 'this' class instance
-!    iunit   : unit number
-!    dir     : output directory
-!    spref   : filename prefix
-!    nmd     : time index
-!    time    : real time
-!    pdb     : part. d.b. in (4,maxparts) array
-!
-!-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
-    USE mpivars
-
-    IMPLICIT NONE
-    CLASS(GPart) ,INTENT(INOUT)       :: this
-    REAL(KIND=GP),INTENT   (IN)       :: time
-    REAL(KIND=GP),INTENT   (IN)       :: pdb(3,this%maxparts_)
-    INTEGER      ,INTENT   (IN)       :: iunit
-    INTEGER                           :: j
-    CHARACTER(len=*),INTENT(IN)       :: dir
-    CHARACTER(len=*),INTENT(IN)       :: nmb
-    CHARACTER(len=*),INTENT(IN)       :: spref
-    CHARACTER(len=3)                  :: sind
-
-      ! Write global VDB, with time header, indexed only
-      ! by time index: dir/spref.TTT.txt:
-     IF ( this%myrank_.EQ.0 ) THEN
-       OPEN(iunit,file=trim(dir)// '/' // trim(spref) // '.' // &
-                 nmb //  '.txt')
-       WRITE(iunit,*) this%maxparts_
-       WRITE(iunit,*) time
-       DO j = 1, this%maxparts_
-         WRITE(iunit,600) pdb(1,j),pdb(2,j),pdb(3,j)
-  600    FORMAT(3(E23.15,1X))
-       ENDDO
-      CLOSE(iunit)
-    ENDIF
-
-  END SUBROUTINE GPart_ascii_write_pdb
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -860,7 +762,8 @@ MODULE class_GPart
 !  METHOD     : io_write_euler
 !  DESCRIPTION: Converts specified Eulerian real-space variable to
 !               a Lagrangian quantity by interpolating to particle positions;
-!               does write of Lagrangian variable to file. 
+!               does write of Lagrangian variable to file, depending on 
+!               class settings.
 !  ARGUMENTS  :
 !    this    : 'this' class instance
 !    iunit   : unit number
@@ -898,7 +801,14 @@ MODULE class_GPart
     CALL GPart_EulerToLag(this,this%ltmp1_,this%nparts_,evar,doupdate,tmp1,tmp2)
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
-      CALL GPart_binary_write_lag(this,iunit,dir,spref,nmb,time,this%ltmp1_)
+      IF ( this%bcollective_.EQ. 1 ) THEN
+        CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%ltmp1_)
+      ELSE
+        ! First, must synch up the field data since only task 0 writes:
+        CALL this%gpcomm_%LagSynch(this%ltmp0_,this%maxparts_,this%id_, &
+                                   this%ltmp1_,this%nparts_,this%ptmp0_)
+        CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time,this%ltmp1_)
+      ENDIF
     ELSE
       ! First, must synch up the field data since only task 0 writes:
       CALL this%gpcomm_%LagSynch(this%ltmp0_,this%maxparts_,this%id_, &
@@ -912,21 +822,21 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 
 
-  SUBROUTINE GPart_binary_write_lag(this, iunit, dir, spref, nmb, time, &
-             fld0, fld1, fld2, fld3, fld4, fld5, fld6, fld7, fld8)
+  SUBROUTINE GPart_binary_write_lag_co(this, iunit, dir, spref, nmb, time, &
+             fld0, fld1, fld2)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!  METHOD     : GPart_binary_write_lag
-!  DESCRIPTION: Does binary write of Lagrangian field to file. 
+!  METHOD     : GPart_binary_write_lag_co
+!  DESCRIPTION: Does collective binary write of Lagrangian field to file. 
 !               Position of the particle structure in file is the
-!               particle's id. This method allows for up to 9
+!               particle's id. This method allows for up to 3
 !               Lagranian variables to be outputted. At least one
 !               variable _must_ be present (fld0). Do not use keywords
 !               to specify optional arguments. 
 !
 !               Note that this call will have all MPI tasks write
 !               their data collectively, so no 'synching' of data 
-!               is required on unput.
+!               is required on input.
 !
 !  ARGUMENTS  :
 !    this    : 'this' class instance
@@ -935,7 +845,7 @@ MODULE class_GPart
 !    spref   : filename prefix
 !    nmd     : time index
 !    time    : real time
-!    fld0-8  : Lagrangian field
+!    fld0-2  : Lagrangian field
 !    
 !-----------------------------------------------------------------
     USE fprecision
@@ -947,27 +857,20 @@ MODULE class_GPart
     REAL(KIND=GP),INTENT   (IN)          :: time
     REAL(KIND=GP),INTENT   (IN)          :: fld0(this%maxparts_)
     REAL(KIND=GP),INTENT   (IN),OPTIONAL,&
-    DIMENSION(this%maxparts_)            :: fld1,fld2,fld3,fld4,fld5,fld6,fld7,fld8
-    REAL(KIND=GP)                        :: vout(9)
+    DIMENSION(this%maxparts_)            :: fld1,fld2
+    REAL(KIND=GP)                        :: vout(3)
     INTEGER,INTENT(IN)                   :: iunit
     INTEGER                              :: fh,ierr,nerr,nt,nv,szreal
     INTEGER(kind=MPI_OFFSET_KIND)        :: offset
     CHARACTER(len=*),INTENT(IN)          :: dir
     CHARACTER(len=*),INTENT(IN)          :: nmb
     CHARACTER(len=*),INTENT(IN)          :: spref
-    TYPE(GPDBrec)                        :: pst
 
     INTEGER                              :: j,gc,lc
 
     nv = 1 
     IF ( present(fld1) ) nv=nv+1
     IF ( present(fld2) ) nv=nv+1
-    IF ( present(fld3) ) nv=nv+1
-    IF ( present(fld4) ) nv=nv+1
-    IF ( present(fld5) ) nv=nv+1
-    IF ( present(fld6) ) nv=nv+1
-    IF ( present(fld7) ) nv=nv+1
-    IF ( present(fld8) ) nv=nv+1
 
     ! Must write part. data to correct position in file:
     CALL MPI_TYPE_SIZE(GC_REAL    ,szreal,this%ierr_)
@@ -976,7 +879,7 @@ MODULE class_GPart
           MPI_INFO_NULL,fh,this%ierr_)
     IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
       CALL MPI_ERROR_STRING(this%ierr_, this%serr_, nerr,ierr);
-      WRITE(*,*) 'GPart_binary_write_lag: Error reading opening : ', trim(dir) // '/' // trim(spref) // &
+      WRITE(*,*) 'GPart_binary_write_lag_co: Error reading opening : ', trim(dir) // '/' // trim(spref) // &
          '.' // nmb // '.lag: ', trim(this%serr_)
       STOP
     ENDIF
@@ -990,12 +893,6 @@ MODULE class_GPart
       vout(1) = fld0(j)
       IF ( present(fld1) ) vout(2) = fld1(j)
       IF ( present(fld2) ) vout(3) = fld2(j)
-      IF ( present(fld3) ) vout(4) = fld3(j)
-      IF ( present(fld4) ) vout(5) = fld4(j)
-      IF ( present(fld5) ) vout(6) = fld5(j)
-      IF ( present(fld6) ) vout(7) = fld6(j)
-      IF ( present(fld7) ) vout(8) = fld7(j)
-      IF ( present(fld8) ) vout(9) = fld8(j)
       CALL MPI_FILE_WRITE_AT(fh,offset,vout,nv,GC_REAL,this%istatus_,this%ierr_)
       CALL MPI_GET_COUNT(this%istatus_,GC_REAL,lc,this%ierr_)
       gc = gc+lc
@@ -1004,18 +901,103 @@ MODULE class_GPart
 
     IF ( gc .NE. this%nparts_*nv ) THEN
       WRITE(*,*)this%myrank_, &
-        ': GPart_binary_write_lag: insufficient amount of data written; no. required=',&
+        ': GPart_binary_write_lag_co: insufficient amount of data written; no. required=',&
         this%nparts_*nv,' no. written=',gc
       STOP
     ENDIF
 
-  END SUBROUTINE GPart_binary_write_lag
+  END SUBROUTINE GPart_binary_write_lag_co
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+  SUBROUTINE GPart_binary_write_lag_t0(this, iunit, dir, spref, nmb, time, &
+             fld0, fld1, fld2)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : GPart_binary_write_lag_t0
+!  DESCRIPTION: Does binary write of Lagrangian field to file writing 
+!               to task 0. Position of the particle structure in file is the
+!               particle's id. This method allows for up to 3
+!               Lagranian variables to be outputted. At least one
+!               variable _must_ be present (fld0). Do not use keywords
+!               to specify optional arguments. 
+!
+!               Note that this call WILL NOT synch up the particle 
+!               d.b.. The reason is that this is method can be used for
+!               _any_ Lagrangian field, not just the particles. It is 
+!               assumed that the Lagrange fields, f0-2 are already 'synched'
+!               on entry, since only task 0 will write.
+!
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    iunit   : unit number
+!    dir     : output directory
+!    spref   : filename prefix
+!    nmd     : time index
+!    time    : real time
+!    fld0-2  : Lagrangian field
+!    
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPart) ,INTENT(INOUT)          :: this
+    REAL(KIND=GP),INTENT   (IN)          :: time
+    REAL(KIND=GP),INTENT   (IN)          :: fld0(this%maxparts_)
+    REAL(KIND=GP),INTENT   (IN),OPTIONAL,&
+    DIMENSION(this%maxparts_)            :: fld1,fld2
+    INTEGER,INTENT(IN)                   :: iunit
+    INTEGER                              :: fh,ierr,nerr,nv
+    CHARACTER(len=*),INTENT(IN)          :: dir
+    CHARACTER(len=*),INTENT(IN)          :: nmb
+    CHARACTER(len=*),INTENT(IN)          :: spref
+
+    INTEGER                              :: j
+
+    IF ( this%myrank_ .EQ. 0 ) THEN
+      nv = 1
+      DO j = 1, this%maxparts_
+        this%ptmp1_(1,j) = fld0(j)
+      ENDDO
+      IF ( present(fld1) ) THEN
+        DO j = 1, this%maxparts_
+          this%ptmp1_(2,j) = fld1(j)
+        ENDDO
+        nv = nv+1
+      ENDIF
+      IF ( present(fld2) ) THEN
+        DO j = 1, this%maxparts_
+          this%ptmp1_(3,j) = fld2(j)
+        ENDDO
+        nv = nv+1
+      ENDIF
+
+      OPEN(iunit,file=trim(dir) // '/' // trim(spref) // &
+                       '.' // nmb // '.lag',form='unformatted',access='stream',&
+                       iostat=this%ierr_)
+      IF ( this%ierr_.NE.0 ) THEN
+        WRITE(*,*)'GPart_binary_write_lag_t0: could not open file for reading: ',&
+        trim(dir)// '/' // trim(spref) // '.' // nmb //  '.lag'
+        STOP
+      ENDIF
+      WRITE(iunit) real(this%maxparts_,kind=GP)
+      WRITE(iunit) time
+      WRITE(iunit) this%ptmp1_(1:nv,1:this%maxparts_)
+      CLOSE(iunit)
+      
+    ENDIF
+!   CALL MPI_BARRIER(this%comm_,this%ierr_)
+
+  END SUBROUTINE GPart_binary_write_lag_t0
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
 
  SUBROUTINE GPart_ascii_write_lag(this, iunit, dir, spref, nmb, time, &
-            fld0, fld1, fld2, fld3, fld4, fld5, fld6, fld7, fld8)
+            fld0, fld1, fld2)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : GPart_ascii_write_lag
@@ -1024,7 +1006,7 @@ MODULE class_GPart
 !               spref, in the following format:
 !                     dir/spref.TTT.PPP.txt
 !               where TTT is the time index, given by nmb, and
-!               PPP is the MPI rank.  This method allows for up to 9
+!               PPP is the MPI rank.  This method allows for up to 3
 !               Lagranian variables to be outputted. At least one
 !               variable _must_ be present (fld0). Do not use keywords
 !               to specify optional arguments.
@@ -1040,7 +1022,7 @@ MODULE class_GPart
 !    spref   : filename prefix
 !    nmd     : time index
 !    time    : real time
-!    fld0-8  : Lagrangian fields
+!    fld0-2  : Lagrangian fields
 !
 !-----------------------------------------------------------------
     USE fprecision
@@ -1052,8 +1034,8 @@ MODULE class_GPart
     REAL(KIND=GP),INTENT   (IN)       :: time
     REAL(KIND=GP),INTENT   (IN)       :: fld0(this%maxparts_)
     REAL(KIND=GP),INTENT   (IN),OPTIONAL,&
-    DIMENSION(this%maxparts_)         :: fld1,fld2,fld3,fld4,fld5,fld6,fld7,fld8
-    REAL(KIND=GP)                     :: vout(9)
+    DIMENSION(this%maxparts_)         :: fld1,fld2
+    REAL(KIND=GP)                     :: vout(3)
     INTEGER      ,INTENT   (IN)       :: iunit
     INTEGER                           :: j,nv
     CHARACTER(len=*),INTENT(IN)       :: dir
@@ -1064,12 +1046,6 @@ MODULE class_GPart
     nv = 1 
     IF ( present(fld1) ) nv=nv+1
     IF ( present(fld2) ) nv=nv+1
-    IF ( present(fld3) ) nv=nv+1
-    IF ( present(fld4) ) nv=nv+1
-    IF ( present(fld5) ) nv=nv+1
-    IF ( present(fld6) ) nv=nv+1
-    IF ( present(fld7) ) nv=nv+1
-    IF ( present(fld8) ) nv=nv+1
 
     ! Write global VDB, with time header, indexed only
     ! by time index: dir/spref.TTT.txt:
@@ -1082,14 +1058,8 @@ MODULE class_GPart
         vout(1) = fld0(j)
         IF ( present(fld1) ) vout(2) = fld1(j)
         IF ( present(fld2) ) vout(3) = fld2(j)
-        IF ( present(fld3) ) vout(4) = fld3(j)
-        IF ( present(fld4) ) vout(5) = fld4(j)
-        IF ( present(fld5) ) vout(6) = fld5(j)
-        IF ( present(fld6) ) vout(7) = fld6(j)
-        IF ( present(fld7) ) vout(8) = fld7(j)
-        IF ( present(fld8) ) vout(9) = fld8(j)
         WRITE(iunit,600) vout(1:nv)
-  600   FORMAT(9(E23.15,1X))
+  600   FORMAT(3(E23.15,1X))
       ENDDO
      CLOSE(iunit)
    ENDIF
@@ -1128,11 +1098,18 @@ MODULE class_GPart
     CHARACTER(len=*),INTENT   (IN)            :: nmb
     CHARACTER(len=*),INTENT   (IN)            :: spref
 
+    CALL GTStart(this%htimers_(GPTIME_GPREAD))
     IF ( this%iouttype_ .EQ. 0 ) THEN
-      CALL GPart_binary_read_pdb(this,iunit,dir,spref,nmb,time,this%ptmp0_)
+      IF ( this%bcollective_.EQ. 1 ) THEN
+        CALL GPart_binary_read_pdb_co(this,iunit,dir,spref,nmb,time,this%ptmp0_)
+      ELSE
+        CALL GPart_binary_read_pdb_t0(this,iunit,dir,spref,nmb,time,this%ptmp0_)
+      ENDIF
     ELSE
       CALL GPart_ascii_read_pdb (this,iunit,dir,spref,nmb,time,this%ptmp0_)
     ENDIF
+
+    CALL GTAcc(this%htimers_(GPTIME_GPREAD))
 
     CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
                            this%nparts_,this%ptmp0_,this%maxparts_)
@@ -1157,17 +1134,19 @@ MODULE class_GPart
   END SUBROUTINE GPart_io_read
 
 
-  SUBROUTINE GPart_binary_read_pdb(this,iunit,dir,spref,nmb,time,pdb)
+  SUBROUTINE GPart_binary_read_pdb_co(this,iunit,dir,spref,nmb,time,pdb)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!  METHOD     : binary_read_pdb
-!  DESCRIPTION: Does read of binary Lagrangian particle data from file. 
+!  METHOD     : binary_read_pdb_co
+!  DESCRIPTION: Does read of binary Lagrangian particle data from file, 
+!               collectively.
 !  ARGUMENTS  :
 !    this    : 'this' class instance
 !    iunit   : unit number
 !    dir     : input directory
 !    spref   : filename prefix
-!    nmb     : time index
+!    nmb     : time index (3,maxparts)
+!    pdb     : part. d.b.
 !-----------------------------------------------------------------
     USE fprecision
     USE commtypes
@@ -1189,7 +1168,7 @@ MODULE class_GPart
          '.' // nmb // '.lag',MPI_MODE_RDONLY,MPI_INFO_NULL,fh,this%ierr_)
     IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
       CALL MPI_ERROR_STRING(this%ierr_, this%serr_, nerr,ierr);
-      WRITE(*,*) 'GPart_binary_read_pdb: Error reading opening : ', trim(dir) // '/' // trim(spref) // &
+      WRITE(*,*) 'GPart_binary_read_pdb_co: Error reading opening : ', trim(dir) // '/' // trim(spref) // &
          '.' // nmb // '.lag: ', trim(this%serr_)
       STOP
     ENDIF
@@ -1198,9 +1177,9 @@ MODULE class_GPart
     offset = 0
     CALL MPI_FILE_READ_AT_ALL(fh,offset,rvar,1,GC_REAL,this%istatus_,this%ierr_)    !  no.parts
     IF ( int(rvar).NE.this%maxparts_ ) THEN
-      WRITE(*,*) 'GPart_binary_read_pdb: Attempt to read incorrect number of particles: required:',&
+      WRITE(*,*) 'GPart_binary_read_pdb_co: Attempt to read incorrect number of particles: required:',&
                   this%maxparts_,' no. read: ',int(rvar)
-      WRITE(*,*) 'GPart_binary_read_pdb: Error reading: ',trim(dir) // '/' // trim(spref) // &
+      WRITE(*,*) 'GPart_binary_read_pdb_co: Error reading: ',trim(dir) // '/' // trim(spref) // &
          '.' // nmb // '.lag'
       STOP
     ENDIF
@@ -1210,7 +1189,71 @@ MODULE class_GPart
     CALL MPI_FILE_READ_AT_ALL(fh,offset,pdb,3*this%maxparts_,GC_REAL,this%istatus_,this%ierr_)
     CALL MPI_FILE_CLOSE(fh,this%ierr_)
 
-  END SUBROUTINE GPart_binary_read_pdb
+  END SUBROUTINE GPart_binary_read_pdb_co
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+ SUBROUTINE GPart_binary_read_pdb_t0(this,iunit,dir,spref,nmb,time,pdb)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : binary_read_pdb_t0
+!  DESCRIPTION: Does binary read of Lagrangian position d.b. from file
+!               only from MPI task 0, and broadcast to all other tasks.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    iunit   : unit number
+!    dir     : output directory
+!    spref   : filename prefix
+!    nmd     : time index
+!    time    : real time
+!    pdb     : part. d.b. in (3,maxparts) array
+!
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPart) ,INTENT(INOUT)       :: this
+    REAL(KIND=GP),INTENT(INOUT)       :: time
+    REAL(KIND=GP),INTENT(INOUT)       :: pdb(3,this%maxparts_)
+    INTEGER      ,INTENT   (IN)       :: iunit
+    INTEGER                           :: j,nt
+    CHARACTER(len=*),INTENT(IN)       :: dir
+    CHARACTER(len=*),INTENT(IN)       :: nmb
+    CHARACTER(len=*),INTENT(IN)       :: spref
+    CHARACTER(len=3)                  :: sind
+
+    ! Read global VDB, with time header, indexed only
+    ! by time index: dir/spref.TTT.txt:
+    IF ( this%myrank_.EQ.0 ) THEN
+      OPEN(iunit,file=trim(dir)// '/' // trim(spref) // '.' // &
+                nmb //  '.txt',status='old',form='unformatted',iostat=this%ierr_)
+      IF ( this%ierr_.NE.0 ) THEN
+        WRITE(*,*)'GPart_binary_read_pdb_t0: could not open file for reading: ',&
+        trim(dir)// '/' // trim(spref) // '.' // nmb //  '.txt'
+        STOP
+      ENDIF
+      READ(iunit,iostat=this%ierr_) nt
+      READ(iunit,iostat=this%ierr_) time
+      IF ( nt.NE.this%maxparts_ ) THEN
+        WRITE(*,*)this%myrank_, &
+          ': GPart_binary_read_pdb_t0: particle inconsistency: no. required=',&
+          this%maxparts_,' no. found=',nt, &
+          ' file=',trim(dir)// '/' // trim(spref) // '.' // nmb //  '.txt'
+        STOP
+      ENDIF
+      READ(iunit,iostat=this%ierr_) pdb
+      CLOSE(iunit)
+    ENDIF
+    CALL MPI_BCAST(pdb,3*this%maxparts_,GC_REAL,0,this%comm_,this%ierr_)
+    IF ( this%ierr_.NE.MPI_SUCCESS ) THEN
+        WRITE(*,*)this%myrank_, ': GPart_binary_read_pdb_t0: Broadcast failed: file=',&
+        trim(dir)// '/' // trim(spref) // '.' // nmb //  '.txt'
+    ENDIF
+
+  END SUBROUTINE GPart_binary_read_pdb_t0
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -1238,7 +1281,7 @@ MODULE class_GPart
     REAL(KIND=GP),INTENT(INOUT)       :: time
     REAL(KIND=GP),INTENT(INOUT)       :: pdb(3,this%maxparts_)
     INTEGER      ,INTENT   (IN)       :: iunit
-    INTEGER                           :: j,kstat,nt
+    INTEGER                           :: j,nt
     CHARACTER(len=*),INTENT(IN)       :: dir
     CHARACTER(len=*),INTENT(IN)       :: nmb
     CHARACTER(len=*),INTENT(IN)       :: spref
@@ -1248,14 +1291,14 @@ MODULE class_GPart
     ! by time index: dir/spref.TTT.txt:
     IF ( this%myrank_.EQ.0 ) THEN
       OPEN(iunit,file=trim(dir)// '/' // trim(spref) // '.' // &
-                nmb //  '.txt',status='old',form='formatted',iostat=kstat)
-      IF ( kstat.NE.0 ) THEN
+                nmb //  '.txt',status='old',form='formatted',iostat=this%ierr_)
+      IF ( this%ierr_.NE.0 ) THEN
         WRITE(*,*)'GPart_ascii_read_pdb: could not open file for reading: ',&
         trim(dir)// '/' // trim(spref) // '.' // nmb //  '.txt'
         STOP
       ENDIF
-      READ(iunit,*,iostat=kstat) nt
-      READ(iunit,*,iostat=kstat) time
+      READ(iunit,*,iostat=this%ierr_) nt
+      READ(iunit,*,iostat=this%ierr_) time
       IF ( nt.NE.this%maxparts_ ) THEN
         WRITE(*,*)this%myrank_, &
           ': GPart_ascii_read_pdb: particle inconsistency: no. required=',&
@@ -1264,7 +1307,7 @@ MODULE class_GPart
         STOP
       ENDIF
       DO j = 1, this%maxparts_
-        READ(iunit,*,iostat=kstat) pdb(1,j),pdb(2,j),pdb(3,j)
+        READ(iunit,*,iostat=this%ierr_) pdb(1,j),pdb(2,j),pdb(3,j)
   600   FORMAT(3(E23.15,1X))
       ENDDO
       CLOSE(iunit)
@@ -1376,7 +1419,7 @@ MODULE class_GPart
       IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_) THEN
         WRITE(*,*)'GPart_FinalizeRKK: inconsistent d.b.: expected: ', &
                  this%maxparts_, '; found: ',ng
-        CALL GPART_ascii_write_pdb(this,1,'.','xlgerr','000',0.0,this%vdb_)
+        CALL GPART_ascii_write_lag(this,1,'.','xlgerr','000',0.0,this%vdb_)
         STOP
       ENDIF
 
@@ -1972,7 +2015,7 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 
 
-  LOGICAL FUNCTION GPart_PartNumConsistent(this,nlocal)
+  LOGICAL FUNCTION GPart_PartNumConsistent(this,nlocal,gsum)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : GPart_PartNumConsistent
@@ -1980,13 +2023,17 @@ MODULE class_GPart
 !               maxparts_
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
+!    nlocal  : local part. count
+!    gsum    : (optional) global sum of all nlocal
 !-----------------------------------------------------------------
      CLASS(GPart) ,INTENT(INOUT)                   :: this 
      REAL                                          :: rbal      
      INTEGER,INTENT(IN)                            :: nlocal
+     INTEGER,INTENT(OUT),OPTIONAL                  :: gsum
      INTEGER                                       :: ng
     
      CALL MPI_ALLREDUCE(nlocal,ng,1,MPI_INTEGER,MPI_SUM,this%comm_,this%ierr_)
+     IF ( present(gsum) ) gsum = ng
      GPart_PartNumConsistent = ng .EQ. this%maxparts_
 
   END FUNCTION GPart_PartNumConsistent
