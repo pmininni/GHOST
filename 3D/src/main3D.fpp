@@ -353,7 +353,9 @@
       INTEGER      :: ilgintrptype
       INTEGER      :: ilgexchtype
       INTEGER      :: ilgouttype
+      INTEGER      :: ilgcoll
       INTEGER      :: dolag
+      INTEGER      :: nwpart
       TYPE (GPart) :: lagpart
 #endif
 !$    INTEGER, EXTERNAL :: omp_get_max_threads
@@ -437,7 +439,7 @@
 #ifdef LAGPART_
       NAMELIST / plagpart / lgmult,maxparts,ilginittype,ilgintrptype
       NAMELIST / plagpart / ilgexchtype,ilgouttype,lgseedfile,injtp
-      NAMELIST / plagpart / cresetp,dolag
+      NAMELIST / plagpart / ilgcoll,cresetp,dolag
 #endif
 
 ! Initializes the MPI and I/O libraries
@@ -1102,6 +1104,7 @@
 !     ilgexchtype : Boundary exchange type: GPEXCHTYPE_VDB (voxel db) or GPEXCHTYPE_NN (nearest-neighbor)
 !     ilgouttype  : Particle output type: 0 = binary; 1= ASCII
 !     lgseedfile  : Name of seed file if ilginittype=GPINIT_USERLOC
+!     ilgcoll     : 1=binary collective I/O; 0=task 0 binary (posix) I/O
 !     dolag       : 1 = run with particles; 0 = don't 
       injtp        = 0
       cresetp      = 0
@@ -1111,8 +1114,10 @@
       ilgouttype   = 0
       lgmult       = 1
       lgseedfile   = 'gplag.dat'
+      ilgcoll      = 1
       rbal         = 0.0
       dolag        = 1
+      nwpart       = 0
 !
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.txt',status='unknown',form="formatted")
@@ -1128,6 +1133,7 @@
       CALL MPI_BCAST(ilgexchtype ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilgouttype  ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(dolag       ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ilgcoll     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(lgseedfile,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       IF ( mod(tstep,lgmult).NE.0 ) THEN
         WRITE(*,*)'main: lgmult must divide tstep evenly'
@@ -1215,7 +1221,7 @@
 #ifdef LAGPART_
       IF ( dolag.GT.0 ) THEN
         CALL lagpart%GPart_ctor(MPI_COMM_WORLD,maxparts,ilginittype,&
-             ilgintrptype,3,ilgexchtype,ilgouttype,csize,nstrip)
+             ilgintrptype,3,ilgexchtype,ilgouttype,ilgcoll,csize,nstrip)
         CALL lagpart%SetRandSeed(seed)
         CALL lagpart%SetSeedFile(trim(lgseedfile))
       ENDIF
@@ -2295,6 +2301,13 @@
 #endif
          ENDIF
       ENDIF
+
+#if defined(LAGPART_)
+! Write particle write times to screen:
+      IF ( myrank .EQ. 0 ) THEN
+        WRITE(*,*)'main: <GPTIME_GPWRITE>=',lagpart%GetTime(GPTIME_GPWRITE)/nwpart
+      ENDIF
+#endif
 !
 ! End of MAIN3D
 
