@@ -37,9 +37,10 @@
 
            timep = 0
            pind = pind+1
-           WRITE(lgext, lgfmtext) pind
+           WRITE(lgext,lgfmtext) pind
            CALL lagpart%io_write_pdb(1,odir,'xlg',lgext,(t-1)*dt)
            CALL lagpart%io_write_vec(1,odir,'vlg',lgext,(t-1)*dt)
+           nwpart = nwpart + 1
 
 ! Write nonlinear transfer:
            CALL prodre3(vx,vy,vz,C4,C5,C6)

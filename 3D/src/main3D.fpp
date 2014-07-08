@@ -1732,6 +1732,7 @@
             CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
             CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
             CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+
             CALL io_write(1,odir,'vx',ext,planio,R1)
             CALL io_write(1,odir,'vy',ext,planio,R2)
             CALL io_write(1,odir,'vz',ext,planio,R3)
@@ -2229,6 +2230,7 @@
         END DO
       END DO
       CALL fftp3d_complex_to_real(plancr,C7,R3,MPI_COMM_WORLD)
+
       CALL lagpart%Step(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),R4,R5)
       CALL lagpart%FinalStep()
       ENDIF
