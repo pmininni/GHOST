@@ -216,7 +216,7 @@ MODULE class_GPart
     ENDIF
 
     DO j = 1,3
-      this%gext_ (j) = real(this%nd_(j)-1,kind=GP)
+      this%gext_ (j) = real(this%nd_(j),kind=GP)
     ENDDO
 
     ! Instantiate interp operation. Remember that a valid timer 
@@ -513,6 +513,7 @@ MODULE class_GPart
     ib = ib - 1
     ie = ie - 1
     this%nparts_ = ie - ib + 1
+
     DO j = 1, this%nparts_
        this%id_(j)    = ib + j - 1
        CALL prandom_number(r)
@@ -661,8 +662,12 @@ MODULE class_GPart
       CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
            this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     ELSE
+      ! Store global VDB data into temp array:
+!$omp parallel do
       Do j = 1, this%maxparts_
-        this%ptmp0_(1:3,j) = this%vdb_(1:3,j)
+        this%ptmp0_(1,j) = this%vdb_(1,j)
+        this%ptmp0_(2,j) = this%vdb_(2,j)
+        this%ptmp0_(3,j) = this%vdb_(3,j)
       ENDDO
     ENDIF
 
@@ -721,7 +726,7 @@ MODULE class_GPart
     CHARACTER(len=*),INTENT(IN)       :: dir
     CHARACTER(len=*),INTENT(IN)       :: nmb
     CHARACTER(len=*),INTENT(IN)       :: spref
-    INTEGER                           :: gsum
+    INTEGER                           :: gsum,j
 
     IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_,gsum) ) THEN
       write(*,*)'io_write_vec: global sum=',gsum,' maxparts=',this%maxparts_
@@ -731,23 +736,23 @@ MODULE class_GPart
       ENDIF
     ENDIF
 
+    ! If doing non-collective binary or ascii writes, synch up vector:
+    IF ( this%iouttype_.EQ.0 .AND. this%bcollective_.EQ.0 & .OR. this%iouttype_.EQ.1 ) THEN
+    
+      CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+                                 this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp1_)
+    ENDIF
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
       IF ( this%bcollective_.EQ. 1 ) THEN
         CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%lvx_,this%lvy_,this%lvz_)
       ELSE
-write(*,*)'io_write_vec: doing write_lag_t0...'
- !      CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
- !           this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp1_)
         CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time, &
-                                 this%lvx_,this%lvy_,this%lvz_);
-write(*,*)'io_write_vec: write_lag_t0 done.'
+                                 this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:));
       ENDIF
     ELSE
- !    CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
- !         this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp1_)
       CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time, &
-                                 this%lvx_,this%lvy_,this%lvz_);
+                                 this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:));
     ENDIF
 
   END SUBROUTINE GPart_io_write_vec
@@ -799,20 +804,19 @@ write(*,*)'io_write_vec: write_lag_t0 done.'
 
 
     CALL GPart_EulerToLag(this,this%ltmp1_,this%nparts_,evar,doupdate,tmp1,tmp2)
+    ! If doing non-collective binary or ascii writes, synch up vector:
+    IF ( this%iouttype_.EQ.0 .AND. this%bcollective_.EQ.0 .OR. this%iouttype_.EQ.1 ) THEN
+      CALL this%gpcomm_%LagSynch(this%ltmp0_,this%maxparts_,this%id_,this%ltmp1_,&
+                                 this%nparts_,this%ptmp0_(1,:))
+    ENDIF
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
       IF ( this%bcollective_.EQ. 1 ) THEN
         CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%ltmp1_)
       ELSE
-        ! First, must synch up the field data since only task 0 writes:
-        CALL this%gpcomm_%LagSynch(this%ltmp0_,this%maxparts_,this%id_, &
-                                   this%ltmp1_,this%nparts_,this%ptmp0_)
-        CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time,this%ltmp1_)
+        CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time,this%ltmp0_)
       ENDIF
     ELSE
-      ! First, must synch up the field data since only task 0 writes:
-      CALL this%gpcomm_%LagSynch(this%ltmp0_,this%maxparts_,this%id_, &
-                                 this%ltmp1_,this%nparts_,this%ptmp0_)
       CALL GPart_ascii_write_lag (this,iunit,dir,spref,nmb,time,this%ltmp0_)
     ENDIF
 
@@ -959,16 +963,19 @@ write(*,*)'io_write_vec: write_lag_t0 done.'
 
     IF ( this%myrank_ .EQ. 0 ) THEN
       nv = 1
+!$omp parallel do
       DO j = 1, this%maxparts_
         this%ptmp1_(1,j) = fld0(j)
       ENDDO
       IF ( present(fld1) ) THEN
+!$omp parallel do
         DO j = 1, this%maxparts_
           this%ptmp1_(2,j) = fld1(j)
         ENDDO
         nv = nv+1
       ENDIF
       IF ( present(fld2) ) THEN
+!$omp parallel do
         DO j = 1, this%maxparts_
           this%ptmp1_(3,j) = fld2(j)
         ENDDO
@@ -1125,6 +1132,7 @@ write(*,*)'io_write_vec: write_lag_t0 done.'
 
     ! If there is a global VDB for data 'exchanges', create it here:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
+!$omp parallel do
       DO j = 1, this%maxparts_
         this%vdb_(1:3,j) = this%ptmp0_(1:3,j)
       ENDDO
@@ -1378,7 +1386,7 @@ write(*,*)'io_write_vec: write_lag_t0 done.'
 
     ! u(t+dt) = u*: done already
 
-    ! IF using nearest-neighbor interface, do particle exchange 
+    ! If using nearest-neighbor interface, do particle exchange 
     ! between nearest-neighbor tasks BEFORE z-PERIODIZING particle coordinates:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
       CALL GTStart(this%htimers_(GPTIME_COMM))
@@ -1471,6 +1479,7 @@ write(*,*)'io_write_vec: write_lag_t0 done.'
     ! ... x:
     CALL GPart_EulerToLag(this,this%lvx_,this%nparts_,vx,.true.,tmp1,tmp2)
     ! ux* <-- ux + dt * F(U*)*xk:
+!$omp parallel do
     DO j = 1, this%nparts_
       this%px_(j) = this%ptmp0_(1,j) + dtfact*this%lvx_(j)
     ENDDO
@@ -1480,6 +1489,7 @@ write(*,*)'io_write_vec: write_lag_t0 done.'
     ! can perform local interpolations:
     CALL GPart_EulerToLag(this,this%lvy_,this%nparts_,vy,.false.,tmp1,tmp2)
     ! uy* <-- uy + dt * F(U*)*xk:
+!$omp parallel do
     DO j = 1, this%nparts_
       this%py_(j) = this%ptmp0_(2,j) + dtfact*this%lvy_(j)
     ENDDO
@@ -1489,6 +1499,7 @@ write(*,*)'io_write_vec: write_lag_t0 done.'
     ! can perform local interpolations:
     CALL GPart_EulerToLag(this,this%lvz_,this%nparts_,vz,.false.,tmp1,tmp2)
     ! uz* <-- uz + dt * F(U*)*xk:
+!$omp parallel do
     DO j = 1, this%nparts_
       this%pz_(j) = this%ptmp0_(3,j) + dtfact*this%lvz_(j)
     ENDDO
@@ -1574,7 +1585,7 @@ write(*,*)'io_write_vec: write_lag_t0 done.'
 !  DESCRIPTION: Computes the Eulerian to Lagrangian
 !               transformation by interpolating Eulerian field
 !               evar to current position of Lagrangian paricles in 
-!               d.b. Array lag must be large enouch to accommodate 
+!               d.b. Array lag must be large enough to accommodate 
 !               max. no. particles; no checking is done. Note
 !               that 'evar' array must have local dimensions 
 !               for a real array in GHOST (n X n X (kend-ksta+1)).
@@ -1630,8 +1641,8 @@ write(*,*)'io_write_vec: write_lag_t0 done.'
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
 !    px      : particle x loc. d.b.
-!    py      : particle x loc. d.b.
-!    pz      : particle x loc. d.b.
+!    py      : particle y loc. d.b.
+!    pz      : particle z loc. d.b.
 !    npdb    : no. particles in pdb
 !    idir    : first three bits provide which directions to periodize.
 !              So, 1==>x, 2==>y, 4==>z; 3==>x & y; 7==>x & y & z
