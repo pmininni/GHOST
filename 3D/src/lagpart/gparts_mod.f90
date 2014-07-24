@@ -1226,33 +1226,36 @@ MODULE class_GPart
     CLASS(GPart) ,INTENT(INOUT)       :: this
     REAL(KIND=GP),INTENT(INOUT)       :: time
     REAL(KIND=GP),INTENT(INOUT)       :: pdb(3,this%maxparts_)
+    REAL(KIND=GP)                     :: fnt
     INTEGER      ,INTENT   (IN)       :: iunit
-    INTEGER                           :: j,nt
+    INTEGER                           :: j
     CHARACTER(len=*),INTENT(IN)       :: dir
     CHARACTER(len=*),INTENT(IN)       :: nmb
     CHARACTER(len=*),INTENT(IN)       :: spref
     CHARACTER(len=3)                  :: sind
 
     ! Read global VDB, with time header, indexed only
-    ! by time index: dir/spref.TTT.txt:
+    ! by time index: dir/spref.TTT.lag:
     IF ( this%myrank_.EQ.0 ) THEN
       OPEN(iunit,file=trim(dir)// '/' // trim(spref) // '.' // &
-                nmb //  '.lag',status='old',form='unformatted',iostat=this%ierr_)
+                nmb //  '.lag',status='old',form='binary',iostat=this%ierr_)
       IF ( this%ierr_.NE.0 ) THEN
         WRITE(*,*)'GPart_binary_read_pdb_t0: could not open file for reading: ',&
         trim(dir)// '/' // trim(spref) // '.' // nmb //  '.lag'
         STOP
       ENDIF
-      READ(iunit,iostat=this%ierr_) nt
-      READ(iunit,iostat=this%ierr_) time
-      IF ( nt.NE.this%maxparts_ ) THEN
+
+      REWIND(iunit)
+      READ(iunit) fnt
+      READ(iunit) time
+      IF ( int(fnt).NE.this%maxparts_ ) THEN
         WRITE(*,*)this%myrank_, &
           ': GPart_binary_read_pdb_t0: particle inconsistency: no. required=',&
-          this%maxparts_,' no. found=',nt, &
+          this%maxparts_,' no. found=',int(fnt), &
           ' file=',trim(dir)// '/' // trim(spref) // '.' // nmb //  '.lag'
         STOP
       ENDIF
-      READ(iunit,iostat=this%ierr_) pdb
+      READ(iunit) pdb
       CLOSE(iunit)
     ENDIF
     CALL MPI_BCAST(pdb,3*this%maxparts_,GC_REAL,0,this%comm_,this%ierr_)
