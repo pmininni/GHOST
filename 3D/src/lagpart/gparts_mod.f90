@@ -1237,10 +1237,10 @@ MODULE class_GPart
     ! by time index: dir/spref.TTT.txt:
     IF ( this%myrank_.EQ.0 ) THEN
       OPEN(iunit,file=trim(dir)// '/' // trim(spref) // '.' // &
-                nmb //  '.txt',status='old',form='unformatted',iostat=this%ierr_)
+                nmb //  '.lag',status='old',form='unformatted',iostat=this%ierr_)
       IF ( this%ierr_.NE.0 ) THEN
         WRITE(*,*)'GPart_binary_read_pdb_t0: could not open file for reading: ',&
-        trim(dir)// '/' // trim(spref) // '.' // nmb //  '.txt'
+        trim(dir)// '/' // trim(spref) // '.' // nmb //  '.lag'
         STOP
       ENDIF
       READ(iunit,iostat=this%ierr_) nt
@@ -1249,7 +1249,7 @@ MODULE class_GPart
         WRITE(*,*)this%myrank_, &
           ': GPart_binary_read_pdb_t0: particle inconsistency: no. required=',&
           this%maxparts_,' no. found=',nt, &
-          ' file=',trim(dir)// '/' // trim(spref) // '.' // nmb //  '.txt'
+          ' file=',trim(dir)// '/' // trim(spref) // '.' // nmb //  '.lag'
         STOP
       ENDIF
       READ(iunit,iostat=this%ierr_) pdb
@@ -1258,7 +1258,7 @@ MODULE class_GPart
     CALL MPI_BCAST(pdb,3*this%maxparts_,GC_REAL,0,this%comm_,this%ierr_)
     IF ( this%ierr_.NE.MPI_SUCCESS ) THEN
         WRITE(*,*)this%myrank_, ': GPart_binary_read_pdb_t0: Broadcast failed: file=',&
-        trim(dir)// '/' // trim(spref) // '.' // nmb //  '.txt'
+        trim(dir)// '/' // trim(spref) // '.' // nmb //  '.lag'
     ENDIF
 
   END SUBROUTINE GPart_binary_read_pdb_t0
