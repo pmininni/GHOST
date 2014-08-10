@@ -695,7 +695,7 @@
       ENDIF
 
       RETURN
-   10 FORMAT( E13.6,1x,9(E26.18,1x) )
+   10 FORMAT( E13.6,1x,11(E26.18,1x) )
       END SUBROUTINE tbouss
 
 
