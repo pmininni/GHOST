@@ -52,7 +52,9 @@
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
-      DOUBLE PRECISION    :: tmq
+      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ekh,Ekhtot
+      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ekv,Ekvtot
+      DOUBLE PRECISION    :: tmq,tmr
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
       REAL(KIND=GP)       :: tmp
@@ -65,7 +67,9 @@
 ! Sets Ek to zero
 !
       DO i = 1,n/2+1
-         Ek(i) = 0.
+         Ek (i) = 0.0D0
+         Ekh(i) = 0.0D0
+         Ekv(i) = 0.0D0
       END DO
 !
 ! Computes the curl of the field if needed
@@ -86,10 +90,13 @@
                DO k = 1,n
                   kmn = int(abs(ka(k))+1)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                     tmq = (abs(a(k,j,1))**2+abs(b(k,j,1))**2+          &
-                            abs(c(k,j,1))**2)*tmp
-!$omp atomic
-                     Ek(kmn) = Ek(kmn)+tmq                       
+                     tmq = (abs(a(k,j,1))**2+abs(b(k,j,1))**2)*tmp
+                     tmr = (abs(c(k,j,1))**2)*tmp
+!$omp critical
+                     Ek (kmn) = Ek (kmn)+tmq+tmr                       
+                     Ekh(kmn) = Ekh(kmn)+tmq
+                     Ekv(kmn) = Ekv(kmn)+tmr
+!$omp end critical
                   ENDIF
                END DO
             END DO
@@ -100,10 +107,13 @@
                   DO k = 1,n
                      kmn = int(abs(ka(k))+1)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                        tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+     &
-                                 abs(c(k,j,i))**2)*tmp
-!$omp atomic
-                        Ek(kmn) = Ek(kmn)+tmq
+                        tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2)*tmp
+                        tmr = 2*(abs(c(k,j,i))**2)*tmp
+!$omp critical
+                        Ek (kmn) = Ek (kmn)+tmq+tmr
+                        Ekh(kmn) = Ekh(kmn)+tmq
+                        Ekv(kmn) = Ekv(kmn)+tmr
+!$omp end critical
                      ENDIF
                   END DO
                END DO
@@ -116,10 +126,13 @@
                   DO k = 1,n
                      kmn = int(abs(ka(k))+1)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                        tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+     &
-                                 abs(c(k,j,i))**2)*tmp
-!$omp atomic
-                        Ek(kmn) = Ek(kmn)+tmq
+                        tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2)*tmp
+                        tmr = 2*(abs(c(k,j,i))**2)*tmp
+!$omp critical
+                        Ek (kmn) = Ek (kmn)+tmq+tmr
+                        Ekh(kmn) = Ekh(kmn)+tmq
+                        Ekv(kmn) = Ekv(kmn)+tmr
+!$omp end critical
                      ENDIF
                   END DO
                END DO
@@ -135,10 +148,15 @@
                DO k = 1,n
                   kmn = int(abs(ka(k))+1)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                     tmq = (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+        &
-                            abs(c3(k,j,1))**2)*tmp
-!$omp atomic
-                     Ek(kmn) = Ek(kmn)+tmq
+                     tmq = (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2)*tmp
+                     tmr = (abs(c3(k,j,1))**2)*tmp
+!$omp critical
+
+                     Ek (kmn) = Ek (kmn)+tmq+tmr
+                     Ekh(kmn) = Ekh(kmn)+tmq
+                     Ekv(kmn) = Ekv(kmn)+tmr
+!$omp end critical
+
                   ENDIF
                END DO
             END DO
@@ -149,10 +167,13 @@
                   DO k = 1,n
                      kmn = int(abs(ka(k))+1)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                        tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+   &
-                                 abs(c3(k,j,i))**2)*tmp
-!$omp atomic
-                        Ek(kmn) = Ek(kmn)+tmq                          
+                        tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2)*tmp
+                        tmr = 2*(abs(c3(k,j,i))**2)*tmp
+!$omp critical
+                        Ek (kmn) = Ek (kmn)+tmq+tmr
+                        Ekh(kmn) = Ekh(kmn)+tmq
+                        Ekv(kmn) = Ekv(kmn)+tmr
+!$omp end critical
                      ENDIF
                   END DO
                END DO
@@ -165,10 +186,13 @@
                   DO k = 1,n
                      kmn = int(abs(ka(k))+1)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                        tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+   &
-                              abs(c3(k,j,i))**2)*tmp
-!$omp atomic
-                        Ek(kmn) = Ek(kmn)+tmq
+                        tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2)*tmp
+                        tmr = 2*(abs(c3(k,j,i))**2)*tmp
+!$omp critical
+                        Ek (kmn) = Ek (kmn)+tmq+tmr
+                        Ekh(kmn) = Ekh(kmn)+tmq
+                        Ekv(kmn) = Ekv(kmn)+tmr
+!$omp end critical
                      ENDIF
                   END DO
                END DO
@@ -180,7 +204,11 @@
 ! and exports the result to a file
 !
       IF (kin.le.1) THEN
-         CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+         CALL MPI_REDUCE(Ek ,Ektot ,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+                         MPI_COMM_WORLD,ierr)
+         CALL MPI_REDUCE(Ekh,Ekhtot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+                         MPI_COMM_WORLD,ierr)
+         CALL MPI_REDUCE(Ekv,Ekvtot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                          MPI_COMM_WORLD,ierr)
          IF (myrank.eq.0) THEN
             IF (kin.eq.1) THEN
@@ -188,8 +216,9 @@
             ELSE
                OPEN(1,file='mspecpara.' // nmb // '.txt')
             ENDIF
-            WRITE(1,20) Ektot
-   20       FORMAT( E23.15 ) 
+            DO j =1,n/2+1
+               WRITE(1,FMT='(E23.15,E23.15,E23.15)') Ektot(j),Ekhtot(j),Ekvtot(j)
+            END DO
             CLOSE(1)
          ENDIF
       END IF
@@ -198,7 +227,9 @@
 !
       IF (hel.eq.1) THEN
          DO i = 1,n/2+1
-            Ek(i) = 0.0D0
+            Ek (i) = 0.0D0
+            Ekh(i) = 0.0D0
+            Ekv(i) = 0.0D0
          END DO
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn,tmq)
@@ -207,10 +238,13 @@
                   kmn = int(abs(ka(k))+1)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
                      tmq = (real(a(k,j,1)*conjg(c1(k,j,1)))+            &
-                            real(b(k,j,1)*conjg(c2(k,j,1)))+            &
-                            real(c(k,j,1)*conjg(c3(k,j,1))))*tmp
-!$omp atomic
-                     Ek(kmn) = Ek(kmn)+tmq
+                            real(b(k,j,1)*conjg(c2(k,j,1))))*tmp
+                     tmr = (real(c(k,j,1)*conjg(c3(k,j,1))))*tmp
+!$omp critical
+                     Ek (kmn) = Ek (kmn)+tmq+tmr
+                     Ekh(kmn) = Ekh(kmn)+tmq
+                     Ekv(kmn) = Ekv(kmn)+tmr
+!$omp end critical
                   ENDIF
                END DO
             END DO
@@ -222,10 +256,13 @@
                      kmn = int(abs(ka(k))+1)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
                         tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+       &
-                                 real(b(k,j,i)*conjg(c2(k,j,i)))+       &
-                                 real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
-!$omp atomic
-                        Ek(kmn) = Ek(kmn)+tmq
+                                 real(b(k,j,i)*conjg(c2(k,j,i))))*tmp
+                        tmr = 2*( real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
+!$omp critical
+                        Ek(kmn) = Ek(kmn)+tmq+tmr
+                        Ekh(kmn) = Ekh(kmn)+tmq
+                        Ekv(kmn) = Ekv(kmn)+tmr
+!$omp end critical
                      ENDIF
                  END DO
                END DO
@@ -239,10 +276,13 @@
                      kmn = int(abs(ka(k))+1)
                      IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
                         tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+       &
-                                 real(b(k,j,i)*conjg(c2(k,j,i)))+       &
-                                 real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
-!$omp atomic
-                        Ek(kmn) = Ek(kmn)+tmq
+                                 real(b(k,j,i)*conjg(c2(k,j,i))))*tmp
+                        tmr = 2*( real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
+!$omp critical
+                        Ek (kmn) = Ek (kmn)+tmq+tmr
+                        Ekh(kmn) = Ekh(kmn)+tmq
+                        Ekv(kmn) = Ekv(kmn)+tmr
+!$omp end critical
                      ENDIF
                   END DO
                END DO
@@ -252,7 +292,11 @@
 ! Computes the reduction between nodes
 ! and exports the result to a file
 !
-         CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,   &
+         CALL MPI_REDUCE(Ek ,Ektot ,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,   &
+                         0,MPI_COMM_WORLD,ierr)
+         CALL MPI_REDUCE(Ekh,Ekhtot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,   &
+                         0,MPI_COMM_WORLD,ierr)
+         CALL MPI_REDUCE(Ekv,Ekvtot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,   &
                          0,MPI_COMM_WORLD,ierr)
          IF (myrank.eq.0) THEN
             IF (kin.eq.1) THEN
@@ -262,8 +306,9 @@
             ELSE
                OPEN(1,file='ghelipara.' // nmb // '.txt')
             ENDIF
-            WRITE(1,30) Ektot
-   30       FORMAT( E23.15 )
+            DO j =1,n/2+1
+              WRITE(1,FMT='(E23.15,E23.15,E23.15)') Ektot(j),Ekhtot(j),Ekvtot(j)
+            ENDDO
             CLOSE(1)
          ENDIF
       ENDIF

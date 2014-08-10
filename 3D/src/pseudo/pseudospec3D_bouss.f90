@@ -35,6 +35,7 @@
 !    itype == 7 : hor. avg. of PV^2: <(fd\theta/dz - N \omega_z + omega.Grad\theta -fN)^2>_perp
 !    itype == 8 : hor. avg. of 'super-helicity': <\omega . curl \omega>_perp 
 !    itype == 9: hor. avg. of gradient Richardson no: !    N(N-d\theta/dz)/(du_\perp/dz)^2
+!    itype == 10: hor. avg. of correlation: <u_z \theta>_perp
 !
 ! Parameters
 !     gsh: return array, funcion of z of size >= N
@@ -515,6 +516,37 @@
 
       ENDIF
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1111!1111!!!
+
+      IF ( itype .eq. 10 ) THEN  ! <v_z \theta>_perp
+        sh  = 0.0D0
+        gsh = 0.0D0
+        tmp = 1.0D0/dble(n)**8
+        c1 = w
+        CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+        c1 = s
+        CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+           DO j = 1,n
+              DO i = 1,n
+!$omp atomic
+                 sh(k) = sh(k)+r1(i,j,k)*r2(i,j,k)
+              END DO
+           END DO
+           sh(k) = sh(k) * tmp
+        END DO
+!
+! Collect as a fcn of z:
+        CALL MPI_ALLREDUCE(sh,gsh,n,MPI_DOUBLE_PRECISION,      &
+                           MPI_SUM,MPI_COMM_WORLD,ierr)
+
+        RETURN
+      ENDIF
+
       RETURN
       END SUBROUTINE havgcomp
 
@@ -601,7 +633,7 @@
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: u,v,w,s
       REAL(KIND=GP),INTENT(IN)                   :: dt
       REAL(KIND=GP),INTENT(IN)                   :: fo, bv
-      DOUBLE PRECISION                           :: gxavg(9),gxmax(9),gxmin(9),tmp
+      DOUBLE PRECISION                           :: gxavg(11),gxmax(11),gxmin(11),tmp
       DOUBLE PRECISION,  DIMENSION(n)            :: gsh
       INTEGER, INTENT(IN)                        :: t
       INTEGER                                    :: i
@@ -612,7 +644,7 @@
 
 ! Compute volume averages from horizontal averages, and
 ! also extrema from horiz. averages:
-      DO i = 1, 9
+      DO i = 1, 11
         CALL havgcomp(gsh,u,v,w,s,fo,bv,i-1)
         gxavg(i) = sum   (gsh)/dble(n);
         gxmax(i) = maxval(gsh);
@@ -622,37 +654,43 @@
 ! Don't need reductions bec the results from havgcomp are globalized,
 ! so just do the outputs:
 
-! NOTE: col_2 == vol average/extremum of (du_perp/dz)^2
-!       col_3 == vol average/extremum of d\theta/dz
-!       col_4 == vol average/extremum of u_z d\theta/dz
-!       col_5 == vol average/extremum of u^2 + v^2
-!       col_6 == vol average/extremum of w^2
-!       col_7 == vol average/extremum of u_perp . curl u_perp
-!       col_8 == vol average/extremum of \omega_z \theta
-!       col_9 == vol average/extremum of PV^2
-!       col_10== vol average/extremum of \omega . curl \omega
+! NOTE:
+!    col== 2 : hor. avg. of shear == <du_perp/dz>^2
+!    col== 3 : hor. avg. of vert. temp. gradient == <d\theta/dz>
+!    col== 4 : hor. avg. of correlation == <u_z d\theta/dz>
+!    col== 5 : hor. avg. of hor. kinetic energy == <u^2 + v^2>
+!    col== 6 : hor. avg. of vert. kinetic energy == <w^2>
+!    col== 7 : hor. avg. of perp. helicity == <u_perp . curl u_perp = -u dv/dz + v du/dz>
+!    col== 8 : hor. avg. of correlation: <\omega_z \theta>
+!    col== 9 : hor. avg. of PV^2: <(fd\theta/dz - N \omega_z + omega.Grad\theta -fN)^2>
+!    col== 10: hor. avg. of 'super-helicity': <\omega . curl \omega>
+!    col== 11: hor. avg. of gradient Richardson no: !    N(N-d\theta/dz)/(du_\perp/dz)^2
+!    col== 12: hor. avg. of correlation: <u_z \theta>
 !
 ! Output quantities as a fcn of t:
       IF (myrank.eq.0) THEN
          OPEN(1,file='tboussavg.txt',position='append')
-         WRITE(1,10) (t-1)*dt,gxavg(1),gxavg(2),gxavg(3),gxavg(4),gxavg(5), &
-                              gxavg(6),gxavg(7),gxavg(8),gxavg(9)
+         WRITE(1,10) (t-1)*dt,gxavg (1),gxavg(2),gxavg(3),gxavg(4),gxavg (5), &
+                              gxavg (6),gxavg(7),gxavg(8),gxavg(9),gxavg(10), &
+                              gxavg(11)
          CLOSE(1)
       ENDIF
 !
 ! Output max quantities as a fcn of t:
       IF (myrank.eq.0) THEN
          OPEN(1,file='tboussmax.txt',position='append')
-         WRITE(1,10) (t-1)*dt,gxmax(1),gxmax(2),gxmax(3),gxmax(4),gxmax(5), &
-                              gxmax(6),gxmax(7),gxmax(8),gxmax(9)
+         WRITE(1,10) (t-1)*dt,gxmax (1),gxmax(2),gxmax(3),gxmax(4),gxmax (5), &
+                              gxmax (6),gxmax(7),gxmax(8),gxmax(9),gxmax(10), &
+                              gxmax(11)
          CLOSE(1)
       ENDIF
 !
 ! Output min quantities as a fcn of t:
       IF (myrank.eq.0) THEN
          OPEN(1,file='tboussmin.txt',position='append')
-         WRITE(1,10) (t-1)*dt,gxmin(1),gxmin(2),gxmin(3),gxmin(4),gxmin(5), &
-                              gxmin(6),gxmin(7),gxmin(8),gxmin(9)
+         WRITE(1,10) (t-1)*dt,gxmin(1),gxmin(2),gxmin(3),gxmin(4),gxmin (5), &
+                              gxmin(6),gxmin(7),gxmin(8),gxmin(9),gxmin(10), &
+                              gxmin(11)
          CLOSE(1)
       ENDIF
 
