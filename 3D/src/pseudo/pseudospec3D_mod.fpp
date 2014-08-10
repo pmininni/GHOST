@@ -188,7 +188,7 @@
       USE commtypes
       USE mpivars
 
-      REAL, INTENT(OUT)   :: r
+      REAL(KIND=GP), INTENT(OUT)   :: r
 
       CALL random_number(r)
 
