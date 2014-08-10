@@ -194,7 +194,7 @@ MODULE class_GPart
     ENDDO
 
     CALL this%gpcomm_%GPartComm_ctor(GPCOMM_INTRFC_SF,this%maxparts_, &
-         this%nd_,this%intorder_-1,this%comm_,this%htimers_(GPTIME_COMM))
+         this%nd_,this%intorder_,this%comm_,this%htimers_(GPTIME_COMM))
     CALL this%gpcomm_%SetCacheParam(csize,nstrip)
     CALL this%gpcomm_%Init()
 
@@ -216,13 +216,13 @@ MODULE class_GPart
     ENDIF
 
     DO j = 1,3
-      this%gext_ (j) = real(this%nd_(j),kind=GP)
+      this%gext_ (j) = real(this%nd_(j)-1,kind=GP)
     ENDDO
 
     ! Instantiate interp operation. Remember that a valid timer 
     ! handle must be passed:
     CALL this%intop_%GPSplineInt_ctor(3,this%nd_,this%libnds_,this%lxbnds_,&
-         this%maxparts_,this%gpcomm_,this%htimers_(GPTIME_DATAEX),&
+         this%intorder_,this%maxparts_,this%gpcomm_,this%htimers_(GPTIME_DATAEX),&
          this%htimers_(GPTIME_TRANSP))
 
     ! Create part. d.b. structure type for I/O
@@ -540,7 +540,7 @@ MODULE class_GPart
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,this%nparts_, &
                            this%vdb_,this%maxparts_)
-    CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0,this%vdb_(1,:),this%vdb_(2,:),this%vdb_(3,:))
+    CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,this%vdb_(1,:),this%vdb_(2,:),this%vdb_(3,:))
     IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
       IF ( this%myrank_.eq.0 ) THEN
         WRITE(*,*) 'GPart_InitRandSeed: Invalid particle after GetLocalWrk call'
@@ -1430,7 +1430,7 @@ MODULE class_GPart
       IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_) THEN
         WRITE(*,*)'GPart_FinalizeRKK: inconsistent d.b.: expected: ', &
                  this%maxparts_, '; found: ',ng
-        CALL GPART_ascii_write_lag(this,1,'.','xlgerr','000',0.0,this%vdb_)
+        CALL GPART_ascii_write_lag(this,1,'.','xlgerr','000',0.0_GP,this%vdb_)
         STOP
       ENDIF
 
