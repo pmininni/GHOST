@@ -43,7 +43,9 @@
            CALL lagpart%io_write_pdb(1,odir,'xlg',lgext,(t-1)*dt)
            CALL lagpart%io_write_vec(1,odir,'vlg',lgext,(t-1)*dt)
 
-           ! Write Lagrangian vorticity components:
+!
+!!!!!! Write Lagrangian vorticity components: !!!!!!
+!
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
