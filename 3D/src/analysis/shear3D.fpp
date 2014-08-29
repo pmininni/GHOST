@@ -154,7 +154,7 @@
       seed   = 1000
       pref   = 'ksplambda'
 
-      dt     = 1.5e-5
+      dt     = 1.5e-4
       omega  = 1.333
       bvfreq = 13.2
       tstep  = 100
@@ -363,6 +363,10 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
             END DO
           END DO
         END DO
+
+! Do new kspecpara:
+       CALL specpara(vx,vy,vz,ext,1,1);
+       cycle
 
 ! Do Shebalin angles:
 #if defined(SCALAR_)
@@ -1141,8 +1145,8 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       REAL   (KIND=GP)                                          :: ss11,ss12,ss13,ss22,ss23,ss33
       REAL   (KIND=GP)                                          :: sf11,sf12,sf13,sf22,sf23,sf33
       DOUBLE PRECISION                                          :: s2,s3,s4
-      REAL   (KIND=GP)                                          :: rif,upf,thf
-      REAL   (KIND=GP)                                          :: ris,ups,ths
+      REAL   (KIND=GP)                                          :: rif,upf,dthf,thf
+      REAL   (KIND=GP)                                          :: ris,ups,dths,ths
       REAL   (KIND=GP)                                          :: vs1,vs2,vs3
       REAL   (KIND=GP)                                          :: vf1,vf2,vf3
       REAL   (KIND=GP)                                          :: ws1,ws2,ws3
@@ -1473,12 +1477,17 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       CALL fftp3d_complex_to_real(plancr,ctmp,S23,MPI_COMM_WORLD)
       CALL derivk3(th, ctmp, 3)
       CALL fftp3d_complex_to_real(plancr,ctmp,rtmp1,MPI_COMM_WORLD)
+      If ( ibits(kin,0,1).EQ.1 ) THEN
+      fnout = trim(odir) // '/' // 'dthdzpdf.' // ext // '.txt'
+      CALL dopdfr(rtmp1,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      ENDIF
+      CALL skewflat(rtmp1,nin,n,dths,dthf,s2,s3,s4)       ! theta
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
         DO j = 1,n
           DO i = 1,n
-            den = max(S12(i,j,k)**2 + S23(i,j,k)**2,1.0e-2)
+            den = S12(i,j,k)**2 + S23(i,j,k)**2
             rtmp(i,j,k) = bvfreq*(bvfreq-rtmp1(i,j,k)) / den
           ENDDO
         ENDDO
@@ -1507,6 +1516,15 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       CALL dojpdfr(rtmp,'Ri',lambda,'lambda',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_lamb_ri_log.' // ext // '.txt'
       CALL dojpdfr(rtmp,'Ri',lambda,'lambda',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,1])
+
+#if defined(SCALAR_)
+      CALL derivk3(th, ctmp, 3)
+      CALL fftp3d_complex_to_real(plancr,ctmp,rtmp1,MPI_COMM_WORLD)
+      fnout = trim(odir) // '/' // 'jpdf_dtdz_ri_nolog.' // ext // '.txt'
+      CALL dojpdfr(rtmp,'Ri',rtmp1,'dtdz',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,0])
+      fnout = trim(odir) // '/' // 'jpdf_dtdz_ri_log.' // ext // '.txt'
+      CALL dojpdfr(rtmp,'Ri',rtmp1,'dtdz',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,1])
+#endif
       ENDIF
 #endif
 
@@ -1515,11 +1533,11 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
         fnout = trim(odir) // '/' // 'scskew.txt'
         OPEN(1,file=trim(fnout),position='append')
       ! Print out skewness and flatness SCALAR data:
-        WRITE(1,*)ext,ths,ris
+        WRITE(1,*)ext,ths,dths,ris
         CLOSE(1)
         fnout = trim(odir) // '/' // 'scflat.txt'
         OPEN(1,file=trim(fnout),position='append')
-        WRITE(1,*)ext,thf,rif
+        WRITE(1,*)ext,thf,dthf,rif
         CLOSE(1)
       ENDIF
 #endif
