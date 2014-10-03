@@ -27,8 +27,10 @@
 !           HMHDB_SOL     builds the HMHD solver with uniform B_0
 !           ROTH_SOL      builds the HD solver in a rotating frame
 !           PROTH_SOL     builds the ROTH solver with passive scalar
-!           BOUSS_SOL     builds the BOUSS solver 
-!           ROTBOUSS_SOL  builds the BOUSS solver in a rotating frame 
+!           BOUSS_SOL     builds the BOUSS solver
+!           ROTBOUSS_SOL  builds the BOUSS solver in a rotating frame
+!           GPE_SOL       builds the Gross-Pitaevskii Equation solver
+!           ARGL_SOL      builds the Advective Real Ginzburg Landau solver
 !           LAHD_SOL      builds the Lagrangian-averaged HD solver
 !           CAHD_SOL      builds the Clark-alpha HD solver
 !           LHD_SOL       builds the Leray HD solver
@@ -47,6 +49,7 @@
 ! 10 Mar 2007: FFTW-2.x and FFTW-3.x support
 ! 25 Aug 2009: Hybrid MPI/OpenMP support (D. Rosenberg & P. Mininni)
 ! 30 Aug 2009: SINGLE/DOUBLE precision (D. Rosenberg & P. Mininni)
+! 10 Feb 2011: Hybrid MPI/OpenMP/CUDA support (D. Rosenberg)
 !
 ! References:
 ! Mininni PD, Rosenberg DL, Reddy R, Pouquet A.; P. Comp. 37, 123 (2011)
@@ -60,37 +63,44 @@
 
 #ifdef HD_SOL
 #define DNS_
+#define VELOC_
 #endif
 
 #ifdef PHD_SOL
 #define DNS_
+#define VELOC_
 #define SCALAR_
 #endif
 
 #ifdef MPHD_SOL
 #define DNS_
+#define VELOC_
 #define MULTISCALAR_
 #endif
 
 #ifdef MHD_SOL
 #define DNS_
+#define VELOC_
 #define MAGFIELD_
 #endif
 
 #ifdef MHDB_SOL
 #define DNS_
+#define VELOC_
 #define MAGFIELD_
 #define UNIFORMB_
 #endif
 
 #ifdef HMHD_SOL
 #define DNS_
+#define VELOC_
 #define MAGFIELD_
 #define HALLTERM_
 #endif
 
 #ifdef HMHDB_SOL
 #define DNS_
+#define VELOC_
 #define MAGFIELD_
 #define HALLTERM_
 #define UNIFORMB_
@@ -98,59 +108,81 @@
 
 #ifdef ROTH_SOL
 #define DNS_
+#define VELOC_
 #define ROTATION_
 #endif 
 
 #ifdef PROTH_SOL
 #define DNS_
+#define VELOC_
 #define SCALAR_
 #define ROTATION_
 #endif
 
 #ifdef BOUSS_SOL
 #define DNS_
+#define VELOC_
 #define SCALAR_
 #define BOUSSINESQ_
 #endif
 
 #ifdef ROTBOUSS_SOL
 #define DNS_
+#define VELOC_
 #define SCALAR_
 #define ROTATION_
 #define BOUSSINESQ_
 #endif
 
+#ifdef GPE_SOL
+#define DNS_
+#define WAVEFUNCTION_
+#endif
+
+#ifdef ARGL_SOL
+#define DNS_
+#define ADVECT_
+#define QFORCE_
+#define WAVEFUNCTION_
+#endif
+
 #ifdef LAHD_SOL
 #define ALPHAV_
+#define VELOC_
 #endif
 
 #ifdef CAHD_SOL
 #define ALPHAV_
+#define VELOC_
 #endif
 
 #ifdef LHD_SOL
 #define ALPHAV_
+#define VELOC_
 #endif
 
 #ifdef LAMHD_SOL
-#define MAGFIELD_
 #define ALPHAV_
 #define ALPHAB_
+#define VELOC_
+#define MAGFIELD_
 #endif
 
 #ifdef EDQNMHD_SOL
 #define DNS_
 #define EDQNM_
+#define VELOC_
 #endif
 
 #ifdef EDQNMROTH_SOL
 #define DNS_
 #define EDQNM_
+#define VELOC_
 #define ROTATION_
 #endif
 
 #ifdef DEF_GHOST_LAGP
-#define LAGPART_           
+#define LAGPART_
 #endif
 
 !
@@ -176,6 +208,9 @@
 #ifdef HALLTERM_
       USE hall
 #endif
+#ifdef WAVEFUNCTION_
+      USE hbar
+#endif
 #ifdef ALPHAV_
       USE alpha
 #endif
@@ -196,8 +231,12 @@
 !
 ! Arrays for the fields and the external forcing
 
+#if defined(VELOC_) || defined(ADVECT_)
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz
+#endif
+#ifdef VELOC_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fx,fy,fz
+#endif
 #ifdef SCALAR_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: th
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fs
@@ -210,6 +249,12 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: ax,ay,az
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: mx,my,mz
 #endif
+#ifdef WAVEFUNCTION_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: zre,zim
+#endif
+#ifdef QFORCE_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fre,fim
+#endif
 
 !
 ! Temporal data storage arrays
@@ -218,7 +263,9 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C3,C4
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C5,C6
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C7,C8
+#ifdef VELOC_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M1,M2,M3
+#endif
 #ifdef SCALAR_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C20
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M7
@@ -236,15 +283,21 @@
 #ifdef HALLTERM_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C18
 #endif
-#ifdef EDQNM_ 
+#ifdef EDQNM_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C19
       DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)  :: tepq,thpq,tve,tvh
       DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)  :: Eold,Hold
       DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)  :: Eext,Hext
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: Eden,Hden
 #endif
+
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: R1,R2,R3
+#ifdef VELOC_
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)     :: Faux1,Faux2
+#endif
+#ifdef ADVECT_
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vsq
+#endif
 #ifdef LAGPART_
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: R4,R5
 #endif
@@ -257,13 +310,9 @@
       COMPLEX(KIND=GP) :: cdumr,jdumr
       DOUBLE PRECISION :: tmp,tmq
       DOUBLE PRECISION :: eps,epm
-!!    DOUBLE PRECISION :: cputime1,cputime2      ! rreddy@psc.edu
-!!    DOUBLE PRECISION :: cputime3,cputime4      ! rreddy@psc.edu 
-!!    DOUBLE PRECISION :: omptime1,omptime2
-!!    DOUBLE PRECISION :: omptime3,omptime4
 !$    DOUBLE PRECISION, EXTERNAL :: omp_get_wtime
 
-      REAL(KIND=GP)    :: dt,nu,mu,kappa,bvfreq,xmom,xtemp
+      REAL(KIND=GP)    :: dt,nu,mu
       REAL(KIND=GP)    :: kup,kdn
       REAL(KIND=GP)    :: rmp,rmq
       REAL(KIND=GP)    :: dump
@@ -274,7 +323,11 @@
       REAL(KIND=GP)    :: fparam5,fparam6,fparam7,fparam8,fparam9
       REAL(KIND=GP)    :: vparam0,vparam1,vparam2,vparam3,vparam4
       REAL(KIND=GP)    :: vparam5,vparam6,vparam7,vparam8,vparam9
+#ifdef VELOC_
+      REAL(KIND=GP)    :: bvfreq,xmom,xtemp
+#endif
 #ifdef SCALAR_
+      REAL(KIND=GP)    :: kappa
       REAL(KIND=GP)    :: skup,skdn
       REAL(KIND=GP)    :: c0,s0
       REAL(KIND=GP)    :: cparam0,cparam1,cparam2,cparam3,cparam4
@@ -317,6 +370,11 @@
 #ifdef ROTATION_
       REAL(KIND=GP)    :: omega
 #endif
+#ifdef WAVEFUNCTION_
+      REAL(KIND=GP)    :: cspeed,lambda,rho0,kttherm
+      REAL(KIND=GP)    :: zparam0,zparam1,zparam2,zparam3,zparam4
+      REAL(KIND=GP)    :: zparam5,zparam6,zparam7,zparam8,zparam9
+#endif
 
       INTEGER :: idevice, iret, ncuda, ngcuda, ppn
       INTEGER :: ini,step
@@ -343,6 +401,9 @@
 #ifdef MAGFIELD_
       INTEGER :: dyna
       INTEGER :: corr
+#endif
+#ifdef WAVEFUNCTION_
+      INTEGER :: cflow
 #endif
 #ifdef LAGPART_
       REAL         :: rbal
@@ -375,11 +436,13 @@
 
       NAMELIST / status / idir,odir,stat,mult,bench,outs,mean,trans
       NAMELIST / parameter / dt,step,tstep,sstep,cstep,rand,cort,seed
+#if defined(VELOC_) || defined(ADVECT_)
       NAMELIST / velocity / f0,u0,kdn,kup,nu,fparam0,fparam1,fparam2
       NAMELIST / velocity / fparam3,fparam4,fparam5,fparam6,fparam7
       NAMELIST / velocity / fparam8,fparam9,vparam0,vparam1,vparam2
       NAMELIST / velocity / vparam3,vparam4,vparam5,vparam6,vparam7
       NAMELIST / velocity / vparam8,vparam9
+#endif
 #ifdef SCALAR_
       NAMELIST / scalar / c0,s0,skdn,skup,kappa,cparam0,cparam1
       NAMELIST / scalar / cparam2,cparam3,cparam4,cparam5,cparam6
@@ -427,6 +490,11 @@
 #ifdef BOUSSINESQ_
       NAMELIST / boussinesq / bvfreq,xmom,xtemp
 #endif
+#ifdef WAVEFUNCTION_
+      NAMELIST / wavefunction / cspeed,lambda,rho0,kttherm,cflow
+      NAMELIST / wavefunction / zparam0,zparam1,zparam2,zparam3,zparam4 
+      NAMELIST / wavefunction / zparam5,zparam6,zparam7,zparam8,zparam9 
+#endif
 #ifdef ALPHAV_
       NAMELIST / alphav / alpk
 #endif
@@ -447,7 +515,7 @@
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
 
-! NOTE: On systems with a single GPU per node (e.g., titan)
+! NOTE: On systems with a single GPU per node (e.g., Titan)
 !       we remove the following block. But on systems with 
 !       multiple devices per node, this will have to be 
 !       considered carefully, and possibly re-def'd:
@@ -465,12 +533,11 @@
      iret    = cudaSetDevice(idevice);
   #else
 ! Initializes CUDA by selecting device. The list of devices can
-! be changed by the modifying the env. variable CUDA_VISIBLE_DEVICES:
+! be changed by modifying the env. variable CUDA_VISIBLE_DEVICES:
      iret    = cudaGetDeviceCount(ncuda)
      idevice = mod(myrank,ncuda)
      iret    = cudaSetDevice(idevice);
      IF ( iret .EQ. cudaErrorInvalidDevice ) THEN
-!    IF ( iret .NE. cudaSuccess ) THEN
        WRITE(*,*)'MAIN: Invalid CUDA device selected: ', &
        idevice, '; myrank=',myrank, '; NUM_CUDA_DEV=',ncuda
        STOP
@@ -483,9 +550,10 @@
      iret = cudaGetDevice(idevice)
   #endif
 #endif
-      CALL range(1,n/2+1,nprocs,myrank,ista,iend)
-      CALL range(1,n,nprocs,myrank,ksta,kend)
-      CALL io_init(myrank,n,ksta,kend,planio)
+
+     CALL range(1,n/2+1,nprocs,myrank,ista,iend)
+     CALL range(1,n,nprocs,myrank,ksta,kend)
+     CALL io_init(myrank,n,ksta,kend,planio)
 
 !
 ! Initializes the FFT library
@@ -522,12 +590,16 @@
       ALLOCATE( C3(n,n,ista:iend),  C4(n,n,ista:iend) )
       ALLOCATE( C5(n,n,ista:iend),  C6(n,n,ista:iend) )
       ALLOCATE( C7(n,n,ista:iend),  C8(n,n,ista:iend) )
+#if defined(VELOC_) || defined(ADVECT_)
       ALLOCATE( vx(n,n,ista:iend) )
       ALLOCATE( vy(n,n,ista:iend) )
       ALLOCATE( vz(n,n,ista:iend) )
+#endif
+#ifdef VELOC_
       ALLOCATE( fx(n,n,ista:iend) )
       ALLOCATE( fy(n,n,ista:iend) )
       ALLOCATE( fz(n,n,ista:iend) )
+#endif
 #ifdef SCALAR_
       ALLOCATE( C20(n,n,ista:iend) )
       ALLOCATE( th (n,n,ista:iend) )
@@ -561,16 +633,24 @@
 #ifdef HALLTERM_
       ALLOCATE( C18(n,n,ista:iend) )
 #endif
+#ifdef WAVEFUNCTION_
+      ALLOCATE ( zre(n,n,ista:iend), zim(n,n,ista:iend) )
+#endif
+#ifdef QFORCE_
+      ALLOCATE ( fre(n,n,ista:iend), fim(n,n,ista:iend) )
+#endif
+
       ALLOCATE( ka(n), ka2(n,n,ista:iend) )
       ALLOCATE( R1(n,n,ksta:kend) )
       ALLOCATE( R2(n,n,ksta:kend) )
       ALLOCATE( R3(n,n,ksta:kend) )
-
+#ifdef ADVECT_
+      ALLOCATE( vsq(n,n,ksta:kend) )
+#endif
 #ifdef LAGPART_
       ALLOCATE( R4(n,n,ksta:kend) )
       ALLOCATE( R5(n,n,ksta:kend) )
 #endif
-
 #ifdef EDQNM_
       ALLOCATE( C19(n,n,ista:iend) )
       ALLOCATE( Eden(n,n,ista:iend) )
@@ -685,6 +765,7 @@
       CALL MPI_BCAST(rand,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(seed,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
+#if defined(VELOC_) || defined(ADVECT_)
 !
 ! Reads parameters for the velocity field from the 
 ! namelist 'velocity' on the external file 'parameter.txt' 
@@ -728,6 +809,7 @@
       CALL MPI_BCAST(vparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(vparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(vparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+#endif
 
 #ifdef BOUSSINESQ_
 !
@@ -750,7 +832,6 @@
       xmom  = xmom  * bvfreq
       xtemp = xtemp * bvfreq
 #endif
-
 
 #ifdef SCALAR_
 !
@@ -1042,6 +1123,47 @@
       CALL MPI_BCAST(omega,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
+#ifdef WAVEFUNCTION_
+!
+! Reads parameters specifically for the GPE and ARGL solvers 
+! from the namelist 'wavefunction' on the external file 
+! 'parameter.txt'
+!     cspeed : speed of sound
+!     lambda : coherence length
+!     rho0   : density at infinity
+!     kttherm: KT with T=thermalization temperature (for ARGL)
+!     cflow  : =1 if generating counterflow (ARGL solver)
+!     zparam0-9 : ten real numbers to control properties of 
+!            the wavefunction
+
+      rho0 = 1.0_GP    !Default value
+      kttherm = 0.0_GP !Default value
+      cflow = 0        !Default value
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         READ(1,NML=wavefunction)
+         CLOSE(1)
+         alpha = cspeed*lambda/sqrt(2.0_GP)
+         omegag = cspeed/(lambda*sqrt(2.0_GP))
+         beta= omegag/rho0
+      ENDIF
+      CALL MPI_BCAST(alpha,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(beta,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(omegag,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kttherm,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cflow,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(zparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(zparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(zparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(zparam3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(zparam4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(zparam5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(zparam6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(zparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(zparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(zparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+#endif
+
 #ifdef ALPHAV_
 !
 ! Reads the value of alpha for the velocity field 
@@ -1147,6 +1269,7 @@
 ! amplitude if constant energy is used, and 
 ! allocates arrays to compute mean flows if needed.
 
+#ifdef VELOC_
       ampl = 1.0_GP
       timef = fstep
       IF (rand.eq.2) THEN
@@ -1217,6 +1340,7 @@
          END DO
 #endif
       ENDIF
+#endif
 
 #ifdef LAGPART_
       IF ( dolag.GT.0 ) THEN
@@ -1230,15 +1354,20 @@
 !
 ! Sets the external forcing
 
+#ifdef VELOC_
       INCLUDE 'initialfv.f90'           ! mechanical forcing
+#endif
 #ifdef SCALAR_
       INCLUDE 'initialfs.f90'           ! scalar source
 #endif
-#ifdef MUJLTISCALAR_
+#ifdef MULTISCALAR_
       INCLUDE 'initialfms.f90'          ! multiscalar sources
 #endif
 #ifdef MAGFIELD_
       INCLUDE 'initialfb.f90'           ! electromotive forcing
+#endif
+#ifdef ADVECT_
+      INCLUDE 'initialfq.f90'           ! quantum thermal forcing
 #endif
 
 ! If stat=0 we start a new run.
@@ -1253,7 +1382,9 @@
       timec = cstep
       times = sstep
       timep = pstep
+#if defined(VELOC_) || defined (ADVECT_)
       INCLUDE 'initialv.f90'            ! initial velocity
+#endif
 #ifdef SCALAR_
       INCLUDE 'initials.f90'            ! initial concentration
 #endif
@@ -1262,6 +1393,9 @@
 #endif
 #ifdef MAGFIELD_
       INCLUDE 'initialb.f90'            ! initial vector potential
+#endif
+#ifdef WAVEFUNCTION_
+      INCLUDE 'initialz.f90'            ! initial wave function
 #endif
 #ifdef LAGPART_
       IF ( dolag.GT.0 ) THEN
@@ -1276,7 +1410,6 @@
       ini = int((stat-1)*tstep)
       tind = int(stat)
       sind = int(real(ini,kind=GP)/real(sstep,kind=GP)+1)
-!     pind = int(real(ini,kind=GP)/real(pstep,kind=GP)+1)
       pind = int((stat-1)*lgmult+1)
       WRITE(ext, fmtext) tind
       times = 0
@@ -1284,13 +1417,13 @@
       timec = 0
       timep = 0
 
+#ifdef VELOC_
       CALL io_read(1,idir,'vx',ext,planio,R1)
       CALL io_read(1,idir,'vy',ext,planio,R2)
       CALL io_read(1,idir,'vz',ext,planio,R3)
       CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
-
       IF (mean.eq.1) THEN
          CALL io_read(1,idir,'mean_vx',ext,planio,R1)
          CALL io_read(1,idir,'mean_vy',ext,planio,R2)
@@ -1311,6 +1444,7 @@
             END DO
          END DO
       ENDIF
+#endif
 
 #ifdef SCALAR_
  INJ: IF (injt.eq.0) THEN
@@ -1429,6 +1563,17 @@
       ENDIF DYN
 #endif
 
+#ifdef WAVEFUNCTION_
+      CALL io_read(1,idir,'phi_re',ext,planio,R1)
+      CALL io_read(1,idir,'phi_im',ext,planio,R2)
+      CALL fftp3d_real_to_complex(planrc,R1,zre,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R2,zim,MPI_COMM_WORLD)
+#endif
+
+#ifdef ADVECT_
+      INCLUDE 'initialv.f90'            ! Recreate velocity for advection
+#endif
+
 #ifdef LAGPART_
       IF ( dolag.GT.0 ) THEN
         IF (injtp.eq.0) THEN
@@ -1451,6 +1596,51 @@
 #endif
 
       ENDIF IC
+
+#ifdef ADVECT_
+!
+! If doing a simulation with advection (for wavefunctions),
+! we compute the square of the velocity field in real space
+! and dealias it in Fourier space
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,n
+            DO k = 1,n
+               C1(k,j,i) = vx(k,j,i)
+               C2(k,j,i) = vy(k,j,i)
+               C3(k,j,i) = vz(k,j,i)
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+      rmp = 1.0_GP/(4*alpha*beta*real(n,kind=GP)**6)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               vsq(i,j,k) = (R1(i,j,k)**2+R2(i,j,k)**2+R3(i,j,k)**2)*rmp
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_real_to_complex(planrc,vsq,C1,MPI_COMM_WORLD)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,n
+            DO k = 1,n
+               IF (ka2(k,j,i).gt.kmax) THEN
+                  C1(k,j,i) = 0.0_GP
+               ENDIF
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,C1,vsq,MPI_COMM_WORLD)
+#endif
 
 !
 ! Time integration scheme starts here.
@@ -1483,6 +1673,7 @@
 
             IF (rand.eq.1) THEN      ! randomizes phases
 
+#ifdef VELOC_
                IF (myrank.eq.0) phase = 2*pi*randu(seed)
                CALL MPI_BCAST(phase,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
                cdump = COS(phase)+im*SIN(phase)
@@ -1639,6 +1830,10 @@
                      END DO
                   END DO
                ENDIF
+#endif
+#ifdef QFORCE_
+            INCLUDE 'initialfq.f90'     ! generates a new forcing function
+#endif
 
             ELSE IF (rand.eq.2) THEN ! constant energy
 
@@ -1698,6 +1893,8 @@
          IF ((timet.eq.tstep).and.(bench.eq.0)) THEN
             timet = 0
             tind = tind+1
+            WRITE(ext, fmtext) tind
+#ifdef VELOC_
             IF (rand.eq.2) THEN
                CALL energy(fx,fy,fz,tmp,1)
                IF (myrank.eq.0) THEN
@@ -1706,7 +1903,6 @@
                   CLOSE(1)
                ENDIF
             ENDIF
-            WRITE(ext, fmtext) tind
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -1756,6 +1952,7 @@
                CALL io_write(1,odir,'mean_vy',ext,planio,R2)
                CALL io_write(1,odir,'mean_vz',ext,planio,R3)
             ENDIF
+#endif
 #ifdef SCALAR_
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
@@ -1883,6 +2080,34 @@
                CALL io_write(1,odir,'mean_bz',ext,planio,R3)
             ENDIF
 #endif
+#ifdef WAVEFUNCTION_
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+               DO j = 1,n
+                  DO k = 1,n
+                     C1(k,j,i) = zre(k,j,i)/real(n,kind=GP)**3
+                     C2(k,j,i) = zim(k,j,i)/real(n,kind=GP)**3
+                  END DO
+               END DO
+            END DO
+            CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+            CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+            CALL io_write(1,odir,'phi_re',ext,planio,R1)
+            CALL io_write(1,odir,'phi_im',ext,planio,R2)
+            IF (outs.ge.1) THEN
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+               DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+                  DO j = 1,n
+                     DO i = 1,n
+                        R3(i,j,k) = R1(i,j,k)**2+R2(i,j,k)**2
+                     END DO
+                  END DO
+               END DO
+               CALL io_write(1,odir,'rho',ext,planio,R3)
+            ENDIF
+#endif
          ENDIF
 
 #ifdef LAGPART_
@@ -1941,6 +2166,12 @@
 #if defined(ROTBOUSS_SOL)
             INCLUDE 'rotbouss_global.f90'
 #endif
+#ifdef GPE_SOL
+            INCLUDE 'gpe_global.f90'
+#endif
+#ifdef ARGL_SOL
+            INCLUDE 'gpe_global.f90'
+#endif
 #ifdef LAHD_SOL
             INCLUDE 'lahd_global.f90'
 #endif
@@ -1960,6 +2191,7 @@
             INCLUDE 'hd_global.f90'
 #endif
             IF (mean.eq.1) THEN
+#ifdef VELOC_
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -1971,6 +2203,7 @@
                      END DO
                   END DO
                END DO
+#endif
 #ifdef SCALAR_
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
@@ -2054,6 +2287,12 @@
 #ifdef ROTBOUSS_SOL
             INCLUDE 'rotbouss_spectrum.f90'
 #endif
+#ifdef GPE_SOL
+            INCLUDE 'gpe_spectrum.f90'
+#endif
+#ifdef ARGL_SOL
+            INCLUDE 'gpe_spectrum.f90'
+#endif
 #ifdef LAHD_SOL
             INCLUDE 'lahd_spectrum.f90'
 #endif
@@ -2112,6 +2351,9 @@
 #endif
 #if defined(BOUSS_SOL) || defined(ROTBOUSS_SOL)
          INCLUDE 'phd_rkstep1.f90'
+#endif
+#ifdef GPE_SOL
+         INCLUDE 'gpe_rkstep1.f90'
 #endif
 #ifdef LAHD_SOL
          INCLUDE 'hd_rkstep1.f90'
@@ -2179,6 +2421,12 @@
 #ifdef ROTBOUSS_SOL
          INCLUDE 'rotbouss_rkstep2.f90'
 #endif
+#ifdef GPE_SOL
+         INCLUDE 'gpe_rkstep2.f90'
+#endif
+#ifdef ARGL_SOL
+         INCLUDE 'argl_rkstep2.f90'
+#endif
 #ifdef LAHD_SOL
          INCLUDE 'lahd_rkstep2.f90'
 #endif
@@ -2245,7 +2493,6 @@
          timep = timep+1
 
       END DO RK
-
 
 !
 ! End of Runge-Kutta
@@ -2324,11 +2571,20 @@
       CALL fftp3d_destroy_plan(plancr)
       CALL fftp3d_destroy_plan(planrc)
       DEALLOCATE( R1,R2,R3 )
-      DEALLOCATE( vx,vy,vz,fx,fy,fz )
+
       DEALLOCATE( C1,C2,C3,C4,C5,C6,C7,C8 )
       DEALLOCATE( ka,ka2 )
+#ifdef VELOC_
+      DEALLOCATE( fx,fy,fz )
       IF (mean.eq.1) DEALLOCATE( M1,M2,M3 )
       IF (rand.eq.2) DEALLOCATE( Faux1, Faux2 )
+#endif
+#if defined(VELOC_) || defined (ADVECT_)
+      DEALLOCATE( vx,vy,vz )
+#endif
+#ifdef ADVECT_
+      DEALLOCATE( vsq )
+#endif
 #ifdef SCALAR_
       DEALLOCATE( th,fs )
       DEALLOCATE( C20 )
@@ -2346,6 +2602,12 @@
 #endif
 #ifdef HALLTERM_
       DEALLOCATE( C18 )
+#endif
+#ifdef WAVEFUNCTION_
+      DEALLOCATE( zre, zim )
+#endif
+#ifdef QFORCE_
+      DEALLOCATE( fre, fim )
 #endif
 #ifdef EDQNM_
       DEALLOCATE( C19 )

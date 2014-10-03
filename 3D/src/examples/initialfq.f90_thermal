@@ -1,0 +1,106 @@
+! Thermal forcing for quantum solvers.
+! This file contains the expression used for the external
+! thermal forcing. You can use temporary real arrays
+! R1-R3 of size (1:n,1:n,ksta:kend) and temporary complex
+! arrays C1-C8 of size (n,n,ista:iend) to do intermediate
+! computations. The variable kttherm can be used to control 
+! parameters of the forcing. At the end, the three 
+! components of the forcing in spectral space should be 
+! stored in the arrays fre and fim.
+
+! Thermal forcing
+
+      dump = sqrt(kttherm/dt)
+      IF (ista.eq.1) THEN
+         CALL randn_cmplx(rmp,rmq,seed)
+         fre(1,1,1) = rmp*dump
+         fim(1,1,1) = rmq*dump
+         DO j = 2,n/2+1
+
+            IF ((ka2(1,j,1).le.kmax).and.(ka2(1,j,1).ge.tiny)) THEN
+               CALL randn_cmplx(rmp,rmq,seed)
+               fre(1,j,1) = (rmp+im*rmq)*dump
+               fre(1,n-j+2,1) = conjg(fre(1,j,1))
+               CALL randn_cmplx(rmp,rmq,seed)
+               fim(1,j,1) = (rmp+im*rmq)*dump
+               fim(1,n-j+2,1) = conjg(fim(1,j,1))
+            ELSE
+               fre(1,j,1) = 0.
+               fre(1,n-j+2,1) = 0.
+               fim(1,j,1) = 0.
+               fim(1,n-j+2,1) = 0.
+            ENDIF
+
+         END DO
+         DO k = 2,n/2+1
+
+            IF ((ka2(k,1,1).le.kmax).and.(ka2(k,1,1).ge.tiny)) THEN
+               CALL randn_cmplx(rmp,rmq,seed)
+               fre(k,1,1) = (rmp+im*rmq)*dump
+               fre(n-k+2,1,1) = conjg(fre(k,1,1))
+               CALL randn_cmplx(rmp,rmq,seed)
+               fim(k,1,1) = (rmp+im*rmq)*dump
+               fim(n-k+2,1,1) = conjg(fim(k,1,1))
+            ELSE
+               fre(k,1,1) = 0.
+               fre(n-k+2,1,1) = 0.
+               fim(k,1,1) = 0.
+               fim(n-k+2,1,1) = 0.
+            ENDIF
+
+         END DO
+         DO j = 2,n
+            DO k = 2,n/2+1
+     
+            IF ((ka2(k,j,1).le.kmax).and.(ka2(k,j,1).ge.tiny)) THEN
+               CALL randn_cmplx(rmp,rmq,seed)
+               fre(k,j,1) = (rmp+im*rmq)*dump
+               fre(n-k+2,n-j+2,1) = conjg(fre(k,j,1))
+               CALL randn_cmplx(rmp,rmq,seed)
+               fim(k,j,1) = (rmp+im*rmq)*dump
+               fim(n-k+2,n-j+2,1) = conjg(fim(k,j,1))
+            ELSE
+               fre(k,j,1) = 0.
+               fre(n-k+2,n-j+2,1) = 0.
+               fim(k,j,1) = 0.
+               fim(n-k+2,n-j+2,1) = 0.
+            ENDIF
+
+            END DO
+         END DO
+         DO i = 2,iend
+            DO j = 1,n
+               DO k = 1,n
+
+               IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
+                  CALL randn_cmplx(rmp,rmq,seed)
+                  fre(k,j,i) = 2*(rmp+im*rmq)*dump
+                  CALL randn_cmplx(rmp,rmq,seed)
+                  fim(k,j,i) = 2*(rmp+im*rmq)*dump
+               ELSE
+                  fre(k,j,i) = 0.
+                  fim(k,j,i) = 0.
+               ENDIF
+
+               END DO
+            END DO
+         END DO
+      ELSE
+         DO i = ista,iend
+            DO j = 1,n
+               DO k = 1,n
+
+               IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
+                  CALL randn_cmplx(rmp,rmq,seed)
+                  fre(k,j,i) = 2*(rmp+im*rmq)*dump
+                  CALL randn_cmplx(rmp,rmq,seed)
+                  fim(k,j,i) = 2*(rmp+im*rmq)*dump
+               ELSE
+                  fre(k,j,i) = 0.
+                  fim(k,j,i) = 0.
+               ENDIF
+
+               END DO
+            END DO
+        END DO
+      ENDIF

@@ -121,6 +121,8 @@ ROTH_OBJS      = $(HD_OBJS) pseudospec3D_rot.o
 PROTH_OBJS     = $(PHD_OBJS) pseudospec3D_rot.o pseudospec3D_prot.o
 BOUSS_OBJS     = $(PROTH_OBJS) pseudospec3D_bouss.o
 ROTBOUSS_OBJS  = $(PROTH_OBJS) pseudospec3D_bouss.o
+GPE_OBJS       = $(PHD_OBJS) pseudospec3D_mhd.o pseudospec3D_gpe.o
+ARGL_OBJS      = $(GPE_OBJS)
 ALPHA_OBJS     = module_lles.o pseudospec3D_filt.o
 CAHD_OBJS      = $(HD_OBJS) $(ALPHA_OBJS) pseudospec3D_lles.o pseudospec3D_cahd.o
 LAHD_OBJS      = $(HD_OBJS) $(ALPHA_OBJS) pseudospec3D_lles.o pseudospec3D_lahd.o
@@ -193,8 +195,9 @@ clean:  undo
 
 dist:
 	rm -f $(BIN)/*HD* $(BIN)/*MHD* $(BIN)/*ROT* $(BIN)/*BOUSS* \
-              $(BIN)/boots $(BIN)/trunc $(BIN)/vt $(BIN)/shear  *HD* *MHD* *ROT* \
-              *BOUSS* boots trunc vt shear
+              $(BIN)/*GPE* $(BIN)/*ARGL* $(BIN)/boots $(BIN)/trunc \
+              $(BIN)/vt $(BIN)/shear *HD* *MHD* *ROT* *BOUSS* \
+              *GPE* *ARGL* boots trunc vt shear
 	$(MAKE) clean
 
 edit:

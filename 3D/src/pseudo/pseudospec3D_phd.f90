@@ -133,7 +133,7 @@
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
       DOUBLE PRECISION, INTENT(OUT) :: b
       DOUBLE PRECISION              :: bloc
-      REAL(KIND=GP)                :: tmp
+      REAL(KIND=GP)                 :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
 
@@ -385,11 +385,9 @@
 ! Parameters
 !     a  : input matrix with the scalar
 !     nmb: the extension used when writting the file
-!     isc: (OPTIONAL) index to specify which scalar the spectrum represents; 
-!          modifies output file name
+!     isc: (OPTIONAL) index to specify which scalar the spectrum 
+!          represents; modifies output file name
 !
-      USE fprecision
-      USE commtypes
       USE kes
       USE grid
       USE mpivars
@@ -397,15 +395,62 @@
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1)              :: Ek,Ektot
-      DOUBLE PRECISION :: tmq
+      DOUBLE PRECISION, DIMENSION(n/2+1)              :: Ek
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
-      REAL(KIND=GP)    :: tmp
-      INTEGER,INTENT(IN),OPTIONAL                            :: isc
-      INTEGER          :: i,j,k
-      INTEGER          :: kmn
+      INTEGER, INTENT(IN), OPTIONAL                          :: isc
       CHARACTER(len=*), INTENT(IN) :: nmb
       CHARACTER(len=1)             :: si
+
+!
+! Computes the power spectrum
+!
+      CALL spectrscc(a,Ek,0.0_GP)
+!
+! Exports the spectrum to a file
+!
+      IF (myrank.eq.0) THEN
+         IF ( present(isc) ) THEN
+           WRITE(si,'(i1.1)') isc
+           OPEN(1,file='s' // si // 'spectrum.' // nmb // '.txt')
+         ELSE
+           OPEN(1,file='sspectrum.' // nmb // '.txt')
+         ENDIF
+         WRITE(1,20) Ek
+   20    FORMAT( E23.15 ) 
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE spectrsc
+
+!*****************************************************************
+      SUBROUTINE spectrscc(a,Ektot,shift)
+!-----------------------------------------------------------------
+!
+! Computes the passive/active scalar power spectrum, returning it.
+!
+! Parameters
+!     a    : input matrix with the scalar
+!     Ektot: output power spectrum
+!     shift: (OPTIONAL) value that can be used to shift wavenumbers 
+!            (usually by 1) and get the spetrum to start at k=0 
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
+      DOUBLE PRECISION, INTENT(OUT), DIMENSION(n/2+1) :: Ektot
+      DOUBLE PRECISION, DIMENSION(n/2+1)              :: Ek
+      DOUBLE PRECISION :: tmq
+      REAL(KIND=GP), INTENT(IN)                       :: shift
+      REAL(KIND=GP)    :: tmp,round
+      INTEGER          :: i,j,k
+      INTEGER          :: kmn
 
 !
 ! Sets Ek to zero
@@ -414,6 +459,10 @@
          Ek(i) = 0.0D0
       END DO
 !
+! Sets the zero for the wavenumbers
+!
+      round = shift+.501_GP
+!
 ! Computes the power spectrum
 !
       tmp = 1./real(n,kind=GP)**6
@@ -421,7 +470,7 @@
 !$omp parallel do private (k,kmn,tmq)
          DO j = 1,n
             DO k = 1,n
-               kmn = int(sqrt(ka2(k,j,1))+.501)
+               kmn = int(sqrt(ka2(k,j,1))+round)
                IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
                   tmq = tmp*abs(a(k,j,1))**2
 !$omp atomic
@@ -434,7 +483,7 @@
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
             DO j = 1,n
                DO k = 1,n
-                  kmn = int(sqrt(ka2(k,j,i))+.501)
+                  kmn = int(sqrt(ka2(k,j,i))+round)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
                      tmq = 2*tmp*abs(a(k,j,i))**2
 !$omp atomic
@@ -449,7 +498,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
             DO j = 1,n
                DO k = 1,n
-                  kmn = int(sqrt(ka2(k,j,i))+.501)
+                  kmn = int(sqrt(ka2(k,j,i))+round)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
                      tmq = 2*tmp*abs(a(k,j,i))**2
 !$omp atomic
@@ -462,25 +511,11 @@
 !
 ! Computes the reduction between nodes
 !
-      CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+      CALL MPI_ALLREDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM, &
                       MPI_COMM_WORLD,ierr)
-!
-! Exports the spectrum to a file
-!
-      IF (myrank.eq.0) THEN
-         IF ( present(isc) ) THEN
-           WRITE(si,'(i1.1)') isc
-           OPEN(1,file='s' // si // 'spectrum.' // nmb // '.txt')
-         ELSE
-           OPEN(1,file='sspectrum.' // nmb // '.txt')
-         ENDIF
-         WRITE(1,20) Ektot
-   20    FORMAT( E23.15 ) 
-         CLOSE(1)
-      ENDIF
 
       RETURN
-      END SUBROUTINE spectrsc
+      END SUBROUTINE spectrscc
 
 !*****************************************************************
       SUBROUTINE sctrans(a,b,nmb,isc)

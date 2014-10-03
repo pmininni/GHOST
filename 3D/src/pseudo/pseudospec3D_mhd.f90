@@ -232,7 +232,7 @@
 !
 ! Computes the nonlinear terms in the induction 
 ! equation for the vector potential, imposing a 
-! gauge that satisfies the condition div(A).
+! gauge that satisfies the condition div(A)=0.
 !
 ! Parameters
 !     a  : input matrix with (vxb)_x

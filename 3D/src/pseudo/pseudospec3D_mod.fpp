@@ -77,6 +77,15 @@
   END MODULE hall
 !=================================================================
 
+  MODULE hbar
+      USE fprecision
+      REAL(KIND=GP) :: alpha,beta,omegag
+      REAL(KIND=GP) :: regu = 1.e-20_GP
+      SAVE
+
+  END MODULE hbar
+!=================================================================
+
   MODULE kes
       USE fprecision
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)     :: ka
@@ -87,6 +96,7 @@
 !=================================================================
 
   MODULE random
+      USE var
       USE fprecision
       CONTAINS
        REAL(KIND=GP) FUNCTION randu(idum)
@@ -144,6 +154,27 @@
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+       SUBROUTINE randn_cmplx(x,y,idum)
+!
+! Normally distributed complex random numbers with 
+! unit variance. The seed idum must be between 0 
+! and the value of mask in randu.
+
+       REAL(KIND=GP), INTENT (OUT) :: x,y
+       REAL(KIND=GP)       :: fac,phi
+       INTEGER, INTENT(IN) :: idum
+
+       x = randu(idum)
+       y = randu(idum)
+       phi = 2.*pi*abs(x)
+       fac = sqrt(-2.*log(abs(y))/abs(y))
+       x = fac*cos(phi)
+       y = fac*sin(phi)
+
+       END SUBROUTINE randn_cmplx
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
       SUBROUTINE prandom_seed(iseed)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -173,7 +204,6 @@
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-
       SUBROUTINE prandom_number(r)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -195,7 +225,6 @@
       END SUBROUTINE prandom_number
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-
 
   END MODULE random
 !=================================================================

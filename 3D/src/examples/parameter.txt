@@ -91,6 +91,17 @@ gspe = 1         ! computes generalized helicity if 1
 omega = 10.00    ! uniform rotation in z
 /
 
+! Parameters for the wavefunction (GPE, ARGL solvers)
+&wavefunction
+cspeed = 2.00    ! speed of sound
+lambda = 0.10    ! correlation length
+rho0 = 1.00      ! density at infinity
+kttherm = 2.e-4  ! K.Tthermalization (ARGL solver)
+cflow = 0        ! =1 if generating counterflow (ARGL solver)
+zparam0 = 0.01   !
+zparam1 = 0.50   !
+/
+
 ! Parameters for HD runs with alpha-subgrid models (LAHD,CAHD,LHD solvers)
 &alphav
 alpk = 0.066     ! filter length for the velocity

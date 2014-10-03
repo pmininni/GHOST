@@ -1128,6 +1128,7 @@
 
 !
 ! Computes the energy and/or helicity spectra
+!
       CALL spectrumc(a,b,c,kin,hel,Ek,Hk)
 !
 ! Exports the energy spectrum to a file
@@ -1145,7 +1146,7 @@
          ENDIF
       ENDIF
 !
-! Exports the heilicity spectrum to a file
+! Exports the helicity spectrum to a file
 !
       IF (hel.eq.1) THEN
          IF (myrank.eq.0) THEN

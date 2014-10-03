@@ -5,7 +5,7 @@
 # N        spatial resolution
 # ORD      number of iterations in the Runge-Kutta method
 N        = 128
-ORD      = 2
+ORD      = 4
 
 # SOLVER:  (read the file SOLVERS for a list of options)
 SOLVER   = HD
@@ -31,7 +31,7 @@ P_CUDA   = no
 # Lagrangian particles:
 # PARTICLES = no        # Do not build Lag. particles
 # PARTICLES = yes       # Build Lag. particles
-PARTICLES = yes
+PARTICLES = no
 
 # FFTP:
 # fftp-2   builds FFTP-2 (links with FFTW 2.x)
@@ -104,7 +104,7 @@ TARGET_INTEL  =
 CPP_GNU       = /usr/local/bin/cpp -traditional-cpp
 FC_GNU        = gfortran
 CC_GNU        = gcc
-FFLAGS_GNU    = -O4
+FFLAGS_GNU    = -O0 -fbounds-check -fcheck=all
 CFLAGS_GNU    = -O4
 GNU_OMP       = -fopenmp
 TARGET_GNU    = -msse
