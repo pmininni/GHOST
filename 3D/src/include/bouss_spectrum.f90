@@ -18,4 +18,8 @@
             CALL havgwrite(6,'haomzt' ,ext,vx,vy,vz,th,0.0_GP,bvfreq) ! hor. avg ometa_z * theta
             CALL havgwrite(7,'hapv2'  ,ext,vx,vy,vz,th,0.0_GP,bvfreq) ! hor. avg pot'l vorticity^2
             CALL havgwrite(8,'hasuph' ,ext,vx,vy,vz,th,0.0_GP,bvfreq) ! hor. avg super-helicity
+            CALL havgwrite(9,'hari'   ,ext,vx,vy,vz,th,omega,bvfreq)  ! hor. avg Richardson no.
+
 !           CALL spectpv(vx,vy,vz,th,ext)
+
+!           CALL dopdfbouss(vx,vy,vz,th,0.0_GP,bvfreq,ext,bpdf,nbins,bfixext,pdfext,dolog,C1,C2,C3,C4,R1,R2,R3)
