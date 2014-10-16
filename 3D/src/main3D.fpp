@@ -415,9 +415,12 @@
       INTEGER      :: ilgexchtype
       INTEGER      :: ilgouttype
       INTEGER      :: ilgcoll
+      INTEGER      :: blgdofp
+      INTEGER      :: ilgfpfiletype
+      INTEGER      :: blgfpfilecoll
       INTEGER      :: dolag
       INTEGER      :: nwpart
-      TYPE (GPart) :: lagpart
+      TYPE (GPart) :: lagpart,lagfp
 #endif
 !$    INTEGER, EXTERNAL :: omp_get_max_threads
 
@@ -429,6 +432,7 @@
 
 #ifdef LAGPART_
       CHARACTER(len=1024) :: lgseedfile
+      CHARACTER(len=1024) :: slgfpfile
 #endif
 
 !
@@ -508,10 +512,12 @@
       NAMELIST / plagpart / lgmult,maxparts,ilginittype,ilgintrptype
       NAMELIST / plagpart / ilgexchtype,ilgouttype,lgseedfile,injtp
       NAMELIST / plagpart / ilgcoll,cresetp,dolag
+      NAMELIST / plagpart / blgdofp,ilgfpfiletype,blgfpfilecoll,slgfpfile
 #endif
 
 ! Initializes the MPI and I/O libraries
-      CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
+!     CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
+      CALL MPI_INIT(ierr)
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
 
@@ -1240,23 +1246,31 @@
       rbal         = 0.0
       dolag        = 1
       nwpart       = 0
+      blgdofp      = 0
+      ilgfpfiletype= 0
+      blgfpfilecoll= 1
+      slgfpfile    = 'xlgInitRndSeed.000.txt'
 !
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.txt',status='unknown',form="formatted")
          READ(1,NML=plagpart)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(maxparts    ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(injtp       ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(cresetp     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(lgmult      ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(ilginittype ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(ilgintrptype,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(ilgexchtype ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(ilgouttype  ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(dolag       ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(ilgcoll     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(lgseedfile,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(maxparts     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(injtp        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cresetp      ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(lgmult       ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ilginittype  ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ilgintrptype ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ilgexchtype  ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ilgouttype   ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dolag        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ilgcoll      ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(blgdofp      ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ilgfpfiletype,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(blgfpfilecoll,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(slgfpfile    ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(lgseedfile   ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       IF ( mod(tstep,lgmult).NE.0 ) THEN
         WRITE(*,*)'main: lgmult must divide tstep evenly'
         STOP
@@ -1349,6 +1363,12 @@
         CALL lagpart%SetRandSeed(seed)
         CALL lagpart%SetSeedFile(trim(lgseedfile))
       ENDIF
+      IF ( blgdofp.GT.0 ) THEN
+        CALL lagfp%GPart_ctor(MPI_COMM_WORLD,maxparts,GPINIT_USERLOC,&
+             ilgintrptype,3,ilgexchtype,ilgfpfiletype,blgfpfilecoll,csize,nstrip)
+        CALL lagfp%SetRandSeed(seed)
+        CALL lagfp%SetSeedFile(trim(slgfpfile))
+      ENDIF
 #endif
 
 !
@@ -1382,8 +1402,9 @@
       timec = cstep
       times = sstep
       timep = pstep
-#if defined(VELOC_) || defined (ADVECT_)
+if ( myrank.eq. 0 ) write(*,*) 'main: before initialv.'
       INCLUDE 'initialv.f90'            ! initial velocity
+if ( myrank.eq. 0 ) write(*,*) 'main: after initialv.'
 #endif
 #ifdef SCALAR_
       INCLUDE 'initials.f90'            ! initial concentration
@@ -1400,6 +1421,9 @@
 #ifdef LAGPART_
       IF ( dolag.GT.0 ) THEN
         CALL lagpart%Init()
+      ENDIF
+      IF ( blgdofp.GT.0 ) THEN
+        CALL lagfp%Init()
       ENDIF
 #endif
 
@@ -1592,6 +1616,9 @@
             timep = pstep
           ENDIF
         ENDIF
+        IF ( blgdofp.GT.0 ) THEN
+         CALL lagfp%Init()
+        ENDIF
       ENDIF
 #endif
 
@@ -1663,6 +1690,7 @@
 
       ENDIF
 
+if ( myrank.eq. 0 ) write(*,*) 'main: before time loop...'
  RK : DO t = ini,step
 
 ! Updates the external forcing. Every 'fsteps'
@@ -2251,7 +2279,7 @@
 ! with the power spectrum.
 
          IF ((times.eq.sstep).and.(bench.eq.0)) THEN
-            times = 0
+!           times = 0
             sind = sind+1
             WRITE(ext, fmtext) sind
 #ifdef HD_SOL
