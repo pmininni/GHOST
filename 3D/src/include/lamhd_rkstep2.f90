@@ -5,7 +5,7 @@
          CALL rotor3(ax,ay,C9,3)             ! b is now C7-9
          CALL aprodre3(vx,vy,vz,C10,C11,C12,alpk) ! omega X u in C10-2
          CALL aprodre3(C7,C8,C9,C13,C14,C15,alpm) ! j X b_s in C13-5
-         IF ((trans.ge.1).and.(times.eq.sstep).and.(bench.eq.0).and.(o.eq.ord)) &
+         IF ((trans.ge.1).and.(times.eq.0).and.(bench.eq.0).and.(o.eq.ord)) &
             CALL aentrans(vx,vy,vz,C13,C14,C15,alpk,ext,2)
          CALL nonlin3(C10,C11,C12,C13,C14,C15,C16,1)
          CALL nonlin3(C10,C11,C12,C13,C14,C15,C17,2)
@@ -20,7 +20,7 @@
          CALL laplak3(ax,ax)
          CALL laplak3(ay,ay)
          CALL laplak3(az,az)   ! ax-z now Laplacian of ax-z
-         IF ((trans.ge.1).and.(times.eq.sstep).and.(bench.eq.0).and.(o.eq.ord)) &
+         IF ((trans.ge.1).and.(times.eq.0).and.(bench.eq.0).and.(o.eq.ord)) &
             THEN
             CALL aentrans(vx,vy,vz,C16,C17,C10,alpk,ext,1)
             CALL aentrans(ax,ay,az,C7,C8,C9,alpm,ext,0)

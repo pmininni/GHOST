@@ -11,7 +11,7 @@
          ENDIF
          CALL prodre3(vx,vy,vz,C10,C11,C12)
          CALL prodre3(C7,C8,C9,C13,C14,C15)
-         IF ((trans.eq.1).and.(times.eq.sstep).and.(bench.eq.0).and.(o.eq.ord)) &
+         IF ((trans.eq.1).and.(times.eq.0).and.(bench.eq.0).and.(o.eq.ord)) &
             CALL entrans(C1,C2,C3,C13,C14,C15,ext,2)
          CALL nonlin3(C10,C11,C12,C13,C14,C15,C16,1)
          CALL nonlin3(C10,C11,C12,C13,C14,C15,C17,2)
@@ -26,7 +26,7 @@
          CALL laplak3(ax,ax)
          CALL laplak3(ay,ay)
          CALL laplak3(az,az)
-         IF ((trans.eq.1).and.(times.eq.sstep).and.(bench.eq.0).and.(o.eq.ord)) &
+         IF ((trans.eq.1).and.(times.eq.0).and.(bench.eq.0).and.(o.eq.ord)) &
             THEN
             CALL entrans(C1,C2,C3,C16,C17,C10,ext,1)
             CALL entrans(C4,C5,C6,C7,C8,C9,ext,0)
