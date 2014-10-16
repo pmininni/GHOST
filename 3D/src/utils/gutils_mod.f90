@@ -109,7 +109,7 @@ MODULE gutils
 !     nin : dimension of Rin
 !-----------------------------------------------------------------
       USE mpivars
-      USE threads
+!$    USE threads
       USE fprecision
 
       IMPLICIT NONE
@@ -123,6 +123,8 @@ MODULE gutils
       nb = 8  ! no. bits per byte
 
       ie1 = 0
+! Note using GP like this is not good practice....
+!$omp parallel do if (nin.ge.nth) private(ie0,ie1,m)
       DO k = 1, nin
           ie0 = TRANSFER(Rin(k), 0_GP)
           DO m = 1, GP
