@@ -60,8 +60,10 @@ MODULE class_GPart
         INTEGER                                      :: maxparts_,nparts_,nvdb_
         INTEGER                                      :: comm_
         INTEGER      , ALLOCATABLE, DIMENSION    (:) :: id_
+        INTEGER      , ALLOCATABLE, DIMENSION    (:) :: fpid_
 !!      TYPE(GPDBrec), ALLOCATABLE, DIMENSION    (:) :: pdb_
-        REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: px_,py_,pz_
+        REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: px_ ,py_ ,pz_
+        REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: fpx_,fpy_,fpz_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: lvx_,lvy_,lvz_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:,:) :: ptmp0_,ptmp1_,vdb_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:,:) :: gptmp0_
@@ -73,28 +75,28 @@ MODULE class_GPart
         ! Public methods:
         PROCEDURE,PUBLIC :: GPart_ctor
         FINAL            :: GPart_dtor
-        PROCEDURE,PUBLIC :: Init            => GPart_Init
-        PROCEDURE,PUBLIC :: Step            => GPart_StepRKK
-        PROCEDURE,PUBLIC :: SetStep         => GPart_SetStepRKK
-        PROCEDURE,PUBLIC :: SetLagVec       => GPart_SetLagVec
-        PROCEDURE,PUBLIC :: FinalStep       => GPart_FinalizeRKK
-        PROCEDURE,PUBLIC :: io_write_euler  => GPart_io_write_euler
-        PROCEDURE,PUBLIC :: io_write_pdb    => GPart_io_write_pdb
-        PROCEDURE,PUBLIC :: io_write_vec    => GPart_io_write_vec
-        PROCEDURE,PUBLIC :: io_read         => GPart_io_read
-        PROCEDURE,PUBLIC :: EulerToLag      => GPart_EulerToLag
-        PROCEDURE,PUBLIC :: SetInitType     => GPart_SetInitType
-        PROCEDURE,PUBLIC :: SetSeedFile     => GPart_SetSeedFile
-        PROCEDURE,PUBLIC :: SetRandSeed     => GPart_SetRandSeed
-        PROCEDURE,PUBLIC :: SetTimeOrder    => GPart_SetTimeOrder
-        PROCEDURE,PUBLIC :: GetSeedFile     => GPart_GetSeedFile
-        PROCEDURE,PUBLIC :: GetRandSeed     => GPart_GetRandSeed
-        PROCEDURE,PUBLIC :: GetTimeOrder    => GPart_GetTimeOrder
-        PROCEDURE,PUBLIC :: GetVDB          => GPart_GetVDB
-        PROCEDURE,PUBLIC :: GetNParts       => GPart_GetNParts
-        PROCEDURE,PUBLIC :: GetVel          => GPart_GetVel
-        PROCEDURE,PUBLIC :: GetTime         => GPart_GetTime
-        PROCEDURE,PUBLIC :: GetLoadBal      => GPart_GetLoadBal
+        PROCEDURE,PUBLIC :: Init              => GPart_Init
+        PROCEDURE,PUBLIC :: Step              => GPart_StepRKK
+        PROCEDURE,PUBLIC :: SetStep           => GPart_SetStepRKK
+        PROCEDURE,PUBLIC :: SetLagVec         => GPart_SetLagVec
+        PROCEDURE,PUBLIC :: FinalStep         => GPart_FinalizeRKK
+        PROCEDURE,PUBLIC :: io_write_euler    => GPart_io_write_euler
+        PROCEDURE,PUBLIC :: io_write_pdb      => GPart_io_write_pdb
+        PROCEDURE,PUBLIC :: io_write_vec      => GPart_io_write_vec
+        PROCEDURE,PUBLIC :: io_read           => GPart_io_read
+        PROCEDURE,PUBLIC :: EulerToLag        => GPart_EulerToLag
+        PROCEDURE,PUBLIC :: SetInitType       => GPart_SetInitType
+        PROCEDURE,PUBLIC :: SetSeedFile       => GPart_SetSeedFile
+        PROCEDURE,PUBLIC :: SetRandSeed       => GPart_SetRandSeed
+        PROCEDURE,PUBLIC :: SetTimeOrder      => GPart_SetTimeOrder
+        PROCEDURE,PUBLIC :: GetSeedFile       => GPart_GetSeedFile
+        PROCEDURE,PUBLIC :: GetRandSeed       => GPart_GetRandSeed
+        PROCEDURE,PUBLIC :: GetTimeOrder      => GPart_GetTimeOrder
+        PROCEDURE,PUBLIC :: GetVDB            => GPart_GetVDB
+        PROCEDURE,PUBLIC :: GetNParts         => GPart_GetNParts
+        PROCEDURE,PUBLIC :: GetVel            => GPart_GetVel
+        PROCEDURE,PUBLIC :: GetTime           => GPart_GetTime
+        PROCEDURE,PUBLIC :: GetLoadBal        => GPart_GetLoadBal
 !       PROCEDURE,PUBLIC :: GetPos
       END TYPE GPart
 
@@ -118,7 +120,8 @@ MODULE class_GPart
 ! Methods:
   CONTAINS
 
-  SUBROUTINE GPart_ctor(this,comm,mparts,inittype,iinterp,intorder,iexchtyp,iouttyp,bcoll,csize,nstrip)
+  SUBROUTINE GPart_ctor(this,comm,mparts,inittype,iinterp,intorder,iexchtyp, &
+                        iouttyp,bcoll,csize,nstrip)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Main explicit constructor
@@ -194,7 +197,7 @@ MODULE class_GPart
     ENDDO
 
     CALL this%gpcomm_%GPartComm_ctor(GPCOMM_INTRFC_SF,this%maxparts_, &
-         this%nd_,this%intorder_,this%comm_,this%htimers_(GPTIME_COMM))
+         this%nd_,this%intorder_-1,this%comm_,this%htimers_(GPTIME_COMM))
     CALL this%gpcomm_%SetCacheParam(csize,nstrip)
     CALL this%gpcomm_%Init()
 
@@ -279,6 +282,10 @@ MODULE class_GPart
     IF ( ALLOCATED (this%ltmp1_) ) DEALLOCATE(this%ltmp1_)
     IF ( ALLOCATED   (this%lvy_) ) DEALLOCATE  (this%lvy_)
     IF ( ALLOCATED   (this%lvz_) ) DEALLOCATE  (this%lvz_)
+    IF ( ALLOCATED  (this%fpid_) ) DEALLOCATE (this%fpid_)
+    IF ( ALLOCATED   (this%fpx_) ) DEALLOCATE  (this%fpx_)
+    IF ( ALLOCATED   (this%fpy_) ) DEALLOCATE  (this%fpy_)
+    IF ( ALLOCATED   (this%fpz_) ) DEALLOCATE  (this%fpz_)
 
     ! Destroy timers:
     DO j = 1, GPMAXTIMERS
@@ -604,7 +611,7 @@ MODULE class_GPart
     CALL MPI_ALLREDUCE(nl,nt,1,MPI_INTEGER,MPI_SUM,this%comm_,this%ierr_)
     IF ( this%myrank_.eq.0 .AND. nt.NE.this%maxparts_ ) THEN
       WRITE(*,*) 'GPart_InitUserSeed: Inconsistent particle count: maxparts=', &
-      this%maxparts_,' total read: ',nt
+      this%maxparts_,' total read: ',nt,' file:',this%seedfile_
       STOP
     ENDIF
     CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
@@ -644,7 +651,7 @@ MODULE class_GPart
     REAL(KIND=GP),INTENT   (IN)       :: time
     REAL(KIND=GP)                     :: prec(3)
     INTEGER,INTENT(IN)                :: iunit
-    INTEGER                           :: fh,j,nt
+    INTEGER                           :: fh,ht,j,nt
     INTEGER(kind=MPI_OFFSET_KIND)     :: offset
     CHARACTER(len=*),INTENT(IN)       :: dir
     CHARACTER(len=*),INTENT(IN)       :: nmb
@@ -672,6 +679,7 @@ MODULE class_GPart
     ENDIF
 
     CALL GTStart(this%htimers_(GPTIME_GPWRITE))
+    CALL GTStart(ht,GT_WTIME)
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
       IF ( this%bcollective_.EQ. 1 ) THEN
@@ -690,6 +698,9 @@ MODULE class_GPart
     ENDIF
 
     CALL GTAcc(this%htimers_(GPTIME_GPWRITE))
+    CALL GTStop(ht)
+    if(this%myrank_.eq.0) write(*,*)'GPart_io_write_pdb: file: ', spref,'  write time: ', GTGetTime(ht)
+    CALL GTFree(ht)
 
   END SUBROUTINE GPart_io_write_pdb
 
@@ -726,7 +737,9 @@ MODULE class_GPart
     CHARACTER(len=*),INTENT(IN)       :: dir
     CHARACTER(len=*),INTENT(IN)       :: nmb
     CHARACTER(len=*),INTENT(IN)       :: spref
-    INTEGER                           :: gsum,j
+    INTEGER                           :: gsum,ht,j
+
+    CALL GTStart(ht,GT_WTIME)
 
     IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_,gsum) ) THEN
       write(*,*)'io_write_vec: global sum=',gsum,' maxparts=',this%maxparts_
@@ -754,6 +767,9 @@ MODULE class_GPart
       CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time, &
                                  this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:));
     ENDIF
+    CALL GTStop(ht)
+    if(this%myrank_.eq.0) write(*,*)'GPart_io_write_vec: file: ', spref,'  write time: ', GTGetTime(ht)
+    CALL GTFree(ht)
 
   END SUBROUTINE GPart_io_write_vec
 !-----------------------------------------------------------------
@@ -795,13 +811,15 @@ MODULE class_GPart
     REAL(KIND=GP),INTENT   (IN)                         :: time
     INTEGER      ,INTENT   (IN)                         :: iunit
     INTEGER                                             :: fh,offset,nt,szint,szreal
-    INTEGER                                             :: j
+    INTEGER                                             :: ht,j
     LOGICAL      ,INTENT   (IN)                         :: doupdate
     CHARACTER(len=100), INTENT(IN)                      :: dir
     CHARACTER(len=*)  , INTENT(IN)                      :: nmb
     CHARACTER(len=*)  , INTENT(IN)                      :: spref
     CHARACTER(len=1024)                                 :: sfile
 
+
+    CALL GTStart(ht,GT_WTIME)
 
     CALL GPart_EulerToLag(this,this%ltmp1_,this%nparts_,evar,doupdate,tmp1,tmp2)
     ! If doing non-collective binary or ascii writes, synch up vector:
@@ -819,6 +837,9 @@ MODULE class_GPart
     ELSE
       CALL GPart_ascii_write_lag (this,iunit,dir,spref,nmb,time,this%ltmp0_)
     ENDIF
+    CALL GTStop(ht)
+    if(this%myrank_.eq.0) write(*,*)'GPart_io_write_euler: file: ', spref,'  write time: ', GTGetTime(ht)
+    CALL GTFree(ht)
 
     
   END SUBROUTINE GPart_io_write_euler
@@ -1076,11 +1097,12 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 
 
-  SUBROUTINE GPart_io_read(this, iunit, dir, spref, nmb)
+  SUBROUTINE GPart_io_read(this, iunit, dir, spref, nmb, id, lx, ly, lz, nl,opiotype,opbcoll)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : io_read
-!  DESCRIPTION: Does read of Lagrangian particle data from file. 
+!  DESCRIPTION: Does read of Lagrangian particle data from filek,
+!               and scattering of work to correct MPI tasks. 
 !               This is the main entry point for both binary and
 !               ASCII reads.
 !  ARGUMENTS  :
@@ -1088,7 +1110,18 @@ MODULE class_GPart
 !    iunit   : unit number
 !    dir     : input directory
 !    spref   : filename prefix
-!    nmb     : time index
+!    nmb     : time index. If == '' (of 0-length), then no name mangling 
+!              is done, and 'spref' is assumed to be the fully
+!              resolved filename. 'dir' will be ignored in this case.
+!    id      : optional. Dummy array for ids
+!    lx,ly,lz: optional. If specified, loads PDB into these arrays.
+!              If not specified, loads data into member data arrays.
+!              All must be specified if one is, as must nl....
+!    nl      : optional. If specified, copies amount of local work
+!              (size of lx, ly, lz) to this variable for output. 
+!              that nl must be specified if lx,ly,lz are.
+!    opiotype: optional. Overrides member data iouttype_ if specified.
+!    opbcoll : optional. Overrides member data bcollective_ if specified.
 !-----------------------------------------------------------------
     USE fprecision
     USE commtypes
@@ -1096,30 +1129,70 @@ MODULE class_GPart
 
     IMPLICIT NONE
     CLASS(GPart)    ,INTENT(INOUT)            :: this
-!!  REAL(KIND=GP),INTENT(OUT),DIMENSION(:)    :: lvar
+    REAL(KIND=GP),INTENT(OUT),OPTIONAL,&
+                              DIMENSION(:)    :: lx,ly,lz
     REAL(KIND=GP)                             :: rvar,time
+    INTEGER      ,INTENT(OUT),OPTIONAL,&
+                              DIMENSION(:)    :: id
     INTEGER,INTENT(IN)                        :: iunit
+    INTEGER,INTENT(INOUT),OPTIONAL            :: nl
+    INTEGER,INTENT(IN),OPTIONAL               :: opbcoll,opiotype
     INTEGER                                   :: fh,j,ng
+    INTEGER                                   :: bcoll,iotype
     INTEGER(kind=MPI_OFFSET_KIND)             :: offset
     CHARACTER(len=*),INTENT   (IN)            :: dir
     CHARACTER(len=*),INTENT   (IN)            :: nmb
     CHARACTER(len=*),INTENT   (IN)            :: spref
 
-    CALL GTStart(this%htimers_(GPTIME_GPREAD))
-    IF ( this%iouttype_ .EQ. 0 ) THEN
-      IF ( this%bcollective_.EQ. 1 ) THEN
-        CALL GPart_binary_read_pdb_co(this,iunit,dir,spref,nmb,time,this%ptmp0_)
-      ELSE
-        CALL GPart_binary_read_pdb_t0(this,iunit,dir,spref,nmb,time,this%ptmp0_)
-      ENDIF
+    IF ( present(opiotype) ) THEN
+      iotype = opiotype
     ELSE
-      CALL GPart_ascii_read_pdb (this,iunit,dir,spref,nmb,time,this%ptmp0_)
+      iotype = this%iouttype_
+    ENDIF
+
+    IF ( present(opbcoll) ) THEN
+      bcoll = opbcoll
+    ELSE
+      bcoll = this%bcollective_
+    ENDIF
+
+    CALL GTStart(this%htimers_(GPTIME_GPREAD))
+    IF ( iotype .EQ. 0 ) THEN   ! Binary files
+      IF ( bcoll.EQ. 1 ) THEN   !  collective binary
+        IF (len_trim(nmb).gt.0 ) THEN
+        CALL GPart_binary_read_pdb_co(this,iunit, &
+        trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
+        ELSE
+        CALL GPart_binary_read_pdb_co(this,iunit, trim(spref),time,this%ptmp0_)
+        ENDIF
+      ELSE                      ! master thread binary
+        IF (len_trim(nmb).gt.0 ) THEN
+        CALL GPart_binary_read_pdb_t0(this,iunit,&
+         trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
+        ELSE
+        CALL GPart_binary_read_pdb_co(this,iunit, trim(spref),time,this%ptmp0_)
+        ENDIF
+      ENDIF
+    ELSE                         ! ASCII files
+      IF (len_trim(nmb).gt.0 ) THEN
+      CALL GPart_ascii_read_pdb (this,iunit,&
+            trim(dir) // '/' // trim(spref) // '.' // nmb // '.txt',time,this%ptmp0_)
+      ELSE
+      CALL GPart_ascii_read_pdb (this,iunit,trim(spref),time,this%ptmp0_)
+      ENDIF
     ENDIF
 
     CALL GTAcc(this%htimers_(GPTIME_GPREAD))
 
-    CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
-                           this%nparts_,this%ptmp0_,this%maxparts_)
+    IF ( .NOT.(present(id).and.present(lx).and.present(ly).and.present(lz).and.present(nl)) ) THEN 
+      ! Store in member data arrays
+      CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
+                             this%nparts_,this%ptmp0_,this%maxparts_)
+    ELSE
+      ! Store in specified input arrays
+      CALL GPart_GetLocalWrk(this,id,lx,ly,lz, &
+                             nl,this%ptmp0_,this%maxparts_)
+    ENDIF
 
     CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
                        MPI_SUM,this%comm_,this%ierr_)
@@ -1129,20 +1202,24 @@ MODULE class_GPart
       STOP
     ENDIF
 
-
-    ! If there is a global VDB for data 'exchanges', create it here:
-    IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
+    IF ( .NOT.(present(lx).and.present(ly).and.present(lz)) ) THEN 
+      ! If there is a global VDB for data 'exchanges', create it here,
+      ! but only if data is loaded into member arrays:
+      IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
 !$omp parallel do
-      DO j = 1, this%maxparts_
-        this%vdb_(1:3,j) = this%ptmp0_(1:3,j)
-      ENDDO
+        DO j = 1, this%maxparts_
+          this%vdb_(1:3,j) = this%ptmp0_(1:3,j)
+        ENDDO
+      ENDIF
     ENDIF
 
-
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
   END SUBROUTINE GPart_io_read
 
 
-  SUBROUTINE GPart_binary_read_pdb_co(this,iunit,dir,spref,nmb,time,pdb)
+
+  SUBROUTINE GPart_binary_read_pdb_co(this,iunit,sfile,time,pdb)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : binary_read_pdb_co
@@ -1151,9 +1228,7 @@ MODULE class_GPart
 !  ARGUMENTS  :
 !    this    : 'this' class instance
 !    iunit   : unit number
-!    dir     : input directory
-!    spref   : filename prefix
-!    nmb     : time index (3,maxparts)
+!    sfile   : fully resolved file name 
 !    pdb     : part. d.b.
 !-----------------------------------------------------------------
     USE fprecision
@@ -1167,17 +1242,14 @@ MODULE class_GPart
     INTEGER,INTENT(IN)                        :: iunit
     INTEGER                                   :: fh,ierr,j,lc,nerr,szreal
     INTEGER(kind=MPI_OFFSET_KIND)             :: offset
-    CHARACTER(len=*),INTENT   (IN)            :: dir
-    CHARACTER(len=*),INTENT   (IN)            :: nmb
-    CHARACTER(len=*),INTENT   (IN)            :: spref
+    CHARACTER(len=*),INTENT   (IN)            :: sfile
 
     CALL MPI_TYPE_SIZE(GC_REAL,szreal,this%ierr_)
-    CALL MPI_FILE_OPEN(this%comm_,trim(dir) // '/' // trim(spref) // &
-         '.' // nmb // '.lag',MPI_MODE_RDONLY,MPI_INFO_NULL,fh,this%ierr_)
+    CALL MPI_FILE_OPEN(this%comm_,trim(sfile),MPI_MODE_RDONLY,MPI_INFO_NULL,fh,this%ierr_)
     IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
       CALL MPI_ERROR_STRING(this%ierr_, this%serr_, nerr,ierr);
-      WRITE(*,*) 'GPart_binary_read_pdb_co: Error reading opening : ', trim(dir) // '/' // trim(spref) // &
-         '.' // nmb // '.lag: ', trim(this%serr_)
+      WRITE(*,*) 'GPart_binary_read_pdb_co: Error reading opening : ', trim(sfile),& 
+                trim(this%serr_)
       STOP
     ENDIF
   
@@ -1187,14 +1259,13 @@ MODULE class_GPart
     IF ( int(rvar).NE.this%maxparts_ ) THEN
       WRITE(*,*) 'GPart_binary_read_pdb_co: Attempt to read incorrect number of particles: required:',&
                   this%maxparts_,' no. read: ',int(rvar)
-      WRITE(*,*) 'GPart_binary_read_pdb_co: Error reading: ',trim(dir) // '/' // trim(spref) // &
-         '.' // nmb // '.lag'
+      WRITE(*,*) 'GPart_binary_read_pdb_co: Error reading: ', trim(sfile)
       STOP
     ENDIF
     offset = szreal
     CALL MPI_FILE_READ_AT_ALL(fh, offset,rvar,1,GC_REAL,this%istatus_,this%ierr_) ! time
     offset = 2*szreal
-    CALL MPI_FILE_READ_AT_ALL(fh,offset,pdb,3*this%maxparts_,GC_REAL,this%istatus_,this%ierr_)
+    CALL MPI_FILE_READ_AT_ALL(fh,offset,pdb,3*this%maxparts_,GC_REAL,this%istatus_,this%ierr_) ! PDB
     CALL MPI_FILE_CLOSE(fh,this%ierr_)
 
   END SUBROUTINE GPart_binary_read_pdb_co
@@ -1202,7 +1273,7 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 
 
- SUBROUTINE GPart_binary_read_pdb_t0(this,iunit,dir,spref,nmb,time,pdb)
+ SUBROUTINE GPart_binary_read_pdb_t0(this,iunit,sfile,time,pdb)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : binary_read_pdb_t0
@@ -1211,9 +1282,7 @@ MODULE class_GPart
 !  ARGUMENTS  :
 !    this    : 'this' class instance
 !    iunit   : unit number
-!    dir     : output directory
-!    spref   : filename prefix
-!    nmd     : time index
+!    sfile   : fully resolved file name
 !    time    : real time
 !    pdb     : part. d.b. in (3,maxparts) array
 !
@@ -1229,19 +1298,15 @@ MODULE class_GPart
     REAL(KIND=GP)                     :: fnt
     INTEGER      ,INTENT   (IN)       :: iunit
     INTEGER                           :: j
-    CHARACTER(len=*),INTENT(IN)       :: dir
-    CHARACTER(len=*),INTENT(IN)       :: nmb
-    CHARACTER(len=*),INTENT(IN)       :: spref
-    CHARACTER(len=3)                  :: sind
+    CHARACTER(len=*),INTENT(IN)       :: sfile
 
     ! Read global VDB, with time header, indexed only
     ! by time index: dir/spref.TTT.lag:
     IF ( this%myrank_.EQ.0 ) THEN
-      OPEN(iunit,file=trim(dir)// '/' // trim(spref) // '.' // &
-                nmb //  '.lag',status='old',form='binary',iostat=this%ierr_)
+      OPEN(iunit,file=trim(sfile),status='old',form='binary',iostat=this%ierr_)
       IF ( this%ierr_.NE.0 ) THEN
         WRITE(*,*)'GPart_binary_read_pdb_t0: could not open file for reading: ',&
-        trim(dir)// '/' // trim(spref) // '.' // nmb //  '.lag'
+        trim(sfile)
         STOP
       ENDIF
 
@@ -1252,7 +1317,7 @@ MODULE class_GPart
         WRITE(*,*)this%myrank_, &
           ': GPart_binary_read_pdb_t0: particle inconsistency: no. required=',&
           this%maxparts_,' no. found=',int(fnt), &
-          ' file=',trim(dir)// '/' // trim(spref) // '.' // nmb //  '.lag'
+          ' file=',trim(sfile)
         STOP
       ENDIF
       READ(iunit) pdb
@@ -1261,14 +1326,14 @@ MODULE class_GPart
     CALL MPI_BCAST(pdb,3*this%maxparts_,GC_REAL,0,this%comm_,this%ierr_)
     IF ( this%ierr_.NE.MPI_SUCCESS ) THEN
         WRITE(*,*)this%myrank_, ': GPart_binary_read_pdb_t0: Broadcast failed: file=',&
-        trim(dir)// '/' // trim(spref) // '.' // nmb //  '.lag'
+        trim(sfile)
     ENDIF
 
   END SUBROUTINE GPart_binary_read_pdb_t0
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
- SUBROUTINE GPart_ascii_read_pdb(this,iunit,dir,spref,nmb,time,pdb)
+ SUBROUTINE GPart_ascii_read_pdb(this,iunit,sfile,time,pdb)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : ascii_read_pdb
@@ -1276,9 +1341,7 @@ MODULE class_GPart
 !  ARGUMENTS  :
 !    this    : 'this' class instance
 !    iunit   : unit number
-!    dir     : output directory
-!    spref   : filename prefix
-!    nmd     : time index
+!    sfile   : fully resolved file name
 !    time    : real time
 !    pdb     : part. d.b. in (4,maxparts) array
 !
@@ -1293,28 +1356,24 @@ MODULE class_GPart
     REAL(KIND=GP),INTENT(INOUT)       :: pdb(3,this%maxparts_)
     INTEGER      ,INTENT   (IN)       :: iunit
     INTEGER                           :: j,nt
-    CHARACTER(len=*),INTENT(IN)       :: dir
-    CHARACTER(len=*),INTENT(IN)       :: nmb
-    CHARACTER(len=*),INTENT(IN)       :: spref
-    CHARACTER(len=3)                  :: sind
+    CHARACTER(len=*),INTENT(IN)       :: sfile
 
     ! Read global VDB, with time header, indexed only
     ! by time index: dir/spref.TTT.txt:
     IF ( this%myrank_.EQ.0 ) THEN
-      OPEN(iunit,file=trim(dir)// '/' // trim(spref) // '.' // &
-                nmb //  '.txt',status='old',form='formatted',iostat=this%ierr_)
+      OPEN(iunit,file=trim(sfile),status='old',form='formatted',iostat=this%ierr_)
       IF ( this%ierr_.NE.0 ) THEN
         WRITE(*,*)'GPart_ascii_read_pdb: could not open file for reading: ',&
-        trim(dir)// '/' // trim(spref) // '.' // nmb //  '.txt'
+        trim(sfile)
         STOP
       ENDIF
       READ(iunit,*,iostat=this%ierr_) nt
       READ(iunit,*,iostat=this%ierr_) time
-      IF ( nt.NE.this%maxparts_ ) THEN
+      IF ( nt.LT.this%maxparts_ ) THEN
         WRITE(*,*)this%myrank_, &
           ': GPart_ascii_read_pdb: particle inconsistency: no. required=',&
           this%maxparts_,' no. found=',nt, &
-          ' file=',trim(dir)// '/' // trim(spref) // '.' // nmb //  '.txt'
+          ' file=',trim(sfile)
         STOP
       ENDIF
       DO j = 1, this%maxparts_
@@ -1326,7 +1385,7 @@ MODULE class_GPart
     CALL MPI_BCAST(pdb,3*this%maxparts_,GC_REAL,0,this%comm_,this%ierr_)
     IF ( this%ierr_.NE.MPI_SUCCESS ) THEN
         WRITE(*,*)this%myrank_, ': GPart_ascii_read_pdb: Broadcast failed: file=',&
-        trim(dir)// '/' // trim(spref) // '.' // nmb //  '.txt'
+        trim(sfile)
     ENDIF
 
   END SUBROUTINE GPart_ascii_read_pdb
@@ -1664,18 +1723,21 @@ MODULE class_GPart
 
 
     IF ( btest(idir,0) ) THEN
+!$omp parallel do 
       DO j = 1, npdb
         px(j) = modulo(px(j)+2.0*this%gext_(1),this%gext_(1))
       ENDDO
     ENDIF
     
     IF ( btest(idir,1) ) THEN
+!$omp parallel do 
       DO j = 1, npdb
         py(j) = modulo(py(j)+2.0*this%gext_(2),this%gext_(2))
       ENDDO
     ENDIF
 
     IF ( btest(idir,2) ) THEN
+!$omp parallel do 
       DO j = 1, npdb
         pz(j) = modulo(pz(j)+2.0*this%gext_(3),this%gext_(3))
       ENDDO
@@ -1701,6 +1763,7 @@ MODULE class_GPart
 !-----------------------------------------------------------------
     USE fprecision
     USE commtypes
+!$  USE threads
 
     IMPLICIT NONE
     CLASS(GPart) ,INTENT(INOUT)                      :: this
@@ -1714,7 +1777,9 @@ MODULE class_GPart
     ! Periodicity s.t.:
     !   | | [ | | | | ] | |
     !   a b       a b 
+!$omp parallel do if (ke-kb.ge.nth) private (i,j)
     DO k = kb,ke 
+!$omp parallel do if (ke-kb.lt.nth) private (i)
       DO j = 1,ny
         DO i = 1,nc
           v(i,j,k) = v(nx-nc+i,j,k)
@@ -1723,10 +1788,12 @@ MODULE class_GPart
           v(i,j,k) = v(2*nc+i-nx,j,k)
         ENDDO
       ENDDO
+!$omp parallel do 
       DO i = 1,nx
         DO j = 1,nc
           v(i,j,k) = v(i,nx-nc+j,k)
         ENDDO
+!$omp parallel do 
         DO j = ny-nc+1,ny
           v(i,j,k) = v(i,2*nc+j-nx,k)
         ENDDO
@@ -1764,6 +1831,7 @@ MODULE class_GPart
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(npdb):: px,py,pz
 
     nnew = 0
+!$omp parallel do 
     DO i = 1, npdb
        IF ( this%id_(i) .NE. GPNULL ) nnew = nnew + 1
     ENDDO
@@ -1816,6 +1884,7 @@ MODULE class_GPart
 
     nl = 0
     id = GPNULL
+!$omp parallel do 
     DO j = 1, ngvdb
       IF ( gvdb(3,j).GE.this%lxbnds_(3,1) .AND. gvdb(3,j).LT.this%lxbnds_(3,2) ) THEN 
         nl = nl + 1
@@ -1869,6 +1938,7 @@ MODULE class_GPart
 
     nl = 0
     id = GPNULL
+!$omp parallel do 
     DO j = 1, ngvdb
       IF ( gvdb(3,j).GE.this%lxbnds_(3,1) .AND. gvdb(3,j).LT.this%lxbnds_(3,2) ) THEN 
         nl = nl + 1
@@ -1916,6 +1986,7 @@ MODULE class_GPart
       CALL this%gpcomm_%VDBSynch(pdb,this%maxparts_,this%id_, &
            this%px_,this%py_,this%pz_,this%nparts_,this%ptmp0_)
     ELSE
+!$omp parallel do 
       DO j = 1, npdb
         pdb(1:3,j) = this%vdb_(1:3,j)
      ENDDO
@@ -2053,6 +2124,7 @@ MODULE class_GPart
   END FUNCTION GPart_PartNumConsistent
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
+
 
 ! SUBROUTINE GPart_GetParts(this,)
 !!-----------------------------------------------------------------

@@ -78,7 +78,7 @@ MODULE class_GPSplineInt
 ! Methods:
   CONTAINS
 
-  SUBROUTINE GPSplineInt_ctor(this,rank,nd,ibnds,xbnds,maxpart,gpcomm,hdataex,htransp)
+  SUBROUTINE GPSplineInt_ctor(this,rank,nd,ibnds,xbnds,nzghost,maxpart,gpcomm,hdataex,htransp)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Main explicit constructor
@@ -89,6 +89,7 @@ MODULE class_GPSplineInt
 !    ibnds   : starting and ending indices for each direction for this MPI task.
 !              Integer array of size (rank,2).
 !    xbnds   : task's slab bounds
+!    nzghost : no. z-ghost zones required for interpolation
 !    maxpart : max no. interpolation points/Lag. particles
 !    gpcomm  : GHOST particle communicator object
 !    hdataex  : handle to data exchange. Must be valid.
@@ -97,7 +98,7 @@ MODULE class_GPSplineInt
     IMPLICIT NONE
     CLASS(GPSplineInt)                           :: this
     TYPE(GPartComm),TARGET                       :: gpcomm
-    INTEGER        ,INTENT(IN)                   :: hdataex,htransp,maxpart,rank
+    INTEGER        ,INTENT(IN)                   :: hdataex,htransp,maxpart,nzghost,rank
     INTEGER        ,INTENT(IN),DIMENSION  (rank) :: nd
     INTEGER        ,INTENT(IN),DIMENSION(rank,2) :: ibnds
     INTEGER                                      :: j,k
@@ -133,11 +134,9 @@ MODULE class_GPSplineInt
       this%nd_   (j)  = nd   (j)
       this%ntot_ = this%ntot_*this%ldims_(j)
     ENDDO
-    ! Note: the summand 2.0_GP is the number of z-ghost zones for
-    !       each MPI task:
-    this%xbnds_(3,1)  = this%xbnds_(3,1)-2.0_GP
-    this%xbnds_(3,2)  = this%xbnds_(3,2)+2.0_GP
-
+    ! Note: Expand by no. ghost zones:
+    this%xbnds_(3,1)  = this%xbnds_(3,1)-real(nzghost,kind=GP)
+    this%xbnds_(3,2)  = this%xbnds_(3,2)+real(nzghost,kind=GP)
 
     IF ( this%rank_.LT.2 .OR. this%rank_.GT.3 ) THEN
       WRITE(*,*)'GPSplineInt::ctor: Invalid rank'
@@ -245,17 +244,19 @@ MODULE class_GPSplineInt
 !
     IF ( this%ider_(1).EQ.0 ) THEN
     xsm=1.0_GP
+!$omp parallel do private(xx,xxm)
     DO lag=1,np
       xx = this%xrk_(lag)
       xxm = (1.0_GP-xx)
-       this%wrkl_(1,lag) = sixth*xxm*xxm*xxm
-       this%wrkl_(2,lag) = sixth*(four+xx*xx*(three*xx-six))
-       this%wrkl_(3,lag) = sixth*(four+xxm*xxm*(three*xxm-six))
+      this%wrkl_(1,lag) = sixth*xxm*xxm*xxm
+      this%wrkl_(2,lag) = sixth*(four+xx*xx*(three*xx-six))
+      this%wrkl_(3,lag) = sixth*(four+xxm*xxm*(three*xxm-six))
     ENDDO
     ENDIF
 !
     IF ( this%ider_(1).EQ.1 ) THEN
     xsm=0.0_GP
+!$omp parallel do private(xx,xxm)
     DO lag=1,np
       xx = this%xrk_(lag)
       xxm = (1.0_GP-xx)
@@ -267,6 +268,7 @@ MODULE class_GPSplineInt
 !
     IF ( this%ider_(2).EQ.0 ) THEN
     ysm=1.0_GP
+!$omp parallel do private(yy,yym)
     DO lag=1,np
       yy = this%yrk_(lag)
       yym = (1.0_GP-yy)
@@ -278,6 +280,7 @@ MODULE class_GPSplineInt
 !
     IF( this%ider_(2).EQ.1 ) THEN
     ysm=0.0_GP
+!$omp parallel do private(yy,yym)
     DO lag=1,np
       yy = this%yrk_(lag)
       yym = (1.0_GP-yy)
@@ -289,6 +292,7 @@ MODULE class_GPSplineInt
 !
     IF ( this%ider_(3).EQ.0 ) THEN
     zsm=1.0_GP
+!$omp parallel do private(zz,zzm)
     DO lag=1,np
       zz = this%zrk_(lag)
       zzm = (1.0_GP-zz)
@@ -300,6 +304,7 @@ MODULE class_GPSplineInt
 !
     IF( this%ider_(3).EQ.1 ) THEN
     zsm=0.0
+!$omp parallel do private(zz,zzm)
     DO lag=1,np
       zz = this%zrk_(lag)
       zzm = (1.0_GP-zz)
@@ -317,6 +322,7 @@ MODULE class_GPSplineInt
     IF(this%ider_(3).eq.1) zsm = 0.0_GP
 
 !
+!$omp parallel do private(xx1,xx2,xx3,xx4,yy1,yy2,yy3,yy4,zz1,zz2,zz3,zz4)
     DO lag=1,np
       xx1 = this%wrkl_(1,lag)
       xx2 = this%wrkl_(2,lag)
@@ -441,6 +447,7 @@ MODULE class_GPSplineInt
     ny = this%ldims_(2)
  
     ! x-coords:
+!$omp parallel do 
     DO j = 1, np
        this%ilg_(1,j) = xp(j)*this%dxi_(1)
        this%xrk_  (j) = xp(j)*this%dxi_(1) - real(this%ilg_(1,j),kind=GP)
@@ -457,6 +464,7 @@ MODULE class_GPSplineInt
     ! 
     ! First, do a check:
     bok = .true.
+!$omp parallel do 
     DO j = 1, np
       bok = bok .AND. (yp(j).GE.this%xbnds_(2,1).AND.yp(j).LT.this%xbnds_(2,2))
     ENDDO
@@ -464,6 +472,7 @@ MODULE class_GPSplineInt
       WRITE(*,*) 'GPSplineInt::PartUpdate2D: Invalid particle y-range'
       STOP
     ENDIF
+!$omp parallel do 
     DO j = 1, np
        this%jlg_(1,j) = (yp(j)-this%xbnds_(2,1))*this%dxi_(2)
        this%yrk_  (j) = (yp(j)-this%xbnds_(2,1))*this%dxi_(2) &
@@ -513,6 +522,7 @@ MODULE class_GPSplineInt
     km = nz+2*this%gpcomm_%GetNumGhost() - 3
  
     ! x-coords:
+!$omp parallel do 
     DO j = 1, np
       this%ilg_(1,j) = (xp(j)-this%xbnds_(1,1))*this%dxi_(1)
       this%xrk_  (j) = (xp(j)-this%xbnds_(1,1))*this%dxi_(1) - real(this%ilg_(1,j),kind=GP)
@@ -523,6 +533,7 @@ MODULE class_GPSplineInt
     ENDDO
       
     ! y-coords:
+!$omp parallel do 
     DO j = 1, np
       this%jlg_(1,j) = (yp(j)-this%xbnds_(2,1))*this%dxi_(2)
       this%yrk_  (j) = (yp(j)-this%xbnds_(2,1))*this%dxi_(2) - real(this%jlg_(1,j),kind=GP)
@@ -539,6 +550,7 @@ MODULE class_GPSplineInt
     ! 
     ! First, do a check:
     bok = .true.
+!$omp parallel do 
     DO j = 1, np
       bok = bok .AND. (zp(j).GE.this%xbnds_(3,1).AND.zp(j).LT.this%xbnds_(3,2))
       IF ( .NOT. bok ) THEN
@@ -547,30 +559,15 @@ MODULE class_GPSplineInt
         STOP
       ENDIF
     ENDDO
+!$omp parallel do 
     DO j = 1, np
       this%klg_(1,j) = (zp(j)-this%xbnds_(3,1))*this%dxi_(3)+1
       this%klg_(1,j) = min(this%klg_(1,j),km)
-!if ( this%klg_(1,j).gt.km+3 ) then
-!write(*,*)myrank,': j=',j,' klg(1)=',this%klg_(1,j),' ldim=',this%ldims_(3),' zbnd=',this%xbnds_(3,1:2),' zp=',zp(j)
-!stop
-!endif
       this%zrk_  (j) = (zp(j)-this%xbnds_(3,1))*this%dxi_(3) &
                      - real(this%klg_(1,j),kind=GP)
       this%klg_(2,j) = this%klg_(1,j) + 1
-!if ( this%klg_(2,j).gt.km+3 ) then
-!write(*,*)myrank,': j=',j,' klg(2)=',this%klg_(2,j),' ldim=',this%ldims_(3),' zbnd=',this%xbnds_(3,1:2),' zp=',zp(j)
-!stop
-!endif
       this%klg_(3,j) = this%klg_(2,j) + 1
-!if ( this%klg_(3,j).gt.km+3 ) then
-!write(*,*)myrank,': j=',j,' klg(3)=',this%klg_(3,j),' ldim=',this%ldims_(3),' zbnd=',this%xbnds_(3,1:2),' zp=',zp(j)
-!stop
-!endif
       this%klg_(4,j) = this%klg_(3,j) + 1
-!if ( this%klg_(4,j).gt.km+3 ) then
-!write(*,*)myrank,': j=',j,' klg(4)=',this%klg_(4,j),' ldim=',this%ldims_(3),' zbnd=',this%xbnds_(3,1:2),' zp=',zp(j)
-!stop
-!endif
     ENDDO
 
   END SUBROUTINE GPSplineInt_PartUpdate3D
@@ -873,6 +870,7 @@ MODULE class_GPSplineInt
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!! x-field computation !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!$omp parallel do private(j,km,jm)
     DO k=1,nz
       km = k-1
       DO j=1,ny
@@ -882,6 +880,7 @@ MODULE class_GPSplineInt
       ENDDO
     ENDDO
 !
+!$omp parallel do private(j,k,km,jm)
     DO i=2,nx-2
       DO k=1,nz
         km = k-1
@@ -894,6 +893,7 @@ MODULE class_GPSplineInt
       ENDDO
     ENDDO
 !
+!$omp parallel do private(j,km,jm)
     DO k=1,nz
       km = k-1
       DO j=1,ny
@@ -910,6 +910,7 @@ MODULE class_GPSplineInt
       ENDDO
     ENDDO
 !
+!$omp parallel do private(j,k,km,jm)
     DO  i=nx-2,1,-1
       DO j=1,ny
         jm = j-1
@@ -922,6 +923,7 @@ MODULE class_GPSplineInt
     ENDDO
 
 !  Copy splfld -> field :
+!$omp parallel do private(i,j,km,jm)
     DO k=1,nz
       km = k-1
       DO j=1,ny
@@ -937,6 +939,7 @@ MODULE class_GPSplineInt
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
 !  Compute the j-equation (coefficients in y) :
+!$omp parallel do private(i,km)
     DO k=1,nz
       km = k-1
       DO i=1,nx
@@ -945,6 +948,7 @@ MODULE class_GPSplineInt
       ENDDO
     ENDDO
 !
+!$omp parallel do private(i,k,jm,km)
     DO j=2,ny-2
       jm = j-1
       DO k=1,nz
@@ -957,6 +961,7 @@ MODULE class_GPSplineInt
        ENDDO
     ENDDO
 !  ** n-1 **
+!$omp parallel do private(i,km)
     DO k=1,nz
       km = k-1
       DO i=1,nx
@@ -971,6 +976,7 @@ MODULE class_GPSplineInt
       ENDDO
     ENDDO
 !
+!$omp parallel do private(i,jm,k,km)
     DO  j=ny-2,1,-1
       jm = j-1
       DO i=1,nx
@@ -983,6 +989,7 @@ MODULE class_GPSplineInt
     ENDDO
  
 !  Copy splfld -> field :
+!$omp parallel do private(i,jm,j,km)
     DO k=1,nz
       km = k-1
       DO j=1,ny
@@ -1030,6 +1037,7 @@ MODULE class_GPSplineInt
 !  
 !  tmp2  <== spline coeff. field;
 !  field <== 'field', semi-'tensored' with spl. coeffs
+!$omp parallel do private(j,jm,km)
     DO k=1,nz
       km = k-1
       DO j=1,ny
@@ -1039,6 +1047,7 @@ MODULE class_GPSplineInt
       ENDDO
     ENDDO
 !
+!$omp parallel do private(j,jm,k,km)
     DO i=2,nx-2
       DO k=1,nz
         km = k-1
@@ -1051,6 +1060,7 @@ MODULE class_GPSplineInt
       ENDDO
     ENDDO
 !
+!$omp parallel do private(j,jm,km)
     DO k=1,nz
       km = k-1
       DO j=1,ny
@@ -1067,6 +1077,7 @@ MODULE class_GPSplineInt
       ENDDO
     ENDDO
 !
+!$omp parallel do private(k,km,j,jm)
     DO i=nx-2,1,-1
       DO j=1,ny
         jm = j-1
