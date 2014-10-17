@@ -1777,9 +1777,9 @@ MODULE class_GPart
     ! Periodicity s.t.:
     !   | | [ | | | | ] | |
     !   a b       a b 
-!$omp parallel do if (ke-kb.ge.nth) private (i,j)
+!$omp parallel do if (ke-kb.ge.nth) private (i,j,k)
     DO k = kb,ke 
-!$omp parallel do if (ke-kb.lt.nth) private (i)
+!$omp parallel do if (ke-kb.lt.nth) private (i,j)
       DO j = 1,ny
         DO i = 1,nc
           v(i,j,k) = v(nx-nc+i,j,k)
@@ -1788,12 +1788,10 @@ MODULE class_GPart
           v(i,j,k) = v(2*nc+i-nx,j,k)
         ENDDO
       ENDDO
-!$omp parallel do 
       DO i = 1,nx
         DO j = 1,nc
           v(i,j,k) = v(i,nx-nc+j,k)
         ENDDO
-!$omp parallel do 
         DO j = ny-nc+1,ny
           v(i,j,k) = v(i,2*nc+j-nx,k)
         ENDDO
@@ -1887,6 +1885,7 @@ MODULE class_GPart
 !$omp parallel do 
     DO j = 1, ngvdb
       IF ( gvdb(3,j).GE.this%lxbnds_(3,1) .AND. gvdb(3,j).LT.this%lxbnds_(3,2) ) THEN 
+!$omp atomic 
         nl = nl + 1
         id (nl) = j-1
         lx (nl) = gvdb(1,j)
@@ -1941,6 +1940,7 @@ MODULE class_GPart
 !$omp parallel do 
     DO j = 1, ngvdb
       IF ( gvdb(3,j).GE.this%lxbnds_(3,1) .AND. gvdb(3,j).LT.this%lxbnds_(3,2) ) THEN 
+!$omp atomic 
         nl = nl + 1
         id (nl) = j-1
         lx (nl) = gvdb(1,j)
