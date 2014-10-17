@@ -466,6 +466,7 @@ MODULE class_GPSplineInt
     bok = .true.
 !$omp parallel do 
     DO j = 1, np
+!$omp atomic
       bok = bok .AND. (yp(j).GE.this%xbnds_(2,1).AND.yp(j).LT.this%xbnds_(2,2))
     ENDDO
     IF ( .NOT. bok ) THEN
@@ -552,6 +553,7 @@ MODULE class_GPSplineInt
     bok = .true.
 !$omp parallel do 
     DO j = 1, np
+!$omp atomic
       bok = bok .AND. (zp(j).GE.this%xbnds_(3,1).AND.zp(j).LT.this%xbnds_(3,2))
       IF ( .NOT. bok ) THEN
         WRITE(*,*) 'GPSplineInt::PartUpdate3D: Invalid particle z-range'
@@ -870,7 +872,7 @@ MODULE class_GPSplineInt
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!! x-field computation !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!$omp parallel do private(j,km,jm)
+!!$omp parallel do private(j,km,jm)
     DO k=1,nz
       km = k-1
       DO j=1,ny
@@ -880,7 +882,7 @@ MODULE class_GPSplineInt
       ENDDO
     ENDDO
 !
-!$omp parallel do private(j,k,km,jm)
+!!$omp parallel do private(j,k,km,jm)
     DO i=2,nx-2
       DO k=1,nz
         km = k-1
@@ -888,12 +890,14 @@ MODULE class_GPSplineInt
            jm = j-1
            tmp2(i+jm*nx+km*nxy) =  &
            ( field(i+jm*nx+km*nxy) - this%ax_(i)*tmp2(i-1+jm*nx+km*nxy) )*this%betx_(i)  
+!!$omp critical
            tmp2(nx+jm*nx+km*nxy) = tmp2(nx+jm*nx+km*nxy) - this%xxx_(i-1)*tmp2(i-1+jm*nx+km*nxy)
+!!$omp end critical
         ENDDO
       ENDDO
     ENDDO
 !
-!$omp parallel do private(j,km,jm)
+!!$omp parallel do private(j,km,jm)
     DO k=1,nz
       km = k-1
       DO j=1,ny
@@ -901,29 +905,33 @@ MODULE class_GPSplineInt
 !  ** n-1 **
         tmp2   (nx-1+jm*nx+km*nxy) = &
         (field(nx-1+jm*nx+km*nxy) - this%ax_(nx-1)*tmp2(nx-2+jm*nx+km*nxy))*this%betx_(nx-1)
+!!$omp critical
         tmp2     (nx+jm*nx+km*nxy) = tmp2(nx+jm*nx+km*nxy) - this%xxx_(nx-2)*tmp2(nx-1+jm*nx+km*nxy)
 !  ** n  **
         tmp2(nx+jm*nx+km*nxy) = (tmp2(nx+jm*nx+km*nxy) - tmp2(nx-1+jm*nx+km*nxy)*this%zetax_) &
                      * this%betx_(nx)
+!!$omp end critical
 !  Backsubstitution phase :
        tmp2(nx-1+jm*nx+km*nxy) = tmp2(nx-1+jm*nx+km*nxy) - this%gamx_(nx)*tmp2(nx+jm*nx+km*nxy)
       ENDDO
     ENDDO
 !
-!$omp parallel do private(j,k,km,jm)
+!!$omp parallel do private(j,k,km,jm)
     DO  i=nx-2,1,-1
       DO j=1,ny
         jm = j-1
         DO k=1,nz
         km = k-1
+!!$omp critical
         tmp2(i+jm*nx+km*nxy) = tmp2(i+jm*nx+km*nxy) &
                       - this%gamx_(i+1)*tmp2(i+1+jm*nx+km*nxy) - this%px_(i)*tmp2(nx+jm*nx+km*nxy)
+!!$omp end critical
         ENDDO
       ENDDO
     ENDDO
 
 !  Copy splfld -> field :
-!$omp parallel do private(i,j,km,jm)
+!!$omp parallel do private(i,j,km,jm)
     DO k=1,nz
       km = k-1
       DO j=1,ny
@@ -939,7 +947,7 @@ MODULE class_GPSplineInt
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
 !  Compute the j-equation (coefficients in y) :
-!$omp parallel do private(i,km)
+!!$omp parallel do private(i,km)
     DO k=1,nz
       km = k-1
       DO i=1,nx
@@ -947,8 +955,8 @@ MODULE class_GPSplineInt
         tmp2(i+(ny-1)*nx+km*nxy) = field(i+(ny-1)*nx+km*nxy)
       ENDDO
     ENDDO
-!
-!$omp parallel do private(i,k,jm,km)
+!!
+!!$omp parallel do private(i,k,jm,km)
     DO j=2,ny-2
       jm = j-1
       DO k=1,nz
@@ -956,40 +964,46 @@ MODULE class_GPSplineInt
          DO i=1,nx
            tmp2    (i+jm*nx+km*nxy) = &
            ( field(i+jm*nx+km*nxy) - this%ay_(j)*tmp2(i+(jm-1)*nx+km*nxy) )*this%bety_(j)
+!!$omp critical
            tmp2   (i+(ny-1)*nx+km*nxy) = tmp2(i+(ny-1)*nx+km*nxy) - this%xxy_(j-1)*tmp2(i+(jm-1)*nx+km*nxy)
+!!$omp end critical
          ENDDO
        ENDDO
     ENDDO
 !  ** n-1 **
-!$omp parallel do private(i,km)
+!!$omp parallel do private(i,km)
     DO k=1,nz
       km = k-1
       DO i=1,nx
         tmp2    (i+(ny-2)*nx+km*nxy) = &
         (field(i+(ny-2)*nx+km*nxy) - this%ay_(ny-1)*tmp2(i+(ny-3)*nx+km*nxy))*this%bety_(ny-1)
+!!$omp critical
         tmp2      (i+(ny-1)*nx+km*nxy) = tmp2(i+(ny-1)*nx+km*nxy) - this%xxy_(ny-2)*tmp2(i+(ny-2)*nx+km*nxy)
 !  ** n  **
         tmp2(i+(ny-1)*nx+km*nxy) = (tmp2(i+(ny-1)*nx+km*nxy) - tmp2(i+(ny-2)*nx+km*nxy)*this%zetay_) &
                        * this%bety_(ny)
 !  Backsubstitution phase :
       tmp2(i+(ny-2)*nx+km*nxy) = tmp2(i+(ny-2)*nx+km*nxy) - this%gamy_(ny)*tmp2(i+(ny-1)*nx+km*nxy)
+!!$omp end critical
       ENDDO
     ENDDO
 !
-!$omp parallel do private(i,jm,k,km)
+!!$omp parallel do private(i,jm,k,km)
     DO  j=ny-2,1,-1
       jm = j-1
       DO i=1,nx
         DO k=1,nz
           km = k-1
+!!$omp critical
           tmp2(i+jm*nx+km*nxy) = tmp2(i+jm*nx+km*nxy)  &
                          - this%gamy_(j+1)*tmp2(i+(jm+1)*nx+km*nxy) - this%py_(j)*tmp2(i+(ny-1)*nx+km*nxy)
+!!$omp end critical
         ENDDO
       ENDDO
     ENDDO
  
 !  Copy splfld -> field :
-!$omp parallel do private(i,jm,j,km)
+!!$omp parallel do private(i,jm,j,km)
     DO k=1,nz
       km = k-1
       DO j=1,ny
@@ -1037,7 +1051,7 @@ MODULE class_GPSplineInt
 !  
 !  tmp2  <== spline coeff. field;
 !  field <== 'field', semi-'tensored' with spl. coeffs
-!$omp parallel do private(j,jm,km)
+!!$omp parallel do private(j,jm,km)
     DO k=1,nz
       km = k-1
       DO j=1,ny
@@ -1047,7 +1061,7 @@ MODULE class_GPSplineInt
       ENDDO
     ENDDO
 !
-!$omp parallel do private(j,jm,k,km)
+!!$omp parallel do private(j,jm,k,km)
     DO i=2,nx-2
       DO k=1,nz
         km = k-1
@@ -1055,12 +1069,14 @@ MODULE class_GPSplineInt
           jm = j-1
           tmp2 (i+jm*nx+km*nxy) =  &
           (field(i+jm*nx+km*nxy) - this%az_(i)*tmp2(i-1+jm*nx+km*nxy) )*this%betz_(i) 
+!!$omp critical
           tmp2(nx+jm*nx+km*nxy) = tmp2(nx+jm*nx+km*nxy) - this%xxz_(i-1)*tmp2(i-1+jm*nx+km*nxy)
+!!$omp end critical
         ENDDO
       ENDDO
     ENDDO
 !
-!$omp parallel do private(j,jm,km)
+!!$omp parallel do private(j,jm,km)
     DO k=1,nz
       km = k-1
       DO j=1,ny
@@ -1068,23 +1084,27 @@ MODULE class_GPSplineInt
 !  ** n-1 **
         tmp2 (nx-1+jm*nx+km*nxy) = &
         (field(nx-1+jm*nx+km*nxy) - this%az_(nx-1)*tmp2(nx-2+jm*nx+km*nxy))*this%betz_(nx-1)
+!!$omp critical
         tmp2 (nx+jm*nx+km*nxy) = tmp2(nx+jm*nx+km*nxy) - this%xxz_(nx-2)*tmp2(nx-1+jm*nx+km*nxy)
 !  ** n  **
         tmp2 (nx+jm*nx+km*nxy) = (tmp2(nx+jm*nx+km*nxy) - tmp2(nx-1+jm*nx+km*nxy)*this%zetaz_) &
                                 * this%betz_(nx)
 !  Backsubstitution phase :
         tmp2(nx-1+jm*nx+km*nxy) = tmp2(nx-1+jm*nx+km*nxy) - this%gamz_(nx)*tmp2(nx+jm*nx+km*nxy)
+!!$omp end critical
       ENDDO
     ENDDO
 !
-!$omp parallel do private(k,km,j,jm)
+!!$omp parallel do private(k,km,j,jm)
     DO i=nx-2,1,-1
       DO j=1,ny
         jm = j-1
         DO k=1,nz
           km = k-1
+!!$omp critical
           tmp2(i+jm*nx+km*nxy) = tmp2(i+jm*nx+km*nxy) &
           - this%gamz_(i+1)*tmp2(i+1+jm*nx+km*nxy) - this%pz_(i)*tmp2(nx+jm*nx+km*nxy)
+!!$omp end critical
         ENDDO
       ENDDO
     ENDDO
