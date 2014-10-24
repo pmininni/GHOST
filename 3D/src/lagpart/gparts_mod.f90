@@ -1303,7 +1303,8 @@ MODULE class_GPart
     ! Read global VDB, with time header, indexed only
     ! by time index: dir/spref.TTT.lag:
     IF ( this%myrank_.EQ.0 ) THEN
-      OPEN(iunit,file=trim(sfile),status='old',form='binary',iostat=this%ierr_)
+      OPEN(iunit,file=trim(sfile),status='old',access='stream', &
+           form='unformatted',iostat=this%ierr_)
       IF ( this%ierr_.NE.0 ) THEN
         WRITE(*,*)'GPart_binary_read_pdb_t0: could not open file for reading: ',&
         trim(sfile)

@@ -1402,9 +1402,8 @@
       timec = cstep
       times = sstep
       timep = pstep
-if ( myrank.eq. 0 ) write(*,*) 'main: before initialv.'
+#if defined(VELOC_) || defined(ADVECT_)
       INCLUDE 'initialv.f90'            ! initial velocity
-if ( myrank.eq. 0 ) write(*,*) 'main: after initialv.'
 #endif
 #ifdef SCALAR_
       INCLUDE 'initials.f90'            ! initial concentration
@@ -1690,7 +1689,6 @@ if ( myrank.eq. 0 ) write(*,*) 'main: after initialv.'
 
       ENDIF
 
-if ( myrank.eq. 0 ) write(*,*) 'main: before time loop...'
  RK : DO t = ini,step
 
 ! Updates the external forcing. Every 'fsteps'
