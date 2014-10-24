@@ -750,7 +750,7 @@ MODULE class_GPart
     ENDIF
 
     ! If doing non-collective binary or ascii writes, synch up vector:
-    IF ( this%iouttype_.EQ.0 .AND. this%bcollective_.EQ.0 & .OR. this%iouttype_.EQ.1 ) THEN
+    IF ( this%iouttype_.EQ.0 .AND. this%bcollective_.EQ.0 .OR. this%iouttype_.EQ.1 ) THEN
     
       CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
                                  this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp1_)
@@ -885,7 +885,7 @@ MODULE class_GPart
     DIMENSION(this%maxparts_)            :: fld1,fld2
     REAL(KIND=GP)                        :: vout(3)
     INTEGER,INTENT(IN)                   :: iunit
-    INTEGER                              :: fh,ierr,nerr,nt,nv,szreal
+    INTEGER                              :: fh,nerr,nt,nv,szreal
     INTEGER(kind=MPI_OFFSET_KIND)        :: offset
     CHARACTER(len=*),INTENT(IN)          :: dir
     CHARACTER(len=*),INTENT(IN)          :: nmb
@@ -975,7 +975,7 @@ MODULE class_GPart
     REAL(KIND=GP),INTENT   (IN),OPTIONAL,&
     DIMENSION(this%maxparts_)            :: fld1,fld2
     INTEGER,INTENT(IN)                   :: iunit
-    INTEGER                              :: fh,ierr,nerr,nv
+    INTEGER                              :: fh,nerr,nv
     CHARACTER(len=*),INTENT(IN)          :: dir
     CHARACTER(len=*),INTENT(IN)          :: nmb
     CHARACTER(len=*),INTENT(IN)          :: spref
@@ -1240,7 +1240,7 @@ MODULE class_GPart
     REAL(KIND=GP)                             :: rvar,time
     REAL(KIND=GP),INTENT(INOUT)               :: pdb(3,this%maxparts_)
     INTEGER,INTENT(IN)                        :: iunit
-    INTEGER                                   :: fh,ierr,j,lc,nerr,szreal
+    INTEGER                                   :: fh,j,lc,nerr,szreal
     INTEGER(kind=MPI_OFFSET_KIND)             :: offset
     CHARACTER(len=*),INTENT   (IN)            :: sfile
 
