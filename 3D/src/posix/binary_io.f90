@@ -59,6 +59,7 @@
 
       USE fprecision
       USE iovar
+      USE gutils
       IMPLICIT NONE
 
       TYPE(IOPLAN), INTENT(IN)   :: plan
@@ -72,6 +73,10 @@
            plan%node // '.' // nmb // '.out',form='unformatted')
       READ(unit) var
       CLOSE(unit)
+      IF ( iswap.gt.0 ) THEN
+        CALL rarray_byte_swap(var,plan%n*plan%n*(plan%kend-plan%ksta+1))
+      ENDIF
+
 
       RETURN
       END SUBROUTINE io_read
@@ -95,10 +100,12 @@
 
       USE fprecision
       USE iovar
+      USE gutils
       IMPLICIT NONE
 
-      TYPE(IOPLAN), INTENT(IN)  :: plan
-      REAL(KIND=GP), INTENT(IN) :: var(plan%n,plan%n,plan%ksta:plan%kend)
+      TYPE(IOPLAN), INTENT(IN)           :: plan
+      REAL(KIND=GP), INTENT(IN)          :: var(plan%n,plan%n,plan%ksta:plan%kend)
+
       INTEGER, INTENT(IN)       :: unit
       CHARACTER(len=100), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
