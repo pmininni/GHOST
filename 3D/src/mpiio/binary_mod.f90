@@ -10,9 +10,10 @@
 
   MODULE iovar
       TYPE IOPLAN
-         INTEGER :: n,ksta,kend
-         INTEGER :: iotype
+         INTEGER      :: n,ksta,kend
+         INTEGER      :: iotype
       END TYPE IOPLAN
+      INTEGER :: iswap=0
       SAVE
 
   END MODULE iovar
@@ -24,6 +25,7 @@
       INTEGER, SAVE :: ioerr
       INTEGER(KIND=MPI_OFFSET_KIND), SAVE :: disp = 0
       INTEGER, SAVE :: bmangle = 1
+      INTEGER, SAVE :: ihopen,ihread,ihwrite
 
   END MODULE iompi
 !=================================================================

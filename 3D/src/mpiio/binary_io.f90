@@ -28,6 +28,7 @@
       USE commtypes
       USE iovar
       USE iompi
+      USE gtimer
       IMPLICIT NONE
 
       INTEGER, INTENT(IN)   :: myrank,n
@@ -51,6 +52,9 @@
       CALL MPI_TYPE_CREATE_SUBARRAY(3,sizes,subsizes,starts, &
            MPI_ORDER_FORTRAN,GC_REAL,plan%iotype,ioerr)
       CALL MPI_TYPE_COMMIT(plan%iotype,ioerr)
+      CALL GTStart(ihopen ,GT_CPUTIME)
+      CALL GTStart(ihread ,GT_CPUTIME)
+      CALL GTStart(ihwrite,GT_CPUTIME)
 
       RETURN
       END SUBROUTINE io_init
@@ -77,30 +81,51 @@
       USE commtypes
       USE iovar
       USE iompi
+      USE gtimer
+      USE mpivars
+      USE gutils
       IMPLICIT NONE
       
-      TYPE(IOPLAN), INTENT(IN)   :: plan
-      REAL(KIND=GP), INTENT(OUT) :: var(plan%n,plan%n,plan%ksta:plan%kend)
-      INTEGER, INTENT(IN)        :: unit
-      INTEGER                    :: fh
+      TYPE(IOPLAN),INTENT  (IN)            :: plan
+      REAL(KIND=GP),INTENT(OUT)           :: var(plan%n,plan%n,plan%ksta:plan%kend)
+      INTEGER, INTENT(IN)            :: unit
+      INTEGER                        :: fh
       CHARACTER(len=100), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname
 
+      CALL GTStart(ihopen)
       IF ( bmangle.EQ.1 ) THEN
       CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname // &
           '.' // nmb // '.out',MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
+      IF ( ioerr.NE.MPI_SUCCESS ) THEN
+        WRITE(*,*)': io_read: cannot open file for reading: ', trim(dir) // '/' // fname // &
+          '.' // nmb // '.out'
+        STOP
+      ENDIF
       ELSE
 
-      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,fname  &
+      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname  &
                         ,MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
+      IF ( ioerr.NE.MPI_SUCCESS ) THEN
+        WRITE(*,*)': io_read: cannot open file for reading: ', trim(dir) // '/' // fname 
+        STOP
       ENDIF
+      ENDIF
+      CALL GTStop(ihopen)
+if (myrank.eq.0) write(*,*)' io_read: read open time:',GTGetTime(ihopen)
+      CALL GTStart(ihread)
       CALL MPI_FILE_SET_VIEW(fh,disp,GC_REAL,plan%iotype,'native', &
           MPI_INFO_NULL,ioerr)
       CALL MPI_FILE_READ_ALL(fh,var, &
           plan%n*plan%n*(plan%kend-plan%ksta+1),GC_REAL, &
           MPI_STATUS_IGNORE,ioerr)
       CALL MPI_FILE_CLOSE(fh,ioerr)
+      CALL GTStop(ihread)
+if (myrank.eq.0) write(*,*)' io_read: read time:',GTGetTime(ihread)
+      IF ( iswap.gt.0 ) THEN
+        CALL rarray_byte_swap(var,plan%n*plan%n*(plan%kend-plan%ksta+1))
+      ENDIF
 
       RETURN
       END SUBROUTINE io_read
@@ -126,16 +151,20 @@
       USE commtypes
       USE iovar
       USE iompi
+      USE gtimer
+      USE mpivars
+      USE gutils
       IMPLICIT NONE
 
-      TYPE(IOPLAN), INTENT(IN)  :: plan
-      REAL(KIND=GP), INTENT(IN) :: var(plan%n,plan%n,plan%ksta:plan%kend)
-      INTEGER, INTENT(IN)       :: unit
-      INTEGER                   :: fh
+      TYPE(IOPLAN), INTENT(IN)            :: plan
+      REAL(KIND=GP), INTENT(INOUT)        :: var(plan%n,plan%n,plan%ksta:plan%kend)
+      INTEGER, INTENT(IN)            :: unit
+      INTEGER                        :: fh
       CHARACTER(len=100), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname
 
+      CALL GTStart(ihopen)
       IF ( bmangle.EQ.1 ) THEN
       CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname // &
           '.' // nmb // '.out',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
@@ -145,12 +174,18 @@
                         ,MPI_MODE_CREATE+MPI_MODE_WRONLY &
                         ,MPI_INFO_NULL,fh,ioerr)
       ENDIF
+      CALL GTStop(ihopen)
+      CALL GTStart(ihwrite)
       CALL MPI_FILE_SET_VIEW(fh,disp,GC_REAL,plan%iotype,'native', &
           MPI_INFO_NULL,ioerr)
+if (myrank.eq.0) write(*,*)' io_write: write open time:',GTGetTime(ihopen)
       CALL MPI_FILE_WRITE_ALL(fh,var, &
           plan%n*plan%n*(plan%kend-plan%ksta+1),GC_REAL, &
           MPI_STATUS_IGNORE,ioerr)
       CALL MPI_FILE_CLOSE(fh,ioerr)
+      CALL GTStop(ihwrite)
+if (myrank.eq.0) write(*,*)' io_write: write time:',GTGetTime(ihread)
+
 
       RETURN
       END SUBROUTINE io_write
