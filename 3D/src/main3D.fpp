@@ -193,6 +193,7 @@
       USE mpivars
       USE filefmt
       USE iovar
+      USE iompi
       USE grid
       USE fft
       USE ali
@@ -415,8 +416,8 @@
       INTEGER      :: ilgexchtype
       INTEGER      :: ilgouttype
       INTEGER      :: ilgcoll
-      INTEGER      :: blgdofp
       INTEGER      :: ilgfpfiletype
+      INTEGER      :: blgdofp
       INTEGER      :: blgfpfilecoll
       INTEGER      :: dolag
       INTEGER      :: nwpart
@@ -431,14 +432,13 @@
       CHARACTER (len=100) :: odir,idir
 
 #ifdef LAGPART_
-      CHARACTER(len=1024) :: lgseedfile
-      CHARACTER(len=1024) :: slgfpfile
+      CHARACTER(len=1024) :: lgseedfile,slgfpfile
 #endif
 
 !
 ! Namelists for the input files
 
-      NAMELIST / status / idir,odir,stat,mult,bench,outs,mean,trans
+      NAMELIST / status / idir,odir,stat,mult,bench,outs,mean,trans,iswap
       NAMELIST / parameter / dt,step,tstep,sstep,cstep,rand,cort,seed
 #if defined(VELOC_) || defined(ADVECT_)
       NAMELIST / velocity / f0,u0,kdn,kup,nu,fparam0,fparam1,fparam2
@@ -516,8 +516,8 @@
 #endif
 
 ! Initializes the MPI and I/O libraries
-!     CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
-      CALL MPI_INIT(ierr)
+      CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
+!     CALL MPI_INIT(ierr)
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
 
@@ -721,6 +721,8 @@
 !            = 1 performs mean field computation
 !     trans: = 0 skips energy transfer computation
 !            = 1 performs energy transfer computation
+!     iswap  = 0 does nothing to restart binary data
+!            = 1 does a byte swap of restart binary data
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.txt',status='unknown',form="formatted")
@@ -735,6 +737,7 @@
       CALL MPI_BCAST(outs,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(mean,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(trans,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(iswap,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
 !
 ! Reads parameters that will be used to control the 
@@ -1271,6 +1274,7 @@
       CALL MPI_BCAST(blgfpfilecoll,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(slgfpfile    ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(lgseedfile   ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+
       IF ( mod(tstep,lgmult).NE.0 ) THEN
         WRITE(*,*)'main: lgmult must divide tstep evenly'
         STOP
@@ -1402,7 +1406,7 @@
       timec = cstep
       times = sstep
       timep = pstep
-#if defined(VELOC_) || defined(ADVECT_)
+#if defined(VELOC_) || defined (ADVECT_)
       INCLUDE 'initialv.f90'            ! initial velocity
 #endif
 #ifdef SCALAR_
@@ -2277,7 +2281,7 @@
 ! with the power spectrum.
 
          IF ((times.eq.sstep).and.(bench.eq.0)) THEN
-!           times = 0
+            times = 0
             sind = sind+1
             WRITE(ext, fmtext) sind
 #ifdef HD_SOL
