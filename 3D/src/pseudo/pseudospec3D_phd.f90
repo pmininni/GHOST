@@ -325,14 +325,62 @@
       END SUBROUTINE pscheck
 
 !*****************************************************************
-      SUBROUTINE mpscheck(a1,b1,a2,b2,a3,b3,t,dt)
+      SUBROUTINE mpscheck2(a1,b1,a2,b2,t,dt)
 !-----------------------------------------------------------------
 !
-! Consistency check for the conservation of 'multscalar' energy
+! Consistency check for the conservation of 2 'multscalar' energies
 !
 ! Parameters
-!     a_i : i_th scalar concentration
-!     b_i : i_th source of the scalar i
+!     a_i : i_th scalar concentration, i=1-2
+!     b_i : i_th source/force of the scalar i
+!     t : number of time steps made
+!     dt: time step
+!
+      USE fprecision
+      USE grid
+      USE mpivars
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a1,a2,b1,b2
+      DOUBLE PRECISION    :: eng(2),ens(2),pot(2)
+      REAL(KIND=GP), INTENT(IN)    :: dt
+      INTEGER, INTENT(IN) :: t
+      INTEGER             :: i,j,k
+
+!
+! Computes the variance and the variance of k^2 times the scalar
+!
+      CALL variance(a1,eng(1),1)
+      CALL variance(a1,ens(1),0)
+      CALL variance(a2,eng(2),1)
+      CALL variance(a2,ens(2),0)
+!
+! Computes the scalar injection rate
+!
+      CALL product(a1,b1,pot(1))
+      CALL product(a2,b2,pot(2))
+!
+! Creates external files to store the results
+!
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='mscalar.txt',position='append')
+         WRITE(1,10) (t-1)*dt,eng(1),ens(1),pot(1),eng(2),ens(2),pot(2)
+   10    FORMAT( E13.6,E22.14,E22.14,E22.14,E22.14,E22.14,E22.14 )
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE mpscheck2
+
+!*****************************************************************
+      SUBROUTINE mpscheck3(a1,b1,a2,b2,a3,b3,t,dt)
+!-----------------------------------------------------------------
+!
+! Consistency check for the conservation of 3 'multscalar' energies
+!
+! Parameters
+!     a_i : i_th scalar concentration, i=1-3
+!     b_i : i_th source/force of the scalar i
 !     t : number of time steps made
 !     dt: time step
 !
@@ -373,7 +421,7 @@
       ENDIF
 
       RETURN
-      END SUBROUTINE mpscheck
+      END SUBROUTINE mpscheck3
 
 !*****************************************************************
       SUBROUTINE spectrsc(a,nmb,isc)
