@@ -1763,7 +1763,7 @@
                      fs2(1,j,1) = fs2(1,j,1)*cdumr
                      fs2(1,n-j+2,1) = fs2(1,n-j+2,1)*jdumr
 !!                   fs3(1,j,1) = fs3(1,j,1)*cdumr
- !                   fs3(1,n-j+2,1) = fs3(1,n-j+2,1)*jdumr
+!!                   fs3(1,n-j+2,1) = fs3(1,n-j+2,1)*jdumr
 #endif
 #ifdef MAGFIELD_
                      mx(1,j,1) = mx(1,j,1)*cdumq
@@ -1848,7 +1848,7 @@
 #ifdef MULTISCALAR_
                            fs1(k,j,i) = fs1(k,j,i)*cdumr
                            fs2(k,j,i) = fs2(k,j,i)*cdumr
-!                          fs3(k,j,i) = fs3(k,j,i)*cdumr
+!!                         fs3(k,j,i) = fs3(k,j,i)*cdumr
 #endif
 #ifdef MAGFIELD_
                            mx(k,j,i) = mx(k,j,i)*cdumq
@@ -1873,7 +1873,7 @@
 #ifdef MULTISCALAR_
                            fs1(k,j,i) = fs1(k,j,i)*cdumr
                            fs2(k,j,i) = fs2(k,j,i)*cdumr
-!                          fs3(k,j,i) = fs3(k,j,i)*cdumr
+!!                         fs3(k,j,i) = fs3(k,j,i)*cdumr
 #endif
 #ifdef MAGFIELD_
                            mx(k,j,i) = mx(k,j,i)*cdumq
