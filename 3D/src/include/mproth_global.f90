@@ -1,7 +1,7 @@
 ! Global quantities computed in MPHD runs
 
             CALL hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,0)
-!           CALL mpscheck3(th1,fs1,th2,fs2,th3,fs3,t,dt)
+!!          CALL mpscheck3(th1,fs1,th2,fs2,th3,fs3,t,dt)
             CALL mpscheck2(th1,fs1,th2,fs2,t,dt)
             CALL maxabs(vx,vy,vz,rmp,0)
             CALL derivk3(th1,C1,1)
