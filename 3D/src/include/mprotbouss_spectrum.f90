@@ -8,20 +8,23 @@
             CALL specscpa(th,ext)
             CALL specscpe(th,ext)
 
-            CALL spectrsc(th1,ext)
-            CALL specscpa(th1,ext)
-            CALL specscpe(th1,ext)
+            CALL spectrsc(th1,ext,1)
+            CALL specscpa(th1,ext,1)
+            CALL specscpe(th1,ext,1)
 
-            CALL spectrsc(th2,ext)
-            CALL specscpa(th2,ext)
-            CALL specscpe(th2,ext)
+            CALL spectrsc(th2,ext,2)
+            CALL specscpa(th2,ext,2)
+            CALL specscpe(th2,ext,2)
 
-!!          CALL spectrsc(th3,ext)
-!!          CALL specscpa(th3,ext)
-!!          CALL specscpe(th3,ext)
+!!          CALL spectrsc(th3,ext,3)
+!!          CALL specscpa(th3,ext,3)
+!!          CALL specscpe(th3,ext,3)
 
             CALL spec2D(vx,vy,vz,ext,odir,1,1)
             CALL specsc2D(th,ext,odir)
+            CALL specsc2D(th1,ext,odir,1)
+            CALL specsc2D(th2,ext,odir,2)
+!!          CALL specsc2D(th3,ext,odir,3)
 !
             CALL havgwrite(0,'shear'  ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg shear
             CALL havgwrite(1,'tgradz' ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg dtheta/dz
