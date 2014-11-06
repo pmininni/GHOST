@@ -116,7 +116,7 @@
                 END DO
              END DO
            END DO
-           CALL lagpart%io_write_euler(1,odir,'v2nllg'  ,lgext,(t-1)*dt,R4,.false.,R2,R3)
+           CALL lagpart%io_write_euler(1,odir,'v3nllg'  ,lgext,(t-1)*dt,R4,.false.,R2,R3)
 !          IF ( blgdofp.GT.0 ) THEN
 !          CALL lagfp%io_write_euler  (1,odir,'fpetranslg',lgext,(t-1)*dt,R5,.false.,R2,R3)
 !          ENDIF
