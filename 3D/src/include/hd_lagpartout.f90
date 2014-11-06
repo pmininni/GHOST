@@ -78,21 +78,21 @@
            nwpart = nwpart + 1
 
 !
-!!!!!! Write nonlinear transfer:!!!!!!
+!!!!!! Write nonlinear terms:!!!!!!
 !
            CALL prodre3(vx,vy,vz,C4,C5,C6)
            CALL fftp3d_complex_to_real(plancr,C4,R4,MPI_COMM_WORLD)
-           R5 = 0.0_GP
            tmp = 1.0D0/real(n,kind=GP)**3
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
            DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
              DO j = 1,n
                 DO i = 1,n
-                   R5(i,j,k) = R5(i,j,k)+ R1(i,j,k)*R4(i,j,k)*tmp
+                   R4(i,j,k) = R4(i,j,k)*tmp
                 END DO
              END DO
            END DO
+           CALL lagpart%io_write_euler(1,odir,'v1nllg'  ,lgext,(t-1)*dt,R4,.false.,R2,R3)
 
            CALL fftp3d_complex_to_real(plancr,C5,R4,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -100,10 +100,11 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
              DO j = 1,n
                 DO i = 1,n
-                   R5(i,j,k) = R5(i,j,k)+ R2(i,j,k)*R4(i,j,k)*tmp
+                   R4(i,j,k) = R4(i,j,k)*tmp
                 END DO
              END DO
            END DO
+           CALL lagpart%io_write_euler(1,odir,'v2nllg'  ,lgext,(t-1)*dt,R4,.false.,R2,R3)
 
            CALL fftp3d_complex_to_real(plancr,C6,R4,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -111,11 +112,11 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
              DO j = 1,n
                 DO i = 1,n
-                   R5(i,j,k) = R5(i,j,k)+ R3(i,j,k)*R4(i,j,k)*tmp
+                   R4(i,j,k) = R4(i,j,k)*tmp
                 END DO
              END DO
            END DO
-           CALL lagpart%io_write_euler(1,odir,'etranslg'  ,lgext,(t-1)*dt,R5,.false.,R2,R3)
+           CALL lagpart%io_write_euler(1,odir,'v2nllg'  ,lgext,(t-1)*dt,R4,.false.,R2,R3)
 !          IF ( blgdofp.GT.0 ) THEN
 !          CALL lagfp%io_write_euler  (1,odir,'fpetranslg',lgext,(t-1)*dt,R5,.false.,R2,R3)
 !          ENDIF
@@ -128,7 +129,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
               DO j = 1,n
                  DO k = 1,n
-                    C1(k,j,i) = C1(k,j,i)/real(n,kind=GP)**3
+                    C1(k,j,i) = C1(k,j,i)*tmp
                  END DO
               END DO
            END DO
@@ -144,7 +145,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
               DO j = 1,n
                  DO k = 1,n
-                    C1(k,j,i) = 0.5*(C1(k,j,i)+C2(k,j,i))/real(n,kind=GP)**3
+                    C1(k,j,i) = 0.5*(C1(k,j,i)+C2(k,j,i))*tmp
                  END DO
               END DO
            END DO
@@ -160,7 +161,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
               DO j = 1,n
                  DO k = 1,n
-                    C1(k,j,i) = 0.5*(C1(k,j,i)+C2(k,j,i))/real(n,kind=GP)**3
+                    C1(k,j,i) = 0.5*(C1(k,j,i)+C2(k,j,i))*tmp
                  END DO
               END DO
            END DO
@@ -175,7 +176,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
               DO j = 1,n
                  DO k = 1,n
-                    C1(k,j,i) = C1(k,j,i)/real(n,kind=GP)**3
+                    C1(k,j,i) = C1(k,j,i)*tmp
                  END DO
               END DO
            END DO
@@ -191,7 +192,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
               DO j = 1,n
                  DO k = 1,n
-                    C1(k,j,i) = 0.5*(C1(k,j,i)+C2(k,j,i))/real(n,kind=GP)**3
+                    C1(k,j,i) = 0.5*(C1(k,j,i)+C2(k,j,i))*tmp
                  END DO
               END DO
            END DO

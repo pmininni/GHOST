@@ -1,12 +1,13 @@
 ! Write magnetic field:
+           tmp = 1.0E0 / real(n,kind=GP)**3
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
               DO j = 1,n
                  DO k = 1,n
-                    C1(k,j,i) = ax(k,j,i)/real(n,kind=GP)**3
-                    C2(k,j,i) = ay(k,j,i)/real(n,kind=GP)**3
-                    C3(k,j,i) = az(k,j,i)/real(n,kind=GP)**3
+                    C1(k,j,i) = ax(k,j,i)*tmp
+                    C2(k,j,i) = ay(k,j,i)*tmp
+                    C3(k,j,i) = az(k,j,i)*tmp
                  END DO
               END DO
            END DO
