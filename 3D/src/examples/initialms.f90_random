@@ -16,7 +16,7 @@
       IF (ista.eq.1) THEN
          th1(1,1,1) = 0.
          th2(1,1,1) = 0.
-         th3(1,1,1) = 0.
+!        th3(1,1,1) = 0.
          DO j = 2,n/2+1
 
             IF ((ka2(1,j,1).le.c1param1**2).and.(ka2(1,j,1).ge.c1param0**2)) THEN
@@ -28,17 +28,17 @@
                phase = 2*pi*randu(seed)
                th2(1,j,1) = (COS(phase)+im*SIN(phase))*dump
                th2(1,n-j+2,1) = conjg(th2(1,j,1))
-               dump = 1./sqrt(ka2(1,j,1))
-               phase = 2*pi*randu(seed)
-               th3(1,j,1) = (COS(phase)+im*SIN(phase))*dump
-               th3(1,n-j+2,1) = conjg(th3(1,j,1))
+!              dump = 1./sqrt(ka2(1,j,1))
+!              phase = 2*pi*randu(seed)
+!              th3(1,j,1) = (COS(phase)+im*SIN(phase))*dump
+!              th3(1,n-j+2,1) = conjg(th3(1,j,1))
             ELSE
                th1(1,j,1) = 0.
                th1(1,n-j+2,1) = 0.
                th2(1,j,1) = 0.
                th2(1,n-j+2,1) = 0.
-               th3(1,j,1) = 0.
-               th3(1,n-j+2,1) = 0.
+!              th3(1,j,1) = 0.
+!              th3(1,n-j+2,1) = 0.
             ENDIF
 
          END DO
@@ -53,13 +53,17 @@
                phase = 2*pi*randu(seed)
                th2(k,1,1) = (COS(phase)+im*SIN(phase))*dump
                th2(n-k+2,1,1) = conjg(th2(k,1,1))
-               dump = 1./sqrt(ka2(k,1,1))
-               phase = 2*pi*randu(seed)
-               th3(k,1,1) = (COS(phase)+im*SIN(phase))*dump
-               th3(n-k+2,1,1) = conjg(th3(k,1,1))
+!              dump = 1./sqrt(ka2(k,1,1))
+!              phase = 2*pi*randu(seed)
+!              th3(k,1,1) = (COS(phase)+im*SIN(phase))*dump
+!              th3(n-k+2,1,1) = conjg(th3(k,1,1))
             ELSE
+               th1(k,1,1) = 0.
+               th1(n-k+2,1,1) = 0.
                th2(k,1,1) = 0.
                th2(n-k+2,1,1) = 0.
+!              th3(k,1,1) = 0.
+!              th3(n-k+2,1,1) = 0.
             ENDIF
 
          END DO
@@ -75,17 +79,17 @@
                phase = 2*pi*randu(seed)
                th2(k,j,1) = (COS(phase)+im*SIN(phase))*dump
                th2(n-k+2,n-j+2,1) = conjg(th2(k,j,1))
-               dump = 1./sqrt(ka2(k,j,1))
-               phase = 2*pi*randu(seed)
-               th3(k,j,1) = (COS(phase)+im*SIN(phase))*dump
-               th3(n-k+2,n-j+2,1) = conjg(th3(k,j,1))
+!              dump = 1./sqrt(ka2(k,j,1))
+!              phase = 2*pi*randu(seed)
+!              th3(k,j,1) = (COS(phase)+im*SIN(phase))*dump
+!              th3(n-k+2,n-j+2,1) = conjg(th3(k,j,1))
             ELSE
                th1(k,j,1) = 0.
                th1(n-k+2,n-j+2,1) = 0.
                th2(k,j,1) = 0.
                th2(n-k+2,n-j+2,1) = 0.
-               th3(k,j,1) = 0.
-               th3(n-k+2,n-j+2,1) = 0.
+!              th3(k,j,1) = 0.
+!              th3(n-k+2,n-j+2,1) = 0.
             ENDIF
 
             END DO
@@ -101,13 +105,13 @@
                   dump = 1./sqrt(ka2(k,j,i))
                   phase = 2*pi*randu(seed)
                   th2(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
-                  dump = 1./sqrt(ka2(k,j,i))
-                  phase = 2*pi*randu(seed)
-                  th3(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+!                 dump = 1./sqrt(ka2(k,j,i))
+!                 phase = 2*pi*randu(seed)
+!                 th3(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
                ELSE
                   th1(k,j,i) = 0.
                   th2(k,j,i) = 0.
-                  th3(k,j,i) = 0.
+!                 th3(k,j,i) = 0.
                ENDIF
 
                END DO
@@ -125,13 +129,13 @@
                   dump = 1./sqrt(ka2(k,j,i))
                   phase = 2*pi*randu(seed)
                   th2(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
-                  dump = 1./sqrt(ka2(k,j,i))
-                  phase = 2*pi*randu(seed)
-                  th3(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+!                 dump = 1./sqrt(ka2(k,j,i))
+!                 phase = 2*pi*randu(seed)
+!                 th3(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
                ELSE
                   th1(k,j,i) = 0.
                   th2(k,j,i) = 0.
-                  th3(k,j,i) = 0.
+!                 th3(k,j,i) = 0.
                ENDIF
 
                END DO
@@ -141,10 +145,10 @@
 
       CALL variance(th1,tmp1,1)
       CALL variance(th2,tmp2,1)
-      CALL variance(th3,tmp3,1)
+!     CALL variance(th3,tmp3,1)
       CALL MPI_BCAST(tmp1,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(tmp2,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(tmp3,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+!     CALL MPI_BCAST(tmp3,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -152,7 +156,7 @@
             DO k = 1,n
                th1(k,j,i) = th1(k,j,i)*c10/sqrt(tmp1)
                th2(k,j,i) = th2(k,j,i)*c20/sqrt(tmp2)
-               th3(k,j,i) = th3(k,j,i)*c30/sqrt(tmp3)
+!              th3(k,j,i) = th3(k,j,i)*c30/sqrt(tmp3)
             END DO
          END DO
       END DO
