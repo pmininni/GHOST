@@ -12,7 +12,7 @@
 ! Superposition of harmonic modes with random phases 
 !     c1param0  : minimum wave number, all scalars
 !     c1param1  : maximum wave number, all scalars
-!     c10,c20,c30: global concentrations of scalars
+!     cc10,cc20,cc30: global concentrations of scalars
       IF (ista.eq.1) THEN
          th1(1,1,1) = 0.
          th2(1,1,1) = 0.
@@ -154,9 +154,9 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,n
             DO k = 1,n
-               th1(k,j,i) = th1(k,j,i)*c10/sqrt(tmp1)
-               th2(k,j,i) = th2(k,j,i)*c20/sqrt(tmp2)
-!              th3(k,j,i) = th3(k,j,i)*c30/sqrt(tmp3)
+               th1(k,j,i) = th1(k,j,i)*cc10/sqrt(tmp1)
+               th2(k,j,i) = th2(k,j,i)*cc20/sqrt(tmp2)
+!              th3(k,j,i) = th3(k,j,i)*cc30/sqrt(tmp3)
             END DO
          END DO
       END DO

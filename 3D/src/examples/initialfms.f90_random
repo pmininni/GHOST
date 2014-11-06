@@ -10,9 +10,9 @@
 ! stored in the array fsi.
 
 ! Superposition of harmonic modes with random phases 
-!     skdn   : minimum wave number, scalars
-!     skup   : maximum wave number, scalars
-!     s10,s20,s30: global forcing amplitude
+!     skdn          : minimum wave number, scalars
+!     skup          : maximum wave number, scalars
+!     ss10,ss20,ss30: global forcing amplitude
       IF (ista.eq.1) THEN
          fs1(1,1,1) = 0.
          fs2(1,1,1) = 0.
@@ -58,8 +58,12 @@
                fs3(k,1,1) = (COS(phase)+im*SIN(phase))*dump
                fs3(n-k+2,1,1) = conjg(fs3(k,1,1))
             ELSE
+               fs1(k,1,1) = 0.
+               fs1(n-k+2,1,1) = 0.
                fs2(k,1,1) = 0.
                fs2(n-k+2,1,1) = 0.
+               fs3(k,1,1) = 0.
+               fs3(n-k+2,1,1) = 0.
             ENDIF
 
          END DO
@@ -150,9 +154,9 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,n
             DO k = 1,n
-               fs1(k,j,i) = fs1(k,j,i)*s10/sqrt(tmp1)
-               fs2(k,j,i) = fs2(k,j,i)*s20/sqrt(tmp2)
-               fs3(k,j,i) = fs3(k,j,i)*s30/sqrt(tmp3)
+               fs1(k,j,i) = fs1(k,j,i)*ss10/sqrt(tmp1)
+               fs2(k,j,i) = fs2(k,j,i)*ss20/sqrt(tmp2)
+               fs3(k,j,i) = fs3(k,j,i)*ss30/sqrt(tmp3)
             END DO
          END DO
       END DO
