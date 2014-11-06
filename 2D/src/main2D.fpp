@@ -356,6 +356,12 @@
       ALLOCATE( C14(n,ista:iend), C15(n,ista:iend) )
       ALLOCATE( C16(n,ista:iend) )
 #endif
+#ifdef D25_
+      ALLOCATE( vz(n,ista:iend) )
+      ALLOCATE( fz(n,ista:iend) )
+      ALLOCATE( bz(n,ista:iend) )
+      ALLOCATE( mz(n,ista:iend) )
+#endif
 
 !
 ! Some constants for the FFT
