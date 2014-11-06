@@ -23,7 +23,7 @@
 !=================================================================
 
 !*****************************************************************
-      SUBROUTINE specscpa(a,nmb)
+      SUBROUTINE specscpa(a,nmb,isc)
 !-----------------------------------------------------------------
 !
 ! Computes the reduced power spectrum of the passive scalar 
@@ -35,6 +35,9 @@
 ! Parameters
 !     a  : input matrix with the passive scalar
 !     nmb: the extension used when writting the file
+!     isc: (OPTIONAL) index to specify which scalar the spectrum 
+!          represents; modifies output file name
+
 
       USE fprecision
       USE commtypes
@@ -49,9 +52,12 @@
       DOUBLE PRECISION :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
       REAL(KIND=GP)    :: tmp
+      INTEGER, INTENT(IN), OPTIONAL                          :: isc
       INTEGER          :: i,j,k
       INTEGER          :: kmn
       CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=1)             :: si
+
 
 !
 ! Sets Ek to zero
@@ -112,7 +118,12 @@
       CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
-         OPEN(1,file='sspecpara.' // nmb // '.txt')
+         IF ( present(isc) ) THEN
+           WRITE(si,'(i1.1)') isc
+           OPEN(1,file='s' // si // 'specpara.' // nmb // '.txt')
+         ELSE
+           OPEN(1,file='sspecpara.' // nmb // '.txt')
+         ENDIF
          WRITE(1,10) Ektot
    10    FORMAT( E23.15 )
          CLOSE(1)
@@ -122,7 +133,7 @@
       END SUBROUTINE specscpa
 
 !*****************************************************************
- SUBROUTINE specscpe(a,nmb)
+ SUBROUTINE specscpe(a,nmb,isc)
 !-----------------------------------------------------------------
 !
 ! Computes the reduced power spectrum of the passive scalar 
@@ -135,6 +146,9 @@
 ! Parameters
 !     a  : input matrix with the passive scalar
 !     nmb: the extension used when writting the file
+!     isc: (OPTIONAL) index to specify which scalar the spectrum 
+!          represents; modifies output file name
+
 !
       USE fprecision
       USE commtypes
@@ -150,9 +164,12 @@
       DOUBLE PRECISION :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
       REAL(KIND=GP)    :: tmp
+      INTEGER, INTENT(IN), OPTIONAL                          :: isc
       INTEGER          :: i,j,k
       INTEGER          :: kmn
       CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=1)             :: si
+
 
 !
 ! Sets Ek to zero
@@ -231,7 +248,12 @@
       CALL MPI_REDUCE(Ekp,Eptot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
-         OPEN(1,file='sspecperp.' // nmb // '.txt')
+         IF ( present(isc) ) THEN
+           WRITE(si,'(i1.1)') isc
+           OPEN(1,file='s' // si // 'specperp.' // nmb // '.txt')
+         ELSE
+           OPEN(1,file='sspecperp.' // nmb // '.txt')
+         ENDIF
          DO j =1,n/2+1
          WRITE(1,FMT='(E23.15,E23.15)') Ektot(j),Eptot(j)
          END DO
