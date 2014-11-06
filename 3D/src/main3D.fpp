@@ -119,11 +119,26 @@
 #define ROTATION_
 #endif
 
+#ifdef MPROTH_SOL
+#define DNS_
+#define VELOC_
+#define ROTATION_
+#define MULTISCALAR_
+#endif
+
 #ifdef BOUSS_SOL
 #define DNS_
 #define VELOC_
 #define SCALAR_
 #define BOUSSINESQ_
+#endif
+
+#ifdef MBOUSS_SOL
+#define DNS_
+#define VELOC_
+#define SCALAR_
+#define BOUSSINESQ_
+#define MULTISCALAR_
 #endif
 
 #ifdef ROTBOUSS_SOL
@@ -132,6 +147,15 @@
 #define SCALAR_
 #define ROTATION_
 #define BOUSSINESQ_
+#endif
+
+#ifdef MROTBOUSS_SOL
+#define DNS_
+#define VELOC_
+#define SCALAR_
+#define ROTATION_
+#define BOUSSINESQ_
+#define MULTISCALAR_
 #endif
 
 #ifdef GPE_SOL
@@ -618,10 +642,10 @@
       ALLOCATE( C24(n,n,ista:iend) )
       ALLOCATE( th1(n,n,ista:iend) )
       ALLOCATE( th2(n,n,ista:iend) )
-      ALLOCATE( th3(n,n,ista:iend) )
+!!    ALLOCATE( th3(n,n,ista:iend) )
       ALLOCATE( fs1(n,n,ista:iend) )
       ALLOCATE( fs2(n,n,ista:iend) )
-      ALLOCATE( fs3(n,n,ista:iend) )
+!!    ALLOCATE( fs3(n,n,ista:iend) )
 #endif
 #ifdef MAGFIELD_
       ALLOCATE( C9(n,n,ista:iend),  C10(n,n,ista:iend) )
@@ -1328,7 +1352,7 @@
 #ifdef MULTISCALAR_
          ALLOCATE( M8 (n,n,ista:iend) )
          ALLOCATE( M9 (n,n,ista:iend) )
-         ALLOCATE( M10(n,n,ista:iend) )
+!!       ALLOCATE( M10(n,n,ista:iend) )
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -1336,7 +1360,7 @@
                DO k = 1,n
                   M8 (k,j,i) = 0.0_GP
                   M9 (k,j,i) = 0.0_GP
-                  M10(k,j,i) = 0.0_GP
+!!                M10(k,j,i) = 0.0_GP
                END DO
             END DO
          END DO
@@ -1512,15 +1536,15 @@
          CALL fftp3d_real_to_complex(planrc,R1,th1,MPI_COMM_WORLD)
          CALL io_read(1,idir,'th2',ext,planio,R1)
          CALL fftp3d_real_to_complex(planrc,R1,th1,MPI_COMM_WORLD)
-         CALL io_read(1,idir,'th3',ext,planio,R1)
-         CALL fftp3d_real_to_complex(planrc,R1,th1,MPI_COMM_WORLD)
+!!       CALL io_read(1,idir,'th3',ext,planio,R1)
+!!       CALL fftp3d_real_to_complex(planrc,R1,th1,MPI_COMM_WORLD)
          IF (mean.eq.1) THEN
             CALL io_read(1,idir,'mean_th1',ext,planio,R1)
             CALL fftp3d_real_to_complex(planrc,R1,M8 ,MPI_COMM_WORLD)
             CALL io_read(1,idir,'mean_th2',ext,planio,R1)
             CALL fftp3d_real_to_complex(planrc,R1,M9 ,MPI_COMM_WORLD)
-            CALL io_read(1,idir,'mean_th3',ext,planio,R1)
-            CALL fftp3d_real_to_complex(planrc,R1,M10,MPI_COMM_WORLD)
+!!          CALL io_read(1,idir,'mean_th3',ext,planio,R1)
+!!          CALL fftp3d_real_to_complex(planrc,R1,M10,MPI_COMM_WORLD)
             dump = real(ini,kind=GP)/cstep
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
@@ -1529,7 +1553,7 @@
                   DO k = 1,n
                      M8 (k,j,i) = dump*M8 (k,j,i)
                      M9 (k,j,i) = dump*M9 (k,j,i)
-                     M10(k,j,i) = dump*M10(k,j,i)
+!!                   M10(k,j,i) = dump*M10(k,j,i)
                  END DO
                END DO
             END DO
@@ -1738,8 +1762,8 @@
                      fs1(1,n-j+2,1) = fs1(1,n-j+2,1)*jdumr
                      fs2(1,j,1) = fs2(1,j,1)*cdumr
                      fs2(1,n-j+2,1) = fs2(1,n-j+2,1)*jdumr
-                     fs3(1,j,1) = fs3(1,j,1)*cdumr
-                     fs3(1,n-j+2,1) = fs3(1,n-j+2,1)*jdumr
+!!                   fs3(1,j,1) = fs3(1,j,1)*cdumr
+ !                   fs3(1,n-j+2,1) = fs3(1,n-j+2,1)*jdumr
 #endif
 #ifdef MAGFIELD_
                      mx(1,j,1) = mx(1,j,1)*cdumq
@@ -1767,8 +1791,8 @@
                      fs1(n-k+2,1,1) = fs1(n-k+2,1,1)*jdumr
                      fs2(k,1,1) = fs2(k,1,1)*cdumr
                      fs2(n-k+2,1,1) = fs2(n-k+2,1,1)*jdumr
-                     fs3(k,1,1) = fs3(k,1,1)*cdumr
-                     fs3(n-k+2,1,1) = fs3(n-k+2,1,1)*jdumr
+!!                   fs3(k,1,1) = fs3(k,1,1)*cdumr
+!!                   fs3(n-k+2,1,1) = fs3(n-k+2,1,1)*jdumr
 #endif
 #ifdef MAGFIELD_
                      mx(k,1,1) = mx(k,1,1)*cdumq
@@ -1797,8 +1821,8 @@
                         fs1(n-k+2,n-j+2,1) = fs1(n-k+2,n-j+2,1)*jdumr
                         fs2(k,j,1) = fs2(k,j,1)*cdumr
                         fs2(n-k+2,n-j+2,1) = fs2(n-k+2,n-j+2,1)*jdumr
-                        fs3(k,j,1) = fs3(k,j,1)*cdumr
-                        fs3(n-k+2,n-j+2,1) = fs3(n-k+2,n-j+2,1)*jdumr
+!!                      fs3(k,j,1) = fs3(k,j,1)*cdumr
+!!                      fs3(n-k+2,n-j+2,1) = fs3(n-k+2,n-j+2,1)*jdumr
 #endif
 #ifdef MAGFIELD_
                         mx(k,j,1) = mx(k,j,1)*cdumq
@@ -1824,7 +1848,7 @@
 #ifdef MULTISCALAR_
                            fs1(k,j,i) = fs1(k,j,i)*cdumr
                            fs2(k,j,i) = fs2(k,j,i)*cdumr
-                           fs3(k,j,i) = fs3(k,j,i)*cdumr
+!                          fs3(k,j,i) = fs3(k,j,i)*cdumr
 #endif
 #ifdef MAGFIELD_
                            mx(k,j,i) = mx(k,j,i)*cdumq
@@ -1849,7 +1873,7 @@
 #ifdef MULTISCALAR_
                            fs1(k,j,i) = fs1(k,j,i)*cdumr
                            fs2(k,j,i) = fs2(k,j,i)*cdumr
-                           fs3(k,j,i) = fs3(k,j,i)*cdumr
+!                          fs3(k,j,i) = fs3(k,j,i)*cdumr
 #endif
 #ifdef MAGFIELD_
                            mx(k,j,i) = mx(k,j,i)*cdumq
@@ -2018,7 +2042,7 @@
                   DO k = 1,n
                      C1(k,j,i) = th1(k,j,i)/real(n,kind=GP)**3
                      C2(k,j,i) = th2(k,j,i)/real(n,kind=GP)**3
-                     C3(k,j,i) = th3(k,j,i)/real(n,kind=GP)**3
+!!                   C3(k,j,i) = th3(k,j,i)/real(n,kind=GP)**3
                   END DO
                END DO
             END DO
@@ -2026,8 +2050,8 @@
             CALL io_write(1,odir,'th1',ext,planio,R1)
             CALL fftp3d_complex_to_real(plancr,C2,R1,MPI_COMM_WORLD)
             CALL io_write(1,odir,'th2',ext,planio,R1)
-            CALL fftp3d_complex_to_real(plancr,C3,R1,MPI_COMM_WORLD)
-            CALL io_write(1,odir,'th3',ext,planio,R1)
+!!          CALL fftp3d_complex_to_real(plancr,C3,R1,MPI_COMM_WORLD)
+!!          CALL io_write(1,odir,'th3',ext,planio,R1)
             IF (mean.eq.1) THEN
                dump = real(cstep,kind=GP)/t
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -2037,7 +2061,7 @@
                      DO k = 1,n
                         C1(k,j,i) = dump*M8 (k,j,i)/real(n,kind=GP)**3
                         C2(k,j,i) = dump*M9 (k,j,i)/real(n,kind=GP)**3
-                        C3(k,j,i) = dump*M10(k,j,i)/real(n,kind=GP)**3
+!!                      C3(k,j,i) = dump*M10(k,j,i)/real(n,kind=GP)**3
                      END DO
                   END DO
                END DO
@@ -2045,8 +2069,8 @@
                CALL io_write(1,odir,'mean_th1',ext,planio,R1)
                CALL fftp3d_complex_to_real(plancr,C2,R1,MPI_COMM_WORLD)
                CALL io_write(1,odir,'mean_th2',ext,planio,R1)
-               CALL fftp3d_complex_to_real(plancr,C3,R1,MPI_COMM_WORLD)
-               CALL io_write(1,odir,'mean_th3',ext,planio,R1)
+!!             CALL fftp3d_complex_to_real(plancr,C3,R1,MPI_COMM_WORLD)
+!!             CALL io_write(1,odir,'mean_th3',ext,planio,R1)
             ENDIF
 #endif
 #ifdef MAGFIELD_
@@ -2190,6 +2214,9 @@
 #ifdef PROTH_SOL
             INCLUDE 'phd_global.f90'
 #endif
+#ifdef MPROTH_SOL
+            INCLUDE 'mproth_global.f90'
+#endif
 #if defined(BOUSS_SOL) 
             INCLUDE 'bouss_global.f90'
 #endif
@@ -2253,7 +2280,7 @@
                      DO k = 1,n
                         M8 (k,j,i) = M8 (k,j,i)+th1(k,j,i)
                         M9 (k,j,i) = M9 (k,j,i)+th2(k,j,i)
-                        M10(k,j,i) = M10(k,j,i)+th3(k,j,i)
+!!                      M10(k,j,i) = M10(k,j,i)+th3(k,j,i)
                      END DO
                   END DO
                END DO
@@ -2307,6 +2334,9 @@
 #endif
 #ifdef ROTH_SOL
             INCLUDE 'roth_spectrum.f90'
+#endif
+#ifdef MPROTH_SOL
+            INCLUDE 'mproth_spectrum.f90'
 #endif
 #ifdef PROTH_SOL
             INCLUDE 'proth_spectrum.f90'
@@ -2376,6 +2406,9 @@
 #ifdef ROTH_SOL
          INCLUDE 'hd_rkstep1.f90'
 #endif
+#ifdef MPROTH_SOL
+         INCLUDE 'mproth_rkstep1.f90'
+#endif
 #ifdef PROTH_SOL
          INCLUDE 'phd_rkstep1.f90'
 #endif
@@ -2441,6 +2474,9 @@
 #endif
 #ifdef ROTH_SOL
          INCLUDE 'roth_rkstep2.f90'
+#endif
+#ifdef MPROTH_SOL
+         INCLUDE 'mproth_rkstep2.f90'
 #endif
 #ifdef PROTH_SOL
          INCLUDE 'proth_rkstep2.f90'
