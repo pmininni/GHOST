@@ -133,7 +133,7 @@
 #define BOUSSINESQ_
 #endif
 
-#ifdef MBOUSS_SOL
+#ifdef MPBOUSS_SOL
 #define DNS_
 #define VELOC_
 #define SCALAR_
@@ -149,7 +149,7 @@
 #define BOUSSINESQ_
 #endif
 
-#ifdef MROTBOUSS_SOL
+#ifdef MPROTBOUSS_SOL
 #define DNS_
 #define VELOC_
 #define SCALAR_
@@ -353,19 +353,20 @@
 #endif
 #ifdef SCALAR_
       REAL(KIND=GP)    :: kappa
-      REAL(KIND=GP)    :: skup,skdn
       REAL(KIND=GP)    :: c0,s0
       REAL(KIND=GP)    :: cparam0,cparam1,cparam2,cparam3,cparam4
       REAL(KIND=GP)    :: cparam5,cparam6,cparam7,cparam8,cparam9
       REAL(KIND=GP)    :: sparam0,sparam1,sparam2,sparam3,sparam4
       REAL(KIND=GP)    :: sparam5,sparam6,sparam7,sparam8,sparam9
 #endif
+#if defined(SCALAR_) || defined(MULTISCALAR_)
+      REAL(KIND=GP)    :: skup,skdn
+#endif
 #ifdef MULTISCALAR_
       DOUBLE PRECISION :: tmp1,tmq1,tmp2,tmq2,tmp3,tmq3
       REAL(KIND=GP)    :: kappa1,kappa2,kappa3
       REAL(KIND=GP)    :: rmp1,rmq1,rmp2,rmq2,rmp3,rmq3
-      REAL(KIND=GP)    :: skup,skdn
-      REAL(KIND=GP)    :: c10,s10,c20,s20,c30,s30
+      REAL(KIND=GP)    :: cc10,ss10,cc20,ss20,cc30,ss30
       REAL(KIND=GP)    :: c1param0,c1param1,c1param2,c1param3,c1param4
       REAL(KIND=GP)    :: c1param5,c1param6,c1param7,c1param8,c1param9
       REAL(KIND=GP)    :: s1param0,s1param1,s1param2,s1param3,s1param4
@@ -479,7 +480,7 @@
       NAMELIST / scalar / sparam7,sparam8,sparam9
 #endif
 #ifdef MULTISCALAR_
-      NAMELIST / mscalar / c10,s10,c20,s20,c30,s30
+      NAMELIST / mscalar / cc10,ss10,cc20,ss20,cc30,ss30
       NAMELIST / mscalar / skdn,skup
       NAMELIST / mscalar / kappa1,kappa2,kappa3
       NAMELIST / mscalar / c1param0,c1param1,c1param2,c1param3,c1param4 
@@ -969,12 +970,12 @@
          READ(1,NML=mscalar)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(c10     ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(c20     ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(c30     ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(s10     ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(s20     ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(s30     ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cc10   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cc20   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cc30   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ss10   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ss20   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ss30   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(skdn   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(skup   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(kappa1  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
@@ -1531,13 +1532,13 @@
 #endif
 
 #ifdef MULTISCALAR_
- INJ: IF (injt.eq.0) THEN
+ INJM: IF (injt.eq.0) THEN
          CALL io_read(1,idir,'th1',ext,planio,R1)
          CALL fftp3d_real_to_complex(planrc,R1,th1,MPI_COMM_WORLD)
          CALL io_read(1,idir,'th2',ext,planio,R1)
-         CALL fftp3d_real_to_complex(planrc,R1,th1,MPI_COMM_WORLD)
+         CALL fftp3d_real_to_complex(planrc,R1,th2,MPI_COMM_WORLD)
 !!       CALL io_read(1,idir,'th3',ext,planio,R1)
-!!       CALL fftp3d_real_to_complex(planrc,R1,th1,MPI_COMM_WORLD)
+!!       CALL fftp3d_real_to_complex(planrc,R1,th3,MPI_COMM_WORLD)
          IF (mean.eq.1) THEN
             CALL io_read(1,idir,'mean_th1',ext,planio,R1)
             CALL fftp3d_real_to_complex(planrc,R1,M8 ,MPI_COMM_WORLD)
@@ -1570,7 +1571,7 @@
          times = sstep
          timep = pstep
          ENDIF
-      ENDIF INJ
+      ENDIF INJM
 #endif
 
 #ifdef MAGFIELD_
@@ -2223,6 +2224,9 @@
 #if defined(ROTBOUSS_SOL)
             INCLUDE 'rotbouss_global.f90'
 #endif
+#if defined(MPROTBOUSS_SOL)
+            INCLUDE 'mprotbouss_global.f90'
+#endif
 #ifdef GPE_SOL
             INCLUDE 'gpe_global.f90'
 #endif
@@ -2347,6 +2351,9 @@
 #ifdef ROTBOUSS_SOL
             INCLUDE 'rotbouss_spectrum.f90'
 #endif
+#ifdef MPROTBOUSS_SOL
+            INCLUDE 'mprotbouss_spectrum.f90'
+#endif
 #ifdef GPE_SOL
             INCLUDE 'gpe_spectrum.f90'
 #endif
@@ -2414,6 +2421,9 @@
 #endif
 #if defined(BOUSS_SOL) || defined(ROTBOUSS_SOL)
          INCLUDE 'phd_rkstep1.f90'
+#endif
+#if defined(MPROTBOUSS_SOL)
+         INCLUDE 'mprotbouss_rkstep1.f90'
 #endif
 #ifdef GPE_SOL
          INCLUDE 'gpe_rkstep1.f90'
@@ -2486,6 +2496,9 @@
 #endif
 #ifdef ROTBOUSS_SOL
          INCLUDE 'rotbouss_rkstep2.f90'
+#endif
+#ifdef MPROTBOUSS_SOL
+         INCLUDE 'mprotbouss_rkstep2.f90'
 #endif
 #ifdef GPE_SOL
          INCLUDE 'gpe_rkstep2.f90'
