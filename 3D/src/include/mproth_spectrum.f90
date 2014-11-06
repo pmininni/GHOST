@@ -17,7 +17,6 @@
 !           CALL difucz(vz,th,ext)
 
             CALL spec2D(vx,vy,vz,ext,odir,1,1)
-            CALL specsc2D(th,ext,odir)
             CALL specsc2D(th1,ext,odir,1)
             CALL specsc2D(th2,ext,odir,2)
             CALL specsc2D(th3,ext,odir,3)
