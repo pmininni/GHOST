@@ -67,6 +67,7 @@ CPP_PGI       = /usr/bin/cpp -traditional-cpp
 FC_PGI        = /opt/pgi/linux86/8.0-5/bin/pgf90
 CC_PGI        = /opt/pgi/linux86/8.0-5/bin/pgcc
 FFLAGS_PGI    = -fastsse -Minline -Minfo=loop,inline -Mneginfo -g77libs
+FPSPEC_PGI    = -O2
 CFLAGS_PGI    = -fastsse -Minline 
 PGI_OMP       = -mp
 TARGET_PGI    =
@@ -76,6 +77,8 @@ CPP_XLF       = /usr/ccs/lib/cpp -P
 FC_XLF        = mpxlf90_r
 CC_XLF        = mpxlc_r
 FFLAGS_XLF    = -q64 -O5 -qenablevmx -qhot=simd -qipa=malloc16 -qvecnvol \
+  -qalign -Q -qsuffix=f=f90 -bdatapsize:64K -bstackpsize:64K
+FPSPEC_XLF    = -q64 -O2 -qenablevmx -qhot=simd -qipa=malloc16 -qvecnvol \
   -qalign -Q -qsuffix=f=f90 -bdatapsize:64K -bstackpsize:64K
 CFLAGS_XLF    = -q64 -O5 -qenablevmx -qhot=simd -qipa=malloc16 -qvecnvol \
   -qalign -Q -bdatapsize:64K -bstackpsize:64K
@@ -87,6 +90,7 @@ CPP_ABSOFT    = /usr/bin/cpp -traditional-cpp
 FC_ABSOFT     = /usr/absoft/bin/f90
 CC_ABSOFT     = /usr/absoft/bin/cc
 FFLAGS_ABSOFT = -O -YEXT_SFX=__ -YEXT_NAMES=LCS
+FPSPEC_ABSOFT = -YEXT_SFX=__ -YEXT_NAMES=LCS
 CFLAGS_ABSOFT = -O 
 ABSOFT_OMP    = 
 TARGET_ABSOFT =
@@ -96,6 +100,7 @@ CPP_INTEL     = /usr/bin/cpp -traditional-cpp
 FC_INTEL      = /opt/intel/fce/9.1/bin/ifort
 CC_INTEL      = /opt/intel/fce/9.1/bin/icc
 FFLAGS_INTEL  = -O3 -ip -pad -unroll -opt_report -align -w -i-static
+FPSPEC_INTEL  = -O1 -ip -pad -unroll -opt_report -align -w -i-static
 CFLAGS_INTEL  = -O3 -ip -pad -unroll -opt_report -align -w -i-static
 INTEL_OMP     = -openmp
 TARGET_INTEL  = 
@@ -104,7 +109,8 @@ TARGET_INTEL  =
 CPP_GNU       = cpp -traditional-cpp
 FC_GNU        = gfortran
 CC_GNU        = gcc
-FFLAGS_GNU    = -O0 -fbounds-check -fcheck=all
+FFLAGS_GNU    = -O4 -fbounds-check -fcheck=all
+FPSPEC_GNU    = -O1 
 CFLAGS_GNU    = -O4
 GNU_OMP       = -fopenmp
 TARGET_GNU    = -msse
@@ -114,6 +120,7 @@ CPP_G95       = /usr/bin/cpp -traditional-cpp -P
 FC_G95        = /opt/g95-x86_64-32/bin/g95
 CC_G95        = /opt/g95-x86_64-32/bin/gcc
 FFLAGS_G95    = -O4 -w
+FPSPEC_G95    = -O2 -w
 CFLAGS_G95    = -O4 -w
 G95_OMP       = 
 TARGET_G95    = -msse

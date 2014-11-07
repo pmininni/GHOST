@@ -14,6 +14,7 @@ include Makefile.in
 CPP         = $(CPP_$(COMPILER))
 FC          = $(FC_$(COMPILER))
 FFLAGS      = $(FFLAGS_$(COMPILER))
+FPSPEC      = $(FPSPEC_$(COMPILER))
 TARGET_ARCH = $(TARGET_$(COMPILER))
 MPIINC      = $(MPIINC_$(MPI))
 MPILIB      = $(MPILIB_$(MPI))
@@ -107,6 +108,7 @@ INCLUDE     = $(MPIINC) $(FFTTINC) -I$(FFTPDIR) -I$(GHOME)/$(IOLIB) -I$(GHOME)/u
 CPPFLAGS    = -D$(SOLVER)_SOL $(CUDA_GHOST$(P_CUDA)) $(IODEF$(IOLIB))
 PREPROCESS  = $(CPP) $(CPPFLAGS) $(GDEF)
 COMPILE     = $(FC) $(FFLAGS) $(DO_HYBRID$(P_HYBRID)) $(INCLUDE) $(TARGET_ARCH) -c
+SPECOMP     = $(FC) $(FPSPEC) $(DO_HYBRID$(P_HYBRID)) $(INCLUDE) $(TARGET_ARCH) -c
 CCOMPILE    = $(CC) $(CFLAGS) $(INCLUDE) $(TARGET_ARCH) -c
 CUCOMPILE   = $(CUCC) $(CUGENCODE) $(CUARCH) $(CUINC) -I$(FFTPDIR) $(CUFLAGS) -c
 BIN         = ../bin
@@ -119,8 +121,10 @@ HMHD_OBJS      = $(MHD_OBJS)
 HMHDB_OBJS     = $(MHDB_OBJS)
 ROTH_OBJS      = $(HD_OBJS) pseudospec3D_rot.o
 PROTH_OBJS     = $(PHD_OBJS) pseudospec3D_rot.o pseudospec3D_prot.o
+MPROTH_OBJS    = $(PROTH_OBJS) 
 BOUSS_OBJS     = $(PROTH_OBJS) pseudospec3D_bouss.o
 ROTBOUSS_OBJS  = $(PROTH_OBJS) pseudospec3D_bouss.o
+MPROTBOUSS_OBJS= $(MPROTH_OBJS) pseudospec3D_bouss.o
 GPE_OBJS       = $(PHD_OBJS) pseudospec3D_mhd.o pseudospec3D_gpe.o
 ARGL_OBJS      = $(GPE_OBJS)
 ALPHA_OBJS     = module_lles.o pseudospec3D_filt.o
@@ -142,7 +146,7 @@ GTIMER         = $(UTILS)/gtimer_mod.o
 GUTILS         = $(UTILS)/gutils_mod.o 
 GMISC          = $(GUTILS) $(UTILS)/regridutils.o
 
-all: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(UTILS)/gutils_mod.o $(OBJS) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
+all: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o $(UTILS)/gutils_mod.o $(IOLIB)/binary_io.o $(OBJS) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
 
 main: all
 
@@ -154,18 +158,18 @@ cancel: edit $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS)
 	$(MAKE) $@$(SOLVER)
 	$(MAKE) undo
 
-struc:	edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) $(STRU_OBJS)
+struc:	edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS) $(IOLIB)/binary_io.o $(OBJS) $(STRU_OBJS)
 	$(MAKE) $@$(SOLVER)
 	$(MAKE) undo
 
-trunc:	edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(GMISC) $(OBJS) 
+trunc:	edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS) $(IOLIB)/binary_io.o $(GMISC) $(OBJS) 
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(GMISC) $(GTIMER) $(OBJS) \
            $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
-boots: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(GMISC) $(OBJS)
+boots: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS) $(IOLIB)/binary_io.o $(GMISC) $(OBJS)
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(GMISC) $(GTIMER) $(OBJS) \
@@ -179,7 +183,7 @@ vt:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(GMISC) $(OBJS)
            $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
-shear: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(GMISC) $(OBJS)
+shear: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS) $(IOLIB)/binary_io.o $(GMISC) $(OBJS)
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(GMISC) $(GTIMER) $(OBJS) \
@@ -281,7 +285,7 @@ $(LAGP)/gpartcomm_mod.o:
 	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' INCLUDE='$(INCLUDE)' gpartcomm_mod.o
 
 $(LAGP)/gpsplineint_mod.o:
-	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' INCLUDE='$(INCLUDE)' gpsplineint_mod.o
+	cd $(LAGP) && $(MAKE) COMPILE='$(SPECOMP)' INCLUDE='$(INCLUDE)' gpsplineint_mod.o
 
 $(LAGP)/gparts_mod.o:
 	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' INCLUDE='$(INCLUDE)' gparts_mod.o
