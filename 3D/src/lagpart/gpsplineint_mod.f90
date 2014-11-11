@@ -439,7 +439,7 @@ MODULE class_GPSplineInt
     REAL(KIND=GP),INTENT(IN),DIMENSION(*) :: xp,yp
     INTEGER      ,INTENT(IN)              :: np
     INTEGER                               :: j,nx,ny
-    LOGICAL                               :: bok
+    LOGICAL                               :: bok,btmp
 
     ! Compute interval-normalized positions and
     ! indices into control point array in x, y directions:
@@ -464,10 +464,11 @@ MODULE class_GPSplineInt
     ! 
     ! First, do a check:
     bok = .true.
-!$omp parallel do 
+!$omp parallel do private(btmp)
     DO j = 1, np
+      btmp = (yp(j).GE.this%xbnds_(2,1).AND.yp(j).LT.this%xbnds_(2,2))
 !$omp atomic
-      bok = bok .AND. (yp(j).GE.this%xbnds_(2,1).AND.yp(j).LT.this%xbnds_(2,2))
+      bok = bok .AND. btmp
     ENDDO
     IF ( .NOT. bok ) THEN
       WRITE(*,*) 'GPSplineInt::PartUpdate2D: Invalid particle y-range'
@@ -512,7 +513,7 @@ MODULE class_GPSplineInt
     REAL(KIND=GP),INTENT(IN),DIMENSION(*) :: xp,yp,zp
     INTEGER      ,INTENT(IN)              :: np
     INTEGER                               :: j,km,nx,ny,nz
-    LOGICAL                               :: bok
+    LOGICAL                               :: bok,btmp
 
 
     ! Compute interval-normalized positions and
@@ -551,10 +552,11 @@ MODULE class_GPSplineInt
     ! 
     ! First, do a check:
     bok = .true.
-!$omp parallel do 
+!$omp parallel do private(btmp)
     DO j = 1, np
+      btmp = (zp(j).GE.this%xbnds_(3,1).AND.zp(j).LT.this%xbnds_(3,2))
 !$omp atomic
-      bok = bok .AND. (zp(j).GE.this%xbnds_(3,1).AND.zp(j).LT.this%xbnds_(3,2))
+      bok = bok .AND. btmp
       IF ( .NOT. bok ) THEN
         WRITE(*,*) 'GPSplineInt::PartUpdate3D: Invalid particle z-range'
         WRITE(*,*) 'GPSplineInt::zbnd_0=',this%xbnds_(3,1),';  zbnd_1=',this%xbnds_(3,2), 'zp=',zp(j)
