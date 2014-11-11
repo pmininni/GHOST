@@ -874,7 +874,7 @@ MODULE class_GPSplineInt
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!! x-field computation !!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!$omp parallel do private(j,km,jm) shared(tmp2)
+!$omp parallel do private(j,km,jm) 
     DO k=1,nz
       km = k-1
       DO j=1,ny
@@ -883,8 +883,8 @@ MODULE class_GPSplineInt
         tmp2(nx+jm*nx+km*nxy) = field(nx+jm*nx+km*nxy)
       ENDDO
     ENDDO
+
 !
-!!$omp parallel do private(j,k,km,jm) shared(tmp2)
     DO i=2,nx-2
       DO k=1,nz
         km = k-1
@@ -896,8 +896,7 @@ MODULE class_GPSplineInt
         ENDDO
       ENDDO
     ENDDO
-!
-!!$omp parallel do private(j,km,jm) shared(tmp2)
+
     DO k=1,nz
       km = k-1
       DO j=1,ny
@@ -914,7 +913,6 @@ MODULE class_GPSplineInt
       ENDDO
     ENDDO
 !
-!!$omp parallel do private(j,km,jm) shared(tmp2)
     DO  i=nx-2,1,-1
       DO j=1,ny
         jm = j-1
@@ -927,7 +925,7 @@ MODULE class_GPSplineInt
     ENDDO
 
 !  Copy splfld -> field :
-!!$omp parallel do private(i,j,km,jm)
+!$omp parallel do private(i,j,km,jm)
     DO k=1,nz
       km = k-1
       DO j=1,ny
@@ -943,7 +941,7 @@ MODULE class_GPSplineInt
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
 !  Compute the j-equation (coefficients in y) :
-!!$omp parallel do private(i,km) shared(tmp2)
+!$omp parallel do private(i,km)
     DO k=1,nz
       km = k-1
       DO i=1,nx
@@ -952,7 +950,6 @@ MODULE class_GPSplineInt
       ENDDO
     ENDDO
 !!
-!!$omp parallel do private(i,k,jm,km) shared(tmp2)
     DO j=2,ny-2
       jm = j-1
       DO k=1,nz
@@ -965,7 +962,6 @@ MODULE class_GPSplineInt
        ENDDO
     ENDDO
 !  ** n-1 **
-!!$omp parallel do private(i,km) shared(tmp2)
     DO k=1,nz
       km = k-1
       DO i=1,nx
@@ -980,7 +976,6 @@ MODULE class_GPSplineInt
       ENDDO
     ENDDO
 !
-!!$omp parallel do private(i,jm,k,km) shared(tmp2)
     DO  j=ny-2,1,-1
       jm = j-1
       DO i=1,nx
@@ -993,7 +988,7 @@ MODULE class_GPSplineInt
     ENDDO
  
 !  Copy splfld -> field :
-!!$omp parallel do private(i,jm,j,km)
+!$omp parallel do private(i,jm,j,km)
     DO k=1,nz
       km = k-1
       DO j=1,ny
@@ -1041,7 +1036,7 @@ MODULE class_GPSplineInt
 !  
 !  tmp2  <== spline coeff. field;
 !  field <== 'field', semi-'tensored' with spl. coeffs
-!!$omp parallel do private(j,jm,km) shared(tmp2)
+!$omp parallel do private(j,jm,km)
     DO k=1,nz
       km = k-1
       DO j=1,ny
@@ -1051,7 +1046,6 @@ MODULE class_GPSplineInt
       ENDDO
     ENDDO
 !
-!!$omp parallel do private(j,jm,k,km) shared(tmp2)
     DO i=2,nx-2
       DO k=1,nz
         km = k-1
@@ -1064,7 +1058,6 @@ MODULE class_GPSplineInt
       ENDDO
     ENDDO
 !
-!!$omp parallel do private(j,jm,km) shared(tmp2)
     DO k=1,nz
       km = k-1
       DO j=1,ny
@@ -1081,7 +1074,6 @@ MODULE class_GPSplineInt
       ENDDO
     ENDDO
 !
-!$omp parallel do private(k,km,j,jm) shared(tmp2)
     DO i=nx-2,1,-1
       DO j=1,ny
         jm = j-1
