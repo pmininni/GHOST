@@ -4,9 +4,9 @@
             CALL specpara(vx,vy,vz,ext,1,1)
             CALL specperp(vx,vy,vz,ext,1,1)
 
-            CALL spectrsc(th,ext)
-            CALL specscpa(th,ext)
-            CALL specscpe(th,ext)
+            CALL spectrsc(th,ext,0)
+            CALL specscpa(th,ext,0)
+            CALL specscpe(th,ext,0)
 
             CALL spectrsc(th1,ext,1)
             CALL specscpa(th1,ext,1)
@@ -21,7 +21,7 @@
 !!          CALL specscpe(th3,ext,3)
 
             CALL spec2D(vx,vy,vz,ext,odir,1,1)
-            CALL specsc2D(th,ext,odir)
+            CALL specsc2D(th ,ext,odir,0)
             CALL specsc2D(th1,ext,odir,1)
             CALL specsc2D(th2,ext,odir,2)
 !!          CALL specsc2D(th3,ext,odir,3)

@@ -3,11 +3,11 @@
             CALL spectrum(vx,vy,vz,ext,1,1)
             CALL specpara(vx,vy,vz,ext,1,1)
             CALL specperp(vx,vy,vz,ext,1,1)
-            CALL spectrsc(th,ext)
-            CALL specscpa(th,ext)
-            CALL specscpe(th,ext)
+            CALL spectrsc(th,ext,0)
+            CALL specscpa(th,ext,0)
+            CALL specscpe(th,ext,0)
             CALL spec2D(vx,vy,vz,ext,odir,1,1)
-            CALL specsc2D(th,ext,odir)
+            CALL specsc2D(th,ext,odir,0)
 !
             CALL havgwrite(0,'shear'  ,ext,vx,vy,vz,th,0.0_GP,bvfreq) ! hor. avg shear
             CALL havgwrite(1,'tgradz' ,ext,vx,vy,vz,th,0.0_GP,bvfreq) ! hor. avg dtheta/dz

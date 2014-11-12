@@ -3,11 +3,11 @@
             CALL spectrum(vx,vy,vz,ext,1,1)
             CALL specpara(vx,vy,vz,ext,1,1)
             CALL specperp(vx,vy,vz,ext,1,1)
-            CALL spectrsc(th,ext)
-            CALL specscpa(th,ext)
-            CALL specscpe(th,ext)
+            CALL spectrsc(th,ext,0)
+            CALL specscpa(th,ext,0)
+            CALL specscpe(th,ext,0)
             CALL spec2D(vx,vy,vz,ext,odir,1,1)
-            CALL specsc2D(th,ext,odir)
+            CALL specsc2D(th,ext,odir,0)
 !
             CALL havgwrite(0,'shear'  ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg shear
             CALL havgwrite(1,'tgradz' ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg dtheta/dz
@@ -18,4 +18,5 @@
             CALL havgwrite(6,'haomzt' ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg ometa_z * theta
             CALL havgwrite(7,'hapv2'  ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg pot'l vorticity^2
             CALL havgwrite(8,'hasuph' ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg super-helicity
+            CALL havgwrite(9,'hari'   ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg Richardson no.
 !           CALL spectpv(vx,vy,vz,th,ext)
