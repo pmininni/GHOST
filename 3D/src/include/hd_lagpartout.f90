@@ -80,6 +80,7 @@
 !
 !!!!!! Write nonlinear terms:!!!!!!
 !
+           if ( .false. ) then
            CALL prodre3(vx,vy,vz,C4,C5,C6)
            CALL fftp3d_complex_to_real(plancr,C4,R4,MPI_COMM_WORLD)
            tmp = 1.0D0/real(n,kind=GP)**3
@@ -121,6 +122,7 @@
 !          CALL lagfp%io_write_euler  (1,odir,'fpetranslg',lgext,(t-1)*dt,R5,.false.,R2,R3)
 !          ENDIF
 !
+           endif
 !!!!!!! Write strain-rate tensor components: !!!!!!
 !
            CALL derivk3(vx,C1,1)
