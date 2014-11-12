@@ -35,7 +35,7 @@
 ! Parameters
 !     a  : input matrix with the passive scalar
 !     nmb: the extension used when writting the file
-!     isc: (OPTIONAL) index to specify which scalar the spectrum 
+!     isc: index to specify which scalar the spectrum 
 !          represents; modifies output file name
 
 
@@ -52,7 +52,7 @@
       DOUBLE PRECISION :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
       REAL(KIND=GP)    :: tmp
-      INTEGER, INTENT(IN), OPTIONAL                          :: isc
+      INTEGER, INTENT(IN)                                    :: isc
       INTEGER          :: i,j,k
       INTEGER          :: kmn
       CHARACTER(len=*), INTENT(IN) :: nmb
@@ -118,7 +118,7 @@
       CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
-         IF ( present(isc) ) THEN
+         IF ( isc.gt.0 ) THEN
            WRITE(si,'(i1.1)') isc
            OPEN(1,file='s' // si // 'specpara.' // nmb // '.txt')
          ELSE
@@ -146,7 +146,7 @@
 ! Parameters
 !     a  : input matrix with the passive scalar
 !     nmb: the extension used when writting the file
-!     isc: (OPTIONAL) index to specify which scalar the spectrum 
+!     isc: index to specify which scalar the spectrum 
 !          represents; modifies output file name
 
 !
@@ -164,7 +164,7 @@
       DOUBLE PRECISION :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
       REAL(KIND=GP)    :: tmp
-      INTEGER, INTENT(IN), OPTIONAL                          :: isc
+      INTEGER, INTENT(IN)                                    :: isc
       INTEGER          :: i,j,k
       INTEGER          :: kmn
       CHARACTER(len=*), INTENT(IN) :: nmb
@@ -248,7 +248,7 @@
       CALL MPI_REDUCE(Ekp,Eptot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
-         IF ( present(isc) ) THEN
+         IF ( isc.gt.0 ) THEN
            WRITE(si,'(i1.1)') isc
            OPEN(1,file='s' // si // 'specperp.' // nmb // '.txt')
          ELSE
@@ -357,7 +357,7 @@
       CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
-         IF ( isc.GE.0 ) THEN
+         IF ( isc.gt.0 ) THEN
            WRITE(si,'(i1.1)')isc
            OPEN(1,file='s' // trim(si) // 'tranpara.' // nmb // '.txt')
          ELSE
@@ -465,7 +465,7 @@
       CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
-        IF ( isc.GE.0 ) THEN
+        IF ( isc.gt.0 ) THEN
            WRITE(si,'(i1.1)')isc
            OPEN(1,file='s' // trim(si) // 'tranpara.' // nmb // '.txt')
          ELSE
@@ -480,7 +480,7 @@
       END SUBROUTINE sctperp
 
 !*****************************************************************
-      SUBROUTINE specsc2D(a,nmb,dir)
+      SUBROUTINE specsc2D(a,nmb,dir,isc)
 !-----------------------------------------------------------------
 !
 ! Computes the axysimmetric power spectrum of the passive 
@@ -493,6 +493,7 @@
 !     a  : input matrix with the passive scalar
 !     nmb: the extension used when writting the file
 !     dir: directory where the files are written
+!     isc: if > 0, changes filename prefix
 !
       USE fprecision
       USE commtypes
@@ -507,9 +508,12 @@
       REAL(KIND=GP), DIMENSION(n/2+1,n/2+1)                  :: Ek,Ektot
       REAL(KIND=GP)       :: tmq,tmp
       INTEGER             :: i,j,k
+      INTEGER, INTENT(IN) :: isc
       INTEGER             :: kmn,kz
       CHARACTER(len=100), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
+      CHARACTER(len=1)               :: si
+      
 
 !
 ! Sets Ek to zero
@@ -581,8 +585,14 @@
       CALL MPI_REDUCE(Ek,Ektot,(n/2+1)*(n/2+1),GC_REAL,         &
                       MPI_SUM,0,MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
-         OPEN(1,file=trim(dir) // '/' // 'sspec2D.' // nmb //   &
-              '.out',form='unformatted')
+         IF ( isc.gt.0 ) THEN
+           WRITE(si,'(i1.1)') isc
+           OPEN(1,file=trim(dir) // '/' // si // 'spec2D.' // nmb //   &
+                '.out',form='unformatted')
+         ELSE
+           OPEN(1,file=trim(dir) // '/' // 'sspec2D.' // nmb //   &
+                '.out',form='unformatted')
+         ENDIF
          WRITE(1) Ektot
          CLOSE(1)
       ENDIF

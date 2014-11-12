@@ -433,7 +433,7 @@
 ! Parameters
 !     a  : input matrix with the scalar
 !     nmb: the extension used when writting the file
-!     isc: (OPTIONAL) index to specify which scalar the spectrum 
+!     isc: index to specify which scalar the spectrum 
 !          represents; modifies output file name
 !
       USE kes
@@ -443,9 +443,9 @@
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1)              :: Ek
+      DOUBLE PRECISION, DIMENSION(n/2+1)                     :: Ek
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
-      INTEGER, INTENT(IN), OPTIONAL                          :: isc
+      INTEGER, INTENT(IN)                                    :: isc
       CHARACTER(len=*), INTENT(IN) :: nmb
       CHARACTER(len=1)             :: si
 
@@ -457,7 +457,7 @@
 ! Exports the spectrum to a file
 !
       IF (myrank.eq.0) THEN
-         IF ( present(isc) ) THEN
+         IF ( isc.gt.0 ) THEN
            WRITE(si,'(i1.1)') isc
            OPEN(1,file='s' // si // 'spectrum.' // nmb // '.txt')
          ELSE
@@ -480,7 +480,7 @@
 ! Parameters
 !     a    : input matrix with the scalar
 !     Ektot: output power spectrum
-!     shift: (OPTIONAL) value that can be used to shift wavenumbers 
+!     shift: value that can be used to shift wavenumbers 
 !            (usually by 1) and get the spetrum to start at k=0 
 !
       USE fprecision
@@ -660,7 +660,7 @@
       CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
-        IF ( isc.GE.0 ) THEN
+        IF ( isc.GT.0 ) THEN
           WRITE(si,'(i1.1)') isc
           OPEN(1,file='s' // trim(si) // 'transfer.' // nmb // '.txt')
         ELSE
