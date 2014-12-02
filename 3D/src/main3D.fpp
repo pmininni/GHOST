@@ -339,7 +339,8 @@
 
       REAL(KIND=GP)    :: dt,nu,mu
       REAL(KIND=GP)    :: kup,kdn
-      REAL(KIND=GP)    :: rmp,rmq
+      REAL(KIND=GP)    :: rmp,rmq,rms
+      REAL(KIND=GP)    :: rmt,rm1,rm2
       REAL(KIND=GP)    :: dump
       REAL(KIND=GP)    :: stat
       REAL(KIND=GP)    :: f0,u0
@@ -1173,6 +1174,10 @@
       rho0 = 1.0_GP    !Default value
       kttherm = 0.0_GP !Default value
       cflow = 0        !Default value
+      IF ( ord.ne.1 ) THEN ! Check if the order is correct for ARGL
+         WRITE(*,*)'MAIN: ARGL solver must be compiled with ord=1'
+         STOP
+      ENDIF
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.txt',status='unknown',form="formatted")
          READ(1,NML=wavefunction)

@@ -6,43 +6,53 @@
 !    dzre/dt - alpha.Lap(zre) = omegag.zre - beta.|z|^2 zre + v.grad(zim) - |v^2|.zre/(4.alpha) + fre
 !    dzim/dt - alpha.Lap(zre) = omegag.zim - beta.|z|^2 zim - v.grad(zre) - |v^2|.zim/(4.alpha) + fim
 
-         IF (o.eq.1) THEN ! Only iterate once (first order)
+        IF (o.eq.1) THEN ! Only iterate once (first order)
 
-         CALL squareabs(zre,zim,R1,1)
-         IF (cflow.eq.0) THEN ! If not doing counterflow we have the |v^2| term
+        CALL squareabs(zre,zim,R1,1)
+        rmq = real(n,kind=GP)**3*omegag/beta
+        IF (cflow.eq.0) THEN ! If not doing counterflow we have the |v^2| term
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-            DO k = ksta,kend
+           DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-               DO j = 1,n
-                  DO i = 1,n
-                     R1(i,j,k) = -R1(i,j,k)-vsq(i,j,k)
-                  END DO
+              DO j = 1,n
+                 DO i = 1,n
+                    R1(i,j,k) = rmq-R1(i,j,k)-vsq(i,j,k)
+                 END DO
+              END DO
+           END DO
+         ELSE
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+         DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+            DO j = 1,n
+               DO i = 1,n
+                   R1(i,j,k) = rmq-R1(i,j,k)
                END DO
             END DO
-         ENDIF
-         CALL nonlgpe(R1,zre,C3)
-         CALL nonlgpe(R1,zim,C4)
-         CALL advect3(vx,vy,vz,zre,C5) ! -v.grad(zre)
-         CALL advect3(vx,vy,vz,zim,C6) ! -v.grad(zim)
+          END DO
+        ENDIF
+        CALL nonlgpe(R1,zre,C3)
+        CALL nonlgpe(R1,zim,C4)
+        CALL advect3(vx,vy,vz,zre,C5) ! -v.grad(zre)
+        CALL advect3(vx,vy,vz,zim,C6) ! -v.grad(zim)
 
-         rmq = 1.0_GP+dt*omegag
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
-         DO i = ista,iend
+        DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-         DO k = 1,n
-            IF (ka2(k,j,i).le.kmax) THEN
-               rmp = 1.0_GP/(1.0_GP+alpha*ka2(k,j,i)*dt)
-               zre(k,j,i) = (rmq*zre(k,j,i)+dt*(beta*C3(k,j,i) &
-                           -C6(k,j,i)+fre(k,j,i)))*rmp
-               zim(k,j,i) = (rmq*zim(k,j,i)+dt*(beta*C4(k,j,i) &
-                           +C5(k,j,i)+fim(k,j,i)))*rmp
-            ELSE
-               zre(k,j,i) = 0.0_GP
-               zim(k,j,i) = 0.0_GP
-            ENDIF
-         END DO
-         END DO
-         END DO
+        DO j = 1,n
+        DO k = 1,n
+           IF (ka2(k,j,i).le.kmax) THEN
+              rmp = 1.0_GP/(1.0_GP+alpha*ka2(k,j,i)*dt)
+              zre(k,j,i) = (zre(k,j,i)+dt*(beta*C3(k,j,i) &
+                          -C6(k,j,i)+fre(k,j,i)))*rmp
+              zim(k,j,i) = (zim(k,j,i)+dt*(beta*C4(k,j,i) &
+                          +C5(k,j,i)+fim(k,j,i)))*rmp
+           ELSE
+              zre(k,j,i) = 0.0_GP
+              zim(k,j,i) = 0.0_GP
+           ENDIF
+        END DO
+        END DO
+        END DO
 
-         ENDIF
+        ENDIF

@@ -153,7 +153,7 @@
 !
 ! Computes the mass, the kinetic plus quantum energy Ekq, and 
 ! the quartic term in the energy:
-!    Ekq    = 2.alpha^2.|z|^2
+!    Ekq    = 2.alpha^2.|grad(z)|^2
 !    Equart = alpha.beta.|z|^4
 ! The potential energy then is
 !    Epot = Equart-2*alpha.omegag.mass+alpha.omegag^2/beta

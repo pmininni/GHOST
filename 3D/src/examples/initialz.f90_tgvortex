@@ -9,48 +9,65 @@
 ! spectral space should be stored in the arrays zre and zim.
 
 ! Array of vortices for the TG flow
-!     zparam0 : amplitude of the perturbation
-!     zparam1 : length of the perturbation (in 2.pi units)
-
-! We generate the functions lambda (R1) and mu (R2)
-!$omp parallel do if (kend-ksta.ge.nth) private (i,j,rmp,rmq)
-      DO k = ksta,kend
-         rmp = sqrt(2*abs(cos(2*pi*(real(k,kind=GP)-1)/real(n,kind=GP))))
-         rmq = rmp*sign(1.,cos(2*pi*(real(k,kind=GP)-1)/real(n,kind=GP)))
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
-               R1(i,j,k) = cos(2*pi*(real(i,kind=GP)-1)/real(n,kind=GP))*rmp
-               R2(i,j,k) = cos(2*pi*(real(j,kind=GP)-1)/real(n,kind=GP))*rmq
-            END DO
-         END DO
-      END DO
-
-! We generate phi_e(R1-1./sqrt(2),R2)
+! Use with initialv.f90_tg without normalization (i.e., the 
+! call to 'normalize' in initialv should be commented out).
+!     kdn    : minimum wave number
+!     kup    : maximum wave number
+!     zparam0: amplitude of the perturbation
+!     zparam1: length of the perturbation (in 2.pi units)
 
       dump = 1.0_GP/sqrt(2.0_GP)
+
+! Sets the normalization for the entire wavefunction
 !$omp parallel do if (kend-ksta.ge.nth) private (i,j,rmp,rmq,cdump,cdumq)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i,rmp,rmq,cdump,cdumq)
          DO j = 1,n
             DO i = 1,n
-               rmp = 1.0_GP/sqrt(((R1(i,j,k)-dump)**2+R2(i,j,k)**2) &
-                               *((R2(i,j,k)-dump)**2+R1(i,j,k)**2)  &
-                               *((R1(i,j,k)+dump)**2+R2(i,j,k)**2)  &
-                               *((R2(i,j,k)+dump)**2+R1(i,j,k)**2))
-               rmq = tanh(dump*sqrt((R1(i,j,k)-dump)**2+R2(i,j,k)**2)/lambda) &
-                    *tanh(dump*sqrt((R2(i,j,k)-dump)**2+R1(i,j,k)**2)/lambda) &
-                    *tanh(dump*sqrt((R1(i,j,k)+dump)**2+R2(i,j,k)**2)/lambda) &
-                    *tanh(dump*sqrt((R2(i,j,k)+dump)**2+R1(i,j,k)**2)/lambda)
-               cdump = ((R1(i,j,k)-dump)+im*R2(i,j,k)) &
-                      *(R1(i,j,k)+im*(R2(i,j,k)-dump)) &
-                      *((R1(i,j,k)+dump)+im*R2(i,j,k)) &
-                      *(R1(i,j,k)+im*(R2(i,j,k)+dump))
-               cdumq = sqrt(omegag/beta)*(cdump*rmp*rmq)**int(1.0_GP/(2*pi*alpha))
-               R1(i,j,k) =  real(cdumq)
-               R2(i,j,k) = aimag(cdumq)
+               R1(i,j,k) = sqrt(omegag/beta)
+               R2(i,j,k) = sqrt(omegag/beta)
             END DO
          END DO
+      END DO
+
+! Computes a superposition of vortex filaments at different wavenumbers
+      DO ki = kdn,kup
+
+! We generate the functions lambda (rm1) and mu (rm2)
+!$omp parallel do if (kend-ksta.ge.nth) private (i,j,rmp,rmq)
+      DO k = ksta,kend
+         rmp = sqrt(2*abs(cos(2*pi*ki*(real(k,kind=GP)-1)/real(n,kind=GP))))
+         rmq = rmp*sign(1.0_GP,cos(2*pi*ki*(real(k,kind=GP)-1)/real(n,kind=GP)))
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+
+               rm1 = cos(2*pi*ki*(real(i,kind=GP)-1)/real(n,kind=GP))*rmp
+               rm2 = cos(2*pi*ki*(real(j,kind=GP)-1)/real(n,kind=GP))*rmq
+
+! We generate phi_e(rm1-1./sqrt(2),rm2)
+
+               rms = 1.0_GP/sqrt(((rm1-dump)**2+rm2**2)  &
+                                *((rm2-dump)**2+rm1**2)  &
+                                *((rm1+dump)**2+rm2**2)  &
+                                *((rm2+dump)**2+rm1**2))
+               rmt = tanh(dump*sqrt((rm1-dump)**2+rm2**2)/lambda) &
+                    *tanh(dump*sqrt((rm2-dump)**2+rm1**2)/lambda) &
+                    *tanh(dump*sqrt((rm1+dump)**2+rm2**2)/lambda) &
+                    *tanh(dump*sqrt((rm2+dump)**2+rm1**2)/lambda)
+               cdump = ((rm1-dump)+im*rm2)  &
+                       *(rm1+im*(rm2-dump)) &
+                      *((rm1+dump)+im*rm2)  &
+                       *(rm1+im*(rm2+dump))               
+               cdumq = (cdump*rms*rmt)**int(1.0_GP/(2*pi*alpha*ki))
+
+               R1(i,j,k) = R1(i,j,k)*real(cdumq)
+               R2(i,j,k) = R2(i,j,k)*aimag(cdumq)
+
+            END DO
+         END DO
+      END DO
+
       END DO
 
       CALL fftp3d_real_to_complex(planrc,R1,zre,MPI_COMM_WORLD)
