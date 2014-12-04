@@ -1443,7 +1443,7 @@ MODULE class_GPartComm
     REAL(KIND=GP),INTENT   (IN),DIMENSION(nparts) :: buff
 
     nb = 1
-    DO j = 1, buff(1)
+    DO j = 1, int(buff(1))
       nparts = nparts + 1
       id(nparts) = int(buff(nb+1))
       px(nparts) =      buff(nb+2)
@@ -1707,7 +1707,7 @@ MODULE class_GPartComm
     REAL(KIND=GP),INTENT   (IN),DIMENSION(*)   :: buff
 
     nb = 1
-    DO j = 1, buff(1)
+    DO j = 1, int(buff(1))
       nparts = nparts + 1
       pdb(nparts)%id = int(buff(nb+1))
       pdb(nparts)%x =      buff(nb+2)
