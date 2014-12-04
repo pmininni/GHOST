@@ -324,7 +324,7 @@
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vsq
 #endif
 #ifdef LAGPART_
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: R4,R5
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: R4,R5,R6
 #endif
 
 !
@@ -434,6 +434,7 @@
 #endif
 #ifdef LAGPART_
       REAL         :: rbal
+      REAL(KIND=GP):: tbeta(3)
       INTEGER      :: maxparts
       INTEGER      :: injtp
       INTEGER      :: cresetp
@@ -446,6 +447,7 @@
       INTEGER      :: blgdofp
       INTEGER      :: blgfpfilecoll
       INTEGER      :: dolag
+      INTEGER      :: dopacc
       INTEGER      :: nwpart
       TYPE (GPart) :: lagpart,lagfp
 #endif
@@ -537,7 +539,7 @@
 #ifdef LAGPART_
       NAMELIST / plagpart / lgmult,maxparts,ilginittype,ilgintrptype
       NAMELIST / plagpart / ilgexchtype,ilgouttype,lgseedfile,injtp
-      NAMELIST / plagpart / ilgcoll,cresetp,dolag
+      NAMELIST / plagpart / ilgcoll,cresetp,dolag,dopacc
       NAMELIST / plagpart / blgdofp,ilgfpfiletype,blgfpfilecoll,slgfpfile
 #endif
 
@@ -682,6 +684,7 @@
 #ifdef LAGPART_
       ALLOCATE( R4(n,n,ksta:kend) )
       ALLOCATE( R5(n,n,ksta:kend) )
+      ALLOCATE( R6(n,n,ksta:kend) )
 #endif
 #ifdef EDQNM_
       ALLOCATE( C19(n,n,ista:iend) )
@@ -1267,6 +1270,7 @@
 !     lgseedfile  : Name of seed file if ilginittype=GPINIT_USERLOC
 !     ilgcoll     : 1=binary collective I/O; 0=task 0 binary (posix) I/O
 !     dolag       : 1 = run with particles; 0 = don't 
+!     dopacc      : 1 = compute acceleration internally; 0 = don't 
       injtp        = 0
       cresetp      = 0
       ilginittype  = GPINIT_RANDLOC
@@ -1278,6 +1282,7 @@
       ilgcoll      = 1
       rbal         = 0.0
       dolag        = 1
+      dopacc       = 1
       nwpart       = 0
       blgdofp      = 0
       ilgfpfiletype= 0
@@ -1298,6 +1303,7 @@
       CALL MPI_BCAST(ilgexchtype  ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilgouttype   ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(dolag        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dopacc       ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilgcoll      ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(blgdofp      ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilgfpfiletype,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -1391,15 +1397,17 @@
 #endif
 
 #ifdef LAGPART_
+      rmp   = 0.5/dt
+      tbeta = (/-rmp, 0.0, rmp/)
       IF ( dolag.GT.0 ) THEN
         CALL lagpart%GPart_ctor(MPI_COMM_WORLD,maxparts,ilginittype,&
-             ilgintrptype,3,ilgexchtype,ilgouttype,ilgcoll,csize,nstrip)
+             ilgintrptype,3,ilgexchtype,ilgouttype,ilgcoll,csize,nstrip,dopacc)
         CALL lagpart%SetRandSeed(seed)
         CALL lagpart%SetSeedFile(trim(lgseedfile))
       ENDIF
       IF ( blgdofp.GT.0 ) THEN
         CALL lagfp%GPart_ctor(MPI_COMM_WORLD,maxparts,GPINIT_USERLOC,&
-             ilgintrptype,3,ilgexchtype,ilgfpfiletype,blgfpfilecoll,csize,nstrip)
+             ilgintrptype,3,ilgexchtype,ilgfpfiletype,blgfpfilecoll,csize,nstrip,0)
         CALL lagfp%SetRandSeed(seed)
         CALL lagfp%SetSeedFile(trim(slgfpfile))
       ENDIF
@@ -2563,8 +2571,7 @@
       END DO
       CALL fftp3d_complex_to_real(plancr,C7,R3,MPI_COMM_WORLD)
 
-      CALL lagpart%Step(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),R4,R5)
-      CALL lagpart%FinalStep()
+      CALL lagpart%Step(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),R4,R5,R6)
       ENDIF
 #endif
 
@@ -2697,5 +2704,7 @@
       DEALLOCATE( C19 )
       DEALLOCATE( tepq,thpq,tve,tvh,Eext,Hext )
 #endif 
-
+#ifdef LAGPART_
+      DEALLOCATE( R4,R5,R6 )
+#endif
       END PROGRAM MAIN3D
