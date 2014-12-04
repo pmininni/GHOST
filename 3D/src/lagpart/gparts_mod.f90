@@ -1027,9 +1027,9 @@ MODULE class_GPart
         nv = nv+1
       ENDIF
 
+      ! 'access=stream' is required here:
       OPEN(iunit,file=trim(dir) // '/' // trim(spref) // &
-                       '.' // nmb // '.lag',form='unformatted', &
-!                      '.' // nmb // '.lag',form='unformatted',access='stream',&
+                       '.' // nmb // '.lag',form='unformatted',access='stream',&
                        iostat=this%ierr_)
       IF ( this%ierr_.NE.0 ) THEN
         WRITE(*,*)'GPart_binary_write_lag_t0: could not open file for reading: ',&
