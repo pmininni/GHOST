@@ -1460,14 +1460,24 @@ MODULE class_GPart
         this%vk1_(1,j) = this%vk2_(1,j)
         this%vk1_(2,j) = this%vk2_(2,j)
         this%vk1_(3,j) = this%vk2_(3,j)
+        this%vk2_(1,j) = 0.0_GP
+        this%vk2_(2,j) = 0.0_GP
+        this%vk2_(3,j) = 0.0_GP
       ENDDO
-      this%vk0_(1:3,this%nparts_+1:this%maxparts_) = 0.0_GP
-      this%vk1_(1:3,this%nparts_+1:this%maxparts_) = 0.0_GP
-      this%vk2_(1:3,:) = 0.0_GP
+
+!$omp parallel do
+      DO j = this%nparts_+1,this%maxparts_
+        this%vk0_(1,j) = 0.0_GP
+        this%vk0_(2,j) = 0.0_GP
+        this%vk0_(3,j) = 0.0_GP
+        this%vk1_(1,j) = 0.0_GP
+        this%vk1_(2,j) = 0.0_GP
+        this%vk1_(3,j) = 0.0_GP
+        this%vk2_(1,j) = 0.0_GP
+        this%vk2_(2,j) = 0.0_GP
+        this%vk2_(3,j) = 0.0_GP
+      ENDDO
     ENDIF
-
-
-
 
   END SUBROUTINE GPart_SetStepRKK
 !-----------------------------------------------------------------
@@ -1501,9 +1511,10 @@ MODULE class_GPart
  
     ! u(t+dt) = u*: done already
 
-    IF (this%intacc_ .EQ. 1 ) THEN
+    IF ( this%intacc_ .EQ. 1 ) THEN
+      this%idm_ = 0
       this%npartsm_ = this%nparts_
-      this%idm_     = this%id_
+      this%idm_(1:this%nparts_) = this%id_(1:this%nparts_)
     ENDIF
 
     ! If using nearest-neighbor interface, do particle exchange 
@@ -1553,11 +1564,11 @@ MODULE class_GPart
 
     ENDIF
     
+    ! Synch up time level t^n+1 time level:
+    IF ( this%intacc_.EQ.0 ) RETURN
+
     ! If doing internal acceleration, synch up past time levels:
     CALL GPart_synch_acc(this)
-
-    ! Synch up time level t^n+1 time level:
-    IF ( this%intacc_.EQ.0 .OR. xk.NE.1.0 ) RETURN
 
     ! Set t^n+1 velocity based on most recent Lag.particle positions:
     ! NOTE: vx, vy, vz are overwirtten on exit:
@@ -1565,14 +1576,12 @@ MODULE class_GPart
     CALL GPart_EulerToLag(this,this%lvy_,this%nparts_,vy,.false.,tmp1,tmp2)
     CALL GPart_EulerToLag(this,this%lvz_,this%nparts_,vz,.false.,tmp1,tmp2)
 
-
 !$omp parallel do 
     DO j = 1, this%nparts_
       this%vk2_(1,j) = this%lvx_(j)
       this%vk2_(2,j) = this%lvy_(j)
       this%vk2_(3,j) = this%lvz_(j)
     ENDDO
-   
 
     RETURN
 
@@ -2310,6 +2319,10 @@ MODULE class_GPart
 !               to compute acceleration. Should be called during 
 !               each step so that t^n-1 and t^n data will follow
 !               particles if they leave this task's subdomain.
+!
+!               On entry, the new set of local particle ids, id, must
+!               be set, as must the global vdb, and the new local no. 
+!               particles.
 !  ARGUMENTS  :
 !    this    : 'this' class instance
 !-----------------------------------------------------------------
@@ -2345,14 +2358,14 @@ MODULE class_GPart
       CALL GTAcc(this%htimers_(GPTIME_COMM))
 
       ! Get local work:
-      CALL GPart_GetLocalWrk(this,this%id_,this%lvx_,this%lvy_,this%lvz_,ng, &
+      CALL GPart_GetLocalWrk(this,this%id_,this%lvx_,this%lvy_,this%lvz_,this%nparts_, &
                            this%vdb_,this%maxparts_,this%ptmp2_)
 
 !
 !  NOTE: velocity fields at t^n and t^n-1 are _local_ to this subdomain on exit:
      
 !$omp parallel do 
-      DO j = 1, ng
+      DO j = 1, this%nparts_
         this%vk0_(1,j) = this%lvx_(j)
         this%vk0_(2,j) = this%lvy_(j)
         this%vk0_(3,j) = this%lvz_(j)
@@ -2365,10 +2378,10 @@ MODULE class_GPart
       CALL GTAcc(this%htimers_(GPTIME_COMM))
 
       ! Get local work:
-      CALL GPart_GetLocalWrk(this,this%id_,this%lvx_,this%lvy_,this%lvz_,ng, &
+      CALL GPart_GetLocalWrk(this,this%id_,this%lvx_,this%lvy_,this%lvz_,this%nparts_, &
                            this%vdb_,this%maxparts_,this%ptmp2_)
 !$omp parallel do 
-      DO j = 1, ng
+      DO j = 1, this%nparts_
         this%vk1_(1,j) = this%lvx_(j)
         this%vk1_(2,j) = this%lvy_(j)
         this%vk1_(3,j) = this%lvz_(j)
@@ -2418,7 +2431,7 @@ MODULE class_GPart
     CLASS(GPart) ,INTENT(INOUT)                        :: this
     REAL(KIND=GP),INTENT(OUT),DIMENSION(n,n,ksta:kend) :: vout
     REAL(KIND=GP),INTENT (IN),DIMENSION(n,n,ksta:kend) :: vin
-    INTEGER                                              :: i,j,k
+    INTEGER                                            :: i,j,k
 
 !$omp parallel do if (kend-ksta.ge.nth) private (i,k)
     DO k = ksta,kend
