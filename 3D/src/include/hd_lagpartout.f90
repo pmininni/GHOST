@@ -46,6 +46,11 @@
            CALL lagfp%io_write_vec (1,odir,'fpvlg',lgext,(t-1)*dt)
            ENDIF
 
+           IF ( dopacc.GT.0 ) THEN
+!!!!!! Write internal Lagrangian acceleration components: !!!!!!
+!      [NOTE: time is centered 1-dt less than for other variables...]
+           CALL lagpart%io_write_acc(tbeta,1,odir,'alg',lgext,(t-2)*dt)
+           ENDIF
 !
 !!!!!! Write Lagrangian vorticity components: !!!!!!
 !
