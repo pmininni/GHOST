@@ -206,7 +206,8 @@ clean:  undo
 dist:
 	rm -f $(BIN)/*HD* $(BIN)/*MHD* $(BIN)/*ROT* $(BIN)/*BOUSS* \
               $(BIN)/*GPE* $(BIN)/*ARGL* $(BIN)/boots $(BIN)/trunc \
-              $(BIN)/vt $(BIN)/shear $(BIN)wv  *HD* *MHD* *ROT* *BOUSS* \
+              $(BIN)/vt $(BIN)/shear $(BIN)/wv $(BIN)/wt           \
+              *HD* *MHD* *ROT* *BOUSS* \
               *GPE* *ARGL* boots trunc vt shear wv
 	$(MAKE) clean
 
