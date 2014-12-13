@@ -189,6 +189,12 @@ shear: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS) $(IOLIB)/binary_io.o $(GMISC
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(GMISC) $(GTIMER) $(OBJS) \
            $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
+wv:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS)  $(IOLIB)/binary_io.o $(GMISC) $(OBJS)
+	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
+	$(COMPILE) $@.f90 -o $@.o
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(GMISC) $(GTIMER) $(OBJS) \
+           $@.o $(LDFLAGS) -o $(BIN)/$@
+	$(MAKE) undo
 
 clean:  undo
 	rm -f *.o *.d *.s *.int *.inf *.mod work.pc* ifc*
@@ -200,8 +206,8 @@ clean:  undo
 dist:
 	rm -f $(BIN)/*HD* $(BIN)/*MHD* $(BIN)/*ROT* $(BIN)/*BOUSS* \
               $(BIN)/*GPE* $(BIN)/*ARGL* $(BIN)/boots $(BIN)/trunc \
-              $(BIN)/vt $(BIN)/shear *HD* *MHD* *ROT* *BOUSS* \
-              *GPE* *ARGL* boots trunc vt shear
+              $(BIN)/vt $(BIN)/shear $(BIN)wv  *HD* *MHD* *ROT* *BOUSS* \
+              *GPE* *ARGL* boots trunc vt shear wv
 	$(MAKE) clean
 
 edit:
