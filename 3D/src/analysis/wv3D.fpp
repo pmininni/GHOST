@@ -317,6 +317,7 @@ write(*,*)'main: calling WVNormal ...'
 
       ic = cmplx(0.0_GP,1.0_GP);
       f = 2.0_GP * omega
+write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       tmp = 1.0_GP/sqrt(2.0_GP)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kp,ks,sig)
          DO i = ista,iend
@@ -546,9 +547,9 @@ write(*,*)'main: calling WVNormal ...'
             END DO
           ENDIF
 
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,kiso,kperp,kpara,kp2,tm0,tmw,sig)
+!$omp parallel do if (iend-ibeg.ge.nth) private (j,k,kmn,kiso,kperp,kpara,tm0,tmw,sig)
           DO i = ibeg,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,kiso,kperp,kpara,kp2,tm0,tmw,sig)
+!$omp parallel do if (iend-ibeg.lt.nth) private (k,kmn,kiso,kperp,kpara,tm0,tmw,sig)
              DO j = 1,n
                 DO k = 1,n
                   kiso  = int(sqrt(ka2(k,j,i))+.501)
@@ -556,8 +557,8 @@ write(*,*)'main: calling WVNormal ...'
                   kpara = int(abs(ka(k))+1)
                   kmn   = kmsk(1)*kiso + kmsk(2)*kperp + kmsk(3)*kpara
                   IF ( (kmn.lt.1).or.(kmn.gt.n/2+1) ) CYCLE 
-                  tm0     = 2.0 * (abs(a0(k,j,i))**2 ) * tmp
-                  tmw     = 2.0 * (abs(am(k,j,i))**2 \
+                  tm0     = 2.0D0 * (abs(a0(k,j,i))**2 ) * tmp
+                  tmw     = 2.0D0 * (abs(am(k,j,i))**2 \
                           +        abs(ap(k,j,i))**2 ) * tmp
 !$omp critical
                   E0k(kmn) = E0k(kmn)+tm0
