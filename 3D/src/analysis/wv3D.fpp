@@ -52,7 +52,7 @@
 !
 ! Auxiliary variables
 
-      INTEGER :: i,it,iavg,ic,ind,putnm,j,k
+      INTEGER :: i,i2d,it,iavg,ic,ind,putnm,j,k
       INTEGER :: istat(1024),nfiles,nstat
 
       TYPE(IOPLAN)       :: planio
@@ -62,7 +62,7 @@
       CHARACTER(len=4096):: stat
       CHARACTER(len=4)   :: ext1
 !
-      NAMELIST / wv / idir, odir, stat, iswap, oswap, iavg, putnm, omega, bvfreq
+      NAMELIST / wv / idir, odir, stat, iswap, oswap, iavg, putnm, omega, bvfreq, i2d
 
       tiny  = 1e-5_GP
       tinyf = 1e-15_GP
@@ -81,6 +81,7 @@
       iswap  = 0
       oswap  = 0
       iavg   = 0 
+      i2d    = 0 
       putnm  = 0 
 !
 ! Reads from the external file 'vt`.txt' the 
@@ -91,6 +92,7 @@
 !     iswap  : do endian swap on input?
 !     oswap  : do endian swap on output?
 !     iavg   : time average spectrally the time index list?
+!     i2d    : write 2d spectra? (1,0; 0 is default)
 !     putnm  : write normal mode fields (0==don't; 1==in real space; 2==in wavenumber space)
 !     omega  : rotation rate
 !     bvfreq : Brunt-Vaisalla frequency
@@ -105,6 +107,7 @@
       CALL MPI_BCAST(iswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(oswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iavg  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(i2d   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(putnm ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(omega ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(bvfreq,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
@@ -192,8 +195,8 @@
           bmangle = 1
         ENDIF
         CALL WVNormal(a0,am,ap,vx,vy,vz,th,omega,bvfreq)
-        CALL wvspectrum(a0,am,ap,omega,bvfreq,ext,ext1)
-        CALL wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,ext,ext1,c1,c2,c3,r1,r2,r3)
+        CALL wvspectrum(a0,am,ap,omega,bvfreq,ext,ext1,i2d)
+        CALL wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,ext,ext1,i2d,c1,c2,c3,r1,r2,r3)
       ELSE
         DO it = 1,nstat
           WRITE(ext, fmtext) istat(it)
@@ -228,8 +231,8 @@ write(*,*)'main: fft_rc on th...'
           CALL fftp3d_real_to_complex(planrc,r1,th,MPI_COMM_WORLD)
 write(*,*)'main: calling WVNormal ...'
           CALL WVNormal(a0,am,ap,vx,vy,vz,th,omega,bvfreq)
-          CALL wvspectrum(a0,am,ap,omega,bvfreq,ext,'')
-          CALL wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,ext,'',c1,c2,c3,r1,r2,r3)
+          CALL wvspectrum(a0,am,ap,omega,bvfreq,ext,'',i2d)
+          CALL wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,ext,'',i2d,c1,c2,c3,r1,r2,r3)
 
           ! Do output:
           IF ( putnm.EQ.1 ) THEN
@@ -356,7 +359,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 
 
 !*****************************************************************
-      SUBROUTINE wvspectrum(a0,am,ap,omega,bvfreq,nmb,nmb1)
+      SUBROUTINE wvspectrum(a0,am,ap,omega,bvfreq,nmb,nmb1,i2d)
 !-----------------------------------------------------------------
 !
 ! Computes the energy and helicity power 
@@ -371,6 +374,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 !     omega : rotation rate
 !     nmb: the extension used when writting the file
 !     nmb1: if lenght>0, used to specify range
+!     i2d : do 2D spectra (>0), or not (<=0)
 !
 !-----------------------------------------------------------------
       USE kes
@@ -381,7 +385,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: E0k,EWk,EV0k,EP0k,EVWk,EPWk
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a0,am,ap
+      REAL   (KIND=GP),             DIMENSION(n/2+1,n/2+1)   :: F0axi,FWaxi
       REAL   (KIND=GP), INTENT(IN)                           :: bvfreq,omega
+      INTEGER         , INTENT(IN)                           :: i2d
       INTEGER                      :: j
       CHARACTER(len=*), INTENT(IN) :: nmb,nmb1
 
@@ -418,6 +424,82 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
            WRITE(1,FMT='(E23.15,1X,E23.15)') E0k(j), EWk(j)
          ENDDO
          CLOSE(1)
+      ENDIF
+
+      IF ( i2d.GT.0 ) THEN
+      CALL wvspecaxic(a0,am,ap,omega,bvfreq,1,F0axi,FWaxi) ! 2D axisymm spec E0, EW
+      IF (myrank.eq.0) THEN 
+        if ( len_trim(nmb1).gt.0 ) then 
+        OPEN(1,file='kE02D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        else 
+        OPEN(1,file='kE02D.' // nmb // '.out',form='unformatted')
+        endif
+        WRITE(1) F0axi
+        CLOSE(1)
+      ENDIF
+
+      IF (myrank.eq.0) THEN 
+        if ( len_trim(nmb1).gt.0 ) then 
+        OPEN(1,file='kEW2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        else 
+        OPEN(1,file='kEW2D.' // nmb // '.out',form='unformatted')
+        endif
+        WRITE(1) FWaxi
+        CLOSE(1)
+      ENDIF
+
+      CALL wvspecaxic(a0,am,ap,omega,bvfreq,3,F0axi,FWaxi) ! 2D axisymm spec EV0 (only F0 filled)
+      IF (myrank.eq.0) THEN 
+        if ( len_trim(nmb1).gt.0 ) then 
+        OPEN(1,file='kEV02D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        else 
+        OPEN(1,file='kEV02D.' // nmb // '.out',form='unformatted')
+        endif
+        WRITE(1) F0axi
+        CLOSE(1)
+      ENDIF
+
+      CALL wvspecaxic(a0,am,ap,omega,bvfreq,4,F0axi,FWaxi) ! 2D axisymm spec P0, PW
+      IF (myrank.eq.0) THEN 
+        if ( len_trim(nmb1).gt.0 ) then 
+        OPEN(1,file='kP02D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        else 
+        OPEN(1,file='kP02D.' // nmb // '.out',form='unformatted')
+        endif
+        WRITE(1) F0axi
+        CLOSE(1)
+      ENDIF
+
+      IF (myrank.eq.0) THEN 
+        if ( len_trim(nmb1).gt.0 ) then 
+        OPEN(1,file='kPW2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        else 
+        OPEN(1,file='kPW2D.' // nmb // '.out',form='unformatted')
+        endif
+        WRITE(1) FWaxi
+        CLOSE(1)
+      ENDIF
+
+      CALL wvspecaxic(a0,am,ap,omega,bvfreq,2,F0axi,FWaxi) ! 2D axisymm spec H0, HW
+      IF (myrank.eq.0) THEN 
+        if ( len_trim(nmb1).gt.0 ) then 
+        OPEN(1,file='kH02D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        else 
+        OPEN(1,file='kH02D.' // nmb // '.out',form='unformatted')
+        endif
+        WRITE(1) F0axi
+        CLOSE(1)
+      ENDIF
+
+      IF (myrank.eq.0) THEN 
+        if ( len_trim(nmb1).gt.0 ) then 
+        OPEN(1,file='kHW2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        else 
+        OPEN(1,file='kHW2D.' // nmb // '.out',form='unformatted')
+        endif
+        WRITE(1) FWaxi
+        CLOSE(1)
+      ENDIF
       ENDIF
 !
 !-----------------------------------------------------------------
@@ -493,6 +575,305 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 
 
 !*****************************************************************
+      SUBROUTINE wvspecaxic(a0,am,ap,omega,bvfreq,kin,F0k,FWk)
+!-----------------------------------------------------------------
+!
+! Computes axisymmetric (2d) wave and vortical spectra for various quantities, 
+! returns them
+!
+! Parameters
+!     a0   : input matri: vortical modes
+!     am   : input matrix: wave modes (-) 
+!     ap   : input matrix: wave modes (+) 
+!     bvfreq: Brunt-Vaisalla frequency
+!     f    : rotation parameter = 2\Omega
+!     kin  : = 1 computes the total energy spectra wave/vortical
+!            = 2 computes the helicity spectra alone wave/vortical 
+!            = 3 computes the kinetic energy; vortical only; wave KE must be
+!                computed from the outside as EVWk = E0k+EWk-EV0k-EP0k-EPWk,
+!                using multiple calls to this routine; only F0k is filled then
+!            = 4 computes the potential energy; wave/vortical
+!     F0k  : vortical spectrum, returned
+!     FWk  : wave spectrum, returned
+!
+!-----------------------------------------------------------------
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+!$    USE threads
+      IMPLICIT NONE
+
+      REAL   (KIND=GP), INTENT(OUT), DIMENSION(n/2+1,n/2+1)   :: F0k,FWk
+      REAL   (KIND=GP),              DIMENSION(n/2+1,n/2+1)   :: E0k,EWk
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(n,n,ista:iend) :: a0,am,ap
+      REAL   (KIND=GP), INTENT (IN)                           :: bvfreq,omega
+      INTEGER, INTENT(IN)          :: kin
+      DOUBLE PRECISION             :: ks,sig,tm0,tmi,tmr,tmw
+      REAL(KIND=GP)                :: f,kp2,tmp
+      INTEGER                      :: i,ibeg,j,k,km
+      INTEGER                      :: kperp,kpara
+
+      f = 2.0*omega
+      km      = n/2+1
+      E0k     = 0.0D0
+      EWk     = 0.0D0
+      tmp     = 1.0_GP/real(n,kind=GP)**6
+      ibeg    = ista
+      IF (ista.eq.1) ibeg = 2
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      IF ( kin.eq.1 ) THEN ! Total energy spectra
+         IF (ista.eq.1) THEN
+!$omp parallel do private (k,kperp,kpara,tm0,tmw)
+            DO j = 1,n
+               DO k = 1,n
+                  kperp = int(sqrt(ka(1)**2+ka(j)**2)+.501)
+                  kpara = int(abs(ka(k))+1)
+                  IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE
+                  tm0     =     (abs(a0(k,j,1))**2 ) * tmp
+                  tmw     =     (abs(am(k,j,1))**2 \
+                          +      abs(ap(k,j,1))**2 ) * tmp
+!$omp critical
+                  E0k(kperp,kpara) = E0k(kperp,kpara)+tm0
+                  EWk(kperp,kpara) = EWk(kperp,kpara)+tmw
+!$omp end critical
+               END DO
+            END DO
+          ENDIF
+
+!$omp parallel do if (iend-ibeg.ge.nth) private (j,k,kperp,kpara,tm0,tmw)
+          DO i = ibeg,iend
+!$omp parallel do if (iend-ibeg.lt.nth) private (k,kperp,kpara,tm0,tmw)
+             DO j = 1,n
+                DO k = 1,n
+                  kperp = int(sqrt(ka(i)**2+ka(j)**2)+.501)
+                  kpara = int(abs(ka(k))+1)
+                  IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE 
+                  tm0     = 2.0D0 * (abs(a0(k,j,i))**2 ) * tmp
+                  tmw     = 2.0D0 * (abs(am(k,j,i))**2 \
+                          +          abs(ap(k,j,i))**2 ) * tmp
+!$omp critical
+                  E0k(kperp,kpara) = E0k(kperp,kpara)+tm0
+                  EWk(kperp,kpara) = EWk(kperp,kpara)+tmw
+!$omp end critical
+
+               END DO 
+             END DO
+          END DO
+!
+          CALL MPI_REDUCE(E0k,F0k,(n/2+1)*(n/2+1),GC_REAL,      &
+               MPI_SUM,0,MPI_COMM_WORLD,ierr)
+          CALL MPI_REDUCE(EWk,FWk,(n/2+1)*(n/2+1),GC_REAL,      &
+               MPI_SUM,0,MPI_COMM_WORLD,ierr)
+
+          RETURN
+      ENDIF ! kin = 1
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      IF ( kin.eq.2 ) THEN ! Helicity spectra
+         IF (ista.eq.1) THEN
+!$omp parallel do private (k,ks,kperp,kpara,kp2,tm0,tmw,tmi,tmr,sig)
+            DO j = 1,n
+               DO k = 1,n
+                  kp2   = ka(1)**2+ka(j)**2
+                  kperp = int(sqrt(kp2)+.501)
+                  kpara = int(abs(ka(k))+1)
+                  IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE 
+                  IF ((kperp.gt.0)) THEN
+                     tmr     = (f*ka(k)/bvfreq)**2/kp2
+                     tmi     = 1.0D0/(sqrt(2.0)*(1.0D0+tmr))
+                     sig     = sqrt(f**2 * ka(k)**2+ bvfreq**2 * kp2)
+                     ks      = sqrt( ka(k)**2+kp2 )
+                     tm0     = real( ks*a0(k,j,1) *  \
+                             ( conjg(ap(k,j,1))-conjg(am(k,j,1)) ) )*tmp*tmi
+                     tmw     = f*ka(k)*ks*( abs(am(k,j,1))**2 -   \
+                               abs(ap(k,j,1))**2 )/sig * tmp
+                             
+!$omp critical
+                     E0k(kperp,kpara) = E0k(kperp,kpara)+tm0
+                     EWk(kperp,kpara) = EWk(kperp,kpara)+tmw
+!$omp end critical
+                  ELSE
+                     tmw     = ka(k)*( abs(am(k,j,1))**2-abs(ap(k,j,1))**2 )*tmp
+!$omp critical
+                     EWk(kperp,kpara) = EWk(kperp,kpara)+tmw
+!$omp end critical
+                  ENDIF
+               END DO
+            END DO
+          ENDIF
+
+!$omp parallel do if (iend-2.ge.nth) private (j,k,ks,kperp,kpara,kp2,tm0,tmw,tmi,tmr,sig)
+          DO i = ibeg,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,ks,kperp,kpara,kp2,tm0,tmw,tmi,tmr,sig)
+             DO j = 1,n
+                DO k = 1,n
+                  kp2   = ka(i)**2+ka(j)**2
+                  kperp = int(sqrt(kp2)+.501)
+                  kpara = int(abs(ka(k))+1)
+                  IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE 
+                  IF ((kp2.gt.0)) THEN
+                     tmr     = (f*ka(k)/bvfreq)**2/kp2
+                     tmi     = 1.0D0/(sqrt(2.0)*(1.0D0+tmr))
+                     sig     = sqrt(f**2 * ka(k)**2+ bvfreq**2 * kp2)
+                     ks      = sqrt ( ka(k)**2+kp2 ) 
+                     tm0     = 2.0D0*real( ks*a0(k,j,i) * \
+                             ( conjg(ap(k,j,i))-conjg(am(k,j,i)) ) )*tmp*tmi
+                     tmw     = 2.0D0*f*ka(k)*ks*( abs(am(k,j,i))**2 -   \
+                               abs(ap(k,j,i))**2 )/sig * tmp
+!$omp critical
+                     E0k(kperp,kpara) = E0k(kperp,kpara)+tm0
+                     EWk(kperp,kpara) = EWk(kperp,kpara)+tmw
+!$omp end critical
+                  ELSE
+                     tmw     = 2.0D0*ka(k)*( abs(am(k,j,i))**2-abs(ap(k,j,i))**2 )*tmp
+!$omp critical
+                     EWk(kperp,kpara) = EWk(kperp,kpara)+tmw
+!$omp end critical
+                 ENDIF
+               END DO
+             END DO
+          END DO
+
+!         Compute reduction between nodes
+!
+          CALL MPI_REDUCE(E0k,F0k,(n/2+1)*(n/2+1),GC_REAL,      &    
+               MPI_SUM,0,MPI_COMM_WORLD,ierr)
+          CALL MPI_REDUCE(EWk,FWk,(n/2+1)*(n/2+1),GC_REAL,      &    
+               MPI_SUM,0,MPI_COMM_WORLD,ierr)
+
+          RETURN
+      ENDIF ! kin = 2
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      IF ( kin.eq.3 ) THEN ! Kinetic energy spectra
+         FWk = 0.0
+         IF (ista.eq.1) THEN
+!$omp parallel do private (k,kperp,kpara,kp2,tm0,tmr)
+            DO j = 1,n
+               DO k = 1,n
+                  kp2   = ka(1)**2+ka(j)**2
+                  kperp = int(sqrt(kp2)+.501)
+                  kpara = int(abs(ka(k))+1)
+                  IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE 
+                  IF ((kp2.gt.tiny)) THEN
+                     tmr     = (f*ka(k)/bvfreq)**2/kp2
+                     tm0     = abs(a0(k,j,1))**2*tmp/(1.0D0+tmr)
+!$omp critical
+                     E0k(kperp,kpara) = E0k(kperp,kpara)+tm0
+                  ENDIF
+               END DO
+            END DO
+          ENDIF
+
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kperp,kpara,kp2,tm0,tmr)
+          DO i = ibeg,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kperp,kpara,kp2,tm0,tmr)
+             DO j = 1,n
+                DO k = 1,n
+                  kp2   = ka(i)**2+ka(j)**2
+                  kperp = int(sqrt(kp2)+.501)
+                  kpara = int(abs(ka(k))+1)
+                  IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE 
+                  IF ((kp2.gt.tiny)) THEN
+                     tmr     = (f*ka(k)/bvfreq)**2/kp2
+                     tm0     = 2.0D0*abs(a0(k,j,i))**2*tmp/(1.0D0+tmr)
+!$omp critical
+                     E0k(kperp,kpara) = E0k(kperp,kpara)+tm0
+!$omp end critical
+                 ENDIF
+               END DO
+             END DO
+          END DO
+!         Compute reduction between nodes
+!
+          CALL MPI_REDUCE(E0k,F0k,(n/2+1)*(n/2+1),GC_REAL,      &    
+               MPI_SUM,0,MPI_COMM_WORLD,ierr)
+
+          RETURN
+      ENDIF ! kin = 3
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      IF ( kin.eq.4 ) THEN  ! Potential energy spectra
+         IF (ista.eq.1) THEN
+!$omp parallel do private (k,kperp,kpara,kp2,tm0,tmw,tmi,tmr)
+            DO j = 1,n
+               DO k = 1,n
+                  kp2   = ka(1)**2+ka(j)**2
+                  kperp = int(sqrt(kp2)+.501)
+                  kpara = int(abs(ka(k))+1)
+                  IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE 
+                  IF ((kp2.gt.tiny)) THEN
+                     tmr     = (f*ka(k)/bvfreq)**2/kp2
+                     tmi     = 1.0D0/(1.0D0+tmr)
+                     tm0     = tmr*abs(a0(k,j,1))**2*tmp*tmi
+                     tmw     = 0.50D0*abs(am(k,j,1)+ap(k,j,1))**2*tmp*tmi
+!$omp critical
+                     E0k(kperp,kpara) = E0k(kperp,kpara)+tm0
+                     EWk(kperp,kpara) = EWk(kperp,kpara)+tmw
+                  ELSE
+                     tm0     = abs(a0(k,j,1))**2*tmp
+!$omp critical
+                     E0k(kperp,kpara) = E0k(kperp,kpara)+tm0
+!$omp end critical
+                  ENDIF
+               END DO
+            END DO
+          ENDIF
+
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kperp,kpara,kp2,tm0,tmw,tmi,tmr)
+          DO i = ibeg,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kperp,kpara,kp2,tm0,tmw,tmi,tmr)
+             DO j = 1,n
+                DO k = 1,n
+                  kp2   = ka(i)**2+ka(j)**2
+                  kperp = int(sqrt(kp2)+.501)
+                  kpara = int(abs(ka(k))+1)
+                  IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE 
+                  IF ((kp2.gt.tiny)) THEN
+                     tmr     = (f*ka(k)/bvfreq)**2/kp2
+                     tmi     = 1.0D0/(1.0D0+tmr)
+!$omp critical
+                     tm0     = 2.0D0*tmr*abs(a0(k,j,i))**2*tmp*tmi
+                     tmw     =     abs(am(k,j,i)+ap(k,j,i))**2*tmp*tmi
+!$omp critical
+                     E0k(kperp,kpara) = E0k(kperp,kpara)+tm0
+                     EWk(kperp,kpara) = EWk(kperp,kpara)+tmw
+!$omp end critical
+                  ELSE
+                     tm0     = 2.0D0*abs(a0(k,j,i))**2*tmp
+!$omp critical
+                     E0k(kperp,kpara) = E0k(kperp,kpara)+tm0
+!$omp end critical
+                 ENDIF
+               END DO
+             END DO
+          END DO
+!         Compute reduction between nodes
+!
+          CALL MPI_REDUCE(E0k,F0k,(n/2+1)*(n/2+1),GC_REAL,      &    
+               MPI_SUM,0,MPI_COMM_WORLD,ierr)
+          CALL MPI_REDUCE(EWk,FWk,(n/2+1)*(n/2+1),GC_REAL,      &    
+               MPI_SUM,0,MPI_COMM_WORLD,ierr)
+
+          RETURN
+      ENDIF ! kin = 4
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+      END SUBROUTINE wvspecaxic
+
+
+
+
+!*****************************************************************
       SUBROUTINE wvspectrumc(a0,am,ap,omega,bvfreq,kin,kgeo,F0k,FWk)
 !-----------------------------------------------------------------
 !
@@ -545,8 +926,6 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 !
       E0k     = 0.0D0
       EWk     = 0.0D0
-      F0k     = 0.0D0
-      FWk     = 0.0D0
       tmp     = 1.0_GP/real(n,kind=GP)**6
       ibeg    = ista
       IF (ista.eq.1) ibeg = 2
@@ -554,7 +933,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       IF ( kin.eq.1 ) THEN ! Total energy spectra
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,kiso,kperp,kpara,kp2,tm0,tmr)
+!$omp parallel do private (k,kmn,kiso,kperp,kpara,tm0,tmr)
             DO j = 1,n
                DO k = 1,n
                   kiso  = int(sqrt(ka2(k,j,1))+.501)
@@ -573,9 +952,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
             END DO
           ENDIF
 
-!$omp parallel do if (iend-ibeg.ge.nth) private (j,k,kmn,kiso,kperp,kpara,tm0,tmw,sig)
+!$omp parallel do if (iend-ibeg.ge.nth) private (j,k,kmn,kiso,kperp,kpara,tm0,tmw)
           DO i = ibeg,iend
-!$omp parallel do if (iend-ibeg.lt.nth) private (k,kmn,kiso,kperp,kpara,tm0,tmw,sig)
+!$omp parallel do if (iend-ibeg.lt.nth) private (k,kmn,kiso,kperp,kpara,tm0,tmw)
              DO j = 1,n
                 DO k = 1,n
                   kiso  = int(sqrt(ka2(k,j,i))+.501)
@@ -595,10 +974,10 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
              END DO
           END DO
 !
-          CALL MPI_ALLREDUCE(E0k,F0k,n/2+1,MPI_DOUBLE_PRECISION,      &
-               MPI_SUM,MPI_COMM_WORLD,ierr)
-          CALL MPI_ALLREDUCE(EWk,FWk,n/2+1,MPI_DOUBLE_PRECISION,      &
-               MPI_SUM,MPI_COMM_WORLD,ierr)
+          CALL MPI_REDUCE(E0k,F0k,n/2+1,MPI_DOUBLE_PRECISION,      &
+               MPI_SUM,0,MPI_COMM_WORLD,ierr)
+          CALL MPI_REDUCE(EWk,FWk,n/2+1,MPI_DOUBLE_PRECISION,      &
+               MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
           RETURN
       ENDIF ! kin = 1
@@ -607,7 +986,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       IF ( kin.eq.2 ) THEN ! Helicity spectra
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,kiso,kperp,kpara,kp2,tm0,tmw,tmi,tmr,sig)
+!$omp parallel do private (k,ks,kmn,kiso,kperp,kpara,kp2,tm0,tmw,tmi,tmr,sig)
             DO j = 1,n
                DO k = 1,n
                   kiso  = int(sqrt(ka2(k,j,1))+.501)
@@ -640,9 +1019,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
             END DO
           ENDIF
 
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,kiso,kperp,kpara,kp2,tm0,tmw,tmi,tmr,sig)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,ks,kmn,kiso,kperp,kpara,kp2,tm0,tmw,tmi,tmr,sig)
           DO i = ibeg,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,kiso,kperp,kpara,kp2,tm0,tmw,tmi,tmr,sig)
+!$omp parallel do if (iend-2.lt.nth) private (k,ks,kmn,kiso,kperp,kpara,kp2,tm0,tmw,tmi,tmr,sig)
              DO j = 1,n
                 DO k = 1,n
                   kmn = int(sqrt(ka2(k,j,i))+.501)
@@ -678,10 +1057,10 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 
 !         Compute reduction between nodes
 !
-          CALL MPI_ALLREDUCE(E0k,F0k,n/2+1,MPI_DOUBLE_PRECISION,      &
-               MPI_SUM,MPI_COMM_WORLD,ierr)
-          CALL MPI_ALLREDUCE(EWk,FWk,n/2+1,MPI_DOUBLE_PRECISION,      &
-               MPI_SUM,MPI_COMM_WORLD,ierr)
+          CALL MPI_REDUCE(E0k,F0k,n/2+1,MPI_DOUBLE_PRECISION,      &
+               MPI_SUM,0,MPI_COMM_WORLD,ierr)
+          CALL MPI_REDUCE(EWk,FWk,n/2+1,MPI_DOUBLE_PRECISION,      &
+               MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
           RETURN
       ENDIF ! kin = 2
@@ -691,7 +1070,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       IF ( kin.eq.3 ) THEN ! Kinetic energy spectra
          FWk = 0.0
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,kiso,kperp,kpara,kp2,tm0,tmr,sig)
+!$omp parallel do private (k,kmn,kiso,kperp,kpara,kp2,tm0,tmr)
             DO j = 1,n
                DO k = 1,n
                   kiso  = int(sqrt(ka2(k,j,1))+.501)
@@ -701,8 +1080,6 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
                   kmn   = kmsk(1)*kiso + kmsk(2)*kperp + kmsk(3)*kpara
                   IF ( (kmn.lt.1).or.(kmn.gt.n/2+1) ) CYCLE
                   IF ((kp2.gt.tiny)) THEN
-!                    sig     = sqrt(f**2 * ka(k)**2+ bvfreq**2 * kp2)
-!                    tmr     = (bvfreq**2)*kp2/ sig**2
                      tmr     = (f*ka(k)/bvfreq)**2/kp2
                      tm0     = abs(a0(k,j,1))**2*tmp/(1.0D0+tmr)
 !$omp critical
@@ -712,9 +1089,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
             END DO
           ENDIF
 
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,kiso,kperp,kpara,kp2,tm0,tmr,sig)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,kiso,kperp,kpara,kp2,tm0,tmr)
           DO i = ibeg,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,kiso,kperp,kpara,kp2,tm0,tmr,sig)
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,kiso,kperp,kpara,kp2,tm0,tmr)
              DO j = 1,n
                 DO k = 1,n
                   kiso  = int(sqrt(ka2(k,j,i))+.501)
@@ -725,8 +1102,6 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
                   IF ( (kmn.lt.1).or.(kmn.gt.n/2+1) ) CYCLE
 
                   IF ((kp2.gt.tiny)) THEN
-!                    sig     = sqrt(f**2 * ka(k)**2+ bvfreq**2 * kp2)
-!                    tmr     = (bvfreq**2)*kp2/ sig**2
                      tmr     = (f*ka(k)/bvfreq)**2/kp2
                      tm0     = 2.0D0*abs(a0(k,j,i))**2*tmp/(1.0D0+tmr)
 !$omp critical
@@ -738,8 +1113,8 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
           END DO
 !         Compute reduction between nodes
 !
-          CALL MPI_ALLREDUCE(E0k,F0k,n/2+1,MPI_DOUBLE_PRECISION,      &
-               MPI_SUM,MPI_COMM_WORLD,ierr)
+          CALL MPI_REDUCE(E0k,F0k,n/2+1,MPI_DOUBLE_PRECISION,      &
+               MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
           RETURN
       ENDIF ! kin = 3
@@ -748,7 +1123,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       IF ( kin.eq.4 ) THEN  ! Potential energy spectra
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,kiso,kperp,kpara,kp2,tm0,tmi,tmr,sig)
+!$omp parallel do private (k,kmn,kiso,kperp,kpara,kp2,tm0,tmw,tmi,tmr)
             DO j = 1,n
                DO k = 1,n
                   kiso  = int(sqrt(ka2(k,j,1))+.501)
@@ -776,9 +1151,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
             END DO
           ENDIF
 
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,kiso,kperp,kpara,kp2,tm0,tmi,tmr,sig)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,kiso,kperp,kpara,kp2,tm0,tmw,tmi,tmr)
           DO i = ibeg,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,kiso,kperp,kpara,kp2,tm0,tmi,tmr,sig)
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,kiso,kperp,kpara,kp2,tm0,tmw,tmi,tmr)
              DO j = 1,n
                 DO k = 1,n
                   kiso  = int(sqrt(ka2(k,j,i))+.501)
@@ -791,8 +1166,6 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
                   IF ((kp2.gt.tiny)) THEN
                      tmr     = (f*ka(k)/bvfreq)**2/kp2
                      tmi     = 1.0D0/(1.0D0+tmr)
-!                    tm0     = tmr*abs(a0(k,j,1))**2*tmp*tmi
-!                    tmw     = 0.50D0*abs(am(k,j,1)+ap(k,j,1))**2*tmp*tmi
 !$omp critical
                      tm0     = 2.0D0*tmr*abs(a0(k,j,i))**2*tmp*tmi
                      tmw     =     abs(am(k,j,i)+ap(k,j,i))**2*tmp*tmi
@@ -811,10 +1184,10 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
           END DO
 !         Compute reduction between nodes
 !
-          CALL MPI_ALLREDUCE(E0k,F0k,n/2+1,MPI_DOUBLE_PRECISION,      &
-               MPI_SUM,MPI_COMM_WORLD,ierr)
-          CALL MPI_ALLREDUCE(EWk,FWk,n/2+1,MPI_DOUBLE_PRECISION,      &
-               MPI_SUM,MPI_COMM_WORLD,ierr)
+          CALL MPI_REDUCE(E0k,F0k,n/2+1,MPI_DOUBLE_PRECISION,      &
+               MPI_SUM,0,MPI_COMM_WORLD,ierr)
+          CALL MPI_REDUCE(EWk,FWk,n/2+1,MPI_DOUBLE_PRECISION,      &
+               MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
           RETURN
       ENDIF ! kin = 4
@@ -1173,7 +1546,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 
 
 !*****************************************************************
-      SUBROUTINE wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,nmb,nmb1,c1,c2,c3,r1,r2,r3)
+      SUBROUTINE wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,nmb,nmb1,i2d,c1,c2,c3,r1,r2,r3)
 !-----------------------------------------------------------------
 !
 ! Computes the spectra for the enstropy constributions with
@@ -1188,6 +1561,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 !     omega : rotation rate
 !     nmb   : the extension used when writting the file
 !     nmb1  : if lenght>0, used to specify range
+!     i2d   : do 2D spectra (>0) or not (<=0)
 !     c1-3  : complex tmp array
 !     r1-3  : real tmp array
 !-----------------------------------------------------------------
@@ -1200,27 +1574,67 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       DOUBLE PRECISION, DIMENSION(n/2+1) :: E2k  ,E3k  ,E4k
       DOUBLE PRECISION, DIMENSION(n/2+1) :: E2kpa,E3kpa,E4kpa
       DOUBLE PRECISION, DIMENSION(n/2+1) :: E2kpr,E3kpr,E4kpr
+      REAL   (KIND=GP),                DIMENSION(n/2+1,n/2+1)   :: eaxi
       COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(n,n,ista:iend) :: a0,vx,vy,vz,th
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: c1,c2,c3
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: r1,r2,r3
       REAL   (KIND=GP), INTENT   (IN)                           :: bvfreq,omega
+      INTEGER,          INTENT   (IN)                           :: i2d
       INTEGER                      :: j
       CHARACTER(len=*), INTENT(IN) :: nmb,nmb1
 
 !
 ! isotropic spectra:
       CALL PVn(c3,a0,vx,vy,vz,th,omega,bvfreq,2,c1,c2,r1,r2,r3) 
-      CALL spectrumg(c3,1,E2k) 
-      CALL spectrumg(c3,2,E2kpr) 
-      CALL spectrumg(c3,3,E2kpa) 
+      CALL spectrumg(c3,1,E2k)   ! isotropic spectrum of Z2
+      CALL spectrumg(c3,2,E2kpr) ! reduced perp spectrum of Z2
+      CALL spectrumg(c3,3,E2kpa) ! reduced para spectrum of Z2
+      IF ( i2d.GT.0 ) THEN
+      CALL specaxig (c3,   eaxi) ! axisymm. 2d spectra for Z2
+      IF (myrank.eq.0) THEN
+        if ( len_trim(nmb1).gt.0 ) then
+        OPEN(1,file='kz22D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        else
+        OPEN(1,file='kz22D.' // nmb // '.out',form='unformatted')
+        endif
+        WRITE(1) eaxi
+        CLOSE(1)
+      ENDIF
+      ENDIF
+
       CALL PVn(c3,a0,vx,vy,vz,th,omega,bvfreq,3,c1,c2,r1,r2,r3)
-      CALL spectrumg(c3,1,E3k) 
-      CALL spectrumg(c3,2,E3kpr) 
-      CALL spectrumg(c3,3,E3kpa) 
+      CALL spectrumg(c3,1,E3k)   ! isotropic spectrum of Z3
+      CALL spectrumg(c3,2,E3kpr) ! reduced perp spectrum of Z3
+      CALL spectrumg(c3,3,E3kpa) ! reduced para spectrum of Z3
+      IF ( i2d.GT.0 ) THEN
+      CALL specaxig (c3,   eaxi) ! axisymm. 2d spectra for Z3
+      IF (myrank.eq.0) THEN
+        if ( len_trim(nmb1).gt.0 ) then
+        OPEN(1,file='kz32D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        else
+        OPEN(1,file='kz32D.' // nmb // '.out',form='unformatted')
+        endif
+        WRITE(1) eaxi
+        CLOSE(1)
+      ENDIF
+      ENDIF
       CALL PVn(c3,a0,vx,vy,vz,th,omega,bvfreq,4,c1,c2,r1,r2,r3)
-      CALL spectrumg(c3,1,E4k) 
-      CALL spectrumg(c3,2,E4kpr) 
-      CALL spectrumg(c3,3,E4kpa) 
+      CALL spectrumg(c3,1,E4k)   ! isotropic spectrum of Z4
+      CALL spectrumg(c3,2,E4kpr) ! reduced perp spectrum of Z4
+      CALL spectrumg(c3,3,E4kpa) ! reduced para spectrum of Z4
+      IF ( i2d.GT.0 ) THEN
+      CALL specaxig (c3,   eaxi) ! axisymm. 2d spectra for Z4
+      IF (myrank.eq.0) THEN
+        if ( len_trim(nmb1).gt.0 ) then
+        OPEN(1,file='kz42D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        else
+        OPEN(1,file='kz42D.' // nmb // '.out',form='unformatted')
+        endif
+        WRITE(1) eaxi
+        CLOSE(1)
+      ENDIF
+      ENDIF
+
       IF (myrank.eq.0) THEN
          if ( len_trim(nmb1).gt.0 ) then
          OPEN(1,file='wvzkspectrum.' // nmb // '_' // trim(nmb1) //'.txt')
@@ -1290,7 +1704,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       DOUBLE PRECISION,  DIMENSION(n/2+1)                     :: E0k
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(n,n,ista:iend) :: a
       INTEGER, INTENT(IN)          :: kgeo
-      DOUBLE PRECISION             :: ks,sig,tmr,tmp
+      DOUBLE PRECISION             :: ks,tmr,tmp
       INTEGER                      :: i,ibeg,j,k
       INTEGER                      :: kmn,kiso,kperp,kpara,kmsk(3)
 
@@ -1325,9 +1739,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
           END DO
         ENDIF
 
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,kiso,kperp,kpara,tmr,sig)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,kiso,kperp,kpara,tmr)
         DO i = ibeg,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,kiso,kperp,kpara,tmr,sig)
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,kiso,kperp,kpara,tmr)
            DO j = 1,n
               DO k = 1,n
                 kiso  = int(sqrt(ka2(k,j,i))+.501)
@@ -1344,9 +1758,84 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
            END DO
         END DO
 !
-        CALL MPI_ALLREDUCE(E0k,F0k,n/2+1,MPI_DOUBLE_PRECISION,      &
-             MPI_SUM,MPI_COMM_WORLD,ierr)
+        CALL MPI_REDUCE(E0k,F0k,n/2+1,MPI_DOUBLE_PRECISION,      &
+             MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
         RETURN
 
       END SUBROUTINE spectrumg
+
+
+!*****************************************************************
+      SUBROUTINE specaxig(a,F0k)
+!-----------------------------------------------------------------
+!
+! Computes 2d axisymmetric spectrum of input quantity, and
+! outputs to F0k on all tasks.
+!
+! Parameters
+!     a    : input quantity, complex
+!     F0k  : spectrum, returned
+!
+!-----------------------------------------------------------------
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+!$    USE threads
+      IMPLICIT NONE
+
+      REAL   (KIND=GP), INTENT(OUT), DIMENSION(n/2+1,n/2+1)   :: F0k
+      REAL   (KIND=GP),              DIMENSION(n/2+1,n/2+1)   :: E0k
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(n,n,ista:iend) :: a
+      DOUBLE PRECISION             :: ks,tmr,tmp
+      INTEGER                      :: i,ibeg,j,k,km
+      INTEGER                      :: kperp,kpara
+
+      km      = n/2+1
+      E0k     = 0.0D0
+      tmp     = 1.0_GP/real(n,kind=GP)**6
+      ibeg    = ista
+      IF (ista.eq.1) ibeg = 2
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       IF (ista.eq.1) THEN
+!$omp parallel do private (k,kperp,kpara,tmr)
+          DO j = 1,n
+             DO k = 1,n
+                kperp = int(sqrt(ka(1)**2+ka(j)**2)+.501)
+                kpara = int(abs(ka(k))+1)
+                IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE
+                tmr     =      abs(a(k,j,1))**2  * tmp
+!$omp critical
+                E0k(kperp,kpara) = E0k(kperp,kpara)+tmr
+!$omp end critical
+             END DO
+          END DO
+        ENDIF
+
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kperp,kpara,tmr)
+        DO i = ibeg,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kperp,kpara,tmr)
+           DO j = 1,n
+              DO k = 1,n
+                kperp = int(sqrt(ka(i)**2+ka(j)**2)+.501)
+                kpara = int(abs(ka(k))+1)
+                IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE
+                tmr     = 2.0D0* abs(a(k,j,i))**2 * tmp
+!$omp critical
+                E0k(kperp,kpara) = E0k(kperp,kpara)+tmr
+!$omp end critical
+
+             END DO
+           END DO
+        END DO
+!
+        CALL MPI_REDUCE(E0k,F0k,(n/2+1)*(n/2+1),GC_REAL,      &    
+             MPI_SUM,0,MPI_COMM_WORLD,ierr)
+
+        RETURN
+
+      END SUBROUTINE specaxig
