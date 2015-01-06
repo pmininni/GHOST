@@ -319,6 +319,8 @@
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: R1,R2,R3
 #ifdef VELOC_
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)     :: Faux1,Faux2
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fxold,fyold,fzold
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fxnew,fynew,fznew
 #endif
 #ifdef ADVECT_
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vsq
@@ -646,10 +648,10 @@
       ALLOCATE( C24(n,n,ista:iend) )
       ALLOCATE( th1(n,n,ista:iend) )
       ALLOCATE( th2(n,n,ista:iend) )
-!!    ALLOCATE( th3(n,n,ista:iend) )
+      ALLOCATE( th3(n,n,ista:iend) )
       ALLOCATE( fs1(n,n,ista:iend) )
       ALLOCATE( fs2(n,n,ista:iend) )
-!!    ALLOCATE( fs3(n,n,ista:iend) )
+      ALLOCATE( fs3(n,n,ista:iend) )
 #endif
 #ifdef MAGFIELD_
       ALLOCATE( C9(n,n,ista:iend),  C10(n,n,ista:iend) )
@@ -780,6 +782,7 @@
 !     rand : = 0 constant force
 !            = 1 random phases
 !            = 2 constant energy
+!            = 3 slowly varying random phases (only for the velocity)
 !     cort : time correlation of the external forcing
 !     seed : seed for the random number generator
 
@@ -1263,14 +1266,14 @@
 !              stat.
 !     cresetp= 0: don't reset counters when injtp=1;
 !            = 1: _do_ reset counters when injtp=1.
-!     ilginittype : Inititialization type. either GPINIT_RANDLOC or GPINIT_USERLOC
+!     ilginittype : Inititialization type: either GPINIT_RANDLOC or GPINIT_USERLOC
 !     ilgintrptype: Interpolation type: only GPINTRP_CSPLINE currently
 !     ilgexchtype : Boundary exchange type: GPEXCHTYPE_VDB (voxel db) or GPEXCHTYPE_NN (nearest-neighbor)
-!     ilgouttype  : Particle output type: 0 = binary; 1= ASCII
+!     ilgouttype  : Particle output type: 0=binary; 1=ASCII
 !     lgseedfile  : Name of seed file if ilginittype=GPINIT_USERLOC
 !     ilgcoll     : 1=binary collective I/O; 0=task 0 binary (posix) I/O
-!     dolag       : 1 = run with particles; 0 = don't 
-!     dopacc      : 1 = compute acceleration internally; 0 = don't 
+!     dolag       : 1=run with particles; 0=don't 
+!     dopacc      : 1=compute acceleration internally; 0=don't 
       injtp        = 0
       cresetp      = 0
       ilginittype  = GPINIT_RANDLOC
@@ -1320,7 +1323,7 @@
 
 !
 ! Initializes arrays to keep track of the forcing 
-! amplitude if constant energy is used, and 
+! if slowly evolving phases are used, and 
 ! allocates arrays to compute mean flows if needed.
 
 #ifdef VELOC_
@@ -1333,6 +1336,14 @@
             Faux1(i) = ampl
             Faux2(i) = 0.0_GP
          END DO
+      ENDIF
+      IF (rand.eq.3) THEN
+         ALLOCATE( fxold(n,n,ista:iend) )
+         ALLOCATE( fyold(n,n,ista:iend) )
+         ALLOCATE( fzold(n,n,ista:iend) )
+         ALLOCATE( fxnew(n,n,ista:iend) )
+         ALLOCATE( fynew(n,n,ista:iend) )
+         ALLOCATE( fznew(n,n,ista:iend) )
       ENDIF
       IF (mean.eq.1) THEN
          ALLOCATE( M1(n,n,ista:iend) )
@@ -1364,7 +1375,7 @@
 #ifdef MULTISCALAR_
          ALLOCATE( M8 (n,n,ista:iend) )
          ALLOCATE( M9 (n,n,ista:iend) )
-!!       ALLOCATE( M10(n,n,ista:iend) )
+         ALLOCATE( M10(n,n,ista:iend) )
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -1372,7 +1383,7 @@
                DO k = 1,n
                   M8 (k,j,i) = 0.0_GP
                   M9 (k,j,i) = 0.0_GP
-!!                M10(k,j,i) = 0.0_GP
+                  M10(k,j,i) = 0.0_GP
                END DO
             END DO
          END DO
@@ -1481,6 +1492,7 @@
       timet = 0
       timec = 0
       timep = 0
+      timef = int(modulo(float(ini),float(fstep)))
 
 #ifdef VELOC_
       CALL io_read(1,idir,'vx',ext,planio,R1)
@@ -1489,6 +1501,23 @@
       CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
+
+      IF (rand.eq.3) THEN
+         CALL io_read(1,idir,'fxnew',ext,planio,R1)
+         CALL io_read(1,idir,'fynew',ext,planio,R2)
+         CALL io_read(1,idir,'fznew',ext,planio,R3)
+         CALL fftp3d_real_to_complex(planrc,R1,fxnew,MPI_COMM_WORLD)
+         CALL fftp3d_real_to_complex(planrc,R2,fynew,MPI_COMM_WORLD)
+         CALL fftp3d_real_to_complex(planrc,R3,fznew,MPI_COMM_WORLD)
+
+         CALL io_read(1,idir,'fxold',ext,planio,R1)
+         CALL io_read(1,idir,'fyold',ext,planio,R2)
+         CALL io_read(1,idir,'fzold',ext,planio,R3)
+         CALL fftp3d_real_to_complex(planrc,R1,fxold,MPI_COMM_WORLD)
+         CALL fftp3d_real_to_complex(planrc,R2,fyold,MPI_COMM_WORLD)
+         CALL fftp3d_real_to_complex(planrc,R3,fzold,MPI_COMM_WORLD)
+      ENDIF
+
       IF (mean.eq.1) THEN
          CALL io_read(1,idir,'mean_vx',ext,planio,R1)
          CALL io_read(1,idir,'mean_vy',ext,planio,R2)
@@ -1550,15 +1579,15 @@
          CALL fftp3d_real_to_complex(planrc,R1,th1,MPI_COMM_WORLD)
          CALL io_read(1,idir,'th2',ext,planio,R1)
          CALL fftp3d_real_to_complex(planrc,R1,th2,MPI_COMM_WORLD)
-!!       CALL io_read(1,idir,'th3',ext,planio,R1)
-!!       CALL fftp3d_real_to_complex(planrc,R1,th3,MPI_COMM_WORLD)
+         CALL io_read(1,idir,'th3',ext,planio,R1)
+         CALL fftp3d_real_to_complex(planrc,R1,th3,MPI_COMM_WORLD)
          IF (mean.eq.1) THEN
             CALL io_read(1,idir,'mean_th1',ext,planio,R1)
             CALL fftp3d_real_to_complex(planrc,R1,M8 ,MPI_COMM_WORLD)
             CALL io_read(1,idir,'mean_th2',ext,planio,R1)
             CALL fftp3d_real_to_complex(planrc,R1,M9 ,MPI_COMM_WORLD)
-!!          CALL io_read(1,idir,'mean_th3',ext,planio,R1)
-!!          CALL fftp3d_real_to_complex(planrc,R1,M10,MPI_COMM_WORLD)
+            CALL io_read(1,idir,'mean_th3',ext,planio,R1)
+            CALL fftp3d_real_to_complex(planrc,R1,M10,MPI_COMM_WORLD)
             dump = real(ini,kind=GP)/cstep
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
@@ -1567,7 +1596,7 @@
                   DO k = 1,n
                      M8 (k,j,i) = dump*M8 (k,j,i)
                      M9 (k,j,i) = dump*M9 (k,j,i)
-!!                   M10(k,j,i) = dump*M10(k,j,i)
+                     M10(k,j,i) = dump*M10(k,j,i)
                  END DO
                END DO
             END DO
@@ -1736,7 +1765,7 @@
 ! Updates the external forcing. Every 'fsteps'
 ! the phase or amplitude is changed according 
 ! to the value of 'rand'.
-         IF (timef.eq.fstep) THEN
+ TF:     IF (timef.eq.fstep) THEN
             timef = 0
 
             IF (rand.eq.1) THEN      ! randomizes phases
@@ -1776,8 +1805,8 @@
                      fs1(1,n-j+2,1) = fs1(1,n-j+2,1)*jdumr
                      fs2(1,j,1) = fs2(1,j,1)*cdumr
                      fs2(1,n-j+2,1) = fs2(1,n-j+2,1)*jdumr
-!!                   fs3(1,j,1) = fs3(1,j,1)*cdumr
-!!                   fs3(1,n-j+2,1) = fs3(1,n-j+2,1)*jdumr
+                     fs3(1,j,1) = fs3(1,j,1)*cdumr
+                     fs3(1,n-j+2,1) = fs3(1,n-j+2,1)*jdumr
 #endif
 #ifdef MAGFIELD_
                      mx(1,j,1) = mx(1,j,1)*cdumq
@@ -1805,8 +1834,8 @@
                      fs1(n-k+2,1,1) = fs1(n-k+2,1,1)*jdumr
                      fs2(k,1,1) = fs2(k,1,1)*cdumr
                      fs2(n-k+2,1,1) = fs2(n-k+2,1,1)*jdumr
-!!                   fs3(k,1,1) = fs3(k,1,1)*cdumr
-!!                   fs3(n-k+2,1,1) = fs3(n-k+2,1,1)*jdumr
+                     fs3(k,1,1) = fs3(k,1,1)*cdumr
+                     fs3(n-k+2,1,1) = fs3(n-k+2,1,1)*jdumr
 #endif
 #ifdef MAGFIELD_
                      mx(k,1,1) = mx(k,1,1)*cdumq
@@ -1835,8 +1864,8 @@
                         fs1(n-k+2,n-j+2,1) = fs1(n-k+2,n-j+2,1)*jdumr
                         fs2(k,j,1) = fs2(k,j,1)*cdumr
                         fs2(n-k+2,n-j+2,1) = fs2(n-k+2,n-j+2,1)*jdumr
-!!                      fs3(k,j,1) = fs3(k,j,1)*cdumr
-!!                      fs3(n-k+2,n-j+2,1) = fs3(n-k+2,n-j+2,1)*jdumr
+                        fs3(k,j,1) = fs3(k,j,1)*cdumr
+                        fs3(n-k+2,n-j+2,1) = fs3(n-k+2,n-j+2,1)*jdumr
 #endif
 #ifdef MAGFIELD_
                         mx(k,j,1) = mx(k,j,1)*cdumq
@@ -1862,7 +1891,7 @@
 #ifdef MULTISCALAR_
                            fs1(k,j,i) = fs1(k,j,i)*cdumr
                            fs2(k,j,i) = fs2(k,j,i)*cdumr
-!!                         fs3(k,j,i) = fs3(k,j,i)*cdumr
+                           fs3(k,j,i) = fs3(k,j,i)*cdumr
 #endif
 #ifdef MAGFIELD_
                            mx(k,j,i) = mx(k,j,i)*cdumq
@@ -1887,7 +1916,7 @@
 #ifdef MULTISCALAR_
                            fs1(k,j,i) = fs1(k,j,i)*cdumr
                            fs2(k,j,i) = fs2(k,j,i)*cdumr
-!!                         fs3(k,j,i) = fs3(k,j,i)*cdumr
+                           fs3(k,j,i) = fs3(k,j,i)*cdumr
 #endif
 #ifdef MAGFIELD_
                            mx(k,j,i) = mx(k,j,i)*cdumq
@@ -1951,9 +1980,50 @@
               INCLUDE 'edqnmhd_adjustfv.f90'
 #endif
 
-            ENDIF
+         ENDIF TF
 
-         ENDIF
+#ifdef VELOC_
+ R3:     IF (rand.eq.3) THEN ! slowly varying phases
+            IF ((timef.eq.fstep).or.(stat.eq.0))) THEN
+               timef = 0
+! Keeps a copy of the old forcing
+               DO i = ista,iend
+                  DO j = 1,n
+                     DO k = 1,n
+                        fxold(k,j,i) = fx(k,j,i) 
+                        fyold(k,j,i) = fy(k,j,i) 
+                        fzold(k,j,i) = fz(k,j,i) 
+                     END DO
+                  END DO
+               END DO
+! Creates a new random forcing. 'initialfv.f90'
+! should be chosen to generate forcing with random
+! phases ('initialfv.f90_patterson' is recommended).
+               INCLUDE 'initialfv.f90'
+! Copies the new forcing to arrays for the target forcing
+               DO i = ista,iend
+                  DO j = 1,n
+                     DO k = 1,n
+                        fxnew(k,j,i) = fx(k,j,i) 
+                        fynew(k,j,i) = fy(k,j,i) 
+                        fznew(k,j,i) = fz(k,j,i) 
+                     END DO
+                  END DO
+               END DO
+            ENDIF
+! Updates the forcing
+            rmp = FLOAT(timef)/float(fstep-1)
+            DO i = ista,iend
+               DO j = 1,n
+                  DO k = 1,n
+                     fx(k,j,i) = (1-rmp)*fxold(k,j,i)+rmp*fxnew(k,j,i)
+                     fy(k,j,i) = (1-rmp)*fyold(k,j,i)+rmp*fynew(k,j,i)
+                     fz(k,j,i) = (1-rmp)*fzold(k,j,i)+rmp*fznew(k,j,i)
+                  END DO
+               END DO
+            END DO
+         ENDIF R3
+#endif
 
 ! Every 'tstep' steps, stores the fields 
 ! in binary files
@@ -1963,14 +2033,6 @@
             tind = tind+1
             WRITE(ext, fmtext) tind
 #ifdef VELOC_
-            IF (rand.eq.2) THEN
-               CALL energy(fx,fy,fz,tmp,1)
-               IF (myrank.eq.0) THEN
-                  OPEN(1,file='force.txt',position='append')
-                  WRITE(1,*) (t-1)*dt,sqrt(tmp)
-                  CLOSE(1)
-               ENDIF
-            ENDIF
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -1996,10 +2058,52 @@
             CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
             CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
             CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
-
             CALL io_write(1,odir,'vx',ext,planio,R1)
             CALL io_write(1,odir,'vy',ext,planio,R2)
             CALL io_write(1,odir,'vz',ext,planio,R3)
+            IF (rand.eq.2) THEN
+               CALL energy(fx,fy,fz,tmp,1)
+               IF (myrank.eq.0) THEN
+                  OPEN(1,file='force.txt',position='append')
+                  WRITE(1,*) (t-1)*dt,sqrt(tmp)
+                  CLOSE(1)
+               ENDIF
+            ELSE IF (rand.eq.3) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+               DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+                  DO j = 1,n
+                     DO k = 1,n
+                        C1(k,j,i) = fxold(k,j,i)/real(n,kind=GP)**3
+                        C2(k,j,i) = fyold(k,j,i)/real(n,kind=GP)**3
+                        C3(k,j,i) = fzold(k,j,i)/real(n,kind=GP)**3
+                     END DO
+                  END DO
+               END DO
+               CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+               CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+               CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+               CALL io_write(1,odir,'fxold',ext,planio,R1)
+               CALL io_write(1,odir,'fyold',ext,planio,R2)
+               CALL io_write(1,odir,'fzold',ext,planio,R3)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+               DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+                  DO j = 1,n
+                     DO k = 1,n
+                        C1(k,j,i) = fxnew(k,j,i)/real(n,kind=GP)**3
+                        C2(k,j,i) = fynew(k,j,i)/real(n,kind=GP)**3
+                        C3(k,j,i) = fznew(k,j,i)/real(n,kind=GP)**3
+                     END DO
+                  END DO
+               END DO
+               CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+               CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+               CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+               CALL io_write(1,odir,'fxnew',ext,planio,R1)
+               CALL io_write(1,odir,'fynew',ext,planio,R2)
+               CALL io_write(1,odir,'fznew',ext,planio,R3)
+            END IF
             IF (mean.eq.1) THEN
                dump = real(cstep,kind=GP)/t
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -2056,7 +2160,7 @@
                   DO k = 1,n
                      C1(k,j,i) = th1(k,j,i)/real(n,kind=GP)**3
                      C2(k,j,i) = th2(k,j,i)/real(n,kind=GP)**3
-!!                   C3(k,j,i) = th3(k,j,i)/real(n,kind=GP)**3
+                     C3(k,j,i) = th3(k,j,i)/real(n,kind=GP)**3
                   END DO
                END DO
             END DO
@@ -2064,8 +2168,8 @@
             CALL io_write(1,odir,'th1',ext,planio,R1)
             CALL fftp3d_complex_to_real(plancr,C2,R1,MPI_COMM_WORLD)
             CALL io_write(1,odir,'th2',ext,planio,R1)
-!!          CALL fftp3d_complex_to_real(plancr,C3,R1,MPI_COMM_WORLD)
-!!          CALL io_write(1,odir,'th3',ext,planio,R1)
+            CALL fftp3d_complex_to_real(plancr,C3,R1,MPI_COMM_WORLD)
+            CALL io_write(1,odir,'th3',ext,planio,R1)
             IF (mean.eq.1) THEN
                dump = real(cstep,kind=GP)/t
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -2075,7 +2179,7 @@
                      DO k = 1,n
                         C1(k,j,i) = dump*M8 (k,j,i)/real(n,kind=GP)**3
                         C2(k,j,i) = dump*M9 (k,j,i)/real(n,kind=GP)**3
-!!                      C3(k,j,i) = dump*M10(k,j,i)/real(n,kind=GP)**3
+                        C3(k,j,i) = dump*M10(k,j,i)/real(n,kind=GP)**3
                      END DO
                   END DO
                END DO
@@ -2083,8 +2187,8 @@
                CALL io_write(1,odir,'mean_th1',ext,planio,R1)
                CALL fftp3d_complex_to_real(plancr,C2,R1,MPI_COMM_WORLD)
                CALL io_write(1,odir,'mean_th2',ext,planio,R1)
-!!             CALL fftp3d_complex_to_real(plancr,C3,R1,MPI_COMM_WORLD)
-!!             CALL io_write(1,odir,'mean_th3',ext,planio,R1)
+               CALL fftp3d_complex_to_real(plancr,C3,R1,MPI_COMM_WORLD)
+               CALL io_write(1,odir,'mean_th3',ext,planio,R1)
             ENDIF
 #endif
 #ifdef MAGFIELD_
@@ -2297,7 +2401,7 @@
                      DO k = 1,n
                         M8 (k,j,i) = M8 (k,j,i)+th1(k,j,i)
                         M9 (k,j,i) = M9 (k,j,i)+th2(k,j,i)
-!!                      M10(k,j,i) = M10(k,j,i)+th3(k,j,i)
+                        M10(k,j,i) = M10(k,j,i)+th3(k,j,i)
                      END DO
                   END DO
                END DO
@@ -2669,6 +2773,8 @@
       DEALLOCATE( fx,fy,fz )
       IF (mean.eq.1) DEALLOCATE( M1,M2,M3 )
       IF (rand.eq.2) DEALLOCATE( Faux1, Faux2 )
+      IF (rand.eq.3) DEALLOCATE( fxold, fyold, fzold )
+      IF (rand.eq.3) DEALLOCATE( fxnew, fynew, fznew )
 #endif
 #if defined(VELOC_) || defined (ADVECT_)
       DEALLOCATE( vx,vy,vz )
