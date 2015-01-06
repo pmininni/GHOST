@@ -153,7 +153,8 @@
 #endif
 #ifdef VELOC_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: C14,C15
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: C16
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: C16,C17
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:) :: C18
 #endif
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:)    :: R1
 #ifdef VECPOT_
@@ -354,7 +355,8 @@
       ALLOCATE( fx(n,ista:iend) )
       ALLOCATE( fy(n,ista:iend) )
       ALLOCATE( C14(n,ista:iend), C15(n,ista:iend) )
-      ALLOCATE( C16(n,ista:iend) )
+      ALLOCATE( C16(n,ista:iend), C17(n,ista:iend) )
+      ALLOCATE( C18(n,ista:iend))
 #endif
 #ifdef D25_
       ALLOCATE( vz(n,ista:iend) )
@@ -1134,7 +1136,7 @@
 #ifdef VELOC_
       DEALLOCATE( vx,vy )
       DEALLOCATE( fx,fy )
-      DEALLOCATE( C14,C15,C16 )
+      DEALLOCATE( C14,C15,C16,C17,C18 )
 #endif
 
       END PROGRAM MAIN2D

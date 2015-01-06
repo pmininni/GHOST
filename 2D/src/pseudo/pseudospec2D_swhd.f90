@@ -501,3 +501,73 @@
 
       RETURN
       END SUBROUTINE point
+
+!*****************************************************************
+      SUBROUTINE buhler(a,b,c,d,e)
+!-----------------------------------------------------------------
+!
+!     Calculates grad(h)*grad(A)/h
+!
+! Parameters
+!     a: input matrix
+!     b: input matrix in the x direction
+!     c: input matrix in the y direction
+!     d: (grad(a)*grad(b)/a)_x in Fourier space
+!     e: (grad(a)*grad(b)/a)_y in Fourier space
+!
+      USE fprecision
+      USE commtypes
+      USE mpivars
+      USE grid
+      USE fft
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,ista:iend)  :: a,b,c
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,ista:iend) :: d,e
+      COMPLEX(KIND=GP), DIMENSION(n,ista:iend) :: c1,c2,c3,c4
+      REAL(KIND=GP), DIMENSION(n,jsta:jend)    :: r1,r2,r3,r4
+      REAL(KIND=GP), DIMENSION(n,jsta:jend)    :: rx,ry
+      REAL(KIND=GP)    :: tmp
+      INTEGER :: i,j
+      
+      tmp = 1.0_GP/real(n,kind=GP)**2
+!
+!     (grad(h)*grad(A)/h)_x
+!
+      c1 = a
+      CALL derivk2(a,c2,1)
+      CALL derivk2(b,c3,1)
+      CALL derivk2(c,c4,1)
+      CALL fftp2d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      CALL fftp2d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+      CALL fftp2d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
+      CALL fftp2d_complex_to_real(plancr,c4,r4,MPI_COMM_WORLD)
+
+      DO j = jsta,jend
+         DO i = 1,n
+            rx(i,j) = r2(i,j)*r3(i,j)
+            ry(i,j) = r2(i,j)*r4(i,j)
+         END DO
+      END DO
+!
+!     (grad(h)*grad(A)/h)_y
+!
+      CALL derivk2(a,c2,2)
+      CALL derivk2(b,c3,2)
+      CALL derivk2(c,c4,2)
+      CALL fftp2d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+      CALL fftp2d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
+      CALL fftp2d_complex_to_real(plancr,c4,r4,MPI_COMM_WORLD)
+
+      DO j = jsta,jend
+         DO i = 1,n
+            rx(i,j) = (rx(i,j)+r2(i,j)*r3(i,j))*tmp/r1(i,j)
+            ry(i,j) = (ry(i,j)+r2(i,j)*r4(i,j))*tmp/r1(i,j)
+         END DO
+      END DO
+
+      CALL fftp2d_real_to_complex(planrc,rx,d,MPI_COMM_WORLD)
+      CALL fftp2d_real_to_complex(planrc,ry,e,MPI_COMM_WORLD)
+
+      RETURN
+      END SUBROUTINE buhler
