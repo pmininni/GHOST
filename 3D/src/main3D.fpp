@@ -1765,7 +1765,7 @@
 ! Updates the external forcing. Every 'fsteps'
 ! the phase or amplitude is changed according 
 ! to the value of 'rand'.
- TF:     IF (timef.eq.fstep) THEN
+ TF :    IF (timef.eq.fstep) THEN
             timef = 0
 
             IF (rand.eq.1) THEN      ! randomizes phases
@@ -1979,12 +1979,13 @@
 #ifdef EDQNMROTH_SOL
               INCLUDE 'edqnmhd_adjustfv.f90'
 #endif
+            END IF
 
-         ENDIF TF
+         END IF TF
 
 #ifdef VELOC_
- R3:     IF (rand.eq.3) THEN ! slowly varying phases
-            IF ((timef.eq.fstep).or.(stat.eq.0))) THEN
+         IF (rand.eq.3) THEN ! slowly varying phases
+            IF ((timef.eq.fstep).or.(stat.eq.0)) THEN
                timef = 0
 ! Keeps a copy of the old forcing
                DO i = ista,iend
@@ -2022,7 +2023,7 @@
                   END DO
                END DO
             END DO
-         ENDIF R3
+         END IF
 #endif
 
 ! Every 'tstep' steps, stores the fields 
