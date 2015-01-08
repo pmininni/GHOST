@@ -690,11 +690,11 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
                   IF ( (kpara.lt.1).or.(kpara.gt.km ) ) CYCLE
                   IF ((kp2.gt.0.0)) THEN
                      tmr     = (f*ka(k)/bvfreq)**2/kp2
-                     tmi     = 1.0/(sqrt(2.0)*(1.0+tmr))
+                     tmi     = 1.0/(sqrt(2.0*(1.0+tmr)))
                      sig     = sqrt(f**2 * ka(k)**2+ bvfreq**2 * kp2)
                      ks      = sqrt( ka2(k,j,1) )
                      adel    = conjg(ap(k,j,1))-conjg(am(k,j,1))
-                     tm0     = real( ks*a0(k,j,1) * adel *tmp*tmi )
+                     tm0     = dble( ks*a0(k,j,1) * adel *tmp*tmi )
                      tmw     = f*ka(k)*ks*( abs(am(k,j,1))**2 -   \
                                abs(ap(k,j,1))**2 )/sig * tmp
                              
@@ -724,7 +724,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
                   IF ( (kpara.lt.1).or.(kpara.gt.km ) ) CYCLE
                   IF ((kp2.gt.0.0)) THEN
                      tmr     = (f*ka(k)/bvfreq)**2/kp2
-                     tmi     = 1.0/(sqrt(2.0)*(1.0+tmr))
+                     tmi     = 1.0/(sqrt(2.0*(1.0+tmr)))
                      sig     = sqrt(f**2 * ka(k)**2+ bvfreq**2 * kp2)
                      ks      = sqrt ( ka2(k,j,i) ) 
                      adel    = conjg(ap(k,j,i))-conjg(am(k,j,i))
@@ -1007,7 +1007,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
                   IF ( (kmn.lt.1).or.(kmn.gt.n/2+1) ) CYCLE
                   IF ((kp2.gt.0.0)) THEN
                      tmr     = (f*ka(k)/bvfreq)**2/kp2
-                     tmi     = 1.0D0/(sqrt(2.0)*(1.0D0+tmr))
+                     tmi     = 1.0D0/(sqrt(2.0*(1.0D0+tmr)))
                      sig     = sqrt(f**2 * ka(k)**2+ bvfreq**2 * kp2)
                      ks      = sqrt( ka(k)**2+kp2 )
                      tm0     = real( ks*a0(k,j,1) *  \
@@ -1044,7 +1044,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 
                   IF ((kp2.gt.0.0)) THEN
                      tmr     = (f*ka(k)/bvfreq)**2/kp2
-                     tmi     = 1.0D0/(sqrt(2.0)*(1.0D0+tmr))
+                     tmi     = 1.0D0/(sqrt(2.0*(1.0D0+tmr)))
                      sig     = sqrt(f**2 * ka(k)**2+ bvfreq**2 * kp2)
                      ks      = sqrt ( ka(k)**2+kp2 ) 
                      tm0     = 2.0D0*real( ks*a0(k,j,i) * \
@@ -1814,7 +1814,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
        IF (ista.eq.1) THEN
 !$omp parallel do private (k,kperp,kpara,tmr)
           DO j = 1,n
-             kperp = int(sqrt(ka(1)**2+ka(j)**2)+1.501)
+             kperp = int(sqrt(ka(1)**2+ka(j)**2)+0.501)
              IF ( (kperp.lt.1).or.(kperp.gt.km) ) CYCLE
              DO k = 1,n
                 kpara = int(abs(ka(k))+1)
@@ -1831,7 +1831,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
         DO i = ibeg,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kperp,kpara,tmr)
            DO j = 1,n
-              kperp = int(sqrt(ka(i)**2+ka(j)**2)+1.501)
+              kperp = int(sqrt(ka(i)**2+ka(j)**2)+0.501)
               IF ( (kperp.lt.1).or.(kperp.gt.km) ) CYCLE
               DO k = 1,n
                 kpara = int(abs(ka(k))+1)
