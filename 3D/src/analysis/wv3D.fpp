@@ -430,9 +430,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       CALL wvspecaxic(a0,am,ap,omega,bvfreq,1,F0axi,FWaxi) ! 2D axisymm spec E0, EW
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
-        OPEN(1,file='kE02D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        OPEN(1,file='kE02D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else 
-        OPEN(1,file='kE02D.' // nmb // '.out',form='unformatted')
+        OPEN(1,file='kE02D.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) F0axi
         CLOSE(1)
@@ -440,9 +440,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
-        OPEN(1,file='kEW2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        OPEN(1,file='kEW2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else 
-        OPEN(1,file='kEW2D.' // nmb // '.out',form='unformatted')
+        OPEN(1,file='kEW2D.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) FWaxi
         CLOSE(1)
@@ -451,9 +451,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       CALL wvspecaxic(a0,am,ap,omega,bvfreq,3,F0axi,FWaxi) ! 2D axisymm spec EV0 (only F0 filled)
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
-        OPEN(1,file='kEV02D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        OPEN(1,file='kEV02D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else 
-        OPEN(1,file='kEV02D.' // nmb // '.out',form='unformatted')
+        OPEN(1,file='kEV02D.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) F0axi
         CLOSE(1)
@@ -462,9 +462,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       CALL wvspecaxic(a0,am,ap,omega,bvfreq,4,F0axi,FWaxi) ! 2D axisymm spec P0, PW
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
-        OPEN(1,file='kP02D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        OPEN(1,file='kP02D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else 
-        OPEN(1,file='kP02D.' // nmb // '.out',form='unformatted')
+        OPEN(1,file='kP02D.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) F0axi
         CLOSE(1)
@@ -472,9 +472,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
-        OPEN(1,file='kPW2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        OPEN(1,file='kPW2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else 
-        OPEN(1,file='kPW2D.' // nmb // '.out',form='unformatted')
+        OPEN(1,file='kPW2D.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) FWaxi
         CLOSE(1)
@@ -483,9 +483,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       CALL wvspecaxic(a0,am,ap,omega,bvfreq,2,F0axi,FWaxi) ! 2D axisymm spec H0, HW
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
-        OPEN(1,file='kH02D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        OPEN(1,file='kH02D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else 
-        OPEN(1,file='kH02D.' // nmb // '.out',form='unformatted')
+        OPEN(1,file='kH02D.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) F0axi
         CLOSE(1)
@@ -493,9 +493,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
-        OPEN(1,file='kHW2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        OPEN(1,file='kHW2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else 
-        OPEN(1,file='kHW2D.' // nmb // '.out',form='unformatted')
+        OPEN(1,file='kHW2D.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) FWaxi
         CLOSE(1)
@@ -609,17 +609,19 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       REAL   (KIND=GP), INTENT(OUT), DIMENSION(n/2+1,n/2+1)   :: F0k,FWk
       REAL   (KIND=GP),              DIMENSION(n/2+1,n/2+1)   :: E0k,EWk
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(n,n,ista:iend) :: a0,am,ap
+      COMPLEX(KIND=8 )                                        :: adel
       REAL   (KIND=GP), INTENT (IN)                           :: bvfreq,omega
       INTEGER, INTENT(IN)          :: kin
-      DOUBLE PRECISION             :: ks,sig,tm0,tmi,tmr,tmw
-      REAL(KIND=GP)                :: f,kp2,tmp
+!     REAL   (KIND=GP)             :: ks,sig,tm0,tmi,tmr,tmw
+      DOUBLE PRECISION             :: ks,kp2,sig,tm0,tmi,tmr,tmw
+      REAL(KIND=GP)                :: f,tmp
       INTEGER                      :: i,ibeg,j,k,km
       INTEGER                      :: kperp,kpara
 
       f = 2.0*omega
       km      = n/2+1
-      E0k     = 0.0D0
-      EWk     = 0.0D0
+      E0k     = 0.0
+      EWk     = 0.0
       tmp     = 1.0_GP/real(n,kind=GP)**6
       ibeg    = ista
       IF (ista.eq.1) ibeg = 2
@@ -629,10 +631,11 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kperp,kpara,tm0,tmw)
             DO j = 1,n
+               kperp = int(sqrt(ka(1)**2+ka(j)**2)+1.501)
+               IF ( (kperp.lt.1).or.(kperp.gt.km) ) CYCLE
                DO k = 1,n
-                  kperp = int(sqrt(ka(1)**2+ka(j)**2)+.501)
                   kpara = int(abs(ka(k))+1)
-                  IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE
+                  IF ( (kpara.lt.1).or.(kpara.gt.km ) ) CYCLE
                   tm0     =     (abs(a0(k,j,1))**2 ) * tmp
                   tmw     =     (abs(am(k,j,1))**2 \
                           +      abs(ap(k,j,1))**2 ) * tmp
@@ -648,13 +651,14 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
           DO i = ibeg,iend
 !$omp parallel do if (iend-ibeg.lt.nth) private (k,kperp,kpara,tm0,tmw)
              DO j = 1,n
+                kperp = int(sqrt(ka(i)**2+ka(j)**2)+1.501)
+                IF ( (kperp.lt.1).or.(kperp.gt.km) ) CYCLE
                 DO k = 1,n
-                  kperp = int(sqrt(ka(i)**2+ka(j)**2)+.501)
                   kpara = int(abs(ka(k))+1)
-                  IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE 
-                  tm0     = 2.0D0 * (abs(a0(k,j,i))**2 ) * tmp
-                  tmw     = 2.0D0 * (abs(am(k,j,i))**2 \
-                          +          abs(ap(k,j,i))**2 ) * tmp
+                  IF ( (kpara.lt.1).or.(kpara.gt.km ) ) CYCLE
+                  tm0     = 2.0 * (abs(a0(k,j,i))**2 ) * tmp
+                  tmw     = 2.0 * (abs(am(k,j,i))**2 \
+                          +        abs(ap(k,j,i))**2 ) * tmp
 !$omp critical
                   E0k(kperp,kpara) = E0k(kperp,kpara)+tm0
                   EWk(kperp,kpara) = EWk(kperp,kpara)+tmw
@@ -678,18 +682,19 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,ks,kperp,kpara,kp2,tm0,tmw,tmi,tmr,sig)
             DO j = 1,n
+               kp2   = ka(1)**2+ka(j)**2
+               kperp = int(sqrt(kp2)+1.501)
+               IF ( (kperp.gt.km) ) CYCLE
                DO k = 1,n
-                  kp2   = ka(1)**2+ka(j)**2
-                  kperp = int(sqrt(kp2)+.501)
                   kpara = int(abs(ka(k))+1)
-                  IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE 
-                  IF ((kperp.gt.0)) THEN
+                  IF ( (kpara.lt.1).or.(kpara.gt.km ) ) CYCLE
+                  IF ((kp2.gt.0.0)) THEN
                      tmr     = (f*ka(k)/bvfreq)**2/kp2
-                     tmi     = 1.0D0/(sqrt(2.0)*(1.0D0+tmr))
+                     tmi     = 1.0/(sqrt(2.0)*(1.0+tmr))
                      sig     = sqrt(f**2 * ka(k)**2+ bvfreq**2 * kp2)
-                     ks      = sqrt( ka(k)**2+kp2 )
-                     tm0     = real( ks*a0(k,j,1) *  \
-                             ( conjg(ap(k,j,1))-conjg(am(k,j,1)) ) )*tmp*tmi
+                     ks      = sqrt( ka2(k,j,1) )
+                     adel    = conjg(ap(k,j,1))-conjg(am(k,j,1))
+                     tm0     = real( ks*a0(k,j,1) * adel *tmp*tmi )
                      tmw     = f*ka(k)*ks*( abs(am(k,j,1))**2 -   \
                                abs(ap(k,j,1))**2 )/sig * tmp
                              
@@ -711,18 +716,19 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
           DO i = ibeg,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,ks,kperp,kpara,kp2,tm0,tmw,tmi,tmr,sig)
              DO j = 1,n
+                kp2   = ka(i)**2+ka(j)**2
+                kperp = int(sqrt(kp2)+1.501)
+                IF ( (kperp.gt.km) ) CYCLE
                 DO k = 1,n
-                  kp2   = ka(i)**2+ka(j)**2
-                  kperp = int(sqrt(kp2)+.501)
                   kpara = int(abs(ka(k))+1)
-                  IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE 
-                  IF ((kp2.gt.0)) THEN
+                  IF ( (kpara.lt.1).or.(kpara.gt.km ) ) CYCLE
+                  IF ((kp2.gt.0.0)) THEN
                      tmr     = (f*ka(k)/bvfreq)**2/kp2
-                     tmi     = 1.0D0/(sqrt(2.0)*(1.0D0+tmr))
+                     tmi     = 1.0/(sqrt(2.0)*(1.0+tmr))
                      sig     = sqrt(f**2 * ka(k)**2+ bvfreq**2 * kp2)
-                     ks      = sqrt ( ka(k)**2+kp2 ) 
-                     tm0     = 2.0D0*real( ks*a0(k,j,i) * \
-                             ( conjg(ap(k,j,i))-conjg(am(k,j,i)) ) )*tmp*tmi
+                     ks      = sqrt ( ka2(k,j,i) ) 
+                     adel    = conjg(ap(k,j,i))-conjg(am(k,j,i))
+                     tm0     = 2.0D0*real( ks*a0(k,j,i) * adel *tmp*tmi )
                      tmw     = 2.0D0*f*ka(k)*ks*( abs(am(k,j,i))**2 -   \
                                abs(ap(k,j,i))**2 )/sig * tmp
 !$omp critical
@@ -730,7 +736,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
                      EWk(kperp,kpara) = EWk(kperp,kpara)+tmw
 !$omp end critical
                   ELSE
-                     tmw     = 2.0D0*ka(k)*( abs(am(k,j,i))**2-abs(ap(k,j,i))**2 )*tmp
+                     tmw     = 2.0*ka(k)*( abs(am(k,j,i))**2-abs(ap(k,j,i))**2 )*tmp
 !$omp critical
                      EWk(kperp,kpara) = EWk(kperp,kpara)+tmw
 !$omp end critical
@@ -756,14 +762,15 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kperp,kpara,kp2,tm0,tmr)
             DO j = 1,n
+               kp2   = ka(1)**2+ka(j)**2
+               kperp = int(sqrt(kp2)+1.501)
+               IF ( (kperp.gt.km) ) CYCLE
                DO k = 1,n
-                  kp2   = ka(1)**2+ka(j)**2
-                  kperp = int(sqrt(kp2)+.501)
                   kpara = int(abs(ka(k))+1)
-                  IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE 
-                  IF ((kp2.gt.tiny)) THEN
+                  IF ( (kpara.lt.1).or.(kpara.gt.km ) ) CYCLE
+                  IF ((kp2.gt.0.0)) THEN
                      tmr     = (f*ka(k)/bvfreq)**2/kp2
-                     tm0     = abs(a0(k,j,1))**2*tmp/(1.0D0+tmr)
+                     tm0     = abs(a0(k,j,1))**2*tmp/(1.0+tmr)
 !$omp critical
                      E0k(kperp,kpara) = E0k(kperp,kpara)+tm0
                   ENDIF
@@ -775,14 +782,15 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
           DO i = ibeg,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kperp,kpara,kp2,tm0,tmr)
              DO j = 1,n
+                kp2   = ka(i)**2+ka(j)**2
+                kperp = int(sqrt(kp2)+1.501)
+                IF ( (kperp.gt.km) ) CYCLE
                 DO k = 1,n
-                  kp2   = ka(i)**2+ka(j)**2
-                  kperp = int(sqrt(kp2)+.501)
                   kpara = int(abs(ka(k))+1)
-                  IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE 
-                  IF ((kp2.gt.tiny)) THEN
+                  IF ( (kpara.lt.1).or.(kpara.gt.km ) ) CYCLE
+                  IF ((kp2.gt.0.0)) THEN
                      tmr     = (f*ka(k)/bvfreq)**2/kp2
-                     tm0     = 2.0D0*abs(a0(k,j,i))**2*tmp/(1.0D0+tmr)
+                     tm0     = 2.0*abs(a0(k,j,i))**2*tmp/(1.0+tmr)
 !$omp critical
                      E0k(kperp,kpara) = E0k(kperp,kpara)+tm0
 !$omp end critical
@@ -804,16 +812,17 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kperp,kpara,kp2,tm0,tmw,tmi,tmr)
             DO j = 1,n
+               kp2   = ka(1)**2+ka(j)**2
+               kperp = int(sqrt(kp2)+1.501)
+               IF ( (kperp.gt.km) ) CYCLE
                DO k = 1,n
-                  kp2   = ka(1)**2+ka(j)**2
-                  kperp = int(sqrt(kp2)+.501)
                   kpara = int(abs(ka(k))+1)
-                  IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE 
-                  IF ((kp2.gt.tiny)) THEN
+                  IF ( (kpara.lt.1).or.(kpara.gt.km ) ) CYCLE
+                  IF ((kp2.gt.0.0)) THEN
                      tmr     = (f*ka(k)/bvfreq)**2/kp2
-                     tmi     = 1.0D0/(1.0D0+tmr)
+                     tmi     = 1.0/(1.0+tmr)
                      tm0     = tmr*abs(a0(k,j,1))**2*tmp*tmi
-                     tmw     = 0.50D0*abs(am(k,j,1)+ap(k,j,1))**2*tmp*tmi
+                     tmw     = 0.50*abs(am(k,j,1)+ap(k,j,1))**2*tmp*tmi
 !$omp critical
                      E0k(kperp,kpara) = E0k(kperp,kpara)+tm0
                      EWk(kperp,kpara) = EWk(kperp,kpara)+tmw
@@ -831,23 +840,24 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
           DO i = ibeg,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kperp,kpara,kp2,tm0,tmw,tmi,tmr)
              DO j = 1,n
+                kp2   = ka(i)**2+ka(j)**2
+                kperp = int(sqrt(kp2)+1.501)
+                IF ( (kperp.gt.km) ) CYCLE
                 DO k = 1,n
-                  kp2   = ka(i)**2+ka(j)**2
-                  kperp = int(sqrt(kp2)+.501)
                   kpara = int(abs(ka(k))+1)
-                  IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE 
-                  IF ((kp2.gt.tiny)) THEN
+                  IF ( (kpara.lt.1).or.(kpara.gt.km ) ) CYCLE
+                  IF ((kp2.gt.0.0)) THEN
                      tmr     = (f*ka(k)/bvfreq)**2/kp2
-                     tmi     = 1.0D0/(1.0D0+tmr)
+                     tmi     = 1.0/(1.0+tmr)
 !$omp critical
-                     tm0     = 2.0D0*tmr*abs(a0(k,j,i))**2*tmp*tmi
-                     tmw     =     abs(am(k,j,i)+ap(k,j,i))**2*tmp*tmi
+                     tm0     = 2.0*tmr*abs(a0(k,j,i))**2*tmp*tmi
+                     tmw     =         abs(am(k,j,i)+ap(k,j,i))**2*tmp*tmi
 !$omp critical
                      E0k(kperp,kpara) = E0k(kperp,kpara)+tm0
                      EWk(kperp,kpara) = EWk(kperp,kpara)+tmw
 !$omp end critical
                   ELSE
-                     tm0     = 2.0D0*abs(a0(k,j,i))**2*tmp
+                     tm0     = 2.0*abs(a0(k,j,i))**2*tmp
 !$omp critical
                      E0k(kperp,kpara) = E0k(kperp,kpara)+tm0
 !$omp end critical
@@ -995,7 +1005,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
                   kpara = int(abs(ka(k))+1)
                   kmn   = kmsk(1)*kiso + kmsk(2)*kperp + kmsk(3)*kpara
                   IF ( (kmn.lt.1).or.(kmn.gt.n/2+1) ) CYCLE
-                  IF ((kperp.gt.tiny)) THEN
+                  IF ((kp2.gt.0.0)) THEN
                      tmr     = (f*ka(k)/bvfreq)**2/kp2
                      tmi     = 1.0D0/(sqrt(2.0)*(1.0D0+tmr))
                      sig     = sqrt(f**2 * ka(k)**2+ bvfreq**2 * kp2)
@@ -1032,7 +1042,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
                   kmn   = kmsk(1)*kiso + kmsk(2)*kperp + kmsk(3)*kpara
                   IF ( (kmn.lt.1).or.(kmn.gt.n/2+1) ) CYCLE
 
-                  IF ((kp2.gt.tiny)) THEN
+                  IF ((kp2.gt.0.0)) THEN
                      tmr     = (f*ka(k)/bvfreq)**2/kp2
                      tmi     = 1.0D0/(sqrt(2.0)*(1.0D0+tmr))
                      sig     = sqrt(f**2 * ka(k)**2+ bvfreq**2 * kp2)
@@ -1079,7 +1089,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
                   kpara = int(abs(ka(k))+1)
                   kmn   = kmsk(1)*kiso + kmsk(2)*kperp + kmsk(3)*kpara
                   IF ( (kmn.lt.1).or.(kmn.gt.n/2+1) ) CYCLE
-                  IF ((kp2.gt.tiny)) THEN
+                  IF ((kp2.gt.0.0)) THEN
                      tmr     = (f*ka(k)/bvfreq)**2/kp2
                      tm0     = abs(a0(k,j,1))**2*tmp/(1.0D0+tmr)
 !$omp critical
@@ -1101,7 +1111,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
                   kmn   = kmsk(1)*kiso + kmsk(2)*kperp + kmsk(3)*kpara
                   IF ( (kmn.lt.1).or.(kmn.gt.n/2+1) ) CYCLE
 
-                  IF ((kp2.gt.tiny)) THEN
+                  IF ((kp2.gt.0.0)) THEN
                      tmr     = (f*ka(k)/bvfreq)**2/kp2
                      tm0     = 2.0D0*abs(a0(k,j,i))**2*tmp/(1.0D0+tmr)
 !$omp critical
@@ -1133,7 +1143,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
                   kmn   = kmsk(1)*kiso + kmsk(2)*kperp + kmsk(3)*kpara
                   IF ( (kmn.lt.1).or.(kmn.gt.n/2+1) ) CYCLE
 
-                  IF ((kp2.gt.tiny)) THEN
+                  IF ((kp2.gt.0.0)) THEN
                      tmr     = (f*ka(k)/bvfreq)**2/kp2
                      tmi     = 1.0D0/(1.0D0+tmr)
                      tm0     = tmr*abs(a0(k,j,1))**2*tmp*tmi
@@ -1163,7 +1173,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
                   kmn   = kmsk(1)*kiso + kmsk(2)*kperp + kmsk(3)*kpara
                   IF ( (kmn.lt.1).or.(kmn.gt.n/2+1) ) CYCLE
 
-                  IF ((kp2.gt.tiny)) THEN
+                  IF ((kp2.gt.0.0)) THEN
                      tmr     = (f*ka(k)/bvfreq)**2/kp2
                      tmi     = 1.0D0/(1.0D0+tmr)
 !$omp critical
@@ -1593,9 +1603,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       CALL specaxig (c3,   eaxi) ! axisymm. 2d spectra for Z2
       IF (myrank.eq.0) THEN
         if ( len_trim(nmb1).gt.0 ) then
-        OPEN(1,file='kz22D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        OPEN(1,file='kz22D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else
-        OPEN(1,file='kz22D.' // nmb // '.out',form='unformatted')
+        OPEN(1,file='kz22D.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) eaxi
         CLOSE(1)
@@ -1610,9 +1620,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       CALL specaxig (c3,   eaxi) ! axisymm. 2d spectra for Z3
       IF (myrank.eq.0) THEN
         if ( len_trim(nmb1).gt.0 ) then
-        OPEN(1,file='kz32D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        OPEN(1,file='kz32D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else
-        OPEN(1,file='kz32D.' // nmb // '.out',form='unformatted')
+        OPEN(1,file='kz32D.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) eaxi
         CLOSE(1)
@@ -1626,9 +1636,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       CALL specaxig (c3,   eaxi) ! axisymm. 2d spectra for Z4
       IF (myrank.eq.0) THEN
         if ( len_trim(nmb1).gt.0 ) then
-        OPEN(1,file='kz42D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted')
+        OPEN(1,file='kz42D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else
-        OPEN(1,file='kz42D.' // nmb // '.out',form='unformatted')
+        OPEN(1,file='kz42D.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) eaxi
         CLOSE(1)
@@ -1790,12 +1800,12 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       REAL   (KIND=GP), INTENT(OUT), DIMENSION(n/2+1,n/2+1)   :: F0k
       REAL   (KIND=GP),              DIMENSION(n/2+1,n/2+1)   :: E0k
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(n,n,ista:iend) :: a
-      DOUBLE PRECISION             :: ks,tmr,tmp
+      REAL   (KIND=GP)             :: ks,tmr,tmp
       INTEGER                      :: i,ibeg,j,k,km
       INTEGER                      :: kperp,kpara
 
       km      = n/2+1
-      E0k     = 0.0D0
+      E0k     = 0.0
       tmp     = 1.0_GP/real(n,kind=GP)**6
       ibeg    = ista
       IF (ista.eq.1) ibeg = 2
@@ -1804,10 +1814,11 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
        IF (ista.eq.1) THEN
 !$omp parallel do private (k,kperp,kpara,tmr)
           DO j = 1,n
+             kperp = int(sqrt(ka(1)**2+ka(j)**2)+1.501)
+             IF ( (kperp.lt.1).or.(kperp.gt.km) ) CYCLE
              DO k = 1,n
-                kperp = int(sqrt(ka(1)**2+ka(j)**2)+.501)
                 kpara = int(abs(ka(k))+1)
-                IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE
+                IF ( (kpara.lt.1).or.(kpara.gt.km ) ) CYCLE
                 tmr     =      abs(a(k,j,1))**2  * tmp
 !$omp critical
                 E0k(kperp,kpara) = E0k(kperp,kpara)+tmr
@@ -1820,11 +1831,12 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
         DO i = ibeg,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kperp,kpara,tmr)
            DO j = 1,n
+              kperp = int(sqrt(ka(i)**2+ka(j)**2)+1.501)
+              IF ( (kperp.lt.1).or.(kperp.gt.km) ) CYCLE
               DO k = 1,n
-                kperp = int(sqrt(ka(i)**2+ka(j)**2)+.501)
                 kpara = int(abs(ka(k))+1)
-                IF ( (kperp.lt.1).or.(kperp.gt.km).or.(kpara.gt.km) ) CYCLE
-                tmr     = 2.0D0* abs(a(k,j,i))**2 * tmp
+                IF ( (kpara.lt.1).or.(kpara.gt.km ) ) CYCLE
+                tmr   = 2.0*abs(a(k,j,i))**2 * tmp
 !$omp critical
                 E0k(kperp,kpara) = E0k(kperp,kpara)+tmr
 !$omp end critical
@@ -1833,8 +1845,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
            END DO
         END DO
 !
-        CALL MPI_REDUCE(E0k,F0k,(n/2+1)*(n/2+1),GC_REAL,      &    
+        CALL MPI_REDUCE(E0k,F0k,(n/2+1)*(n/2+1),GC_REAL,&    
              MPI_SUM,0,MPI_COMM_WORLD,ierr)
+
 
         RETURN
 
