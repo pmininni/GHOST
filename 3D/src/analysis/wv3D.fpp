@@ -195,8 +195,8 @@
           bmangle = 1
         ENDIF
         CALL WVNormal(a0,am,ap,vx,vy,vz,th,omega,bvfreq)
-        CALL wvspectrum(a0,am,ap,omega,bvfreq,ext,ext1,i2d)
-        CALL wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,ext,ext1,i2d,c1,c2,c3,r1,r2,r3)
+        CALL wvspectrum(a0,am,ap,omega,bvfreq,odir,ext,ext1,i2d)
+        CALL wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,odir,ext,ext1,i2d,c1,c2,c3,r1,r2,r3)
       ELSE
         DO it = 1,nstat
           WRITE(ext, fmtext) istat(it)
@@ -231,8 +231,8 @@ write(*,*)'main: fft_rc on th...'
           CALL fftp3d_real_to_complex(planrc,r1,th,MPI_COMM_WORLD)
 write(*,*)'main: calling WVNormal ...'
           CALL WVNormal(a0,am,ap,vx,vy,vz,th,omega,bvfreq)
-          CALL wvspectrum(a0,am,ap,omega,bvfreq,ext,'',i2d)
-          CALL wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,ext,'',i2d,c1,c2,c3,r1,r2,r3)
+          CALL wvspectrum(a0,am,ap,omega,bvfreq,odir,ext,'',i2d)
+          CALL wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,odir,ext,'',i2d,c1,c2,c3,r1,r2,r3)
 
           ! Do output:
           IF ( putnm.EQ.1 ) THEN
@@ -359,7 +359,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 
 
 !*****************************************************************
-      SUBROUTINE wvspectrum(a0,am,ap,omega,bvfreq,nmb,nmb1,i2d)
+      SUBROUTINE wvspectrum(a0,am,ap,omega,bvfreq,dir,nmb,nmb1,i2d)
 !-----------------------------------------------------------------
 !
 ! Computes the energy and helicity power 
@@ -389,7 +389,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       REAL   (KIND=GP), INTENT(IN)                           :: bvfreq,omega
       INTEGER         , INTENT(IN)                           :: i2d
       INTEGER                      :: j
-      CHARACTER(len=*), INTENT(IN) :: nmb,nmb1
+      CHARACTER(len=*), INTENT(IN) :: dir,nmb,nmb1
 
 !
 !-----------------------------------------------------------------
@@ -430,9 +430,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       CALL wvspecaxic(a0,am,ap,omega,bvfreq,1,F0axi,FWaxi) ! 2D axisymm spec E0, EW
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
-        OPEN(1,file='kE02D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/kspecED30.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else 
-        OPEN(1,file='kE02D.' // nmb // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DE0.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) F0axi
         CLOSE(1)
@@ -440,9 +440,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
-        OPEN(1,file='kEW2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DEW.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else 
-        OPEN(1,file='kEW2D.' // nmb // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DEW.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) FWaxi
         CLOSE(1)
@@ -451,9 +451,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       CALL wvspecaxic(a0,am,ap,omega,bvfreq,3,F0axi,FWaxi) ! 2D axisymm spec EV0 (only F0 filled)
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
-        OPEN(1,file='kEV02D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DEV0.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else 
-        OPEN(1,file='kEV02D.' // nmb // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DEV0.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) F0axi
         CLOSE(1)
@@ -462,9 +462,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       CALL wvspecaxic(a0,am,ap,omega,bvfreq,4,F0axi,FWaxi) ! 2D axisymm spec P0, PW
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
-        OPEN(1,file='kP02D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DP0.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else 
-        OPEN(1,file='kP02D.' // nmb // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DP0.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) F0axi
         CLOSE(1)
@@ -472,9 +472,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
-        OPEN(1,file='kPW2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DPW.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else 
-        OPEN(1,file='kPW2D.' // nmb // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DPW.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) FWaxi
         CLOSE(1)
@@ -483,9 +483,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       CALL wvspecaxic(a0,am,ap,omega,bvfreq,2,F0axi,FWaxi) ! 2D axisymm spec H0, HW
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
-        OPEN(1,file='kH02D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DH0.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else 
-        OPEN(1,file='kH02D.' // nmb // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DH0.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) F0axi
         CLOSE(1)
@@ -493,9 +493,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
-        OPEN(1,file='kHW2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DHW.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else 
-        OPEN(1,file='kHW2D.' // nmb // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DHW.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) FWaxi
         CLOSE(1)
@@ -1212,7 +1212,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       SUBROUTINE DoSpAvg(vx,vy,vz,th,istat,nstat,idir,planrc,planio,rv,c1)
 !-----------------------------------------------------------------
 !
-! Computes 1d wave and vortical spectra for various quantities, returns them
+! Computes time average of fluctuation fields.
 !
 ! Parameters
 !     vx,vy,vz,th  : complex arrays averaged over istat time stamps
@@ -1556,7 +1556,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 
 
 !*****************************************************************
-      SUBROUTINE wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,nmb,nmb1,i2d,c1,c2,c3,r1,r2,r3)
+      SUBROUTINE wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,dir,nmb,nmb1,i2d,c1,c2,c3,r1,r2,r3)
 !-----------------------------------------------------------------
 !
 ! Computes the spectra for the enstropy constributions with
@@ -1569,6 +1569,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
 !     th    : potl temp., complex
 !     bvfreq: Brunt-Vaisalla freq
 !     omega : rotation rate
+!     dir   : output directory (for 2d spectra)
 !     nmb   : the extension used when writting the file
 !     nmb1  : if lenght>0, used to specify range
 !     i2d   : do 2D spectra (>0) or not (<=0)
@@ -1591,7 +1592,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       REAL   (KIND=GP), INTENT   (IN)                           :: bvfreq,omega
       INTEGER,          INTENT   (IN)                           :: i2d
       INTEGER                      :: j
-      CHARACTER(len=*), INTENT(IN) :: nmb,nmb1
+      CHARACTER(len=*), INTENT(IN) :: dir,nmb,nmb1
 
 !
 ! isotropic spectra:
@@ -1603,9 +1604,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       CALL specaxig (c3,   eaxi) ! axisymm. 2d spectra for Z2
       IF (myrank.eq.0) THEN
         if ( len_trim(nmb1).gt.0 ) then
-        OPEN(1,file='kz22D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DZ2.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else
-        OPEN(1,file='kz22D.' // nmb // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DZ2.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) eaxi
         CLOSE(1)
@@ -1620,9 +1621,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       CALL specaxig (c3,   eaxi) ! axisymm. 2d spectra for Z3
       IF (myrank.eq.0) THEN
         if ( len_trim(nmb1).gt.0 ) then
-        OPEN(1,file='kz32D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DZ3.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else
-        OPEN(1,file='kz32D.' // nmb // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DZ3.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) eaxi
         CLOSE(1)
@@ -1636,9 +1637,9 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       CALL specaxig (c3,   eaxi) ! axisymm. 2d spectra for Z4
       IF (myrank.eq.0) THEN
         if ( len_trim(nmb1).gt.0 ) then
-        OPEN(1,file='kz42D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DZ4.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else
-        OPEN(1,file='kz42D.' // nmb // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DZ4.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) eaxi
         CLOSE(1)
@@ -1814,7 +1815,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
        IF (ista.eq.1) THEN
 !$omp parallel do private (k,kperp,kpara,tmr)
           DO j = 1,n
-             kperp = int(sqrt(ka(1)**2+ka(j)**2)+0.501)
+             kperp = int(sqrt(ka(1)**2+ka(j)**2)+1.501)
              IF ( (kperp.lt.1).or.(kperp.gt.km) ) CYCLE
              DO k = 1,n
                 kpara = int(abs(ka(k))+1)
@@ -1831,7 +1832,7 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
         DO i = ibeg,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kperp,kpara,tmr)
            DO j = 1,n
-              kperp = int(sqrt(ka(i)**2+ka(j)**2)+0.501)
+              kperp = int(sqrt(ka(i)**2+ka(j)**2)+1.501)
               IF ( (kperp.lt.1).or.(kperp.gt.km) ) CYCLE
               DO k = 1,n
                 kpara = int(abs(ka(k))+1)
