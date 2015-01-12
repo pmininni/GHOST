@@ -1527,7 +1527,7 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
 
       CALL derivk3(th,gn,2)
       CALL fftp3d_complex_to_real(plancr,gn,r1,MPI_COMM_WORLD)
-      CALL rotor3(vz,vx,c1,2)
+      CALL rotor3(vx,vz,c1,2)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -1539,7 +1539,7 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
          END DO
       END DO
 
-      CALL derivk3(th,gn,2)
+      CALL derivk3(th,gn,3)
       CALL fftp3d_complex_to_real(plancr,gn,r1,MPI_COMM_WORLD)
       CALL rotor3(vx,vy,c1,3)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
