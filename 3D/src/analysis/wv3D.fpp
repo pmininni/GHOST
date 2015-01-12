@@ -201,41 +201,44 @@
         DO it = 1,nstat
           WRITE(ext, fmtext) istat(it)
 ! read in appropriate file:
-write(*,*)'main: reading vx...'
+if ( myrank.eq.0 ) write(*,*)'main: reading vx...',ext
           CALL io_read(1,idir,'vx',ext,planio,r1)
           IF ( iswap .NE. 0 ) THEN
              CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
           ENDIF
-write(*,*)'main: fft_rc on vx...'
+if ( myrank.eq.0 ) write(*,*)'main: fft_rc on vx...',ext
           CALL fftp3d_real_to_complex(planrc,r1,vx,MPI_COMM_WORLD)
-write(*,*)'main: reading vy...'
+if ( myrank.eq.0 ) write(*,*)'main: reading vy...',ext
           CALL io_read(1,idir,'vy',ext,planio,r1)
           IF ( iswap .NE. 0 ) THEN
              CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
           ENDIF
-write(*,*)'main: fft_rc on vy...'
+if ( myrank.eq.0 ) write(*,*)'main: fft_rc on vy...', ext
           CALL fftp3d_real_to_complex(planrc,r1,vy,MPI_COMM_WORLD)
-write(*,*)'main: reading vz...'
+if ( myrank.eq.0 ) write(*,*)'main: reading vz...',ext
           CALL io_read(1,idir,'vz',ext,planio,r1)
           IF ( iswap .NE. 0 ) THEN
              CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
           ENDIF
-write(*,*)'main: fft_rc on vz...'
+if ( myrank.eq.0 ) write(*,*)'main: fft_rc on vz...',ext
           CALL fftp3d_real_to_complex(planrc,r1,vz,MPI_COMM_WORLD)
-write(*,*)'main: reading th...'
+if ( myrank.eq.0 ) write(*,*)'main: reading th...',ext
           CALL io_read(1,idir,'th',ext,planio,r1)
           IF ( iswap .NE. 0 ) THEN
              CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
           ENDIF
-write(*,*)'main: fft_rc on th...'
+if ( myrank.eq.0 ) write(*,*)'main: fft_rc on th...',ext
           CALL fftp3d_real_to_complex(planrc,r1,th,MPI_COMM_WORLD)
-write(*,*)'main: calling WVNormal ...'
+if ( myrank.eq.0 ) write(*,*)'main: calling WVNormal ...'
           CALL WVNormal(a0,am,ap,vx,vy,vz,th,omega,bvfreq)
+if ( myrank.eq.0 ) write(*,*)'main: calling wvspectrum...'
           CALL wvspectrum(a0,am,ap,omega,bvfreq,odir,ext,'',i2d)
+if ( myrank.eq.0 ) write(*,*)'main: calling wvzspectrum...'
           CALL wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,odir,ext,'',i2d,c1,c2,c3,r1,r2,r3)
 
           ! Do output:
           IF ( putnm.EQ.1 ) THEN
+if ( myrank.eq.0 ) write(*,*)'main: doing output...'
             c1 = a0*tmp
             CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
             IF ( oswap.NE.0 ) THEN
@@ -321,7 +324,7 @@ write(*,*)'main: calling WVNormal ...'
 
       ic = cmplx(0.0_GP,1.0_GP);
       f = 2.0_GP * omega
-write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
+!if ( myrank.eq.0 ) write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       tmp = 1.0_GP/sqrt(2.0_GP)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kp,ks,sig)
          DO i = ista,iend
@@ -1423,8 +1426,8 @@ write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
       IF ( nt.eq.3 ) THEN
         tmp = 1.0_GP/real(n,kind=GP)**6
         CALL wgradt(gn,vx,vy,vz,th,c1,r1,r2,r3)
-        CALL derivk3(th,c1,1)
-        CALL rotor3(vy,vz,c2,3)
+        CALL derivk3(th,c1,3)
+        CALL rotor3(vx,vy,c2,3)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
