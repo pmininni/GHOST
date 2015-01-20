@@ -14,6 +14,7 @@
          INTEGER      :: iotype
       END TYPE IOPLAN
       INTEGER :: iswap=0
+      INTEGER :: oswap=0
       SAVE
 
   END MODULE iovar
