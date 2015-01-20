@@ -20,6 +20,7 @@
       END TYPE IOPLAN
       CHARACTER(len=6)         :: fmtnod = '(i3.3)'
       INTEGER                  :: iswap=0
+      INTEGER                  :: oswap=0
       SAVE
 
   END MODULE iovar
