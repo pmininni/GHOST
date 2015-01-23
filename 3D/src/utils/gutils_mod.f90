@@ -724,4 +724,79 @@ if ( myrank.eq. 0 ) write(*,*)'dojpdf: writing to disk done.'
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+      SUBROUTINE rarray_props(Rin,nin,rmin,rmax,mean,rrms,rstd)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Find max of input array
+!
+! Parameters
+!     Rin : arbitrary-rank array 
+!     nin : dimension of Rin
+!     rmin: min value found
+!     rmax: max value found
+!     mean: mean
+!     rrms: rms
+!     std : std deviation from the mean
+!-----------------------------------------------------------------
+      USE mpivars
+!$    USE threads
+      USE fprecision
+      USE commtypes
+
+      IMPLICIT NONE
+
+      INTEGER, INTENT(IN)                        :: nin 
+      REAL(KIND=GP), INTENT(INOUT), DIMENSION(*) :: Rin 
+      REAL(KIND=GP), INTENT  (OUT)               :: rmin,rmax,rrms,mean,rstd
+      REAL(KIND=GP)                              :: loc(2),glo(2)
+
+      INTEGER          :: k
+
+      rmax   = -huge(rmax)
+      rmin   =  huge(rmax)
+      loc(1) = 0.0_GP
+      loc(2) = 0.0_GP
+      loc(3) = 0.0_GP
+!$omp parallel do if (nin.ge.nth) 
+      DO k = 1, nin 
+!$omp critical
+          rmax   = max(rmax,Rin(k))
+          rmin   = min(rmin,Rin(k))
+          loc(1) = loc(1) + Rin(k)**2 ! rms
+          loc(2) = loc(2) + Rin(k)    ! sum/mean
+!$omp end critical
+       END DO
+       CALL MPI_ALLREDUCE(loc,glo,2,GC_REAL,MPI_SUM, &
+                          MPI_COMM_WORLD,ierr)
+       rrms = sqrt(glo(1)/real(nin,kind=GP))
+       mean = glo(2)/real(nin,kind=GP)
+
+       loc(1) = rmin
+       CALL MPI_ALLREDUCE(loc,glo,1,GC_REAL,MPI_MIN, &
+                          MPI_COMM_WORLD,ierr)
+       rmin = glo(1)
+
+       loc(1) = rmax
+       CALL MPI_ALLREDUCE(loc,glo,1,GC_REAL,MPI_MAX, &
+                          MPI_COMM_WORLD,ierr)
+       rmax = glo(1)
+
+      loc = 0.0_GP
+!$omp parallel do if (nin.ge.nth) 
+      DO k = 1, nin 
+!$omp atomic
+          loc(1)= loc(1) + (Rin(k)-mean)**2
+       END DO
+  
+       CALL MPI_ALLREDUCE(loc,glo,1,GC_REAL,MPI_SUM, &
+                          MPI_COMM_WORLD,ierr)
+       rstd = sqrt(glo(1)/real(nin,kind=GP))
+
+      RETURN
+
+      END SUBROUTINE rarray_props
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
 END MODULE gutils
