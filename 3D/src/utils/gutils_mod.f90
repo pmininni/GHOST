@@ -724,7 +724,7 @@ if ( myrank.eq. 0 ) write(*,*)'dojpdf: writing to disk done.'
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-      SUBROUTINE rarray_props(Rin,nin,rmin,rmax,mean,rrms,rstd)
+      SUBROUTINE rarray_props(Rin,nin,n,rmin,rmax,mean,rrms,rstd)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -732,7 +732,8 @@ if ( myrank.eq. 0 ) write(*,*)'dojpdf: writing to disk done.'
 !
 ! Parameters
 !     Rin : arbitrary-rank array 
-!     nin : dimension of Rin
+!     nin : local dimension of Rin
+!     n   : linear dimension
 !     rmin: min value found
 !     rmax: max value found
 !     mean: mean
@@ -746,13 +747,14 @@ if ( myrank.eq. 0 ) write(*,*)'dojpdf: writing to disk done.'
 
       IMPLICIT NONE
 
-      INTEGER, INTENT(IN)                        :: nin 
+      INTEGER, INTENT(IN)                        :: n,nin 
       REAL(KIND=GP), INTENT(INOUT), DIMENSION(*) :: Rin 
       REAL(KIND=GP), INTENT  (OUT)               :: rmin,rmax,rrms,mean,rstd
-      REAL(KIND=GP)                              :: loc(2),glo(2)
+      REAL(KIND=GP)                              :: loc(2),glo(2),ng
 
       INTEGER          :: k
 
+      ng = 1.0_GP/real(n,kind=GP)**3
       rmax   = -huge(rmax)
       rmin   =  huge(rmax)
       loc(1) = 0.0_GP
@@ -769,8 +771,8 @@ if ( myrank.eq. 0 ) write(*,*)'dojpdf: writing to disk done.'
        END DO
        CALL MPI_ALLREDUCE(loc,glo,2,GC_REAL,MPI_SUM, &
                           MPI_COMM_WORLD,ierr)
-       rrms = sqrt(glo(1)/real(nin,kind=GP))
-       mean = glo(2)/real(nin,kind=GP)
+       rrms = sqrt(glo(1)*ng)
+       mean = glo(2)*ng
 
        loc(1) = rmin
        CALL MPI_ALLREDUCE(loc,glo,1,GC_REAL,MPI_MIN, &
@@ -791,7 +793,7 @@ if ( myrank.eq. 0 ) write(*,*)'dojpdf: writing to disk done.'
   
        CALL MPI_ALLREDUCE(loc,glo,1,GC_REAL,MPI_SUM, &
                           MPI_COMM_WORLD,ierr)
-       rstd = sqrt(glo(1)/real(nin,kind=GP))
+       rstd = sqrt(glo(1)*ng)
 
       RETURN
 
