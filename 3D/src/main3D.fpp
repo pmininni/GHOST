@@ -1180,10 +1180,12 @@
       rho0 = 1.0_GP    !Default value
       kttherm = 0.0_GP !Default value
       cflow = 0        !Default value
+#ifdef ARGL_SOL
       IF ( ord.ne.1 ) THEN ! Check if the order is correct for ARGL
          WRITE(*,*)'MAIN: ARGL solver must be compiled with ord=1'
          STOP
       ENDIF
+#endif
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.txt',status='unknown',form="formatted")
          READ(1,NML=wavefunction)
