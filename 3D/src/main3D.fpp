@@ -1194,6 +1194,9 @@
          omegag = cspeed/(lambda*sqrt(2.0_GP))
          beta= omegag/rho0
       ENDIF
+      CALL MPI_BCAST(cspeed,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(lambda,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rho0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(alpha,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(beta,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(omegag,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
