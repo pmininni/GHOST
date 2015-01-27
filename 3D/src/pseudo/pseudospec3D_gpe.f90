@@ -650,3 +650,161 @@
 
       RETURN
       END SUBROUTINE zturn
+
+!*******************************************************************
+      SUBROUTINE gpekfield(a,b,c,d,e,f,g,h)
+!-------------------------------------------------------------------
+!
+! Computes all the components of the compressible and incompressible
+! parts of sqrt(rho)*v. These quantities must be computed in real
+! space and then transformed to Fourier space.
+!
+! Parameters
+!     a : real part of the wavefunction in Fourier space
+!     b : imaginary part of the wavefunction in Fourier space
+!     c : x-component of the incompressible part [output]
+!     d : x-component of the compressible part   [output]
+!     e : y-component of the incompressible part [output]
+!     f : y-component of the compressible part   [output]
+!     g : z-component of the incompressible part [output]
+!     h : z-component of the compressible part   [output]
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE fft
+      USE ali
+      USE grid
+      USE hbar
+      USE mpivars
+      USE filefmt
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(n,n,ista:iend) :: a,b
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: c,d
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: e,f
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: g,h
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1,c2,c3,c4
+      DOUBLE PRECISION, DIMENSION(n/2+1)         :: Ek,Ektot,Ec,Ectot
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2,r3
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: qua,kin
+      REAL(KIND=GP)    :: rmp,rmq
+      INTEGER          :: i,j,k
+      INTEGER          :: kmn
+
+!
+! Transforms the wavefunction to real space
+!
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+      DO i = ista,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
+         DO j = 1,n
+            DO k = 1,n
+               c1(k,j,i) = a(k,j,i)
+               c2(k,j,i) = b(k,j,i)
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+!
+! Computes z/sqrt(|z|^2) inplace
+!
+      CALL zturn(r1,r2)
+!
+! Prepares to compute the kinetic energy spectra
+! Ekin ~ (zturnre*grad(zim)-zturnim*grad(zre))^2
+!
+      CALL derivk3(a,c1,1)   ! x component
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               kin(i,j,k) = -r2(i,j,k)*r3(i,j,k)
+            END DO
+         END DO
+      END DO
+      CALL derivk3(b,c1,1)
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               kin(i,j,k) = kin(i,j,k)+r1(i,j,k)*r3(i,j,k)
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_real_to_complex(planrc,kin,c2,MPI_COMM_WORLD)
+
+      CALL derivk3(a,c1,2)   ! y component
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               kin(i,j,k) = -r2(i,j,k)*r3(i,j,k)
+            END DO
+         END DO
+      END DO
+      CALL derivk3(b,c1,2)
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               kin(i,j,k) = kin(i,j,k)+r1(i,j,k)*r3(i,j,k)
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_real_to_complex(planrc,kin,c3,MPI_COMM_WORLD)
+
+      CALL derivk3(a,c1,3)   ! z component
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               kin(i,j,k) = -r2(i,j,k)*r3(i,j,k)
+            END DO
+         END DO
+      END DO
+      CALL derivk3(b,c1,3)
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               kin(i,j,k) = kin(i,j,k)+r1(i,j,k)*r3(i,j,k)
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_real_to_complex(planrc,kin,c4,MPI_COMM_WORLD)
+!
+! Computes the compressible and incompressible kinetic energy spectra
+!
+      CALL gauge3(c2,c3,c4,c1,1)      ! x component 
+      c  = c1    ! incompressible
+      c1 = c2-c1
+      d  = c1    ! compressible
+
+      CALL gauge3(c2,c3,c4,c1,2)      ! y component
+      e = c1     ! incompressible
+      c1 = c3-c1
+      f = c1     ! compressible
+
+      CALL gauge3(c2,c3,c4,c1,3)      ! z component
+      g = c1     ! incompressible
+      c1 = c4-c1
+      h = c1     ! compressible
+
+      RETURN
+      END SUBROUTINE gpekfield
+
