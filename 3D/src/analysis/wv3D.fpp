@@ -18,6 +18,9 @@
 !      ORNL
 !
 ! 14 Nov 2014: Initial version
+! 11 Feb 2015: Corrections for potential enstrophy computations (Corentin)
+!              Modified PVn, wgradt and wvzspectrum
+!              Added functions specprodg and specprodaxig for cubic term
 !=================================================================
 
 !
@@ -433,7 +436,7 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
       CALL wvspecaxic(a0,am,ap,omega,bvfreq,1,F0axi,FWaxi) ! 2D axisymm spec E0, EW
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
-        OPEN(1,file=trim(dir) // '/kspecED30.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/kspec2DE0.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else 
         OPEN(1,file=trim(dir) // '/' // 'kspec2DE0.' // nmb // '.out',form='unformatted',access='stream')
         endif
@@ -462,12 +465,12 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
         CLOSE(1)
       ENDIF
 
-      CALL wvspecaxic(a0,am,ap,omega,bvfreq,4,F0axi,FWaxi) ! 2D axisymm spec P0, PW
+      CALL wvspecaxic(a0,am,ap,omega,bvfreq,4,F0axi,FWaxi) ! 2D axisymm spec EP0, EPW
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
-        OPEN(1,file=trim(dir) // '/' // 'kspec2DP0.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DEP0.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else 
-        OPEN(1,file=trim(dir) // '/' // 'kspec2DP0.' // nmb // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DEP0.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) F0axi
         CLOSE(1)
@@ -475,9 +478,9 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
 
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
-        OPEN(1,file=trim(dir) // '/' // 'kspec2DPW.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DEPW.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else 
-        OPEN(1,file=trim(dir) // '/' // 'kspec2DPW.' // nmb // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DEPW.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) FWaxi
         CLOSE(1)
@@ -486,9 +489,9 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
       CALL wvspecaxic(a0,am,ap,omega,bvfreq,2,F0axi,FWaxi) ! 2D axisymm spec H0, HW
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
-        OPEN(1,file=trim(dir) // '/' // 'kspec2DH0.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DH0W.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
         else 
-        OPEN(1,file=trim(dir) // '/' // 'kspec2DH0.' // nmb // '.out',form='unformatted',access='stream')
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DH0W.' // nmb // '.out',form='unformatted',access='stream')
         endif
         WRITE(1) F0axi
         CLOSE(1)
@@ -1343,14 +1346,14 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
       END SUBROUTINE padd
 
 !
-      SUBROUTINE PVn(gn,a0,vx,vy,vz,th,omega,bvfreq,nt,c1,c2,r1,r2,r3)
+      SUBROUTINE PVn(gn,a0,vx,vy,vz,th,omega,bvfreq,nt,c1,r1,r2,r3)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
 ! Computes nt-order contribution to potential vorticity
 !
 ! Parameters
-!     gn: nt-order enstrophy component (returned)
+!     gn: nt-order potential vorticity component (returned)
 !     a0: complex temp array of size vx,vy,vz, containing vortical modes
 !     vx,
 !     vy,
@@ -1358,9 +1361,8 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
 !     th    : complex potential temperature
 !     omega : rotation rate
 !     bvfreq: Brunt-Vaisalla frequency
-!     nt    : order of component (2,3,4). If 1, then quadratic term is
-!             computed.
-!     c1-2  : complex tmp array
+!     nt    : order of component (1,2). 
+!     c1  : complex tmp array
 !     r1-3  : real tmp array
 !
 !-----------------------------------------------------------------
@@ -1380,22 +1382,24 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
       COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(n,n,ista:iend) :: gn
       COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(n,n,ista:iend) :: vx,vy,vz,th
       COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(n,n,ista:iend) :: a0
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: c1,c2
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: c1
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: r1,r2,r3
       REAL   (KIND=GP), INTENT   (IN)                           :: bvfreq,omega
-      REAL   (KIND=GP)                                          :: f,kp,sig,tmp
+      REAL   (KIND=GP)                                          :: f,kp,ksigk,tmp
+      COMPLEX(KIND=GP)                                          :: ic
       INTEGER         , INTENT (IN)                             :: nt
       INTEGER                                                   :: i,j,k
 
-      IF ( nt.lt.1 .or. nt.gt.4 ) THEN
+      IF ( nt.lt.1 .or. nt.gt.2 ) THEN
         STOP 'PVn: invalid order'
       ENDIF
 
 
       f = 2.0*omega
       gn = (0.0_GP,0.0_GP)
+      ic = cmplx(0.0_GP,1.0_GP);
 
-      IF ( nt.le.2 ) THEN
+      IF ( nt.eq.1 ) THEN
         tmp = 1.0_GP/real(n,kind=GP)**6
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend
@@ -1403,69 +1407,15 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
            DO j = 1,n
               kp  = sqrt(ka(i)**2+ka(j)**2)
               DO k = 1,n
-              ! ks  = sqrt(ka2(k,j,i))
-                sig = sqrt(f**2*ka(k)**2+bvfreq**2*kp**2)
-                gn(k,j,i) = sig*a0(k,j,i)
+                ksigk = sqrt(f**2*ka(k)**2+bvfreq**2*kp**2)
+                gn(k,j,i) = -ic*ksigk*a0(k,j,i)
               END DO
            END DO
         END DO
-!        c1 = a0 
-!        CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-!!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-!        DO k = ksta,kend
-!!$omp parallel do if (kend-ksta.lt.nth) private (i)
-!           DO j = 1,n
-!              DO i = 1,n
-!                 r1(i,j,k) = r1(i,j,k)*r1(i,j,k)*tmp
-!              END DO
-!           END DO
-!        END DO
-!        CALL fftp3d_real_to_complex(planrc,r1,gn,MPI_COMM_WORLD)
       ENDIF
 
-      IF ( nt.eq.3 ) THEN
-        tmp = 1.0_GP/real(n,kind=GP)**6
+      IF ( nt.eq.2 ) THEN
         CALL wgradt(gn,vx,vy,vz,th,c1,r1,r2,r3)
-        CALL derivk3(th,c1,3)
-        CALL rotor3(vx,vy,c2,3)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-        DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-           DO j = 1,n
-              DO k = 1,n
-                 c1(k,j,i) = f*c1(k,j,i)-bvfreq*c2(k,j,i)
-              END DO
-           END DO
-        END DO
-        CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-        CALL fftp3d_complex_to_real(plancr,gn,r2,MPI_COMM_WORLD)
-
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-        DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-           DO j = 1,n
-              DO i = 1,n
-                 r1(i,j,k) = r1(i,j,k)*r2(i,j,k)*tmp
-              END DO
-           END DO
-        END DO
-        CALL fftp3d_real_to_complex(planrc,r1,gn,MPI_COMM_WORLD)
-      ENDIF
-
-      IF ( nt.eq.4 ) THEN
-        tmp = 1.0_GP/real(n,kind=GP)**6
-        CALL wgradt(gn,vx,vy,vz,th,c1,r1,r2,r3)
-        CALL fftp3d_complex_to_real(plancr,gn,r2,MPI_COMM_WORLD)
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-        DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-           DO j = 1,n
-              DO i = 1,n
-                 r1(i,j,k) = r1(i,j,k)*r1(i,j,k)*tmp
-              END DO
-           END DO
-        END DO
-        CALL fftp3d_real_to_complex(planrc,r1,gn,MPI_COMM_WORLD)
       ENDIF
 
       END SUBROUTINE PVn
@@ -1520,7 +1470,7 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,n
             DO i = 1,n
-               r3(i,j,k) = r3(i,j,k) + r1(i,j,k)*r2(i,j,k)*tmp
+               r3(i,j,k) = r1(i,j,k)*r2(i,j,k)*tmp
             END DO
          END DO
       END DO
@@ -1599,12 +1549,12 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
 
 !
 ! isotropic spectra:
-      CALL PVn(c3,a0,vx,vy,vz,th,omega,bvfreq,2,c1,c2,r1,r2,r3) 
-      CALL spectrumg(c3,1,E2k)   ! isotropic spectrum of Z2
-      CALL spectrumg(c3,2,E2kpr) ! reduced perp spectrum of Z2
-      CALL spectrumg(c3,3,E2kpa) ! reduced para spectrum of Z2
+      CALL PVn(c2,a0,vx,vy,vz,th,omega,bvfreq,1,c1,r1,r2,r3) 
+      CALL spectrumg(c2,1,E2k)   ! isotropic spectrum of Z2
+      CALL spectrumg(c2,2,E2kpr) ! reduced perp spectrum of Z2
+      CALL spectrumg(c2,3,E2kpa) ! reduced para spectrum of Z2
       IF ( i2d.GT.0 ) THEN
-      CALL specaxig (c3,   eaxi) ! axisymm. 2d spectra for Z2
+      CALL specaxig (c2,   eaxi) ! axisymm. 2d spectra for Z2
       IF (myrank.eq.0) THEN
         if ( len_trim(nmb1).gt.0 ) then
         OPEN(1,file=trim(dir) // '/' // 'kspec2DZ2.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
@@ -1616,23 +1566,7 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
       ENDIF
       ENDIF
 
-      CALL PVn(c3,a0,vx,vy,vz,th,omega,bvfreq,3,c1,c2,r1,r2,r3)
-      CALL spectrumg(c3,1,E3k)   ! isotropic spectrum of Z3
-      CALL spectrumg(c3,2,E3kpr) ! reduced perp spectrum of Z3
-      CALL spectrumg(c3,3,E3kpa) ! reduced para spectrum of Z3
-      IF ( i2d.GT.0 ) THEN
-      CALL specaxig (c3,   eaxi) ! axisymm. 2d spectra for Z3
-      IF (myrank.eq.0) THEN
-        if ( len_trim(nmb1).gt.0 ) then
-        OPEN(1,file=trim(dir) // '/' // 'kspec2DZ3.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
-        else
-        OPEN(1,file=trim(dir) // '/' // 'kspec2DZ3.' // nmb // '.out',form='unformatted',access='stream')
-        endif
-        WRITE(1) eaxi
-        CLOSE(1)
-      ENDIF
-      ENDIF
-      CALL PVn(c3,a0,vx,vy,vz,th,omega,bvfreq,4,c1,c2,r1,r2,r3)
+      CALL wgradt(c3,vx,vy,vz,th,c1,r1,r2,r3)
       CALL spectrumg(c3,1,E4k)   ! isotropic spectrum of Z4
       CALL spectrumg(c3,2,E4kpr) ! reduced perp spectrum of Z4
       CALL spectrumg(c3,3,E4kpa) ! reduced para spectrum of Z4
@@ -1648,6 +1582,24 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
         CLOSE(1)
       ENDIF
       ENDIF
+
+!      CALL PVn(c3,a0,vx,vy,vz,th,omega,bvfreq,3,c1,c2,r1,r2,r3)
+      CALL specprodg(c2,c3,1,E3k)   ! isotropic spectrum of Z3
+      CALL specprodg(c2,c3,2,E3kpr) ! reduced perp spectrum of Z3
+      CALL specprodg(c2,c3,3,E3kpa) ! reduced para spectrum of Z3
+      IF ( i2d.GT.0 ) THEN
+      CALL specprodaxig (c2,c3,eaxi) ! axisymm. 2d spectra for Z3
+      IF (myrank.eq.0) THEN
+        if ( len_trim(nmb1).gt.0 ) then
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DZ3.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+        else
+        OPEN(1,file=trim(dir) // '/' // 'kspec2DZ3.' // nmb // '.out',form='unformatted',access='stream')
+        endif
+        WRITE(1) eaxi
+        CLOSE(1)
+      ENDIF
+      ENDIF
+
 
       IF (myrank.eq.0) THEN
          if ( len_trim(nmb1).gt.0 ) then
@@ -1779,6 +1731,95 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
 
       END SUBROUTINE spectrumg
 
+!*****************************************************************
+      SUBROUTINE specprodg(a,b,kgeo,F0k)
+!-----------------------------------------------------------------
+!
+! Computes 1d iso or aniso spectrum of input quantity, and
+! outputs to F0k on all tasks.
+!
+! Parameters
+!     a    : input quantity, complex
+!     b    : input quantity, complex
+!     kgeo : = 1, then do isotropic spectral dependence; 2, then do perpendicular 
+!              spectral dependence; =3, then do parallel spectral dependence.
+!     F0k  : spectrum, returned
+!
+!-----------------------------------------------------------------
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+!$    USE threads
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, INTENT(OUT), DIMENSION(n/2+1)         :: F0k
+      DOUBLE PRECISION,  DIMENSION(n/2+1)                     :: E0k
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(n,n,ista:iend) :: a,b
+      INTEGER, INTENT(IN)          :: kgeo
+      DOUBLE PRECISION             :: ks,tmr,tmp
+      INTEGER                      :: i,ibeg,j,k
+      INTEGER                      :: kmn,kiso,kperp,kpara,kmsk(3)
+
+      kmsk(1:3) = 0
+      IF ( kgeo.lt. 1 .OR. kgeo.gt.3 ) THEN
+        WRITE(*,*)'wvspectrumc: geometry parameter invalid.'
+        STOP
+      ENDIF
+      kmsk(kgeo) = 1
+!
+      E0k     = 0.0D0
+      F0k     = 0.0D0
+      tmp     = 1.0_GP/real(n,kind=GP)**6
+      ibeg    = ista
+      IF (ista.eq.1) ibeg = 2
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       IF (ista.eq.1) THEN
+!$omp parallel do private (k,kmn,kiso,kperp,kpara,tmr)
+          DO j = 1,n
+             DO k = 1,n
+                kiso  = int(sqrt(ka2(k,j,1))+.501)
+                kperp = int(sqrt(ka(1)**2+ka(j)**2)+.501)
+                kpara = int(abs(ka(k))+1)
+                kmn   = kmsk(1)*kiso + kmsk(2)*kperp + kmsk(3)*kpara
+                IF ( (kmn.lt.1).or.(kmn.gt.n/2+1) ) CYCLE
+                tmr     =      real(a(k,j,1)*conjg(b(k,j,1)))*tmp
+!$omp critical
+                E0k(kmn) = E0k(kmn)+tmr
+!$omp end critical
+             END DO
+          END DO
+        ENDIF
+
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,kiso,kperp,kpara,tmr)
+        DO i = ibeg,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,kiso,kperp,kpara,tmr)
+           DO j = 1,n
+              DO k = 1,n
+                kiso  = int(sqrt(ka2(k,j,i))+.501)
+                kperp = int(sqrt(ka(i)**2+ka(j)**2)+.501)
+                kpara = int(abs(ka(k))+1)
+                kmn   = kmsk(1)*kiso + kmsk(2)*kperp + kmsk(3)*kpara
+                IF ( (kmn.lt.1).or.(kmn.gt.n/2+1) ) CYCLE
+                tmr     = 2.0D0* real(a(k,j,i)*conjg(b(k,j,i)))*tmp
+!$omp critical
+                E0k(kmn) = E0k(kmn)+tmr
+!$omp end critical
+
+             END DO
+           END DO
+        END DO
+!
+        CALL MPI_REDUCE(E0k,F0k,n/2+1,MPI_DOUBLE_PRECISION,      &
+             MPI_SUM,0,MPI_COMM_WORLD,ierr)
+
+        RETURN
+
+      END SUBROUTINE specprodg
+
 
 !*****************************************************************
       SUBROUTINE specaxig(a,F0k)
@@ -1856,3 +1897,82 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
         RETURN
 
       END SUBROUTINE specaxig
+
+
+!*****************************************************************
+      SUBROUTINE specprodaxig(a,b,F0k)
+!-----------------------------------------------------------------
+!
+! Computes 2d axisymmetric spectrum of input quantity, and
+! outputs to F0k on all tasks.
+!
+! Parameters
+!     a    : input quantity, complex
+!     b    : input quantity, complex
+!     F0k  : spectrum, returned
+!
+!-----------------------------------------------------------------
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+!$    USE threads
+      IMPLICIT NONE
+
+      REAL   (KIND=GP), INTENT(OUT), DIMENSION(n/2+1,n/2+1)   :: F0k
+      REAL   (KIND=GP),              DIMENSION(n/2+1,n/2+1)   :: E0k
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(n,n,ista:iend) :: a,b
+      REAL   (KIND=GP)             :: ks,tmr,tmp
+      INTEGER                      :: i,ibeg,j,k,km
+      INTEGER                      :: kperp,kpara
+
+      km      = n/2+1
+      E0k     = 0.0
+      tmp     = 1.0_GP/real(n,kind=GP)**6
+      ibeg    = ista
+      IF (ista.eq.1) ibeg = 2
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       IF (ista.eq.1) THEN
+!$omp parallel do private (k,kperp,kpara,tmr)
+          DO j = 1,n
+             kperp = int(sqrt(ka(1)**2+ka(j)**2)+1.501)
+             IF ( (kperp.lt.1).or.(kperp.gt.km) ) CYCLE
+             DO k = 1,n
+                kpara = int(abs(ka(k))+1)
+                IF ( (kpara.lt.1).or.(kpara.gt.km ) ) CYCLE
+                tmr     =      real(a(k,j,1)*conjg(b(k,j,1)))*tmp
+!$omp critical
+                E0k(kperp,kpara) = E0k(kperp,kpara)+tmr
+!$omp end critical
+             END DO
+          END DO
+        ENDIF
+
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kperp,kpara,tmr)
+        DO i = ibeg,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kperp,kpara,tmr)
+           DO j = 1,n
+              kperp = int(sqrt(ka(i)**2+ka(j)**2)+1.501)
+              IF ( (kperp.lt.1).or.(kperp.gt.km) ) CYCLE
+              DO k = 1,n
+                kpara = int(abs(ka(k))+1)
+                IF ( (kpara.lt.1).or.(kpara.gt.km ) ) CYCLE
+                tmr   = 2.0*real(a(k,j,i)*conjg(b(k,j,i)))*tmp
+!$omp critical
+                E0k(kperp,kpara) = E0k(kperp,kpara)+tmr
+!$omp end critical
+
+             END DO
+           END DO
+        END DO
+!
+        CALL MPI_REDUCE(E0k,F0k,(n/2+1)*(n/2+1),GC_REAL,&    
+             MPI_SUM,0,MPI_COMM_WORLD,ierr)
+
+
+        RETURN
+
+      END SUBROUTINE specprodaxig
