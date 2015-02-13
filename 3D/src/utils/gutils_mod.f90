@@ -759,7 +759,6 @@ if ( myrank.eq. 0 ) write(*,*)'dojpdf: writing to disk done.'
       rmin   =  huge(rmax)
       loc(1) = 0.0_GP
       loc(2) = 0.0_GP
-      loc(3) = 0.0_GP
 !$omp parallel do if (nin.ge.nth) 
       DO k = 1, nin 
 !$omp critical
