@@ -44,6 +44,9 @@
            IF ( blgdofp.GT.0 ) THEN
            CALL lagfp%SetLagVec  (R1,R2,R3,.true.,R4,R5)
            CALL lagfp%io_write_vec (1,odir,'fpvlg',lgext,(t-1)*dt)
+           IF ( dopacc.GT.0 ) THEN
+           CALL lagfp%io_write_acc(tbeta,1,odir,'fpalg',lgext,(t-2)*dt)
+           ENDIF
            ENDIF
 
            IF ( dopacc.GT.0 ) THEN
