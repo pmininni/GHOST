@@ -34,25 +34,36 @@
              END DO
            END DO
            CALL fftp3d_complex_to_real(plancr,C7,R3,MPI_COMM_WORLD)
+           IF ( blgdofp.GT.0 ) THEN
+             R6 = R1
+             R7 = R2
+             R8 = R3
+           ENDIF
            CALL lagpart%SetLagVec(R1,R2,R3,.true.,R4,R5)
 
            timep = 0
            pind = pind+1
            WRITE(lgext,lgfmtext) pind
-           CALL lagpart%io_write_pdb(1,odir,'xlg' ,lgext,(t-1)*dt)
-           CALL lagpart%io_write_vec(1,odir,'vlg' ,lgext,(t-1)*dt)
+
+!       NOTE: if dopacc > 0, then time centering of 'vlg', xlg' are
+!             the same as 'alg': 
+           rmp = (t-1)*dt
+           IF ( dopacc.GT.0 ) rmp = (t-2)*dt
+           CALL lagpart%io_write_pdb(1,odir,'xlg' ,lgext,rmp)
+           CALL lagpart%io_write_vec(1,odir,'vlg' ,lgext,rmp)
            IF ( blgdofp.GT.0 ) THEN
-           CALL lagfp%SetLagVec  (R1,R2,R3,.true.,R4,R5)
-           CALL lagfp%io_write_vec (1,odir,'fpvlg',lgext,(t-1)*dt)
-           IF ( dopacc.GT.0 ) THEN
-           CALL lagfp%io_write_acc(tbeta,1,odir,'fpalg',lgext,(t-2)*dt)
-           ENDIF
+             CALL lagfp%SetLagVec  (R6,R7,R8,.true.,R4,R5,1)
+             CALL lagfp%io_write_vec (1,odir,'fpvlg',lgext,rmp)
+             IF ( dopacc.GT.0 ) THEN
+               CALL lagfp%io_write_acc(tbeta,1,odir,'fpalg',lgext,rmp)
+             ENDIF
            ENDIF
 
            IF ( dopacc.GT.0 ) THEN
 !!!!!! Write internal Lagrangian acceleration components: !!!!!!
-!      [NOTE: time is centered 1-dt less than for other variables...]
-           CALL lagpart%io_write_acc(tbeta,1,odir,'alg',lgext,(t-2)*dt)
+!      NOTE: if dopacc > 0, then time centering of 'vlg', xlg' are
+!            the same as 'alg'] 
+           CALL lagpart%io_write_acc(tbeta,1,odir,'alg',lgext,rmp)
            ENDIF
 !
 !!!!!! Write Lagrangian vorticity components: !!!!!!
