@@ -67,7 +67,7 @@ MODULE class_GPart
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: fpx_,fpy_,fpz_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: lvx_,lvy_,lvz_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:,:) :: ptmp0_,ptmp1_,ptmp2_,vdb_
-        REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:,:) :: vk0_,vk1_,vk2_
+        REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:,:) :: vk0_,vk1_,vk2_,xk1_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:,:) :: gptmp0_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: ltmp0_,ltmp1_
         REAL(KIND=GP)                                :: lxbnds_(3,2),gext_(3)
@@ -260,6 +260,7 @@ MODULE class_GPart
       ALLOCATE(this%vk0_  (3,this%maxparts_))
       ALLOCATE(this%vk1_  (3,this%maxparts_))
       ALLOCATE(this%vk2_  (3,this%maxparts_))
+      ALLOCATE(this%xk1_  (3,this%maxparts_))
       ALLOCATE(this%ptmp2_(3,this%maxparts_))
     ENDIF
     ALLOCATE(this%ltmp0_ (this%maxparts_))
@@ -309,6 +310,7 @@ MODULE class_GPart
     IF ( ALLOCATED   (this%vk0_) ) DEALLOCATE  (this%vk0_)
     IF ( ALLOCATED   (this%vk1_) ) DEALLOCATE  (this%vk1_)
     IF ( ALLOCATED   (this%vk2_) ) DEALLOCATE  (this%vk2_)
+    IF ( ALLOCATED   (this%xk1_) ) DEALLOCATE  (this%xk1_)
 
     ! Destroy timers:
     DO j = 1, GPMAXTIMERS
@@ -616,7 +618,10 @@ MODULE class_GPart
     nl = 0  ! local particle counter
     DO WHILE ( this%ierr_.EQ.0 .AND. nt.LT.this%maxparts_ )
       READ(5,*,IOSTAT=this%ierr_) x, y, z
-      IF ( this%ierr_ .NE. 0 ) EXIT
+      IF ( this%ierr_ .NE. 0 ) THEN
+        WRITE(*,*) 'GPart::InitUserSeed: terminating read; nt=', nt, ' ierr=',this%ierr_
+        EXIT
+      ENDIF
       IF ( z.GE.this%lxbnds_(3,1) .AND. z.LT.this%lxbnds_(3,2) .AND. &
            y.GE.this%lxbnds_(2,1) .AND. y.LT.this%lxbnds_(2,2) .AND. &
            x.GE.this%lxbnds_(1,1) .AND. x.LT.this%lxbnds_(1,2) ) THEN
@@ -633,7 +638,7 @@ MODULE class_GPart
     this%nparts_ = nl;
     CALL MPI_ALLREDUCE(nl,nt,1,MPI_INTEGER,MPI_SUM,this%comm_,this%ierr_)
     IF ( this%myrank_.eq.0 .AND. nt.NE.this%maxparts_ ) THEN
-      WRITE(*,*) 'GPart_InitUserSeed: Inconsistent particle count: maxparts=', &
+      WRITE(*,*) 'GPart_InitUserSeed: Inconsistent particle count: required no.=', &
       this%maxparts_,' total read: ',nt,' file:',this%seedfile_
       STOP
     ENDIF
@@ -693,12 +698,18 @@ MODULE class_GPart
            this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     ELSE
       ! Store global VDB data into temp array:
+      IF ( this%intacc_.GT.0 ) THEN
+        ! use t-dt state, so that it aligns with acceleration, properly synched up:
+        CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+             this%xk1_(1,:),this%xk1_(2,:),this%xk1_(3,:),this%nparts_,this%ptmp1_)
+      ELSE
 !$omp parallel do
-      Do j = 1, this%maxparts_
-        this%ptmp0_(1,j) = this%vdb_(1,j)
-        this%ptmp0_(2,j) = this%vdb_(2,j)
-        this%ptmp0_(3,j) = this%vdb_(3,j)
-      ENDDO
+        DO j = 1, this%maxparts_
+          this%ptmp0_(1,j) = this%vdb_(1,j)
+          this%ptmp0_(2,j) = this%vdb_(2,j)
+          this%ptmp0_(3,j) = this%vdb_(3,j)
+        ENDDO
+      ENDIF
     ENDIF
 
     CALL GTStart(this%htimers_(GPTIME_GPWRITE))
@@ -707,8 +718,13 @@ MODULE class_GPart
     IF ( this%iouttype_ .EQ. 0 ) THEN
       IF ( this%bcollective_.EQ. 1 ) THEN
         ! pass in the current linear _local_ particle coord arrays
-        CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time, &
-             this%px_,this%py_,this%pz_)
+        IF ( this%intacc_.GT.0 ) THEN
+          CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time, &
+               this%xk1_(1,:),this%xk1_(2,:),this%xk1_(3,:))
+        ELSE
+          CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time, &
+               this%px_,this%py_,this%pz_)
+        ENDIF
       ELSE
         ! pass in the synched-up VDB (copied to ptmp0_):
         CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time, &
@@ -776,13 +792,24 @@ MODULE class_GPart
     ! If doing non-collective binary or ascii writes, synch up vector:
     IF ( this%iouttype_.EQ.0 .AND. this%bcollective_.EQ.0 .OR. this%iouttype_.EQ.1 ) THEN
     
-      CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
-                                 this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp1_)
+      IF ( this%intacc_.GT.0 ) THEN
+        ! Synch up vel. that is time centered with acceleration:
+        CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+                                   this%vk1_(1,:),this%vk1_(2,:),this%vk1_(3,:),this%nparts_,this%ptmp1_)
+      ELSE
+        CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+                                   this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp1_)
+      ENDIF
     ENDIF
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
       IF ( this%bcollective_.EQ. 1 ) THEN
-        CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%lvx_,this%lvy_,this%lvz_)
+        IF ( this%intacc_.GT.0 ) THEN  
+          ! write vel. that is time centered with acceleration:
+          CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%vk1_(1,:),this%vk1_(2,:),this%vk1_(3,:))
+        ELSE
+          CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%lvx_,this%lvy_,this%lvz_)
+        ENDIF
       ELSE
         CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time, &
                                  this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:));
@@ -1454,6 +1481,9 @@ MODULE class_GPart
 
 !$omp parallel do
       DO j = 1, this%nparts_
+        this%xk1_(1,j) = this%px_(j) 
+        this%xk1_(2,j) = this%py_(j)
+        this%xk1_(3,j) = this%pz_(j)
         this%vk0_(1,j) = this%vk1_(1,j)
         this%vk0_(2,j) = this%vk1_(2,j)
         this%vk0_(3,j) = this%vk1_(3,j)
@@ -1692,7 +1722,7 @@ MODULE class_GPart
 
 
 
-  SUBROUTINE GPart_SetLagVec(this, vx, vy, vz, doupdate, tmp1, tmp2)
+  SUBROUTINE GPart_SetLagVec(this, vx, vy, vz, doupdate, tmp1, tmp2, setacc)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : SetLagVec
@@ -1709,6 +1739,11 @@ MODULE class_GPart
 !              updated, possibly. These will be overwritten!
 !    doupdate: if true, do interp point update in interpolator; else don't
 !    tmp1(2) : temp arrays the same size as vx, vy, vz
+!    setacc  : if intacc_==1, and setacc=1, then the running velocity and time
+!              arrays are updated for internal computation of acceleration. This
+!              should only be done if the velocity isn't already being updated
+!              with a call to StepRKK, where the acceleration variables are 
+!              automatically updated.
 !-----------------------------------------------------------------
     USE grid
     USE fprecision
@@ -1718,17 +1753,37 @@ MODULE class_GPart
     IMPLICIT NONE
     CLASS(GPart) ,INTENT(INOUT)                          :: this
     LOGICAL      ,INTENT   (IN)                          :: doupdate
-    INTEGER                                              :: i,j
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend) :: vx,vy,vz,tmp1,tmp2
-    REAL(KIND=GP)                                        :: dtfact
-    REAL(KIND=GP),ALLOCATABLE  ,DIMENSION            (:) :: lid,gid
+    INTEGER      ,INTENT   (IN),OPTIONAL                 :: setacc
 
-    ! ... x:
+    REAL(KIND=GP),ALLOCATABLE  ,DIMENSION            (:) :: lid,gid
+    INTEGER                                              :: i,j
+    LOGICAL                                              :: doset
+
+    doset = .false. 
+    IF ( present(setacc) ) THEN
+      IF ( setacc.GT.0 ) doset = .true.
+    ENDIF
+    IF ( this%intacc_.EQ.1 .AND. doset ) THEN
+      ! If doing internal acceleration, synch up past time levels:
+      CALL GPart_synch_acc(this)
+    ENDIF
+
+    ! Set t^n+1 velocity based on most recent Lag.particle positions:
+    ! NOTE: vx, vy, vz are overwirtten on exit:
     CALL GPart_EulerToLag(this,this%lvx_,this%nparts_,vx,doupdate,tmp1,tmp2)
-    ! ... y:
-    CALL GPart_EulerToLag(this,this%lvy_,this%nparts_,vy,.false.,tmp1,tmp2)
-    ! ... z:
-    CALL GPart_EulerToLag(this,this%lvz_,this%nparts_,vz,.false.,tmp1,tmp2)
+    CALL GPart_EulerToLag(this,this%lvy_,this%nparts_,vy,.false. ,tmp1,tmp2)
+    CALL GPart_EulerToLag(this,this%lvz_,this%nparts_,vz,.false. ,tmp1,tmp2)
+
+    IF ( this%intacc_.EQ.1 .AND. doset ) THEN
+!$omp parallel do 
+      DO j = 1, this%nparts_
+        this%vk2_(1,j) = this%lvx_(j)
+        this%vk2_(2,j) = this%lvy_(j)
+        this%vk2_(3,j) = this%lvz_(j)
+      ENDDO
+    ENDIF
+
 
   END SUBROUTINE GPart_SetLagVec
 !-----------------------------------------------------------------
