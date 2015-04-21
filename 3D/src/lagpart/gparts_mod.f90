@@ -64,7 +64,6 @@ MODULE class_GPart
         INTEGER      , ALLOCATABLE, DIMENSION    (:) :: fpid_
 !!      TYPE(GPDBrec), ALLOCATABLE, DIMENSION    (:) :: pdb_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: px_ ,py_ ,pz_
-        REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: fpx_,fpy_,fpz_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: lvx_,lvy_,lvz_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:,:) :: ptmp0_,ptmp1_,ptmp2_,vdb_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:,:) :: vk0_,vk1_,vk2_,xk1_
@@ -84,7 +83,9 @@ MODULE class_GPart
         PROCEDURE,PUBLIC :: EndStage          => GPart_EndStageRKK
         PROCEDURE,PUBLIC :: io_write_euler    => GPart_io_write_euler
         PROCEDURE,PUBLIC :: io_write_pdb      => GPart_io_write_pdb
+        PROCEDURE,PUBLIC :: io_write_pdbm1    => GPart_io_write_pdbm1
         PROCEDURE,PUBLIC :: io_write_vec      => GPart_io_write_vec
+        PROCEDURE,PUBLIC :: io_write_vecm1    => GPart_io_write_vecm1
         PROCEDURE,PUBLIC :: io_read           => GPart_io_read
         PROCEDURE,PUBLIC :: EulerToLag        => GPart_EulerToLag
         PROCEDURE,PUBLIC :: SetInitType       => GPart_SetInitType
@@ -304,9 +305,6 @@ MODULE class_GPart
     IF ( ALLOCATED   (this%lvy_) ) DEALLOCATE  (this%lvy_)
     IF ( ALLOCATED   (this%lvz_) ) DEALLOCATE  (this%lvz_)
     IF ( ALLOCATED  (this%fpid_) ) DEALLOCATE (this%fpid_)
-    IF ( ALLOCATED   (this%fpx_) ) DEALLOCATE  (this%fpx_)
-    IF ( ALLOCATED   (this%fpy_) ) DEALLOCATE  (this%fpy_)
-    IF ( ALLOCATED   (this%fpz_) ) DEALLOCATE  (this%fpz_)
     IF ( ALLOCATED   (this%vk0_) ) DEALLOCATE  (this%vk0_)
     IF ( ALLOCATED   (this%vk1_) ) DEALLOCATE  (this%vk1_)
     IF ( ALLOCATED   (this%vk2_) ) DEALLOCATE  (this%vk2_)
@@ -572,7 +570,7 @@ MODULE class_GPart
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,this%nparts_, &
                            this%vdb_,this%maxparts_)
-    CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,this%vdb_(1,:),this%vdb_(2,:),this%vdb_(3,:))
+    CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,this%maxparts_,this%vdb_(1,:),this%vdb_(2,:),this%vdb_(3,:))
     IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
       IF ( this%myrank_.eq.0 ) THEN
         WRITE(*,*) 'GPart_InitRandSeed: Invalid particle after GetLocalWrk call'
@@ -698,18 +696,12 @@ MODULE class_GPart
            this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     ELSE
       ! Store global VDB data into temp array:
-      IF ( this%intacc_.GT.0 ) THEN
-        ! use t-dt state, so that it aligns with acceleration, properly synched up:
-        CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
-             this%xk1_(1,:),this%xk1_(2,:),this%xk1_(3,:),this%nparts_,this%ptmp1_)
-      ELSE
 !$omp parallel do
-        DO j = 1, this%maxparts_
-          this%ptmp0_(1,j) = this%vdb_(1,j)
-          this%ptmp0_(2,j) = this%vdb_(2,j)
-          this%ptmp0_(3,j) = this%vdb_(3,j)
-        ENDDO
-      ENDIF
+      DO j = 1, this%maxparts_
+        this%ptmp0_(1,j) = this%vdb_(1,j)
+        this%ptmp0_(2,j) = this%vdb_(2,j)
+        this%ptmp0_(3,j) = this%vdb_(3,j)
+      ENDDO
     ENDIF
 
     CALL GTStart(this%htimers_(GPTIME_GPWRITE))
@@ -718,21 +710,16 @@ MODULE class_GPart
     IF ( this%iouttype_ .EQ. 0 ) THEN
       IF ( this%bcollective_.EQ. 1 ) THEN
         ! pass in the current linear _local_ particle coord arrays
-        IF ( this%intacc_.GT.0 ) THEN
-          CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time, &
-               this%xk1_(1,:),this%xk1_(2,:),this%xk1_(3,:))
-        ELSE
-          CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time, &
-               this%px_,this%py_,this%pz_)
-        ENDIF
+        CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%nparts_, &
+             this%px_,this%py_,this%pz_)
       ELSE
         ! pass in the synched-up VDB (copied to ptmp0_):
-        CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time, &
+        CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time,this%maxparts_, &
              this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
       ENDIF
     ELSE
       ! pass in the synched-up VDB (copied to ptmp0_):
-      CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time, &
+      CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time,this%maxparts_, &
            this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
     ENDIF
 
@@ -742,6 +729,76 @@ MODULE class_GPart
     CALL GTFree(ht)
 
   END SUBROUTINE GPart_io_write_pdb
+
+
+  SUBROUTINE GPart_io_write_pdbm1(this, iunit, dir, spref, nmb, time)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : io_write_pdbm1
+!  DESCRIPTION: Does write of Lagrangian position d.b. at time step
+!               t^(n-1) to file. This is only used if internal 
+!               acceleration is being computed (intacc_=1), and is
+!               the same as the io_write_pdb method, except draws
+!               positions from a different time storage location. 
+!               This could be handled more elegantly using the io_write_pdb
+!               with pointers.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    iunit   : unit number
+!    dir     : output directory
+!    spref   : filename prefix
+!    nmd     : time index
+!    time    : real time
+!    
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPart) ,INTENT(INOUT)       :: this
+    REAL(KIND=GP),INTENT   (IN)       :: time
+    REAL(KIND=GP)                     :: prec(3)
+    INTEGER,INTENT(IN)                :: iunit
+    INTEGER                           :: fh,ht,j,nt
+    INTEGER(kind=MPI_OFFSET_KIND)     :: offset
+    CHARACTER(len=*),INTENT(IN)       :: dir
+    CHARACTER(len=*),INTENT(IN)       :: nmb
+    CHARACTER(len=*),INTENT(IN)       :: spref
+
+    IF ( this%intacc_.LE.0 ) RETURN 
+
+    IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN .OR. this%intacc_.GT.0 ) THEN
+      CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+           this%xk1_(1,:),this%xk1_(2,:),this%xk1_(3,:),this%nparts_,this%ptmp1_)
+    ENDIF
+
+    CALL GTStart(this%htimers_(GPTIME_GPWRITE))
+    CALL GTStart(ht,GT_WTIME)
+
+    IF ( this%iouttype_ .EQ. 0 ) THEN
+      IF ( this%bcollective_.EQ. 1 ) THEN
+        ! pass in the current linear _local_ particle coord arrays
+        CALL GPart_GetLocalWrk(this,this%id_,this%lvx_,this%lvy_,this%lvz_,this%npartsm_, &
+                               this%vdb_,this%maxparts_)
+        CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%npartsm_, &
+             this%xk1_(1,:),this%xk1_(2,:),this%xk1_(3,:))
+      ELSE
+        ! pass in the synched-up VDB (copied to ptmp0_):
+        CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time, this%maxparts_, &
+             this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
+      ENDIF
+    ELSE
+      ! pass in the synched-up VDB (copied to ptmp0_):
+      CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time,this%maxparts_,&
+           this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
+    ENDIF
+
+    CALL GTAcc(this%htimers_(GPTIME_GPWRITE))
+    CALL GTStop(ht)
+    CALL GTFree(ht)
+
+  END SUBROUTINE GPart_io_write_pdbm1
 
 
   SUBROUTINE GPart_io_write_vec(this, iunit, dir, spref, nmb, time)
@@ -792,30 +849,20 @@ MODULE class_GPart
     ! If doing non-collective binary or ascii writes, synch up vector:
     IF ( this%iouttype_.EQ.0 .AND. this%bcollective_.EQ.0 .OR. this%iouttype_.EQ.1 ) THEN
     
-      IF ( this%intacc_.GT.0 ) THEN
-        ! Synch up vel. that is time centered with acceleration:
-        CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
-                                   this%vk1_(1,:),this%vk1_(2,:),this%vk1_(3,:),this%nparts_,this%ptmp1_)
-      ELSE
-        CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
-                                   this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp1_)
-      ENDIF
+      CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+                                 this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp1_)
     ENDIF
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
       IF ( this%bcollective_.EQ. 1 ) THEN
-        IF ( this%intacc_.GT.0 ) THEN  
-          ! write vel. that is time centered with acceleration:
-          CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%vk1_(1,:),this%vk1_(2,:),this%vk1_(3,:))
-        ELSE
-          CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%lvx_,this%lvy_,this%lvz_)
-        ENDIF
+        CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time, this%nparts_,&
+                                 this%lvx_,this%lvy_,this%lvz_)
       ELSE
-        CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time, &
+        CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time, this%maxparts_,&
                                  this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:));
       ENDIF
     ELSE
-      CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time, &
+      CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time, this%maxparts_, &
                                  this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:));
     ENDIF
     CALL GTStop(ht)
@@ -823,6 +870,83 @@ MODULE class_GPart
     CALL GTFree(ht)
 
   END SUBROUTINE GPart_io_write_vec
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+  SUBROUTINE GPart_io_write_vecm1(this, iunit, dir, spref, nmb, time)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : io_write_vecm1
+!  DESCRIPTION: Does write of Lagrangian vector that is
+!               currently stored in t^(n-1) storage location. 
+!               Used only if internal acceleration is on (intacc_=1),
+!               when the time centering of the stored vector must
+!               correspond to the acceleration time centering. It is
+!               the same as the method io_write_vec, except draws 
+!               from vector from different time location. This could be
+!               handled more elegantly using the io_write_vec with pointers.
+!               
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    iunit   : unit number
+!    dir     : output directory
+!    spref   : filename prefix
+!    nmd     : time index
+!    time    : real time
+!    
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPart) ,INTENT(INOUT)       :: this
+    REAL(KIND=GP),INTENT   (IN)       :: time
+    INTEGER,INTENT(IN)                :: iunit
+    CHARACTER(len=*),INTENT(IN)       :: dir
+    CHARACTER(len=*),INTENT(IN)       :: nmb
+    CHARACTER(len=*),INTENT(IN)       :: spref
+    INTEGER                           :: gsum,ht,j
+
+    IF ( this%intacc_.LE.0 ) RETURN
+
+
+    IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_,gsum) ) THEN
+      write(*,*)'io_write_vec: global sum=',gsum,' maxparts=',this%maxparts_
+      IF ( this%myrank_.eq.0 ) THEN
+        WRITE(*,*) 'GPart_io_write_vec: Inconsistent particle count'
+        STOP
+      ENDIF
+    ENDIF
+
+    CALL GTStart(ht,GT_WTIME)
+
+    ! If doing non-collective binary or ascii writes, synch up vector:
+    IF ( this%iouttype_.EQ.0 .AND. this%bcollective_.EQ.0 .OR. this%iouttype_.EQ.1 ) THEN
+      
+      ! Synch up vel. that is time centered with acceleration:
+      CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+                                   this%vk1_(1,:),this%vk1_(2,:),this%vk1_(3,:),this%nparts_,this%ptmp1_)
+    ENDIF
+
+    IF ( this%iouttype_ .EQ. 0 ) THEN
+      IF ( this%bcollective_.EQ. 1 ) THEN
+          ! write vel. that is time centered with acceleration:
+          CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time, this%npartsm_, &
+                                 this%vk1_(1,:),this%vk1_(2,:),this%vk1_(3,:))
+      ELSE
+        CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time, this%maxparts_,&
+                                 this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:));
+      ENDIF
+    ELSE
+      CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time, this%maxparts_,&
+                                 this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:));
+    ENDIF
+    CALL GTStop(ht)
+    CALL GTFree(ht)
+
+  END SUBROUTINE GPart_io_write_vecm1
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -881,12 +1005,12 @@ MODULE class_GPart
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
       IF ( this%bcollective_.EQ. 1 ) THEN
-        CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%ltmp1_)
+        CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time, this%nparts_, this%ltmp1_)
       ELSE
-        CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time,this%ltmp0_)
+        CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time,this%maxparts_,this%ltmp0_)
       ENDIF
     ELSE
-      CALL GPart_ascii_write_lag (this,iunit,dir,spref,nmb,time,this%ltmp0_)
+      CALL GPart_ascii_write_lag (this,iunit,dir,spref,nmb,time,this%maxparts_,this%ltmp0_)
     ENDIF
     CALL GTStop(ht)
     if(this%myrank_.eq.0) write(*,*)'GPart_io_write_euler: file: ', spref,'  write time: ', GTGetTime(ht)
@@ -898,7 +1022,7 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 
 
-  SUBROUTINE GPart_binary_write_lag_co(this, iunit, dir, spref, nmb, time, &
+  SUBROUTINE GPart_binary_write_lag_co(this, iunit, dir, spref, nmb, time, np, &
              fld0, fld1, fld2)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -922,6 +1046,7 @@ MODULE class_GPart
 !    nmd     : time index
 !    time    : real time
 !    fld0-2  : Lagrangian field
+!    np      : no. particles to write
 !    
 !-----------------------------------------------------------------
     USE fprecision
@@ -936,6 +1061,7 @@ MODULE class_GPart
     DIMENSION(this%maxparts_)            :: fld1,fld2
     REAL(KIND=GP)                        :: vout(3)
     INTEGER,INTENT(IN)                   :: iunit
+    INTEGER,INTENT(IN)                   :: np
     INTEGER                              :: fh,nerr,nt,nv,szreal
     INTEGER(kind=MPI_OFFSET_KIND)        :: offset
     CHARACTER(len=*),INTENT(IN)          :: dir
@@ -964,7 +1090,7 @@ MODULE class_GPart
     offset = szreal
     CALL MPI_FILE_WRITE_AT_ALL(fh,offset,time   ,1,GC_REAL,this%istatus_,this%ierr_)
     gc = 0
-    DO j = 1, this%nparts_
+    DO j = 1, np
       offset  = (nv*this%id_(j)+2)*szreal
       vout(1) = fld0(j)
       IF ( present(fld1) ) vout(2) = fld1(j)
@@ -975,10 +1101,10 @@ MODULE class_GPart
     ENDDO
     CALL MPI_FILE_CLOSE(fh,this%ierr_)
 
-    IF ( gc .NE. this%nparts_*nv ) THEN
+    IF ( gc .NE. np*nv ) THEN
       WRITE(*,*)this%myrank_, &
         ': GPart_binary_write_lag_co: insufficient amount of data written; no. required=',&
-        this%nparts_*nv,' no. written=',gc
+        np*nv,' no. written=',gc
       STOP
     ENDIF
 
@@ -987,7 +1113,7 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 
 
-  SUBROUTINE GPart_binary_write_lag_t0(this, iunit, dir, spref, nmb, time, &
+  SUBROUTINE GPart_binary_write_lag_t0(this, iunit, dir, spref, nmb, time, np, &
              fld0, fld1, fld2)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1013,6 +1139,7 @@ MODULE class_GPart
 !    nmd     : time index
 !    time    : real time
 !    fld0-2  : Lagrangian field
+!    np      : no. particles to write
 !    
 !-----------------------------------------------------------------
     USE fprecision
@@ -1026,6 +1153,7 @@ MODULE class_GPart
     REAL(KIND=GP),INTENT   (IN),OPTIONAL,&
     DIMENSION(this%maxparts_)            :: fld1,fld2
     INTEGER,INTENT(IN)                   :: iunit
+    INTEGER,INTENT(IN)                   :: np
     INTEGER                              :: fh,nerr,nv
     CHARACTER(len=*),INTENT(IN)          :: dir
     CHARACTER(len=*),INTENT(IN)          :: nmb
@@ -1036,23 +1164,24 @@ MODULE class_GPart
     IF ( this%myrank_ .EQ. 0 ) THEN
       nv = 1
 !$omp parallel do
-      DO j = 1, this%maxparts_
+      DO j = 1, np
         this%ptmp1_(1,j) = fld0(j)
       ENDDO
       IF ( present(fld1) ) THEN
 !$omp parallel do
-        DO j = 1, this%maxparts_
+        DO j = 1, np
           this%ptmp1_(2,j) = fld1(j)
         ENDDO
         nv = nv+1
       ENDIF
       IF ( present(fld2) ) THEN
 !$omp parallel do
-        DO j = 1, this%maxparts_
+        DO j = 1, np
           this%ptmp1_(3,j) = fld2(j)
         ENDDO
         nv = nv+1
       ENDIF
+
 
       ! 'access=stream' is required here:
       OPEN(iunit,file=trim(dir) // '/' // trim(spref) // &
@@ -1063,7 +1192,7 @@ MODULE class_GPart
         trim(dir)// '/' // trim(spref) // '.' // nmb //  '.lag'
         STOP
       ENDIF
-      WRITE(iunit) real(this%maxparts_,kind=GP)
+      WRITE(iunit) real(np,kind=GP)
       WRITE(iunit) time
       WRITE(iunit) this%ptmp1_(1:nv,1:this%maxparts_)
       CLOSE(iunit)
@@ -1076,7 +1205,7 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 
 
- SUBROUTINE GPart_ascii_write_lag(this, iunit, dir, spref, nmb, time, &
+ SUBROUTINE GPart_ascii_write_lag(this, iunit, dir, spref, nmb, time, np, &
             fld0, fld1, fld2)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1103,6 +1232,7 @@ MODULE class_GPart
 !    nmd     : time index
 !    time    : real time
 !    fld0-2  : Lagrangian fields
+!    np      : no. particles to write
 !
 !-----------------------------------------------------------------
     USE fprecision
@@ -1116,7 +1246,8 @@ MODULE class_GPart
     REAL(KIND=GP),INTENT   (IN),OPTIONAL,&
     DIMENSION(this%maxparts_)         :: fld1,fld2
     REAL(KIND=GP)                     :: vout(3)
-    INTEGER      ,INTENT   (IN)       :: iunit
+    INTEGER,INTENT   (IN)             :: iunit
+    INTEGER,INTENT   (IN)             :: np
     INTEGER                           :: j,nv
     CHARACTER(len=*),INTENT(IN)       :: dir
     CHARACTER(len=*),INTENT(IN)       :: nmb
@@ -1132,9 +1263,9 @@ MODULE class_GPart
     IF ( this%myrank_.EQ.0 ) THEN
       OPEN(iunit,file=trim(dir)// '/' // trim(spref) // '.' // &
             nmb //  '.txt')
-      WRITE(iunit,*) this%maxparts_
+      WRITE(iunit,*) np
       WRITE(iunit,*) time
-      DO j = 1, this%maxparts_
+      DO j = 1, np
         vout(1) = fld0(j)
         IF ( present(fld1) ) vout(2) = fld1(j)
         IF ( present(fld2) ) vout(3) = fld2(j)
@@ -1588,7 +1719,7 @@ MODULE class_GPart
       IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_) THEN
         WRITE(*,*)'GPart_EndStageRKK: inconsistent d.b.: expected: ', &
                  this%maxparts_, '; found: ',ng
-        CALL GPART_ascii_write_lag(this,1,'.','xlgerr','000',0.0_GP,this%vdb_)
+        CALL GPART_ascii_write_lag(this,1,'.','xlgerr','000',0.0_GP,this%maxparts_,this%vdb_)
         STOP
       ENDIF
 
@@ -2346,15 +2477,16 @@ MODULE class_GPart
    IF ( this%iouttype_ .EQ. 0 ) THEN
      IF ( this%bcollective_.EQ. 1 ) THEN
        ! pass in the current linear _local_ particle coord arrays
-       CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%lvx_,this%lvy_,this%lvz_)
+       CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%nparts_,&
+                                      this%lvx_,this%lvy_,this%lvz_)
      ELSE
        ! pass in the synched-up global (copied to ptmp0_):
-       CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time, &
+       CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time,this%maxparts_, &
                                 this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:));
      ENDIF
    ELSE
      ! pass in the synched-up global (copied to ptmp0_):
-     CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time, &
+     CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time,this%maxparts_, &
                                 this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:));
    ENDIF
 
@@ -2405,7 +2537,10 @@ MODULE class_GPart
     ! If using VDB interface, synch-up, and get local work:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
 
-      ! storage at t^n-1:
+!
+!  NOTE: velocity fields at t^n and t^n-1 are _local_ to this subdomain on exit:
+
+      ! vel. storage at t^n-1:
       ! Synch up VDB with velocity:
       CALL GTStart(this%htimers_(GPTIME_COMM))
       CALL this%gpcomm_%VDBSynch(this%ptmp2_,this%maxparts_,this%idm_, &
@@ -2413,11 +2548,9 @@ MODULE class_GPart
       CALL GTAcc(this%htimers_(GPTIME_COMM))
 
       ! Get local work:
-      CALL GPart_GetLocalWrk(this,this%id_,this%lvx_,this%lvy_,this%lvz_,this%nparts_, &
+      CALL GPart_GetLocalWrk(this,this%idm_,this%lvx_,this%lvy_,this%lvz_,this%npartsm_, &
                            this%vdb_,this%maxparts_,this%ptmp2_)
 
-!
-!  NOTE: velocity fields at t^n and t^n-1 are _local_ to this subdomain on exit:
      
 !$omp parallel do 
       DO j = 1, this%nparts_
@@ -2426,14 +2559,14 @@ MODULE class_GPart
         this%vk0_(3,j) = this%lvz_(j)
       ENDDO
 
-      ! storage at t^n:
+      ! vel. storage at t^n:
       CALL GTStart(this%htimers_(GPTIME_COMM))
       CALL this%gpcomm_%VDBSynch(this%ptmp2_,this%maxparts_,this%idm_, &
            this%vk1_(1,:),this%vk1_(2,:),this%vk1_(3,:),this%npartsm_,this%ptmp1_)
       CALL GTAcc(this%htimers_(GPTIME_COMM))
 
       ! Get local work:
-      CALL GPart_GetLocalWrk(this,this%id_,this%lvx_,this%lvy_,this%lvz_,this%nparts_, &
+      CALL GPart_GetLocalWrk(this,this%id_,this%lvx_,this%lvy_,this%lvz_,this%npartsm_, &
                            this%vdb_,this%maxparts_,this%ptmp2_)
 !$omp parallel do 
       DO j = 1, this%nparts_
@@ -2442,21 +2575,27 @@ MODULE class_GPart
         this%vk1_(3,j) = this%lvz_(j)
       ENDDO
 
-!     ! storage at t^n+1:
-!     CALL GTStart(this%htimers_(GPTIME_COMM))
-!     CALL this%gpcomm_%VDBSynch(this%ptmp2_,this%maxparts_,this%idm_, &
-!          this%vk2_(1,:),this%vk2_(2,:),this%vk2_(3,:),this%npartsm_,this%ptmp1_)
-!     CALL GTAcc(this%htimers_(GPTIME_COMM))
+!     ! storage at t^n+1: don't need this one, since it's already synched up, on entry!!
 
-!     ! Get local work:
-!     CALL GPart_GetLocalWrk(this,this%id_,this%lvx_,this%lvy_,this%lvz_,ng, &
-!                          this%vdb_,this%maxparts_,this%ptmp2_)
+      ! position storage at t^n (there are no others):
+      CALL GTStart(this%htimers_(GPTIME_COMM))
+      CALL this%gpcomm_%VDBSynch(this%ptmp2_,this%maxparts_,this%idm_, &
+           this%xk1_(1,:),this%xk1_(2,:),this%xk1_(3,:),this%npartsm_,this%ptmp1_)
+      CALL GTAcc(this%htimers_(GPTIME_COMM))
+
+      ! Get local work:
+      CALL GPart_GetLocalWrk(this,this%id_,this%lvx_,this%lvy_,this%lvz_,ng, &
+                           this%vdb_,this%maxparts_,this%ptmp2_)
+      IF ( ng.NE.this%npartsm_ ) THEN
+        write(*,*) 'GPart_synch_acc: inconsistency in particle count: expect: ', this%npartsm_, ' found: ' , ng
+        stop
+      ENDIF
 !$omp parallel do 
-!     DO j = 1, ng
-!       this%vk2_(1,j) = this%lvx_(j)
-!       this%vk2_(2,j) = this%lvy_(j)
-!       this%vk2_(3,j) = this%lvz_(j)
-!     ENDDO
+      DO j = 1, this%npartsm_
+        this%xk1_(1,j) = this%lvx_(j)
+        this%xk1_(2,j) = this%lvy_(j)
+        this%xk1_(3,j) = this%lvz_(j)
+      ENDDO
 
     ENDIF
     
