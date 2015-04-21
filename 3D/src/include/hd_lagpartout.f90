@@ -45,26 +45,25 @@
            pind = pind+1
            WRITE(lgext,lgfmtext) pind
 
-!       NOTE: if dopacc > 0, then time centering of 'vlg', xlg' are
-!             the same as 'alg': 
-           rmp = (t-1)*dt
-           IF ( dopacc.GT.0 ) rmp = (t-2)*dt
-           CALL lagpart%io_write_pdb(1,odir,'xlg' ,lgext,rmp)
-           CALL lagpart%io_write_vec(1,odir,'vlg' ,lgext,rmp)
+!       NOTE: if dopacc > 0 (set in solver), write out position and velocity corresp. 
+!             to acceleration time stamp; change name to reflect that these lag by one 
+!             dt from the current time:
+           CALL lagpart%io_write_pdb  (1,odir,'xlg'  ,lgext,(t-1)*dt)
+           CALL lagpart%io_write_vec  (1,odir,'vlg'  ,lgext,(t-1)*dt)
+           CALL lagpart%io_write_pdbm1(1,odir,'xlgm1',lgext,(t-2)*dt)
+           CALL lagpart%io_write_vecm1(1,odir,'vlgm1',lgext,(t-2)*dt)
            IF ( blgdofp.GT.0 ) THEN
              CALL lagfp%SetLagVec  (R6,R7,R8,.true.,R4,R5,1)
-             CALL lagfp%io_write_vec (1,odir,'fpvlg',lgext,rmp)
-             IF ( dopacc.GT.0 ) THEN
-               CALL lagfp%io_write_acc(tbeta,1,odir,'fpalg',lgext,rmp)
-             ENDIF
+             CALL lagfp%io_write_vec  (1,odir,'fpvlg'  ,lgext,(t-1)*dt)
+             CALL lagfp%io_write_vecm1(1,odir,'fpvlgm1',lgext,(t-2)*dt)
+             CALL lagfp%io_write_acc(tbeta,1,odir,'fpalgm1',lgext,(t-2)*dt)
            ENDIF
 
-           IF ( dopacc.GT.0 ) THEN
 !!!!!! Write internal Lagrangian acceleration components: !!!!!!
-!      NOTE: if dopacc > 0, then time centering of 'vlg', xlg' are
-!            the same as 'alg'] 
-           CALL lagpart%io_write_acc(tbeta,1,odir,'alg',lgext,rmp)
-           ENDIF
+!      NOTE: if dopacc > 0, then time centering of 'vlgm1', xlgm1' are
+!            the same as 'algm1', while the other quantities are at the
+!            most recent time.] 
+           CALL lagpart%io_write_acc(tbeta,1,odir,'algm1',lgext,(t-2)*dt)
 !
 !!!!!! Write Lagrangian vorticity components: !!!!!!
 !
