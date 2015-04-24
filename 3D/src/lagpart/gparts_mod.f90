@@ -1599,12 +1599,11 @@ MODULE class_GPart
     ! Initialize solution, u: 
     ! u* <-- u: 
  
-    ! Cycle over JST loop to update state:
 !$omp parallel do
     DO j = 1, this%nparts_
-       this%ptmp0_(1,j) = this%px_(j)  ! u_0
-       this%ptmp0_(2,j) = this%py_(j)  ! u_0
-       this%ptmp0_(3,j) = this%pz_(j)  ! u_0
+       this%ptmp0_(1,j) = this%px_(j)  ! x_0
+       this%ptmp0_(2,j) = this%py_(j)  ! y_0
+       this%ptmp0_(3,j) = this%pz_(j)  ! z_0
     ENDDO 
 
     ! Shuffle velocities for internal comp. of acceleration:
@@ -1638,7 +1637,13 @@ MODULE class_GPart
         this%vk2_(2,j) = 0.0_GP
         this%vk2_(3,j) = 0.0_GP
       ENDDO
+
+      ! Set particle ids owned by task at lag times:
+      this%idm_ = 0
+      this%npartsm_ = this%nparts_
+      this%idm_(1:this%nparts_) = this%id_(1:this%nparts_)
     ENDIF
+
 
   END SUBROUTINE GPart_SetStepRKK
 !-----------------------------------------------------------------
@@ -1671,12 +1676,6 @@ MODULE class_GPart
     INTEGER                                              :: j,ng
  
     ! u(t+dt) = u*: done already
-
-    IF ( this%intacc_ .EQ. 1 ) THEN
-      this%idm_ = 0
-      this%npartsm_ = this%nparts_
-      this%idm_(1:this%nparts_) = this%id_(1:this%nparts_)
-    ENDIF
 
     ! If using nearest-neighbor interface, do particle exchange 
     ! between nearest-neighbor tasks BEFORE z-PERIODIZING particle coordinates:
@@ -1725,7 +1724,6 @@ MODULE class_GPart
 
     ENDIF
     
-    ! Synch up time level t^n+1 time level:
     IF ( this%intacc_.EQ.0 ) RETURN
 
     ! If doing internal acceleration, synch up past time levels:
@@ -1743,6 +1741,11 @@ MODULE class_GPart
       this%vk2_(2,j) = this%lvy_(j)
       this%vk2_(3,j) = this%lvz_(j)
     ENDDO
+
+    ! set particle ids owned by task at lag times:
+    this%idm_ = 0
+    this%npartsm_ = this%nparts_
+    this%idm_(1:this%nparts_) = this%id_(1:this%nparts_)
 
     RETURN
 
@@ -2537,10 +2540,28 @@ MODULE class_GPart
     ! If using VDB interface, synch-up, and get local work:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
 
-!
-!  NOTE: velocity fields at t^n and t^n-1 are _local_ to this subdomain on exit:
+      ! Position storage at t^n (there are no others). Required in order to 
+      ! find ids (idm_) which each task owns, and must be called before the synching of
+      ! the velocities:
+      CALL GTStart(this%htimers_(GPTIME_COMM))
+      CALL this%gpcomm_%VDBSynch(this%ptmp2_,this%maxparts_,this%idm_, &
+           this%xk1_(1,:),this%xk1_(2,:),this%xk1_(3,:),this%npartsm_,this%ptmp1_)
+      CALL GTAcc(this%htimers_(GPTIME_COMM))
 
-      ! vel. storage at t^n-1:
+      ! Get local work:
+      CALL GPart_GetLocalWrk(this,this%id_,this%lvx_,this%lvy_,this%lvz_,this%nparts_, &
+                           this%vdb_,this%maxparts_,this%ptmp2_)
+!$omp parallel do 
+      DO j = 1, this%nparts_
+        this%xk1_(1,j) = this%lvx_(j)
+        this%xk1_(2,j) = this%lvy_(j)
+        this%xk1_(3,j) = this%lvz_(j)
+      ENDDO
+
+!
+!  NOTE: Velocity fields at t^n and t^n-1 are _local_ to this subdomain on exit:
+
+      ! Vel. storage at t^n-1:
       ! Synch up VDB with velocity:
       CALL GTStart(this%htimers_(GPTIME_COMM))
       CALL this%gpcomm_%VDBSynch(this%ptmp2_,this%maxparts_,this%idm_, &
@@ -2548,7 +2569,7 @@ MODULE class_GPart
       CALL GTAcc(this%htimers_(GPTIME_COMM))
 
       ! Get local work:
-      CALL GPart_GetLocalWrk(this,this%idm_,this%lvx_,this%lvy_,this%lvz_,this%npartsm_, &
+      CALL GPart_GetLocalWrk(this,this%id_,this%lvx_,this%lvy_,this%lvz_,this%nparts_, &
                            this%vdb_,this%maxparts_,this%ptmp2_)
 
      
@@ -2559,14 +2580,14 @@ MODULE class_GPart
         this%vk0_(3,j) = this%lvz_(j)
       ENDDO
 
-      ! vel. storage at t^n:
+      ! Vel. storage at t^n:
       CALL GTStart(this%htimers_(GPTIME_COMM))
       CALL this%gpcomm_%VDBSynch(this%ptmp2_,this%maxparts_,this%idm_, &
            this%vk1_(1,:),this%vk1_(2,:),this%vk1_(3,:),this%npartsm_,this%ptmp1_)
       CALL GTAcc(this%htimers_(GPTIME_COMM))
 
       ! Get local work:
-      CALL GPart_GetLocalWrk(this,this%id_,this%lvx_,this%lvy_,this%lvz_,this%npartsm_, &
+      CALL GPart_GetLocalWrk(this,this%id_,this%lvx_,this%lvy_,this%lvz_,this%nparts_, &
                            this%vdb_,this%maxparts_,this%ptmp2_)
 !$omp parallel do 
       DO j = 1, this%nparts_
@@ -2575,27 +2596,7 @@ MODULE class_GPart
         this%vk1_(3,j) = this%lvz_(j)
       ENDDO
 
-!     ! storage at t^n+1: don't need this one, since it's already synched up, on entry!!
-
-      ! position storage at t^n (there are no others):
-      CALL GTStart(this%htimers_(GPTIME_COMM))
-      CALL this%gpcomm_%VDBSynch(this%ptmp2_,this%maxparts_,this%idm_, &
-           this%xk1_(1,:),this%xk1_(2,:),this%xk1_(3,:),this%npartsm_,this%ptmp1_)
-      CALL GTAcc(this%htimers_(GPTIME_COMM))
-
-      ! Get local work:
-      CALL GPart_GetLocalWrk(this,this%id_,this%lvx_,this%lvy_,this%lvz_,ng, &
-                           this%vdb_,this%maxparts_,this%ptmp2_)
-      IF ( ng.NE.this%npartsm_ ) THEN
-        write(*,*) 'GPart_synch_acc: inconsistency in particle count: expect: ', this%npartsm_, ' found: ' , ng
-        stop
-      ENDIF
-!$omp parallel do 
-      DO j = 1, this%npartsm_
-        this%xk1_(1,j) = this%lvx_(j)
-        this%xk1_(2,j) = this%lvy_(j)
-        this%xk1_(3,j) = this%lvz_(j)
-      ENDDO
+!     ! Vel. storage at t^n+1: don't need this one, since it's done outside this call.
 
     ENDIF
     
