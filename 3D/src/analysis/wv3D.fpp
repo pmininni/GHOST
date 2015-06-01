@@ -18,9 +18,15 @@
 !      ORNL
 !
 ! 14 Nov 2014: Initial version
-! 11 Feb 2015: Corrections for potential enstrophy computations (Corentin)
+! 11 Feb 2015: Corrections for potential enstrophy computations (CH)
 !              Modified PVn, wgradt and wvzspectrum
 !              Added functions specprodg and specprodaxig for cubic term
+! 12 Mar 2015: Added projections wvproj0, wvprojw (CH)
+!              Added transfer functions wvtrans (CH)
+!              and tmp aux functions: entransc, entrans2Dc, sctransc sctrans2Dc
+!              Ultimately put in pseudo?
+! 02 May 2015: Performance improvements for transfer functions (CH)
+! 06 May 2015: Added wvtransfull to compute detailed transfer functions (CH)
 !=================================================================
 
 !
@@ -55,7 +61,7 @@
 !
 ! Auxiliary variables
 
-      INTEGER :: i,i2d,it,iavg,ic,ind,putnm,j,k
+      INTEGER :: i,i2d,it,iavg,ic,ind,putnm,j,k,trans
       INTEGER :: istat(1024),nfiles,nstat
 
       TYPE(IOPLAN)       :: planio
@@ -65,7 +71,7 @@
       CHARACTER(len=4096):: stat
       CHARACTER(len=4)   :: ext1
 !
-      NAMELIST / wv / idir, odir, stat, iswap, oswap, iavg, putnm, omega, bvfreq, i2d
+      NAMELIST / wv / idir, odir, stat, iswap, oswap, iavg, putnm, omega, bvfreq, i2d, trans
 
       tiny  = 1e-5_GP
       tinyf = 1e-15_GP
@@ -86,6 +92,7 @@
       iavg   = 0 
       i2d    = 0 
       putnm  = 0 
+      trans  = 0
 !
 ! Reads from the external file 'vt`.txt' the 
 ! parameters that will be used to compute the transfer
@@ -96,6 +103,7 @@
 !     oswap  : do endian swap on output?
 !     iavg   : time average spectrally the time index list?
 !     i2d    : write 2d spectra? (1,0; 0 is default)
+!     trans  : write transfer functions? (1,0; 0 is default)
 !     putnm  : write normal mode fields (0==don't; 1==in real space; 2==in wavenumber space)
 !     omega  : rotation rate
 !     bvfreq : Brunt-Vaisalla frequency
@@ -112,6 +120,7 @@
       CALL MPI_BCAST(iavg  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(i2d   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(putnm ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(trans ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(omega ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(bvfreq,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
 
@@ -168,80 +177,94 @@
       ext1 = ''
       tmp = 1.0/REAL(n,KIND=GP)**3
       IF ( iavg.EQ.1 ) THEN
-        CALL DoSpAvg(vx,vy,vz,th,istat,nstat,idir,planrc,planio,r1,c1)
-        CALL WVNormal(a0,am,ap,vx,vy,vz,th,omega,bvfreq)
-        WRITE(ext , fmtext) istat(1)     
-        WRITE(ext1, fmtext) istat(nstat) 
-        IF ( putnm.EQ.1 ) THEN
-          bmangle = 0
-          c1 = a0*tmp
-          CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-          IF ( oswap.NE.0 ) THEN
-            CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
-          ENDIF
-          WRITE(fout,'(a,i4.4,a,i4.4,a)'),'a0av_',istat(1),'_',istat(nstat),'.out'
-          CALL io_write(1,odir,trim(fout),ext,planio,r1)
-          c1 = am*tmp
-          CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-          IF ( oswap.NE.0 ) THEN
-            CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
-          ENDIF
-          WRITE(fout,'(a,i4.4,a,i4.4,a)'),'amav_',istat(1),'_',istat(nstat),'.out'
-          CALL io_write(1,odir,fout,ext,planio,r1)
-          c1 = ap*tmp
-          CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-          IF ( oswap.NE.0 ) THEN
-            CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
-          ENDIF
-          WRITE(fout,'(a,i4.4,a,i4.4,a)'),'apav_',istat(1),'_',istat(nstat),'.out'
-          CALL io_write(1,odir,fout,ext,planio,r1)
-          bmangle = 1
-        ENDIF
-        CALL WVNormal(a0,am,ap,vx,vy,vz,th,omega,bvfreq)
-        CALL wvspectrum(a0,am,ap,omega,bvfreq,odir,ext,ext1,i2d)
-        CALL wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,odir,ext,ext1,i2d,c1,c2,c3,r1,r2,r3)
+         CALL DoSpAvg(vx,vy,vz,th,istat,nstat,idir,planrc,planio,r1,c1)
+         CALL WVNormal(a0,am,ap,vx,vy,vz,th,omega,bvfreq)
+         WRITE(ext , fmtext) istat(1)     
+         WRITE(ext1, fmtext) istat(nstat) 
+         IF ( putnm.EQ.1 ) THEN
+            bmangle = 0
+            c1 = a0*tmp
+            CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+            IF ( oswap.NE.0 ) THEN
+               CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
+            ENDIF
+            WRITE(fout,'(a,i4.4,a,i4.4,a)'),'a0av_',istat(1),'_',istat(nstat),'.out'
+            CALL io_write(1,odir,trim(fout),ext,planio,r1)
+            c1 = am*tmp
+            CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+            IF ( oswap.NE.0 ) THEN
+               CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
+            ENDIF
+            WRITE(fout,'(a,i4.4,a,i4.4,a)'),'amav_',istat(1),'_',istat(nstat),'.out'
+            CALL io_write(1,odir,fout,ext,planio,r1)
+            c1 = ap*tmp
+            CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+            IF ( oswap.NE.0 ) THEN
+               CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
+            ENDIF
+            WRITE(fout,'(a,i4.4,a,i4.4,a)'),'apav_',istat(1),'_',istat(nstat),'.out'
+            CALL io_write(1,odir,fout,ext,planio,r1)
+            bmangle = 1
+         ENDIF
+         IF ( trans.LE.10 ) THEN
+!            CALL WVNormal(a0,am,ap,vx,vy,vz,th,omega,bvfreq) ! this seems unnecessary
+            CALL wvspectrum(a0,am,ap,omega,bvfreq,odir,ext,ext1,i2d)
+            CALL wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,odir,ext,ext1,i2d,c1,c2,c3,r1,r2,r3)
+         ENDIF
+         IF ( MOD(trans,10).EQ.1 ) THEN
+            CALL wvtrans(a0,am,ap,vx,vy,vz,th,omega,bvfreq,odir,ext,ext1,i2d,c1,c2,c3)
+         ELSEIF ( MOD(trans,10).EQ.2 ) THEN
+            CALL wvtransfull(a0,am,ap,vx,vy,vz,th,omega,bvfreq,odir,ext,ext1,i2d,c1,c2,c3)
+         ENDIF
       ELSE
-        DO it = 1,nstat
+         DO it = 1,nstat
           WRITE(ext, fmtext) istat(it)
 ! read in appropriate file:
-if ( myrank.eq.0 ) write(*,*)'main: reading vx...',ext
+!if ( myrank.eq.0 ) write(*,*)'main: reading vx...',ext
           CALL io_read(1,idir,'vx',ext,planio,r1)
           IF ( iswap .NE. 0 ) THEN
              CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
           ENDIF
-if ( myrank.eq.0 ) write(*,*)'main: fft_rc on vx...',ext
+!if ( myrank.eq.0 ) write(*,*)'main: fft_rc on vx...',ext
           CALL fftp3d_real_to_complex(planrc,r1,vx,MPI_COMM_WORLD)
-if ( myrank.eq.0 ) write(*,*)'main: reading vy...',ext
+!if ( myrank.eq.0 ) write(*,*)'main: reading vy...',ext
           CALL io_read(1,idir,'vy',ext,planio,r1)
           IF ( iswap .NE. 0 ) THEN
              CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
           ENDIF
-if ( myrank.eq.0 ) write(*,*)'main: fft_rc on vy...', ext
+!if ( myrank.eq.0 ) write(*,*)'main: fft_rc on vy...', ext
           CALL fftp3d_real_to_complex(planrc,r1,vy,MPI_COMM_WORLD)
-if ( myrank.eq.0 ) write(*,*)'main: reading vz...',ext
+!if ( myrank.eq.0 ) write(*,*)'main: reading vz...',ext
           CALL io_read(1,idir,'vz',ext,planio,r1)
           IF ( iswap .NE. 0 ) THEN
              CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
           ENDIF
-if ( myrank.eq.0 ) write(*,*)'main: fft_rc on vz...',ext
+!if ( myrank.eq.0 ) write(*,*)'main: fft_rc on vz...',ext
           CALL fftp3d_real_to_complex(planrc,r1,vz,MPI_COMM_WORLD)
-if ( myrank.eq.0 ) write(*,*)'main: reading th...',ext
+!if ( myrank.eq.0 ) write(*,*)'main: reading th...',ext
           CALL io_read(1,idir,'th',ext,planio,r1)
           IF ( iswap .NE. 0 ) THEN
              CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
           ENDIF
-if ( myrank.eq.0 ) write(*,*)'main: fft_rc on th...',ext
+!if ( myrank.eq.0 ) write(*,*)'main: fft_rc on th...',ext
           CALL fftp3d_real_to_complex(planrc,r1,th,MPI_COMM_WORLD)
-if ( myrank.eq.0 ) write(*,*)'main: calling WVNormal ...'
+!if ( myrank.eq.0 ) write(*,*)'main: calling WVNormal ...'
           CALL WVNormal(a0,am,ap,vx,vy,vz,th,omega,bvfreq)
-if ( myrank.eq.0 ) write(*,*)'main: calling wvspectrum...'
-          CALL wvspectrum(a0,am,ap,omega,bvfreq,odir,ext,'',i2d)
-if ( myrank.eq.0 ) write(*,*)'main: calling wvzspectrum...'
-          CALL wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,odir,ext,'',i2d,c1,c2,c3,r1,r2,r3)
+          IF ( trans.LE.10 ) THEN
+!if ( myrank.eq.0 ) write(*,*)'main: calling wvspectrum...'
+             CALL wvspectrum(a0,am,ap,omega,bvfreq,odir,ext,'',i2d)
+!if ( myrank.eq.0 ) write(*,*)'main: calling wvzspectrum...'
+             CALL wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,odir,ext,'',i2d,c1,c2,c3,r1,r2,r3)
+          ENDIF
+          IF ( MOD(trans,10).EQ.1 ) THEN
+             CALL wvtrans(a0,am,ap,vx,vy,vz,th,omega,bvfreq,odir,ext,'',i2d,c1,c2,c3)
+          ELSEIF ( MOD(trans,10).EQ.2 ) THEN
+             CALL wvtransfull(a0,am,ap,vx,vy,vz,th,omega,bvfreq,odir,ext,'',i2d,c1,c2,c3)             
+          ENDIF
 
           ! Do output:
           IF ( putnm.EQ.1 ) THEN
-if ( myrank.eq.0 ) write(*,*)'main: doing output...'
+!if ( myrank.eq.0 ) write(*,*)'main: doing output...'
             c1 = a0*tmp
             CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
             IF ( oswap.NE.0 ) THEN
@@ -287,7 +310,7 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
 !
 ! Carries out wave-vortical decomposition tasks.
 ! Computes from Herbert, et al. JFM 758:374 (2014)
-! eq A14-15.
+! eq A14,A16.
 !
 ! Note: after this call, the data should be expected to be overwritten.
 !
@@ -338,7 +361,7 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
                   ks  = sqrt(ka2(k,j,i))
      
                   IF ( kp.lt.tiny) THEN
-                    ! From decomp from Herbert, eq. A15:
+                    ! From decomp from Herbert, eq. A16:
                     a0(k,j,i) = -th(k,j,i)
                     am(k,j,i) =  tmp*( vy(k,j,i) - ic*vx(k,j,i) )
                     ap(k,j,i) =  tmp*( vy(k,j,i) + ic*vx(k,j,i) )
@@ -362,6 +385,412 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
          END DO
 
       END SUBROUTINE WVNormal
+
+      SUBROUTINE wvproj0(a0,vx,vy,vz,th,omega,bvfreq)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Based on the slow mode coefficients from the normal mode decomposition,
+! computes the slow component of the fields
+! Ref: Herbert, et al. JFM 758:374 (2014) Eqs A11, A15
+!
+! Parameters
+!     a0    : complex array of size vx,vy,vz, containing normal modes
+!     vx,
+!     vy    : complex slow velocities, returned
+!             (no need to compute vz, it always vanishes for the slow modes)
+!     th    : complex slow potential temperature, returned
+!     omega : rotation rate
+!     bvfreq: Brunt-Vaisala frequency
+!
+!-----------------------------------------------------------------
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE gutils
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz,th
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(n,n,ista:iend) :: a0
+      REAL   (KIND=GP), INTENT   (IN)                           :: bvfreq,omega
+      REAL   (KIND=GP)                                          :: f,kp,ks,sig
+      INTEGER                                                   :: i,j,k
+
+      vx = 0.0_GP
+      vy = 0.0_GP
+      th = 0.0_GP
+      vz = 0.0_GP
+
+      f = 2.0_GP * omega
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kp,ks,sig)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kp,ks,sig)
+            DO j = 1,n
+               DO k = 1,n
+                  kp  = sqrt(ka(i)**2+ka(j)**2)
+                  ks  = sqrt(ka2(k,j,i))
+ 
+                  vz(k,j,i) = 0.0_GP
+                  IF ( kp.lt.tiny) THEN
+                    ! From decomp from Herbert, eq. A15:
+                    vx(k,j,i) = 0.0_GP
+                    vy(k,j,i) = 0.0_GP                    
+                    th(k,j,i) = -a0(k,j,i)
+                  ELSE
+                    ! From decomp from Herbert, eq. A11:
+                    sig = sqrt((f**2*ka(k)**2+bvfreq**2*kp**2)/ka2(k,j,i))
+                    vx(k,j,i) = -bvfreq*ka(j)*a0(k,j,i)/(ks*sig)
+                    vy(k,j,i) =  bvfreq*ka(i)*a0(k,j,i)/(ks*sig)
+                    th(k,j,i) = -f*ka(k)*a0(k,j,i)/(ks*sig)
+                 ENDIF
+
+               END DO
+            END DO
+         END DO
+
+      END SUBROUTINE wvproj0
+
+      SUBROUTINE wvprojv0(a0,vx,vy,vz,omega,bvfreq)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Based on the slow mode coefficients from the normal mode decomposition,
+! computes the slow component of the velocity field.
+! Ref: Herbert, et al. JFM 758:374 (2014) Eqs A11, A15
+!
+! Parameters
+!     a0    : complex array of size vx,vy,vz, containing normal modes
+!     vx,
+!     vy    : complex slow velocities, returned
+!             (no need to compute vz, it always vanishes for the slow modes)
+!     omega : rotation rate
+!     bvfreq: Brunt-Vaisala frequency
+!
+!-----------------------------------------------------------------
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE gutils
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(n,n,ista:iend) :: a0
+      REAL   (KIND=GP), INTENT   (IN)                           :: bvfreq,omega
+      REAL   (KIND=GP)                                          :: f,kp,ks,sig
+      INTEGER                                                   :: i,j,k
+
+      vx = 0.0_GP
+      vy = 0.0_GP
+      vz = 0.0_GP
+
+      f = 2.0_GP * omega
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kp,ks,sig)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kp,ks,sig)
+            DO j = 1,n
+               DO k = 1,n
+                  kp  = sqrt(ka(i)**2+ka(j)**2)
+                  ks  = sqrt(ka2(k,j,i))
+ 
+                  vz(k,j,i) = 0.0_GP
+                  IF ( kp.lt.tiny) THEN
+                    ! From decomp from Herbert, eq. A15:
+                    vx(k,j,i) = 0.0_GP
+                    vy(k,j,i) = 0.0_GP                    
+                  ELSE
+                    ! From decomp from Herbert, eq. A11:
+                    sig = sqrt((f**2*ka(k)**2+bvfreq**2*kp**2)/ka2(k,j,i))
+                    vx(k,j,i) = -bvfreq*ka(j)*a0(k,j,i)/(ks*sig)
+                    vy(k,j,i) =  bvfreq*ka(i)*a0(k,j,i)/(ks*sig)
+                 ENDIF
+
+               END DO
+            END DO
+         END DO
+
+      END SUBROUTINE wvprojv0
+
+      SUBROUTINE wvprojt0(a0,th,omega,bvfreq)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Based on the slow mode coefficients from the normal mode decomposition,
+! computes the slow component of the temperature field.
+! Ref: Herbert, et al. JFM 758:374 (2014) Eqs A11, A15
+!
+! Parameters
+!     a0    : complex array of size th, containing normal modes
+!     th    : complex slow temperature, returned
+!     omega : rotation rate
+!     bvfreq: Brunt-Vaisala frequency
+!
+!-----------------------------------------------------------------
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE gutils
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(n,n,ista:iend) :: th
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(n,n,ista:iend) :: a0
+      REAL   (KIND=GP), INTENT   (IN)                           :: bvfreq,omega
+      REAL   (KIND=GP)                                          :: f,kp,ks,sig
+      INTEGER                                                   :: i,j,k
+
+      th = 0.0_GP
+      f = 2.0_GP * omega
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kp,ks,sig)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kp,ks,sig)
+            DO j = 1,n
+               DO k = 1,n
+                  kp  = sqrt(ka(i)**2+ka(j)**2)
+                  ks  = sqrt(ka2(k,j,i))
+                  IF ( kp.lt.tiny) THEN
+                    ! From decomp from Herbert, eq. A15:
+                    th(k,j,i) = -a0(k,j,i)
+                  ELSE
+                    ! From decomp from Herbert, eq. A11:
+                    sig = sqrt((f**2*ka(k)**2+bvfreq**2*kp**2)/ka2(k,j,i))
+                    th(k,j,i) = -f*ka(k)*a0(k,j,i)/(ks*sig)
+                 ENDIF
+
+               END DO
+            END DO
+         END DO
+
+      END SUBROUTINE wvprojt0
+      
+
+      SUBROUTINE wvprojw(am,ap,vx,vy,vz,th,omega,bvfreq)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Based on the wave mode coefficients from the normal mode decomposition,
+! computes the projection of the fields on the wave manifold.
+! Ref: Herbert, et al. JFM 758:374 (2014) Eqs A11, A15
+!
+! Parameters
+!     am,ap : complex array of size vx,vy,vz, containing normal modes
+!     vx,
+!     vy,
+!     vz    : complex velocities, projected on the wave manifold, returned
+!     th    : complex potential temperature projected on the wave manifold, returned
+!     omega : rotation rate
+!     bvfreq: Brunt-Vaisala frequency
+!
+!-----------------------------------------------------------------
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE gutils
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz,th
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(n,n,ista:iend) :: am,ap
+      COMPLEX(KIND=GP)                                          :: ic
+      REAL   (KIND=GP), INTENT   (IN)                           :: bvfreq,omega
+      REAL   (KIND=GP)                                          :: f,kp,ks,sig,tmp
+      INTEGER                                                   :: i,j,k
+
+      vx = 0.0_GP
+      vy = 0.0_GP
+      vz = 0.0_GP
+      th = 0.0_GP
+
+      ic = cmplx(0.0_GP,1.0_GP);
+      f = 2.0_GP * omega
+      tmp = 1.0_GP/sqrt(2.0_GP)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kp,ks,sig)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kp,ks,sig)
+            DO j = 1,n
+               DO k = 1,n
+                  kp  = sqrt(ka(i)**2+ka(j)**2)
+                  ks  = sqrt(ka2(k,j,i))
+     
+                  IF ( kp.lt.tiny) THEN
+                    ! From decomp from Herbert, eq. A15:
+                    vx(k,j,i) = ic*tmp*(am(k,j,i)-ap(k,j,i))
+                    vy(k,j,i) = tmp*(am(k,j,i)+ap(k,j,i))  
+                    vz(k,j,i) = 0.0_GP
+                    th(k,j,i) = 0.0_GP
+                  ELSE
+                    ! From decomp from Herbert, eq. A11:
+                    sig = sqrt((f**2*ka(k)**2+bvfreq**2*kp**2)/ka2(k,j,i))
+                    vx(k,j,i) = tmp*ka(k)*(f*ka(j)*(ap(k,j,i)+am(k,j,i))+ic*ka(i)*sig*(ap(k,j,i)-am(k,j,i)))/(ks*kp*sig)
+                    vy(k,j,i) = tmp*ka(k)*(-f*ka(i)*(ap(k,j,i)+am(k,j,i))+ic*ka(j)*sig*(ap(k,j,i)-am(k,j,i)))/(ks*kp*sig)
+                    vz(k,j,i) = -tmp*ic*kp*(ap(k,j,i)-am(k,j,i))/ks
+                    th(k,j,i) = -tmp*kp*bvfreq*(ap(k,j,i)+am(k,j,i))/(ks*sig)
+                 ENDIF
+
+               END DO
+            END DO
+         END DO
+
+      END SUBROUTINE wvprojw
+
+      SUBROUTINE wvprojvw(am,ap,vx,vy,vz,omega,bvfreq)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Based on the wave mode coefficients from the normal mode decomposition,
+! computes the projection of the velocity field on the wave manifold.
+! Ref: Herbert, et al. JFM 758:374 (2014) Eqs A11, A15
+!
+! Parameters
+!     am,ap : complex array of size vx,vy,vz, containing normal modes
+!     vx,
+!     vy,
+!     vz    : complex velocities, projected on the wave manifold, returned
+!     omega : rotation rate
+!     bvfreq: Brunt-Vaisala frequency
+!
+!-----------------------------------------------------------------
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE gutils
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(n,n,ista:iend) :: am,ap
+      COMPLEX(KIND=GP)                                          :: ic
+      REAL   (KIND=GP), INTENT   (IN)                           :: bvfreq,omega
+      REAL   (KIND=GP)                                          :: f,kp,ks,sig,tmp
+      INTEGER                                                   :: i,j,k
+
+      vx = 0.0_GP
+      vy = 0.0_GP
+      vz = 0.0_GP
+
+      ic = cmplx(0.0_GP,1.0_GP);
+      f = 2.0_GP * omega
+      tmp = 1.0_GP/sqrt(2.0_GP)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kp,ks,sig)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kp,ks,sig)
+            DO j = 1,n
+               DO k = 1,n
+                  kp  = sqrt(ka(i)**2+ka(j)**2)
+                  ks  = sqrt(ka2(k,j,i))
+     
+                  IF ( kp.lt.tiny) THEN
+                    ! From decomp from Herbert, eq. A15:
+                    vx(k,j,i) = ic*tmp*(am(k,j,i)-ap(k,j,i))
+                    vy(k,j,i) = tmp*(am(k,j,i)+ap(k,j,i))  
+                    vz(k,j,i) = 0.0_GP
+                  ELSE
+                    ! From decomp from Herbert, eq. A11:
+                    sig = sqrt((f**2*ka(k)**2+bvfreq**2*kp**2)/ka2(k,j,i))
+                    vx(k,j,i) = tmp*ka(k)*(f*ka(j)*(ap(k,j,i)+am(k,j,i))+ic*ka(i)*sig*(ap(k,j,i)-am(k,j,i)))/(ks*kp*sig)
+                    vy(k,j,i) = tmp*ka(k)*(-f*ka(i)*(ap(k,j,i)+am(k,j,i))+ic*ka(j)*sig*(ap(k,j,i)-am(k,j,i)))/(ks*kp*sig)
+                    vz(k,j,i) = -tmp*ic*kp*(ap(k,j,i)-am(k,j,i))/ks
+                 ENDIF
+
+               END DO
+            END DO
+         END DO
+
+      END SUBROUTINE wvprojvw
+
+      SUBROUTINE wvprojtw(am,ap,th,omega,bvfreq)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Based on the wave mode coefficients from the normal mode decomposition,
+! computes the projection of the temperature field on the wave manifold.
+! Ref: Herbert, et al. JFM 758:374 (2014) Eqs A11, A15
+!
+! Parameters
+!     am,ap : complex array of size vx,vy,vz, containing normal modes
+!     th    : complex potential temperature projected on the wave manifold, returned
+!     omega : rotation rate
+!     bvfreq: Brunt-Vaisala frequency
+!
+!-----------------------------------------------------------------
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE gutils
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(n,n,ista:iend) :: th
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(n,n,ista:iend) :: am,ap
+      COMPLEX(KIND=GP)                                          :: ic
+      REAL   (KIND=GP), INTENT   (IN)                           :: bvfreq,omega
+      REAL   (KIND=GP)                                          :: f,kp,ks,sig,tmp
+      INTEGER                                                   :: i,j,k
+
+      th = 0.0_GP
+      ic = cmplx(0.0_GP,1.0_GP);
+      f = 2.0_GP * omega
+      tmp = 1.0_GP/sqrt(2.0_GP)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kp,ks,sig)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kp,ks,sig)
+            DO j = 1,n
+               DO k = 1,n
+                  kp  = sqrt(ka(i)**2+ka(j)**2)
+                  ks  = sqrt(ka2(k,j,i))
+     
+                  IF ( kp.lt.tiny) THEN
+                    ! From decomp from Herbert, eq. A15:
+                    th(k,j,i) = 0.0_GP
+                  ELSE
+                    ! From decomp from Herbert, eq. A11:
+                    sig = sqrt((f**2*ka(k)**2+bvfreq**2*kp**2)/ka2(k,j,i))
+                    th(k,j,i) = -tmp*kp*bvfreq*(ap(k,j,i)+am(k,j,i))/(ks*sig)
+                 ENDIF
+
+               END DO
+            END DO
+         END DO
+
+      END SUBROUTINE wvprojtw
+      
 
 
 !*****************************************************************
@@ -896,7 +1325,7 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
 ! Computes 1d wave and vortical spectra for various quantities, returns them
 !
 ! Parameters
-!     a0   : input matri: vortical modes
+!     a0   : input matrix: vortical modes
 !     am   : input matrix: wave modes (-) 
 !     ap   : input matrix: wave modes (+) 
 !     bvfreq: Brunt-Vaisalla frequency
@@ -1213,6 +1642,1236 @@ if ( myrank.eq.0 ) write(*,*)'main: doing output...'
 
       END SUBROUTINE wvspectrumc
 
+!*****************************************************************
+      SUBROUTINE sctransc(a,b,kgeo,Ektot)
+!-----------------------------------------------------------------
+!
+! Computes the scalar transfer in Fourier space 
+! in 3D and returns it.
+!
+! Parameters
+!     a  : scalar
+!     b  : nonlinear term
+!     kgeo : = 1, then do isotropic spectral dependence; 2, then do perpendicular 
+!              spectral dependence; =3, then do parallel spectral dependence.
+!     Ektot: transfer function (output)
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX (KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
+      DOUBLE PRECISION,              DIMENSION(n/2+1) :: Ek
+      DOUBLE PRECISION,  INTENT(OUT),DIMENSION(n/2+1) :: Ektot
+      DOUBLE PRECISION :: tmq
+      REAL(KIND=GP)    :: tmp
+      INTEGER, INTENT(IN) :: kgeo
+      INTEGER          :: i,j,k,kmsk(3)
+      INTEGER          :: kmn,kiso,kperp,kpara
+
+      kmsk(1:3) = 0
+      IF ( kgeo.lt.1 .OR. kgeo.gt.3 ) THEN
+        WRITE(*,*)'sctransc: geometry parameter invalid.'
+        STOP
+      ENDIF
+      kmsk(kgeo) = 1
+!
+! Sets Ek to zero
+!
+      DO i = 1,n/2+1
+         Ek(i) = 0.0D0
+      END DO
+!
+! Computes the scalar transfer
+!
+      tmp = 1./real(n,kind=GP)**6
+      IF (ista.eq.1) THEN
+!$omp parallel do private (k,kmn,kiso,kperp,kpara,tmq)
+         DO j = 1,n
+            DO k = 1,n
+               kiso  = int(sqrt(ka2(k,j,1))+.501)
+               kperp = int(sqrt(ka(1)**2+ka(j)**2)+.501)
+               kpara = int(abs(ka(k))+1)
+               kmn   = kmsk(1)*kiso + kmsk(2)*kperp + kmsk(3)*kpara
+               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                  tmq = tmp*real(a(k,j,1)*conjg(b(k,j,1)))
+!$omp atomic
+                  Ek(kmn) = Ek(kmn)+tmq
+               ENDIF
+            END DO
+         END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,kiso,kperp,kpara,tmq)
+         DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,kiso,kperp,kpara,tmq)
+            DO j = 1,n
+               DO k = 1,n
+                  kiso  = int(sqrt(ka2(k,j,1))+.501)
+                  kperp = int(sqrt(ka(1)**2+ka(j)**2)+.501)
+                  kpara = int(abs(ka(k))+1)
+                  kmn   = kmsk(1)*kiso + kmsk(2)*kperp + kmsk(3)*kpara
+                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     tmq = 2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
+!$omp atomic
+                     Ek(kmn) = Ek(kmn)+tmq
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,kiso,kperp,kpara,tmq)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,kiso,kperp,kpara,tmq)
+            DO j = 1,n
+               DO k = 1,n
+                  kiso  = int(sqrt(ka2(k,j,1))+.501)
+                  kperp = int(sqrt(ka(1)**2+ka(j)**2)+.501)
+                  kpara = int(abs(ka(k))+1)
+                  kmn   = kmsk(1)*kiso + kmsk(2)*kperp + kmsk(3)*kpara
+                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     tmq = 2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
+!$omp atomic
+                     Ek(kmn) = Ek(kmn)+tmq
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ENDIF
+!
+! Computes the reduction between nodes
+!
+      CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+                      MPI_COMM_WORLD,ierr)
+
+      RETURN
+      END SUBROUTINE sctransc
+
+!*****************************************************************
+      SUBROUTINE sctrans2Dc(a,b,Ektot)
+!-----------------------------------------------------------------
+!
+! Computes the axysimmetric scalar transfer in Fourier space
+! and returns it.
+! The spectrum is angle-averaged in the azimuthal direction, 
+! and depends on two wavenumbers, kperp=0,...,n/2 and 
+! kpara=0,....,n/2. The output is written to a binary file by 
+! the first node.
+!
+! Parameters
+!     a  : scalar
+!     b  : nonlinear term
+!     Ektot: transfer function (output)
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
+      REAL(KIND=GP),                DIMENSION(n/2+1,n/2+1)   :: Ek
+      REAL(KIND=GP),    INTENT(OUT),DIMENSION(n/2+1,n/2+1)   :: Ektot
+      REAL(KIND=GP)       :: tmq,tmp
+      INTEGER             :: i,j,k
+      INTEGER             :: kmn,kz
+
+!
+! Sets Ek to zero
+!
+      DO i = 1,n/2+1
+         DO j = 1,n/2+1
+            Ek(i,j) = 0.0_GP
+         END DO
+      END DO
+! 
+! Computes the scalar transfer
+!
+      tmp = 1.0_GP/real(n,kind=GP)**6
+      IF (ista.eq.1) THEN
+!$omp parallel do private (k,kz,kmn,tmq)
+         DO j = 1,n
+            kmn = int(sqrt(ka(1)**2+ka(j)**2)+1.501)
+            IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO k = 1,n
+                  kz = int(abs(ka(k))+1)
+                  IF ((kz.gt.0).and.(kz.le.n/2+1)) THEN                                          
+                  tmq = tmp*real(a(k,j,1)*conjg(b(k,j,1)))
+!$omp atomic
+                  Ek(kmn,kz) = Ek(kmn,kz)+tmq
+                  ENDIF
+               END DO
+            ENDIF
+         END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kz,kmn,tmq)
+         DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kz,kmn,tmq)
+            DO j = 1,n
+               kmn = int(sqrt(ka(i)**2+ka(j)**2)+1.501)
+               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                  DO k = 1,n
+                     kz = int(abs(ka(k))+1)
+                     IF ((kz.gt.0).and.(kz.le.n/2+1)) THEN
+                     tmq = 2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
+!$omp atomic
+                     Ek(kmn,kz) = Ek(kmn,kz)+tmq
+                     ENDIF
+                  END DO
+               ENDIF
+            END DO
+         END DO
+      ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kz,kmn,tmq)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kz,kmn,tmq)
+            DO j = 1,n
+               kmn = int(sqrt(ka(i)**2+ka(j)**2)+1.501)
+               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                  DO k = 1,n
+                     kz = int(abs(ka(k))+1)
+                     IF ((kz.gt.0).and.(kz.le.n/2+1)) THEN
+                     tmq = 2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
+!$omp atomic
+                     Ek(kmn,kz) = Ek(kmn,kz)+tmq
+                     ENDIF
+                  END DO
+               ENDIF
+            END DO
+         END DO
+      ENDIF
+!
+! Computes the reduction between nodes
+!
+      CALL MPI_REDUCE(Ek,Ektot,(n/2+1)*(n/2+1),GC_REAL,            &
+                         MPI_SUM,0,MPI_COMM_WORLD,ierr)
+
+      RETURN
+      END SUBROUTINE sctrans2Dc
+
+
+!*****************************************************************
+      SUBROUTINE entransc(a,b,c,d,e,f,kin,kgeo,Ektot)
+!-----------------------------------------------------------------
+!
+! Computes the energy (or cross-helicity) transfer 
+! in Fourier space in 3D and returns it.
+!
+! Parameters
+!     a  : field component in the x-direction
+!     b  : field component in the y-direction
+!     c  : field component in the z-direction
+!     d  : nonlinear term in the x-direction
+!     e  : nonlinear term in the y-direction
+!     f  : nonlinear term in the z-direction
+!     kin: =0 computes the magnetic energy transfer
+!          =1 computes the kinetic energy transfer
+!          =2 computes the Lorentz force work (energy transfer)
+!          =3 computes the magnetic cross-helicity transfer
+!          =4 computes the kinetic cross-helicity transfer
+!     kgeo : = 1, then do isotropic spectral dependence; 2, then do perpendicular 
+!              spectral dependence; =3, then do parallel spectral dependence.
+!     Ektot: transfer function, output
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+!$    USE threads
+      IMPLICIT NONE
+
+      DOUBLE PRECISION,             DIMENSION(n/2+1) :: Ek
+      DOUBLE PRECISION, INTENT(OUT),DIMENSION(n/2+1) :: Ektot
+      DOUBLE PRECISION    :: tmq
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
+      REAL(KIND=GP)       :: tmp
+      INTEGER, INTENT(IN) :: kin,kgeo
+      INTEGER             :: i,j,k,kmsk(3)
+      INTEGER             :: kmn,kiso,kperp,kpara
+
+      kmsk(1:3) = 0
+      IF ( kgeo.lt.1 .OR. kgeo.gt.3 ) THEN
+        WRITE(*,*)'entransc: geometry parameter invalid.'
+        STOP
+      ENDIF
+      kmsk(kgeo) = 1
+!
+! Sets Ek to zero
+!
+      DO i = 1,n/2+1
+         Ek(i) = 0.0D0
+      END DO
+!
+! Computes the kinetic energy transfer
+!
+      tmp = 1.0_GP/real(n,kind=GP)**6
+      IF (kin.ge.1) THEN
+         IF (ista.eq.1) THEN
+!$omp parallel do private (k,kmn,kiso,kperp,kpara,tmq)
+            DO j = 1,n
+               DO k = 1,n
+                  kiso  = int(sqrt(ka2(k,j,1))+.501)
+                  kperp = int(sqrt(ka(1)**2+ka(j)**2)+.501)
+                  kpara = int(abs(ka(k))+1)
+                  kmn   = kmsk(1)*kiso + kmsk(2)*kperp + kmsk(3)*kpara
+                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     tmq = (real(a(k,j,1)*conjg(d(k,j,1)))+            &
+                            real(b(k,j,1)*conjg(e(k,j,1)))+            &
+                            real(c(k,j,1)*conjg(f(k,j,1))))*tmp
+!$omp atomic
+                     Ek(kmn) = Ek(kmn)+tmq
+                  ENDIF
+               END DO
+            END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,kiso,kperp,kpara,tmq)
+            DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,kiso,kperp,kpara,tmq)
+               DO j = 1,n
+                  DO k = 1,n
+                     kiso  = int(sqrt(ka2(k,j,i))+.501)
+                     kperp = int(sqrt(ka(i)**2+ka(j)**2)+.501)
+                     kpara = int(abs(ka(k))+1)
+                     kmn   = kmsk(1)*kiso + kmsk(2)*kperp + kmsk(3)*kpara
+                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                        tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+       &
+                                 real(b(k,j,i)*conjg(e(k,j,i)))+       &
+                                 real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+!$omp atomic
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                 END DO
+               END DO
+            END DO
+         ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,kiso,kperp,kpara,tmq)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,kiso,kperp,kpara,tmq)
+               DO j = 1,n
+                  DO k = 1,n
+                     kiso  = int(sqrt(ka2(k,j,i))+.501)
+                     kperp = int(sqrt(ka(i)**2+ka(j)**2)+.501)
+                     kpara = int(abs(ka(k))+1)
+                     kmn   = kmsk(1)*kiso + kmsk(2)*kperp + kmsk(3)*kpara
+                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                        tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+       &
+                                 real(b(k,j,i)*conjg(e(k,j,i)))+       &
+                                 real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+!$omp atomic
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                  END DO
+               END DO
+            END DO
+         ENDIF
+!
+! Computes the magnetic energy transfer
+!
+      ELSE
+         IF (ista.eq.1) THEN
+!$omp parallel do private (k,kmn,kiso,kperp,kpara,tmq)
+            DO j = 1,n
+               DO k = 1,n
+                  kiso  = int(sqrt(ka2(k,j,i))+.501)
+                  kperp = int(sqrt(ka(i)**2+ka(j)**2)+.501)
+                  kpara = int(abs(ka(k))+1)
+                  kmn   = kmsk(1)*kiso + kmsk(2)*kperp + kmsk(3)*kpara
+                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     tmq = ka2(k,j,1)*                                 &
+                           (real(a(k,j,1)*conjg(d(k,j,1)))+            &
+                            real(b(k,j,1)*conjg(e(k,j,1)))+            &
+                            real(c(k,j,1)*conjg(f(k,j,1))))*tmp
+!$omp atomic
+                     Ek(kmn) = Ek(kmn)+tmq
+                  ENDIF
+               END DO
+            END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,kiso,kperp,kpara,tmq)
+            DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,kiso,kperp,kpara,tmq)
+               DO j = 1,n
+                  DO k = 1,n
+                     kiso  = int(sqrt(ka2(k,j,i))+.501)
+                     kperp = int(sqrt(ka(i)**2+ka(j)**2)+.501)
+                     kpara = int(abs(ka(k))+1)
+                     kmn   = kmsk(1)*kiso + kmsk(2)*kperp + kmsk(3)*kpara
+                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                        tmq = 2*ka2(k,j,i)*                            &
+                              (real(a(k,j,i)*conjg(d(k,j,i)))+         &
+                               real(b(k,j,i)*conjg(e(k,j,i)))+         &
+                               real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+!$omp atomic 
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                 END DO
+               END DO
+            END DO
+         ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,kiso,kperp,kpara,tmq)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,kiso,kperp,kpara,tmq)
+               DO j = 1,n
+                  DO k = 1,n
+                     kiso  = int(sqrt(ka2(k,j,i))+.501)
+                     kperp = int(sqrt(ka(i)**2+ka(j)**2)+.501)
+                     kpara = int(abs(ka(k))+1)
+                     kmn   = kmsk(1)*kiso + kmsk(2)*kperp + kmsk(3)*kpara
+                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                        tmq = 2*ka2(k,j,i)*                            &
+                              (real(a(k,j,i)*conjg(d(k,j,i)))+         &
+                               real(b(k,j,i)*conjg(e(k,j,i)))+         &
+                               real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+!$omp atomic
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                  END DO
+               END DO
+            END DO
+         ENDIF
+      ENDIF
+!
+! Computes the reduction between nodes
+!
+      CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+                      MPI_COMM_WORLD,ierr)
+
+      RETURN
+      END SUBROUTINE entransc
+
+!*****************************************************************
+      SUBROUTINE entrans2Dc(a,b,c,d,e,f,kin,Ektot)
+!-----------------------------------------------------------------
+!
+! Computes the axysimmetric energy transfer in Fourier space
+! and returns it. 
+! The spectrum is angle-averaged in the azimuthal direction, 
+! and depends on two wavenumbers, kperp=0,...,n/2 and 
+! kpara=0,....,n/2. The output is written to a binary file by 
+! the first node.
+!
+! Parameters
+!     a  : field component in the x-direction
+!     b  : field component in the y-direction
+!     c  : field component in the z-direction
+!     d  : nonlinear term in the x-direction
+!     e  : nonlinear term in the y-direction
+!     f  : nonlinear term in the z-direction
+!     kin: =0 computes the magnetic energy transfer
+!          =1 computes the kinetic energy transfer
+!          =2 computes the Lorentz force work (energy transfer)
+!          =3 computes the magnetic cross-helicity transfer
+!          =4 computes the kinetic cross-helicity transfer
+!     Ektot: transfer function, output
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
+      REAL(KIND=GP),                DIMENSION(n/2+1,n/2+1)   :: Ek
+      REAL(KIND=GP),    INTENT(OUT),DIMENSION(n/2+1,n/2+1)   :: Ektot
+      REAL(KIND=GP)       :: tmq,tmp
+      INTEGER, INTENT(IN) :: kin
+      INTEGER             :: i,j,k
+      INTEGER             :: kmn,kz
+
+!
+! Sets Ek to zero
+!
+      DO i = 1,n/2+1
+         DO j = 1,n/2+1
+            Ek(i,j) = 0.0_GP
+         END DO
+      END DO
+! 
+! Computes the kinetic energy transfer
+!
+      tmp = 1.0_GP/real(n,kind=GP)**6
+      IF (kin.ge.1) THEN
+         IF (ista.eq.1) THEN
+!$omp parallel do private (k,kz,kmn,tmq)
+            DO j = 1,n
+               kmn = int(sqrt(ka(1)**2+ka(j)**2)+1.501)
+               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                  DO k = 1,n
+                     kz = int(abs(ka(k))+1)
+                     IF ((kz.gt.0).and.(kz.le.n/2+1)) THEN                                          
+                     tmq = (real(a(k,j,1)*conjg(d(k,j,1)))+            &
+                            real(b(k,j,1)*conjg(e(k,j,1)))+            &
+                            real(c(k,j,1)*conjg(f(k,j,1))))*tmp
+!$omp atomic
+                     Ek(kmn,kz) = Ek(kmn,kz)+tmq
+                     ENDIF
+                  END DO
+               ENDIF
+            END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kz,kmn,tmq)
+            DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kz,kmn,tmq)
+               DO j = 1,n
+                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+1.501)
+                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     DO k = 1,n
+                        kz = int(abs(ka(k))+1)
+                        IF ((kz.gt.0).and.(kz.le.n/2+1)) THEN
+                        tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+       &
+                                 real(b(k,j,i)*conjg(e(k,j,i)))+       &
+                                 real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+!$omp atomic
+                        Ek(kmn,kz) = Ek(kmn,kz)+tmq
+                        ENDIF
+                     END DO
+                  ENDIF
+               END DO
+            END DO
+         ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kz,kmn,tmq)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kz,kmn,tmq)
+               DO j = 1,n
+                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+1.501)
+                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     DO k = 1,n
+                        kz = int(abs(ka(k))+1)
+                        IF ((kz.gt.0).and.(kz.le.n/2+1)) THEN
+                        tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+       &
+                                 real(b(k,j,i)*conjg(e(k,j,i)))+       &
+                                 real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+!$omp atomic
+                        Ek(kmn,kz) = Ek(kmn,kz)+tmq
+                        ENDIF
+                     END DO
+                  ENDIF
+               END DO
+            END DO
+         ENDIF
+!
+! Computes the magnetic energy transfer
+!
+      ELSE
+         IF (ista.eq.1) THEN
+!$omp parallel do private (k,kz,kmn,tmq)
+            DO j = 1,n
+               kmn = int(sqrt(ka(1)**2+ka(j)**2)+1.501)
+               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                  DO k = 1,n
+                     kz = int(abs(ka(k))+1)
+                     IF ((kz.gt.0).and.(kz.le.n/2+1)) THEN
+                     tmq = ka2(k,j,1)*                                 &
+                           (real(a(k,j,1)*conjg(d(k,j,1)))+            &
+                            real(b(k,j,1)*conjg(e(k,j,1)))+            &
+                            real(c(k,j,1)*conjg(f(k,j,1))))*tmp
+!$omp atomic
+                     Ek(kmn,kz) = Ek(kmn,kz)+tmq
+                     ENDIF
+                  END DO
+               ENDIF
+            END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kz,kmn,tmq)
+            DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kz,kmn,tmq)
+               DO j = 1,n
+                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+1.501)
+                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     DO k = 1,n
+                        kz = int(abs(ka(k))+1)
+                        IF ((kz.gt.0).and.(kz.le.n/2+1)) THEN
+                        tmq = 2*ka2(k,j,i)*                            &
+                              (real(a(k,j,i)*conjg(d(k,j,i)))+         &
+                               real(b(k,j,i)*conjg(e(k,j,i)))+         &
+                               real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+!$omp atomic
+                        Ek(kmn,kz) = Ek(kmn,kz)+tmq
+                        ENDIF
+                     END DO
+                  ENDIF
+               END DO
+            END DO
+         ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kz,kmn,tmq)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kz,kmn,tmq)
+               DO j = 1,n
+                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+1.501)
+                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     DO k = 1,n
+                        kz = int(abs(ka(k))+1)
+                        IF ((kz.gt.0).and.(kz.le.n/2+1)) THEN
+                        tmq = 2*ka2(k,j,i)*                            &
+                              (real(a(k,j,i)*conjg(d(k,j,i)))+         &
+                               real(b(k,j,i)*conjg(e(k,j,i)))+         &
+                               real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+!$omp atomic
+                        Ek(kmn,kz) = Ek(kmn,kz)+tmq
+                        ENDIF
+                     END DO
+                  ENDIF
+               END DO
+            END DO
+         ENDIF
+      ENDIF
+!
+! Computes the reduction between nodes
+!
+      CALL MPI_REDUCE(Ek,Ektot,(n/2+1)*(n/2+1),GC_REAL,            &
+                         MPI_SUM,0,MPI_COMM_WORLD,ierr)
+
+      RETURN
+      END SUBROUTINE entrans2Dc
+
+
+!*****************************************************************
+      SUBROUTINE wvtrans(a0,am,ap,vx,vy,vz,th,omega,bvfreq,dir,nmb,nmb1,i2d,c1,c2,c3)
+!-----------------------------------------------------------------
+!
+! Computes the energy (and helicity) transfer 
+! functions. The output is written to a 
+! file by the first node.
+!
+! Parameters
+!     a0 : input matrix: vortical modes
+!     am : input matrix: wave modes (-)
+!     ap : input matrix: wave modes (+)
+!     bvfreq: Brunt-Vaisalla freq
+!     omega : rotation rate
+!     nmb: the extension used when writting the file
+!     nmb1: if lenght>0, used to specify range
+!     i2d : do 2D spectra (>0), or not (<=0)
+!     c1,c2,c3: tmp complex arrays
+!
+!-----------------------------------------------------------------
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+      IMPLICIT NONE
+
+      DOUBLE PRECISION,             DIMENSION(n/2+1)         :: TV0k,TP0k,TVWk,TPWk,GWk,TV0kperp,TP0kperp,TVWkperp,TPWkperp,GWkperp,TV0kpar,TP0kpar,TVWkpar,TPWkpar,GWkpar
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a0,am,ap,vx,vy,vz,th
+      COMPLEX(KIND=GP),             DIMENSION(n,n,ista:iend) :: vxt,vyt,vzt
+      COMPLEX(KIND=GP), INTENT(INOUT),DIMENSION(n,n,ista:iend) :: c1,c2,c3
+      REAL   (KIND=GP),             DIMENSION(n/2+1,n/2+1)   :: Taxi
+      REAL   (KIND=GP), INTENT(IN)                           :: bvfreq,omega
+      INTEGER         , INTENT(IN)                           :: i2d
+      INTEGER                      :: j,i
+      CHARACTER(len=*), INTENT(IN) :: dir,nmb,nmb1
+
+      CALL prodre3(vx,vy,vz,vxt,vyt,vzt)
+      CALL nonlhd3(vxt,vyt,vzt,c1,1)
+      CALL nonlhd3(vxt,vyt,vzt,c2,2)
+      CALL nonlhd3(vxt,vyt,vzt,c3,3)
+
+!      CALL wvproj0(a0,vxt,vyt,vzt,tht,omega,bvfreq)
+      CALL wvprojv0(a0,vxt,vyt,vzt,omega,bvfreq)
+      CALL entransc(vxt,vyt,vzt,c1,c2,c3,1,1,TV0k)      ! Isotropic transfer function     TV0
+      CALL entransc(vxt,vyt,vzt,c1,c2,c3,1,2,TV0kperp)  ! Perpendicular transfer function TV0
+      CALL entransc(vxt,vyt,vzt,c1,c2,c3,1,3,TV0kpar)   ! Parallel transfer function      TV0
+      IF ( i2d.GT.0 ) THEN
+         CALL entrans2Dc(vxt,vyt,vzt,c1,c2,c3,1,Taxi)   ! 2D transfer function            TV0
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvev0ktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvev0ktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+      CALL advect3(vx,vy,vz,th,vxt)
+      CALL wvprojt0(a0,vyt,omega,bvfreq)
+      CALL sctransc(vyt,vxt,1,TP0k)                     ! Isotropic transfer function     TP0
+      CALL sctransc(vyt,vxt,2,TP0kperp)                 ! Perpendicular transfer function TP0
+      CALL sctransc(vyt,vxt,3,TP0kpar)                  ! Parallel transfer function      TP0
+      IF ( i2d.GT.0 ) THEN
+         CALL sctrans2Dc(vyt,vxt,Taxi)                  ! 2D transfer function            TP0
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvep0ktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvep0ktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+!      CALL wvprojw(am,ap,vxt,vyt,vzt,tht,omega,bvfreq)
+      CALL wvprojvw(am,ap,vxt,vyt,vzt,omega,bvfreq)
+      CALL entransc(vxt,vyt,vzt,c1,c2,c3,1,1,TVWk)      ! Isotropic transfer function     TVW
+      CALL entransc(vxt,vyt,vzt,c1,c2,c3,1,2,TVWkperp)  ! Perpendicular transfer function TVW
+      CALL entransc(vxt,vyt,vzt,c1,c2,c3,1,3,TVWkpar)   ! Parallel transfer function      TVW
+      IF ( i2d.GT.0 ) THEN
+         CALL entrans2Dc(vxt,vyt,vzt,c1,c2,c3,1,Taxi)   ! 2D transfer function            TVW
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvevwktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvevwktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+      CALL advect3(vx,vy,vz,th,c1)
+      CALL wvprojtw(am,ap,c2,omega,bvfreq)
+      CALL sctransc(c2,c1,1,TPWk)                     ! Isotropic transfer function     TPW
+      CALL sctransc(c2,c1,2,TPWkperp)                 ! Perpendicular transfer function TPW
+      CALL sctransc(c2,c1,3,TPWkpar)                  ! Parallel transfer function      TPW
+      IF ( i2d.GT.0 ) THEN
+         CALL sctrans2Dc(c2,c1,Taxi)                  ! 2D transfer function            TPW
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvepwktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvepwktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+! Compute the wave exchange terms between kinetic and potential energy:
+! (sign convention is that of the EP budget)
+      CALL specprodg(vzt,th,1,GWk)     ! Isotropic
+      CALL specprodg(vzt,th,2,GWkperp) ! Perpendicular
+      CALL specprodg(vzt,th,3,GWkpar)  ! Parallel
+
+      IF (myrank.eq.0) THEN
+         if ( len_trim(nmb1).gt.0 ) then
+            OPEN(1,file='wvektransfer.' // nmb // '_' // trim(nmb1) //'.txt')
+         else
+            OPEN(1,file='wvektransfer.' // nmb // '.txt')
+         endif
+         DO j=1,n/2+1
+            WRITE(1,FMT='(7(E23.15,1X))') TV0k(j)+TP0k(j),TVWk(j)+TPWk(j),TV0k(j),TVWk(j),TP0k(j),TPWk(j),bvfreq*GWk(j)
+         ENDDO
+         CLOSE(1)
+
+         if ( len_trim(nmb1).gt.0 ) then
+            OPEN(1,file='wvektranperp.' // nmb // '_' // trim(nmb1) //'.txt')
+         else
+            OPEN(1,file='wvektranperp.' // nmb // '.txt')
+         endif
+         DO j=1,n/2+1
+            WRITE(1,FMT='(7(E23.15,1X))') TV0kperp(j)+TP0kperp(j),TVWkperp(j)+TPWkperp(j),TV0kperp(j),TVWkperp(j),TP0kperp(j),TPWkperp(j),bvfreq*GWkperp(j)
+         ENDDO
+         CLOSE(1)
+
+         if ( len_trim(nmb1).gt.0 ) then
+            OPEN(1,file='wvektranpara.' // nmb // '_' // trim(nmb1) //'.txt')
+         else
+            OPEN(1,file='wvektranpara.' // nmb // '.txt')
+         endif
+         DO j=1,n/2+1
+            WRITE(1,FMT='(7(E23.15,1X))') TV0kpar(j)+TP0kpar(j),TVWkpar(j)+TPWkpar(j),TV0kpar(j),TVWkpar(j),TP0kpar(j),TPWkpar(j),bvfreq*GWkpar(j)
+         ENDDO
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE wvtrans
+
+      
+!*****************************************************************
+      SUBROUTINE vector3(a,b,c,d,e,f,x,y,z)
+!-----------------------------------------------------------------
+!
+! Computes the product AxB in real space. The components 
+! of the vector fields A and B are given by the matrixes 
+! a,b,c,d,e and f, following the right hand convention.
+!
+! Parameters
+!     a: input matrix with A_x
+!     b: input matrix with A_y
+!     c: input matrix with A_z
+!     d: input matrix with B_x
+!     e: input matrix with B_y
+!     f: input matrix with B_z
+!     x: at the output contains (AxB)_x in Fourier space
+!     y: at the output contains (AxB)_y in Fourier space
+!     z: at the output contains (AxB)_z in Fourier space
+!
+      USE fprecision
+      USE commtypes
+      USE mpivars
+      USE grid
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: d,e,f
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: x,y,z
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r1,r2
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r3,r4
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r5,r6
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r7
+      REAL(KIND=GP)    :: tmp
+      INTEGER :: i,j,k
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,n
+            DO k = 1,n
+               x(k,j,i) = a(k,j,i)
+               y(k,j,i) = b(k,j,i)
+               z(k,j,i) = c(k,j,i)
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,x,r1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,y,r2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,z,r3,MPI_COMM_WORLD)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,n
+            DO k = 1,n
+               x(k,j,i) = d(k,j,i)
+               y(k,j,i) = e(k,j,i)
+               z(k,j,i) = f(k,j,i)
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,x,r4,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,y,r5,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,z,r6,MPI_COMM_WORLD)
+
+      tmp = 1.0_GP/real(n,kind=GP)**6
+!$omp parallel do if (iend-ista.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (iend-ista.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               r7(i,j,k) = (r2(i,j,k)*r6(i,j,k)-r5(i,j,k)*r3(i,j,k))*tmp
+               r3(i,j,k) = (r3(i,j,k)*r4(i,j,k)-r6(i,j,k)*r1(i,j,k))*tmp
+               r1(i,j,k) = (r1(i,j,k)*r5(i,j,k)-r4(i,j,k)*r2(i,j,k))*tmp
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_real_to_complex(planrc,r7,x,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,r3,y,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,r1,z,MPI_COMM_WORLD)
+
+      RETURN
+      END SUBROUTINE vector3
+      
+      
+!*****************************************************************
+      SUBROUTINE wvtransfull(a0,am,ap,vx,vy,vz,th,omega,bvfreq,dir,nmb,nmb1,i2d,c1,c2,c3)
+!-----------------------------------------------------------------
+!
+! Computes the energy (and helicity) transfer 
+! functions, distinguishing the components by types of triads.
+! The output is written to a file by the first node.
+!
+! Parameters
+!     a0 : input matrix: vortical modes
+!     am : input matrix: wave modes (-)
+!     ap : input matrix: wave modes (+)
+!     bvfreq: Brunt-Vaisalla freq
+!     omega : rotation rate
+!     nmb: the extension used when writting the file
+!     nmb1: if lenght>0, used to specify range
+!     i2d : do 2D spectra (>0), or not (<=0)
+!     c1,c2,c3: tmp complex arrays
+!     CAUTION: vx,vy,vz,th are overwritten!        
+!
+!-----------------------------------------------------------------
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+      IMPLICIT NONE
+
+      DOUBLE PRECISION,             DIMENSION(n/2+1)         :: GW0k,GW0kperp,GW0kpar,GWWk,GWWkperp,GWWkpar
+      DOUBLE PRECISION,             DIMENSION(n/2+1)         :: TV000k,    TV00Wk,    TV0W0k,    TV0WWk,    TVW00k,    TVW0Wk,    TVWW0k,    TVWWWk
+      DOUBLE PRECISION,             DIMENSION(n/2+1)         :: TV000kperp,TV00Wkperp,TV0W0kperp,TV0WWkperp,TVW00kperp,TVW0Wkperp,TVWW0kperp,TVWWWkperp
+      DOUBLE PRECISION,             DIMENSION(n/2+1)         :: TV000kpar, TV00Wkpar, TV0W0kpar, TV0WWkpar, TVW00kpar, TVW0Wkpar, TVWW0kpar, TVWWWkpar
+      DOUBLE PRECISION,             DIMENSION(n/2+1)         :: TP000k,    TP00Wk,    TP0W0k,    TP0WWk,    TPW00k,    TPW0Wk,    TPWW0k,    TPWWWk
+      DOUBLE PRECISION,             DIMENSION(n/2+1)         :: TP000kperp,TP00Wkperp,TP0W0kperp,TP0WWkperp,TPW00kperp,TPW0Wkperp,TPWW0kperp,TPWWWkperp
+      DOUBLE PRECISION,             DIMENSION(n/2+1)         :: TP000kpar, TP00Wkpar, TP0W0kpar, TP0WWkpar, TPW00kpar, TPW0Wkpar, TPWW0kpar, TPWWWkpar
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a0,am,ap
+      COMPLEX(KIND=GP), INTENT(INOUT),DIMENSION(n,n,ista:iend) :: vx,vy,vz,th      
+      COMPLEX(KIND=GP),             DIMENSION(n,n,ista:iend) :: c11,c22,c33,c44,c55,c66,c77
+      COMPLEX(KIND=GP), INTENT(INOUT),DIMENSION(n,n,ista:iend) :: c1,c2,c3
+      REAL   (KIND=GP),             DIMENSION(n/2+1,n/2+1)   :: Taxi
+      REAL   (KIND=GP), INTENT(IN)                           :: bvfreq,omega
+      INTEGER         , INTENT(IN)                           :: i2d
+      INTEGER                      :: j,i
+      CHARACTER(len=*), INTENT(IN) :: dir,nmb,nmb1
+
+      CALL wvprojv0(a0,vx,vy,vz,omega,bvfreq) ! u0
+
+      CALL rotor3(vy,vz,c1,1) ! omega0
+      CALL rotor3(vx,vz,c2,2)
+      CALL rotor3(vx,vy,c3,3)
+
+      CALL vector3(c1,c2,c3,vx,vy,vz,c33,c44,th) ! nonlinear term 00
+      CALL nonlhd3(c33,c44,th,c11,1)
+      CALL nonlhd3(c33,c44,th,c22,2)
+      CALL nonlhd3(c33,c44,th,c33,3)
+      
+      CALL entransc(vx,vy,vz,c11,c22,c33,1,1,TV000k)      ! Isotropic transfer function     TV000
+      CALL entransc(vx,vy,vz,c11,c22,c33,1,2,TV000kperp)  ! Perpendicular transfer function TV000
+      CALL entransc(vx,vy,vz,c11,c22,c33,1,3,TV000kpar)   ! Parallel transfer function      TV000
+      IF ( i2d.GT.0 ) THEN
+         CALL entrans2Dc(vx,vy,vz,c11,c22,c33,1,Taxi)   ! 2D transfer function            TV000
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvev000ktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvev000ktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+      CALL wvprojvw(am,ap,c44,c55,c66,omega,bvfreq) ! uw
+      CALL entransc(c44,c55,c66,c11,c22,c33,1,1,TVW00k)      ! Isotropic transfer function     TVW00
+      CALL entransc(c44,c55,c66,c11,c22,c33,1,2,TVW00kperp)  ! Perpendicular transfer function TVW00
+      CALL entransc(c44,c55,c66,c11,c22,c33,1,3,TVW00kpar)   ! Parallel transfer function      TVW00
+      IF ( i2d.GT.0 ) THEN
+         CALL entrans2Dc(c44,c55,c66,c11,c22,c33,1,Taxi)   ! 2D transfer function            TVW00
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvevw00ktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvevw00ktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+      
+      CALL vector3(c1,c2,c3,c44,c55,c66,c77,th,c33) ! nonlinear term 0W
+      CALL nonlhd3(c77,th,c33,c11,1)
+      CALL nonlhd3(c77,th,c33,c22,2)
+      CALL nonlhd3(c77,th,c33,c33,3)
+
+      CALL entransc(vx,vy,vz,c11,c22,c33,1,1,TV00Wk)      ! Isotropic transfer function     TV00W
+      CALL entransc(vx,vy,vz,c11,c22,c33,1,2,TV00Wkperp)  ! Perpendicular transfer function TV00W
+      CALL entransc(vx,vy,vz,c11,c22,c33,1,3,TV00Wkpar)   ! Parallel transfer function      TV00W
+      IF ( i2d.GT.0 ) THEN
+         CALL entrans2Dc(vx,vy,vz,c11,c22,c33,1,Taxi)   ! 2D transfer function            TV00W
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvev00wktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvev00wktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+
+      CALL entransc(c44,c55,c66,c11,c22,c33,1,1,TVW0Wk)      ! Isotropic transfer function     TVW0W
+      CALL entransc(c44,c55,c66,c11,c22,c33,1,2,TVW0Wkperp)  ! Perpendicular transfer function TVW0W
+      CALL entransc(c44,c55,c66,c11,c22,c33,1,3,TVW0Wkpar)   ! Parallel transfer function      TVW0W
+      IF ( i2d.GT.0 ) THEN
+         CALL entrans2Dc(c44,c55,c66,c11,c22,c33,1,Taxi)   ! 2D transfer function            TVW0W
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvevw0wktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvevw0wktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+      
+! now I don't need omega0 anymore so arrays c1,c2,c3 are free to be used elsewhere
+      CALL rotor3(c55,c66,c1,1) ! omegaW
+      CALL rotor3(c44,c66,c2,2)
+      CALL rotor3(c44,c55,c3,3)
+
+      CALL vector3(c1,c2,c3,vx,vy,vz,c77,th,c33) ! nonlinear term W0
+      CALL nonlhd3(c77,th,c33,c11,1)
+      CALL nonlhd3(c77,th,c33,c22,2)
+      CALL nonlhd3(c77,th,c33,c33,3)
+      
+      CALL entransc(vx,vy,vz,c11,c22,c33,1,1,TV0W0k)      ! Isotropic transfer function     TV0W0
+      CALL entransc(vx,vy,vz,c11,c22,c33,1,2,TV0W0kperp)  ! Perpendicular transfer function TV0W0
+      CALL entransc(vx,vy,vz,c11,c22,c33,1,3,TV0W0kpar)   ! Parallel transfer function      TV0W0
+      IF ( i2d.GT.0 ) THEN
+         CALL entrans2Dc(vx,vy,vz,c11,c22,c33,1,Taxi)   ! 2D transfer function            TV0W0
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvev0w0ktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvev0w0ktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+      
+      CALL entransc(c44,c55,c66,c11,c22,c33,1,1,TVWW0k)      ! Isotropic transfer function     TVWW0
+      CALL entransc(c44,c55,c66,c11,c22,c33,1,2,TVWW0kperp)  ! Perpendicular transfer function TVWW0
+      CALL entransc(c44,c55,c66,c11,c22,c33,1,3,TVWW0kpar)   ! Parallel transfer function      TVWW0
+      IF ( i2d.GT.0 ) THEN
+         CALL entrans2Dc(c44,c55,c66,c11,c22,c33,1,Taxi)   ! 2D transfer function            TVWW0
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvevww0ktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvevww0ktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+      
+      CALL vector3(c1,c2,c3,c44,c55,c66,c77,th,c33) ! nonlinear term WW
+      CALL nonlhd3(c77,th,c33,c11,1)
+      CALL nonlhd3(c77,th,c33,c22,2)
+      CALL nonlhd3(c77,th,c33,c33,3)
+
+      CALL entransc(vx,vy,vz,c11,c22,c33,1,1,TV0WWk)      ! Isotropic transfer function     TV0WW
+      CALL entransc(vx,vy,vz,c11,c22,c33,1,2,TV0WWkperp)  ! Perpendicular transfer function TV0WW
+      CALL entransc(vx,vy,vz,c11,c22,c33,1,3,TV0WWkpar)   ! Parallel transfer function      TV0WW
+      IF ( i2d.GT.0 ) THEN
+         CALL entrans2Dc(vx,vy,vz,c11,c22,c33,1,Taxi)   ! 2D transfer function            TV0WW
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvev0wwktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvev0wwktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+      CALL entransc(c44,c55,c66,c11,c22,c33,1,1,TVWWWk)      ! Isotropic transfer function     TVWWW
+      CALL entransc(c44,c55,c66,c11,c22,c33,1,2,TVWWWkperp)  ! Perpendicular transfer function TVWWW
+      CALL entransc(c44,c55,c66,c11,c22,c33,1,3,TVWWWkpar)   ! Parallel transfer function      TVWWW
+      IF ( i2d.GT.0 ) THEN
+         CALL entrans2Dc(c44,c55,c66,c11,c22,c33,1,Taxi)   ! 2D transfer function            TVWWW
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvevwwwktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvevwwwktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+
+! Now we do the potential energy transfer functions
+      CALL wvprojt0(a0,th,omega,bvfreq) ! th0
+      
+      CALL advect3(vx,vy,vz,th,c1)
+      CALL sctransc(c1,th,1,TP000k)                     ! Isotropic transfer function     TP000
+      CALL sctransc(c1,th,2,TP000kperp)                 ! Perpendicular transfer function TP000
+      CALL sctransc(c1,th,3,TP000kpar)                  ! Parallel transfer function      TP000
+      IF ( i2d.GT.0 ) THEN
+         CALL sctrans2Dc(c1,th,Taxi)                  ! 2D transfer function            TP000
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvep000ktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvep000ktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+      
+      CALL wvprojtw(am,ap,c77,omega,bvfreq) ! thW
+      CALL sctransc(c1,c77,1,TPW00k)                     ! Isotropic transfer function     TPW00
+      CALL sctransc(c1,c77,2,TPW00kperp)                 ! Perpendicular transfer function TPW00
+      CALL sctransc(c1,c77,3,TPW00kpar)                  ! Parallel transfer function      TPW00
+      IF ( i2d.GT.0 ) THEN
+         CALL sctrans2Dc(c1,c77,Taxi)                  ! 2D transfer function            TPW00
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvepw00ktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvepw00ktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+
+      CALL advect3(c44,c55,c66,th,c1)
+      CALL sctransc(c1,th,1,TP0W0k)                     ! Isotropic transfer function     TP0W0
+      CALL sctransc(c1,th,2,TP0W0kperp)                 ! Perpendicular transfer function TP0W0
+      CALL sctransc(c1,th,3,TP0W0kpar)                  ! Parallel transfer function      TP0W0
+      IF ( i2d.GT.0 ) THEN
+         CALL sctrans2Dc(c1,th,Taxi)                  ! 2D transfer function            TP0W0
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvep0w0ktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvep0w0ktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+      CALL sctransc(c1,c77,1,TPWW0k)                     ! Isotropic transfer function     TPWW0
+      CALL sctransc(c1,c77,2,TPWW0kperp)                 ! Perpendicular transfer function TPWW0
+      CALL sctransc(c1,c77,3,TPWW0kpar)                  ! Parallel transfer function      TPWW0
+      IF ( i2d.GT.0 ) THEN
+         CALL sctrans2Dc(c1,c77,Taxi)                  ! 2D transfer function            TPWW0
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvepww0ktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvepww0ktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+
+      CALL advect3(vx,vy,vz,c77,c1)
+      CALL sctransc(c1,th,1,TP00Wk)                     ! Isotropic transfer function     TP00W
+      CALL sctransc(c1,th,2,TP00Wkperp)                 ! Perpendicular transfer function TP00W
+      CALL sctransc(c1,th,3,TP00Wkpar)                  ! Parallel transfer function      TP00W
+      IF ( i2d.GT.0 ) THEN
+         CALL sctrans2Dc(c1,th,Taxi)                  ! 2D transfer function            TP00W
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvep00wktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvep00wktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+      CALL sctransc(c1,c77,1,TPW0Wk)                     ! Isotropic transfer function     TPW0W
+      CALL sctransc(c1,c77,2,TPW0Wkperp)                 ! Perpendicular transfer function TPW0W
+      CALL sctransc(c1,c77,3,TPW0Wkpar)                  ! Parallel transfer function      TPW0W
+      IF ( i2d.GT.0 ) THEN
+         CALL sctrans2Dc(c1,c77,Taxi)                  ! 2D transfer function            TPW0W
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvepw0wktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvepw0wktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+
+      CALL advect3(c44,c55,c66,c77,c1)
+      CALL sctransc(c1,th,1,TP0WWk)                     ! Isotropic transfer function     TP0WW
+      CALL sctransc(c1,th,2,TP0WWkperp)                 ! Perpendicular transfer function TP0WW
+      CALL sctransc(c1,th,3,TP0WWkpar)                  ! Parallel transfer function      TP0WW
+      IF ( i2d.GT.0 ) THEN
+         CALL sctrans2Dc(c1,th,Taxi)                  ! 2D transfer function            TP0WW
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvep0wwktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvep0wwktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+      CALL sctransc(c1,c77,1,TPWWWk)                     ! Isotropic transfer function     TPWWW
+      CALL sctransc(c1,c77,2,TPWWWkperp)                 ! Perpendicular transfer function TPWWW
+      CALL sctransc(c1,c77,3,TPWWWkpar)                  ! Parallel transfer function      TPWWW
+      IF ( i2d.GT.0 ) THEN
+         CALL sctrans2Dc(c1,c77,Taxi)                  ! 2D transfer function            TPWWW
+         IF (myrank.eq.0) THEN 
+            if ( len_trim(nmb1).gt.0 ) then 
+               OPEN(1,file=trim(dir) // '/' // 'wvepwwwktrans2D.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
+            else 
+               OPEN(1,file=trim(dir) // '/' // 'wvepwwwktrans2D.' // nmb // '.out',form='unformatted',access='stream')
+            endif
+            WRITE(1) Taxi
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+! Compute the wave exchange terms between kinetic and potential energy:
+! (sign convention is that of the EP budget)
+      CALL specprodg(c66,th,1,GW0k)     ! Isotropic
+      CALL specprodg(c66,th,2,GW0kperp) ! Perpendicular
+      CALL specprodg(c66,th,3,GW0kpar)  ! Parallel
+      CALL specprodg(c66,c77,1,GWWk)     ! Isotropic
+      CALL specprodg(c66,c77,2,GWWkperp) ! Perpendicular
+      CALL specprodg(c66,c77,3,GWWkpar)  ! Parallel
+
+
+      IF (myrank.eq.0) THEN
+         if ( len_trim(nmb1).gt.0 ) then
+            OPEN(1,file='wvektransfer.' // nmb // '_' // trim(nmb1) //'.txt')
+         else
+            OPEN(1,file='wvektransfer.' // nmb // '.txt')
+         endif
+         DO j=1,n/2+1
+            WRITE(1,FMT='(18(E23.15,1X))') TV000k(j),TV00Wk(j),TV0W0k(j),TV0WWk(j),TVW00k(j),TVW0Wk(j),TVWW0k(j),TVWWWk(j), &
+                 TP000k(j),TP00Wk(j),TP0W0k(j),TP0WWk(j),TPW00k(j),TPW0Wk(j),TPWW0k(j),TPWWWk(j), &
+                 bvfreq*GW0k(j),bvfreq*GWWk(j)
+         ENDDO
+         CLOSE(1)
+
+         if ( len_trim(nmb1).gt.0 ) then
+            OPEN(1,file='wvektranperp.' // nmb // '_' // trim(nmb1) //'.txt')
+         else
+            OPEN(1,file='wvektranperp.' // nmb // '.txt')
+         endif
+         DO j=1,n/2+1
+            WRITE(1,FMT='(18(E23.15,1X))') TV000kperp(j),TV00Wkperp(j),TV0W0kperp(j),TV0WWkperp(j),TVW00kperp(j),TVW0Wkperp(j),TVWW0kperp(j),TVWWWkperp(j), &
+                 TP000kperp(j),TP00Wkperp(j),TP0W0kperp(j),TP0WWkperp(j),TPW00kperp(j),TPW0Wkperp(j),TPWW0kperp(j),TPWWWkperp(j), &
+                 bvfreq*GW0kperp(j),bvfreq*GWWkperp(j)
+         ENDDO
+         CLOSE(1)
+
+         if ( len_trim(nmb1).gt.0 ) then
+            OPEN(1,file='wvektranpara.' // nmb // '_' // trim(nmb1) //'.txt')
+         else
+            OPEN(1,file='wvektranpara.' // nmb // '.txt')
+         endif
+         DO j=1,n/2+1
+            WRITE(1,FMT='(18(E23.15,1X))') TV000kpar(j),TV00Wkpar(j),TV0W0kpar(j),TV0WWkpar(j),TVW00kpar(j),TVW0Wkpar(j),TVWW0kpar(j),TVWWWkpar(j), &
+                 TP000kpar(j),TP00Wkpar(j),TP0W0kpar(j),TP0WWkpar(j),TPW00kpar(j),TPW0Wkpar(j),TPWW0kpar(j),TPWWWkpar(j), &
+                 bvfreq*GW0kpar(j),bvfreq*GWWkpar(j)
+         ENDDO
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE wvtransfull
+      
 
 !*****************************************************************
       SUBROUTINE DoSpAvg(vx,vy,vz,th,istat,nstat,idir,planrc,planio,rv,c1)
