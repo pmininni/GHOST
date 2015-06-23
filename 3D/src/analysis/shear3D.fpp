@@ -1092,7 +1092,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 !
 !
       SUBROUTINE DoKPDF(S11,S12,S13,S22,S23,vx,vy,vz,th,lambda,bvfreq,ext, &
-                            odir,nbins,dolog,kin,ctmp,vtmp,ctmp1,rtmp,rtmp1)
+                            odir,nbins,dolog,kin,ctmp,vtmp,rtmp,rtmp1)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -1118,7 +1118,6 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 !             2: compute 2d pdfs only
 !             3: compute 1d and 2d pdfs 
 !     ctmp  : complex temp array of size vx,vy,vz
-!     ctmp1 : complex temp array of size vx,vy,vz
 !     vtmp  : complex temp array of size vx,vy,vz
 !     rtmp  : real temp array of size lambda
 !     rtmp1 : real temp array of size lambda
@@ -1138,7 +1137,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: lambda,rtmp,rtmp1,S11,S12,S13,S22,S23
       REAL   (KIND=GP), INTENT   (IN)                           :: bvfreq
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: ctmp,vtmp,ctmp1
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: ctmp,vtmp
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz,th
       REAL   (KIND=GP)                                          :: fact,fmin(2),fmax(2),xnorm,xnormi,xnormn
       REAL   (KIND=GP)                                          :: ss11,ss12,ss13,ss22,ss23,ss33
