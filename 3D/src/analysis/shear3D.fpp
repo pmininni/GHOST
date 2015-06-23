@@ -524,7 +524,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
             CALL rarray_byte_swap(lamb, n*n*(kend-ksta+1))
           ENDIF
 
-          CALL DoKDissJPDF(R1,R2,R3,R4,R5,vx,vy,vz,th,lamb,bvfreq,ext    , &
+          CALL DoKPDF(R1,R2,R3,R4,R5,vx,vy,vz,th,lamb,bvfreq,ext    , &
                odir,nbins,dolog,jpdf,ctmp,sij,evx,evy)
         ENDIF
 
@@ -1093,16 +1093,16 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 !-----------------------------------------------------------------
 !
 !
-      SUBROUTINE DoKDissJPDF(S11,S12,S13,S22,S23,vx,vy,vz,th,lambda,bvfreq,ext, &
-                            odir,nbins,dolog,kin,ctmp,vtmp,rtmp,rtmp1)
+      SUBROUTINE DoKPDF(S11,S12,S13,S22,S23,vx,vy,vz,th,lambda,bvfreq,ext, &
+                            odir,nbins,dolog,kin,ctmp,vtmp,ctmp1,rtmp,rtmp1)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
 ! Computes the joint PDF of energy dissipation/(2*nu) and ( enstrophy
-! lambda, helicity), ! and output to files. 1d PDFs of dissipation, 
+! lambda, helicity, and other quantities), and output to files. 1d PDFs of dissipation, 
 ! enstrophy density, lambda, and helicity are also written.
 !
-! Note: after this call, the data should be expected to be overwritten.
+! Note: after this call, the input data should be expected to be overwritten.
 !
 ! Parameters
 !     SIJ   : strain rate components (real)
@@ -1120,6 +1120,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 !             2: compute 2d pdfs only
 !             3: compute 1d and 2d pdfs 
 !     ctmp  : complex temp array of size vx,vy,vz
+!     ctmp1 : complex temp array of size vx,vy,vz
 !     vtmp  : complex temp array of size vx,vy,vz
 !     rtmp  : real temp array of size lambda
 !     rtmp1 : real temp array of size lambda
@@ -1139,14 +1140,14 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: lambda,rtmp,rtmp1,S11,S12,S13,S22,S23
       REAL   (KIND=GP), INTENT   (IN)                           :: bvfreq
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: ctmp,vtmp
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: ctmp,vtmp,ctmp1
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz,th
       REAL   (KIND=GP)                                          :: fact,fmin(2),fmax(2),xnorm,xnormi,xnormn
       REAL   (KIND=GP)                                          :: ss11,ss12,ss13,ss22,ss23,ss33
       REAL   (KIND=GP)                                          :: sf11,sf12,sf13,sf22,sf23,sf33
       DOUBLE PRECISION                                          :: s2,s3,s4
-      REAL   (KIND=GP)                                          :: rif,upf,dthf,thf
-      REAL   (KIND=GP)                                          :: ris,ups,dths,ths
+      REAL   (KIND=GP)                                          :: rif,upf,dthf,thf,etrf,ptrf,wtf
+      REAL   (KIND=GP)                                          :: ris,ups,dths,ths,etrs,ptrs,wts
       REAL   (KIND=GP)                                          :: vs1,vs2,vs3
       REAL   (KIND=GP)                                          :: vf1,vf2,vf3
       REAL   (KIND=GP)                                          :: ws1,ws2,ws3
@@ -1177,6 +1178,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
         END DO
       END DO
 
+! At this point forward, complex velocity components are normalized!
 
       ! compute S33 for flatness/skewness:
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1237,9 +1239,9 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       ENDDO
 
       CALL skewflat(S11   ,nin,n,sdiss,fdiss,s2,s3,s4) ! dissipation
-!write(*,*)'DoKDissJPDF: diss: s2=',s2,' s3=',s3,' s4=',s4,' sdiss=',sdiss,' fdiss=',fdiss
+!write(*,*)'DoKPDF: diss: s2=',s2,' s3=',s3,' s4=',s4,' sdiss=',sdiss,' fdiss=',fdiss
       CALL skewflat(lambda,nin,n,slamb,flamb,s2,s3,s4) ! lambda
-!write(*,*)'DoKDissJPDF: lamb: s2=',s2,' s3=',s3,' s4=',s4,' slamb=',slamb,' flamb=',flamb
+!write(*,*)'DoKPDF: lamb: s2=',s2,' s3=',s3,' s4=',s4,' slamb=',slamb,' flamb=',flamb
 
       ! Compute joint PDF for energy diss and lambda (order 
       ! switched, so that lambda is on x-axis, and energy diss on y axis:
@@ -1517,15 +1519,131 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       fnout = trim(odir) // '/' // 'jpdf_lamb_ri_log.' // ext // '.txt'
       CALL dojpdfr(rtmp,'Ri',lambda,'lambda',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,1])
 
-#if defined(SCALAR_)
       CALL derivk3(th, ctmp, 3)
       CALL fftp3d_complex_to_real(plancr,ctmp,rtmp1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'jpdf_dtdz_ri_nolog.' // ext // '.txt'
       CALL dojpdfr(rtmp,'Ri',rtmp1,'dtdz',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_dtdz_ri_log.' // ext // '.txt'
       CALL dojpdfr(rtmp,'Ri',rtmp1,'dtdz',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,1])
-#endif
       ENDIF
+
+
+      !! Compute statistics for w\theta:
+      ctmp = th;
+      CALL fftp3d_complex_to_real(plancr,ctmp,rtmp1,MPI_COMM_WORLD)
+      ctmp = vz;
+      CALL fftp3d_complex_to_real(plancr,ctmp,S23  ,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+        DO j = 1,n
+          DO i = 1,n
+            rtmp1(i,j,k) = S23(i,j,k)*rtmp1(i,j,k)
+          ENDDO
+        ENDDO
+      ENDDO
+      If ( ibits(kin,0,1).EQ.1 ) THEN
+      fnout = trim(odir) // '/' // 'wtpdf.' // ext // '.txt'
+      CALL dopdfr(rtmp1,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      ENDIF
+      CALL skewflat(rtmp1,nin,n,wts,wtf,s2,s3,s4)       ! w theta
+#if defined(DOALLPDF)
+      If ( ibits(kin,1,1).EQ.1 ) THEN
+      fnout = trim(odir) // '/' // 'jpdf_wtheta_ri_nolog.' // ext // '.txt'
+      CALL dojpdfr(rtmp,'Ri' ,rtmp1 ,'wtheta',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,0])
+      fnout = trim(odir) // '/' // 'jpdf_wtheta_ri_log.' // ext // '.txt'
+      CALL dojpdfr(rtmp,'Ri' ,rtmp1 ,'wtheta',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,1])
+      ENDIF
+#endif
+      ! Need xnormn bec. advect3 multiplies by -1/N^6:
+      xnormn = -1.0*real(n,kind=GP)**6
+      CALL advect3(vx,vy,vz,vx,ctmp)    ! v.Grad vx 
+      ctmp = ctmp *xnorm
+      CALL fftp3d_complex_to_real(plancr,ctmp,S11  ,MPI_COMM_WORLD)
+      ctmp = vx
+      CALL fftp3d_complex_to_real(plancr,ctmp,S23  ,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+        DO j = 1,n
+          DO i = 1,n
+            S11(i,j,k) = S11(i,j,k)*S23(i,j,k)  ! vx (v.Grad vx)
+          ENDDO
+        ENDDO
+      ENDDO
+      If ( ibits(kin,0,1).EQ.1 ) THEN
+
+      CALL advect3(vx,vy,vz,vy,ctmp)     !  v.Grad vy 
+      ctmp = ctmp *xnorm
+      CALL fftp3d_complex_to_real(plancr,ctmp,S22  ,MPI_COMM_WORLD)
+      ctmp = vy
+      CALL fftp3d_complex_to_real(plancr,ctmp,S23  ,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+        DO j = 1,n
+          DO i = 1,n
+            S11(i,j,k) = S11(i,j,k) + S22(i,j,k)*S23(i,j,k)  ! += vy (v.Grad vy)
+          ENDDO
+        ENDDO
+      ENDDO
+      If ( ibits(kin,0,1).EQ.1 ) THEN
+      CALL advect3(vx,vy,vz,vz,ctmp)    ! v.Grad vz 
+      ctmp = ctmp *xnorm
+      CALL fftp3d_complex_to_real(plancr,ctmp,S22  ,MPI_COMM_WORLD)
+      ctmp = vy
+      CALL fftp3d_complex_to_real(plancr,ctmp,S23  ,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+        DO j = 1,n
+          DO i = 1,n
+            S11(i,j,k) = S11(i,j,k) + S22(i,j,k)*S23(i,j,k)  ! += vz (v.Grad vz)
+          ENDDO
+        ENDDO
+      ENDDO
+      If ( ibits(kin,0,1).EQ.1 ) THEN
+      fnout = trim(odir) // '/' // 'ktrpdf.' // ext // '.txt'
+      CALL dopdfr(S11,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      ENDIF
+      CALL skewflat(S11,nin,n,ktrs,ktrf,s2,s3,s4)       ! u.(u.Grad u)
+#if defined(DOALLPDF)
+      If ( ibits(kin,1,1).EQ.1 ) THEN
+      fnout = trim(odir) // '/' // 'jpdf_wtheta_ktr_nolog.' // ext // '.txt'
+      CALL dojpdfr(S11,'ktrans' ,rtmp1 ,'wtheta',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,0])
+      fnout = trim(odir) // '/' // 'jpdf_wtheta_ktr_log.' // ext // '.txt'
+      CALL dojpdfr(S11,'ktrans' ,rtmp1 ,'wtheta',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,1])
+      ENDIF
+#endif
+
+      CALL advect3(vx,vy,vz,th,ctmp)    ! v.Grad theta * -1/N^6
+      ctmp = ctmp *xnorm
+      CALL fftp3d_complex_to_real(plancr,ctmp,S11  ,MPI_COMM_WORLD)
+      ctmp = th
+      CALL fftp3d_complex_to_real(plancr,ctmp,S22  ,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+        DO j = 1,n
+          DO i = 1,n
+            S11(i,j,k) = S11(i,j,k)*S22(i,j,k) ! += theta (v.Grad theta)
+          ENDDO
+        ENDDO
+      ENDDO
+      If ( ibits(kin,0,1).EQ.1 ) THEN
+      fnout = trim(odir) // '/' // 'ptrpdf.' // ext // '.txt'
+      CALL dopdfr(S11,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      ENDIF
+      CALL skewflat(S11,nin,n,ptrs,ptrf,s2,s3,s4)       ! \theta.(u.Grad \theta)
+#if defined(DOALLPDF)
+      If ( ibits(kin,1,1).EQ.1 ) THEN
+      fnout = trim(odir) // '/' // 'jpdf_wtheta_ptr_nolog.' // ext // '.txt'
+      CALL dojpdfr(S11,'ptrans' ,rtmp1 ,'wtheta',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,0])
+      fnout = trim(odir) // '/' // 'jpdf_wtheta_ptr_log.' // ext // '.txt'
+      CALL dojpdfr(S11,'ptrans' ,rtmp1 ,'wtheta',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,1])
+      ENDIF
+#endif
+
 #endif
 
       ! Print out skewness and flatness SCALAR data:
@@ -1533,16 +1651,16 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
         fnout = trim(odir) // '/' // 'scskew.txt'
         OPEN(1,file=trim(fnout),position='append')
       ! Print out skewness and flatness SCALAR data:
-        WRITE(1,*)ext,ths,dths,ris
+        WRITE(1,*)ext,ths,dths,ris,wts,etrs,ptrs
         CLOSE(1)
         fnout = trim(odir) // '/' // 'scflat.txt'
         OPEN(1,file=trim(fnout),position='append')
-        WRITE(1,*)ext,thf,dthf,rif
+        WRITE(1,*)ext,thf,dthf,rif,wtf,etrf,ptrf
         CLOSE(1)
       ENDIF
 #endif
 
-      END SUBROUTINE DoKDissJPDF
+      END SUBROUTINE DoKPDF
 !
 !
 !
