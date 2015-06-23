@@ -614,7 +614,7 @@ MODULE class_GPart
 
     nt = 0  ! global part. record counter
     nl = 0  ! local particle counter
-    DO WHILE ( this%ierr_.EQ.0 .AND. nt.LT.this%maxparts_ )
+    DO WHILE ( this%ierr_.EQ.0 )
       READ(5,*,IOSTAT=this%ierr_) x, y, z
       IF ( this%ierr_ .NE. 0 ) THEN
         WRITE(*,*) 'GPart::InitUserSeed: terminating read; nt=', nt, ' ierr=',this%ierr_
@@ -2483,9 +2483,14 @@ MODULE class_GPart
        CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%nparts_,&
                                       this%lvx_,this%lvy_,this%lvz_)
      ELSE
+do j=1,this%maxparts_
+  this%lvx_(j) = this%ptmp0_(1,j)
+  this%lvy_(j) = this%ptmp0_(2,j)
+  this%lvz_(j) = this%ptmp0_(3,j)
+enddo
        ! pass in the synched-up global (copied to ptmp0_):
        CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time,this%maxparts_, &
-                                this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:));
+                                this%lvx_,this%lvy_,this%lvz_);
      ENDIF
    ELSE
      ! pass in the synched-up global (copied to ptmp0_):
