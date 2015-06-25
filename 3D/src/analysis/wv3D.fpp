@@ -64,12 +64,12 @@
       INTEGER :: i,i2d,it,iavg,ic,ind,putnm,j,k,trans
       INTEGER :: istat(1024),nfiles,nstat
 
-      TYPE(IOPLAN)       :: planio
-      CHARACTER(len=8)   :: pref
-      CHARACTER(len=256) :: odir,idir
-      CHARACTER(len=256) :: fout
-      CHARACTER(len=4096):: stat
-      CHARACTER(len=4)   :: ext1
+      TYPE(IOPLAN)        :: planio
+      CHARACTER(len=8)    :: pref
+      CHARACTER(len=1024) :: odir,idir
+      CHARACTER(len=1024) :: fout
+      CHARACTER(len=4096) :: stat
+      CHARACTER(len=4)    :: ext1
 !
       NAMELIST / wv / idir, odir, stat, iswap, oswap, iavg, putnm, omega, bvfreq, i2d, trans
 
@@ -112,8 +112,8 @@
          READ(1,NML=wv)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(idir  ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(odir  ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(idir  ,1024 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(odir  ,1024 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(stat  ,4096,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(oswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
