@@ -138,6 +138,55 @@ MODULE gutils
       END SUBROUTINE rarray_byte_swap
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
+!
+!
+      SUBROUTINE carray_byte_swap(Cin, nin)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Performs endian conversion on array of complex numbers
+!
+! Parameters
+!     Cin : aribtrary-rank array whose values will be endian-swapped, returned
+!     nin : dimension of Cin
+!-----------------------------------------------------------------
+      USE mpivars
+!$    USE threads
+      USE fprecision
+
+      IMPLICIT NONE
+
+      INTEGER, INTENT(IN)                           :: nin
+      REAL   (KIND=GP)                              :: c,r
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(*) :: Cin
+
+      INTEGER(KIND=GP) :: ir0,ic0,ie1,ie2
+      INTEGER          :: i, j, k, m, nb
+
+      nb = 8  ! no. bits per byte
+
+      ie1 = 0
+! Note using GP like this is not good practice....
+!$omp parallel do if (nin.ge.nth) private(ie0,ie1,m)
+      DO k = 1, nin
+          ir0 = TRANSFER(real(Cin(k)), 0_GP)
+          DO m = 1, GP
+             CALL MVBITS( ir0, (GP-m)*nb, nb, ie1, (m-1)*nb  )
+          END DO
+          ic0 = TRANSFER(aimag(Cin(k)), 0_GP)
+          DO m = 1, GP
+             CALL MVBITS( ic0, (GP-m)*nb, nb, ie2, (m-1)*nb  )
+          END DO
+          r      = TRANSFER(ie1, 0.0_GP)
+          c      = TRANSFER(ie2, 0.0_GP)
+          Cin(k) = cmplx(r,c,kind=GP)
+       END DO
+
+      RETURN
+
+      END SUBROUTINE carray_byte_swap
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 
 !
 !
