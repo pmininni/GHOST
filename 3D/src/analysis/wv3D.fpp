@@ -146,6 +146,7 @@
       ALLOCATE( c1(n,n,ista:iend) )
       ALLOCATE( c2(n,n,ista:iend) )
       ALLOCATE( c3(n,n,ista:iend) )
+      ALLOCATE( c4(n,n,ista:iend) )
       ALLOCATE( r1(n,n,ksta:kend) )
       ALLOCATE( r2(n,n,ksta:kend) )
       ALLOCATE( r3(n,n,ksta:kend) )
@@ -251,18 +252,23 @@
           IF ( trans.LE.10 ) THEN
 !if ( myrank.eq.0 ) write(*,*)'main: calling wvspectrum...'
              CALL wvspectrum(a0,am,ap,omega,bvfreq,odir,ext,'',i2d)
-!if ( myrank.eq.0 ) write(*,*)'main: calling wvzspectrum...'
+if ( myrank.eq.0 ) write(*,*)'main: calling wvzspectrum...'
              CALL wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,odir,ext,'',i2d,c1,c2,c3,r1,r2,r3)
+if ( myrank.eq.0 ) write(*,*)'main: wvzspectrum done'
           ENDIF
           IF ( MOD(trans,10).EQ.1 ) THEN
+if ( myrank.eq.0 ) write(*,*)'main: calling wvtrans...'
              CALL wvtrans(a0,am,ap,vx,vy,vz,th,omega,bvfreq,odir,ext,'',i2d,c1,c2,c3)
           ELSEIF ( MOD(trans,10).EQ.2 ) THEN
+if ( myrank.eq.0 ) write(*,*)'main: calling wvtransful...'
              CALL wvtransfull(a0,am,ap,vx,vy,vz,th,omega,bvfreq,odir,ext,'',i2d,c1,c2,c3)             
           ENDIF
 
+if ( myrank.eq.0 ) write(*,*)'main: doing binary output...'
+
           ! Do output:
           IF ( ibits(putnm,0,1).EQ.1 ) THEN ! output norm. mode coeffs
-!if ( myrank.eq.0 ) write(*,*)'main: doing output...'
+if ( myrank.eq.0 ) write(*,*)'main: doing PutNormModes...'
             c1 = a0
             fout = 'a0.' // ext // '.out'
             CALL PutNormModes(1,odir,trim(fout),planioc,c1)
@@ -276,6 +282,7 @@
             CALL PutNormModes(1,odir,trim(fout),planioc,c1)
           ENDIF
           IF ( ibits(putnm,1,1).EQ.1 ) THEN ! output real fields
+if ( myrank.eq.0 ) write(*,*)'main: doing PutRealFields...'
             CALL PutRealFields(1,odir,ext,planio,a0,am,ap,vx,vy,vz,th,omega,bvfreq,c1,c2,c3,c4,r1,r2,ivec,'')
           ENDIF
         ENDDO
@@ -288,7 +295,7 @@
 
       DEALLOCATE (a0,am,ap)
       DEALLOCATE (vx,vy,vz,th)
-      DEALLOCATE (c1,c2,c3)
+      DEALLOCATE (c1,c2,c3,c4)
       DEALLOCATE (r1,r2,r3)
       DEALLOCATE (ka)
       DEALLOCATE (ka2)
@@ -3220,16 +3227,19 @@
 !     bvfreq: Brunt-Vaisalla freq
 !     omega : rotation rate
 !     dir   : output directory (for 2d spectra)
-!     nmb   : the extension used when writting the file
+!     nmb   : the time stamp used when writing the file
 !     nmb1  : if lenght>0, used to specify range
 !     i2d   : do 2D spectra (>0) or not (<=0)
 !     c1-3  : complex tmp array
 !     r1-3  : real tmp array
 !-----------------------------------------------------------------
+      USE filefmt
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
-      USE filefmt
+      USE ali
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(n/2+1) :: E2k  ,E3k  ,E4k
@@ -3281,11 +3291,17 @@
       ENDIF
 
 !      CALL PVn(c3,a0,vx,vy,vz,th,omega,bvfreq,3,c1,c2,r1,r2,r3)
+if(myrank.eq.0) write(*,*)'wvzspectrum: calling specprodg iso....'
       CALL specprodg(c2,c3,1,E3k)   ! isotropic spectrum of Z3
+if(myrank.eq.0) write(*,*)'wvzspectrum: calling specprodg perp....'
       CALL specprodg(c2,c3,2,E3kpr) ! reduced perp spectrum of Z3
+if(myrank.eq.0) write(*,*)'wvzspectrum: calling specprodg para....'
       CALL specprodg(c2,c3,3,E3kpa) ! reduced para spectrum of Z3
+if(myrank.eq.0) write(*,*)'wvzspectrum: specprodg para done.'
       IF ( i2d.GT.0 ) THEN
+if(myrank.eq.0) write(*,*)'wvzspectrum: calling specprodaxig iso....'
       CALL specprodaxig (c2,c3,eaxi) ! axisymm. 2d spectra for Z3
+if(myrank.eq.0) write(*,*)'wvzspectrum: specprodaxig iso done.'
       IF (myrank.eq.0) THEN
         if ( len_trim(nmb1).gt.0 ) then
         OPEN(1,file=trim(dir) // '/' // 'kspec2DZ3.' // nmb // '_' // trim(nmb1) // '.out',form='unformatted',access='stream')
@@ -3298,6 +3314,7 @@
       ENDIF
 
 
+if(myrank.eq.0) write(*,*)'wvzspectrum: writing z iso spectra....'
       IF (myrank.eq.0) THEN
          if ( len_trim(nmb1).gt.0 ) then
          OPEN(1,file='wvzkspectrum.' // nmb // '_' // trim(nmb1) // '.txt' )
@@ -3310,7 +3327,8 @@
          CLOSE(1)
       ENDIF
 !
-! parallel spectra:
+! perp spectra:
+if(myrank.eq.0) write(*,*)'wvzspectrum: writing z perp spectra....'
       IF (myrank.eq.0) THEN
          if ( len_trim(nmb1).gt.0 ) then
          OPEN(1,file='wvzkspecperp.' // nmb // '_' // trim(nmb1) //'.txt')
@@ -3323,7 +3341,8 @@
          CLOSE(1)
       ENDIF
 !
-! perp spectra:
+! para spectra:
+if(myrank.eq.0) write(*,*)'wvzspectrum: writing z para spectra....'
       IF (myrank.eq.0) THEN
          if ( len_trim(nmb1).gt.0 ) then
          OPEN(1,file='wvzkspecpara.' // nmb // '_' // trim(nmb1) //'.txt')
@@ -3335,7 +3354,9 @@
          ENDDO
          CLOSE(1)
       ENDIF
+if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
 !
+call mpi_barrier(MPI_COMM_WORLD,ierr)
       RETURN
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
