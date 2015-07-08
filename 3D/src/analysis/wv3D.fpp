@@ -92,7 +92,7 @@
       oswap  = 0
       iavg   = 0 
       i2d    = 0 
-      putnm  = 0 
+      putnm  = 1 
       ivec   = 0
       trans  = 0
 !
@@ -105,10 +105,12 @@
 !     oswap  : do endian swap on output?
 !     iavg   : time average spectrally the time index list?
 !     i2d    : write 2d spectra? (1,0; 0 is default)
-!     ivec   : if 0 ==> print (real) vec magnitudes only; if >1, print vec. comps; 
+!     ivec   : 0==don't print vectors, ==1; print velocity comp only;
+!              2==print magnitude only; ==3, print velocity comps and mag
+
 !              default is 0 (magnitudes only)
 !     trans  : write transfer functions? (1,0; 0 is default)
-!     putnm  : write normal mode fields (0==don't; 1==in real space; 2==in wavenumber space)
+!     putnm  : write normal mode fields (0==don't; 1==in wave space; 2==in real space, 3==both)
 !     omega  : rotation rate
 !     bvfreq : Brunt-Vaisalla frequency
       IF (myrank.eq.0) THEN
@@ -116,8 +118,8 @@
          READ(1,NML=wv)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(idir  ,1024 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(odir  ,1024 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(idir  ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(odir  ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(stat  ,4096,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(oswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
