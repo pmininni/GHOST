@@ -3356,7 +3356,8 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: writing z para spectra....'
       ENDIF
 if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
 !
-call mpi_barrier(MPI_COMM_WORLD,ierr)
+      CALL mpi_barrier(MPI_COMM_WORLD,ierr)
+
       RETURN
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
