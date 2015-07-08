@@ -54,24 +54,24 @@
 ! Arrays for the fields and structure functions
 
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz,th,a0,am,ap
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: c1,c2,c3
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: c1,c2,c3,c4
       REAL   (KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: r1,r2,r3
       REAL   (KIND=GP)                                 :: omega,bvfreq
       REAL   (KIND=GP)                                 :: tmp
 !
 ! Auxiliary variables
 
-      INTEGER :: i,i2d,it,iavg,ic,ind,putnm,j,k,trans
+      INTEGER :: i,i2d,it,iavg,ic,ind,ivec,putnm,j,k,trans
       INTEGER :: istat(1024),nfiles,nstat
 
-      TYPE(IOPLAN)        :: planio
-      CHARACTER(len=8)    :: pref
-      CHARACTER(len=1024) :: odir,idir
-      CHARACTER(len=1024) :: fout
-      CHARACTER(len=4096) :: stat
-      CHARACTER(len=4)    :: ext1
+      TYPE(IOPLAN)       :: planio,planioc
+      CHARACTER(len=8)   :: pref
+      CHARACTER(len=256) :: odir,idir
+      CHARACTER(len=256) :: fout
+      CHARACTER(len=4096):: stat
+      CHARACTER(len=4)   :: ext1
 !
-      NAMELIST / wv / idir, odir, stat, iswap, oswap, iavg, putnm, omega, bvfreq, i2d, trans
+      NAMELIST / wv / idir, odir, stat, iswap, oswap, iavg, putnm, ivec, omega, bvfreq, i2d, trans
 
       tiny  = 1e-5_GP
       tinyf = 1e-15_GP
@@ -84,6 +84,7 @@
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       CALL range(1,n,nprocs,myrank,ksta,kend)
       CALL io_init(myrank,n,ksta,kend,planio)
+      CALL io_initc(myrank,n,ksta,kend,planioc)
       idir   = '.'
       odir   = '.'
       stat   = '0'
@@ -92,6 +93,7 @@
       iavg   = 0 
       i2d    = 0 
       putnm  = 0 
+      ivec   = 0
       trans  = 0
 !
 ! Reads from the external file 'vt`.txt' the 
@@ -103,6 +105,8 @@
 !     oswap  : do endian swap on output?
 !     iavg   : time average spectrally the time index list?
 !     i2d    : write 2d spectra? (1,0; 0 is default)
+!     ivec   : if 0 ==> print (real) vec magnitudes only; if >1, print vec. comps; 
+!              default is 0 (magnitudes only)
 !     trans  : write transfer functions? (1,0; 0 is default)
 !     putnm  : write normal mode fields (0==don't; 1==in real space; 2==in wavenumber space)
 !     omega  : rotation rate
@@ -119,6 +123,7 @@
       CALL MPI_BCAST(oswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iavg  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(i2d   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ivec  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(putnm ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(trans ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(omega ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
@@ -181,31 +186,22 @@
          CALL WVNormal(a0,am,ap,vx,vy,vz,th,omega,bvfreq)
          WRITE(ext , fmtext) istat(1)     
          WRITE(ext1, fmtext) istat(nstat) 
-         IF ( putnm.EQ.1 ) THEN
-            bmangle = 0
-            c1 = a0*tmp
-            CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-            IF ( oswap.NE.0 ) THEN
-               CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
-            ENDIF
+         IF ( ibits(putnm,0,1).EQ.1 ) THEN ! output cmplx norm. modes
+            c1 = a0
             WRITE(fout,'(a,i4.4,a,i4.4,a)'),'a0av_',istat(1),'_',istat(nstat),'.out'
-            CALL io_write(1,odir,trim(fout),ext,planio,r1)
-            c1 = am*tmp
-            CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-            IF ( oswap.NE.0 ) THEN
-               CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
-            ENDIF
+            CALL PutNormModes(1,odir,trim(fout),planioc,c1)
+
+            c1 = am
             WRITE(fout,'(a,i4.4,a,i4.4,a)'),'amav_',istat(1),'_',istat(nstat),'.out'
-            CALL io_write(1,odir,fout,ext,planio,r1)
-            c1 = ap*tmp
-            CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-            IF ( oswap.NE.0 ) THEN
-               CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
-            ENDIF
+            CALL PutNormModes(1,odir,trim(fout),planioc,c1)
+            
+            c1 = ap
             WRITE(fout,'(a,i4.4,a,i4.4,a)'),'apav_',istat(1),'_',istat(nstat),'.out'
-            CALL io_write(1,odir,fout,ext,planio,r1)
-            bmangle = 1
+            CALL PutNormModes(1,odir,trim(fout),planioc,c1)
          ENDIF
+          IF ( ibits(putnm,1,1).EQ.1 ) THEN ! output real fields
+            CALL PutRealFields(1,odir,ext,planio,a0,am,ap,vx,vy,vz,th,omega,bvfreq,c1,c2,c3,c4,r1,r2,ivec,'av')
+          ENDIF
          IF ( trans.LE.10 ) THEN
 !            CALL WVNormal(a0,am,ap,vx,vy,vz,th,omega,bvfreq) ! this seems unnecessary
             CALL wvspectrum(a0,am,ap,omega,bvfreq,odir,ext,ext1,i2d)
@@ -263,26 +259,22 @@
           ENDIF
 
           ! Do output:
-          IF ( putnm.EQ.1 ) THEN
+          IF ( ibits(putnm,0,1).EQ.1 ) THEN ! output norm. mode coeffs
 !if ( myrank.eq.0 ) write(*,*)'main: doing output...'
-            c1 = a0*tmp
-            CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-            IF ( oswap.NE.0 ) THEN
-              CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
-            ENDIF
-            CALL io_write(1,odir,'a0',ext,planio,r1)
-            c1 = am*tmp
-            CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-            IF ( oswap.NE.0 ) THEN
-              CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
-            ENDIF
-            CALL io_write(1,odir,'am',ext,planio,r1)
-            c1 = ap*tmp
-            CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-            IF ( oswap.NE.0 ) THEN
-              CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
-            ENDIF
-            CALL io_write(1,odir,'ap',ext,planio,r1)
+            c1 = a0
+            fout = 'a0.' // ext // '.out'
+            CALL PutNormModes(1,odir,trim(fout),planioc,c1)
+
+            c1 = am
+            fout = 'am.' // ext // '.out'
+            CALL PutNormModes(1,odir,trim(fout),planioc,c1)
+
+            c1 = ap
+            fout = 'ap.' // ext // '.out'
+            CALL PutNormModes(1,odir,trim(fout),planioc,c1)
+          ENDIF
+          IF ( ibits(putnm,1,1).EQ.1 ) THEN ! output real fields
+            CALL PutRealFields(1,odir,ext,planio,a0,am,ap,vx,vy,vz,th,omega,bvfreq,c1,c2,c3,c4,r1,r2,ivec,'')
           ENDIF
         ENDDO
       ENDIF
@@ -301,9 +293,12 @@
 
       CALL MPI_FINALIZE(ierr)
 
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END PROGRAM WV3D
 
 
+!*****************************************************************
       SUBROUTINE WVNormal(a0,am,ap,vx,vy,vz,th,omega,bvfreq)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -384,8 +379,12 @@
             END DO
          END DO
 
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE WVNormal
 
+
+!*****************************************************************
       SUBROUTINE wvproj0(a0,vx,vy,vz,th,omega,bvfreq)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -455,8 +454,11 @@
             END DO
          END DO
 
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE wvproj0
 
+!*****************************************************************
       SUBROUTINE wvprojv0(a0,vx,vy,vz,omega,bvfreq)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -522,8 +524,11 @@
             END DO
          END DO
 
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE wvprojv0
 
+!*****************************************************************
       SUBROUTINE wvprojt0(a0,th,omega,bvfreq)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -580,9 +585,12 @@
             END DO
          END DO
 
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE wvprojt0
       
 
+!*****************************************************************
       SUBROUTINE wvprojw(am,ap,vx,vy,vz,th,omega,bvfreq)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -656,8 +664,11 @@
             END DO
          END DO
 
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE wvprojw
 
+!*****************************************************************
       SUBROUTINE wvprojvw(am,ap,vx,vy,vz,omega,bvfreq)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -729,6 +740,7 @@
 
       END SUBROUTINE wvprojvw
 
+!*****************************************************************
       SUBROUTINE wvprojtw(am,ap,th,omega,bvfreq)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -789,6 +801,8 @@
             END DO
          END DO
 
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE wvprojtw
       
 
@@ -1006,6 +1020,8 @@
       ENDIF
 !
       RETURN
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE wvspectrum
 
 
@@ -1310,9 +1326,8 @@
           RETURN
       ENDIF ! kin = 4
 !
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE wvspecaxic
 
 
@@ -1637,9 +1652,8 @@
           RETURN
       ENDIF ! kin = 4
 !
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE wvspectrumc
 
 !*****************************************************************
@@ -1748,6 +1762,8 @@
                       MPI_COMM_WORLD,ierr)
 
       RETURN
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE sctransc
 
 !*****************************************************************
@@ -1852,6 +1868,8 @@
                          MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       RETURN
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE sctrans2Dc
 
 
@@ -2043,6 +2061,8 @@
                       MPI_COMM_WORLD,ierr)
 
       RETURN
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE entransc
 
 !*****************************************************************
@@ -2230,6 +2250,8 @@
                          MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       RETURN
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE entrans2Dc
 
 
@@ -2385,6 +2407,8 @@
       ENDIF
 
       RETURN
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE wvtrans
 
       
@@ -2472,6 +2496,8 @@
       CALL fftp3d_real_to_complex(planrc,r1,z,MPI_COMM_WORLD)
 
       RETURN
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE vector3
       
       
@@ -2870,6 +2896,8 @@
       ENDIF
 
       RETURN
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE wvtransfull
       
 
@@ -2966,6 +2994,8 @@
        END DO
 
 
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE DoSpAvg
 
 
@@ -3002,6 +3032,8 @@
           END DO
        END DO
 
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE padd
 
 !
@@ -3077,6 +3109,8 @@
         CALL wgradt(gn,vx,vy,vz,th,c1,r1,r2,r3)
       ENDIF
 
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE PVn
 
 
@@ -3164,6 +3198,8 @@
 
        CALL fftp3d_real_to_complex(planrc,r3,gn,MPI_COMM_WORLD)
 
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE wgradt
 
 
@@ -3262,7 +3298,7 @@
 
       IF (myrank.eq.0) THEN
          if ( len_trim(nmb1).gt.0 ) then
-         OPEN(1,file='wvzkspectrum.' // nmb // '_' // trim(nmb1) //'.txt')
+         OPEN(1,file='wvzkspectrum.' // nmb // '_' // trim(nmb1) // '.txt' )
          else
          OPEN(1,file='wvzkspectrum.' // nmb // '.txt')
          endif
@@ -3299,6 +3335,8 @@
       ENDIF
 !
       RETURN
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE wvzspectrum
 
 
@@ -3388,6 +3426,8 @@
 
         RETURN
 
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE spectrumg
 
 !*****************************************************************
@@ -3477,6 +3517,8 @@
 
         RETURN
 
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE specprodg
 
 
@@ -3555,6 +3597,8 @@
 
         RETURN
 
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE specaxig
 
 
@@ -3634,4 +3678,553 @@
 
         RETURN
 
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
       END SUBROUTINE specprodaxig
+
+
+!*****************************************************************
+      SUBROUTINE PutNormModes(iunit,odir,fout,planio,c1)
+!-----------------------------------------------------------------
+!
+! Writes a complex field to disk.
+!
+! Parameters
+!   iunit   : logical I/O unit
+!   odir    : output directory
+!   fout    : file name (minus directory name, that is)
+!   planio  : IO plan -- for complex I/O
+!   c1      : complex array to output
+!
+!-----------------------------------------------------------------
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE iovar
+      USE iompi
+      USE ali
+      USE gutils
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: c1
+      REAL   (KIND=GP)                                          :: ks,tmr,tmp
+      INTEGER                                                   :: bmanghold,i,iunit,j,k
+      CHARACTER*(*)   , INTENT   (IN)                           :: fout,odir
+      TYPE(IOPLAN)    , INTENT(INOUT)                           :: planio
+
+
+      
+      bmanghold = bmangle
+      IF ( oswap.NE.0 ) THEN
+        CALL carray_byte_swap(c1, n*n*(iend-ista+1))
+      ENDIF
+
+      bmangle = 0
+      CALL io_writec(1,'',odir// '/' // trim(fout), planio,c1)
+      bmangle = bmanghold
+
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+      END SUBROUTINE PutNormModes
+
+
+!*****************************************************************
+      SUBROUTINE PutRealFields(iunit,odir,ext,planio,a0,am,ap,vx,vy,vz,th, &
+                               omega,bvfreq,c1,c2,c3,c4,r1,r2,ivec,suff)
+!-----------------------------------------------------------------
+!
+! Writes a complex field to disk.
+!
+! Parameters
+!   iunit   : logical I/O unit
+!   odir    : output directory
+!   ext     : time index (char form)
+!   planio  : IO plan -- for complex I/O
+!   a0,m,p  : complex norm. mode coeffs, input
+!   vx,y,z,th 
+!   omega   : rotation rate
+!   bvfreq  : Brunt-Vaisalla freq.
+!   c1-4    : complex tmp arrays
+!   r1-2    : real tmp arrays.,
+!   ivec: > 0 ==> output vector mag only (th still printed, though)
+!   ssuff   : file prefix's suffix (may be null: '')
+!
+!-----------------------------------------------------------------
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE iompi
+      USE iovar
+      USE gutils
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(n,n,ista:iend) :: a0,am,ap
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz,th
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: c1,c2,c3,c4
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: r1,r2
+      REAL   (KIND=GP), INTENT   (IN)                           :: omega,bvfreq
+      REAL   (KIND=GP)                                          :: tmp
+      INTEGER         , INTENT   (IN)                           :: iunit,ivec
+      INTEGER                                                   :: i,j,k,m
+      CHARACTER*(*)   , INTENT   (IN)                           :: odir,ext,suff
+      TYPE(IOPLAN)    , INTENT(INOUT)                           :: planio
+
+      DO m = 0, 2 ! 0: vortical; 1: +modes; 2: -modes
+        CALL DoExpProj(vx,vy,vz,th,a0,ap,am,omega,bvfreq,m)
+        CALL printprim(vx,vy,vz,th,odir,ext,planio,c1,r1,r2,m,ivec,suff)
+        CALL printdprim(vx,vy,vz,th,odir,ext,planio,c1,c2,c3,c4,r1,r2,m,ivec,suff)
+      ENDDO
+
+        ! Compute and output total fields:
+      vx = 0.0;
+      vy = 0.0;
+      vz = 0.0;
+      th = 0.0;
+      DO m = 0, 2
+if ( myrank.eq.0 ) write(*,*)'main: Total DoExpProj, j=',m, ' time=',ext
+        CALL DoExpProj(c1,c2,c3,c4,a0,ap,am,omega,bvfreq,m)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kp,ks,sig)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kp,ks,sig)
+          DO j = 1,n
+            DO k = 1,n
+              vx(k,j,i) = vx(k,j,i) + c1(k,j,i)
+              vy(k,j,i) = vy(k,j,i) + c2(k,j,i)
+              vz(k,j,i) = vz(k,j,i) + c3(k,j,i)
+              th(k,j,i) = th(k,j,i) + c4(k,j,i)
+            ENDDO
+          ENDDO
+        ENDDO
+      ENDDO ! m-loop
+      CALL printprim (vx,vy,vz,th,odir,ext,planio,c1,r1,r2,3,ivec,suff)
+      CALL printdprim(vx,vy,vz,th,odir,ext,planio,c1,c2,c3,c4,r1,r2,3,ivec,suff)
+
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+      END SUBROUTINE PutRealFields
+
+
+!*****************************************************************
+      SUBROUTINE DoExpProj(vx,vy,vz,th,a0,ap,am,omega,bvfreq,kout)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Based on the coefficients from the normal mode decomposition,
+! computes the slow mode, + and - contribution to the velocity and theta
+! projections ('expanded' projections).
+! Ref: Herbert, et al. JFM 758:374 (2014) Eqs A11, A15
+!
+!
+! Parameters
+!     vx,
+!     vy,
+!     vz,
+!     th    : complex output fields (either vel. or vorticity), returned;
+!     a0,p,m: complex array of size a,b,c, containing normal modes, input
+!     omega : rotation rate
+!     bvfreq: Brunt-Vaisalla frequency
+!     kout  : 0: vortical modes; 1: '+'-modes; 2: '-' modes
+!
+!-----------------------------------------------------------------
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE gutils
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(n,n,ista:iend) :: a0,am,ap
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz,th
+      COMPLEX(KIND=GP)                                          :: ic
+      REAL   (KIND=GP), INTENT   (IN)                           :: bvfreq,omega
+      INTEGER         , INTENT   (IN)                           :: kout
+      REAL   (KIND=GP)                                          :: f,kp,ks,sig,sq2,sq2i,tmp
+      INTEGER                                                   :: i,j,k
+
+
+      ic  = cmplx(0.0_GP,1.0_GP);
+      f   = 2.0_GP * omega
+      sq2i= 1.0_GP/sqrt(2.0_GP)     
+      sq2 = sqrt(2.0_GP)     
+!if ( myrank.eq.0 ) write(*,*)'bvfreq=',bvfreq,' omega=',omega,' f=',f,' tiny=',tiny
+      IF ( kout .eq. 0 ) THEN  ! vortical modes
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kp,ks,sig,tmp)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kp,ks,sig,tmp)
+            DO j = 1,n
+               DO k = 1,n
+                  kp  = sqrt(ka(i)**2+ka(j)**2)
+                  ks  = sqrt(ka2(k,j,i))
+     
+                  IF ( kp.lt.tiny) THEN
+                    ! From decomp from Herbert, eq. A16:
+                    vx(k,j,i) = 0.0
+                    vy(k,j,i) = 0.0
+                    vz(k,j,i) = 0.0
+                    th(k,j,i) = -a0(k,j,i)
+                  ELSE
+                    ! From decomp from Herbert, eq. A14:
+                    ! A^0
+                    sig = sqrt((f**2*ka(k)**2+bvfreq**2*kp**2)/ka2(k,j,i))
+                    tmp = 1.0/(ks*kp*sig)
+                    vx(k,j,i) = -tmp*bvfreq*ka(j)*kp * a0(k,j,i)
+                    vy(k,j,i) =  tmp*bvfreq*ka(i)*kp * a0(k,j,i)
+                    vz(k,j,i) =  0.0
+                    th(k,j,i) = -tmp*f*ka(k)*kp*a0(k,j,i)
+                 ENDIF
+
+               END DO
+            END DO
+         END DO
+         RETURN
+      ENDIF
+
+      IF ( kout .EQ. 1 ) THEN   ! '+' waves
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kp,ks,sig,tmp)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kp,ks,sig,tmp)
+            DO j = 1,n
+               DO k = 1,n
+                  kp  = sqrt(ka(i)**2+ka(j)**2)
+                  ks  = sqrt(ka2(k,j,i))
+
+                  IF ( kp.lt.tiny) THEN
+                    vx(k,j,i) = -sq2i*ic*ap(k,j,i)
+                    vy(k,j,i) =  sq2i*   ap(k,j,i)
+                    vz(k,j,i) = 0.0
+                    th(k,j,i) = 0.0
+                  ELSE
+
+                    sig = sqrt((f**2*ka(k)**2+bvfreq**2*kp**2)/ka2(k,j,i))
+                    tmp = 1.0/(sq2*ks*kp*sig)
+                    vx(k,j,i) = tmp*( f*ka(j)*ka(k)+ic*ka(i)*ka(k)*sig) * ap(k,j,i)
+                    vy(k,j,i) = tmp*(-f*ka(i)*ka(k)+ic*ka(j)*ka(k)*sig) * ap(k,j,i)
+                    vz(k,j,i) = -tmp*ic*(kp**2)*sig*ap(k,j,i)
+                    th(k,j,i) = -tmp*bvfreq*(kp**2)*ap(k,j,i)
+                 ENDIF
+
+               END DO
+            END DO
+         END DO
+         RETURN
+      ENDIF
+
+                  
+      IF ( kout .EQ. 2 ) THEN  ! '-' waves
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kp,ks,sig,tmp)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kp,ks,sig,tmp)
+            DO j = 1,n
+               DO k = 1,n
+                  kp  = sqrt(ka(i)**2+ka(j)**2)
+                  ks  = sqrt(ka2(k,j,i))
+
+                  IF ( kp.lt.tiny) THEN
+                    vx(k,j,i) =  sq2i*ic*am(k,j,i)
+                    vy(k,j,i) =  sq2i*   am(k,j,i)
+                    vz(k,j,i) = 0.0
+                    th(k,j,i) = 0.0
+                  ELSE
+                  
+                    sig = sqrt((f**2*ka(k)**2+bvfreq**2*kp**2)/ka2(k,j,i))
+                    tmp = 1.0/(sq2*ks*kp*sig)
+                    vx(k,j,i) = tmp*( f*ka(j)*ka(k)-ic*ka(i)*ka(k)*sig) * am(k,j,i)
+                    vy(k,j,i) = tmp*(-f*ka(i)*ka(k)-ic*ka(j)*ka(k)*sig) * am(k,j,i)
+                    vz(k,j,i) =  tmp*ic*(kp**2)*sig*am(k,j,i)
+                    th(k,j,i) = -tmp*bvfreq*(kp**2)*am(k,j,i)
+                 ENDIF
+
+               END DO
+            END DO
+         END DO
+         RETURN
+      ENDIF
+
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+      END SUBROUTINE DoExpProj
+
+
+!*****************************************************************
+      SUBROUTINE printprim(vx,vy,vz,th,odir,ext,planio,c1,r1,r2,kout,ivec,prend)
+!-----------------------------------------------------------------
+!   vx, vy, vz, th: primitive fields
+!   odir    : output directory
+!   ext     : string time stamp
+!   planio  : IO plan
+!   c1      : complex tmp array
+!   r1-2    : real tmp arrays
+!   kout    :  0 == vort. modes, 1 = + modes, 2 = - modes 3 = entire
+!   field
+!   ivec    : ==0, don't print vectors, ==1; print velocity comp only; 2:
+!             print magnitude only; ==3, print velocity comps and mag
+!   prend   : file prefix's suffix (may be null: '')
+!-----------------------------------------------------------------
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE iompi
+      USE iovar
+      USE gutils
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz,th
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: c1
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: r1,r2
+      REAL   (KIND=GP)                                          :: tmp
+      INTEGER         , INTENT   (IN)                           :: kout,ivec
+      INTEGER                                                   :: i,j,k
+      CHARACTER*(*)   , INTENT   (IN)                           :: odir,ext,prend
+      CHARACTER*1                                               :: suff(4)
+      CHARACTER*5                                               :: s5
+      CHARACTER*3                                               :: s3
+      TYPE(IOPLAN)                                              :: planio
+      
+      suff(1) = '0' ! 0-modes
+      suff(2) = 'p' ! +-modes
+      suff(3) = 'm' ! --modes
+      suff(4) = 't' ! total field (sum of all modes)
+      IF ( kout.lt.0 .or. kout.gt.3 ) THEN
+        WRITE(*,*)'printprim: kout=',kout,' must be 0 <= kout < 4'
+        STOP
+      ENDIF     
+ 
+      tmp = 1.0_GP/real(n,kind=GP)**3
+
+      c1 = th*tmp
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      IF ( oswap.NE.0 ) THEN
+        CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
+      ENDIF
+      s3 = 'th'   // trim(prend) // suff(kout+1)
+      CALL io_write(1,odir,trim(s3),ext,planio,r1)
+
+      IF ( ibits(ivec,1,1).eq.1 ) THEN
+        CALL VecMag(r1,vx,vy,vz,c1,r2)
+        IF ( oswap.NE.0 ) THEN
+          CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
+        ENDIF
+        s5 = 'vmag'  // trim(prend) // suff(kout+1) 
+        CALL io_write(1,odir,trim(s5),ext,planio,r1)
+        s5 = '     '
+      ENDIF
+
+      IF ( ibits(ivec,0,1) .eq. 0 ) RETURN
+ 
+      c1 = vx*tmp
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      IF ( oswap.NE.0 ) THEN
+        CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
+      ENDIF
+      s3 = 'vx'   // trim(prend) // suff(kout+1)
+      CALL io_write(1,odir,trim(s3),ext,planio,r1)
+
+      c1 = vy*tmp
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      IF ( oswap.NE.0 ) THEN
+        CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
+      ENDIF
+      s3 = 'vy'  // trim(prend) // suff(kout+1)
+      CALL io_write(1,odir,trim(s3),ext,planio,r1)
+
+      c1 = vz*tmp
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      IF ( oswap.NE.0 ) THEN
+        CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
+      ENDIF
+      s3 = 'vz' // trim(prend) //  suff(kout+1)
+      CALL io_write(1,odir,trim(s3),ext,planio,r1)
+
+
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+      END SUBROUTINE printprim
+
+
+!*****************************************************************
+      SUBROUTINE printdprim(vx,vy,vz,th,odir,ext,planio,c1,c2,c3,c4,r1,r2,kout,ivec,prend)
+!-----------------------------------------------------------------
+!   vx, vy, vz, th: primitive fields
+!   odir    : output directory
+!   ext     : string time stamp
+!   planio  : IO plan
+!   c1-4    : complex tmp arrays
+!   r1-2    : real tmp arrays
+!   kout    :  0 == vort. modes, 1 = + modes, 2 = - modes, 3 = entire
+!   field
+!   ivec: > 0 ==> output vector mag only (th still printed, though)
+!   prend   : file prefix's suffix (may be null: '')
+!-----------------------------------------------------------------
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE iompi
+      USE iovar
+      USE gutils
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz,th
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: c1,c2,c3,c4
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: r1,r2
+      REAL   (KIND=GP)                                          :: tmp
+      INTEGER         , INTENT   (IN)                           :: kout,ivec
+      INTEGER                                                   :: i,j,k
+      CHARACTER*(*)   , INTENT   (IN)                           :: odir,ext,prend
+      CHARACTER*1                                               :: suff(4)
+      CHARACTER*5                                               :: s5
+      CHARACTER*3                                               :: s3
+      TYPE(IOPLAN)    , INTENT(INOUT)                           :: planio
+
+      
+      suff(1) = '0' ! 0-modes
+      suff(2) = 'p' ! +-modes
+      suff(3) = 'm' ! --modes
+      suff(4) = 't' ! total field (sum of all modes)
+
+      tmp = 1.0_GP/real(n,kind=GP)**3
+
+      c1 = th*tmp
+      CALL derivk3(th,c1,1)
+      CALL derivk3(th,c2,2)
+      CALL derivk3(th,c3,3)
+      CALL VecMag(r1,c1,c2,c3,c4,r2)
+      IF ( oswap.NE.0 ) THEN
+        CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
+      ENDIF
+      s3 = 'dth' // trim(prend) // suff(kout+1)
+      CALL io_write(1,odir,trim(s3),ext,planio,r1)
+   
+      IF ( ibits(ivec,0,1).eq.1 ) THEN
+        CALL rotor3(vy,vz,c1,1)
+        CALL rotor3(vx,vz,c2,2)
+        CALL rotor3(vx,vy,c3,3)
+      ENDIF
+
+      IF ( ibits(ivec,1,1).eq.1 ) THEN
+        CALL VecMag(r1,c1,c2,c3,c4,r2)
+        IF ( oswap.NE.0 ) THEN
+          CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
+        ENDIF
+        s5 = 'wmag' // trim(prend) // suff(kout+1)
+        CALL io_write(1,odir,trim(s5),ext,planio,r1)
+        s5 = '     '
+      ENDIF
+
+      IF ( ibits(ivec,0,1).eq.0 ) RETURN
+
+      c1 = c1*tmp
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      IF ( oswap.NE.0 ) THEN
+        CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
+      ENDIF
+      s3 = 'wx'  // trim(prend) // suff(kout+1)
+      CALL io_write(1,odir,trim(s3),ext,planio,r1)
+
+      c1 = c2*tmp
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      IF ( oswap.NE.0 ) THEN
+        CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
+      ENDIF
+      s3 = 'wy'  // trim(prend) // suff(kout+1)
+      CALL io_write(1,odir,trim(s3),ext,planio,r1)
+
+      c1 = c3*tmp
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      IF ( oswap.NE.0 ) THEN
+        CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
+      ENDIF
+      s3 = 'wz'  // trim(prend) // suff(kout+1)
+      CALL io_write(1,odir,trim(s3),ext,planio,r1)
+
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+      END SUBROUTINE printdprim
+
+
+
+!*****************************************************************
+      SUBROUTINE VecMag(rmag,vx,vy,vz,c1,r1)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE gutils
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: c1
+      REAL   (KIND=GP), INTENT  (OUT), DIMENSION(n,n,ksta:kend) :: rmag
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: r1
+      REAL   (KIND=GP)                                          :: tmp
+      INTEGER                                                   :: i,j,k
+
+      tmp = 1.0_GP/real(n,kind=GP)**3
+
+       c1 = vx
+       CALL fftp3d_complex_to_real(plancr,c1,rmag,MPI_COMM_WORLD)
+       c1 = vy
+       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+       DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+           DO i = 1,n
+             rmag(i,j,k) = rmag(i,j,k)**2 + r1(i,j,k)**2
+           ENDDO
+         ENDDO
+       ENDDO
+       c1 = vz
+       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+       DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+           DO i = 1,n
+             rmag(i,j,k) = sqrt(rmag(i,j,k) + (r1(i,j,k)**2)) * tmp
+           ENDDO
+         ENDDO
+       ENDDO
+
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+      END SUBROUTINE VecMag
