@@ -64,12 +64,12 @@
       INTEGER :: i,i2d,it,iavg,ic,ind,ivec,putnm,j,k,trans
       INTEGER :: istat(1024),nfiles,nstat
 
-      TYPE(IOPLAN)       :: planio,planioc
-      CHARACTER(len=8)   :: pref
-      CHARACTER(len=256) :: odir,idir
-      CHARACTER(len=256) :: fout
-      CHARACTER(len=4096):: stat
-      CHARACTER(len=4)   :: ext1
+      TYPE(IOPLAN)        :: planio,planioc
+      CHARACTER(len=8)    :: pref
+      CHARACTER(len=2048) :: odir,idir
+      CHARACTER(len=2048) :: fout
+      CHARACTER(len=4096) :: stat
+      CHARACTER(len=4)    :: ext1
 !
       NAMELIST / wv / idir, odir, stat, iswap, oswap, iavg, putnm, ivec, omega, bvfreq, i2d, trans
 
@@ -83,8 +83,8 @@
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       CALL range(1,n,nprocs,myrank,ksta,kend)
-      CALL io_init(myrank,n,ksta,kend,planio)
-      CALL io_initc(myrank,n,ksta,kend,planioc)
+      CALL io_init (myrank,n,ksta,kend,planio)
+      CALL io_initc(myrank,n,ista,iend,planioc)
       idir   = '.'
       odir   = '.'
       stat   = '0'
@@ -118,8 +118,8 @@
          READ(1,NML=wv)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(idir  ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(odir  ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(idir  ,2048,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(odir  ,2048,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(stat  ,4096,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(oswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
@@ -252,23 +252,23 @@
           IF ( trans.LE.10 ) THEN
 !if ( myrank.eq.0 ) write(*,*)'main: calling wvspectrum...'
              CALL wvspectrum(a0,am,ap,omega,bvfreq,odir,ext,'',i2d)
-if ( myrank.eq.0 ) write(*,*)'main: calling wvzspectrum...'
+!if ( myrank.eq.0 ) write(*,*)'main: calling wvzspectrum...'
              CALL wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,odir,ext,'',i2d,c1,c2,c3,r1,r2,r3)
-if ( myrank.eq.0 ) write(*,*)'main: wvzspectrum done'
+!if ( myrank.eq.0 ) write(*,*)'main: wvzspectrum done'
           ENDIF
           IF ( MOD(trans,10).EQ.1 ) THEN
-if ( myrank.eq.0 ) write(*,*)'main: calling wvtrans...'
+!if ( myrank.eq.0 ) write(*,*)'main: calling wvtrans...'
              CALL wvtrans(a0,am,ap,vx,vy,vz,th,omega,bvfreq,odir,ext,'',i2d,c1,c2,c3)
           ELSEIF ( MOD(trans,10).EQ.2 ) THEN
-if ( myrank.eq.0 ) write(*,*)'main: calling wvtransful...'
+!if ( myrank.eq.0 ) write(*,*)'main: calling wvtransful...'
              CALL wvtransfull(a0,am,ap,vx,vy,vz,th,omega,bvfreq,odir,ext,'',i2d,c1,c2,c3)             
           ENDIF
 
-if ( myrank.eq.0 ) write(*,*)'main: doing binary output...'
+!if ( myrank.eq.0 ) write(*,*)'main: doing binary output...'
 
           ! Do output:
           IF ( ibits(putnm,0,1).EQ.1 ) THEN ! output norm. mode coeffs
-if ( myrank.eq.0 ) write(*,*)'main: doing PutNormModes...'
+!if ( myrank.eq.0 ) write(*,*)'main: doing PutNormModes...'
             c1 = a0
             fout = 'a0.' // ext // '.out'
             CALL PutNormModes(1,odir,trim(fout),planioc,c1)
@@ -282,10 +282,10 @@ if ( myrank.eq.0 ) write(*,*)'main: doing PutNormModes...'
             CALL PutNormModes(1,odir,trim(fout),planioc,c1)
           ENDIF
           IF ( ibits(putnm,1,1).EQ.1 ) THEN ! output real fields
-if ( myrank.eq.0 ) write(*,*)'main: doing PutRealFields...'
+!if ( myrank.eq.0 ) write(*,*)'main: doing PutRealFields...'
             CALL PutRealFields(1,odir,ext,planio,a0,am,ap,vx,vy,vz,th,omega,bvfreq,c1,c2,c3,c4,r1,r2,ivec,'')
           ENDIF
-        ENDDO
+        ENDDO ! end of it loop
       ENDIF
 !
 !
@@ -3734,20 +3734,20 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: c1
-      REAL   (KIND=GP)                                          :: ks,tmr,tmp
-      INTEGER                                                   :: bmanghold,i,iunit,j,k
+      INTEGER         , INTENT   (IN)                           :: iunit
+      INTEGER                                                   :: bmanghold,i,j,k
       CHARACTER*(*)   , INTENT   (IN)                           :: fout,odir
       TYPE(IOPLAN)    , INTENT(INOUT)                           :: planio
 
 
-      
+     
       bmanghold = bmangle
       IF ( oswap.NE.0 ) THEN
         CALL carray_byte_swap(c1, n*n*(iend-ista+1))
       ENDIF
 
       bmangle = 0
-      CALL io_writec(1,'',odir// '/' // trim(fout), planio,c1)
+      CALL io_writec(iunit,odir,trim(fout),'',planio,c1)
       bmangle = bmanghold
 
 !-----------------------------------------------------------------
@@ -3815,7 +3815,7 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       vz = 0.0;
       th = 0.0;
       DO m = 0, 2
-if ( myrank.eq.0 ) write(*,*)'main: Total DoExpProj, j=',m, ' time=',ext
+!if ( myrank.eq.0 ) write(*,*)'main: Total DoExpProj, j=',m, ' time=',ext
         CALL DoExpProj(c1,c2,c3,c4,a0,ap,am,omega,bvfreq,m)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kp,ks,sig)
         DO i = ista,iend
@@ -3916,7 +3916,6 @@ if ( myrank.eq.0 ) write(*,*)'main: Total DoExpProj, j=',m, ' time=',ext
                END DO
             END DO
          END DO
-         RETURN
       ENDIF
 
       IF ( kout .EQ. 1 ) THEN   ! '+' waves
@@ -3947,7 +3946,6 @@ if ( myrank.eq.0 ) write(*,*)'main: Total DoExpProj, j=',m, ' time=',ext
                END DO
             END DO
          END DO
-         RETURN
       ENDIF
 
                   
@@ -3979,7 +3977,6 @@ if ( myrank.eq.0 ) write(*,*)'main: Total DoExpProj, j=',m, ' time=',ext
                END DO
             END DO
          END DO
-         RETURN
       ENDIF
 
 !-----------------------------------------------------------------
