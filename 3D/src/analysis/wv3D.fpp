@@ -4022,8 +4022,7 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       INTEGER                                                   :: i,j,k
       CHARACTER*(*)   , INTENT   (IN)                           :: odir,ext,prend
       CHARACTER*1                                               :: suff(4)
-      CHARACTER*5                                               :: s5
-      CHARACTER*3                                               :: s3
+      CHARACTER*128                                             :: sout
       TYPE(IOPLAN)                                              :: planio
       
       suff(1) = '0' ! 0-modes
@@ -4042,17 +4041,16 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       IF ( oswap.NE.0 ) THEN
         CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
       ENDIF
-      s3 = 'th'   // trim(prend) // suff(kout+1)
-      CALL io_write(1,odir,trim(s3),ext,planio,r1)
+      sout = 'th'   // trim(prend) // suff(kout+1)
+      CALL io_write(1,odir,trim(sout),ext,planio,r1)
 
       IF ( ibits(ivec,1,1).eq.1 ) THEN
         CALL VecMag(r1,vx,vy,vz,c1,r2)
         IF ( oswap.NE.0 ) THEN
           CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
         ENDIF
-        s5 = 'vmag'  // trim(prend) // suff(kout+1) 
-        CALL io_write(1,odir,trim(s5),ext,planio,r1)
-        s5 = '     '
+        sout = 'vmag'  // trim(prend) // suff(kout+1) 
+        CALL io_write(1,odir,trim(sout),ext,planio,r1)
       ENDIF
 
       IF ( ibits(ivec,0,1) .eq. 0 ) RETURN
@@ -4062,24 +4060,24 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       IF ( oswap.NE.0 ) THEN
         CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
       ENDIF
-      s3 = 'vx'   // trim(prend) // suff(kout+1)
-      CALL io_write(1,odir,trim(s3),ext,planio,r1)
+      sout = 'vx'   // trim(prend) // suff(kout+1)
+      CALL io_write(1,odir,trim(sout),ext,planio,r1)
 
       c1 = vy*tmp
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       IF ( oswap.NE.0 ) THEN
         CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
       ENDIF
-      s3 = 'vy'  // trim(prend) // suff(kout+1)
-      CALL io_write(1,odir,trim(s3),ext,planio,r1)
+      sout = 'vy'  // trim(prend) // suff(kout+1)
+      CALL io_write(1,odir,trim(sout),ext,planio,r1)
 
       c1 = vz*tmp
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       IF ( oswap.NE.0 ) THEN
         CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
       ENDIF
-      s3 = 'vz' // trim(prend) //  suff(kout+1)
-      CALL io_write(1,odir,trim(s3),ext,planio,r1)
+      sout = 'vz' // trim(prend) //  suff(kout+1)
+      CALL io_write(1,odir,trim(sout),ext,planio,r1)
 
 
 !-----------------------------------------------------------------
@@ -4124,8 +4122,7 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       INTEGER                                                   :: i,j,k
       CHARACTER*(*)   , INTENT   (IN)                           :: odir,ext,prend
       CHARACTER*1                                               :: suff(4)
-      CHARACTER*5                                               :: s5
-      CHARACTER*3                                               :: s3
+      CHARACTER*128                                             :: sout
       TYPE(IOPLAN)    , INTENT(INOUT)                           :: planio
 
       
@@ -4144,8 +4141,8 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       IF ( oswap.NE.0 ) THEN
         CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
       ENDIF
-      s3 = 'dth' // trim(prend) // suff(kout+1)
-      CALL io_write(1,odir,trim(s3),ext,planio,r1)
+      sout = 'dth' // trim(prend) // suff(kout+1)
+      CALL io_write(1,odir,trim(sout),ext,planio,r1)
    
       IF ( ibits(ivec,0,1).eq.1 ) THEN
         CALL rotor3(vy,vz,c1,1)
@@ -4158,9 +4155,8 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
         IF ( oswap.NE.0 ) THEN
           CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
         ENDIF
-        s5 = 'wmag' // trim(prend) // suff(kout+1)
-        CALL io_write(1,odir,trim(s5),ext,planio,r1)
-        s5 = '     '
+        sout = 'wmag' // trim(prend) // suff(kout+1)
+        CALL io_write(1,odir,trim(sout),ext,planio,r1)
       ENDIF
 
       IF ( ibits(ivec,0,1).eq.0 ) RETURN
@@ -4170,24 +4166,24 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       IF ( oswap.NE.0 ) THEN
         CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
       ENDIF
-      s3 = 'wx'  // trim(prend) // suff(kout+1)
-      CALL io_write(1,odir,trim(s3),ext,planio,r1)
+      sout = 'wx'  // trim(prend) // suff(kout+1)
+      CALL io_write(1,odir,trim(sout),ext,planio,r1)
 
       c1 = c2*tmp
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       IF ( oswap.NE.0 ) THEN
         CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
       ENDIF
-      s3 = 'wy'  // trim(prend) // suff(kout+1)
-      CALL io_write(1,odir,trim(s3),ext,planio,r1)
+      sout = 'wy'  // trim(prend) // suff(kout+1)
+      CALL io_write(1,odir,trim(sout),ext,planio,r1)
 
       c1 = c3*tmp
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       IF ( oswap.NE.0 ) THEN
         CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
       ENDIF
-      s3 = 'wz'  // trim(prend) // suff(kout+1)
-      CALL io_write(1,odir,trim(s3),ext,planio,r1)
+      sout = 'wz'  // trim(prend) // suff(kout+1)
+      CALL io_write(1,odir,trim(sout),ext,planio,r1)
 
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
