@@ -4017,7 +4017,7 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz,th
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: c1
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: r1,r2
-      REAL   (KIND=GP)                                          :: tmp
+      REAL   (KIND=GP)                                          :: tmp,rmin,rmax,rmean,rrms,rstd
       INTEGER         , INTENT   (IN)                           :: kout,ivec
       INTEGER                                                   :: i,j,k
       CHARACTER*(*)   , INTENT   (IN)                           :: odir,ext,prend
@@ -4038,46 +4038,57 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
 
       c1 = th*tmp
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      CALL rarray_props(r1,n*n*(kend-ksta+1),n,rmin,rmax,rmean,rrms,rstd)
       IF ( oswap.NE.0 ) THEN
         CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
       ENDIF
       sout = 'th'   // trim(prend) // suff(kout+1)
       CALL io_write(1,odir,trim(sout),ext,planio,r1)
+      CALL printprops('primprops',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
+   
 
       IF ( ibits(ivec,1,1).eq.1 ) THEN
-        CALL VecMag(r1,vx,vy,vz,c1,r2)
+        CALL VecMagC2R(r1,vx,vy,vz,c1,r2)
+        CALL rarray_props(r1,n*n*(kend-ksta+1),n,rmin,rmax,rmean,rrms,rstd)
         IF ( oswap.NE.0 ) THEN
           CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
         ENDIF
         sout = 'vmag'  // trim(prend) // suff(kout+1) 
         CALL io_write(1,odir,trim(sout),ext,planio,r1)
+        CALL printprops('primprops',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
       ENDIF
 
       IF ( ibits(ivec,0,1) .eq. 0 ) RETURN
  
       c1 = vx*tmp
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      CALL rarray_props(r1,n*n*(kend-ksta+1),n,rmin,rmax,rmean,rrms,rstd)
       IF ( oswap.NE.0 ) THEN
         CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
       ENDIF
       sout = 'vx'   // trim(prend) // suff(kout+1)
       CALL io_write(1,odir,trim(sout),ext,planio,r1)
+      CALL printprops('primprops',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
 
       c1 = vy*tmp
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      CALL rarray_props(r1,n*n*(kend-ksta+1),n,rmin,rmax,rmean,rrms,rstd)
       IF ( oswap.NE.0 ) THEN
         CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
       ENDIF
       sout = 'vy'  // trim(prend) // suff(kout+1)
       CALL io_write(1,odir,trim(sout),ext,planio,r1)
+      CALL printprops('primprops',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
 
       c1 = vz*tmp
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      CALL rarray_props(r1,n*n*(kend-ksta+1),n,rmin,rmax,rmean,rrms,rstd)
       IF ( oswap.NE.0 ) THEN
         CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
       ENDIF
       sout = 'vz' // trim(prend) //  suff(kout+1)
       CALL io_write(1,odir,trim(sout),ext,planio,r1)
+      CALL printprops('primprops',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
 
 
 !-----------------------------------------------------------------
@@ -4117,7 +4128,7 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz,th
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: c1,c2,c3,c4
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: r1,r2
-      REAL   (KIND=GP)                                          :: tmp
+      REAL   (KIND=GP)                                          :: tmp,rmin,rmax,rmean,rrms,rstd
       INTEGER         , INTENT   (IN)                           :: kout,ivec
       INTEGER                                                   :: i,j,k
       CHARACTER*(*)   , INTENT   (IN)                           :: odir,ext,prend
@@ -4137,7 +4148,7 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       CALL derivk3(th,c1,1)
       CALL derivk3(th,c2,2)
       CALL derivk3(th,c3,3)
-      CALL VecMag(r1,c1,c2,c3,c4,r2)
+      CALL VecMagC2R(r1,c1,c2,c3,c4,r2)
       IF ( oswap.NE.0 ) THEN
         CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
       ENDIF
@@ -4151,39 +4162,48 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       ENDIF
 
       IF ( ibits(ivec,1,1).eq.1 ) THEN
-        CALL VecMag(r1,c1,c2,c3,c4,r2)
+        CALL VecMagC2R(r1,c1,c2,c3,c4,r2)
+        CALL rarray_props(r1,n*n*(kend-ksta+1),n,rmin,rmax,rmean,rrms,rstd)
+
         IF ( oswap.NE.0 ) THEN
           CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
         ENDIF
         sout = 'wmag' // trim(prend) // suff(kout+1)
         CALL io_write(1,odir,trim(sout),ext,planio,r1)
+        CALL printprops('primprops',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
       ENDIF
 
       IF ( ibits(ivec,0,1).eq.0 ) RETURN
 
       c1 = c1*tmp
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      CALL rarray_props(r1,n*n*(kend-ksta+1),n,rmin,rmax,rmean,rrms,rstd)
       IF ( oswap.NE.0 ) THEN
         CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
       ENDIF
       sout = 'wx'  // trim(prend) // suff(kout+1)
       CALL io_write(1,odir,trim(sout),ext,planio,r1)
+      CALL printprops('primprops',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
 
       c1 = c2*tmp
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      CALL rarray_props(r1,n*n*(kend-ksta+1),n,rmin,rmax,rmean,rrms,rstd)
       IF ( oswap.NE.0 ) THEN
         CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
       ENDIF
       sout = 'wy'  // trim(prend) // suff(kout+1)
       CALL io_write(1,odir,trim(sout),ext,planio,r1)
+      CALL printprops('primprops',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
 
       c1 = c3*tmp
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      CALL rarray_props(r1,n*n*(kend-ksta+1),n,rmin,rmax,rmean,rrms,rstd)
       IF ( oswap.NE.0 ) THEN
         CALL rarray_byte_swap(r1, n*n*(kend-ksta+1))
       ENDIF
       sout = 'wz'  // trim(prend) // suff(kout+1)
       CALL io_write(1,odir,trim(sout),ext,planio,r1)
+      CALL printprops('primprops',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
 
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -4192,7 +4212,7 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
 
 
 !*****************************************************************
-      SUBROUTINE VecMag(rmag,vx,vy,vz,c1,r1)
+      SUBROUTINE VecMagC2R(rmag,vx,vy,vz,c1,r1)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
       USE fprecision
@@ -4244,4 +4264,35 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
 
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-      END SUBROUTINE VecMag
+      END SUBROUTINE VecMagC2R
+
+
+!*****************************************************************
+      SUBROUTINE printprops(fname,vname,ext,rmin,rmax,rmean,rrms,rstd)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE gutils
+      IMPLICIT NONE
+
+      REAL   (KIND=GP), INTENT   (IN)                           :: rmin,rmax,rmean,rrms,rstd
+      INTEGER                                                   :: i,j,k
+      CHARACTER*(*)   , INTENT   (IN)                           :: fname,vname,ext
+
+      IF ( myrank.NE.0 ) RETURN
+
+      OPEN(1,file=fname,position='append')
+      WRITE(1,*) vname,ext,rmin,rmax,rmean,rrms,rstd
+      CLOSE(1)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+      END SUBROUTINE printprops
