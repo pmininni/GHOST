@@ -167,7 +167,7 @@ MODULE gutils
 
       ie1 = 0
 ! Note using GP like this is not good practice....
-!$omp parallel do if (nin.ge.nth) private(ir0,ic0,ie1.ie2,m,r,c)
+!$omp parallel do if (nin.ge.nth) private(ir0,ic0,ie1,ie2,m,r,c)
       DO k = 1, nin
           ir0 = TRANSFER(real(Cin(k)), 0_GP)
           DO m = 1, GP
