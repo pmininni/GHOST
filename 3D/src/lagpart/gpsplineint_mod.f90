@@ -558,8 +558,8 @@ MODULE class_GPSplineInt
 !$omp atomic
       bok = bok .AND. btmp
       IF ( .NOT. bok ) THEN
-        WRITE(*,*) 'GPSplineInt::PartUpdate3D: Invalid particle z-range'
-        WRITE(*,*) 'GPSplineInt::zbnd_0=',this%xbnds_(3,1),';  zbnd_1=',this%xbnds_(3,2), 'zp=',zp(j)
+        WRITE(*,*) this%rank_, ' GPSplineInt::PartUpdate3D: Invalid particle z-range'
+        WRITE(*,*) this%rank_, ' GPSplineInt::zbnd_0=',this%xbnds_(3,1),';  zbnd_1=',this%xbnds_(3,2), 'zp=',zp(j)
         STOP
       ENDIF
     ENDDO
