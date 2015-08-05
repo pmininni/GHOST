@@ -617,7 +617,7 @@ MODULE class_GPart
     DO WHILE ( this%ierr_.EQ.0 )
       READ(5,*,IOSTAT=this%ierr_) x, y, z
       IF ( this%ierr_ .NE. 0 ) THEN
-        WRITE(*,*) 'GPart::InitUserSeed: terminating read; nt=', nt, ' ierr=',this%ierr_
+!!      WRITE(*,*) 'GPart::InitUserSeed: terminating read; nt=', nt, ' ierr=',this%ierr_
         EXIT
       ENDIF
       IF ( z.GE.this%lxbnds_(3,1) .AND. z.LT.this%lxbnds_(3,2) .AND. &
@@ -2178,12 +2178,13 @@ MODULE class_GPart
 !$omp parallel do 
       DO j = 1, ngvdb
         IF ( gvdb(3,j).GE.this%lxbnds_(3,1) .AND. gvdb(3,j).LT.this%lxbnds_(3,2) ) THEN 
-!$omp atomic 
+!$omp critical
           nl = nl + 1
           id (nl) = j-1
           lx (nl) = gvdb(1,j)
           ly (nl) = gvdb(2,j)
           lz (nl) = gvdb(3,j)
+!$omp end critical
         ENDIF
       ENDDO
     ELSE
@@ -2241,7 +2242,7 @@ MODULE class_GPart
 !$omp parallel do 
     DO j = 1, ngvdb
       IF ( gvdb(3,j).GE.this%lxbnds_(3,1) .AND. gvdb(3,j).LT.this%lxbnds_(3,2) ) THEN 
-!$omp atomic 
+!$omp critical
         nl = nl + 1
         id (nl) = j-1
         lx (nl) = gvdb(1,j)
@@ -2250,6 +2251,7 @@ MODULE class_GPart
         tx (nl) = gtmp(1,j)
         ty (nl) = gtmp(2,j)
         tz (nl) = gtmp(3,j)
+!$omp end critical
       ENDIF
     ENDDO
 

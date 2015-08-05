@@ -464,11 +464,12 @@ MODULE class_GPSplineInt
     ! 
     ! First, do a check:
     bok = .true.
-!$omp parallel do private(btmp)
+!!!$omp parallel do private(btmp)
     DO j = 1, np
       btmp = (yp(j).GE.this%xbnds_(2,1).AND.yp(j).LT.this%xbnds_(2,2))
-!$omp atomic
+!!!$omp critical
       bok = bok .AND. btmp
+!!!$omp end critical
     ENDDO
     IF ( .NOT. bok ) THEN
       WRITE(*,*) 'GPSplineInt::PartUpdate2D: Invalid particle y-range'
@@ -552,11 +553,12 @@ MODULE class_GPSplineInt
     ! 
     ! First, do a check:
     bok = .true.
-!$omp parallel do private(btmp)
+!!!$omp parallel do private(btmp)
     DO j = 1, np
       btmp = (zp(j).GE.this%xbnds_(3,1).AND.zp(j).LT.this%xbnds_(3,2))
-!$omp atomic
+!!!$omp critical
       bok = bok .AND. btmp
+!!!$omp end critical
       IF ( .NOT. bok ) THEN
         WRITE(*,*) this%rank_, ' GPSplineInt::PartUpdate3D: Invalid particle z-range'
         WRITE(*,*) this%rank_, ' GPSplineInt::zbnd_0=',this%xbnds_(3,1),';  zbnd_1=',this%xbnds_(3,2), 'zp=',zp(j)
