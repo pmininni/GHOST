@@ -2626,6 +2626,7 @@ enddo
     USE fprecision
     USE commtypes
     USE mpivars
+    USE threads
 
     IMPLICIT NONE
     CLASS(GPart) ,INTENT(INOUT)                        :: this
