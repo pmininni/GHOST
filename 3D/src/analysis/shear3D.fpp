@@ -93,7 +93,7 @@
 ! Auxiliary variables
 
       INTEGER :: i,ic,iir,ind,ir,isolve,istrain,it,j,jc,jjc,k
-      INTEGER :: demean,dolog,ilamb,iolamb,inorm,istat(1024),jpdf,nstat
+      INTEGER :: demean,dolog,ilamb,iobin,inorm,istat(1024),jpdf,nstat
       INTEGER :: irand,isheb,nbinx,nbiny,nbins(2),nin,seed
       INTEGER :: indt,tstep
 !$    INTEGER, EXTERNAL :: omp_get_max_threads
@@ -108,7 +108,7 @@
       CHARACTER(len=2048) :: fntmp1,fntmp2,fntmp3,fntmp4,fntmp5,fntmp6
       CHARACTER(len=4096) :: stat
 !
-      NAMELIST / shear / demean,ilamb,iolamb,isheb,isolve,iswap
+      NAMELIST / shear / demean,ilamb,iobin,isheb,isolve,iswap
       NAMELIST / shear / dolog,oswap,idir,odir,pref,stat
       NAMELIST / shear / dismin,dismax,ensmin,ensmax,jpdf,nbinx,nbiny
       NAMELIST / shear / irand,krmin,krmax,seed
@@ -139,7 +139,7 @@
       btrunc = 0
       demean = 0
       dolog  = 1
-      iolamb = 0
+      iobin = 0
       ilamb  = 0
       irand  = 0
       isheb  = 1
@@ -170,7 +170,7 @@
 !     isolve : 0==>just max |eigenvale| field; 1==>max |eigenvalue| field plus
 !              corresponding eigenvector inevx,evy,evz
 !     ilamb  : 0: don't do evalue computation; 1: do it (is done for jpdf>0).
-!     iolamb : 1==>write eigenvalue field to disk; 0==>don't
+!     iobin : 1==>write eigenvalue field to disk; 0==>don't
 !     irand  : randomize phases between [krmin,krmax] if 1; else, don't
 !     isheb  : compute Shebaliln angles for total energy, and ke and pe?
 !              ==0: don't compute them;
@@ -203,7 +203,7 @@ write(*,*)'main: shear.txt read.'
       CALL MPI_BCAST(iswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(isolve,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilamb ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(iolamb,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(iobin,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(irand ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(jpdf  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ktmin ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
@@ -222,7 +222,7 @@ if (myrank.eq.0) write(*,*)'main: broadcast done.'
       IF ( jpdf.GT.0    ) ilamb  = 1
       IF ( isolve .GT.0 ) ilamb  = 1
       IF ( jpdf.GT.0 .OR. isolve.GT.0 .OR. ilamb.GT.0 ) istrain = 1
-      IF ( ilamb  .LE.0 ) iolamb = 0
+      IF ( ilamb  .LE.0 ) iobin = 0
 
 !
       ALLOCATE( ctmp(n,n,ista:iend) )
@@ -497,7 +497,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 ! 
 ! Prepare eignesystem for output if necessary
 ! (don't forget to undo swaps for later):
-        IF ( iolamb.GT.0 ) THEN
+        IF ( iobin.GT.0 ) THEN
           IF ( oswap .NE. 0 ) THEN
             CALL rarray_byte_swap(lamb, n*n*(kend-ksta+1))
           ENDIF
@@ -523,7 +523,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
           ENDIF
 
           CALL DoKPDF(R1,R2,R3,R4,R5,vx,vy,vz,th,lamb,bvfreq,ext    , &
-               odir,nbins,dolog,jpdf,ctmp,sij,evx,evy)
+               odir,nbins,dolog,ctmp,sij,evx,evy,evz,jpdf,planio,iobin)
         ENDIF
 
         IF ( myrank.EQ. 0 ) THEN
@@ -1092,7 +1092,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 !
 !
       SUBROUTINE DoKPDF(S11,S12,S13,S22,S23,vx,vy,vz,th,lambda,bvfreq,ext, &
-                            odir,nbins,dolog,kin,ctmp,vtmp,rtmp,rtmp1)
+                            odir,nbins,dolog,ctmp,vtmp,rtmp,rtmp1,rtmp2,kin,planio,iobin)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -1121,6 +1121,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 !     vtmp  : complex temp array of size vx,vy,vz
 !     rtmp  : real temp array of size lambda
 !     rtmp1 : real temp array of size lambda
+!     rtmp2 : real temp array of size lambda
 !
       USE fprecision
       USE commtypes
@@ -1133,9 +1134,11 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       USE fftplans
       USE ali
       USE gutils
+      USE iovar
+      USE iompi
       IMPLICIT NONE
 
-      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: lambda,rtmp,rtmp1,S11,S12,S13,S22,S23
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: lambda,rtmp,rtmp1,rtmp2,S11,S12,S13,S22,S23
       REAL   (KIND=GP), INTENT   (IN)                           :: bvfreq
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: ctmp,vtmp
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz,th
@@ -1154,11 +1157,12 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       REAL   (KIND=GP)                                          :: fheli,sheli
       REAL   (KIND=GP)                                          :: flamb,slamb
       REAL   (KIND=GP)                                          :: den
-      INTEGER         , INTENT   (IN)                           :: dolog,kin,nbins(2)
+      INTEGER         , INTENT   (IN)                           :: dolog,iobin,kin,nbins(2)
       INTEGER                                                   :: i,j,k,nin,sr
       CHARACTER(len=*), INTENT   (IN)                           :: odir
       CHARACTER(len=*), INTENT   (IN)                           :: ext
       CHARACTER(len=1024)                                       :: fnout
+      TYPE(IOPLAN)    , INTENT(INOUT)                           :: planio
 
 
       nin = n*n*(kend-ksta+1)
@@ -1470,7 +1474,30 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       fnout = trim(odir) // '/' // 'dthdzpdf.' // ext // '.txt'
       CALL dopdfr(rtmp1,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ENDIF
-      CALL skewflat(rtmp1,nin,n,dths,dthf,s2,s3,s4)       ! theta
+      CALL skewflat(rtmp1,nin,n,dths,dthf,s2,s3,s4)       ! dtheta/dz
+      IF ( iobin.GT.0 ) THEN
+        rtmp2 = rtmp1
+        IF ( oswap.NE.0 ) THEN
+          CALL rarray_byte_swap(rtmp2, n*n*(kend-ksta+1))
+        ENDIF
+        CALL io_write(1,odir,'dthdz',ext,planio,rtmp2)
+      ENDIF
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+        DO j = 1,n
+          DO i = 1,n
+            rtmp(i,j,k) = S12(i,j,k)**2 + S23(i,j,k)**2
+          ENDDO
+        ENDDO
+      ENDDO
+      IF ( iobin.GT.0 ) THEN
+        IF ( oswap.NE.0 ) THEN
+          rtmp2 = rtmp
+          CALL rarray_byte_swap(rtmp2, n*n*(kend-ksta+1))
+        ENDIF
+        CALL io_write(1,odir,'vshw',ext,planio,rtmp2)  ! output (du_x/dz)^2 + (du_y/dz)^2
+      ENDIF
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
@@ -1481,6 +1508,13 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
           ENDDO
         ENDDO
       ENDDO
+      IF ( iobin.GT.0 ) THEN
+        rtmp2 = rtmp
+        IF ( oswap.NE.0 ) THEN
+          CALL rarray_byte_swap(rtmp2, n*n*(kend-ksta+1))
+        ENDIF
+        CALL io_write(1,odir,'rig',ext,planio,rtmp2)  ! output Ri_g
+      ENDIF
       fnout = trim(odir) // '/' // 'riipdf.' // ext // '.txt'
       fmin(1) = -10.0;
       fmax(1) =  10.0;
@@ -1528,6 +1562,13 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
           ENDDO
         ENDDO
       ENDDO
+      IF ( iobin.GT.0 ) THEN
+        rtmp2 = rtmp
+        IF ( oswap.NE.0 ) THEN
+          CALL rarray_byte_swap(rtmp2, n*n*(kend-ksta+1))
+        ENDIF
+        CALL io_write(1,odir,'wth',ext,planio,rtmp2)  ! output w\theta
+      ENDIF
       If ( ibits(kin,0,1).EQ.1 ) THEN
       fnout = trim(odir) // '/' // 'wtpdf.' // ext // '.txt'
       CALL dopdfr(rtmp1,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
