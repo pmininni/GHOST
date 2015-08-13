@@ -205,10 +205,15 @@
           IF ( ibits(putnm,1,1).EQ.1 ) THEN ! output real fields
             CALL PutRealFields(1,odir,ext,planio,a0,am,ap,vx,vy,vz,th,omega,bvfreq,c1,c2,c3,c4,r1,r2,ivec,'av')
           ENDIF
+
          IF ( trans.LE.10 ) THEN
 !            CALL WVNormal(a0,am,ap,vx,vy,vz,th,omega,bvfreq) ! this seems unnecessary
+if ( myrank.eq.0 ) write(*,*)'main: calling wvspectrum...'
             CALL wvspectrum(a0,am,ap,omega,bvfreq,odir,ext,ext1,i2d)
+if ( myrank.eq.0 ) write(*,*)'main: calling wvzspectrum...'
+     !SUBROUTINE wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq, dir,nmb,nmb1,i2d,c1,c2,c3,r1,r2,r3)
             CALL wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,odir,ext,ext1,i2d,c1,c2,c3,r1,r2,r3)
+if ( myrank.eq.0 ) write(*,*)'main: wvzspectrum done'
          ENDIF
          IF ( MOD(trans,10).EQ.1 ) THEN
             CALL wvtrans(a0,am,ap,vx,vy,vz,th,omega,bvfreq,odir,ext,ext1,i2d,c1,c2,c3)
@@ -247,14 +252,16 @@
           ENDIF
 !if ( myrank.eq.0 ) write(*,*)'main: fft_rc on th...',ext
           CALL fftp3d_real_to_complex(planrc,r1,th,MPI_COMM_WORLD)
-!if ( myrank.eq.0 ) write(*,*)'main: calling WVNormal ...'
+if ( myrank.eq.0 ) write(*,*)'main: calling WVNormal ...'
           CALL WVNormal(a0,am,ap,vx,vy,vz,th,omega,bvfreq)
+
+if ( myrank.eq.0 ) write(*,*)'main: trans=', trans
           IF ( trans.LE.10 ) THEN
-!if ( myrank.eq.0 ) write(*,*)'main: calling wvspectrum...'
+if ( myrank.eq.0 ) write(*,*)'main: calling wvspectrum...'
              CALL wvspectrum(a0,am,ap,omega,bvfreq,odir,ext,'',i2d)
-!if ( myrank.eq.0 ) write(*,*)'main: calling wvzspectrum...'
+if ( myrank.eq.0 ) write(*,*)'main: calling wvzspectrum...'
              CALL wvzspectrum(a0,vx,vy,vz,th,omega,bvfreq,odir,ext,'',i2d,c1,c2,c3,r1,r2,r3)
-!if ( myrank.eq.0 ) write(*,*)'main: wvzspectrum done'
+if ( myrank.eq.0 ) write(*,*)'main: wvzspectrum done'
           ENDIF
           IF ( MOD(trans,10).EQ.1 ) THEN
 !if ( myrank.eq.0 ) write(*,*)'main: calling wvtrans...'
@@ -853,8 +860,11 @@
 !-----------------------------------------------------------------
 !                        isotropic spectra:
 !-----------------------------------------------------------------
+!if(myrank.eq.0) write(*,*)'wvspectrum: doing total energy...'
       CALL wvspectrumc(a0,am,ap,omega,bvfreq,1,1,E0k ,EWk  ) ! total energy
+!if(myrank.eq.0) write(*,*)'wvspectrum: doing KE ...'
       CALL wvspectrumc(a0,am,ap,omega,bvfreq,3,1,EV0k,EVWk ) ! KE (only EV0)
+!if(myrank.eq.0) write(*,*)'wvspectrum: doing PE  ...'
       CALL wvspectrumc(a0,am,ap,omega,bvfreq,4,1,EP0k,EPWk ) ! PE 
       DO j = 1,n/2+1
         EVWk(j) = E0k(j)+EWk(j)-EV0k(j)-EP0k(j)-EPWk(j)
@@ -871,6 +881,7 @@
          CLOSE(1)
       ENDIF
 !
+if(myrank.eq.0) write(*,*)'wvspectrum: doing helicity  ...'
       CALL wvspectrumc(a0,am,ap,omega,bvfreq,2,1,E0k ,EWk  ) ! Helicity 
       IF (myrank.eq.0) THEN
          if ( len_trim(nmb1).gt.0 ) then
@@ -885,6 +896,7 @@
       ENDIF
 
       IF ( i2d.GT.0 ) THEN
+!if(myrank.eq.0) write(*,*)'wvspectrum: doing axisymm E0, EW...'
       CALL wvspecaxic(a0,am,ap,omega,bvfreq,1,F0axi,FWaxi) ! 2D axisymm spec E0, EW
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
@@ -906,6 +918,7 @@
         CLOSE(1)
       ENDIF
 
+!if(myrank.eq.0) write(*,*)'wvspectrum: doing axisymm EV0...'
       CALL wvspecaxic(a0,am,ap,omega,bvfreq,3,F0axi,FWaxi) ! 2D axisymm spec EV0 (only F0 filled)
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
@@ -917,6 +930,7 @@
         CLOSE(1)
       ENDIF
 
+!if(myrank.eq.0) write(*,*)'wvspectrum: doing axisymm EP0, EPW...'
       CALL wvspecaxic(a0,am,ap,omega,bvfreq,4,F0axi,FWaxi) ! 2D axisymm spec EP0, EPW
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
@@ -938,6 +952,7 @@
         CLOSE(1)
       ENDIF
 
+!if(myrank.eq.0) write(*,*)'wvspectrum: doing axisymm H0, HW...'
       CALL wvspecaxic(a0,am,ap,omega,bvfreq,2,F0axi,FWaxi) ! 2D axisymm spec H0, HW
       IF (myrank.eq.0) THEN 
         if ( len_trim(nmb1).gt.0 ) then 
@@ -963,6 +978,7 @@
 !-----------------------------------------------------------------
 !                        perpendicular spectra:
 !-----------------------------------------------------------------
+!if(myrank.eq.0) write(*,*)'wvspectrum: doing perp spectra...'
       CALL wvspectrumc(a0,am,ap,omega,bvfreq,1,2,E0k ,EWk  ) ! total energy
       CALL wvspectrumc(a0,am,ap,omega,bvfreq,3,2,EV0k,EVWk ) ! KE (only E0)
       CALL wvspectrumc(a0,am,ap,omega,bvfreq,4,2,EP0k,EPWk ) ! PE 
@@ -997,6 +1013,7 @@
 !-----------------------------------------------------------------
 !                        parallel spectra:
 !-----------------------------------------------------------------
+!if(myrank.eq.0) write(*,*)'wvspectrum: doing para spectra...'
       CALL wvspectrumc(a0,am,ap,omega,bvfreq,1,3,E0k ,EWk  ) ! total energy
       CALL wvspectrumc(a0,am,ap,omega,bvfreq,3,3,EV0k,EVWk ) ! KE (only E0)
       CALL wvspectrumc(a0,am,ap,omega,bvfreq,4,3,EP0k,EPWk ) ! PE 
@@ -1028,7 +1045,6 @@
          CLOSE(1)
       ENDIF
 !
-      RETURN
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
       END SUBROUTINE wvspectrum
@@ -1770,7 +1786,6 @@
       CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
 
-      RETURN
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
       END SUBROUTINE sctransc
@@ -1876,7 +1891,6 @@
       CALL MPI_REDUCE(Ek,Ektot,(n/2+1)*(n/2+1),GC_REAL,            &
                          MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      RETURN
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
       END SUBROUTINE sctrans2Dc
@@ -2069,7 +2083,6 @@
       CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
 
-      RETURN
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
       END SUBROUTINE entransc
@@ -2258,7 +2271,6 @@
       CALL MPI_REDUCE(Ek,Ektot,(n/2+1)*(n/2+1),GC_REAL,            &
                          MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
-      RETURN
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
       END SUBROUTINE entrans2Dc
@@ -2415,7 +2427,6 @@
          CLOSE(1)
       ENDIF
 
-      RETURN
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
       END SUBROUTINE wvtrans
@@ -2504,7 +2515,6 @@
       CALL fftp3d_real_to_complex(planrc,r3,y,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,r1,z,MPI_COMM_WORLD)
 
-      RETURN
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
       END SUBROUTINE vector3
@@ -2904,7 +2914,6 @@
          CLOSE(1)
       ENDIF
 
-      RETURN
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
       END SUBROUTINE wvtransfull
@@ -3026,7 +3035,7 @@
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: v
-      COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(n,n,ista:iend) :: p
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(n,n,ista:iend) :: p
       REAL   (KIND=GP), INTENT   (IN)                           :: c
       INTEGER                                                   :: i,j,k
 
@@ -3163,9 +3172,14 @@
       INTEGER                                                   :: i,j,k
 
       tmp = 1.0_GP/real(n,kind=GP)**6
+
+!if (myrank.eq.0)write(*,*)'wgradt: deriv x th:'
       CALL derivk3(th,gn,1)
+!if (myrank.eq.0)write(*,*)'wgradt: c2f deriv x th:'
       CALL fftp3d_complex_to_real(plancr,gn,r1,MPI_COMM_WORLD)
+!if (myrank.eq.0)write(*,*)'wgradt: omega x th:'
       CALL rotor3(vy,vz,c1,1)
+!if (myrank.eq.0)write(*,*)'wgradt: c2f omega x th:'
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -3177,9 +3191,13 @@
          END DO
       END DO
 
+!if (myrank.eq.0)write(*,*)'wgradt: deriv y th:'
       CALL derivk3(th,gn,2)
+!if (myrank.eq.0)write(*,*)'wgradt: c2f deriv x th:'
       CALL fftp3d_complex_to_real(plancr,gn,r1,MPI_COMM_WORLD)
+!if (myrank.eq.0)write(*,*)'wgradt: omega y th:'
       CALL rotor3(vx,vz,c1,2)
+!if (myrank.eq.0)write(*,*)'wgradt: c2f omega y th:'
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -3191,9 +3209,13 @@
          END DO
       END DO
 
+!if (myrank.eq.0)write(*,*)'wgradt: deriv y th:'
       CALL derivk3(th,gn,3)
+!if (myrank.eq.0)write(*,*)'wgradt: c2f deriv x th:'
       CALL fftp3d_complex_to_real(plancr,gn,r1,MPI_COMM_WORLD)
+!if (myrank.eq.0)write(*,*)'wgradt: omega y th:'
       CALL rotor3(vx,vy,c1,3)
+!if (myrank.eq.0)write(*,*)'wgradt: c2f omega y th:'
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -3205,6 +3227,7 @@
          END DO
       END DO
 
+!if (myrank.eq.0)write(*,*)'wgradt: f2c omega.grad th:'
        CALL fftp3d_real_to_complex(planrc,r3,gn,MPI_COMM_WORLD)
 
 !-----------------------------------------------------------------
@@ -3248,7 +3271,7 @@
       REAL   (KIND=GP),                DIMENSION(n/2+1,n/2+1)   :: eaxi
       COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(n,n,ista:iend) :: a0,vx,vy,vz,th
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: c1,c2,c3
-      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: r1,r2,r3
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: r1,r2,r3
       REAL   (KIND=GP), INTENT   (IN)                           :: bvfreq,omega
       INTEGER,          INTENT   (IN)                           :: i2d
       INTEGER                      :: j
@@ -3256,6 +3279,7 @@
 
 !
 ! isotropic spectra:
+if(myrank.eq.0) write(*,*)'wvzspectrum: calling PVn....'
       CALL PVn(c2,a0,vx,vy,vz,th,omega,bvfreq,1,c1,r1,r2,r3) 
       CALL spectrumg(c2,1,E2k)   ! isotropic spectrum of Z2
       CALL spectrumg(c2,2,E2kpr) ! reduced perp spectrum of Z2
@@ -3272,10 +3296,14 @@
         CLOSE(1)
       ENDIF
       ENDIF
+if(myrank.eq.0) write(*,*)'wvzspectrum: calling wgradt....'
 
       CALL wgradt(c3,vx,vy,vz,th,c1,r1,r2,r3)
+if(myrank.eq.0) write(*,*)'wvzspectrum: calling E4k....'
       CALL spectrumg(c3,1,E4k)   ! isotropic spectrum of Z4
+if(myrank.eq.0) write(*,*)'wvzspectrum: calling E4kpr....'
       CALL spectrumg(c3,2,E4kpr) ! reduced perp spectrum of Z4
+if(myrank.eq.0) write(*,*)'wvzspectrum: calling E4kpa....'
       CALL spectrumg(c3,3,E4kpa) ! reduced para spectrum of Z4
       IF ( i2d.GT.0 ) THEN
       CALL specaxig (c3,   eaxi) ! axisymm. 2d spectra for Z4
@@ -3356,9 +3384,7 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: writing z para spectra....'
       ENDIF
 if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
 !
-      CALL mpi_barrier(MPI_COMM_WORLD,ierr)
 
-      RETURN
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
       END SUBROUTINE wvzspectrum
@@ -4044,7 +4070,7 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       ENDIF
       sout = 'th'   // trim(prend) // suff(kout+1)
       CALL io_write(1,odir,trim(sout),ext,planio,r1)
-      CALL printprops('primprops',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
+      CALL printprops('varprops.txt',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
    
 
       IF ( ibits(ivec,1,1).eq.1 ) THEN
@@ -4055,7 +4081,7 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
         ENDIF
         sout = 'vmag'  // trim(prend) // suff(kout+1) 
         CALL io_write(1,odir,trim(sout),ext,planio,r1)
-        CALL printprops('primprops',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
+        CALL printprops('varprops.txt',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
       ENDIF
 
       IF ( ibits(ivec,0,1) .eq. 0 ) RETURN
@@ -4068,7 +4094,7 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       ENDIF
       sout = 'vx'   // trim(prend) // suff(kout+1)
       CALL io_write(1,odir,trim(sout),ext,planio,r1)
-      CALL printprops('primprops',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
+      CALL printprops('varprops.txt',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
 
       c1 = vy*tmp
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
@@ -4078,7 +4104,7 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       ENDIF
       sout = 'vy'  // trim(prend) // suff(kout+1)
       CALL io_write(1,odir,trim(sout),ext,planio,r1)
-      CALL printprops('primprops',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
+      CALL printprops('varprops.txt',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
 
       c1 = vz*tmp
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
@@ -4088,7 +4114,7 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       ENDIF
       sout = 'vz' // trim(prend) //  suff(kout+1)
       CALL io_write(1,odir,trim(sout),ext,planio,r1)
-      CALL printprops('primprops',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
+      CALL printprops('varprops.txt',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
 
 
 !-----------------------------------------------------------------
@@ -4170,7 +4196,7 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
         ENDIF
         sout = 'wmag' // trim(prend) // suff(kout+1)
         CALL io_write(1,odir,trim(sout),ext,planio,r1)
-        CALL printprops('primprops',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
+        CALL printprops('varprops.txt',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
       ENDIF
 
       IF ( ibits(ivec,0,1).eq.0 ) RETURN
@@ -4183,7 +4209,7 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       ENDIF
       sout = 'wx'  // trim(prend) // suff(kout+1)
       CALL io_write(1,odir,trim(sout),ext,planio,r1)
-      CALL printprops('primprops',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
+      CALL printprops('varprops.txt',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
 
       c1 = c2*tmp
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
@@ -4193,7 +4219,7 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       ENDIF
       sout = 'wy'  // trim(prend) // suff(kout+1)
       CALL io_write(1,odir,trim(sout),ext,planio,r1)
-      CALL printprops('primprops',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
+      CALL printprops('varprops.txt',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
 
       c1 = c3*tmp
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
@@ -4203,7 +4229,7 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       ENDIF
       sout = 'wz'  // trim(prend) // suff(kout+1)
       CALL io_write(1,odir,trim(sout),ext,planio,r1)
-      CALL printprops('primprops',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
+      CALL printprops('varprops.txt',trim(sout),ext,rmin,rmax,rmean,rrms,rstd)
 
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -4291,7 +4317,7 @@ if(myrank.eq.0) write(*,*)'wvzspectrum: done.'
       IF ( myrank.NE.0 ) RETURN
 
       OPEN(1,file=fname,position='append')
-      WRITE(1,*) vname,ext,rmin,rmax,rmean,rrms,rstd
+      WRITE(1,*) vname,' ',ext,' ',rmin,rmax,rmean,rrms,rstd
       CLOSE(1)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
