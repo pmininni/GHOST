@@ -524,19 +524,20 @@ MODULE gutils
       INTEGER                                        :: hwrite,i,j,jx,jy,nkeep
       CHARACTER(len=2048)                            :: shead
 
-if ( myrank.eq. 0 ) write(*,*)'dojpdf: sR1=',sR1,' sR2=',sR2, ' nbins=',nbins, ' ifixdr=',ifixdr, ' dolog=',dolog
+!if ( myrank.eq. 0 ) write(*,*)'dojpdf: sR1=',sR1,' sR2=',sR2, ' nbins=',nbins, ' ifixdr=',ifixdr, ' dolog=',dolog
 
       IF ( .NOT. ALLOCATED(ikeep_) .OR. nin.GT.nikeep_ ) THEN
         IF ( ALLOCATED(ikeep_ ) )DEALLOCATE(ikeep_)
         ALLOCATE(ikeep_(nin))
         nikeep_ = nin
       ENDIF
-if ( myrank.eq. 0 ) write(*,*)'dojpdf: allocating fpdf2,gpdf2:'
+!if ( myrank.eq. 0 ) write(*,*)'dojpdf: checking need for allocation:'
       IF ( nbins(1).NE.nbins2_(1) .OR. &
            nbins(2).NE.nbins2_(2) .OR. &
           .NOT. ALLOCATED(fpdf2_) .OR. &
           .NOT. ALLOCATED(gpdf2_)      &
          ) THEN
+!if ( myrank.eq. 0 ) write(*,*)'dojpdf: allocating fpdf2,gpdf2:'
 
         ! Re-allocate if necessary:
         IF ( ALLOCATED(fpdf2_) ) DEALLOCATE(fpdf2_)
@@ -553,7 +554,7 @@ if ( myrank.eq. 0 ) write(*,*)'dojpdf: allocating fpdf2,gpdf2:'
       fmax1(1) = MAXVAL(R1(1:nin),nin)
       fmin1(2) = MINVAL(R2(1:nin),nin)
       fmax1(2) = MAXVAL(R2(1:nin),nin)
-if ( myrank.eq. 0 ) write(*,*)'dojpdf: reductions for min/max:'
+!if ( myrank.eq. 0 ) write(*,*)'dojpdf: reductions for min/max:'
       CALL MPI_ALLREDUCE(fmin1,gmin,2, GC_REAL,      &
                          MPI_MIN,MPI_COMM_WORLD,ierr)
       CALL MPI_ALLREDUCE(fmax1,gmax,2, GC_REAL,      &
@@ -595,7 +596,7 @@ if ( myrank.eq. 0 ) write(*,*)'dojpdf: reductions for min/max:'
       ENDDO
 !$omp end parallel do 
 
-if ( myrank.eq. 0 ) write(*,*)'dojpdf: reductions for gkeep:'
+!if ( myrank.eq. 0 ) write(*,*)'dojpdf: reductions for gkeep:'
       CALL MPI_ALLREDUCE(fkeep, gkeep, 1, MPI_REAL, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
       IF ( gkeep.LE.0.0 ) THEN
@@ -625,7 +626,7 @@ if ( myrank.eq. 0 ) write(*,*)'dojpdf: reductions for gkeep:'
        sumr(2) = aa
 
       xnorm(1:2) = 1.0_GP/gkeep
-if ( myrank.eq. 0 ) write(*,*)'dojpdf: reductions for avg:'
+!if ( myrank.eq. 0 ) write(*,*)'dojpdf: reductions for avg:'
       CALL MPI_ALLREDUCE(sumr, gavg, 2, GC_REAL, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
       gavg(1:2) = gavg(1:2)*xnorm(1:2)
@@ -646,7 +647,7 @@ if ( myrank.eq. 0 ) write(*,*)'dojpdf: reductions for avg:'
 !$omp end parallel do 
       sumr(2) = aa
 
-if ( myrank.eq. 0 ) write(*,*)'dojpdf: reductions for var:'
+!if ( myrank.eq. 0 ) write(*,*)'dojpdf: reductions for var:'
       CALL MPI_ALLREDUCE(sumr, sig, 2, GC_REAL, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
       DO i = 1,2
@@ -659,7 +660,7 @@ if ( myrank.eq. 0 ) write(*,*)'dojpdf: reductions for var:'
         del (j) = ABS(fmax(j)-fmin(j))/dble(nbins(j))
       ENDDO
 
-if ( myrank.eq. 0 ) write(*,*)'dojpdf: compute local pdf:'
+!if ( myrank.eq. 0 ) write(*,*)'dojpdf: compute local pdf:'
       ! Compute local PDF:
       IF ( dolog(1).GT.0 .AND. dolog(2).GT.0 ) THEN
 !$omp parallel do private (jx,jy,test) 
@@ -731,16 +732,18 @@ if ( myrank.eq. 0 ) write(*,*)'dojpdf: compute local pdf:'
           STOP
         ENDIF
      
-if ( myrank.eq. 0 ) write(*,*)'dojpdf: compute global pdf: nbins2_=',nbins2_
+!if ( myrank.eq. 0 ) write(*,*)'dojpdf: compute global pdf: nbins2_=',nbins2_
       ! Compute global reduction between MPI tasks:
-      CALL MPI_REDUCE(fpdf2_, gpdf2_, nbins2_(1)*nbins2_(2), MPI_REAL, &
-                      MPI_SUM, 0, MPI_COMM_WORLD,ierr)
+!     CALL MPI_REDUCE(fpdf2_, gpdf2_, nbins2_(1)*nbins2_(2), MPI_REAL, &
+!                     MPI_SUM, 0, MPI_COMM_WORLD,ierr)
+      CALL MPI_ALLREDUCE(fpdf2_, gpdf2_, nbins2_(1)*nbins2_(2), MPI_REAL, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
       IF ( ierr.NE.MPI_SUCCESS ) THEN
         WRITE(*,*)'dojpdf: error in fpdf reduction'
         STOP
       ENDIF
 
-if ( myrank.eq. 0 ) write(*,*)'dojpdf: writing to disk...'
+!if ( myrank.eq. 0 ) write(*,*)'dojpdf: writing to disk...'
       ! Write PDF to disk:
       CALL GTStart(hwrite,GT_WTIME)
       IF ( myrank.eq.0 ) THEN
@@ -755,7 +758,11 @@ if ( myrank.eq. 0 ) write(*,*)'dojpdf: writing to disk...'
         trim(sR1),'_rng=[',fmin(1),',',fmax(1),']; ',trim(sR1),'_avg=',gavg(1),'; ',trim(sR1),'_sig=',sig(1),'; ',&
         trim(sR2),'_rng=[',fmin(2),',',fmax(2),']; ',trim(sR2),'_avg=',gavg(2),'; ',trim(sR2),'_sig=',sig(2),'; ',&
         'nbin=[', nbins(1),',',nbins(2), ']; blog=[', dolog(1),',',dolog(2),']; nkeep=',gkeep
-         OPEN(1,file=fname)
+         OPEN(1,file=fname,iostat=ierr)
+         IF ( ierr.ne.0 ) THEN
+           WRITE(*,*) 'dojpdf2: error opening file: ', fname
+           STOP
+         ENDIF
          WRITE(1,'(A)') trim(shead)
          WRITE(1,40) gpdf2_
    40    FORMAT( E23.15 )
@@ -763,7 +770,7 @@ if ( myrank.eq. 0 ) write(*,*)'dojpdf: writing to disk...'
          CALL GTStop(hwrite)
          write(*,*)'dojpdf: file: ',trim(fname),': write time: ',GTGetTime(hwrite)
       ENDIF
-if ( myrank.eq. 0 ) write(*,*)'dojpdf: writing to disk done.'
+!if ( myrank.eq. 0 ) write(*,*)'dojpdf: writing to disk done.'
       CALL GTFree(hwrite)
       CALL MPI_BARRIER(MPI_COMM_WORLD,ierr) 
 
