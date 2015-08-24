@@ -532,8 +532,8 @@ if ( myrank.eq. 0 ) write(*,*)'dojpdf: sR1=',sR1,' sR2=',sR2, ' nbins=',nbins, '
         nikeep_ = nin
       ENDIF
 if ( myrank.eq. 0 ) write(*,*)'dojpdf: allocating fpdf2,gpdf2:'
-      IF ( nbins(1).GT.nbins2_(1) .OR. &
-           nbins(2).GT.nbins2_(2) .OR. &
+      IF ( nbins(1).NE.nbins2_(1) .OR. &
+           nbins(2).NE.nbins2_(2) .OR. &
           .NOT. ALLOCATED(fpdf2_) .OR. &
           .NOT. ALLOCATED(gpdf2_)      &
          ) THEN
@@ -731,7 +731,7 @@ if ( myrank.eq. 0 ) write(*,*)'dojpdf: compute local pdf:'
           STOP
         ENDIF
      
-if ( myrank.eq. 0 ) write(*,*)'dojpdf: compute global pdf:'
+if ( myrank.eq. 0 ) write(*,*)'dojpdf: compute global pdf: nbins2_=',nbins2_
       ! Compute global reduction between MPI tasks:
       CALL MPI_REDUCE(fpdf2_, gpdf2_, nbins2_(1)*nbins2_(2), MPI_REAL, &
                       MPI_SUM, 0, MPI_COMM_WORLD,ierr)
