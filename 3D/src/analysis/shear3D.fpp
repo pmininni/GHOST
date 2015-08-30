@@ -142,7 +142,7 @@
       iobin = 0
       ilamb  = 0
       irand  = 0
-      isheb  = 1
+      isheb  = 0
       isolve = 0
       jpdf   = 3
       krmin  = tiny
@@ -184,6 +184,8 @@
 !              3: do both 1d and joint pdfs
 !     demean : demean the eigenvalue field?
 !     dolog  : compute PDFs in log=space?
+!     bvfreq : Brunt-Vaisalla freq
+!     omega  : Rotation rate
 
       IF (myrank.eq.0) THEN
 write(*,*)'main: opening shear.txt...'
@@ -213,6 +215,8 @@ write(*,*)'main: shear.txt read.'
       CALL MPI_BCAST(oswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(krmin ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(krmax ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(bvfreq,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(omega ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
 if (myrank.eq.0) write(*,*)'main: broadcast done.'
 !
       nbins(1) = nbinx
@@ -364,7 +368,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 
 ! Do new kspecpara:
        CALL specpara(vx,vy,vz,ext,1,1);
-       cycle
+!!     cycle
 
 ! Do Shebalin angles:
 #if defined(SCALAR_)
@@ -408,18 +412,18 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
       ENDIF
 
 #if defined(SCALAR_)
-        indt = (istat(it)-1)*tstep
-        CALL tbouss(vx,vy,vz,th,indt,dt,omega,bvfreq)
-        CALL havgwrite(0,'shear'  ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg shear
-        CALL havgwrite(1,'tgradz' ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg dtheta/dz
-        CALL havgwrite(2,'hawdtdz',ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg u_z * dtheta/dz
-        CALL havgwrite(3,'hahke'  ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg hor. k.e.
-        CALL havgwrite(4,'havke'  ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg vert. k.e.
-!       CALL havgwrite(5,'haphel' ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg perp. helicity
-        CALL havgwrite(6,'haomzt' ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg ometa_z * theta
-        CALL havgwrite(7,'hapv2'  ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg pot'l vorticity^2
-        CALL havgwrite(8,'hasuph' ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg super-helicity
-        CALL havgwrite(9,'hari'   ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg Richardson no.
+!       indt = (istat(it)-1)*tstep
+!       CALL tbouss(vx,vy,vz,th,indt,dt,omega,bvfreq)
+!       CALL havgwrite(0,'shear'  ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg shear
+!       CALL havgwrite(1,'tgradz' ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg dtheta/dz
+!       CALL havgwrite(2,'hawdtdz',ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg u_z * dtheta/dz
+!       CALL havgwrite(3,'hahke'  ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg hor. k.e.
+!       CALL havgwrite(4,'havke'  ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg vert. k.e.
+!!      CALL havgwrite(5,'haphel' ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg perp. helicity
+!       CALL havgwrite(6,'haomzt' ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg ometa_z * theta
+!       CALL havgwrite(7,'hapv2'  ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg pot'l vorticity^2
+!       CALL havgwrite(8,'hasuph' ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg super-helicity
+!       CALL havgwrite(9,'hari'   ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. avg Richardson no.
 #endif
 
 !write(*,*)'main: ktmin2=',ktmin2, ' ktmax2=',ktmax2
@@ -428,6 +432,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
         inorm = 1
 
         IF ( istrain.GT.0 ) THEN
+if (myrank.eq.0) write(*,*)'main: doing Strain components...'
         CALL Strain(vx,vy,vz,1,1,ktmin,ktmax,inorm,sij,ctmp)
         CALL fftp3d_complex_to_real(plancr,sij,R1,MPI_COMM_WORLD)
         CALL Strain(vx,vy,vz,1,2,ktmin,ktmax,inorm,sij,ctmp)
@@ -442,6 +447,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 
 ! Compute required eigenvalue field of strain:
         IF ( ilamb.GT. 0 ) THEN
+if (myrank.eq.0) write(*,*)'main: doing Eigen system...'
           IF ( isolve.GT.0 ) THEN
             CALL EigenSolveMax(R1,R2,R3,R4,R5,lamb,evx,evy,evz)
           ELSE 
@@ -498,6 +504,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 ! Prepare eignesystem for output if necessary
 ! (don't forget to undo swaps for later):
         IF ( iobin.GT.0 ) THEN
+if (myrank.eq.0) write(*,*)'main: output lambda...'
           IF ( oswap .NE. 0 ) THEN
             CALL rarray_byte_swap(lamb, n*n*(kend-ksta+1))
           ENDIF
@@ -522,6 +529,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
             CALL rarray_byte_swap(lamb, n*n*(kend-ksta+1))
           ENDIF
 
+if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
           CALL DoKPDF(R1,R2,R3,R4,R5,vx,vy,vz,th,lamb,bvfreq,ext    , &
                odir,nbins,dolog,ctmp,sij,evx,evy,evz,jpdf,planio,iobin)
         ENDIF
