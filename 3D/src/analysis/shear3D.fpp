@@ -1154,8 +1154,8 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
       REAL   (KIND=GP)                                          :: ss11,ss12,ss13,ss22,ss23,ss33
       REAL   (KIND=GP)                                          :: sf11,sf12,sf13,sf22,sf23,sf33
       DOUBLE PRECISION                                          :: s2,s3,s4
-      REAL   (KIND=GP)                                          :: rif,upf,dthf,thf,ktrf,ptrf,wtf
-      REAL   (KIND=GP)                                          :: ris,ups,dths,ths,ktrs,ptrs,wts
+      REAL   (KIND=GP)                                          :: rif,dupf,upf,dthf,thf,ktrf,ptrf,wtf
+      REAL   (KIND=GP)                                          :: ris,dups,ups,dths,ths,ktrs,ptrs,wts
       REAL   (KIND=GP)                                          :: vs1,vs2,vs3
       REAL   (KIND=GP)                                          :: vf1,vf2,vf3
       REAL   (KIND=GP)                                          :: ws1,ws2,ws3
@@ -1393,21 +1393,30 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
           ENDDO
         ENDDO
       ENDDO
+      ! Compute dup/dz
+      rtmp1 = rtmp;
+      CALL fftp3d_real_to_complex(planrc,rtmp1,ctmp,MPI_COMM_WORLD)
+      CALL derivk3(ctmp, vtmp, 3)
+      vtmp = vtmp * xnormn
+      CALL fftp3d_complex_to_real(plancr,vtmp,rtmp1,MPI_COMM_WORLD)
       If ( ibits(kin,0,1).EQ.1 ) THEN
       fnout = trim(odir) // '/' // 'uppdf.' // ext // '.txt'
-      CALL dopdfr(rtmp,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(rtmp ,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      fnout = trim(odir) // '/' // 'dupdzpdf.' // ext // '.txt'
+      CALL dopdfr(rtmp1,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ENDIF
-      CALL skewflat(rtmp,nin,n,ups,upf,s2,s3,s4)       ! up
+      CALL skewflat(rtmp ,nin,n, ups, upf,s2,s3,s4)       ! up
+      CALL skewflat(rtmp1,nin,n,dups,dupf,s2,s3,s4)       ! dup/dz
 
       ! Print out skewness and flatness data:
       IF ( myrank.EQ.0 ) THEN
         fnout = trim(odir) // '/' // 'skew.txt'
         OPEN(1,file=trim(fnout),position='append')
-        WRITE(1,*)ext,ss11,ss12,ss13,ss22,ss23,ss33,vs1,vs2,vs3,ws1,ws2,ws3,sdiss,senst,sheli,slamb,ups
+        WRITE(1,*)ext,ss11,ss12,ss13,ss22,ss23,ss33,vs1,vs2,vs3,ws1,ws2,ws3,sdiss,senst,sheli,slamb,ups,dups
         CLOSE(1)
         fnout = trim(odir) // '/' // 'flat.txt'
         OPEN(1,file=trim(fnout),position='append')
-        WRITE(1,*)ext,sf11,sf12,sf13,sf22,sf23,sf33,vf1,vf2,vf3,wf1,wf2,wf3,fdiss,fenst,fheli,flamb,upf
+        WRITE(1,*)ext,sf11,sf12,sf13,sf22,sf23,sf33,vf1,vf2,vf3,wf1,wf2,wf3,fdiss,fenst,fheli,flamb,upf,dupf
         CLOSE(1)
       ENDIF
 
