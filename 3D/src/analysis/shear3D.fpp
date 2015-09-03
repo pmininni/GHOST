@@ -1509,8 +1509,8 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
         ENDDO
       ENDDO
       IF ( iobin.GT.0 ) THEN
+        rtmp2 = rtmp
         IF ( oswap.NE.0 ) THEN
-          rtmp2 = rtmp
           CALL rarray_byte_swap(rtmp2, n*n*(kend-ksta+1))
         ENDIF
         CALL io_write(1,odir,'vshw',ext,planio,rtmp2)  ! output (du_x/dz)^2 + (du_y/dz)^2
