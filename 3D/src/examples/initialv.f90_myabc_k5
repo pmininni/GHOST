@@ -25,7 +25,7 @@
          DO j = 1,n
             DO i = 1,n
             R1(i,j,k) = 0.
-            DO ki = kdn,kup
+            DO ki = INT(kdn),INT(kup)
                R1(i,j,k) = R1(i,j,k)+(vparam1*COS(2*pi*ki*(float(j)-1)/     &
                           float(n)+phase)+vparam2*SIN(2*pi*ki*(float(k)-1)/ &
                           float(n)+phase))/float(ki)
@@ -38,7 +38,7 @@
          DO j = 1,n
             DO i = 1,n
             R1(i,j,k) = 0.
-            DO ki = kdn,kup
+            DO ki = INT(kdn),INT(kup)
                R1(i,j,k) = R1(i,j,k)+(vparam0*SIN(2*pi*ki*(float(i)-1)/     &
                           float(n)+phase)+vparam2*COS(2*pi*ki*(float(k)-1)/ &
                           float(n)+phase))/float(ki)
@@ -51,7 +51,7 @@
          DO j = 1,n
             DO i = 1,n
             R1(i,j,k) = 0.
-            DO ki = kdn,kup
+            DO ki = INT(kdn),INT(kup)
                R1(i,j,k) = R1(i,j,k)+(vparam0*COS(2*pi*ki*(float(i)-1)/     &
                           float(n)+phase)+vparam1*SIN(2*pi*ki*(float(j)-1)/ &
                           float(n)+phase))/float(ki)

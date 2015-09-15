@@ -8,7 +8,7 @@ N        = 128
 ORD      = 2
 
 # SOLVER:  (read the file SOLVERS for a list of options)
-SOLVER   = HD
+SOLVER   = ARGL
 
 # PRECISION: (SINGLE or DOUBLE)
 PRECISION= SINGLE
@@ -109,7 +109,7 @@ TARGET_INTEL  =
 CPP_GNU       = cpp -traditional-cpp
 FC_GNU        = gfortran
 CC_GNU        = gcc
-FFLAGS_GNU    = -O4 -fbounds-check -fcheck=all
+FFLAGS_GNU    = -O4
 FPSPEC_GNU    = -O1 
 CFLAGS_GNU    = -O4
 GNU_OMP       = -fopenmp

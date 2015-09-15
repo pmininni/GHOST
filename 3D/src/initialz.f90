@@ -13,8 +13,6 @@
 ! call to 'normalize' in initialv should be commented out).
 !     kdn    : minimum wave number
 !     kup    : maximum wave number
-!     zparam0: amplitude of the perturbation
-!     zparam1: length of the perturbation (in 2.pi units)
 
       dump = 1.0_GP/sqrt(2.0_GP)
 
@@ -31,7 +29,7 @@
       END DO
 
 ! Computes a superposition of vortex filaments at different wavenumbers
-      DO ki = kdn,kup
+      DO ki = INT(kdn),INT(kup)
 
 ! We generate the functions lambda (rm1) and mu (rm2)
 !$omp parallel do if (kend-ksta.ge.nth) private (i,j,rmp,rmq)

@@ -12,8 +12,6 @@
 ! Superposition of Taylor-Green vortices. The TG flow is perturbed by 
 ! 3D white-distributed random noise, with a specified level relative 
 ! to energy.
-!     kdn : minimum noise wave number
-!     kup : maximum noise wave number
 !     u0  : velocity magnitude
 !     vparam0: level of noise.
 !     vparam1: magnitude of TG vortex at k=1 

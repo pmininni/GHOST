@@ -24,7 +24,7 @@
             R2(i,j,k) = 0.
             R3(i,j,k) = 0.
 
-            DO ki = kdn,kup
+            DO ki = INT(kdn),INT(kup)
                R1(i,j,k) = R1(i,j,k)+fparam1*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
                           real(n,kind=GP))+fparam2*SIN(2*pi*ki*(real(k,kind=GP)-1)/  &
                           real(n,kind=GP))

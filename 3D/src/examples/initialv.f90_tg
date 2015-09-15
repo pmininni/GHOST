@@ -32,7 +32,7 @@
             R1(i,j,k) = 0.0_GP
             R2(i,j,k) = 0.0_GP
 
-            DO ki = kdn,kup
+            DO ki = INT(kdn),INT(kup)
                R1(i,j,k) = R1(i,j,k)+SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
                           real(n,kind=GP))*COS(2*pi*ki*(real(j,kind=GP)-1)/  &
                           real(n,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/  &

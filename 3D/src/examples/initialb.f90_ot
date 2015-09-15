@@ -22,7 +22,7 @@
             R2(i,j,k) = 0.
             R3(i,j,k) = 0.
 
-            DO ki = mkdn,mkup
+            DO ki = INT(mkdn),INT(mkup)
                R1(i,j,k) = R1(i,j,k)+corr*COS(2*pi*ki*(real(j,kind=GP)-1)/    &
                           real(n,kind=GP))-corr*COS(2*pi*ki*(real(k,kind=GP)-1)/     &
                           real(n,kind=GP))
