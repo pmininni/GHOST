@@ -8,7 +8,7 @@
 ! end, the real and imaginary parts of the wavefunction in 
 ! spectral space should be stored in the arrays zre and zim.
 
-! Array of vortices for the ring flow
+! Array of vortices for the two-rings flow
 
 ! Set phi(1,1,1) to one
 ! i=j=1 and we integrate along z
@@ -69,9 +69,17 @@
             rmt = 2*pi
             DO ki = 1,4*n
                rm1 = 2.0_GP*pi*REAL(ki-1,KIND=GP)/REAL(4*n,KIND=GP)
-               rmp = pi+vparam0*cos(rm1) ! x
-               rmq = pi+vparam0*sin(rm1) ! z
-               rms = pi ! z
+               ! first ring
+               rmp = pi-vparam0/2+vparam0*cos(rm1) ! x
+               rmq = pi+vparam0*sin(rm1)           ! y
+               rms = pi                            ! z
+               rmt = min(rmt,sqrt((2*pi*REAL(i-1,KIND=GP)/REAL(n,KIND=GP)-rmp)**2 &
+                                 +(2*pi*REAL(j-1,KIND=GP)/REAL(n,KIND=GP)-rmq)**2 &
+                                 +(2*pi*REAL(k-1,KIND=GP)/REAL(n,KIND=GP)-rms)**2))
+               ! second ring
+               rmp = pi+vparam0/2+vparam0*cos(rm1) ! x
+               rmq = pi                            ! y
+               rms = pi+vparam0*sin(rm1)           ! z
                rmt = min(rmt,sqrt((2*pi*REAL(i-1,KIND=GP)/REAL(n,KIND=GP)-rmp)**2 &
                                  +(2*pi*REAL(j-1,KIND=GP)/REAL(n,KIND=GP)-rmq)**2 &
                                  +(2*pi*REAL(k-1,KIND=GP)/REAL(n,KIND=GP)-rms)**2))

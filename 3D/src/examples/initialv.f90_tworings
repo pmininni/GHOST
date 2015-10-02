@@ -9,8 +9,8 @@
 ! end, the three components of the velocity in spectral
 ! space should be stored in the arrays vx, vy, and vz.
 
-! One ring in the x-y plane
-!     vparam0: radius of ring
+! Two rings
+!     vparam0: radius of rings
 !     vparam1: filter width (k0=vparam1/lambda)
 
 ! Amplitude of the delta (amplitude of vorticity)
@@ -35,21 +35,39 @@
                ELSE
                   rmt = 0.                ! 0 for k>=kmax
                ENDIF
-               C1(k,j,i) = C1(k,j,i) + rmp*rms*rmt*exp(-im*( &
-                             ka(i)*(pi+vparam0*cos(rmq))+    &
-                             ka(j)*(pi+vparam0*sin(rmq))+    &
-                             ka(k)*(pi+0.0_GP))) &
-                             * (-vparam0*sin(rmq))
-               C2(k,j,i) = C2(k,j,i) + rmp*rms*rmt*exp(-im*( &
-                             ka(i)*(pi+vparam0*cos(rmq))+    &
-                             ka(j)*(pi+vparam0*sin(rmq))+    &
-                             ka(k)* (pi+0.0_GP))) &
-                             * (+vparam0*cos(rmq))
-               C3(k,j,i) = C3(k,j,i) + rmp*rms*rmt*exp(-im*( &
-                             ka(i)*(pi+vparam0*cos(rmq))+    &
-                             ka(j)*(pi+vparam0*sin(rmq))+    &
-                             ka(k)* (pi+0.0_GP))) &
-                             * (0.0_GP)
+               C1(k,j,i) = C1(k,j,i) + rmp*rms*rmt*(           &
+                             exp(-im*(                         &
+                             ka(i)*(pi-vparam0/2+vparam0*cos(rmq))+    &
+                             ka(j)*(pi+vparam0*sin(rmq))+      &
+                             ka(k)*(pi+0.0_GP)))               &
+                             * (-vparam0*sin(rmq)) +           &
+                             exp(-im*(                         &
+                             ka(i)*(pi+vparam0/2+vparam0*cos(rmq))+    &
+                             ka(j)*(pi+0.0_GP)+                &
+                             ka(k)*(pi+vparam0*sin(rmq))))     &
+                             * (-vparam0*sin(rmq)))
+               C2(k,j,i) = C2(k,j,i) + rmp*rms*rmt*(           &
+                             exp(-im*(                         &
+                             ka(i)*(pi-vparam0/2+vparam0*cos(rmq))+    &
+                             ka(j)*(pi+vparam0*sin(rmq))+      &
+                             ka(k)*(pi+0.0_GP)))               &
+                             * (+vparam0*cos(rmq)) +           &
+                             exp(-im*(                         &
+                             ka(i)*(pi+vparam0/2+vparam0*cos(rmq))+    &
+                             ka(j)*(pi+0.0_GP)+                &
+                             ka(k)*(pi+vparam0*sin(rmq))))     &
+                             * (0.0_GP))
+               C3(k,j,i) = C3(k,j,i) + rmp*rms*rmt*(           &
+                             exp(-im*(                         &
+                             ka(i)*(pi-vparam0/2+vparam0*cos(rmq))+    &
+                             ka(j)*(pi+vparam0*sin(rmq))+      &
+                             ka(k)*(pi+0.0_GP)))               &
+                             * (0.0_GP) +                      &
+                             exp(-im*(                         &
+                             ka(i)*(pi+vparam0/2+vparam0*cos(rmq))+    &
+                             ka(j)*(pi+0.0_GP)+                &
+                             ka(k)*(pi+vparam0*sin(rmq))))     &
+                             * (+vparam0*cos(rmq)))
             END DO
 
             END DO
@@ -63,7 +81,7 @@
 
 ! Filter the velocity by exp(-k^2/(2*k0^2)) and normalize by N^3
 ! Note C4,C5,C6 are not normalized by N^3, but vx,vy,vz are
-      rmq = .5_GP*lambda**2/vparam1**2
+      rmq = .5_GP*lambda**2/vparam1**2!      
       rms = REAL(N,kind=GP)**3
       DO i = ista,iend
          DO j = 1,n
@@ -77,9 +95,9 @@
       END DO
 
 ! Now we get the velocity in physical space to correct the mean flow
-      C3 = C6 ! Copy vz to C3
+      C3 = C6
       CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD) ! vz
-! Let us compute the z-line integral
+! Let us compute the z line integral
       DO ki = 0,nprocs-1
          IF ( ki.eq.myrank ) THEN
             IF ( myrank.eq.0 ) THEN
@@ -99,22 +117,20 @@
          ENDIF
       END DO
       CALL MPI_BCAST(rms,1,GC_COMPLEX,nprocs-1,MPI_COMM_WORLD,ierr)
-
 ! We correct for half-quantum uniform velocity in vz
       IF ( myrank.eq.0 ) THEN
-         vz(1,1,1) = vz(1,1,1) - rms/pi *alpha*REAL(N,kind=GP)**3
-         C3(1,1,1) = C3(1,1,1) - rms/pi *alpha
+         vz(1,1,1) = vz(1,1,1) - rms/ pi *alpha*REAL(N,kind=GP)**3
+         C3(1,1,1) = C3(1,1,1) - rms/ pi *alpha
       ENDIF
 
 ! Same for vx
-      C1 = C4 ! Copy vx to C1
+      C1 = C4
       CALL fftp3d_complex_to_real(plancr,C4,R3,MPI_COMM_WORLD) ! vx
       rmp = 0.0_GP
       DO i = 1,n-1
          rmp = rmp+R3(i,1,ksta)*pi/(alpha*REAL(n,KIND=GP))
       END DO
       rms = rmp+R3(n,1,ksta)*pi/(alpha*REAL(n,KIND=GP))
-
 ! We correct for half-quantum uniform velocity in vx
       IF ( myrank.eq.0 ) THEN
          vx(1,1,1) = vx(1,1,1) - rms/pi *alpha*REAL(N,kind=GP)**3
@@ -122,17 +138,15 @@
       ENDIF
 
 ! Same for vy
-      C2 = C5 ! Copy vy to C2
+      C2 = C5
       CALL fftp3d_complex_to_real(plancr,C5,R3,MPI_COMM_WORLD) ! vy
       rmp = 0.0_GP
       DO j = 1,n-1
          rmp = rmp+R3(1,j,ksta)*pi/(alpha*REAL(n,KIND=GP))
       END DO
       rms = rmp+R3(1,n,ksta)*pi/(alpha*REAL(n,KIND=GP))
-
 ! We correct for half-quantum uniform velocity in vy
       IF ( myrank.eq.0 ) THEN
          vy(1,1,1) = vy(1,1,1) - rms/pi *alpha*REAL(N,kind=GP)**3
          C2(1,1,1) = C2(1,1,1) - rms/pi *alpha
       ENDIF
-
