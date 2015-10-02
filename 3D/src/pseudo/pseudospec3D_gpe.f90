@@ -173,6 +173,7 @@
       USE grid
       USE hbar
       USE mpivars
+!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
@@ -426,9 +427,9 @@
 !
 ! Transforms the wavefunction to real space
 !
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
+!$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,n
             DO k = 1,n
                c1(k,j,i) = a(k,j,i)
@@ -696,9 +697,9 @@
 !
 ! Transforms the wavefunction to real space
 !
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
+!$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,n
             DO k = 1,n
                c1(k,j,i) = a(k,j,i)
@@ -808,3 +809,634 @@
       RETURN
       END SUBROUTINE gpekfield
 
+
+!***********************************************************************
+      SUBROUTINE gpehelicity(a,b,t,dt,nmb,flag, &
+                             r1,r2,r3,c1,c2,c3,c4,c5,c6,c7,c8)
+!-----------------------------------------------------------------------
+!
+! Computes two measurements of helicity, based on a regularized parallel
+! velocity and on v (usual definition of the helicity for a classical
+! fluid). It also calculates the helicity spectra. The output is written
+! to a file by the first node.
+!
+! Parameters
+!     a    : real part of the wavefunction in Fourier space
+!     b    : imaginary part of the wavefunction in Fourier space
+!     t    : number of time steps made
+!     dt   : time step
+!     nmb  : the extension used when writting the file
+!     flag : =1 calculates the spectra as well
+!     r1-3 : auxiliary real arrays
+!     c1-8 : auxiliary complex arrays
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE fft
+      USE ali
+      USE grid
+      USE hbar
+      USE mpivars
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: c1,c2
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: c3,c4
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: c5,c6
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: c7,c8
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c9
+      REAL(KIND=GP), INTENT(OUT), DIMENSION(n,n,ksta:kend)    :: r1,r2
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r3,r4,r5
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r6,r7,r8,r9
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r10,r11,r12
+      DOUBLE PRECISION          :: Htot1,Htot2
+      DOUBLE PRECISION, DIMENSION(n/2+1) :: Htot3,Htot4
+      REAL(KIND=GP)             :: rmp,rmq
+      REAL(KIND=GP)             :: tmp
+      REAL(KIND=GP), INTENT(IN) :: dt
+      INTEGER, INTENT(IN) :: t
+      INTEGER             :: i,j,k
+      INTEGER             :: kmn
+      INTEGER, INTENT(IN) :: flag
+      CHARACTER(len=*), INTENT(IN) :: nmb
+
+!
+! Transforms the wavefunction to real space
+!
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,n
+            DO k = 1,n
+               c1(k,j,i) = a(k,j,i)
+               c2(k,j,i) = b(k,j,i)
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+!
+! Obtains e_parallel by calculating the cross product of
+! grad(zre) and grad(zim). Then it normalizes.
+!
+      CALL derivk3(a,c1,1)
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+      CALL derivk3(b,c1,1)
+      CALL fftp3d_complex_to_real(plancr,c1,r4,MPI_COMM_WORLD)
+      CALL derivk3(a,c1,2)
+      CALL fftp3d_complex_to_real(plancr,c1,r5,MPI_COMM_WORLD)
+      CALL derivk3(b,c1,2)
+      CALL fftp3d_complex_to_real(plancr,c1,r6,MPI_COMM_WORLD)
+      CALL derivk3(a,c1,3)  
+      CALL fftp3d_complex_to_real(plancr,c1,r7,MPI_COMM_WORLD)
+      CALL derivk3(b,c1,3)
+      CALL fftp3d_complex_to_real(plancr,c1,r8,MPI_COMM_WORLD)
+      tmp = 1.0_GP/real(n,kind=GP)**6
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               r9(i,j,k)  = (r5(i,j,k)*r8(i,j,k)-r7(i,j,k)*r6(i,j,k))*tmp
+               r10(i,j,k) = (r7(i,j,k)*r4(i,j,k)-r3(i,j,k)*r8(i,j,k))*tmp
+               r11(i,j,k) = (r3(i,j,k)*r6(i,j,k)-r5(i,j,k)*r4(i,j,k))*tmp
+               r12(i,j,k) = real(n,kind=GP)**6/(r3(i,j,k)**2 + r4(i,j,k)**2 +    &
+                            r5(i,j,k)**2 + r6(i,j,k)**2         +    &
+                            r7(i,j,k)**2 + r8(i,j,k)**2         +    &
+                            real(n,kind=GP)**6*regu*omegag/beta)
+            END DO
+         END DO
+      END DO
+
+!
+! Calculates v_parallel by doing regularizing and the projecting
+! The magnitud calculated is:
+! 2*alpha e_parallel.((grad(zre).grad)(grad(zim)) -
+! (grad(zim).grad)(grad(zre)))/(grad(zre)**2+grad(zim)**2)
+! 
+      CALL derivk3(b,c1,1)
+      CALL derivk3(b,c2,2)
+      CALL derivk3(b,c3,3)
+!
+! Computes d_x(zre) e_parallel.d_x(grad(zim))
+!
+      CALL derivk3(a,c7,1)
+      CALL derivk3(c1,c4,1)
+      CALL derivk3(c2,c5,1)
+      CALL derivk3(c3,c6,1)
+      CALL fftp3d_complex_to_real(plancr,c7,r3,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c4,r5,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c5,r6,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c6,r7,MPI_COMM_WORLD)
+      r3 = r3*tmp
+      r5 = r5*tmp
+      r6 = r6*tmp
+      r7 = r7*tmp
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               r4(i,j,k) = r3(i,j,k)*(r9(i,j,k)*r5(i,j,k) +   &  
+                           r10(i,j,k)*r6(i,j,k)           +   &  
+                           r11(i,j,k)*r7(i,j,k))
+            END DO
+         END DO
+      END DO
+!
+! Computes d_y(zre) e_parallel.d_y(grad(zim))
+!
+      CALL derivk3(a,c7,2)
+      CALL derivk3(c1,c4,2)
+      CALL derivk3(c2,c5,2)
+      CALL derivk3(c3,c6,2)
+      CALL fftp3d_complex_to_real(plancr,c7,r3,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c4,r5,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c5,r6,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c6,r7,MPI_COMM_WORLD)
+      r3 = r3*tmp
+      r5 = r5*tmp
+      r6 = r6*tmp
+      r7 = r7*tmp
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               r4(i,j,k) = r4(i,j,k)                      +   &
+                           r3(i,j,k)*(r9(i,j,k)*r5(i,j,k) +   &  
+                           r10(i,j,k)*r6(i,j,k)           +   &  
+                           r11(i,j,k)*r7(i,j,k))
+            END DO
+         END DO
+      END DO
+!
+! Computes d_z(zre) e_parallel.d_z(grad(zim))
+!
+      CALL derivk3(a,c7,3)
+      CALL derivk3(c1,c4,3)
+      CALL derivk3(c2,c5,3)
+      CALL derivk3(c3,c6,3)
+      CALL fftp3d_complex_to_real(plancr,c7,r3,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c4,r5,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c5,r6,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c6,r7,MPI_COMM_WORLD)
+      r3 = r3*tmp
+      r5 = r5*tmp
+      r6 = r6*tmp
+      r7 = r7*tmp
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               r4(i,j,k) = r4(i,j,k)                      +   &
+                           r3(i,j,k)*(r9(i,j,k)*r5(i,j,k) +   &  
+                           r10(i,j,k)*r6(i,j,k)           +   &  
+                           r11(i,j,k)*r7(i,j,k))
+            END DO
+         END DO
+      END DO
+
+!
+! Computes -e_parallel.grad(zim).grad(grad(zre))
+! 
+      CALL derivk3(a,c1,1)
+      CALL derivk3(a,c2,2)
+      CALL derivk3(a,c3,3)
+!
+! Computes - d_x(zim) e_parallel.d_x(grad(zre))
+!
+      CALL derivk3(b,c7,1)
+      CALL derivk3(c1,c4,1)
+      CALL derivk3(c2,c5,1)
+      CALL derivk3(c3,c6,1)
+      CALL fftp3d_complex_to_real(plancr,c7,r3,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c4,r5,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c5,r6,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c6,r7,MPI_COMM_WORLD)
+      r3 = r3*tmp
+      r5 = r5*tmp
+      r6 = r6*tmp
+      r7 = r7*tmp
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               r4(i,j,k) = r4(i,j,k)                      -   &
+                           r3(i,j,k)*(r9(i,j,k)*r5(i,j,k) +   &  
+                           r10(i,j,k)*r6(i,j,k)           +   &  
+                           r11(i,j,k)*r7(i,j,k))
+            END DO
+         END DO
+      END DO
+!
+! Computes - d_y(zim) e_parallel.d_y(grad(zre))
+!
+      CALL derivk3(b,c7,2)
+      CALL derivk3(c1,c4,2)
+      CALL derivk3(c2,c5,2)
+      CALL derivk3(c3,c6,2)
+      CALL fftp3d_complex_to_real(plancr,c7,r3,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c4,r5,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c5,r6,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c6,r7,MPI_COMM_WORLD)
+      r3 = r3*tmp
+      r5 = r5*tmp
+      r6 = r6*tmp
+      r7 = r7*tmp
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               r4(i,j,k) = r4(i,j,k)                      -   &
+                           r3(i,j,k)*(r9(i,j,k)*r5(i,j,k) +   &  
+                           r10(i,j,k)*r6(i,j,k)           +   &  
+                           r11(i,j,k)*r7(i,j,k))
+            END DO
+         END DO
+      END DO
+!
+! Computes - d_z(zim) e_parallel.d_z(grad(zre))
+!
+      CALL derivk3(b,c7,3)
+      CALL derivk3(c1,c4,3)
+      CALL derivk3(c2,c5,3)
+      CALL derivk3(c3,c6,3)
+      CALL fftp3d_complex_to_real(plancr,c7,r3,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c4,r5,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c5,r6,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c6,r7,MPI_COMM_WORLD)
+      r3 = r3*tmp
+      r5 = r5*tmp
+      r6 = r6*tmp
+      r7 = r7*tmp
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n     
+               r4(i,j,k) = 2*alpha*(r4(i,j,k)             -   &
+                           r3(i,j,k)*(r9(i,j,k)*r5(i,j,k) +   &  
+                           r10(i,j,k)*r6(i,j,k)           +   &  
+                           r11(i,j,k)*r7(i,j,k)))!*r12(i,j,k)
+            END DO
+         END DO
+      END DO
+!
+! Does v_parallel*e_parallel
+!
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               rmp = real(n,kind=GP)**6/(r9(i,j,k)**2 + r10(i,j,k)**2 + &
+                     r11(i,j,k)**2 + real(n,kind=GP)**6*regu*omegag/beta)
+               r9(i,j,k)  = r4(i,j,k)*r9(i,j,k)*rmp*r12(i,j,k)
+               r10(i,j,k) = r4(i,j,k)*r10(i,j,k)*rmp*r12(i,j,k)
+               r11(i,j,k) = r4(i,j,k)*r11(i,j,k)*rmp*r12(i,j,k)
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_real_to_complex(planrc,r9, c2,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,r10,c3,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,r11,c4,MPI_COMM_WORLD)
+
+!
+! Obtains v by computing 2.alpha[zre*grad(zim)-zim*grad(zre)]
+! and dividing by rho.
+!
+      CALL derivk3(a,c1,1)   ! x component
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+      CALL derivk3(b,c1,1)
+      CALL fftp3d_complex_to_real(plancr,c1,r4,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i,rmp)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i,rmp)
+         DO j = 1,n
+            DO i = 1,n
+               rmp = 1.0_GP/(r1(i,j,k)**2+r2(i,j,k)**2+       &
+                     real(n,kind=GP)**6*regu*omegag/beta)
+               r3(i,j,k) = 2*alpha*(r1(i,j,k)*r4(i,j,k)-      &
+                           r2(i,j,k)*r3(i,j,k))*rmp       ! v_x
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_real_to_complex(planrc,r3,c5,MPI_COMM_WORLD)
+
+      CALL derivk3(a,c1,2)   ! y component
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+      CALL derivk3(b,c1,2)
+      CALL fftp3d_complex_to_real(plancr,c1,r4,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i,rmp)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i,rmp)
+         DO j = 1,n
+            DO i = 1,n
+               rmp = 1.0_GP/(r1(i,j,k)**2+r2(i,j,k)**2+       &
+                     real(n,kind=GP)**6*regu*omegag/beta)
+               r3(i,j,k) = 2*alpha*(r1(i,j,k)*r4(i,j,k)-      &
+                           r2(i,j,k)*r3(i,j,k))*rmp       ! v_y
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_real_to_complex(planrc,r3,c6,MPI_COMM_WORLD)
+
+      CALL derivk3(a,c1,3)   ! z component
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+      CALL derivk3(b,c1,3)
+      CALL fftp3d_complex_to_real(plancr,c1,r4,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i,rmp)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i,rmp)
+         DO j = 1,n
+            DO i = 1,n
+               rmp = 1.0_GP/(r1(i,j,k)**2+r2(i,j,k)**2+       &
+                     real(n,kind=GP)**6*regu*omegag/beta)
+               r3(i,j,k) = 2*alpha*(r1(i,j,k)*r4(i,j,k)-      &
+                           r2(i,j,k)*r3(i,j,k))*rmp       ! v_z
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_real_to_complex(planrc,r3,c1,MPI_COMM_WORLD)
+!
+! Computes the helicity
+!
+      CALL helicity(c5,c6,c1,Htot2)
+!
+! Computes the regularized helicity
+!
+      CALL rotor3(c6,c1,c7,1)
+      CALL rotor3(c5,c1,c8,2)
+      CALL rotor3(c5,c6,c9,3)
+      CALL cross(c2,c3,c4,c7,c8,c9,Htot1,1)
+!
+! Writes the result to a file
+!
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='helicity.txt',position='append')
+         WRITE(1,20) (t-1)*dt,Htot1,Htot2
+20    FORMAT( E13.6,E22.14,E22.14 )
+         CLOSE(1)
+      ENDIF
+!
+! Calculate the spectra
+!
+      IF (flag.eq.1) THEN
+!
+! Computes the helicity spectra
+!
+         CALL spectrumc(c5,c6,c1,2,1,Htot3,Htot4)
+!
+! Computes the regularized helicity spectra
+!
+         CALL crosshelspec(c2,c3,c4,c5,c6,c1,Htot3)
+         IF (myrank.eq.0) THEN
+            OPEN(1,file='hspectrum.' // nmb // '.txt')
+            DO i = 1,n/2+1
+               WRITE(1,30) Htot3(i), Htot4(i)
+            END DO
+   30       FORMAT( E23.15,E23.15 )
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+      RETURN
+      END SUBROUTINE gpehelicity
+
+!*****************************************************************
+      SUBROUTINE crosshelspec(a,b,c,d,e,f,Cktot)
+!-----------------------------------------------------------------
+!
+! Computes the cross-helicity spectrum. The 
+! output is written to a file by the first 
+! node.
+!
+! Parameters
+!     a  : velocity in the x-direction
+!     b  : velocity in the y-direction
+!     c  : velocity in the z-direction
+!     d  : curl of velocity in the x-direction
+!     e  : curl of velocity in the y-direction
+!     f  : curl of velocity in the z-direction
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+!$    USE threads
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ck
+      DOUBLE PRECISION, INTENT(OUT), DIMENSION(n/2+1) :: Cktot
+      DOUBLE PRECISION    :: tmq
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
+      REAL(KIND=GP)       :: tmp
+      INTEGER             :: i,j,k
+      INTEGER             :: kmn
+
+!
+! Computes the cross-helicity spectrum
+!
+      tmp = 1.0_GP/real(n,kind=GP)**6
+      DO i = 1,n/2+1
+         Ck   (i) = 0.0D0
+         Cktot(i) = 0.0D0
+      END DO
+      IF (ista.eq.1) THEN
+!$omp parallel do private (k,kmn,tmq)
+         DO j = 1,n
+            DO k = 1,n
+               kmn = int(sqrt(ka2(k,j,1))+.501)
+               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     tmq = (real(a(k,j,1)*conjg(d(k,j,1)))+          &
+                            real(b(k,j,1)*conjg(e(k,j,1)))+          &
+                            real(c(k,j,1)*conjg(f(k,j,1))))*tmp
+!$omp atomic
+                     Ck(kmn) = Ck(kmn)+tmq
+               ENDIF
+            END DO
+         END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+         DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
+            DO j = 1,n
+               DO k = 1,n
+                  kmn = int(sqrt(ka2(k,j,i))+.501)
+                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+     &
+                              real(b(k,j,i)*conjg(e(k,j,i)))+     &
+                              real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+!$omp atomic
+                     Ck(kmn) = Ck(kmn)+tmq
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
+            DO j = 1,n
+               DO k = 1,n
+                  kmn = int(sqrt(ka2(k,j,i))+.501)
+                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+                     tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+     &
+                              real(b(k,j,i)*conjg(e(k,j,i)))+     &
+                              real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+!$omp atomic
+                     Ck(kmn) = Ck(kmn)+tmq
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ENDIF
+!
+! Computes the reduction between nodes
+!
+      CALL MPI_ALLREDUCE(Ck,Cktot,n/2+1,MPI_DOUBLE_PRECISION,      &
+                         MPI_SUM,MPI_COMM_WORLD,ierr)
+
+      RETURN
+      END SUBROUTINE crosshelspec
+
+!***********************************************************************
+      SUBROUTINE gpemomtspec(a,b,nmb)
+!-----------------------------------------------------------------------
+!
+! Computes the spectrum of momentum. These quantities must be computed
+! in real space first, and then transformed to Fourier space to compute
+! the spectrum. The spectra start at k=0 to preserve information of the
+! energy in the condensate, and are not dealiased (k = 0,1,...,N/2). The
+! output is written to files by the first node.
+!
+! Parameters
+!     a : real part of the wavefunction in Fourier space
+!     b : imaginary part of the wavefunction in Fourier space
+!     nmb: the extension used when writting the file
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE fft
+      USE ali
+      USE var
+      USE grid
+      USE hbar
+      USE mpivars
+      USE filefmt
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
+      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1,c2,c3,c4
+      DOUBLE PRECISION, DIMENSION(n/2+1)         :: Ek,Ektot
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2,r3,r4,r5
+      REAL(KIND=GP)    :: rmq
+      INTEGER          :: i,j,k
+      INTEGER          :: kmn
+      CHARACTER(len=*), INTENT(IN) :: nmb
+
+!
+! Transforms the wavefunction to real space
+!
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,n
+            DO k = 1,n
+               c1(k,j,i) = a(k,j,i)
+               c2(k,j,i) = b(k,j,i)
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+!
+! Do derivatives and multiply in real space
+!
+      rmq = 2*alpha/real(n,kind=GP)**6
+      CALL derivk3(a,c1,1)   ! x component
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+      CALL derivk3(b,c1,1)
+      CALL fftp3d_complex_to_real(plancr,c1,r5,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               r4(i,j,k) = (r2(i,j,k)*r3(i,j,k) - &
+                            r1(i,j,k)*r5(i,j,k))*rmq
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_real_to_complex(planrc,r4,c2,MPI_COMM_WORLD)
+
+      CALL derivk3(a,c1,2)   ! y component
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+      CALL derivk3(b,c1,2)
+      CALL fftp3d_complex_to_real(plancr,c1,r5,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               r4(i,j,k) = (r2(i,j,k)*r3(i,j,k) - &
+                            r1(i,j,k)*r5(i,j,k))*rmq
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_real_to_complex(planrc,r4,c3,MPI_COMM_WORLD)
+
+      CALL derivk3(a,c1,3)   ! z component
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+      CALL derivk3(b,c1,3)
+      CALL fftp3d_complex_to_real(plancr,c1,r5,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               r4(i,j,k) = (r2(i,j,k)*r3(i,j,k) - &
+                            r1(i,j,k)*r5(i,j,k))*rmq
+            END DO
+         END DO
+      END DO
+      CALL fftp3d_real_to_complex(planrc,r4,c4,MPI_COMM_WORLD)
+!
+! Computes the incompressible momentum spectrum
+!
+      CALL gauge3(c2,c3,c4,c1,1)      ! x component 
+      CALL spectrscc(c1,Ektot,1.0_GP) ! incompressible
+
+      CALL gauge3(c2,c3,c4,c1,2)      ! y component
+      CALL spectrscc(c1,Ek,1.0_GP)    ! incompressible
+      IF (myrank.eq.0) THEN
+         Ektot = Ektot+Ek
+      ENDIF
+
+      CALL gauge3(c2,c3,c4,c1,3)      ! z component
+      CALL spectrscc(c1,Ek,1.0_GP)    ! incompressible
+      IF (myrank.eq.0) THEN
+         Ektot = (Ektot+Ek)
+         OPEN(1,file='momtspectrum.' // nmb // '.txt')
+         WRITE(1,FMT='(E23.15)') Ektot
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE gpemomtspec
