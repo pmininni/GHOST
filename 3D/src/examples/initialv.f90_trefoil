@@ -9,8 +9,8 @@
 ! end, the three components of the velocity in spectral
 ! space should be stored in the arrays vx, vy, and vz.
 
-! Threefoil
-!     vparam0: radius of threefoil
+! Trefoil
+!     vparam0: radius of trefoil
 !     vparam1: filter width (k0=vparam1/lambda)
 
 ! Amplitude of the delta (amplitude of vorticity)

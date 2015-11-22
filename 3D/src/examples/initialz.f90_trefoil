@@ -8,7 +8,7 @@
 ! end, the real and imaginary parts of the wavefunction in 
 ! spectral space should be stored in the arrays zre and zim.
 
-! Array of vortices for the threefoil
+! Array of vortices for the trefoil
 
 ! Set phi(1,1,1) to one
 ! i=j=1 and we integrate along z
