@@ -11,7 +11,7 @@ path = '../../3D/bin/'
 # Reads balance.txt
 #  t   = time
 #  ene = energy (v^2)
-#  ene = enstrophy (w^2)
+#  ens = enstrophy (w^2)
 #  eps = energy injection rate
 t, ene, ens, eps = np.loadtxt(path+'balance.txt',unpack=True)
 
