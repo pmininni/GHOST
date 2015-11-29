@@ -37,7 +37,7 @@
 
 !
 ! Definitions for conditional compilation
-#include "ghost3D.h"
+#include "ghost2D.h"
 
 !
 ! Modules
