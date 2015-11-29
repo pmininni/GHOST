@@ -553,6 +553,51 @@
 !     nmb: the extension used when writting the file
 !
       USE fprecision
+      USE grid
+      USE mpivars
+      USE filefmt
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, DIMENSION(n/2+1) :: Cktot
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
+      CHARACTER(len=*), INTENT(IN) :: nmb
+
+!
+! Computes the cross-helicity spectrum
+!
+      CALL crosspecc(a,b,c,d,e,f,Cktot,0.0_GP)
+!
+! Exports the spectrum to a file
+!
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='cspectrum.' // nmb // '.txt')
+         WRITE(1,20) Cktot
+   20    FORMAT( E23.15 ) 
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE crosspec
+
+!*****************************************************************
+      SUBROUTINE crosspecc(a,b,c,d,e,f,Cktot,shift)
+!-----------------------------------------------------------------
+!
+! Computes the cross-helicity spectrum, returning it.
+!
+! Parameters
+!     a  : velocity in the x-direction
+!     b  : velocity in the y-direction
+!     c  : velocity in the z-direction
+!     d  : magnetic potential in the x-direction
+!     e  : magnetic potential in the y-direction
+!     f  : magnetic potential in the z-direction
+!     Cktot: output cross-helicity spectrum
+!     shift: value that can be used to shift wavenumbers 
+!            (usually by 1) and get the spetrum to start at k=0 
+!
+      USE fprecision
       USE commtypes
       USE kes
       USE grid
@@ -561,15 +606,16 @@
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ck,Cktot
+      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ck
+      DOUBLE PRECISION, INTENT(OUT), DIMENSION(n/2+1) :: Cktot
       DOUBLE PRECISION    :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
       COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL(KIND=GP)       :: tmp
+      REAL(KIND=GP), INTENT(IN)                              :: shift
+      REAL(KIND=GP)       :: tmp,rmp
       INTEGER             :: i,j,k
       INTEGER             :: kmn
-      CHARACTER(len=*), INTENT(IN) :: nmb
 
 !
 ! Computes the curl of the field if needed
@@ -577,6 +623,10 @@
       CALL rotor3(e,f,c1,1)
       CALL rotor3(d,f,c2,2)
       CALL rotor3(d,e,c3,3)
+!
+! Sets the zero for the wavenumbers
+!
+      rmp = shift+.501_GP
 !
 ! Computes the cross-helicity spectrum
 !
@@ -589,7 +639,7 @@
 !$omp parallel do private (k,kmn,tmq)
          DO j = 1,n
             DO k = 1,n
-               kmn = int(sqrt(ka2(k,j,1))+.501)
+               kmn = int(sqrt(ka2(k,j,1))+rmp)
                IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
                      tmq = (real(a(k,j,1)*conjg(c1(k,j,1)))+          &
                             real(b(k,j,1)*conjg(c2(k,j,1)))+          &
@@ -604,7 +654,7 @@
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
             DO j = 1,n
                DO k = 1,n
-                  kmn = int(sqrt(ka2(k,j,i))+.501)
+                  kmn = int(sqrt(ka2(k,j,i))+rmp)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
                      tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+     &
                               real(b(k,j,i)*conjg(c2(k,j,i)))+     &
@@ -621,7 +671,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
             DO j = 1,n
                DO k = 1,n
-                  kmn = int(sqrt(ka2(k,j,i))+.501)
+                  kmn = int(sqrt(ka2(k,j,i))+rmp)
                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
                      tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+     &
                               real(b(k,j,i)*conjg(c2(k,j,i)))+     &
@@ -638,15 +688,7 @@
 !
       CALL MPI_ALLREDUCE(Ck,Cktot,n/2+1,MPI_DOUBLE_PRECISION,      &
                          MPI_SUM,MPI_COMM_WORLD,ierr)
-!
-! Exports the spectrum to a file
-!
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='cspectrum.' // nmb // '.txt')
-         WRITE(1,20) Cktot
-   20    FORMAT( E23.15 ) 
-         CLOSE(1)
-      ENDIF
 
       RETURN
-      END SUBROUTINE crosspec
+      END SUBROUTINE crosspecc
+
