@@ -36,7 +36,7 @@ GHOME        = $(PWD)
 CONTRIB      = $(GHOME)/contrib
 UTILS        = $(GHOME)/utils
 LAGP         = $(GHOME)/lagpart
-#
+
 # Lagrangian particle variables:
 LAGPDEFyes   = -DDEF_GHOST_LAGP   
 LAGPDEFno    =   
@@ -58,7 +58,6 @@ IOINCposixio =
 
 IOINCDIR     =  $(IOINC$(IOLIB))
 IOLIBFLG     =  $(IOLDIR$(IOLIB))
-
 
 # FFTW library variables:
 FFTW2SINGLE = s
@@ -82,7 +81,6 @@ CUDA_OBJSno    =
 CUDA_OBJSyes   = $(CONTRIB)/nvidia/setaffinity_for_nvidia.o
 
 GDEF           = $(IODEF$(IOLIB)) $(CUDA_GHOST$(P_CUDA)) $(LAGPDEF$(PARTICLES))
-
 CONTRIBOBJS    = $(CUDA_OBJS$(P_CUDA))
 
 # FFT Target variables derived from above FFT library quantities:
@@ -126,7 +124,7 @@ BOUSS_OBJS     = $(PROTH_OBJS) pseudospec3D_bouss.o
 ROTBOUSS_OBJS  = $(PROTH_OBJS) pseudospec3D_bouss.o
 MPROTBOUSS_OBJS= $(MPROTH_OBJS) pseudospec3D_bouss.o
 GPE_OBJS       = $(PHD_OBJS) pseudospec3D_mhd.o pseudospec3D_gpe.o
-ARGL_OBJS      = $(GPE_OBJS)
+ARGL_OBJS      = $(GPE_OBJS) pseudospec3D_newt.o
 ALPHA_OBJS     = module_lles.o pseudospec3D_filt.o
 CAHD_OBJS      = $(HD_OBJS) $(ALPHA_OBJS) pseudospec3D_lles.o pseudospec3D_cahd.o
 LAHD_OBJS      = $(HD_OBJS) $(ALPHA_OBJS) pseudospec3D_lles.o pseudospec3D_lahd.o

@@ -60,154 +60,7 @@
 
 !
 ! Definitions for conditional compilation
-
-#ifdef HD_SOL
-#define DNS_
-#define VELOC_
-#endif
-
-#ifdef PHD_SOL
-#define DNS_
-#define VELOC_
-#define SCALAR_
-#endif
-
-#ifdef MPHD_SOL
-#define DNS_
-#define VELOC_
-#define MULTISCALAR_
-#endif
-
-#ifdef MHD_SOL
-#define DNS_
-#define VELOC_
-#define MAGFIELD_
-#endif
-
-#ifdef MHDB_SOL
-#define DNS_
-#define VELOC_
-#define MAGFIELD_
-#define UNIFORMB_
-#endif
-
-#ifdef HMHD_SOL
-#define DNS_
-#define VELOC_
-#define MAGFIELD_
-#define HALLTERM_
-#endif
-
-#ifdef HMHDB_SOL
-#define DNS_
-#define VELOC_
-#define MAGFIELD_
-#define HALLTERM_
-#define UNIFORMB_
-#endif
-
-#ifdef ROTH_SOL
-#define DNS_
-#define VELOC_
-#define ROTATION_
-#endif 
-
-#ifdef PROTH_SOL
-#define DNS_
-#define VELOC_
-#define SCALAR_
-#define ROTATION_
-#endif
-
-#ifdef MPROTH_SOL
-#define DNS_
-#define VELOC_
-#define ROTATION_
-#define MULTISCALAR_
-#endif
-
-#ifdef BOUSS_SOL
-#define DNS_
-#define VELOC_
-#define SCALAR_
-#define BOUSSINESQ_
-#endif
-
-#ifdef MPBOUSS_SOL
-#define DNS_
-#define VELOC_
-#define SCALAR_
-#define BOUSSINESQ_
-#define MULTISCALAR_
-#endif
-
-#ifdef ROTBOUSS_SOL
-#define DNS_
-#define VELOC_
-#define SCALAR_
-#define ROTATION_
-#define BOUSSINESQ_
-#endif
-
-#ifdef MPROTBOUSS_SOL
-#define DNS_
-#define VELOC_
-#define SCALAR_
-#define ROTATION_
-#define BOUSSINESQ_
-#define MULTISCALAR_
-#endif
-
-#ifdef GPE_SOL
-#define DNS_
-#define WAVEFUNCTION_
-#endif
-
-#ifdef ARGL_SOL
-#define DNS_
-#define ADVECT_
-#define QFORCE_
-#define WAVEFUNCTION_
-#endif
-
-#ifdef LAHD_SOL
-#define ALPHAV_
-#define VELOC_
-#endif
-
-#ifdef CAHD_SOL
-#define ALPHAV_
-#define VELOC_
-#endif
-
-#ifdef LHD_SOL
-#define ALPHAV_
-#define VELOC_
-#endif
-
-#ifdef LAMHD_SOL
-#define ALPHAV_
-#define ALPHAB_
-#define VELOC_
-#define MAGFIELD_
-#endif
-
-#ifdef EDQNMHD_SOL
-#define DNS_
-#define EDQNM_
-#define VELOC_
-#endif
-
-#ifdef EDQNMROTH_SOL
-#define DNS_
-#define EDQNM_
-#define VELOC_
-#define ROTATION_
-#endif
-
-#ifdef DEF_GHOST_LAGP
-#define LAGPART_
-#endif
+#include "ghost3D.h"
 
 !
 ! Modules
@@ -234,6 +87,7 @@
       USE hall
 #endif
 #ifdef WAVEFUNCTION_
+      USE newtmod
       USE hbar
 #endif
 #ifdef ALPHAV_
@@ -335,7 +189,7 @@
       COMPLEX(KIND=GP) :: cdump,jdump
       COMPLEX(KIND=GP) :: cdumq,jdumq
       COMPLEX(KIND=GP) :: cdumr,jdumr
-      DOUBLE PRECISION :: tmp,tmq
+      DOUBLE PRECISION :: tmp,tmq,tmr
       DOUBLE PRECISION :: eps,epm
 !$    DOUBLE PRECISION, EXTERNAL :: omp_get_wtime
 
@@ -525,7 +379,9 @@
       NAMELIST / boussinesq / bvfreq,xmom,xtemp
 #endif
 #ifdef WAVEFUNCTION_
-      NAMELIST / wavefunction / cspeed,lambda,rho0,kttherm,cflow
+      NAMELIST / wavefunction / cspeed,lambda,rho0,kttherm
+      NAMELIST / wavefunction / cflow,iter_max_newt,iter_max_bicg
+      NAMELIST / wavefunction / cflow_newt,dt_newt,tol_newt,tolbicg_rel
       NAMELIST / wavefunction / zparam0,zparam1,zparam2,zparam3,zparam4 
       NAMELIST / wavefunction / zparam5,zparam6,zparam7,zparam8,zparam9 
 #endif
@@ -1173,13 +1029,25 @@
 !     lambda : coherence length
 !     rho0   : density at infinity
 !     kttherm: KT with T=thermalization temperature (for ARGL)
-!     cflow  : =1 if generating counterflow (ARGL solver)
-!     zparam0-9 : ten real numbers to control properties of 
-!            the wavefunction
+!     cflow  : =1 if generating counterflow (ARGL)
+!     cflow_newt   : =1 if mean flow is needed for Newton method (ARGL)
+!     dt_newt      : time step (preconditioner) for Newton method (ARGL)
+!     iter_max_newt: max number of iterations for Newton method (ARGL)
+!     iter_max_bicg: max number of iterations for biconjugate gradient (ARGL)
+!     tol_newt     : tolerance for the Newton method (ARGL)
+!     tolbicg_rel  : relarive tolerance for biconjugate gradient (ARGL)
+!     zparam0-9    : ten real numbers to control properties of 
+!              the wavefunction
 
-      rho0 = 1.0_GP    !Default value
-      kttherm = 0.0_GP !Default value
-      cflow = 0        !Default value
+      rho0 = 1.0_GP        !Default value
+      kttherm = 0.0_GP     !Default value
+      cflow = 0            !Default value
+      cflow_newt = 0       !Default value
+      dt_newt = dt         !Default value
+      iter_max_newt = 0    !Default value (no Newton done after ARGL)
+      iter_max_bicg = 0    !Default value
+      tol_newt = 0.0_GP    !Default value
+      tolbicg_rel = 0.0_GP !Default value
 #ifdef ARGL_SOL
       IF ( ord.ne.1 ) THEN ! Check if the order is correct for ARGL
          WRITE(*,*)'MAIN: ARGL solver must be compiled with ord=1'
@@ -1202,6 +1070,12 @@
       CALL MPI_BCAST(omegag,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(kttherm,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(cflow,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cflow_newt,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dt_newt,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(iter_max_newt,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(iter_max_bicg,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tol_newt,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tolbicg_rel,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(zparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(zparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(zparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)

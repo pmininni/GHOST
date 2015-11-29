@@ -1,10 +1,13 @@
 ! Step 2 of Runge-Kutta for the ARGL equation:
-!    dz/dt = omegag.z - beta.|z|^2 z + alpha.Lap(z) - i v.grad(z) - |v^2|.z/(4.alpha) + f
+!    dz/dt = omegag.z - beta.|z|^2 z + alpha.Lap(z) - i v.grad(z) -
+!            - |v^2|.z/(4.alpha) + f
 ! Computes the nonlinear terms and evolves the equations using first 
 ! order forward implicit Euler. This solver only works with order ord=1.
 ! The real and imaginary parts of the equations are solved separately:
-!    dzre/dt - alpha.Lap(zre) = omegag.zre - beta.|z|^2 zre + v.grad(zim) - |v^2|.zre/(4.alpha) + fre
-!    dzim/dt - alpha.Lap(zre) = omegag.zim - beta.|z|^2 zim - v.grad(zre) - |v^2|.zim/(4.alpha) + fim
+!    dzre/dt - alpha.Lap(zre) = omegag.zre - beta.|z|^2 zre + v.grad(zim) -
+!                               - |v^2|.zre/(4.alpha) + fre
+!    dzim/dt - alpha.Lap(zre) = omegag.zim - beta.|z|^2 zim - v.grad(zre) -
+!                               - |v^2|.zim/(4.alpha) + fim
 
         IF (o.eq.1) THEN ! Only iterate once (first order)
 
@@ -54,5 +57,36 @@
         END DO
         END DO
         END DO
+
+        IF ((t.eq.step).and.(iter_max_newt.gt.0)) THEN ! Do Newton at the end
+           n_dim_1d = 4*(iend-ista+1)*n*n
+           CALL newton(zre,zim,cflow_newt,dt_newt,vx,vy,vz,vsq,R1,C3,C4,C5,C6)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+           DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+              DO j = 1,n
+                 DO k = 1,n
+                    C3(k,j,i) = zre(k,j,i)/real(n,kind=GP)**3
+                    C4(k,j,i) = zim(k,j,i)/real(n,kind=GP)**3
+                 END DO
+              END DO
+           END DO
+           CALL fftp3d_complex_to_real(plancr,C3,R1,MPI_COMM_WORLD)
+           CALL fftp3d_complex_to_real(plancr,C4,R2,MPI_COMM_WORLD)
+           CALL io_write(1,odir,'phi_re','NWT',planio,R1) ! Writes output
+           CALL io_write(1,odir,'phi_im','NWT',planio,R2) ! in 'NWT' files
+           IF (outs.ge.1) THEN
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+              DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+                 DO j = 1,n
+                    DO i = 1,n
+                       R1(i,j,k) = R1(i,j,k)**2+R2(i,j,k)**2
+                    END DO
+                 END DO
+              END DO
+              CALL io_write(1,odir,'rho','NWT',planio,R1)
+           ENDIF
+        ENDIF
 
         ENDIF
