@@ -86,6 +86,16 @@
   END MODULE hbar
 !=================================================================
 
+  MODULE newtmod
+      USE fprecision
+      REAL(KIND=GP) :: dt_newt,tol_newt,tolbicg_rel
+      INTEGER :: iter_max_newt,iter_max_bicg
+      INTEGER :: cflow_newt,n_dim_1d
+      SAVE
+
+  END MODULE newtmod
+!=================================================================
+
   MODULE kes
       USE fprecision
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)     :: ka
