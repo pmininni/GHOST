@@ -14,8 +14,9 @@ N = 128
 # Array with wavenumbers starting at 1
 k = np.arange(N/2+1,dtype=np.float32)+1 
 
-# Reads and plots all spectra in the directory
-# We only plot one every five spectra
+# Reads and plots all spectra in the directory.
+# We only plot one every five spectra, starting
+# from the second.
 filelist = glob.glob(path+'kspectrum.*.txt')
 nfiles = np.size(filelist)
 plt.figure(1)

@@ -10,8 +10,9 @@ N = 128;
 % Array with wavenumbers starting at 1
 k = [1:N/2+1];
 
-% Reads and plots all spectra in the directory
-% We only plot one every five spectra
+% Reads and plots all spectra in the directory.
+% We only plot one every five spectra, starting
+% from the second.
 filelist = dir(strcat(path,'kspectrum.*.txt'));
 nfiles = numel(filelist);
 figure(1)

@@ -13,7 +13,8 @@ N = 128;
 dx = 2*pi/N;
 
 % Reads binary files, computes vertical vorticity, 
-% and saves in a new binary file named 'wz.NNNN.out'
+% using centered finite differences, and saves in 
+% a new binary file named 'wz.NNNN.out'
 filelist = dir(strcat(path,'vx.*.out'));
 nfiles = numel(filelist);
 for i = 1:nfiles,

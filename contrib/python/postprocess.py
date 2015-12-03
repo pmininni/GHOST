@@ -18,8 +18,9 @@ N = 128
 dx = 2*np.pi/N
 shape = (N,N,N)
 
-# Reads binary files, computes vertical vorticity, 
-# and saves in a new binary file named 'wz.NNNN.out'
+# Reads binary files, computes vertical vorticity
+# using centered finite differences, and saves in 
+# a new binary file named 'wz.NNNN.out'
 filelist = glob.glob(path+'vx.*.out')
 for file in filelist:
   vx = np.fromfile(file,dtype=np.float32).reshape(shape,order='F')
