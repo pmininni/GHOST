@@ -2,7 +2,7 @@
 ! GHOST code: Geophysical High Order Suite for Turbulence
 !
 ! Header file with definitions for conditional compilation.
-! Main code is in main2D.fpp. See this file for more details.
+! Main code is in main2D.fpp. See that file for more details.
 !
 ! 2015 Pablo D. Mininni.
 !      Department of Physics, 
