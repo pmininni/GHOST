@@ -23,25 +23,30 @@ The main code is built using 'make' or 'make main'. The following
 solvers are currently supported (pass 'SOLVER=' to the make command 
 to build a solver other than the default):
 
-   HD        Hydrodynamic (HD) solver [DEFAULT]
-   PHD       Hydrodynamic solver with passive scalar
-   MPHD      Hydrodynamic solver with multi-scalar
-   MHD       Magnetohydrodynamic (MHD) solver
-   MHDB      MHD solver with a uniform magnetic field
-   HMHD      Hall-MHD solver
-   HMHDB     HMHD solver with a uniform magnetic field
-   ROTH      HD solver in a rotating frame
-   PROTH     ROTH solver with passive scalar
-   BOUSS     Boussinesq solver
-   ROTBOUSS  BOUSS solver in a rotating frame
-   GPE       Gross-Pitaevskii Equation (GPE) solver
-   ARGL      Advective Real Ginzburg Landau solver
-   LAHD      Lagrangian-averaged HD solver
-   CAHD      Clark-alpha HD solver
-   LHD       Leray HD solver
-   LAMHD     Lagrangian-averaged MHD solver
-   EDQNMHD   EDQNM HD solver
-   EDQNMROTH EDQNM ROTH solver
+   HD         Hydrodynamic (HD) solver [DEFAULT]
+   PHD        Hydrodynamic solver with passive scalar
+   MPHD       Hydrodynamic solver with multi-scalar
+   MHD        Magnetohydrodynamic (MHD) solver
+   MHDB       MHD solver with a uniform magnetic field
+   HMHD       Hall-MHD solver
+   HMHDB      HMHD solver with a uniform magnetic field
+   COMPRHD    Compressible HD solver
+   CMHD       Compressible MHD solver
+   CMHDB      Compressible MHD solver with uniform B_0
+   ROTH       HD solver in a rotating frame
+   PROTH      ROTH solver with passive scalar
+   MPROTH     ROTH solver with multi-scalar
+   BOUSS      Boussinesq solver
+   ROTBOUSS   BOUSS solver in a rotating frame
+   MPROTBOUSS BOUSS solver in a rotating frame with multi-scalar
+   GPE        Gross-Pitaevskii Equation (GPE) solver
+   ARGL       Advective Real Ginzburg Landau solver
+   LAHD       Lagrangian-averaged HD solver
+   CAHD       Clark-alpha HD solver
+   LHD        Leray HD solver
+   LAMHD      Lagrangian-averaged MHD solver
+   EDQNMHD    EDQNM HD solver
+   EDQNMROTH  EDQNM ROTH solver
 
 2. trans
 ========

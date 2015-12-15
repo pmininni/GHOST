@@ -1087,7 +1087,7 @@
             CLOSE(1)
          ENDIF
          IF (chk.eq.1) THEN
-            OPEN(1,file='check.txt',position='append')
+            OPEN(1,file='divergence.txt',position='append')
             WRITE(1,*) (t-1)*dt,div,tay
             CLOSE(1)
          ENDIF

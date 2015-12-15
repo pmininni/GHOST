@@ -56,6 +56,33 @@
 #define UNIFORMB_
 #endif
 
+#ifdef COMPRHD_SOL
+#define DNS_
+#define VELOC_
+#define SCALAR_
+#define COMPRESSIBLE_
+#define COMPR_AUX_ARR_
+#endif
+
+#ifdef CMHD_SOL
+#define DNS_
+#define CMHD_
+#define VELOC_
+#define SCALAR_
+#define MAGFIELD_
+#define COMPRESSIBLE_
+#endif
+
+#ifdef CMHDB_SOL
+#define DNS_
+#define CMHD_
+#define VELOC_
+#define SCALAR_
+#define MAGFIELD_
+#define UNIFORMB_
+#define COMPRESSIBLE_
+#endif
+
 #ifdef ROTH_SOL
 #define DNS_
 #define VELOC_

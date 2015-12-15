@@ -66,10 +66,11 @@ cparam0 = 0.10   ! idem for the initial concentration
 ! Configuration flags for runs with a passive/active scalar
 &inject
 injt = 0         ! injects a passive scalar if 1
+creset = 0       ! resets counters if 1
 /
 
 ! Configuration flags for runs with magnetic fields
-n&dynamo
+&dynamo
 dyna = 0         ! dynamo run if 1
 /
 
@@ -89,6 +90,18 @@ gspe = 1         ! computes generalized helicity if 1
 ! Parameters for runs with uniform rotation (ROTH, ROTBOUSS solvers)
 &rotation
 omega = 10.00    ! uniform rotation in z
+/
+
+! Parameters for compressible runs (COMPHD, CMHD and CMHDB solvers)
+&compressible
+smach = 0.25     ! sound Mach number
+gam1  = 1.666666667 ! gamma (adiabatic constant, typically 5./3)
+nu2   = 1.e-3    ! second viscosity
+/
+
+! Parameters for compressible MHD runs (CMHD and CMHDB solvers)
+&cmhdb
+amach = 1.0      ! alfvenic Mach number
 /
 
 ! Parameters for the wavefunction (GPE, ARGL solvers)

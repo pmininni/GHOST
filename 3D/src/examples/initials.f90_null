@@ -1,6 +1,6 @@
 ! Initial condition for the passive/active scalar/density.
 ! The scalar can be passive (e.g., in the PHD solver) or 
-! active (as in the Boussinesq or compressible solvers).
+! active (as in the Boussinesq or compressible solvers). 
 ! This file contains the expression used for the initial 
 ! concentration of the scalar. You can use temporary 
 ! real arrays R1-R3 of size (1:n,1:n,ksta:kend) and temporary 
@@ -11,10 +11,8 @@
 ! terms. At the end, the initial concentration of the scalar in 
 ! spectral space should be stored in the array th.
 
-! Constant uniform scalar/density
-!     c0 : initial uniform scalar/density concentration
+! Null pasive scalar
 
-! Set scalar/density to zero
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -24,10 +22,3 @@
             END DO
          END DO
       END DO
-
-! Add a constant scalar/density
-      IF (myrank.eq.0) THEN         
-         th(1,1,1) = c0*real(n,kind=GP)**3
-         th(1,1,1) = c0*real(n,kind=GP)**3
-         th(1,1,1) = c0*real(n,kind=GP)**3
-      ENDIF

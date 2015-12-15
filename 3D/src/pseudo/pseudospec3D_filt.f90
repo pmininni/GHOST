@@ -26,8 +26,8 @@
 !     b  : unsmoothed field in the y-direction
 !     c  : unsmoothed field in the z-direction
 !     d  : smoothed field in the x-direction [output]
-!     e  : smoothed field in the x-direction [output]
-!     f  : smoothed field in the x-direction [output]
+!     e  : smoothed field in the y-direction [output]
+!     f  : smoothed field in the z-direction [output]
 !     alp: value of alpha
 !
       USE fprecision

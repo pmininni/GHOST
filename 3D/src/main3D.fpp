@@ -13,30 +13,35 @@
 ! and use the FFTPLANS and MPIVARS modules (see the file 
 ! 'fftp_mod.f90').
 !
-! Notation: index 'i' is 'x' 
+! Notation: index 'i' is 'x'
 !           index 'j' is 'y'
 !           index 'k' is 'z'
 !
 ! Conditional compilation options:
-!           HD_SOL        builds the hydrodynamic (HD) solver
-!           PHD_SOL       builds the HD solver with passive scalar
-!           MPHD_SOL      builds the HD solver with multiple passive scalars
-!           MHD_SOL       builds the MHD solver
-!           MHDB_SOL      builds the MHD solver with uniform B_0
-!           HMHD_SOL      builds the Hall-MHD solver
-!           HMHDB_SOL     builds the HMHD solver with uniform B_0
-!           ROTH_SOL      builds the HD solver in a rotating frame
-!           PROTH_SOL     builds the ROTH solver with passive scalar
-!           BOUSS_SOL     builds the BOUSS solver
-!           ROTBOUSS_SOL  builds the BOUSS solver in a rotating frame
-!           GPE_SOL       builds the Gross-Pitaevskii Equation solver
-!           ARGL_SOL      builds the Advective Real Ginzburg Landau solver
-!           LAHD_SOL      builds the Lagrangian-averaged HD solver
-!           CAHD_SOL      builds the Clark-alpha HD solver
-!           LHD_SOL       builds the Leray HD solver
-!           LAMHD_SOL     builds the Lagrangian-averaged MHD solver
-!           EDQNMHD_SOL   builds the EDQNM HD solver
-!           EDQNMROTH_SOL builds the EDQNM ROTH solver
+!           HD_SOL         builds the hydrodynamic (HD) solver
+!           PHD_SOL        builds the HD solver with passive scalar
+!           MPHD_SOL       builds the HD solver with multiple passive scalars
+!           MHD_SOL        builds the MHD solver
+!           MHDB_SOL       builds the MHD solver with uniform B_0
+!           HMHD_SOL       builds the Hall-MHD solver
+!           HMHDB_SOL      builds the HMHD solver with uniform B_0
+!           COMPRHD_SOL    builds the compressible HD solver
+!           CMHD_SOL       builds the compressible MHD solver
+!           CMHDB_SOL      builds the compressible MHD solver with uniform B_0
+!           ROTH_SOL       builds the HD solver in a rotating frame
+!           PROTH_SOL      builds the ROTH solver with passive scalar
+!           MPROTH         builds the ROTH solver with multi-scalar
+!           BOUSS_SOL      builds the BOUSS solver
+!           ROTBOUSS_SOL   builds the BOUSS solver in a rotating frame
+!           MPROTBOUSS_SOL builds the BOUSS solver, rotating, multi-scalar
+!           GPE_SOL        builds the Gross-Pitaevskii Equation solver
+!           ARGL_SOL       builds the Advective Real Ginzburg Landau solver
+!           LAHD_SOL       builds the Lagrangian-averaged HD solver
+!           CAHD_SOL       builds the Clark-alpha HD solver
+!           LHD_SOL        builds the Leray HD solver
+!           LAMHD_SOL      builds the Lagrangian-averaged MHD solver
+!           EDQNMHD_SOL    builds the EDQNM HD solver
+!           EDQNMROTH_SOL  builds the EDQNM ROTH solver
 !
 ! 2003 Pablo D. Mininni.
 !      Department of Physics, 
@@ -153,6 +158,9 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C21,C22,C23,C24
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M8,M9,M10
 #endif
+#ifdef COMPR_AUX_ARR_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C25,C26,C27
+#endif
 #ifdef MAGFIELD_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C9,C10,C11
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C12,C13,C14
@@ -237,6 +245,12 @@
       REAL(KIND=GP)    :: s3param0,s3param1,s3param2,s3param3,s3param4
       REAL(KIND=GP)    :: s3param5,s3param6,s3param7,s3param8,s3param9
 #endif
+#ifdef COMPRESSIBLE_
+      REAL(KIND=GP)    :: smach, gam1, cp1, nu2
+#endif
+#ifdef CMHD_
+      REAL(KIND=GP)    :: amach, cp2
+#endif
 #ifdef MAGFIELD_
       REAL(KIND=GP)    :: mkup,mkdn
       REAL(KIND=GP)    :: m0,a0
@@ -310,7 +324,7 @@
 !$    INTEGER, EXTERNAL :: omp_get_max_threads
 
 #if defined(DEF_GHOST_CUDA_)
-       TYPE(cudaDevicePropG) :: devprop
+      TYPE(cudaDevicePropG) :: devprop
 #endif
       TYPE(IOPLAN) :: planio
       CHARACTER (len=100) :: odir,idir
@@ -358,6 +372,12 @@
 #if defined(SCALAR_) || defined(MULTISCALAR_)
       NAMELIST / inject / injt,creset
 #endif
+#ifdef COMPRESSIBLE_
+      NAMELIST / compressible / smach, gam1, nu2
+#endif
+#ifdef CMHD_
+      NAMELIST / cmhdb / amach
+#endif
 #ifdef MAGFIELD_
       NAMELIST / magfield / m0,a0,mkdn,mkup,mu,corr,mparam0,mparam1
       NAMELIST / magfield / mparam2,mparam3,mparam4,mparam5,mparam6
@@ -403,7 +423,6 @@
 
 ! Initializes the MPI and I/O libraries
       CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
-!     CALL MPI_INIT(ierr)
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
 
@@ -508,6 +527,11 @@
       ALLOCATE( fs1(n,n,ista:iend) )
       ALLOCATE( fs2(n,n,ista:iend) )
       ALLOCATE( fs3(n,n,ista:iend) )
+#endif
+#ifdef COMPR_AUX_ARR_
+      ALLOCATE( C25(n,n,ista:iend) )
+      ALLOCATE( C26(n,n,ista:iend) )
+      ALLOCATE( C27(n,n,ista:iend) )
 #endif
 #ifdef MAGFIELD_
       ALLOCATE( C9(n,n,ista:iend),  C10(n,n,ista:iend) )
@@ -904,6 +928,42 @@
       CALL MPI_BCAST(c3param7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(c3param8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(c3param9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+#endif
+
+#ifdef COMPRESSIBLE_
+!
+! Reads parameters for the compressible runs from the 
+! namelist 'compressible' on the external file 'parameter.txt' 
+!     smach : sound Mach number
+!     gam1  : gamma parameter for polytropic eq. of state
+!     nu2   : second viscosity for divergence (velocity) term
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         READ(1,NML=compressible)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(smach,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(gam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(nu2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      gam1 = gam1 - 1.0_GP
+      cp1  = 2.0_GP / (gam1*smach*smach)
+      nu2  = nu2 + nu/3.0_GP
+#endif
+
+#ifdef CMHD_
+!
+! Reads parameters for the compressible MHD runs from the 
+! namelist 'cmhdb' on the external file 'parameter.txt' 
+!     amach : Alfvenic Mach number
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         READ(1,NML=cmhdb)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(amach,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      cp2 = 1.0_GP / (amach*amach)
 #endif
 
 #ifdef MAGFIELD_
@@ -1338,7 +1398,7 @@
       INCLUDE 'initialv.f90'            ! initial velocity
 #endif
 #ifdef SCALAR_
-      INCLUDE 'initials.f90'            ! initial concentration
+      INCLUDE 'initials.f90'            ! initial concentration/density
 #endif
 #ifdef MULTISCALAR_
       INCLUDE 'initialms.f90'           ! multiscalar initial concentration
@@ -1808,7 +1868,7 @@
                ENDIF
 #endif
 #ifdef QFORCE_
-            INCLUDE 'initialfq.f90'     ! generates a new forcing function
+            INCLUDE 'initialfq.f90'  ! generates a new forcing function
 #endif
 
             ELSE IF (rand.eq.2) THEN ! constant energy
@@ -1829,6 +1889,12 @@
               INCLUDE 'mhd_adjustfv.f90'
 #endif
 #ifdef HMHDB_SOL
+              INCLUDE 'mhd_adjustfv.f90'
+#endif
+#ifdef COMPRHD_SOL
+              INCLUDE 'hd_adjustfv.f90'
+#endif
+#if defined(CMHD_SOL) || defined(CMHDB_SOL)
               INCLUDE 'mhd_adjustfv.f90'
 #endif
 #ifdef ROTH_SOL
@@ -2206,6 +2272,12 @@
 #ifdef HMHDB_SOL
             INCLUDE 'hmhd_global.f90'
 #endif
+#ifdef COMPRHD_SOL
+            INCLUDE 'comprhd_global.f90'
+#endif
+#if defined(CMHD_SOL) || defined(CMHDB_SOL)
+            INCLUDE 'cmhd_global.f90'
+#endif
 #ifdef ROTH_SOL
             INCLUDE 'hd_global.f90'
 #endif
@@ -2333,14 +2405,23 @@
 #ifdef HMHDB_SOL
             INCLUDE 'hmhdb_spectrum.f90'
 #endif
+#ifdef COMPRHD_SOL
+            INCLUDE 'comprhd_spectrum.f90'
+#endif
+#ifdef CMHD_SOL
+            INCLUDE 'cmhd_spectrum.f90'
+#endif
+#ifdef CMHDB_SOL
+            INCLUDE 'cmhdb_spectrum.f90'
+#endif
 #ifdef ROTH_SOL
             INCLUDE 'roth_spectrum.f90'
 #endif
-#ifdef MPROTH_SOL
-            INCLUDE 'mproth_spectrum.f90'
-#endif
 #ifdef PROTH_SOL
             INCLUDE 'proth_spectrum.f90'
+#endif
+#ifdef MPROTH_SOL
+            INCLUDE 'mproth_spectrum.f90'
 #endif
 #ifdef BOUSS_SOL
             INCLUDE 'bouss_spectrum.f90'
@@ -2407,14 +2488,20 @@
 #ifdef HMHDB_SOL
          INCLUDE 'mhd_rkstep1.f90'
 #endif
+#ifdef COMPRHD_SOL
+         INCLUDE 'comprhd_rkstep1.f90'
+#endif
+#if defined(CMHD_SOL) || defined(CMHDB_SOL)
+         INCLUDE 'cmhd_rkstep1.f90'
+#endif
 #ifdef ROTH_SOL
          INCLUDE 'hd_rkstep1.f90'
 #endif
-#ifdef MPROTH_SOL
-         INCLUDE 'mproth_rkstep1.f90'
-#endif
 #ifdef PROTH_SOL
          INCLUDE 'phd_rkstep1.f90'
+#endif
+#ifdef MPROTH_SOL
+         INCLUDE 'mproth_rkstep1.f90'
 #endif
 #if defined(BOUSS_SOL) || defined(ROTBOUSS_SOL)
          INCLUDE 'phd_rkstep1.f90'
@@ -2479,14 +2566,23 @@
 #ifdef HMHDB_SOL
          INCLUDE 'hmhdb_rkstep2.f90'
 #endif
+#ifdef COMPRHD_SOL
+         INCLUDE 'comprhd_rkstep2.f90'
+#endif
+#ifdef CMHD_SOL
+         INCLUDE 'cmhd_rkstep2.f90'
+#endif
+#ifdef CMHDB_SOL
+         INCLUDE 'cmhdb_rkstep2.f90'
+#endif
 #ifdef ROTH_SOL
          INCLUDE 'roth_rkstep2.f90'
 #endif
-#ifdef MPROTH_SOL
-         INCLUDE 'mproth_rkstep2.f90'
-#endif
 #ifdef PROTH_SOL
          INCLUDE 'proth_rkstep2.f90'
+#endif
+#ifdef MPROTH_SOL
+         INCLUDE 'mproth_rkstep2.f90'
 #endif
 #ifdef BOUSS_SOL
          INCLUDE 'bouss_rkstep2.f90'
@@ -2671,6 +2767,9 @@
       DEALLOCATE( th1,fs1,th2,fs2,th3,fs3 )
       DEALLOCATE( C21,C22,C23,C24 )
       IF (mean.eq.1) DEALLOCATE( M8,M9,M10 )
+#endif
+#ifdef COMPR_AUX_ARR_
+      DEALLOCATE( C25,C26,C27 )
 #endif
 #ifdef MAGFIELD_
       DEALLOCATE( ax,ay,az,mx,my,mz )
