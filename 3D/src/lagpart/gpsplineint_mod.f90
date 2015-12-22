@@ -1,6 +1,6 @@
 !=================================================================
 ! GHOST GPSplineInt interpolation class
-! The spline used (that on the 'momoents' or 2nd derivatives)
+! The spline used (that on the 'moments' or 2nd derivatives)
 ! as well as the tridiagonal solve for the moments, are
 ! derived from several sources including the presentation 
 ! given in the book 'The theory of splines and their application'

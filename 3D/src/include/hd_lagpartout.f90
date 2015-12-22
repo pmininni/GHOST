@@ -4,12 +4,13 @@
 ! Set the Lagrangian velocities so output doesn't
 ! give 0: 
 !
+           rmp = 1.0_GP/real(n,kind=GP)**3
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
              DO j = 1,n
                DO k = 1,n
-                 C7(k,j,i) = vx(k,j,i)/real(n,kind=GP)**3
+                 C7(k,j,i) = vx(k,j,i)*rmp
                END DO
              END DO
            END DO
@@ -19,7 +20,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
              DO j = 1,n
                DO k = 1,n
-                 C7(k,j,i) = vy(k,j,i)/real(n,kind=GP)**3
+                 C7(k,j,i) = vy(k,j,i)*rmp
                END DO
              END DO
            END DO
@@ -29,16 +30,11 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
              DO j = 1,n
                DO k = 1,n
-                 C7(k,j,i) = vz(k,j,i)/real(n,kind=GP)**3
+                 C7(k,j,i) = vz(k,j,i)*rmp
                END DO
              END DO
            END DO
            CALL fftp3d_complex_to_real(plancr,C7,R3,MPI_COMM_WORLD)
-           IF ( blgdofp.GT.0 ) THEN
-             R6 = R1
-             R7 = R2
-             R8 = R3
-           ENDIF
            CALL lagpart%SetLagVec(R1,R2,R3,.true.,R4,R5)
 
            timep = 0
@@ -52,11 +48,47 @@
            CALL lagpart%io_write_vec  (1,odir,'vlg'  ,lgext,(t-1)*dt)
            CALL lagpart%io_write_pdbm1(1,odir,'xlgm1',lgext,(t-2)*dt)
            CALL lagpart%io_write_vecm1(1,odir,'vlgm1',lgext,(t-2)*dt)
+
+! If doing 'fixed point' particles, set the Lagrangian velocities
+! and repeat the process:
+!
            IF ( blgdofp.GT.0 ) THEN
-             CALL lagfp%SetLagVec  (R6,R7,R8,.true.,R4,R5,1)
-             CALL lagfp%io_write_vec  (1,odir,'fpvlg'  ,lgext,(t-1)*dt)
-             CALL lagfp%io_write_vecm1(1,odir,'fpvlgm1',lgext,(t-2)*dt)
-             CALL lagfp%io_write_acc(tbeta,1,odir,'fpalgm1',lgext,(t-2)*dt)
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+           DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+             DO j = 1,n
+               DO k = 1,n
+                 C7(k,j,i) = vx(k,j,i)*rmp
+               END DO
+             END DO
+           END DO
+           CALL fftp3d_complex_to_real(plancr,C7,R1,MPI_COMM_WORLD)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+           DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+             DO j = 1,n
+               DO k = 1,n
+                 C7(k,j,i) = vy(k,j,i)*rmp
+               END DO
+             END DO
+           END DO
+           CALL fftp3d_complex_to_real(plancr,C7,R2,MPI_COMM_WORLD)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+           DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+             DO j = 1,n
+               DO k = 1,n
+                 C7(k,j,i) = vz(k,j,i)*rmp
+               END DO
+             END DO
+           END DO
+           CALL fftp3d_complex_to_real(plancr,C7,R3,MPI_COMM_WORLD)
+           CALL lagfp%SetLagVec  (R1,R2,R3,.true.,R4,R5,1)
+           CALL lagfp%io_write_vec  (1,odir,'fpvlg'  ,lgext,(t-1)*dt)
+           CALL lagfp%io_write_vecm1(1,odir,'fpvlgm1',lgext,(t-2)*dt)
+           CALL lagfp%io_write_acc(tbeta,1,odir,'fpalgm1',lgext,(t-2)*dt)
+
            ENDIF
 
 !!!!!! Write internal Lagrangian acceleration components: !!!!!!
@@ -72,9 +104,9 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
               DO j = 1,n
                  DO k = 1,n
-                    C1(k,j,i) = vx(k,j,i)/real(n,kind=GP)**3
-                    C2(k,j,i) = vy(k,j,i)/real(n,kind=GP)**3
-                    C3(k,j,i) = vz(k,j,i)/real(n,kind=GP)**3
+                    C1(k,j,i) = vx(k,j,i)*rmp
+                    C2(k,j,i) = vy(k,j,i)*rmp
+                    C3(k,j,i) = vz(k,j,i)*rmp
                  END DO
               END DO
            END DO
@@ -84,14 +116,8 @@
            CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
            CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
            CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
-
-
            CALL lagpart%SetLagVec(R1,R2,R3,.false.,R4,R5)
            CALL lagpart%io_write_vec(1,odir,'wlg'  ,lgext,(t-1)*dt)
-           IF ( blgdofp.GT.0 ) THEN
-           CALL lagfp%SetLagVec  (R1,R2,R3,.false.,R4,R5)
-           CALL lagfp%io_write_vec  (1,odir,'fpwlg',lgext,(t-1)*dt)
-           ENDIF
 
            nwpart = nwpart + 1
 
@@ -101,13 +127,12 @@
            if ( .false. ) then
            CALL prodre3(vx,vy,vz,C4,C5,C6)
            CALL fftp3d_complex_to_real(plancr,C4,R4,MPI_COMM_WORLD)
-           tmp = 1.0D0/real(n,kind=GP)**3
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
            DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
              DO j = 1,n
                 DO i = 1,n
-                   R4(i,j,k) = R4(i,j,k)*tmp
+                   R4(i,j,k) = R4(i,j,k)*rmp
                 END DO
              END DO
            END DO
@@ -119,7 +144,7 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
              DO j = 1,n
                 DO i = 1,n
-                   R4(i,j,k) = R4(i,j,k)*tmp
+                   R4(i,j,k) = R4(i,j,k)*rmp
                 END DO
              END DO
            END DO
@@ -131,16 +156,14 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
              DO j = 1,n
                 DO i = 1,n
-                   R4(i,j,k) = R4(i,j,k)*tmp
+                   R4(i,j,k) = R4(i,j,k)*rmp
                 END DO
              END DO
            END DO
            CALL lagpart%io_write_euler(1,odir,'v3nllg'  ,lgext,(t-1)*dt,R4,.false.,R2,R3)
-!          IF ( blgdofp.GT.0 ) THEN
-!          CALL lagfp%io_write_euler  (1,odir,'fpetranslg',lgext,(t-1)*dt,R5,.false.,R2,R3)
-!          ENDIF
-!
            endif
+
+!
 !!!!!!! Write strain-rate tensor components: !!!!!!
 !
            CALL derivk3(vx,C1,1)
@@ -149,15 +172,12 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
               DO j = 1,n
                  DO k = 1,n
-                    C1(k,j,i) = C1(k,j,i)*tmp
+                    C1(k,j,i) = C1(k,j,i)*rmp
                  END DO
               END DO
            END DO
            CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
            CALL lagpart%io_write_euler(1,odir,'s11'  ,lgext,(t-1)*dt,R1,.false.,R2,R3)
-!          IF ( blgdofp.GT.0 ) THEN
-!          CALL lagfp%io_write_euler  (1,odir,'fps11',lgext,(t-1)*dt,R1,.false.,R2,R3)
-!          ENDIF
            CALL derivk3(vx,C1,2)
            CALL derivk3(vy,C2,1)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -165,15 +185,12 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
               DO j = 1,n
                  DO k = 1,n
-                    C1(k,j,i) = 0.5*(C1(k,j,i)+C2(k,j,i))*tmp
+                    C1(k,j,i) = 0.5*(C1(k,j,i)+C2(k,j,i))*rmp
                  END DO
               END DO
            END DO
            CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
            CALL lagpart%io_write_euler(1,odir,'s12',lgext,(t-1)*dt,R1,.false.,R2,R3)
-!          IF ( blgdofp.GT.0 ) THEN
-!          CALL lagfp%io_write_euler  (1,odir,'fps12',lgext,(t-1)*dt,R1,.false.,R2,R3)
-!          ENDIF
            CALL derivk3(vx,C1,3)
            CALL derivk3(vz,C2,1)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -181,30 +198,24 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
               DO j = 1,n
                  DO k = 1,n
-                    C1(k,j,i) = 0.5*(C1(k,j,i)+C2(k,j,i))*tmp
+                    C1(k,j,i) = 0.5*(C1(k,j,i)+C2(k,j,i))*rmp
                  END DO
               END DO
            END DO
            CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
            CALL lagpart%io_write_euler(1,odir,'s13',lgext,(t-1)*dt,R1,.false.,R2,R3)
-!          IF ( blgdofp.GT.0 ) THEN
-!          CALL lagfp%io_write_euler  (1,odir,'fps13',lgext,(t-1)*dt,R1,.false.,R2,R3)
-!          ENDIF
            CALL derivk3(vy,C1,2)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
               DO j = 1,n
                  DO k = 1,n
-                    C1(k,j,i) = C1(k,j,i)*tmp
+                    C1(k,j,i) = C1(k,j,i)*rmp
                  END DO
               END DO
            END DO
            CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
            CALL lagpart%io_write_euler(1,odir,'s22',lgext,(t-1)*dt,R1,.false.,R2,R3)
-!          IF ( blgdofp.GT.0 ) THEN
-!          CALL lagfp%io_write_euler  (1,odir,'fps22',lgext,(t-1)*dt,R1,.false.,R2,R3)
-!          ENDIF
            CALL derivk3(vy,C1,3)
            CALL derivk3(vz,C2,2)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -212,13 +223,9 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
               DO j = 1,n
                  DO k = 1,n
-                    C1(k,j,i) = 0.5*(C1(k,j,i)+C2(k,j,i))*tmp
+                    C1(k,j,i) = 0.5*(C1(k,j,i)+C2(k,j,i))*rmp
                  END DO
               END DO
            END DO
            CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
            CALL lagpart%io_write_euler(1,odir,'s23',lgext,(t-1)*dt,R1,.false.,R2,R3)
-!          IF ( blgdofp.GT.0 ) THEN
-!          CALL lagfp%io_write_euler  (1,odir,'fps23',lgext,(t-1)*dt,R1,.false.,R2,R3)
-!          ENDIF
-

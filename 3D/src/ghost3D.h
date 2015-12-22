@@ -184,5 +184,11 @@
 #endif
 
 #ifdef DEF_GHOST_LAGP
+#define PART_
 #define LAGPART_
+#endif
+
+#ifdef DEF_GHOST_TESTP
+#define PART_ 
+#define TESTPART_ 
 #endif

@@ -1,4 +1,4 @@
-! Write magnetic field:
+! Write magnetic field and current density:
            tmp = 1.0E0 / real(n,kind=GP)**3
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
@@ -12,11 +12,19 @@
               END DO
            END DO
            CALL rotor3(C2,C3,C4,1)
-           CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD
+           CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
            CALL rotor3(C1,C3,C5,2)
-           CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD
+           CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
            CALL rotor3(C1,C2,C6,3)
-           CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD
+           CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
            CALL lagpart%SetLagVec(R1,R2,R3,.false.,R4,R5)
            CALL lagpart%io_write_vec(1,odir,'blg',lgext,(t-1)*dt)
 
+           CALL laplak3(C1,C4)
+           CALL laplak3(C2,C5)
+           CALL laplak3(C3,C6)
+           CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
+           CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
+           CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
+           CALL lagpart%SetLagVec(R1,R2,R3,.false.,R4,R5)
+           CALL lagpart%io_write_vec(1,odir,'jlg',lgext,(t-1)*dt)

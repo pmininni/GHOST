@@ -106,8 +106,8 @@
       USE cuda_bindings
       USE cutypes
 #endif
-#if defined(LAGPART_)
-      USE class_GPart 
+#if defined(PART_)
+      USE class_GPart
 #endif
 
       IMPLICIT NONE
@@ -187,8 +187,12 @@
 #ifdef ADVECT_
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vsq
 #endif
-#ifdef LAGPART_
+#ifdef PART_
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: R4,R5,R6
+#endif
+#if defined(TESTPART_) && defined(MAGFIELD_)
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: Rb1,Rb2,Rb3
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: Rj1,Rj2,Rj3
 #endif
 
 !
@@ -302,7 +306,7 @@
 #ifdef WAVEFUNCTION_
       INTEGER :: cflow
 #endif
-#ifdef LAGPART_
+#ifdef PART_
       REAL         :: rbal
       REAL(KIND=GP):: tbeta(3)
       INTEGER      :: maxparts
@@ -319,18 +323,23 @@
       INTEGER      :: dolag
       INTEGER      :: dopacc
       INTEGER      :: nwpart
+#endif
+#ifdef LAGPART_
       TYPE (GPart) :: lagpart,lagfp
 #endif
-!$    INTEGER, EXTERNAL :: omp_get_max_threads
+#if defined(TESTPART_) && defined(MAGFIELD_)
+      REAL(KIND=GP)         :: gyrof, vtherm
+      TYPE (TestGPart)      :: lagpart
+#endif
+!$    INTEGER, EXTERNAL     :: omp_get_max_threads
 
 #if defined(DEF_GHOST_CUDA_)
       TYPE(cudaDevicePropG) :: devprop
 #endif
-      TYPE(IOPLAN) :: planio
-      CHARACTER (len=100) :: odir,idir
-
-#ifdef LAGPART_
-      CHARACTER(len=1024) :: lgseedfile,slgfpfile
+      TYPE(IOPLAN)          :: planio
+      CHARACTER (len=100)   :: odir,idir
+#ifdef PART_
+      CHARACTER(len=1024)   :: lgseedfile,slgfpfile
 #endif
 
 !
@@ -414,11 +423,14 @@
 #ifdef EDQNM_
       NAMELIST / edqnmles / kolmo,heli
 #endif
-#ifdef LAGPART_
+#ifdef PART_
       NAMELIST / plagpart / lgmult,maxparts,ilginittype,ilgintrptype
       NAMELIST / plagpart / ilgexchtype,ilgouttype,lgseedfile,injtp
       NAMELIST / plagpart / ilgcoll,cresetp,dolag,dopacc
       NAMELIST / plagpart / blgdofp,ilgfpfiletype,blgfpfilecoll,slgfpfile
+#endif
+#if defined(TESTPART_) && defined(MAGFIELD_)
+      NAMELIST / ptestpart / gyrof,vtherm
 #endif
 
 ! Initializes the MPI and I/O libraries
@@ -563,10 +575,18 @@
 #ifdef ADVECT_
       ALLOCATE( vsq(n,n,ksta:kend) )
 #endif
-#ifdef LAGPART_
+#ifdef PART_
       ALLOCATE( R4(n,n,ksta:kend) )
       ALLOCATE( R5(n,n,ksta:kend) )
       ALLOCATE( R6(n,n,ksta:kend) )
+#endif
+#if defined (TESTPART_) && defined(MAGFIELD_)
+      ALLOCATE( Rb1(n,n,ksta:kend) )        
+      ALLOCATE( Rb2(n,n,ksta:kend) )
+      ALLOCATE( Rb3(n,n,ksta:kend) )
+      ALLOCATE( Rj1(n,n,ksta:kend) )        
+      ALLOCATE( Rj2(n,n,ksta:kend) )
+      ALLOCATE( Rj3(n,n,ksta:kend) )
 #endif
 #ifdef EDQNM_
       ALLOCATE( C19(n,n,ista:iend) )
@@ -1196,8 +1216,10 @@
       CALL MPI_BCAST(heli,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 #endif
 
-#ifdef LAGPART_
-      maxparts     = 1000
+#ifdef PART_
+!
+! Reads parameters for runs with particles
+!     maxparts    : Maximum number of particles
 !     injtp: = 0 when stat=0 generates initial v and initial part seeds 
 !            = 1 when stat.ne.0 imports v and generates initial 
 !              part seeds. If injtp=0 when stat.ne.0, then the 
@@ -1212,7 +1234,10 @@
 !     lgseedfile  : Name of seed file if ilginittype=GPINIT_USERLOC
 !     ilgcoll     : 1=binary collective I/O; 0=task 0 binary (posix) I/O
 !     dolag       : 1=run with particles; 0=don't 
-!     dopacc      : 1=compute acceleration internally; 0=don't 
+!     dopacc      : 1=compute acceleration internally; 0=don't
+!     XlgfpX      : Parameters for 'fixed point' particles (test of frozen-in, only for LAGPART)
+
+      maxparts     = 1000
       injtp        = 0
       cresetp      = 0
       ilginittype  = GPINIT_RANDLOC
@@ -1230,7 +1255,6 @@
       ilgfpfiletype= 0
       blgfpfilecoll= 1
       slgfpfile    = 'xlgInitRndSeed.000.txt'
-!
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.txt',status='unknown',form="formatted")
          READ(1,NML=plagpart)
@@ -1252,12 +1276,26 @@
       CALL MPI_BCAST(blgfpfilecoll,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(slgfpfile    ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(lgseedfile   ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-
       IF ( mod(tstep,lgmult).NE.0 ) THEN
         WRITE(*,*)'main: lgmult must divide tstep evenly'
         STOP
       ENDIF  
       pstep = tstep/lgmult
+#endif
+
+#if defined(TESTPART_) && defined(MAGFIELD_)
+!
+! Reads parameters for runs with test particles
+!     gyrof    : Gyrofrequency
+!     vtherm   : Thermal velocity of the test particles
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         READ(1,NML=ptestpart)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(gyrof    ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(vtherm   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
 !
@@ -1346,7 +1384,7 @@
       ENDIF
 #endif
 
-#ifdef LAGPART_
+#ifdef PART_
       rmp   = 0.5/dt
       tbeta = (/-rmp, 0.0, rmp/)
       IF ( dolag.GT.0 ) THEN
@@ -1354,8 +1392,15 @@
              ilgintrptype,3,ilgexchtype,ilgouttype,ilgcoll,csize,nstrip,dopacc)
         CALL lagpart%SetRandSeed(seed)
         CALL lagpart%SetSeedFile(trim(lgseedfile))
+#if defined(TESTPART_) && defined(MAGFIELD_)
+        CALL lagpart%TestGPart_ctor()
+#endif
       ENDIF
-      IF ( blgdofp.GT.0 ) THEN
+#endif
+#ifdef LAGPART_
+      IF ( blgdofp.GT.0 ) THEN ! 'Fixed point' particles: interpolates Eulerian
+                               ! fields at given points, and outputs them without
+                               ! evolving them.
         CALL lagfp%GPart_ctor(MPI_COMM_WORLD,maxparts,GPINIT_USERLOC,&
              ilgintrptype,3,ilgexchtype,ilgfpfiletype,blgfpfilecoll,csize,nstrip,0)
         CALL lagfp%SetRandSeed(seed)
@@ -1409,13 +1454,18 @@
 #ifdef WAVEFUNCTION_
       INCLUDE 'initialz.f90'            ! initial wave function
 #endif
-#ifdef LAGPART_
+#ifdef PART_
       IF ( dolag.GT.0 ) THEN
         CALL lagpart%Init()
+#if defined(TESTPART_) && defined(MAGFIELD_)
+        CALL lagpart%InitVel(vtherm)
+#endif
       ENDIF
+#ifdef LAGPART_
       IF ( blgdofp.GT.0 ) THEN
         CALL lagfp%Init()
       ENDIF
+#endif
 #endif
 
       ELSE
@@ -1607,13 +1657,16 @@
       INCLUDE 'initialv.f90'            ! Recreate velocity for advection
 #endif
 
-#ifdef LAGPART_
+#ifdef PART_
       IF ( dolag.GT.0 ) THEN
         IF (injtp.eq.0) THEN
           WRITE(lgext, lgfmtext) pind
           CALL lagpart%io_read(1,idir,'xlg',lgext)
         ELSE
           CALL lagpart%Init()
+#if defined(TESTPART_) && defined(MAGFIELD_)
+          CALL lagpart%InitVel(vtherm)
+#endif
           IF (cresetp.ne.0) THEN
             ini = 1                   ! resets all counters (the
             sind = 0                  ! particle run starts at t=0)
@@ -1625,10 +1678,12 @@
             timep = pstep
           ENDIF
         ENDIF
-        IF ( blgdofp.GT.0 ) THEN
-         CALL lagfp%Init()
-        ENDIF
       ENDIF
+#ifdef LAGPART_
+      IF ( blgdofp.GT.0 ) THEN
+        CALL lagfp%Init()
+      ENDIF
+#endif
 #endif
 
       ENDIF IC
@@ -2228,10 +2283,15 @@
 #endif
          ENDIF
 
-#ifdef LAGPART_
+#ifdef PART_
          IF ( dolag.GT.0 ) THEN
            IF ((timep.eq.pstep).and.(bench.eq.0)) THEN
+#if defined(LAGPART_)
              INCLUDE 'hd_lagpartout.f90'
+#endif
+#if defined(TESTPART_) && defined(MAGFIELD_)
+             INCLUDE 'mhd_testpartout.f90'
+#endif
 #if defined(SCALAR_)
              INCLUDE 'scalar_lagpartout.f90'
 #endif
@@ -2535,9 +2595,12 @@
          END DO
          END DO
 
-#ifdef LAGPART_
+#ifdef PART_
          IF ( dolag.GT.0 ) THEN
            CALL lagpart%SetStep()
+#if defined(TESTPART_) && defined(MAGFIELD)
+           CALL lagpart%SetStepVel()
+#endif
          ENDIF
 #endif
 
@@ -2618,41 +2681,83 @@
          INCLUDE 'edqnmroth_rkstep2.f90'
 #endif
 
+#ifdef PART_
+         IF ( dolag.GT.0 ) THEN
+	 rmp = 1.0_GP/real(n,kind=GP)**3
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+           DO j = 1,n
+             DO k = 1,n
+               C7(k,j,i) = vx(k,j,i)*rmp
+             END DO
+           END DO
+         END DO
+         CALL fftp3d_complex_to_real(plancr,C7,R1,MPI_COMM_WORLD)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+           DO j = 1,n
+             DO k = 1,n
+               C7(k,j,i) = vy(k,j,i)*rmp
+             END DO
+           END DO
+         END DO
+         CALL fftp3d_complex_to_real(plancr,C7,R2,MPI_COMM_WORLD)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+           DO j = 1,n
+             DO k = 1,n
+               C7(k,j,i) = vz(k,j,i)*rmp
+             END DO
+           END DO
+         END DO
+         CALL fftp3d_complex_to_real(plancr,C7,R3,MPI_COMM_WORLD)
 #ifdef LAGPART_
-      IF ( dolag.GT.0 ) THEN
+         CALL lagpart%Step(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),R4,R5,R6)
+#endif
+#if defined(TESTPART_) && defined(MAGFIELD_)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      DO i = ista,iend
+         DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-        DO j = 1,n
-          DO k = 1,n
-            C7(k,j,i) = vx(k,j,i)/real(n,kind=GP)**3
-          END DO
-        END DO
-      END DO
-      CALL fftp3d_complex_to_real(plancr,C7,R1,MPI_COMM_WORLD)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-        DO j = 1,n
-          DO k = 1,n
-            C7(k,j,i) = vy(k,j,i)/real(n,kind=GP)**3
-          END DO
-        END DO
-      END DO
-      CALL fftp3d_complex_to_real(plancr,C7,R2,MPI_COMM_WORLD)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-        DO j = 1,n
-          DO k = 1,n
-            C7(k,j,i) = vz(k,j,i)/real(n,kind=GP)**3
-          END DO
-        END DO
-      END DO
-      CALL fftp3d_complex_to_real(plancr,C7,R3,MPI_COMM_WORLD)
-
-      CALL lagpart%Step(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),R4,R5,R6)
-      ENDIF
+           DO j = 1,n
+             DO k = 1,n
+               C11(k,j,i) = ax(k,j,i)*rmp
+               C12(k,j,i) = ay(k,j,i)*rmp
+               C13(k,j,i) = az(k,j,i)*rmp
+             END DO
+           END DO
+         END DO
+         CALL rotor3(C12,C13,C14,1)
+         CALL rotor3(C11,C13,C15,2)
+         CALL rotor3(C11,C12,C16,3)
+#ifdef UNIFORMB_
+         IF (myrank.eq.0) THEN          ! b = b + B_0
+            C14(1,1,1) = bx0
+            C15(1,1,1) = by0
+            C16(1,1,1) = bz0
+         ENDIF
+#endif 
+         CALL fftp3d_complex_to_real(plancr,C14,Rb1,MPI_COMM_WORLD)
+         CALL fftp3d_complex_to_real(plancr,C15,Rb2,MPI_COMM_WORLD)
+         CALL fftp3d_complex_to_real(plancr,C16,Rb3,MPI_COMM_WORLD)
+         Rb1 = gyrof*Rb1
+         Rb2 = gyrof*Rb2
+         Rb3 = gyrof*Rb3
+         CALL laplak3(C11,C14)
+         CALL laplak3(C12,C15)
+         CALL laplak3(C13,C16)
+         CALL fftp3d_complex_to_real(plancr,C14,Rj1,MPI_COMM_WORLD)
+         CALL fftp3d_complex_to_real(plancr,C15,Rj2,MPI_COMM_WORLD)
+         CALL fftp3d_complex_to_real(plancr,C16,Rj3,MPI_COMM_WORLD)
+         Rj1 = gyrof*mu*Rj1
+         Rj2 = gyrof*mu*Rj2
+         Rj3 = gyrof*mu*Rj3
+         CALL lagpart%StepTestp(R1,R2,R3,Rb1,Rb2,Rb3,Rj1,Rj2,Rj3,dt &
+	                          ,1.0_GP/real(o,kind=GP),R4,R5,R6)
+#endif
+         ENDIF
 #endif
 
          END DO
@@ -2675,7 +2780,7 @@
          CALL GTStop(ihcpu1)
          CALL GTStop(ihomp1)
          CALL GTStop(ihwtm1)
-#ifdef LAGPART_
+#ifdef PART_
         IF ( dolag.GT.0 ) THEN
           rbal = rbal + lagpart%GetLoadBal()
         ENDIF
@@ -2705,7 +2810,7 @@
                        GTGetTime(ihwtm2)/(step-ini+1)
             ENDIF
             CLOSE(1)
-#if defined(LAGPART_)
+#if defined(PART_)
             IF ( dolag.GT.0 ) THEN
               OPEN(2,file='gpbenchmark.txt',position='append')
                 WRITE(2,*) n,maxparts,rbal/(step-ini+1),(step-ini+1),nprocs,nth, &
@@ -2722,7 +2827,7 @@
          ENDIF
       ENDIF
 
-#if defined(LAGPART_)
+#if defined(PART_)
 ! Write particle write times to screen:
       IF ( myrank .EQ. 0 ) THEN
         WRITE(*,*)'main: <GPTIME_GPWRITE>=',lagpart%GetTime(GPTIME_GPWRITE)/nwpart
@@ -2788,8 +2893,12 @@
 #ifdef EDQNM_
       DEALLOCATE( C19 )
       DEALLOCATE( tepq,thpq,tve,tvh,Eext,Hext )
-#endif 
-#ifdef LAGPART_
+#endif
+#ifdef PART_
       DEALLOCATE( R4,R5,R6 )
+#endif
+#if defined(TESTPART_) && defined(MAGFIELD_)
+      DEALLOCATE( Rb1,Rb2,Rb3 )
+      DEALLOCATE( Rj1,Rj2,Rj3 )
 #endif
       END PROGRAM MAIN3D

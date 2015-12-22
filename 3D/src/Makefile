@@ -39,9 +39,13 @@ LAGP         = $(GHOME)/lagpart
 
 # Lagrangian particle variables:
 LAGPDEFyes   = -DDEF_GHOST_LAGP   
+LAGPDEFlag   = $(LAGPDEFyes)
+LAGPDEFtest  = -DDEF_GHOST_TESTP
 LAGPDEFno    =   
 LAGPOBJSyes  = $(LAGP)/gpdbrec_mod.o $(LAGP)/gpartcomm_mod.o  $(LAGP)/gpsplineint_mod.o  $(LAGP)/gparts_mod.o
-LAGPOBJSno   =  
+LAGPOBJSlag  = $(LAGPOBJSyes)
+LAGPOBJStest = $(LAGPOBJSyes)
+LAGPOBJSno   = 
 
 # IO library variables:
 IODEFvdcpio  = -DDEF_VDCPIO_
@@ -170,7 +174,7 @@ trunc:	edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS) $(IOLIB)/binary_io.o $(GMISC
            $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
-boots: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS) $(IOLIB)/binary_io.o $(GMISC) $(OBJS)
+boots:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS) $(IOLIB)/binary_io.o $(GMISC) $(OBJS)
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(GMISC) $(GTIMER) $(OBJS) \
@@ -184,12 +188,13 @@ vt:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(GMISC) $(OBJS)
            $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
-shear: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS) $(IOLIB)/binary_io.o $(GMISC) $(OBJS)
+shear:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS) $(IOLIB)/binary_io.o $(GMISC) $(OBJS)
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(GMISC) $(GTIMER) $(OBJS) \
            $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
+
 wv:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS)  $(IOLIB)/binary_io.o $(GMISC) $(OBJS)
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
@@ -280,29 +285,29 @@ struc$(SOLVER):
 $(FFTPDIR)/fftp3D.o: 
 	cd $(FFTPDIR) && $(MAKE) COMPILE='$(COMPILE)' CUCOMPILE='$(CUCOMPILE)'
 
+$(IOLIB)/binary_io.o:
+	cd $(IOLIB) && $(MAKE) COMPILE='$(COMPILE)' 
+
+$(LAGP)/gpdbrec_mod.o:
+	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' gpdbrec_mod.o
+
+$(LAGP)/gpartcomm_mod.o:
+	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' gpartcomm_mod.o
+
+$(LAGP)/gpsplineint_mod.o:
+	cd $(LAGP) && $(MAKE) COMPILE='$(SPECOMP)' gpsplineint_mod.o
+
+$(LAGP)/gparts_mod.o:
+	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' gparts_mod.o
+
 $(UTILS)/gutils_mod.o:
 	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)' gutils_mod.o 
 
 $(UTILS)/gtimer_mod.o:
 	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)' gtimer_mod.o
 
-$(LAGP)/gpdbrec_mod.o:
-	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' INCLUDE='$(INCLUDE)'  gpdbrec_mod.o
-
-$(LAGP)/gpartcomm_mod.o:
-	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' INCLUDE='$(INCLUDE)' gpartcomm_mod.o
-
-$(LAGP)/gpsplineint_mod.o:
-	cd $(LAGP) && $(MAKE) COMPILE='$(SPECOMP)' INCLUDE='$(INCLUDE)' gpsplineint_mod.o
-
-$(LAGP)/gparts_mod.o:
-	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' INCLUDE='$(INCLUDE)' gparts_mod.o
-
 $(UTILS)/regridutils.o:
 	cd $(UTILS) && $(MAKE) COMPILE='$(COMPILE)' regridutils.o
-
-$(IOLIB)/binary_io.o:
-	cd $(IOLIB) && $(MAKE) COMPILE='$(COMPILE)' 
 
 $(CONTRIB)/nvidia/setaffinity_for_nvidia.o:
 	cd $(CONTRIB)/nvidia && $(MAKE) CCOMPILE='$(CCOMPILE) -D_GNU_SOURCE' 
