@@ -39,7 +39,7 @@
            pind = pind+1
            WRITE(lgext, lgfmtext) pind
            CALL lagpart%io_write_pdb (1,odir,'xlg',lgext,(t-1)*dt)
-!          CALL lagpart%io_write_pdbv(1,odir,'vtp',lgext,(t-1)*dt)
+           CALL lagpart%io_write_pdbv(1,odir,'vtp',lgext,(t-1)*dt)
            CALL lagpart%io_write_vec (1,odir,'vlg',lgext,(t-1)*dt)
            CALL lagpart%io_write_pdbm1(1,odir,'xlgm1',lgext,(t-2)*dt)
            CALL lagpart%io_write_vecm1(1,odir,'vlgm1',lgext,(t-2)*dt)

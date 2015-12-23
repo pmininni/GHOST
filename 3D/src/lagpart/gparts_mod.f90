@@ -51,6 +51,7 @@ MODULE class_GPart
         INTEGER                                      :: iexchtype_
         INTEGER                                      :: iouttype_
         INTEGER                                      :: intacc_
+        INTEGER                                      :: wrtunit_
         INTEGER                                      :: bcollective_
         INTEGER                                      :: itimetype_
         TYPE(GPartComm)                              :: gpcomm_
@@ -104,22 +105,7 @@ MODULE class_GPart
         PROCEDURE,PUBLIC :: synch_acc         => GPart_synch_acc
       END TYPE GPart
 
-      TYPE, PUBLIC, EXTENDS ( GPart ) :: TestGPart
-        PRIVATE
-        ! Member data:
-        REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: pvx_,pvy_,pvz_
-        REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: lbx_,lby_,lbz_
-        REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: lfx_,lfy_,lfz_
-        REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:,:) :: ttmp0_
-      CONTAINS
-        ! Public methods:
-        PROCEDURE,PUBLIC :: TestGPart_ctor
-        FINAL            :: TestGPart_dtor
-        PROCEDURE,PUBLIC :: InitVel           => TestGPart_InitVel
-        PROCEDURE,PUBLIC :: SetStepVel        => TestGPart_SetStepRKK
-        PROCEDURE,PUBLIC :: StepTestp         => TestGPart_StepRKK
-        PROCEDURE,PUBLIC :: EndStage          => TestGPart_EndStageRKK
-      END TYPE TestGPart
+      INCLUDE 'tparts_dtype.f90'
 
       PRIVATE :: GPart_Init               , GPart_StepRKK     
       PRIVATE :: GPart_SetStepRKK         , GPart_EndStageRKK
@@ -128,24 +114,23 @@ MODULE class_GPart
       PRIVATE :: GPart_InitRandSeed       , GPart_InitUserSeed 
       PRIVATE :: GPart_SetInitType        , GPart_SetSeedFile
       PRIVATE :: GPart_SetRandSeed        , GPart_Delete
-      PRIVATE :: GPart_MakePeriodicP
-      PRIVATE :: GPart_GetLocalWrk        , GPart_MakePeriodicExt
-      PRIVATE :: GPart_GetLocalWrk_aux  
-      PRIVATE :: GPart_ascii_write_lag    
+      PRIVATE :: GPart_MakePeriodicP      , GPart_MakePeriodicExt
+      PRIVATE :: GPart_GetLocalWrk        , GPart_GetLocalWrk_aux
+      PRIVATE :: GPart_CopyLocalWrk       , GPart_ascii_write_lag
       PRIVATE :: GPart_binary_write_lag_co, GPart_binary_write_lag_t0
-      PRIVATE :: GPart_ascii_read_pdb     
-      PRIVATE :: GPart_binary_read_pdb_co , GPart_binary_read_pdb_t0
+      PRIVATE :: GPart_ascii_read_pdb     , GPart_binary_read_pdb_co
+      PRIVATE :: GPart_binary_read_pdb_t0
       PRIVATE :: GPart_GetVDB             , GPart_GetVel
       PRIVATE :: GPart_GetTime            , GPart_GetLoadBal
       PRIVATE :: GPart_io_write_acc       , GPart_R3toR3
-      PRIVATE :: TestGPart_InitVel        , TestGPart_StepRKK
-      PRIVATE :: TestGPart_SetStepRKK     , TestGPart_EndStageRKK
+
+      INCLUDE 'tparts_private.f90'
 
 ! Methods:
   CONTAINS
 
   SUBROUTINE GPart_ctor(this,comm,mparts,inittype,iinterp,intorder,iexchtyp, &
-                        iouttyp,bcoll,csize,nstrip,intacc)
+                        iouttyp,bcoll,csize,nstrip,intacc,wrtunit)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Main explicit constructor
@@ -168,12 +153,14 @@ MODULE class_GPart
 !              of the 'master' particle d.b., so that passing between
 !              neighbors is not necessary. But the VDB form does require
 !              a global reduction, and may be more expensive.
-!    iouttup  : output type: 0==binary, 1=ASCII
-!    bcoll    : if doing binary I/O, do collective (==1); or not (==0)
-!    csize    : cache size param for local transposes
-!    nstrip   : 'strip-mining' size for local transposes
-!    intacc : compute acceleration internally to class (==1); or not (==0). Storage
-!               allocated only if intacc==1.
+!    iouttup : output type: 0==binary, 1=ASCII
+!    bcoll   : if doing binary I/O, do collective (==1); or not (==0)
+!    csize   : cache size param for local transposes
+!    nstrip  : 'strip-mining' size for local transposes
+!    intacc  : compute acceleration internally to class (==1); or not (==0). Storage
+!              allocated only if intacc==1.
+!    wrtunit : (optional) write particle positions in box units (==1) (i.e.,
+!              x,y,z in [0,2.pi]), or in grid units (==0) (x,y,z in [0,N]).
 !-----------------------------------------------------------------
     USE grid
     USE mpivars
@@ -182,9 +169,12 @@ MODULE class_GPart
 
     IMPLICIT NONE
     CLASS(GPart)     ,INTENT(INOUT)     :: this
-    INTEGER          ,INTENT   (IN)     :: bcoll,comm,mparts,csize,nstrip,intacc
+    INTEGER          ,INTENT   (IN)     :: bcoll,comm,mparts
+    INTEGER          ,INTENT   (IN)     :: csize,nstrip,intacc
+    INTEGER, OPTIONAL,INTENT   (IN)     :: wrtunit
     INTEGER                             :: disp(3),lens(3),types(3),szreal
-    INTEGER          ,INTENT   (IN)     :: iexchtyp,iinterp,inittype,intorder,iouttyp
+    INTEGER          ,INTENT   (IN)     :: iexchtyp,iinterp,inittype
+    INTEGER          ,INTENT   (IN)     :: intorder,iouttyp
     INTEGER                             :: j,nc
 
     this%nparts_   = 0 
@@ -205,6 +195,11 @@ MODULE class_GPart
     this%bcollective_ =  bcoll
     this%itimetype_   =  GT_WTIME
     this%intacc_      =  intacc
+    IF ( present(wrtunit) ) THEN
+       this%wrtunit_  =  wrtunit
+    ELSE
+       this%wrtunit_  =  0
+    ENDIF
 
     CALL prandom_seed(this%iseed_)
     IF ( this%intorder_ .NE. 3 ) THEN
@@ -214,9 +209,8 @@ MODULE class_GPart
     CALL MPI_COMM_SIZE(this%comm_,this%nprocs_,this%ierr_)
     CALL MPI_COMM_RANK(this%comm_,this%myrank_,this%ierr_)
     
-    ! Iniitialze timers (get handles):
+    ! Initialize timers (get handles):
     DO j = 1, GPMAXTIMERS
-!!    this%htimers_(j) = GTGetHandle()
       CALL GTStart(this%htimers_(j),this%itimetype_)
       IF ( this%htimers_(j).EQ.GTNULLHANDLE ) THEN
         WRITE(*,*) 'GPart_ctor: Not enough timers available'
@@ -300,8 +294,6 @@ MODULE class_GPart
     IMPLICIT NONE
     TYPE(GPart)   ,INTENT(INOUT)             :: this
     INTEGER                                  :: j
-
-!!  CALL this%gpcomm_%GPartComm_dtor()
 
     IF ( ALLOCATED    (this%id_) ) DEALLOCATE   (this%id_)
     IF ( ALLOCATED   (this%idm_) ) DEALLOCATE  (this%idm_)
@@ -577,7 +569,8 @@ MODULE class_GPart
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,this%nparts_, &
                            this%vdb_,this%maxparts_)
-    CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,this%maxparts_,this%vdb_(1,:),this%vdb_(2,:),this%vdb_(3,:))
+    CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,this%maxparts_, &
+                               this%vdb_(1,:),this%vdb_(2,:),this%vdb_(3,:))
     IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
       IF ( this%myrank_.eq.0 ) THEN
         WRITE(*,*) 'GPart_InitRandSeed: Invalid particle after GetLocalWrk call'
@@ -732,6 +725,8 @@ MODULE class_GPart
     CALL GTFree(ht)
 
   END SUBROUTINE GPart_io_write_pdb
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 
   SUBROUTINE GPart_io_write_pdbm1(this, iunit, dir, spref, nmb, time)
 !-----------------------------------------------------------------
@@ -1192,7 +1187,6 @@ MODULE class_GPart
       CLOSE(iunit)
       
     ENDIF
-!   CALL MPI_BARRIER(this%comm_,this%ierr_)
 
   END SUBROUTINE GPart_binary_write_lag_t0
 !-----------------------------------------------------------------
@@ -2096,7 +2090,7 @@ MODULE class_GPart
        IF ( this%id_(i) .NE. GPNULL ) nnew = nnew + 1
     ENDDO
 
-    j     = 1
+    j    = 1
     DO i = 1, nnew
       DO WHILE ( j.LE.npdb .AND. id(j).EQ.GPNULL )
         j = j + 1
@@ -2295,7 +2289,7 @@ MODULE class_GPart
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
       IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
           IF ( this%myrank_.eq.0 ) THEN
-            WRITE(*,*) 'GPart_io_write_vel: Inconsistent particle count'
+            WRITE(*,*) 'GPart_GetVDB: Inconsistent particle count'
             STOP
         ENDIF
       ENDIF
@@ -2459,7 +2453,7 @@ MODULE class_GPart
 !    time    : real time stamp; don't forget that this time will be
 !              centered at the current time minus the current time step
 !-----------------------------------------------------------------
-     CLASS(GPart) ,INTENT(INOUT)             :: this 
+    CLASS(GPart) ,INTENT(INOUT)              :: this 
     REAL(KIND=GP),INTENT   (IN),DIMENSION(3) :: beta
     REAL(KIND=GP),INTENT   (IN)              :: time
     INTEGER,INTENT(IN)                       :: iunit
@@ -2497,11 +2491,11 @@ MODULE class_GPart
        CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%nparts_,&
                                       this%lvx_,this%lvy_,this%lvz_)
      ELSE
-do j=1,this%maxparts_
-  this%lvx_(j) = this%ptmp0_(1,j)
-  this%lvy_(j) = this%ptmp0_(2,j)
-  this%lvz_(j) = this%ptmp0_(3,j)
-enddo
+       DO j=1,this%maxparts_
+         this%lvx_(j) = this%ptmp0_(1,j)
+         this%lvy_(j) = this%ptmp0_(2,j)
+         this%lvz_(j) = this%ptmp0_(3,j)
+       ENDDO
        ! pass in the synched-up global (copied to ptmp0_):
        CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time,this%maxparts_, &
                                 this%lvx_,this%lvy_,this%lvz_);
@@ -2613,7 +2607,7 @@ enddo
         this%vk1_(3,j) = this%lvz_(j)
       ENDDO
 
-!     ! Vel. storage at t^n+1: don't need this one, since it's done outside this call.
+      ! Vel. storage at t^n+1: don't need this one, since it's done outside this call.
 
     ENDIF
     
@@ -2659,382 +2653,6 @@ enddo
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-  SUBROUTINE TestGPart_ctor(this)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  Explicit constructor for test particles. Should be called
-!  after calling GPart_ctor.
-!
-!  ARGUMENTS:
-!    this    : 'this' class instance
-!-----------------------------------------------------------------
-
-    IMPLICIT NONE
-    CLASS(TestGPart), INTENT(INOUT)     :: this
-
-    ALLOCATE(this%pvx_     (this%maxparts_))
-    ALLOCATE(this%pvy_     (this%maxparts_))
-    ALLOCATE(this%pvz_     (this%maxparts_))
-    ALLOCATE(this%lbx_     (this%maxparts_))
-    ALLOCATE(this%lby_     (this%maxparts_))
-    ALLOCATE(this%lbz_     (this%maxparts_))
-    ALLOCATE(this%lfx_     (this%maxparts_))
-    ALLOCATE(this%lfy_     (this%maxparts_))
-    ALLOCATE(this%lfz_     (this%maxparts_))
-    ALLOCATE(this%ttmp0_ (3,this%maxparts_))
-
-  END SUBROUTINE TestGPart_ctor
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE TestGPart_dtor(this)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  Explicit destructor for test particles. Should be called
-!  after GPart_dtor.
-!
-!  ARGUMENTS:
-!    this    : 'this' class instance
-!-----------------------------------------------------------------
-
-    IMPLICIT NONE
-    TYPE(TestGPart)   ,INTENT(INOUT)    :: this
-
-    IF ( ALLOCATED   (this%pvx_) ) DEALLOCATE   (this%pvx_)
-    IF ( ALLOCATED   (this%pvy_) ) DEALLOCATE   (this%pvy_)
-    IF ( ALLOCATED   (this%pvz_) ) DEALLOCATE   (this%pvz_)
-    IF ( ALLOCATED   (this%lbx_) ) DEALLOCATE   (this%lbx_)
-    IF ( ALLOCATED   (this%lby_) ) DEALLOCATE   (this%lby_)
-    IF ( ALLOCATED   (this%lbz_) ) DEALLOCATE   (this%lbz_)
-    IF ( ALLOCATED   (this%lfx_) ) DEALLOCATE   (this%lfx_)
-    IF ( ALLOCATED   (this%lfy_) ) DEALLOCATE   (this%lfy_)
-    IF ( ALLOCATED   (this%lfz_) ) DEALLOCATE   (this%lfz_)
-    IF ( ALLOCATED (this%ttmp0_) ) DEALLOCATE (this%ttmp0_)
-
-  END SUBROUTINE TestGPart_dtor
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE TestGPart_InitVel(this,vtherm)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : InitVel
-!  DESCRIPTION: Initializes particle velocities with a Gaussian
-!               distribution function, with thermal speed vtherm.
-!               Other parameters are initialized with GPart_Init.
-!  ARGUMENTS:
-!    this   : 'this' class instance
-!    vtherm : thermal speed
-!-----------------------------------------------------------------
-    USE random
-
-    IMPLICIT NONE
-    CLASS(TestGPart), INTENT(INOUT) :: this
-    REAL(KIND=GP),INTENT(IN)        :: vtherm
-    REAL(KIND=GP)                   :: low,twopi,u1,u2,gauss
-    INTEGER                         :: j
+  INCLUDE 'tparts_contain.f90'
   
-    twopi = 8.0_GP*atan(1.0_GP)
-    low   = 1.0e-20_GP
-
-    DO j = 1, this%nparts_
-
-     u1 = rand()
-     u2 = rand()
-     u1 =  max( u1, low)
-     u2 =  twopi * u2
-     gauss =  sqrt( -2.0_GP * log( u1)) * CMPLX( cos(u2), sin(u2))
-
-       this%pvx_(j) = vtherm*gauss
-
-     u1 = rand()
-     u2 = rand()
-     u1 =  MAX( u1, low)
-     u2 =  twopi * u2
-     gauss =  sqrt( -2.0_GP * log( u1)) * CMPLX( cos(u2), sin(u2))
-
-       this%pvy_(j) = vtherm*gauss
-
-     u1 = rand()
-     u2 = rand()
-     u1 =  MAX( u1, low)
-     u2 =  twopi * u2
-     gauss =  sqrt( -2.0_GP * log( u1)) * CMPLX( cos(u2), sin(u2))
-
-       this%pvz_(j) = vtherm*gauss
-
-    END DO
-
-  END SUBROUTINE TestGPart_InitVel
-
-  SUBROUTINE TestGPart_SetStepRKK(this)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : SetStepRKK
-!  DESCRIPTION: Initializes an explicit integration timestep for
-!               the particle velocity. Must be called at the start
-!               of the RK stage execution, together with
-!               GPart_SetStepRKK.
-!
-!  ARGUMENTS  :
-!    this     : 'this' class instance
-!-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
-    USE mpivars
-
-    IMPLICIT NONE
-    CLASS(TestGPart), INTENT(INOUT) :: this
-
-    INTEGER                         :: j
-
-    ! Initialize solution, u: 
-    ! u* <-- u: 
- 
-    ! Cycle over JST loop to update state:
-!$omp parallel do
-    DO j = 1, this%nparts_
-       this%ttmp0_(1,j) = this%pvx_(j)  ! ux_0
-       this%ttmp0_(2,j) = this%pvy_(j)  ! uy_0
-       this%ttmp0_(3,j) = this%pvz_(j)  ! uz_0
-    ENDDO 
-
-  END SUBROUTINE TestGPart_SetStepRKK
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE TestGPart_StepRKK(this, vx, vy, vz, bx, by, bz, jx, &
-                jy, jz, dt, xk, tmp1, tmp2, tmp3)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : Step_testp
-!  DESCRIPTION: Carries out one stage of explicit RK-like time
-!               integration step.  Intended for explicit step within 
-!               an outer stepper method of the form:
-!
-!               X = X_0 + dt * V[X(t),t] * xk,
-!               V = V_0 + dt * F[V(X(t)),E(X(t)),B(X(t))] * xk,
-!       
-!               where F is the electromagnetic force on the particle.
-!               Note that the vx, vy, vz, will be overwritten here.
-!  ARGUMENTS  :
-!    this    : 'this' class instance
-!    vz,vy,vz: compoments of velocity field, in real space, partially
-!              updated, possibly. These will be overwritten!
-!    bz,by,bz: compoments of magnetic field in real space
-!    jz,jy,jz: compoments of current density in real space
-!    dt      : integration timestep
-!    xk      : multiplicative RK time stage factor
-!    tmpX    : temp arrays the same size as vx, vy, vz
-!-----------------------------------------------------------------
-    USE grid
-    USE fprecision
-    USE commtypes
-    USE mpivars
-
-    IMPLICIT NONE
-    CLASS(TestGPart) ,INTENT(INOUT)                      :: this
-    INTEGER                                              :: i,j
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend) :: vx,vy,vz
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend) :: tmp1,tmp2,tmp3
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend) :: bx,by,bz
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend) :: jx,jy,jz
-    REAL(KIND=GP),INTENT   (IN)                          :: dt,xk
-    REAL(KIND=GP)                                        :: dtfact
-    REAL(KIND=GP)                                        :: dtv
-    REAL(KIND=GP), ALLOCATABLE, DIMENSION            (:) :: lid,gid
-
-    dtfact = dt*xk*real(n,kind=GP)/(8.0_GP*atan(1.0_GP))
-    dtv    = dt*xk
-    CALL GTStart(this%htimers_(GPTIME_STEP))
-
-    ! Find F(u*):
-    CALL GPart_R3toR3(this,tmp3,vx) ! Want vx intact to use later
-    CALL GPart_EulerToLag(this,this%lvx_,this%nparts_,tmp3,.true.,tmp1,tmp2)
-    CALL GPart_R3toR3(this,tmp3,vy) ! Want vy intact to use later
-    CALL GPart_EulerToLag(this,this%lvy_,this%nparts_,tmp3,.false.,tmp1,tmp2)
-    CALL GPart_R3toR3(this,tmp3,vz) ! Want vz intact to use later
-    CALL GPart_EulerToLag(this,this%lvz_,this%nparts_,tmp3,.false.,tmp1,tmp2)
-    CALL GPart_EulerToLag(this,this%lbx_,this%nparts_,bx,.false.,tmp1,tmp2)
-    CALL GPart_EulerToLag(this,this%lby_,this%nparts_,by,.false.,tmp1,tmp2)
-    CALL GPart_EulerToLag(this,this%lbz_,this%nparts_,bz,.false.,tmp1,tmp2)
-    CALL GPart_EulerToLag(this,this%lfx_,this%nparts_,jx,.false.,tmp1,tmp2)
-    CALL GPart_EulerToLag(this,this%lfy_,this%nparts_,jy,.false.,tmp1,tmp2)
-    CALL GPart_EulerToLag(this,this%lfz_,this%nparts_,jz,.false.,tmp1,tmp2)
-!   Lorentz force
-    DO j = 1, this%nparts_
-       this%lfx_(j) = this%lfx_(j) + (this%pvy_(j)-this%lvy_(j))*this%lbz_(j)-(this%pvz_(j)-this%lvz_(j))*this%lby_(j)
-       this%lfy_(j) = this%lfy_(j) + (this%pvz_(j)-this%lvz_(j))*this%lbx_(j)-(this%pvx_(j)-this%lvx_(j))*this%lbz_(j)
-       this%lfz_(j) = this%lfz_(j) + (this%pvx_(j)-this%lvx_(j))*this%lby_(j)-(this%pvy_(j)-this%lvy_(j))*this%lbx_(j)
-! Lorentz force only with magnetic field (conservative)
-!      this%lfx_(j) = this%pvy_(j)*this%lbz_(j)-this%pvz_(j)*this%lby_(j)
-!      this%lfy_(j) = this%pvz_(j)*this%lbx_(j)-this%pvx_(j)*this%lbz_(j)
-!      this%lfz_(j) = this%pvx_(j)*this%lby_(j)-this%pvy_(j)*this%lbx_(j)
-    ENDDO
-
-    ! ... x:
-    DO j = 1, this%nparts_
-      this%px_(j) = this%ptmp0_(1,j) + dtfact*this%pvx_(j)
-      this%pvx_(j) = this%ptmp2_(1,j) + dtv*this%lfx_(j)
-    ENDDO
-
-    ! ... y:
-    DO j = 1, this%nparts_
-      this%py_(j) = this%ptmp0_(2,j) + dtfact*this%pvy_(j)
-      this%pvy_(j) = this%ptmp2_(2,j) + dtv*this%lfy_(j)
-    ENDDO
-
-    ! ... z:
-    DO j = 1, this%nparts_
-      this%pz_(j) = this%ptmp0_(3,j) + dtfact*this%pvz_(j)
-      this%pvz_(j) = this%ptmp2_(3,j) + dtv*this%lfz_(j)
-    ENDDO
-
-    ! Enforce periodicity in x-y only:
-    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3)
-
-    CALL GTAcc(this%htimers_(GPTIME_STEP))
-
-!   ALLOCATE  (lid(this%maxparts_))
-!   ALLOCATE  (gid(this%maxparts_))
-!   lid = 0
-!   gid = 0
-!   do j=1,this%maxparts_
-!     lid(this%id_(j)+1) = 1
-!   enddo
-!   call mpi_allreduce(lid,gid,this%maxparts_,MPI_INTEGER,MPI_SUM,this%comm_,this%ierr_)
-!   if ( this%myrank_.eq. 0 ) then
-!     do j=1,this%maxparts_
-!       if ( gid(j) .gt.1 ) then
-!         write(*,*)this%myrank_,': StepRKK: multiplicity > 1: id=',j-1,' p=', &
-!                   this%vdb_(1,j),this%vdb_(2,j),this%vdb_(3,j)
-!       else if ( gid(j).eq.0 ) then
-!         write(*,*)this%myrank_,': StepRKK: particle missing: id=',j-1
-!       endif    
-!     enddo
-!   endif
-!   DEALLOCATE(lid,gid)
-
-    ! At this point, vx, vy, vz should be intact:
-    CALL TestGPart_EndStageRKK(this,vx,vy,vz,xk,tmp1,tmp2)
-
-  END SUBROUTINE TestGPart_StepRKK
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE TestGPart_EndStageRKK(this,vx,vy,vz,xk,tmp1,tmp2)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : EndStageRKK
-!  DESCRIPTION: Called at the end of all RK-like stages to
-!               complete test particle update.
-
-!  ARGUMENTS  :
-!    this    : 'this' class instance
-!    vz,vy,vz: compoments of velocity field, in real space, partially
-!              updated, possibly. These will be overwritten!
-!    xk      : multiplicative RK time stage factor
-!    tmpX    : temp arrays the same size as vx, vy, vz
-!-----------------------------------------------------------------
-    USE fprecision
-    USE commtypes
-    USE mpivars
-    USE grid
-
-    IMPLICIT NONE
-    CLASS(TestGPart) ,INTENT(INOUT)             :: this
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend) :: vx,vy,vz,tmp1,tmp2
-    REAL(KIND=GP),INTENT   (IN)                 :: xk
-    INTEGER                                     :: j,ng
-
-    ! u(t+dt) = u*: done already
-
-    ! IF using nearest-neighbor interface, do particle exchange 
-    ! between nearest-neighbor tasks BEFORE z-PERIODIZING particle coordinates:
-    IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
-      CALL GTStart(this%htimers_(GPTIME_COMM))
-      CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_, &
-           this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2))
-      CALL GTAcc(this%htimers_(GPTIME_COMM))
-    ENDIF
-
-    ! Enforce periodicity in x, y, & z:
-    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,7)
-
-    ! If using VDB interface, do synch-up, and get local work:
-    IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
-
-      IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
-        IF ( this%myrank_.eq.0 ) THEN
-          WRITE(*,*) 'TestGPart_EndStepRKK: Inconsistent particle count'
-        ENDIF
-      ENDIF
-      ! Synch up VDB, if necessary:
-      CALL GTStart(this%htimers_(GPTIME_COMM))
-      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
-           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
-                     this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
-                     this%nparts_,this%ptmp1_)
-      CALL GPart_CopyLocalWrk(this,this%ptmp0_(1,:),  &
-                        this%ptmp0_(2,:),this%ptmp0_(3,:), &
-           this%vdb_,this%gptmp0_,this%maxparts_)
-      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
-           this%pvx_,this%pvy_,this%pvz_,this%nparts_,this%ptmp1_)
-      CALL GPart_CopyLocalWrk(this,this%pvx_,  &
-           this%pvy_,this%pvz_,this%vdb_,  &
-                      this%gptmp0_,this%maxparts_)
-      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
-                     this%ptmp2_(1,:),this%ptmp2_(2,:),this%ptmp2_(3,:),&
-                     this%nparts_,this%ptmp1_)
-      CALL GPart_CopyLocalWrk(this,this%ptmp2_(1,:),   &
-           this%ptmp2_(2,:),this%ptmp2_(3,:),this%vdb_, &
-                  this%gptmp0_,this%maxparts_)
-      CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
-      this%nparts_, this%vdb_,this%maxparts_)
-      CALL GTAcc(this%htimers_(GPTIME_COMM))
-
-      CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
-                         MPI_SUM,this%comm_,this%ierr_)
-
-      IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_) THEN
-        WRITE(*,*)'TestGPart_EndStepRKK: inconsistent d.b.: expected: ', &
-                 this%maxparts_, '; found: ',ng
-!        this%vdb_ = this%vdb_*(8.0_GP*atan(1.0_GP))/real(n,kind=GP)
-!        CALL GPART_ascii_write_pdb(this,1,'.','xlgerr','000',0.0_GP,this%vdb_)
-!        this%vdb_ = this%vdb_/(8.0_GP*atan(1.0_GP))*real(n,kind=GP)
-        STOP
-      ENDIF
-
-    ENDIF
-
-    IF ( this%intacc_.EQ.0 ) RETURN
-
-    ! If doing internal acceleration, synch up past time levels:
-    CALL GPart_synch_acc(this)
-
-    ! Set t^n+1 velocity based on most recent Lag.particle positions:
-    ! NOTE: vx, vy, vz are overwirtten on exit:
-    CALL GPart_EulerToLag(this,this%lvx_,this%nparts_,vx,.true. ,tmp1,tmp2)
-    CALL GPart_EulerToLag(this,this%lvy_,this%nparts_,vy,.false.,tmp1,tmp2)
-    CALL GPart_EulerToLag(this,this%lvz_,this%nparts_,vz,.false.,tmp1,tmp2)
-
-!$omp parallel do 
-    DO j = 1, this%nparts_
-      this%vk2_(1,j) = this%lvx_(j)
-      this%vk2_(2,j) = this%lvy_(j)
-      this%vk2_(3,j) = this%lvz_(j)
-    ENDDO
-
-    ! set particle ids owned by task at lag times:
-    this%idm_ = 0
-    this%npartsm_ = this%nparts_
-    this%idm_(1:this%nparts_) = this%id_(1:this%nparts_)
-
-    RETURN
-
-  END SUBROUTINE TestGPart_EndStageRKK
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
 END MODULE class_GPart

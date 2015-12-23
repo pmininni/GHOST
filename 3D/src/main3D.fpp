@@ -316,6 +316,7 @@
       INTEGER      :: ilgintrptype
       INTEGER      :: ilgexchtype
       INTEGER      :: ilgouttype
+      INTEGER      :: ilgwrtunit
       INTEGER      :: ilgcoll
       INTEGER      :: ilgfpfiletype
       INTEGER      :: blgdofp
@@ -425,8 +426,8 @@
 #endif
 #ifdef PART_
       NAMELIST / plagpart / lgmult,maxparts,ilginittype,ilgintrptype
-      NAMELIST / plagpart / ilgexchtype,ilgouttype,lgseedfile,injtp
-      NAMELIST / plagpart / ilgcoll,cresetp,dolag,dopacc
+      NAMELIST / plagpart / ilgexchtype,ilgouttype,ilgwrtunit,lgseedfile
+      NAMELIST / plagpart / injtp,ilgcoll,cresetp,dolag,dopacc
       NAMELIST / plagpart / blgdofp,ilgfpfiletype,blgfpfilecoll,slgfpfile
 #endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
@@ -1231,6 +1232,7 @@
 !     ilgintrptype: Interpolation type: only GPINTRP_CSPLINE currently
 !     ilgexchtype : Boundary exchange type: GPEXCHTYPE_VDB (voxel db) or GPEXCHTYPE_NN (nearest-neighbor)
 !     ilgouttype  : Particle output type: 0=binary; 1=ASCII
+!     ilgwrtunit  : Units for part. position write: 0=box units; 1=grid units
 !     lgseedfile  : Name of seed file if ilginittype=GPINIT_USERLOC
 !     ilgcoll     : 1=binary collective I/O; 0=task 0 binary (posix) I/O
 !     dolag       : 1=run with particles; 0=don't 
@@ -1244,6 +1246,7 @@
       ilgintrptype = GPINTRP_CSPLINE
       ilgexchtype  = GPEXCHTYPE_VDB
       ilgouttype   = 0
+      ilgwrtunit   = 0
       lgmult       = 1
       lgseedfile   = 'gplag.dat'
       ilgcoll      = 1
@@ -1268,6 +1271,7 @@
       CALL MPI_BCAST(ilgintrptype ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilgexchtype  ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilgouttype   ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ilgwrtunit   ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(dolag        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(dopacc       ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilgcoll      ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -1389,7 +1393,8 @@
       tbeta = (/-rmp, 0.0, rmp/)
       IF ( dolag.GT.0 ) THEN
         CALL lagpart%GPart_ctor(MPI_COMM_WORLD,maxparts,ilginittype,&
-             ilgintrptype,3,ilgexchtype,ilgouttype,ilgcoll,csize,nstrip,dopacc)
+             ilgintrptype,3,ilgexchtype,ilgouttype,ilgcoll,csize, &
+             nstrip,dopacc,ilgwrtunit)
         CALL lagpart%SetRandSeed(seed)
         CALL lagpart%SetSeedFile(trim(lgseedfile))
 #if defined(TESTPART_) && defined(MAGFIELD_)
@@ -1402,7 +1407,8 @@
                                ! fields at given points, and outputs them without
                                ! evolving them.
         CALL lagfp%GPart_ctor(MPI_COMM_WORLD,maxparts,GPINIT_USERLOC,&
-             ilgintrptype,3,ilgexchtype,ilgfpfiletype,blgfpfilecoll,csize,nstrip,0)
+             ilgintrptype,3,ilgexchtype,ilgfpfiletype,blgfpfilecoll,&
+             csize,nstrip,0)
         CALL lagfp%SetRandSeed(seed)
         CALL lagfp%SetSeedFile(trim(slgfpfile))
       ENDIF

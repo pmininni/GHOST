@@ -145,6 +145,7 @@ cresetp = 0      ! Resets file number counters at time of injection when 1
 ilginittype = 0  ! Initialization type for locations (0=random, 1=user)
 ilgexchtype = 1  ! Boundary exchange type (0=nearest neighbor, 1=voxel db)
 ilgouttype = 1   ! Output type (0=binary, 1=ASCII)
+ilgwrtunit = 0   ! Write part. positions in box units (=1) or grid units (=0)
 lgseedfile = 'user_seed_file.dat'
 /
 
