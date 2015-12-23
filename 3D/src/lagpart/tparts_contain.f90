@@ -402,7 +402,7 @@
     USE mpivars
 
     IMPLICIT NONE
-    CLASS(GPart) ,INTENT(INOUT)       :: this
+    CLASS(TestGPart) ,INTENT(INOUT)   :: this
     REAL(KIND=GP),INTENT   (IN)       :: time
     REAL(KIND=GP)                     :: prec(3)
     INTEGER,INTENT(IN)                :: iunit
