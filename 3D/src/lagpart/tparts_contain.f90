@@ -412,18 +412,8 @@
     CHARACTER(len=*),INTENT(IN)       :: nmb
     CHARACTER(len=*),INTENT(IN)       :: spref
 
-    IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
-       CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
-            this%pvx_,this%pvy_,this%pvz_,this%nparts_,this%ptmp1_)
-    ELSE
-      ! Store global VDB data into temp array:
-!$omp parallel do
-      DO j = 1, this%maxparts_
-        this%ptmp0_(1,j) = this%pvx_(1,j)
-        this%ptmp0_(2,j) = this%pvy_(2,j)
-        this%ptmp0_(3,j) = this%pvz_(3,j)
-      ENDDO
-    ENDIF
+    CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+         this%pvx_,this%pvy_,this%pvz_,this%nparts_,this%ptmp1_)
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
       IF ( this%bcollective_.EQ. 1 ) THEN
@@ -434,7 +424,8 @@
         ! pass in the synched-up VDB (copied to ptmp0_):
         CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time,this%maxparts_, &
              this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
-     ELSE
+      ENDIF
+    ELSE
       ! pass in the synched-up VDB (copied to ptmp0_):
       CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time,this%maxparts_, &
            this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
