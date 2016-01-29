@@ -105,9 +105,7 @@ TARGET_INTEL  =
 CPP_GNU       = /share/apps/gcc-5.2.0/bin/cpp -traditional-cpp
 FC_GNU        = /share/apps/gcc-5.2.0/bin/gfortran
 CC_GNU        = /share/apps/gcc-5.2.0/bin/gcc
-# FFLAGS_GNU = -g -fno-unsafe-math-optimizations -fno-rounding-math -fsignaling-nans
 FFLAGS_GNU    = -O4
-# FFLAGS_GNU    = -g -ffpe-trap=invalid,zero,overflow
 CFLAGS_GNU    = -O4
 GNU_OMP       = -fopenmp
 TARGET_GNU    = -msse
