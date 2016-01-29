@@ -30,7 +30,8 @@ P_CUDA   = no
 
 # Lagrangian particles:
 # PARTICLES = no        # Do not build Lag. particles
-# PARTICLES = yes       # Build Lag. particles
+# PARTICLES = lag       # Build Lag. particles (=yes)
+# PARTICLES = test      # Build Test particles
 PARTICLES = no
 
 # FFTP:
