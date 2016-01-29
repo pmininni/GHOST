@@ -29,9 +29,9 @@ P_HYBRID = no
 P_CUDA   = no
 
 # Lagrangian particles:
-# PARTICLES = no        # Do not build Lag. particles
-# PARTICLES = lag       # Build Lag. particles (=yes)
-# PARTICLES = test      # Build Test particles
+# PARTICLES = no         # Do not build Lag. particles
+# PARTICLES = lag (=yes) # Build Lag. particles
+# PARTICLES = test       # Build Test particles (only with magnetic fields)
 PARTICLES = no
 
 # FFTP:
