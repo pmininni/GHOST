@@ -262,25 +262,25 @@ $(SOLVER):
 	$(COMPILE) $(SOLVER).f90
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(CONTRIBOBJS) $(GUTILS) \
 	$(LAGPOBJS$(PARTICLES)) $(GTIMER) $(OBJS) \
-           $(SOLVER).o $(LDFLAGS) -o ../bin/$(SOLVER)
+           $(SOLVER).o $(LDFLAGS) -o $(BIN)/$(SOLVER)
 
 trans$(SOLVER) triad$(SOLVER):
 	$(PREPROCESS) $(EXTRASDIR)/$(@:$(SOLVER)=3D).fpp -o $@.f90
 	$(COMPILE) $@.f90
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(OBJS) \
-           $(TRAN_OBJS) $@.o $(LDFLAGS) -o ../bin/$@
+           $(TRAN_OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
 
 cancel$(SOLVER):
 	$(PREPROCESS) $(EXTRASDIR)/$(@:$(SOLVER)=3D).fpp -o $@.f90
 	$(COMPILE) $@.f90
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTP)/*.o $(IOLIB)/*.o $(OBJS) \
-           $@.o $(LDFLAGS) -o ../bin/$@
+           $@.o $(LDFLAGS) -o $(BIN)/$@
 
 struc$(SOLVER):
 	$(PREPROCESS) $(EXTRASDIR)/$(@:$(SOLVER)=3D).fpp -o $@.f90
 	$(COMPILE) $@.f90
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(OBJS) \
-           $(STRU_OBJS) $(GTIMER) $@.o $(LDFLAGS) -o ../bin/$@
+           $(STRU_OBJS) $(GTIMER) $(GUTILS) $@.o $(LDFLAGS) -o $(BIN)/$@
 
 $(FFTPDIR)/fftp3D.o: 
 	cd $(FFTPDIR) && $(MAKE) COMPILE='$(COMPILE)' CUCOMPILE='$(CUCOMPILE)'
