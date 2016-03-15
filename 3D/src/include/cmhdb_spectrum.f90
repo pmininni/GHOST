@@ -7,5 +7,5 @@
             CALL specpara(ax,ay,az,ext,0,1)
             CALL specperp(ax,ay,az,ext,0,1)
             CALL spectrsc(th,ext,0)
-            CALL specscpa(th,ext)
-            CALL specscpe(th,ext)
+            CALL specscpa(th,ext,0)
+            CALL specscpe(th,ext,0)
