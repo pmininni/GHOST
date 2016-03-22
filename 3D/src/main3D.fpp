@@ -184,6 +184,10 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fxold,fyold,fzold
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fxnew,fynew,fznew
 #endif
+#ifdef MAGFIELD_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: mxold,myold,mzold
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: mxnew,mynew,mznew
+#endif
 #ifdef ADVECT_
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vsq
 #endif
@@ -683,7 +687,8 @@
 !     rand : = 0 constant force
 !            = 1 random phases
 !            = 2 constant energy
-!            = 3 slowly varying random phases (only for the velocity)
+!            = 3 slowly varying random phases (only for the velocity and
+!                magnetic forcings)
 !     cort : time correlation of the external forcing
 !     seed : seed for the random number generator
 
@@ -1388,6 +1393,17 @@
       ENDIF
 #endif
 
+#ifdef MAGFIELD_
+      IF (rand.eq.3) THEN
+         ALLOCATE( mxold(n,n,ista:iend) )
+         ALLOCATE( myold(n,n,ista:iend) )
+         ALLOCATE( mzold(n,n,ista:iend) )
+         ALLOCATE( mxnew(n,n,ista:iend) )
+         ALLOCATE( mynew(n,n,ista:iend) )
+         ALLOCATE( mznew(n,n,ista:iend) )
+      ENDIF
+#endif
+
 #ifdef PART_
       rmp   = 0.5/dt
       tbeta = (/-rmp, 0.0, rmp/)
@@ -1612,6 +1628,21 @@
 #endif
 
 #ifdef MAGFIELD_
+      IF (rand.eq.3) THEN
+         CALL io_read(1,idir,'mxnew',ext,planio,R1)
+         CALL io_read(1,idir,'mynew',ext,planio,R2)
+         CALL io_read(1,idir,'mznew',ext,planio,R3)
+         CALL fftp3d_real_to_complex(planrc,R1,mxnew,MPI_COMM_WORLD)
+         CALL fftp3d_real_to_complex(planrc,R2,mynew,MPI_COMM_WORLD)
+         CALL fftp3d_real_to_complex(planrc,R3,mznew,MPI_COMM_WORLD)
+
+         CALL io_read(1,idir,'mxold',ext,planio,R1)
+         CALL io_read(1,idir,'myold',ext,planio,R2)
+         CALL io_read(1,idir,'mzold',ext,planio,R3)
+         CALL fftp3d_real_to_complex(planrc,R1,mxold,MPI_COMM_WORLD)
+         CALL fftp3d_real_to_complex(planrc,R2,myold,MPI_COMM_WORLD)
+         CALL fftp3d_real_to_complex(planrc,R3,mzold,MPI_COMM_WORLD)
+      ENDIF
  DYN: IF (dyna.eq.0) THEN
          CALL io_read(1,idir,'ax',ext,planio,R1)
          CALL io_read(1,idir,'ay',ext,planio,R2)
@@ -2032,6 +2063,49 @@
          END IF
 #endif
 
+#ifdef MAGFIELD_
+         IF (rand.eq.3) THEN ! slowly varying phases
+            IF ((timef.eq.fstep).or.(stat.eq.0)) THEN
+               timef = 0
+! Keeps a copy of the old forcing
+               DO i = ista,iend
+                  DO j = 1,n
+                     DO k = 1,n
+                        mxold(k,j,i) = mx(k,j,i) 
+                        myold(k,j,i) = my(k,j,i) 
+                        mzold(k,j,i) = mz(k,j,i) 
+                     END DO
+                  END DO
+               END DO
+! Creates a new random forcing. 'initialfb.f90'
+! should be chosen to generate forcing with random
+! phases ('initialfb.f90_patterson' is recommended).
+               INCLUDE 'initialfb.f90'
+! Copies the new forcing to arrays for the target forcing
+               DO i = ista,iend
+                  DO j = 1,n
+                     DO k = 1,n
+                        mxnew(k,j,i) = mx(k,j,i) 
+                        mynew(k,j,i) = my(k,j,i) 
+                        mznew(k,j,i) = mz(k,j,i) 
+                     END DO
+                  END DO
+               END DO
+            ENDIF
+! Updates the forcing
+            rmp = FLOAT(timef)/float(fstep-1)
+            DO i = ista,iend
+               DO j = 1,n
+                  DO k = 1,n
+                     mx(k,j,i) = (1-rmp)*mxold(k,j,i)+rmp*fxnew(k,j,i)
+                     my(k,j,i) = (1-rmp)*myold(k,j,i)+rmp*fynew(k,j,i)
+                     mz(k,j,i) = (1-rmp)*mzold(k,j,i)+rmp*fznew(k,j,i)
+                  END DO
+               END DO
+            END DO
+         END IF
+#endif
+
 ! Every 'tstep' steps, stores the fields 
 ! in binary files
 
@@ -2238,6 +2312,42 @@
             CALL io_write(1,odir,'ax',ext,planio,R1)
             CALL io_write(1,odir,'ay',ext,planio,R2)
             CALL io_write(1,odir,'az',ext,planio,R3)
+            IF (rand.eq.3) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+               DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+                  DO j = 1,n
+                     DO k = 1,n
+                        C1(k,j,i) = mxold(k,j,i)/real(n,kind=GP)**3
+                        C2(k,j,i) = myold(k,j,i)/real(n,kind=GP)**3
+                        C3(k,j,i) = mzold(k,j,i)/real(n,kind=GP)**3
+                     END DO
+                  END DO
+               END DO
+               CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+               CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+               CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+               CALL io_write(1,odir,'mxold',ext,planio,R1)
+               CALL io_write(1,odir,'myold',ext,planio,R2)
+               CALL io_write(1,odir,'mzold',ext,planio,R3)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+               DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+                  DO j = 1,n
+                     DO k = 1,n
+                        C1(k,j,i) = mxnew(k,j,i)/real(n,kind=GP)**3
+                        C2(k,j,i) = mynew(k,j,i)/real(n,kind=GP)**3
+                        C3(k,j,i) = mznew(k,j,i)/real(n,kind=GP)**3
+                     END DO
+                  END DO
+               END DO
+               CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+               CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+               CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+               CALL io_write(1,odir,'mxnew',ext,planio,R1)
+               CALL io_write(1,odir,'mynew',ext,planio,R2)
+               CALL io_write(1,odir,'mznew',ext,planio,R3)
+            END IF
             IF (mean.eq.1) THEN
                dump = real(cstep,kind=GP)/t
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -2886,6 +2996,8 @@
       DEALLOCATE( ax,ay,az,mx,my,mz )
       DEALLOCATE( C9,C10,C11,C12,C13,C14,C15,C16,C17 )
       IF (mean.eq.1) DEALLOCATE( M4,M5,M6 )
+      IF (rand.eq.3) DEALLOCATE( mxold, myold, mzold )
+      IF (rand.eq.3) DEALLOCATE( mxnew, mynew, mznew )
 #endif
 #ifdef HALLTERM_
       DEALLOCATE( C18 )
