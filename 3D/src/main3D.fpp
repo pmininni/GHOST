@@ -1233,6 +1233,7 @@
 !              stat.
 !     cresetp= 0: don't reset counters when injtp=1;
 !            = 1: _do_ reset counters when injtp=1.
+!     lgmult      : Multiplier for particle output (must divide tstep evenly)
 !     ilginittype : Inititialization type: either GPINIT_RANDLOC or GPINIT_USERLOC
 !     ilgintrptype: Interpolation type: only GPINTRP_CSPLINE currently
 !     ilgexchtype : Boundary exchange type: GPEXCHTYPE_VDB (voxel db) or GPEXCHTYPE_NN (nearest-neighbor)
