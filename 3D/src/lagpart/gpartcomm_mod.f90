@@ -3,11 +3,10 @@
 !       two types of exchanges: the particles, and the 
 !       velocity data used to update the particle positions,
 !       (the 'ghost' zone data) and separate interfaces are 
-!       provided  for each. The velocity data can be exchanged 
+!       provided for each. The velocity data can be exchanged 
 !       for _any_ other field variable as well, although the
 !       'multi-field' interfaces may not be appropriate for it.
 !       
-!
 ! 2013 D. Rosenberg
 !      ORNL: NCCS
 !
@@ -67,7 +66,6 @@ MODULE class_GPartComm
         PROCEDURE,PUBLIC :: ConcatPDB         => GPartComm_ConcatPDB
         PROCEDURE,PUBLIC :: ConcatV           => GPartComm_ConcatV
         PROCEDURE,PUBLIC :: Copy2Ext          => GPartComm_Copy2Ext
-
 !       GENERIC  ,PUBLIC :: PartExchange      => PartExchangePDB,PartExchangeV
 !       GENERIC  ,PUBLIC :: SlabDataExchange  => SlabDataExchangeMF,SlabDataExchangeSF
         GENERIC  ,PUBLIC :: Concat            => ConcatPDB,ConcatV
@@ -124,7 +122,7 @@ MODULE class_GPartComm
       STOP
     ENDIF
     this%hcomm_     = hcomm;
-!$    this%nth_ = omp_get_max_threads()
+!$  this%nth_       = omp_get_max_threads()
 
     CALL MPI_COMM_SIZE(this%comm_,this%nprocs_,this%ierr_)
     IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
@@ -210,7 +208,6 @@ MODULE class_GPartComm
     IF ( ALLOCATED  (this%itrcvnz_) ) DEALLOCATE (this%itrcvnz_)
     IF ( ALLOCATED  (this%ibsndnz_) ) DEALLOCATE (this%ibsndnz_)
     IF ( ALLOCATED  (this%itsndnz_) ) DEALLOCATE (this%itsndnz_)
-
 
   END SUBROUTINE GPartComm_DoDealloc
 !-----------------------------------------------------------------
@@ -519,7 +516,6 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-
   SUBROUTINE GPartComm_SlabDataExchangeMF(this,vxext,vyext,vzext,vx,vy,vz)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -606,7 +602,6 @@ MODULE class_GPartComm
     ENDDO
     CALL GTAcc(this%hcomm_)
 
-
     ! Unpack received data:
     DO j=1,this%nbrcv_
       CALL GPartComm_UnpackMF(this,vxext,vyext,vzext,this%rbbuff_(:,j))
@@ -614,7 +609,6 @@ MODULE class_GPartComm
     DO j=1,this%ntrcv_
       CALL GPartComm_UnpackMF(this,vxext,vyext,vzext,this%rtbuff_(:,j))
     ENDDO
-
 
   END SUBROUTINE GPartComm_SlabDataExchangeMF
 !-----------------------------------------------------------------
@@ -750,7 +744,6 @@ MODULE class_GPartComm
     
     ENDIF
     
-
   END SUBROUTINE GPartComm_PackMF
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -820,11 +813,9 @@ MODULE class_GPartComm
 
     ENDDO
 
-
   END SUBROUTINE GPartComm_UnpackMF
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-
 
   SUBROUTINE GPartComm_LocalDataExchSF(this,vext,v)
 !-----------------------------------------------------------------
@@ -877,7 +868,6 @@ MODULE class_GPartComm
   END SUBROUTINE GPartComm_LocalDataExchSF
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-
 
   SUBROUTINE GPartComm_SlabDataExchangeSF(this,vext,v)
 !-----------------------------------------------------------------
@@ -981,7 +971,6 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-
   SUBROUTINE GPartComm_PackSF(this,buff,v,isnd,sdir)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1064,11 +1053,9 @@ MODULE class_GPartComm
     
     ENDIF
     
-
   END SUBROUTINE GPartComm_PackSF
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-
 
   SUBROUTINE GPartComm_UnpackSF(this,vext,buff,nbuff,sb,ierr)
 !-----------------------------------------------------------------
@@ -1131,89 +1118,6 @@ MODULE class_GPartComm
   END SUBROUTINE GPartComm_UnpackSF
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-
-
-!!  SUBROUTINE GPartComm_PartExchangePDB(this,pdb,nparts,zmin,zmax)
-!!!-----------------------------------------------------------------
-!!!-----------------------------------------------------------------
-!!!  METHOD     : PartExchangePDB
-!!!  DESCRIPTION: Carries out particle exchange. Particles will
-!!!               be re-ordered after this call. Uses PDB interface.
-!!!               Note: For this call to work, the particle positions
-!!!               must not be periodized on entry. In the same way,
-!!!               zmin/zmax must also not be periodized.
-!!!
-!!!               Note that here, a particle on either zmin or zmax
-!!!               is considered to be outside the interval defined
-!!!               by zmin/zmax.
-!!!  ARGUMENTS  :
-!!!    this    : 'this' class instance (IN)
-!!!    pdb     : part. d.b.
-!!!    nparts  : number of particles in pdb
-!!!    zmin/max: min/max z-dimensions of current MPI task
-!!!-----------------------------------------------------------------
-!!    USE pdbtypes
-!!    IMPLICIT NONE
-!!
-!!    CLASS(GPartComm),INTENT(INOUT)             :: this
-!!    INTEGER      ,INTENT(INOUT)                :: nparts
-!!    INTEGER                                    :: j,ibrank,itrank
-!!    TYPE(GPDBrec),INTENT(INOUT),DIMENSION(*)   :: pdb
-!!    REAL(KIND=GP),INTENT   (IN)                :: zmin,zmax
-!!
-!!    IF ( this%nprocs_ .EQ. 1 ) RETURN ! nothing to do
-!!
-!!    itrank = modulo(this%myrank_,this%nprocs_)
-!!    ibrank = this%myrank_-1
-!!    IF ( ibrank.LT.0 ) ibrank = nprocs-1
-!!
-!!    ! Find pointers into particle lists for parts that must
-!!    ! be sent to the top and bottom tasks:
-!!    this%nbot_ = 0
-!!    this%ntop_ = 0
-!!    DO j = 0, nparts
-!!      IF ( pdb(j)%z.LE.zmin ) THEN ! bottom
-!!        this%nbot_ = this%nbot_ + 1
-!!        this%ibot_(this%nbot_) = j
-!!      ENDIF
-!!      IF ( pdb(j)%z.GE.zmax ) THEN ! top
-!!        this%ntop_ = this%ntop_ + 1
-!!        this%itop_(this%ntop_) = j
-!!      ENDIF
-!!    ENDDO
-!!
-!!    ! Post receives:
-!!    CALL MPI_IRECV(this%rbbuff_,this%nbuff_,GC_REAL,ibrank, &
-!!                   1,this%comm_,this%ibrh_(1),this%ierr_)
-!!    CALL MPI_IRECV(this%rtbuff_,this%nbuff_,GC_REAL,itrank, &
-!!                   1,this%comm_,this%itrh_(1),this%ierr_)
-!!
-!!    !
-!!    ! send data:
-!!    CALL GPartComm_PPack(this,this%sbbuff_,this%nbuff_,pdb,nparts,this%ibot_,this%nbot_)
-!!    CALL MPI_ISEND(this%sbbuff_,this%nbuff_,GC_REAL,ibrank, &
-!!                   1,this%comm_,this%itsh_(1),this%ierr_)
-!!    CALL GPartComm_PPack(this,this%sbbuff_,this%nbuff_,pdb,nparts,this%itop_,this%ntop_)
-!!    CALL MPI_ISEND(this%stbuff_,this%nbuff_,GC_REAL,itrank, &
-!!                   1,this%comm_,this%itsh_(1),this%ierr_)
-!!
-!!    ! Concatenate partcle list to remove particles sent away:
-!!    CALL GPartComm_ConcatPDB(this,pdb,nparts,this%ibot_,&
-!!                          this%nbot_,this%itop_,this%ntop_)
-!!
-!!    CALL MPI_WAIT(this%ibrh_(1),this%istatus_,this%ierr_)
-!!    CALL MPI_WAIT(this%ibrh_(1),this%istatus_,this%ierr_)
-!!    CALL MPI_WAIT(this%ibsh_(1),this%istatus_,this%ierr_)
-!!    CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
-!!
-!!    ! Update particle list:
-!!    CALL GPartComm_PUnpack(this,pdb,nparts,this%rbbuff_,this%nbuff_)
-!!    CALL GPartComm_PUnpack(this,pdb,nparts,this%rtbuff_,this%nbuff_)
-!!
-!!  END SUBROUTINE GPartComm_PartExchangePDB
-!!!-----------------------------------------------------------------
-!!!-----------------------------------------------------------------
-
 
   SUBROUTINE GPartComm_PartExchangeV(this,id,px,py,pz,nparts,zmin,zmax)
 !-----------------------------------------------------------------
@@ -1316,7 +1220,6 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-
   SUBROUTINE GPartComm_PPackV(this,buff,nbuff,id,px,py,pz,nparts,iind,nind)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1357,7 +1260,6 @@ MODULE class_GPartComm
   END SUBROUTINE GPartComm_PPackV
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-
 
   SUBROUTINE GPartComm_ConcatV(this,id,px,py,pz,nparts,ibind,nbind,itind,ntind)
 !-----------------------------------------------------------------
@@ -1410,7 +1312,6 @@ MODULE class_GPartComm
     ENDDO
     nparts = ngood
 
-
   END SUBROUTINE GPartComm_ConcatV
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1456,13 +1357,12 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-
   SUBROUTINE GPartComm_PartExchangePDB(this,pdb,nparts,zmin,zmax)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : PartExchangePDB
 !  DESCRIPTION: Carries out particle exchange. Particles will
-!               be re-ordered after this call. Uses PDB  interface.
+!               be re-ordered after this call. Uses PDB interface.
 !               Note: For this call to work, the particle positions
 !               must be periodized on entry. In the same way,
 !               zmin/zmax must also be periodized.
@@ -1583,7 +1483,6 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-
   SUBROUTINE GPartComm_PPackPDB(this,buff,nbuff,pdb,nparts,iind,nind)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1622,7 +1521,6 @@ MODULE class_GPartComm
   END SUBROUTINE GPartComm_PPackPDB
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-
 
   SUBROUTINE GPartComm_ConcatPDB(this,pdb,nparts,ibind,nbind,itind,ntind)
 !-----------------------------------------------------------------
@@ -1674,11 +1572,9 @@ MODULE class_GPartComm
     ENDDO
     nparts = ngood
 
-
   END SUBROUTINE GPartComm_ConcatPDB
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-
 
   SUBROUTINE GPartComm_PUnpackPDB(this,pdb,nparts,buff,nbuff)
 !-----------------------------------------------------------------
@@ -1719,7 +1615,6 @@ MODULE class_GPartComm
   END SUBROUTINE GPartComm_PUnpackPDB
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-
 
   SUBROUTINE GPartComm_Transpose(this,ofield,od,ifield,id,rank,tmp)
 !-----------------------------------------------------------------
@@ -1839,7 +1734,6 @@ MODULE class_GPartComm
       write(*,*) 'GPartComm_Transpose: rank two not implemented'
       stop
     ENDIF
-
 
   END SUBROUTINE GPartComm_Transpose
 !-----------------------------------------------------------------
@@ -1972,11 +1866,9 @@ MODULE class_GPartComm
     ENDDO
     CALL GTAcc(this%hcomm_)
 
-
   END SUBROUTINE GPartComm_ITranspose
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-
 
   SUBROUTINE GPartComm_InitTrans2D(this)
 !-----------------------------------------------------------------
@@ -2021,7 +1913,6 @@ MODULE class_GPartComm
   END SUBROUTINE GPartComm_InitTrans2D
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-
 
   SUBROUTINE GPartComm_InitTrans3D(this)
 !-----------------------------------------------------------------
@@ -2089,7 +1980,6 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-
   SUBROUTINE GPartComm_VDBSynch(this,gvdb,ngvdb,id,lx,ly,lz,nl,ptmp) 
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -2153,7 +2043,6 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-
   SUBROUTINE GPartComm_LagSynch(this,gs,ngs,id,ls,nl,ptmp) 
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -2194,10 +2083,9 @@ MODULE class_GPartComm
                        MPI_SUM,this%comm_,this%ierr_)
     CALL GTAcc(this%hcomm_)
 
- END SUBROUTINE GPartComm_LagSynch
+  END SUBROUTINE GPartComm_LagSynch
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-
 
   SUBROUTINE GPartComm_SetCacheParam(this,csize,nstrip)
 !-----------------------------------------------------------------
@@ -2221,7 +2109,6 @@ MODULE class_GPartComm
   END SUBROUTINE GPartComm_SetCacheParam
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-
 
   SUBROUTINE GPartComm_Copy2Ext(this,vext,v)
 !-----------------------------------------------------------------

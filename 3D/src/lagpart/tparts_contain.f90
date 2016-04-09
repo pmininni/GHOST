@@ -82,24 +82,24 @@
 
     DO j = 1, this%nparts_
 
-     u1 = rand()
-     u2 = rand()
-     u1 =  max( u1, low)
+     CALL prandom_number(u1)
+     CALL prandom_number(u2)
+     u1 =  MAX( u1, low)
      u2 =  twopi * u2
      gauss =  sqrt( -2.0_GP * log( u1)) * CMPLX( cos(u2), sin(u2))
 
        this%pvx_(j) = vtherm*gauss
 
-     u1 = rand()
-     u2 = rand()
+     CALL prandom_number(u1)
+     CALL prandom_number(u2)
      u1 =  MAX( u1, low)
      u2 =  twopi * u2
      gauss =  sqrt( -2.0_GP * log( u1)) * CMPLX( cos(u2), sin(u2))
 
        this%pvy_(j) = vtherm*gauss
 
-     u1 = rand()
-     u2 = rand()
+     CALL prandom_number(u1)
+     CALL prandom_number(u2)
      u1 =  MAX( u1, low)
      u2 =  twopi * u2
      gauss =  sqrt( -2.0_GP * log( u1)) * CMPLX( cos(u2), sin(u2))
@@ -109,6 +109,8 @@
     END DO
 
   END SUBROUTINE TestGPart_InitVel
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 
   SUBROUTINE TestGPart_SetStepRKK(this)
 !-----------------------------------------------------------------
@@ -140,8 +142,8 @@
        this%ttmp0_(1,j) = this%pvx_(j)  ! ux_0
        this%ttmp0_(2,j) = this%pvy_(j)  ! uy_0
        this%ttmp0_(3,j) = this%pvz_(j)  ! uz_0
-    ENDDO 
-
+    ENDDO
+    
   END SUBROUTINE TestGPart_SetStepRKK
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -192,12 +194,9 @@
     CALL GTStart(this%htimers_(GPTIME_STEP))
 
     ! Find F(u*):
-    CALL GPart_R3toR3(this,tmp3,vx) ! Want vx intact to use later
-    CALL GPart_EulerToLag(this,this%lvx_,this%nparts_,tmp3,.true.,tmp1,tmp2)
-    CALL GPart_R3toR3(this,tmp3,vy) ! Want vy intact to use later
-    CALL GPart_EulerToLag(this,this%lvy_,this%nparts_,tmp3,.false.,tmp1,tmp2)
-    CALL GPart_R3toR3(this,tmp3,vz) ! Want vz intact to use later
-    CALL GPart_EulerToLag(this,this%lvz_,this%nparts_,tmp3,.false.,tmp1,tmp2)
+    CALL GPart_EulerToLag(this,this%lvx_,this%nparts_,vx,.true.,tmp1,tmp2)
+    CALL GPart_EulerToLag(this,this%lvy_,this%nparts_,vy,.false.,tmp1,tmp2)
+    CALL GPart_EulerToLag(this,this%lvz_,this%nparts_,vz,.false.,tmp1,tmp2)
     CALL GPart_EulerToLag(this,this%lbx_,this%nparts_,bx,.false.,tmp1,tmp2)
     CALL GPart_EulerToLag(this,this%lby_,this%nparts_,by,.false.,tmp1,tmp2)
     CALL GPart_EulerToLag(this,this%lbz_,this%nparts_,bz,.false.,tmp1,tmp2)
@@ -258,7 +257,6 @@
 !   endif
 !   DEALLOCATE(lid,gid)
 
-    ! At this point, vx, vy, vz should be intact:
     CALL TestGPart_EndStageRKK(this,vx,vy,vz,xk,tmp1,tmp2)
 
   END SUBROUTINE TestGPart_StepRKK
@@ -293,7 +291,8 @@
     ! u(t+dt) = u*: done already
 
     ! IF using nearest-neighbor interface, do particle exchange 
-    ! between nearest-neighbor tasks BEFORE z-PERIODIZING particle coordinates:
+    ! between nearest-neighbor tasks BEFORE z-PERIODIZING particle coordinates.
+    ! Note this interface has not been tested yet for test particles.
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
       CALL GTStart(this%htimers_(GPTIME_COMM))
       CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_, &
@@ -315,64 +314,37 @@
       ! Synch up VDB, if necessary:
       CALL GTStart(this%htimers_(GPTIME_COMM))
       CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
-           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+                     this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
       CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
-                     this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
-                     this%nparts_,this%ptmp1_)
-      CALL GPart_CopyLocalWrk(this,this%ptmp0_(1,:),  &
-                        this%ptmp0_(2,:),this%ptmp0_(3,:), &
-           this%vdb_,this%gptmp0_,this%maxparts_)
-      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
-           this%pvx_,this%pvy_,this%pvz_,this%nparts_,this%ptmp1_)
-      CALL GPart_CopyLocalWrk(this,this%pvx_,  &
-           this%pvy_,this%pvz_,this%vdb_,  &
-                      this%gptmp0_,this%maxparts_)
+                     this%pvx_,this%pvy_,this%pvz_,this%nparts_,this%ptmp1_)
+      CALL GPart_CopyLocalWrk(this,this%pvx_,this%pvy_,this%pvz_, &
+                     this%vdb_,this%gptmp0_,this%maxparts_)
       CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                      this%ttmp0_(1,:),this%ttmp0_(2,:),this%ttmp0_(3,:),&
                      this%nparts_,this%ptmp1_)
-      CALL GPart_CopyLocalWrk(this,this%ttmp0_(1,:),   &
-           this%ttmp0_(2,:),this%ttmp0_(3,:),this%vdb_, &
-                  this%gptmp0_,this%maxparts_)
-      CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
-      this%nparts_, this%vdb_,this%maxparts_)
+      CALL GPart_CopyLocalWrk(this,this%ttmp0_(1,:),this%ttmp0_(2,:), &
+                     this%ttmp0_(3,:),this%vdb_,this%gptmp0_,this%maxparts_)
+      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+                     this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
+                     this%nparts_,this%ptmp1_)
+      CALL GPart_GetLocalWrk_aux(this,this%id_,this%px_,this%py_,this%pz_,&
+                       this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
+                       this%nparts_,this%vdb_,this%gptmp0_,this%maxparts_)
       CALL GTAcc(this%htimers_(GPTIME_COMM))
 
       CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
                          MPI_SUM,this%comm_,this%ierr_)
 
+    ! vx, vy, vz were not used so far. Can be used in the future
+    ! to compute acceleration, or as temporary arrays.
+      
       IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_) THEN
         WRITE(*,*)'TestGPart_EndStepRKK: inconsistent d.b.: expected: ', &
                  this%maxparts_, '; found: ',ng
-!        this%vdb_ = this%vdb_*(8.0_GP*atan(1.0_GP))/real(n,kind=GP)
-!        CALL GPART_ascii_write_pdb(this,1,'.','xlgerr','000',0.0_GP,this%vdb_)
-!        this%vdb_ = this%vdb_/(8.0_GP*atan(1.0_GP))*real(n,kind=GP)
         STOP
       ENDIF
 
     ENDIF
-
-    IF ( this%intacc_.EQ.0 ) RETURN
-
-    ! If doing internal acceleration, synch up past time levels:
-    CALL GPart_synch_acc(this)
-
-    ! Set t^n+1 velocity based on most recent Lag.particle positions:
-    ! NOTE: vx, vy, vz are overwirtten on exit:
-    CALL GPart_EulerToLag(this,this%lvx_,this%nparts_,vx,.true. ,tmp1,tmp2)
-    CALL GPart_EulerToLag(this,this%lvy_,this%nparts_,vy,.false.,tmp1,tmp2)
-    CALL GPart_EulerToLag(this,this%lvz_,this%nparts_,vz,.false.,tmp1,tmp2)
-
-!$omp parallel do 
-    DO j = 1, this%nparts_
-      this%vk2_(1,j) = this%lvx_(j)
-      this%vk2_(2,j) = this%lvy_(j)
-      this%vk2_(3,j) = this%lvz_(j)
-    ENDDO
-
-    ! set particle ids owned by task at lag times:
-    this%idm_ = 0
-    this%npartsm_ = this%nparts_
-    this%idm_(1:this%nparts_) = this%id_(1:this%nparts_)
 
     RETURN
 
@@ -432,5 +404,37 @@
     ENDIF
 
   END SUBROUTINE TestGPart_io_write_pdbv
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE TestGPart_io_read_pdbv(this, iunit, dir, spref, nmb)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : io_read_pdbv
+!  DESCRIPTION: Does read of test particle velocity from file.
+!               This is the main entry point for both binary and
+!               ASCII reads.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    iunit   : unit number
+!    dir     : input directory
+!    spref   : filename prefix
+!    nmb     : time index
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(TestGPart)    ,INTENT(INOUT)        :: this
+    INTEGER,INTENT(IN)                        :: iunit
+    CHARACTER(len=*),INTENT   (IN)            :: dir
+    CHARACTER(len=*),INTENT   (IN)            :: nmb
+    CHARACTER(len=*),INTENT   (IN)            :: spref
+
+    CALL GPart_io_read(this,iunit,dir,spref,nmb,this%id_, &
+             this%pvx_,this%pvy_,this%pvz_,this%nparts_)
+
+  END SUBROUTINE TestGPart_io_read_pdbv
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------

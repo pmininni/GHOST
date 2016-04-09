@@ -23,4 +23,5 @@
         PROCEDURE,PUBLIC :: StepTestp         => TestGPart_StepRKK
         PROCEDURE,PUBLIC :: EndStage          => TestGPart_EndStageRKK
         PROCEDURE,PUBLIC :: io_write_pdbv     => TestGPart_io_write_pdbv
+        PROCEDURE,PUBLIC :: io_readv          => TestGPart_io_read_pdbv
       END TYPE TestGPart

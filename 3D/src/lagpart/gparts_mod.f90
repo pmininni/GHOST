@@ -667,6 +667,8 @@ MODULE class_GPart
     USE fprecision
     USE commtypes
     USE mpivars
+    USE grid
+    USE var
 
     IMPLICIT NONE
     CLASS(GPart) ,INTENT(INOUT)       :: this
@@ -704,17 +706,27 @@ MODULE class_GPart
     CALL GTStart(ht,GT_WTIME)
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
-      IF ( this%bcollective_.EQ. 1 ) THEN
+      IF ( this%bcollective_ .EQ. 1 ) THEN
         ! pass in the current linear _local_ particle coord arrays
-        CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%nparts_, &
-             this%px_,this%py_,this%pz_)
+        IF ( this%wrtunit_ .EQ. 1 ) THEN
+           this%ptmp0_(1,:) = this%px_*2*pi/real(n,kind=GP)
+           this%ptmp0_(2,:) = this%py_*2*pi/real(n,kind=GP)
+           this%ptmp0_(3,:) = this%pz_*2*pi/real(n,kind=GP)
+           CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%nparts_, &
+                this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
+        ELSE
+           CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%nparts_, &
+                this%px_,this%py_,this%pz_)
+        ENDIF
       ELSE
         ! pass in the synched-up VDB (copied to ptmp0_):
+        IF ( this%wrtunit_ .EQ. 1 ) this%ptmp0_ = this%ptmp0_*2*pi/real(n,kind=GP)
         CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time,this%maxparts_, &
              this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
       ENDIF
     ELSE
       ! pass in the synched-up VDB (copied to ptmp0_):
+      IF ( this%wrtunit_ .EQ. 1 ) this%ptmp0_ = this%ptmp0_*2*pi/real(n,kind=GP)
       CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time,this%maxparts_, &
            this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
     ENDIF
@@ -751,6 +763,8 @@ MODULE class_GPart
     USE fprecision
     USE commtypes
     USE mpivars
+    USE grid
+    USE var
 
     IMPLICIT NONE
     CLASS(GPart) ,INTENT(INOUT)       :: this
@@ -774,19 +788,29 @@ MODULE class_GPart
     CALL GTStart(ht,GT_WTIME)
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
-      IF ( this%bcollective_.EQ. 1 ) THEN
+      IF ( this%bcollective_ .EQ. 1 ) THEN
         ! pass in the current linear _local_ particle coord arrays
         CALL GPart_GetLocalWrk(this,this%id_,this%lvx_,this%lvy_,this%lvz_,this%npartsm_, &
                                this%vdb_,this%maxparts_)
-        CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%npartsm_, &
-             this%xk1_(1,:),this%xk1_(2,:),this%xk1_(3,:))
+        IF ( this%wrtunit_ .EQ. 1) THEN
+           this%ptmp0_(1,:) = this%xk1_(1,:)*2*pi/real(n,kind=GP)
+           this%ptmp0_(2,:) = this%xk1_(2,:)*2*pi/real(n,kind=GP)
+           this%ptmp0_(3,:) = this%xk1_(3,:)*2*pi/real(n,kind=GP)
+           CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%nparts_, &
+                this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
+        ELSE
+           CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%npartsm_, &
+                this%xk1_(1,:),this%xk1_(2,:),this%xk1_(3,:))
+        ENDIF
       ELSE
         ! pass in the synched-up VDB (copied to ptmp0_):
+        IF ( this%wrtunit_ .EQ. 1 ) this%ptmp0_ = this%ptmp0_*2*pi/real(n,kind=GP)
         CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time, this%maxparts_, &
              this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
       ENDIF
     ELSE
       ! pass in the synched-up VDB (copied to ptmp0_):
+      IF ( this%wrtunit_ .EQ. 1 ) this%ptmp0_ = this%ptmp0_*2*pi/real(n,kind=GP)
       CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time,this%maxparts_,&
            this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
     ENDIF
@@ -1270,7 +1294,7 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : io_read
-!  DESCRIPTION: Does read of Lagrangian particle data from filek,
+!  DESCRIPTION: Does read of Lagrangian particle data from file,
 !               and scattering of work to correct MPI tasks. 
 !               This is the main entry point for both binary and
 !               ASCII reads.
@@ -1288,13 +1312,15 @@ MODULE class_GPart
 !              All must be specified if one is, as must nl....
 !    nl      : optional. If specified, copies amount of local work
 !              (size of lx, ly, lz) to this variable for output. 
-!              that nl must be specified if lx,ly,lz are.
+!              Note that nl must be specified if lx,ly,lz are.
 !    opiotype: optional. Overrides member data iouttype_ if specified.
 !    opbcoll : optional. Overrides member data bcollective_ if specified.
 !-----------------------------------------------------------------
     USE fprecision
     USE commtypes
     USE mpivars
+    USE grid
+    USE var
 
     IMPLICIT NONE
     CLASS(GPart)    ,INTENT(INOUT)            :: this
@@ -1327,7 +1353,7 @@ MODULE class_GPart
 
     CALL GTStart(this%htimers_(GPTIME_GPREAD))
     IF ( iotype .EQ. 0 ) THEN   ! Binary files
-      IF ( bcoll.EQ. 1 ) THEN   !  collective binary
+      IF ( bcoll.EQ. 1 ) THEN   ! collective binary
         IF (len_trim(nmb).gt.0 ) THEN
         CALL GPart_binary_read_pdb_co(this,iunit, &
         trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
@@ -1355,6 +1381,7 @@ MODULE class_GPart
 
     IF ( .NOT.(present(id).and.present(lx).and.present(ly).and.present(lz).and.present(nl)) ) THEN 
       ! Store in member data arrays
+      IF ( this%wrtunit_ .EQ. 1 ) this%ptmp0_ = this%ptmp0_*real(n,kind=GP)/(2*pi)
       CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
                              this%nparts_,this%ptmp0_,this%maxparts_)
     ELSE
@@ -1624,6 +1651,7 @@ MODULE class_GPart
       this%idm_ = 0
       this%npartsm_ = this%nparts_
       this%idm_(1:this%nparts_) = this%id_(1:this%nparts_)
+
     ENDIF
 
   END SUBROUTINE GPart_SetStepRKK
@@ -1680,7 +1708,7 @@ MODULE class_GPart
       ! Synch up VDB, if necessary:
       CALL GTStart(this%htimers_(GPTIME_COMM))
       CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
-           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+                     this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
       CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                      this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
                      this%nparts_,this%ptmp1_)

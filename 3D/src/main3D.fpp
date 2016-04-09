@@ -1268,6 +1268,9 @@
          READ(1,NML=plagpart)
          CLOSE(1)
       ENDIF
+#if defined(TESTPART_) && defined(MAGFIELD_)
+      dopacc       = 0 ! Lag. acceleration not supported for test particles
+#endif
       CALL MPI_BCAST(maxparts     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(injtp        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(cresetp      ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -1699,6 +1702,9 @@
         IF (injtp.eq.0) THEN
           WRITE(lgext, lgfmtext) pind
           CALL lagpart%io_read(1,idir,'xlg',lgext)
+#if defined(TESTPART_) && defined(MAGFIELD_)
+          CALL lagpart%io_readv(1,idir,'vtp',lgext)
+#endif
         ELSE
           CALL lagpart%Init()
 #if defined(TESTPART_) && defined(MAGFIELD_)
@@ -2405,6 +2411,9 @@
 #if defined(LAGPART_)
              INCLUDE 'hd_lagpartout.f90'
 #endif
+#if defined(MAGFIELD_)
+             INCLUDE 'mhd_lagpartout.f90'
+#endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
              INCLUDE 'mhd_testpartout.f90'
 #endif
@@ -2413,9 +2422,6 @@
 #endif
 #if defined(MULTISCALAR_)
              INCLUDE 'mscalar_lagpartout.f90'
-#endif
-#if defined(MAGFIELD_)
-             INCLUDE 'mhd_lagpartout.f90'
 #endif
            ENDIF
          ENDIF
@@ -2714,7 +2720,7 @@
 #ifdef PART_
          IF ( dolag.GT.0 ) THEN
            CALL lagpart%SetStep()
-#if defined(TESTPART_) && defined(MAGFIELD)
+#if defined(TESTPART_) && defined(MAGFIELD_)
            CALL lagpart%SetStepVel()
 #endif
          ENDIF
