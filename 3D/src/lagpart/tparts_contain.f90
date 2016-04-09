@@ -427,13 +427,51 @@
 
     IMPLICIT NONE
     CLASS(TestGPart)    ,INTENT(INOUT)        :: this
+    REAL(KIND=GP)                             :: time
     INTEGER,INTENT(IN)                        :: iunit
+    INTEGER                                   :: ng
     CHARACTER(len=*),INTENT   (IN)            :: dir
     CHARACTER(len=*),INTENT   (IN)            :: nmb
     CHARACTER(len=*),INTENT   (IN)            :: spref
 
-    CALL GPart_io_read(this,iunit,dir,spref,nmb,this%id_, &
-             this%pvx_,this%pvy_,this%pvz_,this%nparts_)
+    CALL GTStart(this%htimers_(GPTIME_GPREAD))
+    IF ( this%iouttype_ .EQ. 0 ) THEN        ! Binary files
+      IF ( this%bcollective_ .EQ. 1 ) THEN   ! collective binary
+        IF (len_trim(nmb).gt.0 ) THEN
+        CALL GPart_binary_read_pdb_co(this,iunit, &
+        trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
+        ELSE
+        CALL GPart_binary_read_pdb_co(this,iunit, trim(spref),time,this%ptmp0_)
+        ENDIF
+      ELSE                      ! master thread binary
+        IF (len_trim(nmb).gt.0 ) THEN
+        CALL GPart_binary_read_pdb_t0(this,iunit,&
+         trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
+        ELSE
+        CALL GPart_binary_read_pdb_co(this,iunit, trim(spref),time,this%ptmp0_)
+        ENDIF
+      ENDIF
+    ELSE                         ! ASCII files
+      IF (len_trim(nmb).gt.0 ) THEN
+      CALL GPart_ascii_read_pdb (this,iunit,&
+            trim(dir) // '/' // trim(spref) // '.' // nmb // '.txt',time,this%ptmp0_)
+      ELSE
+      CALL GPart_ascii_read_pdb (this,iunit,trim(spref),time,this%ptmp0_)
+      ENDIF
+    ENDIF
+    CALL GTAcc(this%htimers_(GPTIME_GPREAD))
+
+    ! Store in particle velocity arrays
+    CALL GPart_CopyLocalWrk(this,this%pvx_,this%pvy_,this%pvz_, &
+                            this%vdb_,this%ptmp0_,this%maxparts_)
+
+    CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
+                       MPI_SUM,this%comm_,this%ierr_)
+    IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_ ) THEN
+      WRITE(*,*)'TestGPart_io_read_pdbv: inconsistent d.b.: expected: ', &
+                 this%maxparts_, '; found: ',ng
+      STOP
+    ENDIF
 
   END SUBROUTINE TestGPart_io_read_pdbv
 !-----------------------------------------------------------------
