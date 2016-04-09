@@ -5,7 +5,7 @@
 # N        spatial resolution
 # ORD      number of iterations in the Runge-Kutta method
 N        = 512
-ORD      = 1
+ORD      = 2
 
 # SOLVER:  (read the file SOLVERS for a list of options)
 SOLVER   = HD
