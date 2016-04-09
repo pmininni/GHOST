@@ -21,7 +21,7 @@ shape = (N,N,N)
 # Reads binary files, computes vertical vorticity
 # using centered finite differences, and saves in 
 # a new binary file named 'wz.NNNN.out'
-filelist = glob.glob(path+'vx.*.out')
+filelist = sorted(glob.glob(path+'vx.*.out'))
 for file in filelist:
   vx = np.fromfile(file,dtype=np.float32).reshape(shape,order='F')
   ind = string.lstrip(file,path+'vx.').rstrip('.out')

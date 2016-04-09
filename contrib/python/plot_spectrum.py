@@ -17,7 +17,7 @@ k = np.arange(N/2+1,dtype=np.float32)+1
 # Reads and plots all spectra in the directory.
 # We only plot one every five spectra, starting
 # from the second.
-filelist = glob.glob(path+'kspectrum.*.txt')
+filelist = sorted(glob.glob(path+'kspectrum.*.txt'))
 nfiles = np.size(filelist)
 plt.figure(1)
 for i in range(1, nfiles, 5):
