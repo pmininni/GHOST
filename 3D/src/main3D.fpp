@@ -2104,9 +2104,9 @@
             DO i = ista,iend
                DO j = 1,n
                   DO k = 1,n
-                     mx(k,j,i) = (1-rmp)*mxold(k,j,i)+rmp*fxnew(k,j,i)
-                     my(k,j,i) = (1-rmp)*myold(k,j,i)+rmp*fynew(k,j,i)
-                     mz(k,j,i) = (1-rmp)*mzold(k,j,i)+rmp*fznew(k,j,i)
+                     mx(k,j,i) = (1-rmp)*mxold(k,j,i)+rmp*mxnew(k,j,i)
+                     my(k,j,i) = (1-rmp)*myold(k,j,i)+rmp*mynew(k,j,i)
+                     mz(k,j,i) = (1-rmp)*mzold(k,j,i)+rmp*mznew(k,j,i)
                   END DO
                END DO
             END DO
