@@ -1,5 +1,6 @@
 ! Step 2 of Runge-Kutta for the Hall-MHD equations with uniform B_0
 ! Computes the nonlinear terms and evolves the equations in dt/o
+
          CALL rotor3(ay,az,C7,1)
          CALL rotor3(ax,az,C8,2)
          CALL rotor3(ax,ay,C9,3)
