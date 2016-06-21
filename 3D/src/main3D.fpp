@@ -2084,7 +2084,7 @@
          END IF TF
 
          IF (rand.eq.3) THEN ! Updates forcing if slowly varying
-            rmp = FLOAT(timef)/float(fstep-1)
+            rmp = FLOAT(timef+1)/float(fstep)
 #ifdef VELOC_
             DO i = ista,iend
                DO j = 1,n
