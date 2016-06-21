@@ -1396,7 +1396,6 @@
 #endif
       ENDIF
 #endif
-
 #ifdef MAGFIELD_
       IF (rand.eq.3) THEN
          ALLOCATE( mxold(n,n,ista:iend) )
@@ -2023,14 +2022,10 @@
 #ifdef EDQNMROTH_SOL
               INCLUDE 'edqnmhd_adjustfv.f90'
 #endif
-            END IF
 
-         END IF TF
+            ELSE IF (rand.eq.3) THEN ! slowly varying phases
 
 #ifdef VELOC_
-         IF (rand.eq.3) THEN ! slowly varying phases
-            IF ((timef.eq.fstep).or.(stat.eq.0)) THEN
-               timef = 0
 ! Keeps a copy of the old forcing
                DO i = ista,iend
                   DO j = 1,n
@@ -2055,25 +2050,9 @@
                      END DO
                   END DO
                END DO
-            ENDIF
-! Updates the forcing
-            rmp = FLOAT(timef)/float(fstep-1)
-            DO i = ista,iend
-               DO j = 1,n
-                  DO k = 1,n
-                     fx(k,j,i) = (1-rmp)*fxold(k,j,i)+rmp*fxnew(k,j,i)
-                     fy(k,j,i) = (1-rmp)*fyold(k,j,i)+rmp*fynew(k,j,i)
-                     fz(k,j,i) = (1-rmp)*fzold(k,j,i)+rmp*fznew(k,j,i)
-                  END DO
-               END DO
-            END DO
-         END IF
 #endif
 
 #ifdef MAGFIELD_
-         IF (rand.eq.3) THEN ! slowly varying phases
-            IF ((timef.eq.fstep).or.(stat.eq.0)) THEN
-               timef = 0
 ! Keeps a copy of the old forcing
                DO i = ista,iend
                   DO j = 1,n
@@ -2098,9 +2077,26 @@
                      END DO
                   END DO
                END DO
-            ENDIF
-! Updates the forcing
+#endif
+
+            END IF
+
+         END IF TF
+
+         IF (rand.eq.3) THEN ! Updates forcing if slowly varying
             rmp = FLOAT(timef)/float(fstep-1)
+#ifdef VELOC_
+            DO i = ista,iend
+               DO j = 1,n
+                  DO k = 1,n
+                     fx(k,j,i) = (1-rmp)*fxold(k,j,i)+rmp*fxnew(k,j,i)
+                     fy(k,j,i) = (1-rmp)*fyold(k,j,i)+rmp*fynew(k,j,i)
+                     fz(k,j,i) = (1-rmp)*fzold(k,j,i)+rmp*fznew(k,j,i)
+                  END DO
+               END DO
+            END DO
+#endif
+#ifdef MAGFIELD_
             DO i = ista,iend
                DO j = 1,n
                   DO k = 1,n
@@ -2110,8 +2106,8 @@
                   END DO
                END DO
             END DO
-         END IF
 #endif
+         END IF
 
 ! Every 'tstep' steps, stores the fields 
 ! in binary files
