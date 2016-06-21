@@ -139,7 +139,7 @@
       CALL rotor3(C2,C3,C4,1)
       CALL rotor3(C1,C3,C5,2)
       CALL rotor3(C1,C2,C6,3)
-      CALL normalize(C4,C5,C6,u0,1,MPI_COMM_WORLD)
+      CALL normalize(C4,C5,C6,f0,1,MPI_COMM_WORLD)
 
 !C4,C5,C6 are the components of the first random vector (say v1)
 !Repeating this procedure we create the second random vector (v2)
@@ -268,7 +268,7 @@
       CALL rotor3(C2,C3,C7,1)
       CALL rotor3(C1,C3,C8,2)
       CALL rotor3(C1,C2,C3,3)
-      CALL normalize(C7,C8,C3,u0,1,MPI_COMM_WORLD)
+      CALL normalize(C7,C8,C3,f0,1,MPI_COMM_WORLD)
 
 ! So far, v1 = (C4,C5,C6) and v2 = (C7,C8,C3) are two random 
 ! normalized vectors in Fourier space. Correlating vectors 
