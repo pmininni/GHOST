@@ -110,8 +110,8 @@ TARGET_INTEL  =
 CPP_GNU       = /share/apps/gcc-5.2.0/bin/cpp -traditional-cpp
 FC_GNU        = /share/apps/gcc-5.2.0/bin/gfortran
 CC_GNU        = /share/apps/gcc-5.2.0/bin/gcc
-FFLAGS_GNU    = -O3 -fstack-arrays -funroll-loops
-FPSPEC_GNU    = -O3 -fstack-arrays -funroll-loops
+FFLAGS_GNU    = -O3 -funroll-loops
+FPSPEC_GNU    = -O3 -funroll-loops
 CFLAGS_GNU    = -O3
 GNU_OMP       = -fopenmp
 TARGET_GNU    = -mtune=native -mfpmath=sse
