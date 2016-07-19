@@ -139,6 +139,7 @@ heli = 1         ! Computes helical contribution to LES if 1
 ! Parameters for all particles
 &plagpart
 dolag = 1        ! 1=run with particles, 0=don't
+dopacc = 0       ! 0=compute acceleration, 0=don't
 maxparts = 1000  ! Maximum number of particles
 injtp = 0        ! Injects particles when 1
 cresetp = 0      ! Resets file number counters at time of injection when 1

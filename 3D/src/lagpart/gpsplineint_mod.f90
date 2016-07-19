@@ -22,6 +22,7 @@
 !      D. Rosenberg (NCCS: ORNL)
 !
 ! 15 Jan 2013: Initial version
+! 19 Jul 2016: CompSpline3D loops optimized for speed (P. Mininni)
 !=================================================================
 MODULE class_GPSplineInt
       USE mpivars
@@ -123,7 +124,6 @@ MODULE class_GPSplineInt
     ENDIF
     this%hdataex_  = hdataex
 
-
     DO j = 1, this%rank_
       DO k = 1,2
         this%ibnds_(j,k)  = ibnds(j,k)
@@ -199,6 +199,7 @@ MODULE class_GPSplineInt
 !
 
   END SUBROUTINE GPSplineInt_Interp2D
+!-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
 
@@ -410,7 +411,6 @@ MODULE class_GPSplineInt
       + this%esplfld_(this%ilg_(4,lag),this%jlg_(4,lag),this%klg_(4,lag))*xx4*yy4*zz4
    ENDDO
 
-
   END SUBROUTINE GPSplineInt_Interp3D
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -516,7 +516,6 @@ MODULE class_GPSplineInt
     INTEGER                               :: j,km,nx,ny,nz
     LOGICAL                               :: bok,btmp
 
-
     ! Compute interval-normalized positions and
     ! indices into control point array in x, y directions:
     nx = this%ldims_(1)
@@ -612,7 +611,6 @@ MODULE class_GPSplineInt
   END SUBROUTINE GPSplineInt_SetDeriv
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-
 
 
   SUBROUTINE GPSplineInt_DoAlloc(this)
@@ -737,7 +735,6 @@ MODULE class_GPSplineInt
     CLASS(GPSplineInt)        :: this
     INTEGER                   :: j
 
-
     CALL GPSplineInt_DoAlloc(this)
 
     ! Compute interval widths:
@@ -776,7 +773,6 @@ MODULE class_GPSplineInt
     REAL(KIND=GP),INTENT(INOUT)              :: zeta
     REAL(KIND=GP)                            :: beta,sixth,twotrd
 
-
 !  Setup the arrays for the inversion:
         sixth = 1.0_GP/6.0_GP
         twotrd= 2.0_GP/3.0_GP
@@ -808,11 +804,9 @@ MODULE class_GPSplineInt
 !  ** n  **
         bet   (n) = 1./(beta - zeta*gam(n))
 
-
   END SUBROUTINE GPSplineInt_MatInvQ
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-
 
   SUBROUTINE GPSplineInt_CompSpline2D(this,field,tmp1,tmp2)
 !-----------------------------------------------------------------
@@ -882,18 +876,33 @@ MODULE class_GPSplineInt
       DO j=1,ny
         jm = j-1
         tmp2 (1+jm*nx+km*nxy) = field(1+jm*nx+km*nxy)*this%betx_(1)
+      ENDDO
+    ENDDO
+!$omp parallel do private(j,km,jm) 
+     DO k=1,nz
+      km = k-1
+      DO j=1,ny
+        jm = j-1
         tmp2(nx+jm*nx+km*nxy) = field(nx+jm*nx+km*nxy)
       ENDDO
     ENDDO
 
 !
-    DO i=2,nx-2
-      DO k=1,nz
-        km = k-1
-        DO j=1,ny
-           jm = j-1
+    DO k=1,nz
+      km = k-1
+      DO j=1,ny
+        jm = j-1
+        DO i=2,nx-2
            tmp2(i+jm*nx+km*nxy) =  &
            ( field(i+jm*nx+km*nxy) - this%ax_(i)*tmp2(i-1+jm*nx+km*nxy) )*this%betx_(i)  
+        ENDDO
+      ENDDO
+    ENDDO
+    DO k=1,nz
+      km = k-1
+      DO j=1,ny
+        jm = j-1
+        DO i=2,nx-2
            tmp2(nx+jm*nx+km*nxy) = tmp2(nx+jm*nx+km*nxy) - this%xxx_(i-1)*tmp2(i-1+jm*nx+km*nxy)
         ENDDO
       ENDDO
@@ -911,15 +920,15 @@ MODULE class_GPSplineInt
         tmp2(nx+jm*nx+km*nxy) = (tmp2(nx+jm*nx+km*nxy) - tmp2(nx-1+jm*nx+km*nxy)*this%zetax_) &
                      * this%betx_(nx)
 !  Backsubstitution phase :
-       tmp2(nx-1+jm*nx+km*nxy) = tmp2(nx-1+jm*nx+km*nxy) - this%gamx_(nx)*tmp2(nx+jm*nx+km*nxy)
+        tmp2(nx-1+jm*nx+km*nxy) = tmp2(nx-1+jm*nx+km*nxy) - this%gamx_(nx)*tmp2(nx+jm*nx+km*nxy)
       ENDDO
     ENDDO
 !
-    DO  i=nx-2,1,-1
+    DO k=1,nz
+    km = k-1
       DO j=1,ny
         jm = j-1
-        DO k=1,nz
-        km = k-1
+        DO  i=nx-2,1,-1
         tmp2(i+jm*nx+km*nxy) = tmp2(i+jm*nx+km*nxy) &
                       - this%gamx_(i+1)*tmp2(i+1+jm*nx+km*nxy) - this%px_(i)*tmp2(nx+jm*nx+km*nxy)
         ENDDO
@@ -948,17 +957,31 @@ MODULE class_GPSplineInt
       km = k-1
       DO i=1,nx
         tmp2(i+   km*nxy) = field(i+km*nxy)*this%bety_(1)
+      ENDDO
+    ENDDO
+!$omp parallel do private(i,km)
+    DO k=1,nz
+      km = k-1
+      DO i=1,nx
         tmp2(i+(ny-1)*nx+km*nxy) = field(i+(ny-1)*nx+km*nxy)
       ENDDO
     ENDDO
 !!
-    DO j=2,ny-2
-      jm = j-1
-      DO k=1,nz
-         km = k-1
+    DO k=1,nz
+       km = k-1
+       DO j=2,ny-2
+         jm = j-1
          DO i=1,nx
            tmp2    (i+jm*nx+km*nxy) = &
            ( field(i+jm*nx+km*nxy) - this%ay_(j)*tmp2(i+(jm-1)*nx+km*nxy) )*this%bety_(j)
+         ENDDO
+       ENDDO
+    ENDDO
+    DO k=1,nz
+       km = k-1
+       DO j=2,ny-2
+         jm = j-1
+         DO i=1,nx
            tmp2   (i+(ny-1)*nx+km*nxy) = tmp2(i+(ny-1)*nx+km*nxy) - this%xxy_(j-1)*tmp2(i+(jm-1)*nx+km*nxy)
          ENDDO
        ENDDO
@@ -974,15 +997,15 @@ MODULE class_GPSplineInt
         tmp2(i+(ny-1)*nx+km*nxy) = (tmp2(i+(ny-1)*nx+km*nxy) - tmp2(i+(ny-2)*nx+km*nxy)*this%zetay_) &
                        * this%bety_(ny)
 !  Backsubstitution phase :
-      tmp2(i+(ny-2)*nx+km*nxy) = tmp2(i+(ny-2)*nx+km*nxy) - this%gamy_(ny)*tmp2(i+(ny-1)*nx+km*nxy)
+        tmp2(i+(ny-2)*nx+km*nxy) = tmp2(i+(ny-2)*nx+km*nxy) - this%gamy_(ny)*tmp2(i+(ny-1)*nx+km*nxy)
       ENDDO
     ENDDO
 !
-    DO  j=ny-2,1,-1
-      jm = j-1
-      DO i=1,nx
-        DO k=1,nz
-          km = k-1
+    DO k=1,nz
+      km = k-1
+      DO j=ny-2,1,-1
+        jm = j-1
+        DO i=1,nx
           tmp2(i+jm*nx+km*nxy) = tmp2(i+jm*nx+km*nxy)  &
                          - this%gamy_(j+1)*tmp2(i+(jm+1)*nx+km*nxy) - this%py_(j)*tmp2(i+(ny-1)*nx+km*nxy)
         ENDDO
@@ -1044,17 +1067,31 @@ MODULE class_GPSplineInt
       DO j=1,ny
         jm = j-1
         tmp2 (1+jm*nx+km*nxy) = field(1+jm*nx+km*nxy)*this%betz_(1)
+      ENDDO
+    ENDDO
+    DO k=1,nz
+      km = k-1
+      DO j=1,ny
+        jm = j-1
         tmp2(nx+jm*nx+km*nxy) = field(nx+jm*nx+km*nxy)
       ENDDO
     ENDDO
 !
-    DO i=2,nx-2
-      DO k=1,nz
-        km = k-1
-        DO j=1,ny
-          jm = j-1
+    DO k=1,nz
+      km = k-1
+      DO j=1,ny
+        jm = j-1
+        DO i=2,nx-2
           tmp2 (i+jm*nx+km*nxy) =  &
           (field(i+jm*nx+km*nxy) - this%az_(i)*tmp2(i-1+jm*nx+km*nxy) )*this%betz_(i) 
+        ENDDO
+      ENDDO
+    ENDDO
+    DO k=1,nz
+      km = k-1
+      DO j=1,ny
+        jm = j-1
+        DO i=2,nx-2
           tmp2(nx+jm*nx+km*nxy) = tmp2(nx+jm*nx+km*nxy) - this%xxz_(i-1)*tmp2(i-1+jm*nx+km*nxy)
         ENDDO
       ENDDO
@@ -1076,11 +1113,11 @@ MODULE class_GPSplineInt
       ENDDO
     ENDDO
 !
-    DO i=nx-2,1,-1
-      DO j=1,ny
-        jm = j-1
-        DO k=1,nz
-          km = k-1
+    DO j=1,ny
+      jm = j-1
+      DO k=1,nz
+        km = k-1
+          DO i=nx-2,1,-1
           tmp2(i+jm*nx+km*nxy) = tmp2(i+jm*nx+km*nxy) &
           - this%gamz_(i+1)*tmp2(i+1+jm*nx+km*nxy) - this%pz_(i)*tmp2(nx+jm*nx+km*nxy)
         ENDDO
@@ -1109,6 +1146,5 @@ MODULE class_GPSplineInt
   END SUBROUTINE GPSplineInt_CompSpline3D
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-
 
 END MODULE class_GPSplineInt
