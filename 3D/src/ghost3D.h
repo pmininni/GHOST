@@ -41,6 +41,14 @@
 #define UNIFORMB_
 #endif
 
+#ifdef RMHDB_SOL
+#define DNS_
+#define VELOC_
+#define MAGFIELD_
+#define UNIFORMB_
+#define ROTATION_
+#endif
+
 #ifdef HMHD_SOL
 #define DNS_
 #define VELOC_

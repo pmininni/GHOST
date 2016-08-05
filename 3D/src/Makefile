@@ -119,6 +119,7 @@ HD_OBJS        = pseudospec3D_mod.o module_dns.o pseudospec3D_hd.o
 PHD_OBJS       = $(HD_OBJS) pseudospec3D_phd.o
 MHD_OBJS       = $(HD_OBJS) pseudospec3D_mhd.o
 MHDB_OBJS      = $(MHD_OBJS) pseudospec3D_rot.o
+RMHDB_OBJS     = $(MHDB_OBJS)
 HMHD_OBJS      = $(MHD_OBJS)
 HMHDB_OBJS     = $(MHDB_OBJS)
 COMPRHD_OBJS   = $(PHD_OBJS) pseudospec3D_compr.o

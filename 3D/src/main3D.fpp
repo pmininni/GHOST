@@ -23,6 +23,7 @@
 !           MPHD_SOL       builds the HD solver with multiple passive scalars
 !           MHD_SOL        builds the MHD solver
 !           MHDB_SOL       builds the MHD solver with uniform B_0
+!           RMHDB          builds the MHD solver with uniform B_0 and rotation
 !           HMHD_SOL       builds the Hall-MHD solver
 !           HMHDB_SOL      builds the HMHD solver with uniform B_0
 !           COMPRHD_SOL    builds the compressible HD solver
@@ -1971,22 +1972,13 @@
 
             ELSE IF (rand.eq.2) THEN ! constant energy
 
-#ifdef HD_SOL
+#if defined(HD_SOL) || defined(PHD_SOL)
               INCLUDE 'hd_adjustfv.f90'
 #endif
-#ifdef PHD_SOL
-              INCLUDE 'hd_adjustfv.f90'
-#endif
-#ifdef MHD_SOL
+#if defined(MHD_SOL) || defined(MHDB_SOL) || defined(RMHDB_SOL)
               INCLUDE 'mhd_adjustfv.f90'
 #endif
-#ifdef MHDB_SOL
-              INCLUDE 'mhd_adjustfv.f90'
-#endif
-#ifdef HMHD_SOL
-              INCLUDE 'mhd_adjustfv.f90'
-#endif
-#ifdef HMHDB_SOL
+#if defined(HMHD_SOL) || defined(HMHDB_SOL)
               INCLUDE 'mhd_adjustfv.f90'
 #endif
 #ifdef COMPRHD_SOL
@@ -1995,19 +1987,13 @@
 #if defined(CMHD_SOL) || defined(CMHDB_SOL)
               INCLUDE 'mhd_adjustfv.f90'
 #endif
-#ifdef ROTH_SOL
-              INCLUDE 'hd_adjustfv.f90'
-#endif
-#ifdef PROTH_SOL
+#if defined(ROTH_SOL) || defined(PROTH_SOL)
               INCLUDE 'hd_adjustfv.f90'
 #endif
 #if defined(BOUSS_SOL) || defined(ROTBOUSS_SOL)
               INCLUDE 'hd_adjustfv.f90'
 #endif
-#ifdef LAHD_SOL
-              INCLUDE 'lahd_adjustfv.f90'
-#endif
-#ifdef CAHD_SOL
+#if defined(LAHD_SOL) || defined(CAHD_SOL)
               INCLUDE 'lahd_adjustfv.f90'
 #endif
 #ifdef LHD_SOL
@@ -2016,10 +2002,7 @@
 #ifdef LAMHD_SOL
               INCLUDE 'lahd_adjustfv.f90'
 #endif
-#ifdef EDQNMHD_SOL
-              INCLUDE 'edqnmhd_adjustfv.f90'
-#endif
-#ifdef EDQNMROTH_SOL
+#if defined(EDQNMHD_SOL) || defined(EDQNMROTH_SOL)
               INCLUDE 'edqnmhd_adjustfv.f90'
 #endif
 
@@ -2439,16 +2422,10 @@
 #ifdef MPHD_SOL
             INCLUDE 'mphd_global.f90'
 #endif
-#ifdef MHD_SOL
+#if defined(MHD_SOL) || defined(MHDB_SOL) || defined(RMHDB_SOL)
             INCLUDE 'mhd_global.f90'
 #endif
-#ifdef MHDB_SOL
-            INCLUDE 'mhd_global.f90'
-#endif
-#ifdef HMHD_SOL
-            INCLUDE 'hmhd_global.f90'
-#endif
-#ifdef HMHDB_SOL
+#if defined(HMHD_SOL) || defined(HMHDB_SOL)
             INCLUDE 'hmhd_global.f90'
 #endif
 #ifdef COMPRHD_SOL
@@ -2475,16 +2452,10 @@
 #if defined(MPROTBOUSS_SOL)
             INCLUDE 'mprotbouss_global.f90'
 #endif
-#ifdef GPE_SOL
+#if defined(GPE_SOL) || defined(ARGL_SOL)
             INCLUDE 'gpe_global.f90'
 #endif
-#ifdef ARGL_SOL
-            INCLUDE 'gpe_global.f90'
-#endif
-#ifdef LAHD_SOL
-            INCLUDE 'lahd_global.f90'
-#endif
-#ifdef CAHD_SOL
+#if defined(LAHD_SOL) || defined(CAHD_SOL)
             INCLUDE 'lahd_global.f90'
 #endif
 #ifdef LHD_SOL
@@ -2493,10 +2464,7 @@
 #ifdef LAMHD_SOL
             INCLUDE 'lamhd_global.f90'
 #endif
-#ifdef EDQNMHD_SOL
-            INCLUDE 'hd_global.f90'
-#endif
-#ifdef EDQNMROTH_SOL
+#if defined(EDQNMHD_SOL) || defined(EDQNMROTH_SOL)
             INCLUDE 'hd_global.f90'
 #endif
             IF (mean.eq.1) THEN
@@ -2575,7 +2543,7 @@
 #ifdef MHD_SOL
             INCLUDE 'mhd_spectrum.f90'
 #endif
-#ifdef MHDB_SOL
+#if defined(MHDB_SOL) || defined(RMHDB_SOL)
             INCLUDE 'mhdb_spectrum.f90'
 #endif
 #ifdef HMHD_SOL
@@ -2611,16 +2579,10 @@
 #ifdef MPROTBOUSS_SOL
             INCLUDE 'mprotbouss_spectrum.f90'
 #endif
-#ifdef GPE_SOL
+#if defined(GPE_SOL) || defined(ARGL_SOL)
             INCLUDE 'gpe_spectrum.f90'
 #endif
-#ifdef ARGL_SOL
-            INCLUDE 'gpe_spectrum.f90'
-#endif
-#ifdef LAHD_SOL
-            INCLUDE 'lahd_spectrum.f90'
-#endif
-#ifdef CAHD_SOL
+#if defined(LAHD_SOL) || defined(CAHD_SOL)
             INCLUDE 'lahd_spectrum.f90'
 #endif
 #ifdef LHD_SOL
@@ -2655,16 +2617,10 @@
 #ifdef MPHD_SOL
          INCLUDE 'mphd_rkstep1.f90'
 #endif
-#ifdef MHD_SOL
+#if defined(MHD_SOL) || defined(MHDB_SOL) || defined(RMHDB_SOL)
          INCLUDE 'mhd_rkstep1.f90'
 #endif
-#ifdef MHDB_SOL
-         INCLUDE 'mhd_rkstep1.f90'
-#endif
-#ifdef HMHD_SOL
-         INCLUDE 'mhd_rkstep1.f90'
-#endif
-#ifdef HMHDB_SOL
+#if defined(HMHD_SOL) || defined(HMHDB_SOL)
          INCLUDE 'mhd_rkstep1.f90'
 #endif
 #ifdef COMPRHD_SOL
@@ -2691,22 +2647,13 @@
 #ifdef GPE_SOL
          INCLUDE 'gpe_rkstep1.f90'
 #endif
-#ifdef LAHD_SOL
-         INCLUDE 'hd_rkstep1.f90'
-#endif
-#ifdef CAHD_SOL
-         INCLUDE 'hd_rkstep1.f90'
-#endif
-#ifdef LHD_SOL
+#if defined(LAHD_SOL) || defined(CAHD_SOL) || defined(LHD_SOL)
          INCLUDE 'hd_rkstep1.f90'
 #endif
 #ifdef LAMHD_SOL
          INCLUDE 'mhd_rkstep1.f90'
 #endif
-#ifdef EDQNMHD_SOL
-         INCLUDE 'hd_rkstep1.f90'
-#endif
-#ifdef EDQNMROTH_SOL
+#if defined(EDQNMHD_SOL) || defined(EDQNMROTH_SOL)
          INCLUDE 'hd_rkstep1.f90'
 #endif
 
@@ -2741,6 +2688,9 @@
 #endif
 #ifdef MHDB_SOL
          INCLUDE 'mhdb_rkstep2.f90'
+#endif
+#ifdef RMHDB_SOL
+         INCLUDE 'rmhdb_rkstep2.f90'
 #endif
 #ifdef HMHD_SOL
          INCLUDE 'hmhd_rkstep2.f90'

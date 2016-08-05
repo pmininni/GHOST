@@ -28,6 +28,7 @@ to build a solver other than the default):
    MPHD       Hydrodynamic solver with multi-scalar
    MHD        Magnetohydrodynamic (MHD) solver
    MHDB       MHD solver with a uniform magnetic field
+   RMHDB      MHD solver with uniform magnetic field and rotation
    HMHD       Hall-MHD solver
    HMHDB      HMHD solver with a uniform magnetic field
    COMPRHD    Compressible HD solver
