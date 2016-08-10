@@ -623,7 +623,6 @@
 ! If stat=0 we start a new run.
 ! Generates initial conditions for the fields.
 
-      timef = fstep
  IC : IF (stat.eq.0) THEN
       
       ini = 1
@@ -632,6 +631,7 @@
       timet = tstep
       timec = cstep
       times = sstep
+      timef = fstep
       INCLUDE 'initialv.f90'         ! initial velocity
 #ifdef VECPOT_
       INCLUDE 'initialb.f90'         ! initial vector potential
@@ -644,13 +644,14 @@
 
 ! If stat.ne.0 a previous run is continued
 
-      ini = int((stat-1)*tstep)
+      ini = int((stat-1)*tstep) + 1
       tind = int(stat)
       sind = int(real(ini,kind=GP)/real(sstep,kind=GP)+1)
       WRITE(ext, fmtext) tind
-      times = 0
       timet = 0
-      timec = 0
+      times = int(modulo(float(ini-1),float(sstep)))
+      timec = int(modulo(float(ini-1),float(cstep)))
+      timef = int(modulo(float(ini-1),float(fstep)))
 
 #ifdef STREAM_
       CALL io_read(1,idir,'ps',ext,planio,R1)

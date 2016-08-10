@@ -23,7 +23,7 @@
 !           MPHD_SOL       builds the HD solver with multiple passive scalars
 !           MHD_SOL        builds the MHD solver
 !           MHDB_SOL       builds the MHD solver with uniform B_0
-!           RMHDB          builds the MHD solver with uniform B_0 and rotation
+!           RMHDB_SOL      builds the MHD solver with uniform B_0 and rotation
 !           HMHD_SOL       builds the Hall-MHD solver
 !           HMHDB_SOL      builds the HMHD solver with uniform B_0
 !           COMPRHD_SOL    builds the compressible HD solver
@@ -31,7 +31,7 @@
 !           CMHDB_SOL      builds the compressible MHD solver with uniform B_0
 !           ROTH_SOL       builds the HD solver in a rotating frame
 !           PROTH_SOL      builds the ROTH solver with passive scalar
-!           MPROTH         builds the ROTH solver with multi-scalar
+!           MPROTH_SOL     builds the ROTH solver with multi-scalar
 !           BOUSS_SOL      builds the BOUSS solver
 !           ROTBOUSS_SOL   builds the BOUSS solver in a rotating frame
 !           MPROTBOUSS_SOL builds the BOUSS solver, rotating, multi-scalar
@@ -1498,16 +1498,16 @@
 
 ! If stat.ne.0 a previous run is continued
 
-      ini = int((stat-1)*tstep)
+      ini = int((stat-1)*tstep) + 1
       tind = int(stat)
       sind = int(real(ini,kind=GP)/real(sstep,kind=GP)+1)
       pind = int((stat-1)*lgmult+1)
       WRITE(ext, fmtext) tind
-      times = 0
       timet = 0
-      timec = 0
       timep = 0
-      timef = int(modulo(float(ini),float(fstep)))
+      times = int(modulo(float(ini-1),float(sstep)))
+      timec = int(modulo(float(ini-1),float(cstep)))
+      timef = int(modulo(float(ini-1),float(fstep)))
 
 #ifdef VELOC_
       CALL io_read(1,idir,'vx',ext,planio,R1)
