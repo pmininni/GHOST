@@ -89,4 +89,26 @@
            ENDIF
         ENDIF
 
+        ! Renormalization for finite temperature runs
+        IF (kttherm.gt.0) THEN
+           ! Computes the mass
+           CALL variance(zre,tmp,1)
+           CALL variance(zim,tmq,1)
+           IF (myrank.eq.0) tmr = tmp+tmq
+           CALL MPI_BCAST(tmr,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+
+           ! Renormalization factor
+           tmr = sqrt(omegag/beta)/sqrt(tmr)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+           DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+              DO j = 1,n
+                 DO k = 1,n
+                    zre(k,j,i) = zre(k,j,i)*tmr
+                    zim(k,j,i) = zim(k,j,i)*tmr
+                 END DO
+              END DO
+           END DO
+        ENDIF
+
         ENDIF

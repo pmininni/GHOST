@@ -1779,3 +1779,61 @@
 
       RETURN
       END SUBROUTINE gpemomtspec
+
+!**********************************************************************
+      SUBROUTINE combine(r1,r2,dir,nmb,plan)
+!----------------------------------------------------------------------
+!
+! Combine wavefunctions from ARGL and SGLE for finite temperature runs.
+! Output is in real space.
+!
+! Parameters
+!     r1 : real part of the wavefunction in real space [OUT]
+!     r2 : imaginary part of the wavefunction in real space [OUT]
+!     dir   : directory from which the files are read [IN]
+!     nmb   : extension with the time label [IN]. Should be zero.
+!     plan  : I/O plan [IN]
+!
+
+      USE fprecision
+      USE commtypes
+      USE mpivars
+      USE iovar
+      USE iompi
+      USE grid
+      USE kes
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      REAL(KIND=GP), INTENT(OUT), DIMENSION(n,n,ksta:kend)    :: r1,r2
+      CHARACTER(len=100), INTENT(IN) :: dir
+      CHARACTER(len=*), INTENT(IN) :: nmb
+      TYPE(IOPLAN),INTENT  (IN)    :: plan
+
+      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r3,r4,r5,r6
+      INTEGER :: i,j,k
+
+
+      ! ARGL field
+      CALL io_read(1,dir,'argl_re',nmb,plan,r3)
+      CALL io_read(1,dir,'argl_im',nmb,plan,r4)
+
+      ! SGLE field
+      CALL io_read(1,dir,'sgle_re',nmb,plan,r5)
+      CALL io_read(1,dir,'sgle_im',nmb,plan,r6)
+
+      ! Combine and transform
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+               R1(i,j,k) = R3(i,j,k)*R5(i,j,k) - R4(i,j,k)*R6(i,j,k)
+               R2(i,j,k) = R3(i,j,k)*R6(i,j,k) + R4(i,j,k)*R5(i,j,k)
+            END DO
+         END DO
+      END DO
+
+      RETURN
+      END SUBROUTINE combine

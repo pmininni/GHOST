@@ -182,8 +182,11 @@
 
        x = randu(idum)
        y = randu(idum)
+       do while (y.eq.0)
+          y = randu(idum)
+       end do
        phi = 2.*pi*abs(x)
-       fac = sqrt(-2.*log(abs(y))/abs(y))
+       fac = sqrt(-2.*log(abs(y)))
        x = fac*cos(phi)
        y = fac*sin(phi)
 

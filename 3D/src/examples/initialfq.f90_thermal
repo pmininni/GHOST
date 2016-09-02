@@ -10,19 +10,18 @@
 
 ! Thermal forcing
 
-      dump = sqrt(kttherm/dt)
       IF (ista.eq.1) THEN
          CALL randn_cmplx(rmp,rmq,seed)
-         fre(1,1,1) = rmp*dump
-         fim(1,1,1) = rmq*dump
+         fre(1,1,1) = rmp
+         fim(1,1,1) = rmq
          DO j = 2,n/2+1
 
             IF ((ka2(1,j,1).le.kmax).and.(ka2(1,j,1).ge.tiny)) THEN
                CALL randn_cmplx(rmp,rmq,seed)
-               fre(1,j,1) = (rmp+im*rmq)*dump
+               fre(1,j,1) = (rmp+im*rmq)
                fre(1,n-j+2,1) = conjg(fre(1,j,1))
                CALL randn_cmplx(rmp,rmq,seed)
-               fim(1,j,1) = (rmp+im*rmq)*dump
+               fim(1,j,1) = (rmp+im*rmq)
                fim(1,n-j+2,1) = conjg(fim(1,j,1))
             ELSE
                fre(1,j,1) = 0.
@@ -36,10 +35,10 @@
 
             IF ((ka2(k,1,1).le.kmax).and.(ka2(k,1,1).ge.tiny)) THEN
                CALL randn_cmplx(rmp,rmq,seed)
-               fre(k,1,1) = (rmp+im*rmq)*dump
+               fre(k,1,1) = (rmp+im*rmq)
                fre(n-k+2,1,1) = conjg(fre(k,1,1))
                CALL randn_cmplx(rmp,rmq,seed)
-               fim(k,1,1) = (rmp+im*rmq)*dump
+               fim(k,1,1) = (rmp+im*rmq)
                fim(n-k+2,1,1) = conjg(fim(k,1,1))
             ELSE
                fre(k,1,1) = 0.
@@ -54,10 +53,10 @@
      
             IF ((ka2(k,j,1).le.kmax).and.(ka2(k,j,1).ge.tiny)) THEN
                CALL randn_cmplx(rmp,rmq,seed)
-               fre(k,j,1) = (rmp+im*rmq)*dump
+               fre(k,j,1) = (rmp+im*rmq)
                fre(n-k+2,n-j+2,1) = conjg(fre(k,j,1))
                CALL randn_cmplx(rmp,rmq,seed)
-               fim(k,j,1) = (rmp+im*rmq)*dump
+               fim(k,j,1) = (rmp+im*rmq)
                fim(n-k+2,n-j+2,1) = conjg(fim(k,j,1))
             ELSE
                fre(k,j,1) = 0.
@@ -74,9 +73,9 @@
 
                IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
                   CALL randn_cmplx(rmp,rmq,seed)
-                  fre(k,j,i) = 2*(rmp+im*rmq)*dump
+                  fre(k,j,i) = 2*(rmp+im*rmq)
                   CALL randn_cmplx(rmp,rmq,seed)
-                  fim(k,j,i) = 2*(rmp+im*rmq)*dump
+                  fim(k,j,i) = 2*(rmp+im*rmq)
                ELSE
                   fre(k,j,i) = 0.
                   fim(k,j,i) = 0.
@@ -92,9 +91,9 @@
 
                IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
                   CALL randn_cmplx(rmp,rmq,seed)
-                  fre(k,j,i) = 2*(rmp+im*rmq)*dump
+                  fre(k,j,i) = 2*(rmp+im*rmq)
                   CALL randn_cmplx(rmp,rmq,seed)
-                  fim(k,j,i) = 2*(rmp+im*rmq)*dump
+                  fim(k,j,i) = 2*(rmp+im*rmq)
                ELSE
                   fre(k,j,i) = 0.
                   fim(k,j,i) = 0.
@@ -104,3 +103,21 @@
             END DO
         END DO
       ENDIF
+
+      ! Renormalize
+      CALL variance(fre,tmp,1)
+      CALL variance(fim,tmq,1)
+      IF (myrank.eq.0) tmr = tmp+tmq
+      CALL MPI_BCAST(tmr,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+
+      tmr = sqrt(kttherm/dt)/sqrt(tmr)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,n
+            DO k = 1,n
+               fre(k,j,i) = fre(k,j,i)*tmr
+               fim(k,j,i) = fim(k,j,i)*tmr
+            END DO
+         END DO
+      END DO

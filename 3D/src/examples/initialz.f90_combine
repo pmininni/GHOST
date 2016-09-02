@@ -1,0 +1,50 @@
+! Initial condition for the wavefunction.
+! This file contains the expression used for the initial
+! wavefunction. You can use temporary real arrays R1-R3
+! of size (1:n,1:n,ksta:kend) and temporary complex arrays
+! C1-C8 of size (n,n,ista:iend) to do intermediate
+! computations. The variables rho0 and zparam0-9 can be used 
+! to control properties of the initial wavefunction. At the
+! end, the real and imaginary parts of the wavefunction in 
+! spectral space should be stored in the arrays zre and zim.
+
+! Combine wavefunctions for finite temperature GPE
+
+      ! Read and multiply in real space
+      WRITE(ext, fmtext) 0
+      CALL combine(R1,R2,idir,ext,planio)
+
+      ! Transform to Fourier space and dealias
+      CALL fftp3d_real_to_complex(planrc,R1,zre,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R2,zim,MPI_COMM_WORLD)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,n
+             DO k = 1,n
+                IF (ka2(k,j,i).gt.kmax) THEN
+                   zre(k,j,i) = 0.0_GP
+                   zim(k,j,i) = 0.0_GP
+                ENDIF
+             END DO
+          END DO
+       END DO
+
+       ! Computes the mass
+       CALL variance(zre,tmp,1)
+       CALL variance(zim,tmq,1)
+       IF (myrank.eq.0) tmr = tmp+tmq
+       CALL MPI_BCAST(tmr,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+
+       ! Renormalization factor
+       tmr = sqrt(omegag/beta)/sqrt(tmr)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,n
+             DO k = 1,n
+                zre(k,j,i) = zre(k,j,i)*tmr
+                zim(k,j,i) = zim(k,j,i)*tmr
+             END DO
+          END DO
+       END DO
