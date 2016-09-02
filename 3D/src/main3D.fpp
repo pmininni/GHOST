@@ -1450,6 +1450,7 @@
       INCLUDE 'initialfb.f90'           ! electromotive forcing
 #endif
 #ifdef ADVECT_
+      timef = fstep
       INCLUDE 'initialfq.f90'           ! quantum thermal forcing
 #endif
 
