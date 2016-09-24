@@ -20,11 +20,11 @@ IOLIB    = mpiio
 
 # Parallelization model:
 # P_HYBRID=yes  # OpenMP-MPI hybridization
-# P_HYBRID=no   # MP-based parallelization only
+# P_HYBRID=no   # MPI-based parallelization only
 P_HYBRID = no
 
 # Parallelization model:
-# P_CUDA=yes    # CUDA-MPI hybridization
+# P_CUDA=yes    # CUDA-MPI (or CUDA-OpenMP-MPI) hybridization
 # P_CUDA=no     # MPI- or hybrid- parallelization only
 P_CUDA   = no
 
