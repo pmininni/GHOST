@@ -9,5 +9,5 @@ used as a starting point for more advanced usage of the data.
 The codes to numerically integrate the hydrodynamic/
 magnetodydrodynamic/Hall-magnetodydrodynamic equations in 2 and 
 3 dimensions can be found in ghost/2D/src and ghost/3D/src. 
-For instalation details, see the README file in those 
+For installation details, see the README file in those 
 directories. 
