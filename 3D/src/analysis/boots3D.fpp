@@ -56,9 +56,10 @@
 
       REAL(KIND=GP)    :: kprol2, kprol
       INTEGER :: nfiles,nmt,np,npt,nt,ntprocs,npkeep
-      INTEGER :: i,ib,ie,ind,iswap,oswap,itsta,itend,j,k,ktsta,ktend
+      INTEGER :: i,ib,ie,ind,itsta,itend,j,k,ktsta,ktend
       INTEGER :: istak,iendk,kstak,kendk
-      INTEGER :: commtrunc, fh, groupworld, flags, grouptrunc, iExclude(3,1), iInclude(3,1)
+      INTEGER :: commtrunc, fh, groupworld, flags, grouptrunc
+      INTEGER :: iExclude(3,1), iInclude(3,1)
 
       TYPE(IOPLAN)  :: planio, planiot
       TYPE(FFTPLAN) :: planrct
