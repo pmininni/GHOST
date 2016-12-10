@@ -485,34 +485,6 @@
      CALL io_init(myrank,n,ksta,kend,planio)
 
 !
-! Initializes the FFT library
-! Use FFTW_ESTIMATE or FFTW_MEASURE in short runs
-! Use FFTW_PATIENT or FFTW_EXHAUSTIVE in long runs
-! FFTW 2.x only supports FFTW_ESTIMATE or FFTW_MEASURE
-
-      nth = 1
-!$    nth = omp_get_max_threads()
-#if !defined(DEF_GHOST_CUDA_)
-!$    CALL fftp3d_init_threads(ierr)
-#endif
-      IF (bench.eq.2) THEN
-         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-         CALL GTStart(ihcpu2,GT_CPUTIME)
-         CALL GTStart(ihomp2,GT_OMPTIME)
-         CALL GTStart(ihwtm2,GT_WTIME)
-      ENDIF
-      CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
-                             FFTW_ESTIMATE)
-      CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
-                             FFTW_ESTIMATE)
-      IF (bench.eq.2) THEN
-         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-         CALL GTStop(ihcpu2)
-         CALL GTStop(ihomp2)
-         CALL GTStop(ihwtm2)
-      ENDIF
-
-!
 ! Allocates memory for distributed blocks
 
       ALLOCATE( C1(n,n,ista:iend),  C2(n,n,ista:iend) )
@@ -1311,6 +1283,36 @@
       CALL MPI_BCAST(gyrof    ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(vtherm   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
+
+!
+! Initializes the FFT library. This can only be done
+! at this stage as it requires the variable "bench"
+! to be properly initialized.
+! Use FFTW_ESTIMATE or FFTW_MEASURE in short runs
+! Use FFTW_PATIENT or FFTW_EXHAUSTIVE in long runs
+! FFTW 2.x only supports FFTW_ESTIMATE or FFTW_MEASURE
+
+      nth = 1
+!$    nth = omp_get_max_threads()
+#if !defined(DEF_GHOST_CUDA_)
+!$    CALL fftp3d_init_threads(ierr)
+#endif
+      IF (bench.eq.2) THEN
+         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+         CALL GTStart(ihcpu2,GT_CPUTIME)
+         CALL GTStart(ihomp2,GT_OMPTIME)
+         CALL GTStart(ihwtm2,GT_WTIME)
+      ENDIF
+      CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
+                             FFTW_ESTIMATE)
+      CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
+                             FFTW_ESTIMATE)
+      IF (bench.eq.2) THEN
+         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+         CALL GTStop(ihcpu2)
+         CALL GTStop(ihomp2)
+         CALL GTStop(ihwtm2)
+      ENDIF
 
 !
 ! Initializes arrays to keep track of the forcing 
