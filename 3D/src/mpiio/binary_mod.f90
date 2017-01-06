@@ -10,7 +10,8 @@
 
   MODULE iovar
       TYPE IOPLAN
-         INTEGER      :: n,ksta,kend
+         INTEGER      :: ksta,kend
+         INTEGER      :: nx,ny,nz
          INTEGER      :: iotype
       END TYPE IOPLAN
       INTEGER :: iswap=0

@@ -12,8 +12,8 @@
 ! Null mechanical forcing
 
       DO i = ista,iend
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                fx(k,j,i) = 0.
                fy(k,j,i) = 0.
                fz(k,j,i) = 0.

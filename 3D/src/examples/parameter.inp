@@ -22,6 +22,13 @@ cort = 7.5e-4    ! correlation time of the external forcing
 seed = 1000      ! seed for the random number generator
 /
 
+! Boz size
+&boxparams
+Lx = 2.00        ! Length in x
+Ly = 1.00        ! Length in x
+Lz = 3.00        ! Length in x
+/
+
 ! Parameters for the velocity field
 &velocity
 f0 = 0.37714265  ! amplitude of the mechanical forcing

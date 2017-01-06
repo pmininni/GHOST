@@ -3,15 +3,15 @@
 !=================================================================
 ! GHOST code: Geophysical High Order Suite for Turbulence
 !
-! Numerically integrates the incompressible HD/MHD/Hall-MHD 
-! equations in 3 dimensions with periodic boundary conditions 
+! Numerically integrates several fluid dynamics equations
+! in 2 and 3 dimensions with periodic boundary conditions 
 ! and external forcing. A pseudo-spectral method is used to 
-! compute spatial derivatives, while adjustable order 
+! compute spatial derivatives, while an adjustable order 
 ! Runge-Kutta method is used to evolve the system in the time 
 ! domain. To compile, you need the FFTW library installed on 
-! your system. You should link with the FFTP subroutines
-! and use the FFTPLANS and MPIVARS modules (see the file 
-! 'fftp_mod.f90').
+! your system. The parallel FFT is in the FFTP subroutines
+! and uses the FFTPLANS and MPIVARS modules (see the file 
+! 'fftp_mod.f90' for details).
 !
 ! Notation: index 'i' is 'x'
 !           index 'j' is 'y'
@@ -20,23 +20,23 @@
 ! Conditional compilation options:
 !           HD_SOL         builds the hydrodynamic (HD) solver
 !           PHD_SOL        builds the HD solver with passive scalar
-!           MPHD_SOL       builds the HD solver with multiple passive scalars
+!           MPHD_SOL       builds the HD solver with multiple scalars
 !           MHD_SOL        builds the MHD solver
 !           MHDB_SOL       builds the MHD solver with uniform B_0
-!           RMHDB_SOL      builds the MHD solver with uniform B_0 and rotation
+!           RMHDB_SOL      builds the MHD solver with B_0 and rotation
 !           HMHD_SOL       builds the Hall-MHD solver
 !           HMHDB_SOL      builds the HMHD solver with uniform B_0
 !           COMPRHD_SOL    builds the compressible HD solver
 !           CMHD_SOL       builds the compressible MHD solver
-!           CMHDB_SOL      builds the compressible MHD solver with uniform B_0
+!           CMHDB_SOL      builds the compressible MHD solver with B_0
 !           ROTH_SOL       builds the HD solver in a rotating frame
 !           PROTH_SOL      builds the ROTH solver with passive scalar
 !           MPROTH_SOL     builds the ROTH solver with multi-scalar
 !           BOUSS_SOL      builds the BOUSS solver
 !           ROTBOUSS_SOL   builds the BOUSS solver in a rotating frame
-!           MPROTBOUSS_SOL builds the BOUSS solver, rotating, multi-scalar
+!           MPROTBOUSS_SOL builds the BOUSS eq, rotating, multi-scalar
 !           GPE_SOL        builds the Gross-Pitaevskii Equation solver
-!           ARGL_SOL       builds the Advective Real Ginzburg Landau solver
+!           ARGL_SOL       builds the Advective Real Ginzburg Landau
 !           LAHD_SOL       builds the Lagrangian-averaged HD solver
 !           CAHD_SOL       builds the Clark-alpha HD solver
 !           LHD_SOL        builds the Leray HD solver
@@ -51,14 +51,15 @@
 !      e-mail: mininni@df.uba.ar
 !
 ! 15 Feb 2007: Main program for all solvers (HD/MHD/HMHD)
-! 21 Feb 2007: POSIX and MPI/IO support
+! 21 Feb 2007: POSIX and MPI-IO support
 ! 10 Mar 2007: FFTW-2.x and FFTW-3.x support
 ! 25 Aug 2009: Hybrid MPI/OpenMP support (D. Rosenberg & P. Mininni)
 ! 30 Aug 2009: SINGLE/DOUBLE precision (D. Rosenberg & P. Mininni)
 ! 10 Feb 2011: Hybrid MPI/OpenMP/CUDA support (D. Rosenberg)
+! 21 Nov 2016: Anisotropic boxes (A. Alexakis & P. Mininni)
 !
 ! References:
-! Mininni PD, Rosenberg DL, Reddy R, Pouquet A.; P. Comp. 37, 123 (2011)
+! Mininni PD, Rosenberg DL, Reddy R, Pouquet A.; P.Comp.37, 123 (2011)
 ! Mininni PD, Gomez DO, Mahajan SM; Astrophys. J. 619, 1019 (2005)
 ! Gomez DO, Mininni PD, Dmitruk P; Phys. Scripta T116, 123 (2005)
 ! Gomez DO, Mininni PD, Dmitruk P; Adv. Sp. Res. 35, 899 (2005)
@@ -76,7 +77,6 @@
       USE mpivars
       USE filefmt
       USE iovar
-      USE iompi
       USE grid
       USE fft
       USE ali
@@ -85,6 +85,7 @@
       USE order
       USE random
       USE threads
+      USE boxsize
       USE gtimer
 #ifdef DNS_
       USE dns
@@ -114,7 +115,7 @@
       IMPLICIT NONE
 
 !
-! Arrays for the fields and the external forcing
+! Arrays for the fields and external forcings
 
 #if defined(VELOC_) || defined(ADVECT_)
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz
@@ -173,15 +174,15 @@
 #endif
 #ifdef EDQNM_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C19
-      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)  :: tepq,thpq,tve,tvh
-      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)  :: Eold,Hold
-      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)  :: Eext,Hext
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: Eden,Hden
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: tepq,thpq,tve,tvh
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: Eold,Hold
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: Eext,Hext
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: Eden,Hden
 #endif
 
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: R1,R2,R3
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: R1,R2,R3
 #ifdef VELOC_
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)     :: Faux1,Faux2
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)        :: Faux1,Faux2
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fxold,fyold,fzold
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fxnew,fynew,fznew
 #endif
@@ -190,14 +191,14 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: mxnew,mynew,mznew
 #endif
 #ifdef ADVECT_
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vsq
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: vsq
 #endif
 #ifdef PART_
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: R4,R5,R6
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: R4,R5,R6
 #endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: Rb1,Rb2,Rb3
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: Rj1,Rj2,Rj3
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: Rb1,Rb2,Rb3
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: Rj1,Rj2,Rj3
 #endif
 
 !
@@ -289,6 +290,7 @@
       INTEGER :: bench,trans
       INTEGER :: outs,mean
       INTEGER :: seed,rand
+      INTEGER :: anis
       INTEGER :: mult
       INTEGER :: t,o
       INTEGER :: i,j,k
@@ -343,7 +345,7 @@
       TYPE(cudaDevicePropG) :: devprop
 #endif
       TYPE(IOPLAN)          :: planio
-      CHARACTER (len=100)   :: odir,idir
+      CHARACTER(len=100)    :: odir,idir
 #ifdef PART_
       CHARACTER(len=1024)   :: lgseedfile,slgfpfile
 #endif
@@ -353,6 +355,9 @@
 
       NAMELIST / status / idir,odir,stat,mult,bench,outs,mean,trans,iswap
       NAMELIST / parameter / dt,step,tstep,sstep,cstep,rand,cort,seed
+#ifdef DEF_ARBSIZE_
+      NAMELIST / boxparams / Lx,Ly,Lz,Dkk
+#endif
 #if defined(VELOC_) || defined(ADVECT_)
       NAMELIST / velocity / f0,u0,kdn,kup,nu,fparam0,fparam1,fparam2
       NAMELIST / velocity / fparam3,fparam4,fparam5,fparam6,fparam7
@@ -439,6 +444,9 @@
       NAMELIST / ptestpart / gyrof,vtherm
 #endif
 
+!
+! Initialization
+
 ! Initializes the MPI and I/O libraries
       CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
@@ -480,126 +488,112 @@
   #endif
 #endif
 
-     CALL range(1,n/2+1,nprocs,myrank,ista,iend)
-     CALL range(1,n,nprocs,myrank,ksta,kend)
-     CALL io_init(myrank,n,ksta,kend,planio)
-
-!
-! Initializes the FFT library
-! Use FFTW_ESTIMATE or FFTW_MEASURE in short runs
-! Use FFTW_PATIENT or FFTW_EXHAUSTIVE in long runs
-! FFTW 2.x only supports FFTW_ESTIMATE or FFTW_MEASURE
-
-      nth = 1
-!$    nth = omp_get_max_threads()
-#if !defined(DEF_GHOST_CUDA_)
-!$    CALL fftp3d_init_threads(ierr)
-#endif
-      IF (bench.eq.2) THEN
-         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-         CALL GTStart(ihcpu2,GT_CPUTIME)
-         CALL GTStart(ihomp2,GT_OMPTIME)
-         CALL GTStart(ihwtm2,GT_WTIME)
-      ENDIF
-      CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
-                             FFTW_ESTIMATE)
-      CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
-                             FFTW_ESTIMATE)
-      IF (bench.eq.2) THEN
-         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-         CALL GTStop(ihcpu2)
-         CALL GTStop(ihomp2)
-         CALL GTStop(ihwtm2)
-      ENDIF
+     CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
+     CALL range(1,nz,nprocs,myrank,ksta,kend)
+     CALL io_init(myrank,(/nx,ny,nz/),ksta,kend,planio)
 
 !
 ! Allocates memory for distributed blocks
 
-      ALLOCATE( C1(n,n,ista:iend),  C2(n,n,ista:iend) )
-      ALLOCATE( C3(n,n,ista:iend),  C4(n,n,ista:iend) )
-      ALLOCATE( C5(n,n,ista:iend),  C6(n,n,ista:iend) )
-      ALLOCATE( C7(n,n,ista:iend),  C8(n,n,ista:iend) )
+      ALLOCATE( C1(nz,ny,ista:iend),  C2(nz,ny,ista:iend) )
+      ALLOCATE( C3(nz,ny,ista:iend),  C4(nz,ny,ista:iend) )
+      ALLOCATE( C5(nz,ny,ista:iend),  C6(nz,ny,ista:iend) )
+      ALLOCATE( C7(nz,ny,ista:iend),  C8(nz,ny,ista:iend) )
 #if defined(VELOC_) || defined(ADVECT_)
-      ALLOCATE( vx(n,n,ista:iend) )
-      ALLOCATE( vy(n,n,ista:iend) )
-      ALLOCATE( vz(n,n,ista:iend) )
+      ALLOCATE( vx(nz,ny,ista:iend) )
+      ALLOCATE( vy(nz,ny,ista:iend) )
+      ALLOCATE( vz(nz,ny,ista:iend) )
 #endif
 #ifdef VELOC_
-      ALLOCATE( fx(n,n,ista:iend) )
-      ALLOCATE( fy(n,n,ista:iend) )
-      ALLOCATE( fz(n,n,ista:iend) )
+      ALLOCATE( fx(nz,ny,ista:iend) )
+      ALLOCATE( fy(nz,ny,ista:iend) )
+      ALLOCATE( fz(nz,ny,ista:iend) )
 #endif
 #ifdef SCALAR_
-      ALLOCATE( C20(n,n,ista:iend) )
-      ALLOCATE( th (n,n,ista:iend) )
-      ALLOCATE( fs (n,n,ista:iend) )
+      ALLOCATE( C20(nz,ny,ista:iend) )
+      ALLOCATE( th (nz,ny,ista:iend) )
+      ALLOCATE( fs (nz,ny,ista:iend) )
 #endif
 #ifdef MULTISCALAR_
-      ALLOCATE( C21(n,n,ista:iend) )
-      ALLOCATE( C22(n,n,ista:iend) )
-      ALLOCATE( C23(n,n,ista:iend) )
-      ALLOCATE( C24(n,n,ista:iend) )
-      ALLOCATE( th1(n,n,ista:iend) )
-      ALLOCATE( th2(n,n,ista:iend) )
-      ALLOCATE( th3(n,n,ista:iend) )
-      ALLOCATE( fs1(n,n,ista:iend) )
-      ALLOCATE( fs2(n,n,ista:iend) )
-      ALLOCATE( fs3(n,n,ista:iend) )
+      ALLOCATE( C21(nz,ny,ista:iend) )
+      ALLOCATE( C22(nz,ny,ista:iend) )
+      ALLOCATE( C23(nz,ny,ista:iend) )
+      ALLOCATE( C24(nz,ny,ista:iend) )
+      ALLOCATE( th1(nz,ny,ista:iend) )
+      ALLOCATE( th2(nz,ny,ista:iend) )
+      ALLOCATE( th3(nz,ny,ista:iend) )
+      ALLOCATE( fs1(nz,ny,ista:iend) )
+      ALLOCATE( fs2(nz,ny,ista:iend) )
+      ALLOCATE( fs3(nz,ny,ista:iend) )
 #endif
 #ifdef COMPR_AUX_ARR_
-      ALLOCATE( C25(n,n,ista:iend) )
-      ALLOCATE( C26(n,n,ista:iend) )
-      ALLOCATE( C27(n,n,ista:iend) )
+      ALLOCATE( C25(nz,ny,ista:iend) )
+      ALLOCATE( C26(nz,ny,ista:iend) )
+      ALLOCATE( C27(nz,ny,ista:iend) )
 #endif
 #ifdef MAGFIELD_
-      ALLOCATE( C9(n,n,ista:iend),  C10(n,n,ista:iend) )
-      ALLOCATE( C11(n,n,ista:iend), C12(n,n,ista:iend) )
-      ALLOCATE( C13(n,n,ista:iend), C14(n,n,ista:iend) )
-      ALLOCATE( C15(n,n,ista:iend), C16(n,n,ista:iend) )
-      ALLOCATE( C17(n,n,ista:iend) )
-      ALLOCATE( ax(n,n,ista:iend) )
-      ALLOCATE( ay(n,n,ista:iend) )
-      ALLOCATE( az(n,n,ista:iend) )
-      ALLOCATE( mx(n,n,ista:iend) )
-      ALLOCATE( my(n,n,ista:iend) )
-      ALLOCATE( mz(n,n,ista:iend) )
+      ALLOCATE( C9(nz,ny,ista:iend),  C10(nz,ny,ista:iend) )
+      ALLOCATE( C11(nz,ny,ista:iend), C12(nz,ny,ista:iend) )
+      ALLOCATE( C13(nz,ny,ista:iend), C14(nz,ny,ista:iend) )
+      ALLOCATE( C15(nz,ny,ista:iend), C16(nz,ny,ista:iend) )
+      ALLOCATE( C17(nz,ny,ista:iend) )
+      ALLOCATE( ax(nz,ny,ista:iend) )
+      ALLOCATE( ay(nz,ny,ista:iend) )
+      ALLOCATE( az(nz,ny,ista:iend) )
+      ALLOCATE( mx(nz,ny,ista:iend) )
+      ALLOCATE( my(nz,ny,ista:iend) )
+      ALLOCATE( mz(nz,ny,ista:iend) )
 #endif
 #ifdef HALLTERM_
-      ALLOCATE( C18(n,n,ista:iend) )
+      ALLOCATE( C18(nz,ny,ista:iend) )
 #endif
 #ifdef WAVEFUNCTION_
-      ALLOCATE ( zre(n,n,ista:iend), zim(n,n,ista:iend) )
+      ALLOCATE ( zre(nz,ny,ista:iend), zim(nz,ny,ista:iend) )
 #endif
 #ifdef QFORCE_
-      ALLOCATE ( fre(n,n,ista:iend), fim(n,n,ista:iend) )
+      ALLOCATE ( fre(nz,ny,ista:iend), fim(nz,ny,ista:iend) )
 #endif
 
-      ALLOCATE( ka(n), ka2(n,n,ista:iend) )
-      ALLOCATE( R1(n,n,ksta:kend) )
-      ALLOCATE( R2(n,n,ksta:kend) )
-      ALLOCATE( R3(n,n,ksta:kend) )
+      ALLOCATE( kx(nx), ky(ny), kz(nz) )
+      ALLOCATE( kn2(nz,ny,ista:iend) )
+#ifdef DEF_ARBSIZE_
+      anis = 1
+      ALLOCATE( kk2(nz,ny,ista:iend) )
+#else
+      IF ((nx.ne.ny).or.(ny.ne.nz)) THEN
+         anis = 1
+         ALLOCATE( kk2(nz,ny,ista:iend) )
+      ELSE
+         anis = 0
+         kk2 => kn2
+      ENDIF
+#endif
+
+      ALLOCATE( R1(nx,ny,ksta:kend) )
+      ALLOCATE( R2(nx,ny,ksta:kend) )
+      ALLOCATE( R3(nx,ny,ksta:kend) )
 #ifdef ADVECT_
-      ALLOCATE( vsq(n,n,ksta:kend) )
+      ALLOCATE( vsq(nx,ny,ksta:kend) )
 #endif
 #ifdef PART_
-      ALLOCATE( R4(n,n,ksta:kend) )
-      ALLOCATE( R5(n,n,ksta:kend) )
-      ALLOCATE( R6(n,n,ksta:kend) )
+      ALLOCATE( R4(nx,ny,ksta:kend) )
+      ALLOCATE( R5(nx,ny,ksta:kend) )
+      ALLOCATE( R6(nx,ny,ksta:kend) )
 #endif
 #if defined (TESTPART_) && defined(MAGFIELD_)
-      ALLOCATE( Rb1(n,n,ksta:kend) )        
-      ALLOCATE( Rb2(n,n,ksta:kend) )
-      ALLOCATE( Rb3(n,n,ksta:kend) )
-      ALLOCATE( Rj1(n,n,ksta:kend) )        
-      ALLOCATE( Rj2(n,n,ksta:kend) )
-      ALLOCATE( Rj3(n,n,ksta:kend) )
+      ALLOCATE( Rb1(nx,ny,ksta:kend) )        
+      ALLOCATE( Rb2(nx,ny,ksta:kend) )
+      ALLOCATE( Rb3(nx,ny,ksta:kend) )
+      ALLOCATE( Rj1(nx,ny,ksta:kend) )        
+      ALLOCATE( Rj2(nx,ny,ksta:kend) )
+      ALLOCATE( Rj3(nx,ny,ksta:kend) )
 #endif
 #ifdef EDQNM_
-      ALLOCATE( C19(n,n,ista:iend) )
-      ALLOCATE( Eden(n,n,ista:iend) )
-      ALLOCATE( Hden(n,n,ista:iend) )
-      ALLOCATE( tepq(n/2+1) )
-      ALLOCATE( thpq(n/2+1) )
+      ALLOCATE( C19(nz,ny,ista:iend) )
+      ALLOCATE( Eden(nz,ny,ista:iend) )
+      ALLOCATE( Hden(nz,ny,ista:iend) )
+      ALLOCATE( tepq(n/2+1) )      !!!!!!! CHECK LATER !!!!!!!!
+      ALLOCATE( thpq(n/2+1) )      ! Here we should have nmax !
       ALLOCATE( tve (n/2+1) )
       ALLOCATE( tvh (n/2+1) )
       ALLOCATE( Eold(n/2+1) )
@@ -609,40 +603,10 @@
 #endif
 
 !
-! Some constants for the FFT
-!     kmax: maximum truncation for dealiasing
-!     tiny: minimum truncation for dealiasing
+! The following lines read the file 'parameter.inp'
 
-      kmax = (real(n,kind=GP)/3.0_GP)**2
-#ifdef EDQNM_
-      kmax = (real(n,kind=GP)/2.0_GP-0.5_GP)**2
-#endif
-      tiny  = 1e-5_GP
-      tinyf = 1e-15_GP
-
-!
-! Builds arrays with the wavenumbers and the 
-! square wavenumbers
-
-      DO i = 1,n/2
-         ka(i) = real(i-1,kind=GP)
-         ka(i+n/2) = real(i-n/2-1,kind=GP)
-      END DO
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
-               ka2(k,j,i) = ka(i)**2+ka(j)**2+ka(k)**2
-            END DO
-         END DO
-      END DO
-
-! The following lines read the file 'parameter.txt'
-
-!
 ! Reads general configuration flags from the namelist 
-! 'status' on the external file 'parameter.txt'
+! 'status' on the external file 'parameter.inp'
 !     idir : directory for unformatted input
 !     odir : directory for unformatted output
 !     stat : = 0 starts a new run
@@ -662,7 +626,7 @@
 !            = 1 does a byte swap of restart binary data
 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=status)
          CLOSE(1)
       ENDIF
@@ -676,10 +640,9 @@
       CALL MPI_BCAST(trans,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iswap,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
-!
 ! Reads parameters that will be used to control the 
 ! time integration from the namelist 'parameter' on 
-! the external file 'parameter.txt' 
+! the external file 'parameter.inp' 
 !     dt   : time step size
 !     step : total number of time steps to compute
 !     tstep: number of steps between binary output
@@ -687,14 +650,14 @@
 !     cstep: number of steps between output of global quantities
 !     rand : = 0 constant force
 !            = 1 random phases
-!            = 2 constant energy
-!            = 3 slowly varying random phases (only for the velocity and
+!            = 2 slowly varying random phases (only for the velocity and
 !                magnetic forcings)
+!            = 3 user-defined forcing scheme
 !     cort : time correlation of the external forcing
 !     seed : seed for the random number generator
 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=parameter)
          CLOSE(1)
          dt = dt/real(mult,kind=GP)
@@ -713,10 +676,39 @@
       CALL MPI_BCAST(rand,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(seed,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
+      Lx  = 1.0_GP
+      Ly  = 1.0_GP
+      Lz  = 1.0_GP
+      Dkx = 1.0_GP
+      Dky = 1.0_GP
+      Dkz = 1.0_GP
+      Dkk = 0.0_GP
+#ifdef DEF_ARBSIZE_
+! Reads parameters to set the box size 
+!     Lx  : Length in x (in units of 2.pi, =1 gives a side of length 2.pi)
+!     Ly  : Length in y
+!     Lz  : Length in z
+!     Dkk : Width of Fourier shells for 2D and 3D spectra
+!           Default = min(1/Lx, 1/Ly, 1/Lz)
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
+         READ(1,NML=boxparams)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(Lx,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(Ly,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(Lz,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(Dkk,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      Dkx = 1.0_GP/Lx
+      Dky = 1.0_GP/Ly
+      Dkz = 1.0_GP/Lz
+#endif
+      IF (Dkk.lt.1e-5) Dkk = min(Dkx,Dky,Dkz)
+
 #if defined(VELOC_) || defined(ADVECT_)
-!
 ! Reads parameters for the velocity field from the 
-! namelist 'velocity' on the external file 'parameter.txt' 
+! namelist 'velocity' on the external file 'parameter.inp' 
 !     f0   : amplitude of the mechanical forcing
 !     u0   : amplitude of the initial velocity field
 !     kdn  : minimum wave number in v/mechanical forcing
@@ -728,7 +720,7 @@
 !            the initial conditions for the velocity field
 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=velocity)
          CLOSE(1)
       ENDIF
@@ -760,9 +752,8 @@
 #endif
 
 #ifdef BOUSSINESQ_
-!
 ! Reads parameters specifically for Boussinesq solver from the 
-! namelist 'boussinesq' on the external file 'parameter.txt'
+! namelist 'boussinesq' on the external file 'parameter.inp'
 !     bvfreq: Brunt-Vaisala frequency (positive definite)
 !     xmom  : multiplies bouyancy term in momentum equation
 !     xtemp : multiplies temperature-current term in 
@@ -770,7 +761,7 @@
       xmom  = 1.0
       xtemp = 1.0
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=boussinesq)
          CLOSE(1)
       ENDIF
@@ -782,10 +773,9 @@
 #endif
 
 #ifdef SCALAR_
-!
 ! Reads general configuration flags for runs with 
 ! a passive/active scalar from the namelist 'inject' 
-! on the external file 'parameter.txt'
+! on the external file 'parameter.inp'
 !     injt : = 0 when stat=0 generates initial v and th (SCALAR_)
 !            = 1 when stat.ne.0 imports v and generates th (SCALAR_)
 !     creset: = 0: don't reset counters; 1 = reset counters 
@@ -793,16 +783,15 @@
       injt   = 0
       creset = 1
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=inject)
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(injt  ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(creset,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
-!
 ! Reads parameters for the passive/active scalar from the 
-! namelist 'scalar' on the external file 'parameter.txt'
+! namelist 'scalar' on the external file 'parameter.inp'
 !     s0   : amplitude of the passive scalar source
 !     c0   : amplitude of the initial concentration
 !     skdn : minimum wave number in concentration/source
@@ -814,7 +803,7 @@
 !            the initial concentration
 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=scalar)
          CLOSE(1)
       ENDIF
@@ -846,10 +835,9 @@
 #endif
 
 #ifdef MULTISCALAR_
-!
 ! Reads general configuration flags for runs with 
 ! a passive/active scalar from the namelist 'inject' 
-! on the external file 'parameter.txt'
+! on the external file 'parameter.inp'
 !     injt : = 0 when stat=0 generates initial v and th (SCALAR_)
 !            = 1 when stat.ne.0 imports v and generates th (SCALAR_)
 !     creset: = 0: don't reset counters; 1 = reset counters 
@@ -857,16 +845,15 @@
       injt   = 0
       creset = 1
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=inject)
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(injt  ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(creset,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
-!
 ! Reads parameters for the passive/active scalar from the 
-! namelist 'mscalar' on the external file 'parameter.txt'
+! namelist 'mscalar' on the external file 'parameter.inp'
 !     si0   : amplitude of the passive scalar source i
 !     ci0   : amplitude of the initial concentration i
 !     skdn  : minimum wave number in concentration/source
@@ -880,7 +867,7 @@
 !            the initial concentration
 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=mscalar)
          CLOSE(1)
       ENDIF
@@ -958,15 +945,14 @@
 #endif
 
 #ifdef COMPRESSIBLE_
-!
 ! Reads parameters for the compressible runs from the 
-! namelist 'compressible' on the external file 'parameter.txt' 
+! namelist 'compressible' on the external file 'parameter.inp' 
 !     smach : sound Mach number
 !     gam1  : gamma parameter for polytropic eq. of state
 !     nu2   : second viscosity for divergence (velocity) term
 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=compressible)
          CLOSE(1)
       ENDIF
@@ -979,13 +965,12 @@
 #endif
 
 #ifdef CMHD_
-!
 ! Reads parameters for the compressible MHD runs from the 
-! namelist 'cmhdb' on the external file 'parameter.txt' 
+! namelist 'cmhdb' on the external file 'parameter.inp' 
 !     amach : Alfvenic Mach number
 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=cmhdb)
          CLOSE(1)
       ENDIF
@@ -994,23 +979,21 @@
 #endif
 
 #ifdef MAGFIELD_
-!
 ! Reads general configuration flags for runs with 
 ! magnetic fields from the namelist 'dynamo' on 
-! the external file 'parameter.txt'
+! the external file 'parameter.inp'
 !     dyna : = 0 when stat=0 generates initial v and B (MAGFIELD_)
 !            = 1 when stat.ne.0 imports v and generates B (MAGFIELD_) 
 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=dynamo)
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(dyna,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
-!
 ! Reads parameters for the magnetic field from the 
-! namelist 'magfield' on the external file 'parameter.txt' 
+! namelist 'magfield' on the external file 'parameter.inp' 
 !     m0   : amplitude of the electromotive forcing
 !     a0   : amplitude of the initial vector potential
 !     mkdn : minimum wave number in B/electromotive forcing
@@ -1024,7 +1007,7 @@
 !            the initial conditions for the magnetic field
 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=magfield)
          CLOSE(1)
       ENDIF
@@ -1057,16 +1040,15 @@
 #endif
 
 #ifdef UNIFORMB_
-!
 ! Reads parameters for runs with a uniform magnetic 
 ! field from the namelist 'uniformb' on the external 
-! file 'parameter.txt' 
+! file 'parameter.inp' 
 !     bx0: uniform magnetic field in x
 !     by0: uniform magnetic field in y
 !     bz0: uniform magnetic field in z
 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=uniformb)
          CLOSE(1)
       ENDIF
@@ -1076,16 +1058,15 @@
 #endif
 
 #ifdef HALLTERM_
-!
 ! Reads parameters for runs with the Hall effect 
 ! from the namelist 'hallparam' on the external 
-! file 'parameter.txt' 
+! file 'parameter.inp' 
 !     ep  : amplitude of the Hall effect
 !     gspe: = 0 skips generalized helicity spectrum computation
 !           = 1 computes the spectrum of generalized helicity
 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=hallparam)
          CLOSE(1)
       ENDIF
@@ -1094,13 +1075,12 @@
 #endif
 
 #ifdef ROTATION_
-!
 ! Reads parameters for runs with rotation from the 
-! namelist 'rotation' on the external file 'parameter.txt'
+! namelist 'rotation' on the external file 'parameter.inp'
 !     omega: amplitude of the uniform rotation
 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=rotation)
          CLOSE(1)
       ENDIF
@@ -1108,10 +1088,9 @@
 #endif
 
 #ifdef WAVEFUNCTION_
-!
 ! Reads parameters specifically for the GPE and ARGL solvers 
 ! from the namelist 'wavefunction' on the external file 
-! 'parameter.txt'
+! 'parameter.inp'
 !     cspeed : speed of sound
 !     lambda : coherence length
 !     rho0   : density at infinity
@@ -1142,7 +1121,7 @@
       ENDIF
 #endif
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=wavefunction)
          CLOSE(1)
          alpha = cspeed*lambda/sqrt(2.0_GP)
@@ -1176,13 +1155,12 @@
 #endif
 
 #ifdef ALPHAV_
-!
 ! Reads the value of alpha for the velocity field 
 ! in runs using Lagrangian averaged subgrid models
 !     alpk: filter length for the velocity field
 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=alphav)
          CLOSE(1)
       ENDIF
@@ -1190,13 +1168,12 @@
 #endif
 
 #ifdef ALPHAB_
-!
 ! Reads the value of alpha for the magnetic field 
 ! in runs using Lagrangian averaged subgrid models
 !     alpm: filter length for the magnetic field
 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=alphab)
          CLOSE(1)
       ENDIF
@@ -1204,7 +1181,6 @@
 #endif
 
 #ifdef EDQNM_
-!
 ! Reads the value of the Kolmogorov constant and a 
 ! flag for the helicity LES in runs using EDQNM-based 
 ! LES models
@@ -1215,7 +1191,7 @@
       kolmo = 1.4_GP !Default value
       heli = 0       !Default value
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=edqnmles)
          CLOSE(1)
       ENDIF
@@ -1224,27 +1200,29 @@
 #endif
 
 #ifdef PART_
-!
 ! Reads parameters for runs with particles
 !     maxparts    : Maximum number of particles
-!     injtp: = 0 when stat=0 generates initial v and initial part seeds 
-!            = 1 when stat.ne.0 imports v and generates initial 
-!              part seeds. If injtp=0 when stat.ne.0, then the 
-!              particle restart file is read that corresp. to 
-!              stat.
-!     cresetp= 0: don't reset counters when injtp=1;
-!            = 1: _do_ reset counters when injtp=1.
-!     lgmult      : Multiplier for particle output (must divide tstep evenly)
-!     ilginittype : Inititialization type: either GPINIT_RANDLOC or GPINIT_USERLOC
+!     injtp       : = 0 when stat=0 generates initial v and part seeds 
+!                   = 1 when stat.ne.0 imports v and generates initial 
+!                     part seeds. If injtp=0 when stat.ne.0, then the 
+!                     particle restart file is read that corresp. to 
+!                     stat.
+!     cresetp     : = 0 don't reset counters when injtp=1;
+!                   = 1: _do_ reset counters when injtp=1.
+!     lgmult      : Multiplier for part output (must divide tstep evenly)
+!     ilginittype : Inititialization type: either GPINIT_RANDLOC or
+!                   GPINIT_USERLOC
 !     ilgintrptype: Interpolation type: only GPINTRP_CSPLINE currently
-!     ilgexchtype : Boundary exchange type: GPEXCHTYPE_VDB (voxel db) or GPEXCHTYPE_NN (nearest-neighbor)
+!     ilgexchtype : Boundary exchange type: GPEXCHTYPE_VDB (voxel db)
+!                   or GPEXCHTYPE_NN (nearest-neighbor)
 !     ilgouttype  : Particle output type: 0=binary; 1=ASCII
-!     ilgwrtunit  : Units for part. position write: 0=box units; 1=grid units
+!     ilgwrtunit  : Units for part position write: 0=box units; 1=grid units
 !     lgseedfile  : Name of seed file if ilginittype=GPINIT_USERLOC
 !     ilgcoll     : 1=binary collective I/O; 0=task 0 binary (posix) I/O
 !     dolag       : 1=run with particles; 0=don't 
 !     dopacc      : 1=compute acceleration internally; 0=don't
-!     XlgfpX      : Parameters for 'fixed point' particles (test of frozen-in, only for LAGPART)
+!     XlgfpX      : Parameters for 'fixed point' particles (test of
+!                   frozen-in, only for LAGPART)
 
       maxparts     = 1000
       injtp        = 0
@@ -1266,12 +1244,12 @@
       blgfpfilecoll= 1
       slgfpfile    = 'xlgInitRndSeed.000.txt'
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=plagpart)
          CLOSE(1)
       ENDIF
 #if defined(TESTPART_) && defined(MAGFIELD_)
-      dopacc       = 0 ! Lag. acceleration not supported for test particles
+      dopacc       = 0 ! Lag. accel. not supported for test particles
 #endif
       CALL MPI_BCAST(maxparts     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(injtp        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -1288,8 +1266,8 @@
       CALL MPI_BCAST(blgdofp      ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilgfpfiletype,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(blgfpfilecoll,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(slgfpfile    ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(lgseedfile   ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(slgfpfile ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(lgseedfile,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       IF ( mod(tstep,lgmult).NE.0 ) THEN
         WRITE(*,*)'main: lgmult must divide tstep evenly'
         STOP
@@ -1298,13 +1276,12 @@
 #endif
 
 #if defined(TESTPART_) && defined(MAGFIELD_)
-!
 ! Reads parameters for runs with test particles
 !     gyrof    : Gyrofrequency
 !     vtherm   : Thermal velocity of the test particles
 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.txt',status='unknown',form="formatted")
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=ptestpart)
          CLOSE(1)
       ENDIF
@@ -1312,15 +1289,127 @@
       CALL MPI_BCAST(vtherm   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
-!
+! Before continuing, we verify that all parameters and compilation
+! options are compatible with the SOLVER being used
+
+      INCLUDE SOLVERCHECK_
+
+! Initializes arrays and constants for the pseudospectral method
+
+! Some constants for the FFT
+!     kmax: maximum truncation for dealiasing
+!     tiny: minimum truncation for dealiasing
+
+      kmax = 1.0_GP/9.0_GP
+      nmax = int(max(nx*Dkx/Dkk,ny*Dky/Dkk,nz*Dkz/Dkk))
+#ifndef DEF_ARBSIZE_
+      IF (anis.eq.0)  kmax = kmax*real(nx,kind=GP)**2
+#endif
+#ifdef EDQNM_
+      kmax = (real(n,kind=GP)/2.0_GP-0.5_GP)**2 !!!!!! CHECK !!!!!!!
+#endif
+      tiny  = min(1e-5_GP,.1_GP/real(nmax,kind=GP))
+      tinyf = min(1e-15_GP,.1_GP/real(nmax,kind=GP))
+
+! Builds arrays with the wavenumbers and the 
+! square wavenumbers. At the end, kx, ky, and kz
+! have wavenumbers with dimensions, kk2 has the
+! squared wavenumbers with dimensions, and kn2 has
+! the dimensionless and normalized squared
+! wavenumbers used for dealiasing.
+
+      DO i = 1,nx/2
+         kx(i) = real(i-1,kind=GP)
+         kx(i+nx/2) = real(i-nx/2-1,kind=GP)
+      END DO
+      DO j = 1,ny/2
+         ky(j) = real(j-1,kind=GP)
+         ky(j+ny/2) = real(j-ny/2-1,kind=GP)
+      END DO
+      DO k = 1,nz/2
+         kz(k) = real(k-1,kind=GP)
+         kz(k+nz/2) = real(k-nz/2-1,kind=GP)
+      END DO
+      IF (anis.eq.1) THEN
+         rmp = 1.0_GP/real(nx,kind=GP)**2
+         rmq = 1.0_GP/real(ny,kind=GP)**2
+         rms = 1.0_GP/real(nz,kind=GP)**2
+      ELSE
+         rmp = 1.0_GP
+	 rmq = 1.0_GP
+	 rms = 1.0_GP
+      ENDIF
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
+            END DO
+         END DO
+      END DO
+#ifdef DEF_ARBSIZE_
+      kx = kx*Dkx
+      ky = ky*Dky
+      kz = kz*Dkz
+#endif
+      IF (anis.eq.1) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+                  kk2(k,j,i) = kx(i)**2+ky(j)**2+kz(k)**2
+               END DO
+            END DO
+         END DO
+      ENDIF
+
+! Initializes the FFT library. This must be done at
+! this stage as it requires the variable "bench" to
+! be properly initialized.
+! Use FFTW_ESTIMATE or FFTW_MEASURE in short runs
+! Use FFTW_PATIENT or FFTW_EXHAUSTIVE in long runs
+! FFTW 2.x only supports FFTW_ESTIMATE or FFTW_MEASURE
+
+      nth = 1
+!$    nth = omp_get_max_threads()
+#if !defined(DEF_GHOST_CUDA_)
+!$    CALL fftp3d_init_threads(ierr)
+#endif
+      IF (bench.eq.2) THEN
+         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+         CALL GTStart(ihcpu2,GT_CPUTIME)
+         CALL GTStart(ihomp2,GT_OMPTIME)
+         CALL GTStart(ihwtm2,GT_WTIME)
+      ENDIF
+      CALL fftp3d_create_plan(planrc,(/nx,ny,nz/),FFTW_REAL_TO_COMPLEX, &
+                             FFTW_ESTIMATE)
+      CALL fftp3d_create_plan(plancr,(/nx,ny,nz/),FFTW_COMPLEX_TO_REAL, &
+                             FFTW_ESTIMATE)
+      IF (bench.eq.2) THEN
+         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+         CALL GTStop(ihcpu2)
+         CALL GTStop(ihomp2)
+         CALL GTStop(ihwtm2)
+      ENDIF
+
 ! Initializes arrays to keep track of the forcing 
-! if slowly evolving phases are used, and 
-! allocates arrays to compute mean flows if needed.
+! if slowly evolving phases are used, and allocates
+! arrays to compute mean flows if needed.
 
 #ifdef VELOC_
       ampl = 1.0_GP
       timef = fstep
       IF (rand.eq.2) THEN
+         ALLOCATE( fxold(nz,ny,ista:iend) )
+         ALLOCATE( fyold(nz,ny,ista:iend) )
+         ALLOCATE( fzold(nz,ny,ista:iend) )
+         ALLOCATE( fxnew(nz,ny,ista:iend) )
+         ALLOCATE( fynew(nz,ny,ista:iend) )
+         ALLOCATE( fznew(nz,ny,ista:iend) )
+      ENDIF
+      IF (rand.eq.3) THEN
          ALLOCATE( Faux1(10) )
          ALLOCATE( Faux2(10) )
          DO i = 1,10
@@ -1328,23 +1417,15 @@
             Faux2(i) = 0.0_GP
          END DO
       ENDIF
-      IF (rand.eq.3) THEN
-         ALLOCATE( fxold(n,n,ista:iend) )
-         ALLOCATE( fyold(n,n,ista:iend) )
-         ALLOCATE( fzold(n,n,ista:iend) )
-         ALLOCATE( fxnew(n,n,ista:iend) )
-         ALLOCATE( fynew(n,n,ista:iend) )
-         ALLOCATE( fznew(n,n,ista:iend) )
-      ENDIF
       IF (mean.eq.1) THEN
-         ALLOCATE( M1(n,n,ista:iend) )
-         ALLOCATE( M2(n,n,ista:iend) )
-         ALLOCATE( M3(n,n,ista:iend) )
+         ALLOCATE( M1(nz,ny,ista:iend) )
+         ALLOCATE( M2(nz,ny,ista:iend) )
+         ALLOCATE( M3(nz,ny,ista:iend) )
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,n
-               DO k = 1,n
+            DO j = 1,ny
+               DO k = 1,nz
                   M1(k,j,i) = 0.0_GP
                   M2(k,j,i) = 0.0_GP
                   M3(k,j,i) = 0.0_GP
@@ -1352,26 +1433,26 @@
             END DO
          END DO
 #ifdef SCALAR_
-         ALLOCATE( M7(n,n,ista:iend) )
+         ALLOCATE( M7(nz,ny,ista:iend) )
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,n
-               DO k = 1,n
+            DO j = 1,ny
+               DO k = 1,nz
                   M7(k,j,i) = 0.0_GP
                END DO
             END DO
          END DO
 #endif
 #ifdef MULTISCALAR_
-         ALLOCATE( M8 (n,n,ista:iend) )
-         ALLOCATE( M9 (n,n,ista:iend) )
-         ALLOCATE( M10(n,n,ista:iend) )
+         ALLOCATE( M8 (nz,ny,ista:iend) )
+         ALLOCATE( M9 (nz,ny,ista:iend) )
+         ALLOCATE( M10(nz,ny,ista:iend) )
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,n
-               DO k = 1,n
+            DO j = 1,ny
+               DO k = 1,nz
                   M8 (k,j,i) = 0.0_GP
                   M9 (k,j,i) = 0.0_GP
                   M10(k,j,i) = 0.0_GP
@@ -1380,14 +1461,14 @@
          END DO
 #endif
 #ifdef MAGFIELD_
-         ALLOCATE( M4(n,n,ista:iend) )
-         ALLOCATE( M5(n,n,ista:iend) )
-         ALLOCATE( M6(n,n,ista:iend) )
+         ALLOCATE( M4(nz,ny,ista:iend) )
+         ALLOCATE( M5(nz,ny,ista:iend) )
+         ALLOCATE( M6(nz,ny,ista:iend) )
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,n
-               DO k = 1,n
+            DO j = 1,ny
+               DO k = 1,nz
                   M4(k,j,i) = 0.0_GP
                   M5(k,j,i) = 0.0_GP
                   M6(k,j,i) = 0.0_GP
@@ -1398,13 +1479,13 @@
       ENDIF
 #endif
 #ifdef MAGFIELD_
-      IF (rand.eq.3) THEN
-         ALLOCATE( mxold(n,n,ista:iend) )
-         ALLOCATE( myold(n,n,ista:iend) )
-         ALLOCATE( mzold(n,n,ista:iend) )
-         ALLOCATE( mxnew(n,n,ista:iend) )
-         ALLOCATE( mynew(n,n,ista:iend) )
-         ALLOCATE( mznew(n,n,ista:iend) )
+      IF (rand.eq.2) THEN
+         ALLOCATE( mxold(nz,ny,ista:iend) )
+         ALLOCATE( myold(nz,ny,ista:iend) )
+         ALLOCATE( mzold(nz,ny,ista:iend) )
+         ALLOCATE( mxnew(nz,ny,ista:iend) )
+         ALLOCATE( mynew(nz,ny,ista:iend) )
+         ALLOCATE( mznew(nz,ny,ista:iend) )
       ENDIF
 #endif
 
@@ -1423,9 +1504,9 @@
       ENDIF
 #endif
 #ifdef LAGPART_
-      IF ( blgdofp.GT.0 ) THEN ! 'Fixed point' particles: interpolates Eulerian
-                               ! fields at given points, and outputs them without
-                               ! evolving them.
+      IF ( blgdofp.GT.0 ) THEN ! 'Fixed point' particles: interpolates
+                               ! Eulerian fields at given points, and
+			       ! outputs them without evolving them.
         CALL lagfp%GPart_ctor(MPI_COMM_WORLD,maxparts,GPINIT_USERLOC,&
              ilgintrptype,3,ilgexchtype,ilgfpfiletype,blgfpfilecoll,&
              csize,nstrip,0)
@@ -1455,7 +1536,7 @@
 #endif
 
 ! If stat=0 we start a new run.
-! Generates initial conditions for the fields.
+! Generates initial conditions for the fields and particles.
  IC : IF (stat.eq.0) THEN
 
       ini = 1
@@ -1470,10 +1551,10 @@
       INCLUDE 'initialv.f90'            ! initial velocity
 #endif
 #ifdef SCALAR_
-      INCLUDE 'initials.f90'            ! initial concentration/density
+      INCLUDE 'initials.f90'            ! initial scalar density
 #endif
 #ifdef MULTISCALAR_
-      INCLUDE 'initialms.f90'           ! multiscalar initial concentration
+      INCLUDE 'initialms.f90'           ! initial multiscalar conc.
 #endif
 #ifdef MAGFIELD_
       INCLUDE 'initialb.f90'            ! initial vector potential
@@ -1518,7 +1599,7 @@
       CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
 
-      IF (rand.eq.3) THEN
+      IF (rand.eq.2) THEN
          CALL io_read(1,idir,'fxnew',ext,planio,R1)
          CALL io_read(1,idir,'fynew',ext,planio,R2)
          CALL io_read(1,idir,'fznew',ext,planio,R3)
@@ -1545,8 +1626,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,n
-               DO k = 1,n
+            DO j = 1,ny
+               DO k = 1,nz
                   M1(k,j,i) = dump*M1(k,j,i)
                   M2(k,j,i) = dump*M2(k,j,i)
                   M3(k,j,i) = dump*M3(k,j,i)
@@ -1567,8 +1648,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-               DO j = 1,n
-                  DO k = 1,n
+               DO j = 1,ny
+                  DO k = 1,nz
                      M7(k,j,i) = dump*M7(k,j,i)
                  END DO
                END DO
@@ -1608,8 +1689,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-               DO j = 1,n
-                  DO k = 1,n
+               DO j = 1,ny
+                  DO k = 1,nz
                      M8 (k,j,i) = dump*M8 (k,j,i)
                      M9 (k,j,i) = dump*M9 (k,j,i)
                      M10(k,j,i) = dump*M10(k,j,i)
@@ -1633,7 +1714,7 @@
 #endif
 
 #ifdef MAGFIELD_
-      IF (rand.eq.3) THEN
+      IF (rand.eq.2) THEN
          CALL io_read(1,idir,'mxnew',ext,planio,R1)
          CALL io_read(1,idir,'mynew',ext,planio,R2)
          CALL io_read(1,idir,'mznew',ext,planio,R3)
@@ -1666,8 +1747,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-               DO j = 1,n
-                  DO k = 1,n
+               DO j = 1,ny
+                  DO k = 1,nz
                      M4(k,j,i) = dump*M4(k,j,i)
                      M5(k,j,i) = dump*M5(k,j,i)
                      M6(k,j,i) = dump*M6(k,j,i)
@@ -1696,7 +1777,7 @@
 #endif
 
 #ifdef ADVECT_
-      INCLUDE 'initialv.f90'            ! Recreate velocity for advection
+      INCLUDE 'initialv.f90'         ! Recreate velocity for advection
 #endif
 
 #ifdef PART_
@@ -1742,8 +1823,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                C1(k,j,i) = vx(k,j,i)
                C2(k,j,i) = vy(k,j,i)
                C3(k,j,i) = vz(k,j,i)
@@ -1753,13 +1834,15 @@
       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
-      rmp = 1.0_GP/(4*alpha*beta*real(n,kind=GP)**6)
+      rmp = 1.0_GP/(4*alpha*beta*(real(nx,kind=GP)* &
+            real(ny,kind=GP)*real(nz,kind=GP))**2)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
-               vsq(i,j,k) = (R1(i,j,k)**2+R2(i,j,k)**2+R3(i,j,k)**2)*rmp
+         DO j = 1,ny
+            DO i = 1,nx
+               vsq(i,j,k) = (R1(i,j,k)**2+R2(i,j,k)**2+ &
+	                     R3(i,j,k)**2)*rmp
             END DO
          END DO
       END DO
@@ -1767,8 +1850,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                IF (ka2(k,j,i).gt.kmax) THEN
                   C1(k,j,i) = 0.0_GP
                ENDIF
@@ -1813,207 +1896,42 @@
                IF (myrank.eq.0) phase = 2*pi*randu(seed)
                CALL MPI_BCAST(phase,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
                cdump = COS(phase)+im*SIN(phase)
-               jdump = conjg(cdump)
+	       CALL phaseshift(fx,cdump)
+	       CALL phaseshift(fy,cdump)
+	       CALL phaseshift(fz,cdump)
+#endif
 #if defined(SCALAR_) || defined(MULTISCALAR_)
                IF (myrank.eq.0) phase = 2*pi*randu(seed)
                CALL MPI_BCAST(phase,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
                cdumr = COS(phase)+im*SIN(phase)
-               jdumr = conjg(cdumr)
+#endif
+#if defined(SCALAR_)
+	       CALL phaseshift(fs,cdumr)
+#endif
+#if defined(MULTISCALAR_)
+	       CALL phaseshift(fs1,cdumr)
+	       CALL phaseshift(fs2,cdumr)
+	       CALL phaseshift(fs3,cdumr)
 #endif
 #ifdef MAGFIELD_
                IF (myrank.eq.0) phase = 2*pi*randu(seed)
                CALL MPI_BCAST(phase,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
                cdumq = corr*cdump+(1-corr)*(COS(phase)+im*SIN(phase))
-               jdumq = corr*jdump+(1-corr)*(COS(phase)-im*SIN(phase))
-#endif
-               IF (ista.eq.1) THEN
-!$omp parallel do
-                  DO j = 2,n/2+1
-                     fx(1,j,1) = fx(1,j,1)*cdump
-                     fx(1,n-j+2,1) = fx(1,n-j+2,1)*jdump
-                     fy(1,j,1) = fy(1,j,1)*cdump
-                     fy(1,n-j+2,1) = fy(1,n-j+2,1)*jdump
-                     fz(1,j,1) = fz(1,j,1)*cdump
-                     fz(1,n-j+2,1) = fz(1,n-j+2,1)*jdump
-#ifdef SCALAR_
-                     fs(1,j,1) = fs(1,j,1)*cdumr
-                     fs(1,n-j+2,1) = fs(1,n-j+2,1)*jdumr
-#endif
-#ifdef MULTISCALAR_
-                     fs1(1,j,1) = fs1(1,j,1)*cdumr
-                     fs1(1,n-j+2,1) = fs1(1,n-j+2,1)*jdumr
-                     fs2(1,j,1) = fs2(1,j,1)*cdumr
-                     fs2(1,n-j+2,1) = fs2(1,n-j+2,1)*jdumr
-                     fs3(1,j,1) = fs3(1,j,1)*cdumr
-                     fs3(1,n-j+2,1) = fs3(1,n-j+2,1)*jdumr
-#endif
-#ifdef MAGFIELD_
-                     mx(1,j,1) = mx(1,j,1)*cdumq
-                     mx(1,n-j+2,1) = mx(1,n-j+2,1)*jdumq
-                     my(1,j,1) = my(1,j,1)*cdumq
-                     my(1,n-j+2,1) = my(1,n-j+2,1)*jdumq
-                     mz(1,j,1) = mz(1,j,1)*cdumq
-                     mz(1,n-j+2,1) = mz(1,n-j+2,1)*jdumq
-#endif
-                  END DO
-!$omp parallel do
-                  DO k = 2,n/2+1
-                     fx(k,1,1) = fx(k,1,1)*cdump
-                     fx(n-k+2,1,1) = fx(n-k+2,1,1)*jdump
-                     fy(k,1,1) = fy(k,1,1)*cdump
-                     fy(n-k+2,1,1) = fy(n-k+2,1,1)*jdump
-                     fz(k,1,1) = fz(k,1,1)*cdump
-                     fz(n-k+2,1,1) = fz(n-k+2,1,1)*jdump
-#ifdef SCALAR_
-                     fs(k,1,1) = fs(k,1,1)*cdumr
-                     fs(n-k+2,1,1) = fs(n-k+2,1,1)*jdumr
-#endif
-#ifdef MULTISCALAR_
-                     fs1(k,1,1) = fs1(k,1,1)*cdumr
-                     fs1(n-k+2,1,1) = fs1(n-k+2,1,1)*jdumr
-                     fs2(k,1,1) = fs2(k,1,1)*cdumr
-                     fs2(n-k+2,1,1) = fs2(n-k+2,1,1)*jdumr
-                     fs3(k,1,1) = fs3(k,1,1)*cdumr
-                     fs3(n-k+2,1,1) = fs3(n-k+2,1,1)*jdumr
-#endif
-#ifdef MAGFIELD_
-                     mx(k,1,1) = mx(k,1,1)*cdumq
-                     mx(n-k+2,1,1) = mx(n-k+2,1,1)*jdumq
-                     my(k,1,1) = my(k,1,1)*cdumq
-                     my(n-k+2,1,1) = my(n-k+2,1,1)*jdumq
-                     mz(k,1,1) = mz(k,1,1)*cdumq
-                     mz(n-k+2,1,1) = mz(n-k+2,1,1)*jdumq
-#endif
-                  END DO
-!$omp parallel do private (k)
-                  DO j = 2,n
-                     DO k = 2,n/2+1
-                        fx(k,j,1) = fx(k,j,1)*cdump
-                        fx(n-k+2,n-j+2,1) = fx(n-k+2,n-j+2,1)*jdump
-                        fy(k,j,1) = fy(k,j,1)*cdump
-                        fy(n-k+2,n-j+2,1) = fy(n-k+2,n-j+2,1)*jdump
-                        fz(k,j,1) = fz(k,j,1)*cdump
-                        fz(n-k+2,n-j+2,1) = fz(n-k+2,n-j+2,1)*jdump
-#ifdef SCALAR_
-                        fs(k,j,1) = fs(k,j,1)*cdumr
-                        fs(n-k+2,n-j+2,1) = fs(n-k+2,n-j+2,1)*jdumr
-#endif
-#ifdef MULTISCALAR_
-                        fs1(k,j,1) = fs1(k,j,1)*cdumr
-                        fs1(n-k+2,n-j+2,1) = fs1(n-k+2,n-j+2,1)*jdumr
-                        fs2(k,j,1) = fs2(k,j,1)*cdumr
-                        fs2(n-k+2,n-j+2,1) = fs2(n-k+2,n-j+2,1)*jdumr
-                        fs3(k,j,1) = fs3(k,j,1)*cdumr
-                        fs3(n-k+2,n-j+2,1) = fs3(n-k+2,n-j+2,1)*jdumr
-#endif
-#ifdef MAGFIELD_
-                        mx(k,j,1) = mx(k,j,1)*cdumq
-                        mx(n-k+2,n-j+2,1) = mx(n-k+2,n-j+2,1)*jdumq
-                        my(k,j,1) = my(k,j,1)*cdumq
-                        my(n-k+2,n-j+2,1) = my(n-k+2,n-j+2,1)*jdumq
-                        mz(k,j,1) = mz(k,j,1)*cdumq
-                        mz(n-k+2,n-j+2,1) = mz(n-k+2,n-j+2,1)*jdumq
-#endif
-                     END DO
-                  END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k)
-                  DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k)
-                     DO j = 1,n
-                        DO k = 1,n
-                           fx(k,j,i) = fx(k,j,i)*cdump
-                           fy(k,j,i) = fy(k,j,i)*cdump
-                           fz(k,j,i) = fz(k,j,i)*cdump
-#ifdef SCALAR_
-                           fs(k,j,i) = fs(k,j,i)*cdumr
-#endif
-#ifdef MULTISCALAR_
-                           fs1(k,j,i) = fs1(k,j,i)*cdumr
-                           fs2(k,j,i) = fs2(k,j,i)*cdumr
-                           fs3(k,j,i) = fs3(k,j,i)*cdumr
-#endif
-#ifdef MAGFIELD_
-                           mx(k,j,i) = mx(k,j,i)*cdumq
-                           my(k,j,i) = my(k,j,i)*cdumq
-                           mz(k,j,i) = mz(k,j,i)*cdumq
-#endif
-                        END DO
-                     END DO
-                  END DO
-               ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-                  DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-                     DO j = 1,n
-                        DO k = 1,n
-                           fx(k,j,i) = fx(k,j,i)*cdump
-                           fy(k,j,i) = fy(k,j,i)*cdump
-                           fz(k,j,i) = fz(k,j,i)*cdump
-#ifdef SCALAR_
-                           fs(k,j,i) = fs(k,j,i)*cdumr
-#endif
-#ifdef MULTISCALAR_
-                           fs1(k,j,i) = fs1(k,j,i)*cdumr
-                           fs2(k,j,i) = fs2(k,j,i)*cdumr
-                           fs3(k,j,i) = fs3(k,j,i)*cdumr
-#endif
-#ifdef MAGFIELD_
-                           mx(k,j,i) = mx(k,j,i)*cdumq
-                           my(k,j,i) = my(k,j,i)*cdumq
-                           mz(k,j,i) = mz(k,j,i)*cdumq
-#endif
-                        END DO
-                     END DO
-                  END DO
-               ENDIF
+	       CALL phaseshift(mx,cdump)
+	       CALL phaseshift(my,cdump)
+	       CALL phaseshift(mz,cdump)
 #endif
 #ifdef QFORCE_
-            INCLUDE 'initialfq.f90'  ! generates a new forcing function
+               INCLUDE 'initialfq.f90'  ! generates a new forcing function
 #endif
 
-            ELSE IF (rand.eq.2) THEN ! constant energy
-
-#if defined(HD_SOL) || defined(PHD_SOL)
-              INCLUDE 'hd_adjustfv.f90'
-#endif
-#if defined(MHD_SOL) || defined(MHDB_SOL) || defined(RMHDB_SOL)
-              INCLUDE 'mhd_adjustfv.f90'
-#endif
-#if defined(HMHD_SOL) || defined(HMHDB_SOL)
-              INCLUDE 'mhd_adjustfv.f90'
-#endif
-#ifdef COMPRHD_SOL
-              INCLUDE 'hd_adjustfv.f90'
-#endif
-#if defined(CMHD_SOL) || defined(CMHDB_SOL)
-              INCLUDE 'mhd_adjustfv.f90'
-#endif
-#if defined(ROTH_SOL) || defined(PROTH_SOL)
-              INCLUDE 'hd_adjustfv.f90'
-#endif
-#if defined(BOUSS_SOL) || defined(ROTBOUSS_SOL)
-              INCLUDE 'hd_adjustfv.f90'
-#endif
-#if defined(LAHD_SOL) || defined(CAHD_SOL)
-              INCLUDE 'lahd_adjustfv.f90'
-#endif
-#ifdef LHD_SOL
-              INCLUDE 'hd_adjustfv.f90'
-#endif
-#ifdef LAMHD_SOL
-              INCLUDE 'lahd_adjustfv.f90'
-#endif
-#if defined(EDQNMHD_SOL) || defined(EDQNMROTH_SOL)
-              INCLUDE 'edqnmhd_adjustfv.f90'
-#endif
-
-            ELSE IF (rand.eq.3) THEN ! slowly varying phases
+            ELSE IF (rand.eq.2) THEN ! slowly varying phases
 
 #ifdef VELOC_
 ! Keeps a copy of the old forcing
                DO i = ista,iend
-                  DO j = 1,n
-                     DO k = 1,n
+                  DO j = 1,ny
+                     DO k = 1,nz
                         fxold(k,j,i) = fx(k,j,i) 
                         fyold(k,j,i) = fy(k,j,i) 
                         fzold(k,j,i) = fz(k,j,i) 
@@ -2021,13 +1939,13 @@
                   END DO
                END DO
 ! Creates a new random forcing. 'initialfv.f90'
-! should be chosen to generate forcing with random
+! should be chosen to generate a forcing with random
 ! phases ('initialfv.f90_patterson' is recommended).
                INCLUDE 'initialfv.f90'
 ! Copies the new forcing to arrays for the target forcing
                DO i = ista,iend
-                  DO j = 1,n
-                     DO k = 1,n
+                  DO j = 1,ny
+                     DO k = 1,nz
                         fxnew(k,j,i) = fx(k,j,i) 
                         fynew(k,j,i) = fy(k,j,i) 
                         fznew(k,j,i) = fz(k,j,i) 
@@ -2039,8 +1957,8 @@
 #ifdef MAGFIELD_
 ! Keeps a copy of the old forcing
                DO i = ista,iend
-                  DO j = 1,n
-                     DO k = 1,n
+                  DO j = 1,ny
+                     DO k = 1,nz
                         mxold(k,j,i) = mx(k,j,i) 
                         myold(k,j,i) = my(k,j,i) 
                         mzold(k,j,i) = mz(k,j,i) 
@@ -2053,8 +1971,8 @@
                INCLUDE 'initialfb.f90'
 ! Copies the new forcing to arrays for the target forcing
                DO i = ista,iend
-                  DO j = 1,n
-                     DO k = 1,n
+                  DO j = 1,ny
+                     DO k = 1,nz
                         mxnew(k,j,i) = mx(k,j,i) 
                         mynew(k,j,i) = my(k,j,i) 
                         mznew(k,j,i) = mz(k,j,i) 
@@ -2063,16 +1981,20 @@
                END DO
 #endif
 
+            ELSE IF (rand.eq.3) THEN ! user-defined forcing scheme
+
+               INCLUDE 'incscheme.f90'
+
             END IF
 
          END IF TF
 
-         IF (rand.eq.3) THEN ! Updates forcing if slowly varying
+         IF (rand.eq.2) THEN ! Updates forcing if slowly varying
             rmp = FLOAT(timef+1)/float(fstep)
 #ifdef VELOC_
             DO i = ista,iend
-               DO j = 1,n
-                  DO k = 1,n
+               DO j = 1,ny
+                  DO k = 1,nz
                      fx(k,j,i) = (1-rmp)*fxold(k,j,i)+rmp*fxnew(k,j,i)
                      fy(k,j,i) = (1-rmp)*fyold(k,j,i)+rmp*fynew(k,j,i)
                      fz(k,j,i) = (1-rmp)*fzold(k,j,i)+rmp*fznew(k,j,i)
@@ -2082,8 +2004,8 @@
 #endif
 #ifdef MAGFIELD_
             DO i = ista,iend
-               DO j = 1,n
-                  DO k = 1,n
+               DO j = 1,ny
+                  DO k = 1,nz
                      mx(k,j,i) = (1-rmp)*mxold(k,j,i)+rmp*mxnew(k,j,i)
                      my(k,j,i) = (1-rmp)*myold(k,j,i)+rmp*mynew(k,j,i)
                      mz(k,j,i) = (1-rmp)*mzold(k,j,i)+rmp*mznew(k,j,i)
@@ -2102,13 +2024,15 @@
             WRITE(ext, fmtext) tind
 #ifdef VELOC_
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            rmp = 1.0_GP/ &
+	          (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-               DO j = 1,n
-                  DO k = 1,n
-                     C1(k,j,i) = vx(k,j,i)/real(n,kind=GP)**3
-                     C2(k,j,i) = vy(k,j,i)/real(n,kind=GP)**3
-                     C3(k,j,i) = vz(k,j,i)/real(n,kind=GP)**3
+               DO j = 1,ny
+                  DO k = 1,nz
+                     C1(k,j,i) = vx(k,j,i)*rmp
+                     C2(k,j,i) = vy(k,j,i)*rmp
+                     C3(k,j,i) = vz(k,j,i)*rmp
                   END DO
                END DO
             END DO
@@ -2130,21 +2054,14 @@
             CALL io_write(1,odir,'vy',ext,planio,R2)
             CALL io_write(1,odir,'vz',ext,planio,R3)
             IF (rand.eq.2) THEN
-               CALL energy(fx,fy,fz,tmp,1)
-               IF (myrank.eq.0) THEN
-                  OPEN(1,file='force.txt',position='append')
-                  WRITE(1,*) (t-1)*dt,sqrt(tmp)
-                  CLOSE(1)
-               ENDIF
-            ELSE IF (rand.eq.3) THEN
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-                  DO j = 1,n
-                     DO k = 1,n
-                        C1(k,j,i) = fxold(k,j,i)/real(n,kind=GP)**3
-                        C2(k,j,i) = fyold(k,j,i)/real(n,kind=GP)**3
-                        C3(k,j,i) = fzold(k,j,i)/real(n,kind=GP)**3
+                  DO j = 1,ny
+                     DO k = 1,nz
+                        C1(k,j,i) = fxold(k,j,i)*rmp
+                        C2(k,j,i) = fyold(k,j,i)*rmp
+                        C3(k,j,i) = fzold(k,j,i)*rmp
                      END DO
                   END DO
                END DO
@@ -2157,11 +2074,11 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-                  DO j = 1,n
-                     DO k = 1,n
-                        C1(k,j,i) = fxnew(k,j,i)/real(n,kind=GP)**3
-                        C2(k,j,i) = fynew(k,j,i)/real(n,kind=GP)**3
-                        C3(k,j,i) = fznew(k,j,i)/real(n,kind=GP)**3
+                  DO j = 1,ny
+                     DO k = 1,nz
+                        C1(k,j,i) = fxnew(k,j,i)*rmp
+                        C2(k,j,i) = fynew(k,j,i)*rmp
+                        C3(k,j,i) = fznew(k,j,i)*rmp
                      END DO
                   END DO
                END DO
@@ -2177,11 +2094,11 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-                  DO j = 1,n
-                     DO k = 1,n
-                        C1(k,j,i) = dump*M1(k,j,i)/real(n,kind=GP)**3
-                        C2(k,j,i) = dump*M2(k,j,i)/real(n,kind=GP)**3
-                        C3(k,j,i) = dump*M3(k,j,i)/real(n,kind=GP)**3
+                  DO j = 1,ny
+                     DO k = 1,nz
+                        C1(k,j,i) = dump*M1(k,j,i)*rmp
+                        C2(k,j,i) = dump*M2(k,j,i)*rmp
+                        C3(k,j,i) = dump*M3(k,j,i)*rmp
                      END DO
                   END DO
                END DO
@@ -2194,12 +2111,14 @@
             ENDIF
 #endif
 #ifdef SCALAR_
+            rmp = 1.0_GP/ &
+	          (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-               DO j = 1,n
-                  DO k = 1,n
-                     C1(k,j,i) = th(k,j,i)/real(n,kind=GP)**3
+               DO j = 1,ny
+                  DO k = 1,nz
+                     C1(k,j,i) = th(k,j,i)*rmp
                   END DO
                END DO
             END DO
@@ -2210,9 +2129,9 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-                  DO j = 1,n
-                     DO k = 1,n
-                        C1(k,j,i) = dump*M7(k,j,i)/real(n,kind=GP)**3
+                  DO j = 1,ny
+                     DO k = 1,nz
+                        C1(k,j,i) = dump*M7(k,j,i)*rmp
                      END DO
                   END DO
                END DO
@@ -2221,14 +2140,15 @@
             ENDIF
 #endif
 #ifdef MULTISCALAR_
+            rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-               DO j = 1,n
-                  DO k = 1,n
-                     C1(k,j,i) = th1(k,j,i)/real(n,kind=GP)**3
-                     C2(k,j,i) = th2(k,j,i)/real(n,kind=GP)**3
-                     C3(k,j,i) = th3(k,j,i)/real(n,kind=GP)**3
+               DO j = 1,ny
+                  DO k = 1,nz
+                     C1(k,j,i) = th1(k,j,i)*rmp
+                     C2(k,j,i) = th2(k,j,i)*rmp
+                     C3(k,j,i) = th3(k,j,i)*rmp
                   END DO
                END DO
             END DO
@@ -2243,11 +2163,11 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-                  DO j = 1,n
-                     DO k = 1,n
-                        C1(k,j,i) = dump*M8 (k,j,i)/real(n,kind=GP)**3
-                        C2(k,j,i) = dump*M9 (k,j,i)/real(n,kind=GP)**3
-                        C3(k,j,i) = dump*M10(k,j,i)/real(n,kind=GP)**3
+                  DO j = 1,ny
+                     DO k = 1,nz
+                        C1(k,j,i) = dump*M8 (k,j,i)*rmp
+                        C2(k,j,i) = dump*M9 (k,j,i)*rmp
+                        C3(k,j,i) = dump*M10(k,j,i)*rmp
                      END DO
                   END DO
                END DO
@@ -2260,14 +2180,15 @@
             ENDIF
 #endif
 #ifdef MAGFIELD_
+            rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-               DO j = 1,n
-                  DO k = 1,n
-                     C1(k,j,i) = ax(k,j,i)/real(n,kind=GP)**3
-                     C2(k,j,i) = ay(k,j,i)/real(n,kind=GP)**3
-                     C3(k,j,i) = az(k,j,i)/real(n,kind=GP)**3
+               DO j = 1,ny
+                  DO k = 1,nz
+                     C1(k,j,i) = ax(k,j,i)*rmp
+                     C2(k,j,i) = ay(k,j,i)*rmp
+                     C3(k,j,i) = az(k,j,i)*rmp
                   END DO
                END DO
             END DO
@@ -2299,15 +2220,15 @@
             CALL io_write(1,odir,'ax',ext,planio,R1)
             CALL io_write(1,odir,'ay',ext,planio,R2)
             CALL io_write(1,odir,'az',ext,planio,R3)
-            IF (rand.eq.3) THEN
+            IF (rand.eq.2) THEN
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-                  DO j = 1,n
-                     DO k = 1,n
-                        C1(k,j,i) = mxold(k,j,i)/real(n,kind=GP)**3
-                        C2(k,j,i) = myold(k,j,i)/real(n,kind=GP)**3
-                        C3(k,j,i) = mzold(k,j,i)/real(n,kind=GP)**3
+                  DO j = 1,ny
+                     DO k = 1,nz
+                        C1(k,j,i) = mxold(k,j,i)*rmp
+                        C2(k,j,i) = myold(k,j,i)*rmp
+                        C3(k,j,i) = mzold(k,j,i)*rmp
                      END DO
                   END DO
                END DO
@@ -2320,11 +2241,11 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-                  DO j = 1,n
-                     DO k = 1,n
-                        C1(k,j,i) = mxnew(k,j,i)/real(n,kind=GP)**3
-                        C2(k,j,i) = mynew(k,j,i)/real(n,kind=GP)**3
-                        C3(k,j,i) = mznew(k,j,i)/real(n,kind=GP)**3
+                  DO j = 1,ny
+                     DO k = 1,nz
+                        C1(k,j,i) = mxnew(k,j,i)*rmp
+                        C2(k,j,i) = mynew(k,j,i)*rmp
+                        C3(k,j,i) = mznew(k,j,i)*rmp
                      END DO
                   END DO
                END DO
@@ -2340,11 +2261,11 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-                  DO j = 1,n
-                     DO k = 1,n
-                        C1(k,j,i) = dump*M4(k,j,i)/real(n,kind=GP)**3
-                        C2(k,j,i) = dump*M5(k,j,i)/real(n,kind=GP)**3
-                        C3(k,j,i) = dump*M6(k,j,i)/real(n,kind=GP)**3
+                  DO j = 1,ny
+                     DO k = 1,nz
+                        C1(k,j,i) = dump*M4(k,j,i)*rmp
+                        C2(k,j,i) = dump*M5(k,j,i)*rmp
+                        C3(k,j,i) = dump*M6(k,j,i)*rmp
                      END DO
                   END DO
                END DO
@@ -2357,13 +2278,14 @@
             ENDIF
 #endif
 #ifdef WAVEFUNCTION_
+            rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-               DO j = 1,n
-                  DO k = 1,n
-                     C1(k,j,i) = zre(k,j,i)/real(n,kind=GP)**3
-                     C2(k,j,i) = zim(k,j,i)/real(n,kind=GP)**3
+               DO j = 1,ny
+                  DO k = 1,nz
+                     C1(k,j,i) = zre(k,j,i)*rmp
+                     C2(k,j,i) = zim(k,j,i)*rmp
                   END DO
                END DO
             END DO
@@ -2375,8 +2297,8 @@
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
                DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-                  DO j = 1,n
-                     DO i = 1,n
+                  DO j = 1,ny
+                     DO i = 1,nx
                         R3(i,j,k) = R1(i,j,k)**2+R2(i,j,k)**2
                      END DO
                   END DO
@@ -2414,67 +2336,15 @@
 
          IF ((timec.eq.cstep).and.(bench.eq.0)) THEN
             timec = 0
-#ifdef HD_SOL
-            INCLUDE 'hd_global.f90'
-#endif
-#ifdef PHD_SOL
-            INCLUDE 'phd_global.f90'
-#endif
-#ifdef MPHD_SOL
-            INCLUDE 'mphd_global.f90'
-#endif
-#if defined(MHD_SOL) || defined(MHDB_SOL) || defined(RMHDB_SOL)
-            INCLUDE 'mhd_global.f90'
-#endif
-#if defined(HMHD_SOL) || defined(HMHDB_SOL)
-            INCLUDE 'hmhd_global.f90'
-#endif
-#ifdef COMPRHD_SOL
-            INCLUDE 'comprhd_global.f90'
-#endif
-#if defined(CMHD_SOL) || defined(CMHDB_SOL)
-            INCLUDE 'cmhd_global.f90'
-#endif
-#ifdef ROTH_SOL
-            INCLUDE 'hd_global.f90'
-#endif
-#ifdef PROTH_SOL
-            INCLUDE 'phd_global.f90'
-#endif
-#ifdef MPROTH_SOL
-            INCLUDE 'mproth_global.f90'
-#endif
-#if defined(BOUSS_SOL) 
-            INCLUDE 'bouss_global.f90'
-#endif
-#if defined(ROTBOUSS_SOL)
-            INCLUDE 'rotbouss_global.f90'
-#endif
-#if defined(MPROTBOUSS_SOL)
-            INCLUDE 'mprotbouss_global.f90'
-#endif
-#if defined(GPE_SOL) || defined(ARGL_SOL)
-            INCLUDE 'gpe_global.f90'
-#endif
-#if defined(LAHD_SOL) || defined(CAHD_SOL)
-            INCLUDE 'lahd_global.f90'
-#endif
-#ifdef LHD_SOL
-            INCLUDE 'hd_global.f90'
-#endif
-#ifdef LAMHD_SOL
-            INCLUDE 'lamhd_global.f90'
-#endif
-#if defined(EDQNMHD_SOL) || defined(EDQNMROTH_SOL)
-            INCLUDE 'hd_global.f90'
-#endif
-            IF (mean.eq.1) THEN
+            INCLUDE GLOBALOUTPUT_
+
+            IF (mean.eq.1) THEN ! Update mean fields
 #ifdef VELOC_
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-                  DO j = 1,n
-                     DO k = 1,n
+                  DO j = 1,ny
+                     DO k = 1,nz
                         M1(k,j,i) = M1(k,j,i)+vx(k,j,i)
                         M2(k,j,i) = M2(k,j,i)+vy(k,j,i)
                         M3(k,j,i) = M3(k,j,i)+vz(k,j,i)
@@ -2486,8 +2356,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-                  DO j = 1,n
-                     DO k = 1,n
+                  DO j = 1,ny
+                     DO k = 1,nz
                         M7(k,j,i) = M7(k,j,i)+th(k,j,i)
                      END DO
                   END DO
@@ -2497,8 +2367,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-                  DO j = 1,n
-                     DO k = 1,n
+                  DO j = 1,ny
+                     DO k = 1,nz
                         M8 (k,j,i) = M8 (k,j,i)+th1(k,j,i)
                         M9 (k,j,i) = M9 (k,j,i)+th2(k,j,i)
                         M10(k,j,i) = M10(k,j,i)+th3(k,j,i)
@@ -2513,8 +2383,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-                  DO j = 1,n
-                     DO k = 1,n
+                  DO j = 1,ny
+                     DO k = 1,nz
                         M4(k,j,i) = M4(k,j,i)+vx(k,j,i)
                         M5(k,j,i) = M5(k,j,i)+vy(k,j,i)
                         M6(k,j,i) = M6(k,j,i)+vz(k,j,i)
@@ -2532,72 +2402,7 @@
             times = 0
             sind = sind+1
             WRITE(ext, fmtext) sind
-#ifdef HD_SOL
-            INCLUDE 'hd_spectrum.f90'
-#endif
-#ifdef PHD_SOL
-            INCLUDE 'phd_spectrum.f90'
-#endif
-#ifdef MPHD_SOL
-            INCLUDE 'mphd_spectrum.f90'
-#endif
-#ifdef MHD_SOL
-            INCLUDE 'mhd_spectrum.f90'
-#endif
-#if defined(MHDB_SOL) || defined(RMHDB_SOL)
-            INCLUDE 'mhdb_spectrum.f90'
-#endif
-#ifdef HMHD_SOL
-            INCLUDE 'hmhd_spectrum.f90'
-#endif
-#ifdef HMHDB_SOL
-            INCLUDE 'hmhdb_spectrum.f90'
-#endif
-#ifdef COMPRHD_SOL
-            INCLUDE 'comprhd_spectrum.f90'
-#endif
-#ifdef CMHD_SOL
-            INCLUDE 'cmhd_spectrum.f90'
-#endif
-#ifdef CMHDB_SOL
-            INCLUDE 'cmhdb_spectrum.f90'
-#endif
-#ifdef ROTH_SOL
-            INCLUDE 'roth_spectrum.f90'
-#endif
-#ifdef PROTH_SOL
-            INCLUDE 'proth_spectrum.f90'
-#endif
-#ifdef MPROTH_SOL
-            INCLUDE 'mproth_spectrum.f90'
-#endif
-#ifdef BOUSS_SOL
-            INCLUDE 'bouss_spectrum.f90'
-#endif
-#ifdef ROTBOUSS_SOL
-            INCLUDE 'rotbouss_spectrum.f90'
-#endif
-#ifdef MPROTBOUSS_SOL
-            INCLUDE 'mprotbouss_spectrum.f90'
-#endif
-#if defined(GPE_SOL) || defined(ARGL_SOL)
-            INCLUDE 'gpe_spectrum.f90'
-#endif
-#if defined(LAHD_SOL) || defined(CAHD_SOL)
-            INCLUDE 'lahd_spectrum.f90'
-#endif
-#ifdef LHD_SOL
-            INCLUDE 'hd_spectrum.f90'
-#endif
-#ifdef LAMHD_SOL
-            INCLUDE 'lamhd_spectrum.f90'
-#endif
-#ifdef EDQNMHD_SOL
-            INCLUDE 'edqnmhd_spectrum.f90'
-#endif
-#ifdef EDQNMROTH_SOL
-            INCLUDE 'edqnmroth_spectrum.f90'
-#endif
+            INCLUDE SPECTROUTPUT_
          ENDIF
 
 ! Runge-Kutta step 1
@@ -2606,57 +2411,10 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-         DO k = 1,n
+         DO j = 1,ny
+         DO k = 1,nz
 
-#ifdef HD_SOL
-         INCLUDE 'hd_rkstep1.f90'
-#endif
-#ifdef PHD_SOL
-         INCLUDE 'phd_rkstep1.f90'
-#endif
-#ifdef MPHD_SOL
-         INCLUDE 'mphd_rkstep1.f90'
-#endif
-#if defined(MHD_SOL) || defined(MHDB_SOL) || defined(RMHDB_SOL)
-         INCLUDE 'mhd_rkstep1.f90'
-#endif
-#if defined(HMHD_SOL) || defined(HMHDB_SOL)
-         INCLUDE 'mhd_rkstep1.f90'
-#endif
-#ifdef COMPRHD_SOL
-         INCLUDE 'comprhd_rkstep1.f90'
-#endif
-#if defined(CMHD_SOL) || defined(CMHDB_SOL)
-         INCLUDE 'cmhd_rkstep1.f90'
-#endif
-#ifdef ROTH_SOL
-         INCLUDE 'hd_rkstep1.f90'
-#endif
-#ifdef PROTH_SOL
-         INCLUDE 'phd_rkstep1.f90'
-#endif
-#ifdef MPROTH_SOL
-         INCLUDE 'mproth_rkstep1.f90'
-#endif
-#if defined(BOUSS_SOL) || defined(ROTBOUSS_SOL)
-         INCLUDE 'phd_rkstep1.f90'
-#endif
-#if defined(MPROTBOUSS_SOL)
-         INCLUDE 'mprotbouss_rkstep1.f90'
-#endif
-#ifdef GPE_SOL
-         INCLUDE 'gpe_rkstep1.f90'
-#endif
-#if defined(LAHD_SOL) || defined(CAHD_SOL) || defined(LHD_SOL)
-         INCLUDE 'hd_rkstep1.f90'
-#endif
-#ifdef LAMHD_SOL
-         INCLUDE 'mhd_rkstep1.f90'
-#endif
-#if defined(EDQNMHD_SOL) || defined(EDQNMROTH_SOL)
-         INCLUDE 'hd_rkstep1.f90'
-#endif
+            INCLUDE RKSTEP1_
 
          END DO
          END DO
@@ -2675,90 +2433,17 @@
 ! Evolves the system in time
 
          DO o = ord,1,-1
-#ifdef HD_SOL
-         INCLUDE 'hd_rkstep2.f90'
-#endif
-#ifdef PHD_SOL
-         INCLUDE 'phd_rkstep2.f90'
-#endif
-#ifdef MPHD_SOL
-         INCLUDE 'mphd_rkstep2.f90'
-#endif
-#ifdef MHD_SOL
-         INCLUDE 'mhd_rkstep2.f90'
-#endif
-#ifdef MHDB_SOL
-         INCLUDE 'mhdb_rkstep2.f90'
-#endif
-#ifdef RMHDB_SOL
-         INCLUDE 'rmhdb_rkstep2.f90'
-#endif
-#ifdef HMHD_SOL
-         INCLUDE 'hmhd_rkstep2.f90'
-#endif
-#ifdef HMHDB_SOL
-         INCLUDE 'hmhdb_rkstep2.f90'
-#endif
-#ifdef COMPRHD_SOL
-         INCLUDE 'comprhd_rkstep2.f90'
-#endif
-#ifdef CMHD_SOL
-         INCLUDE 'cmhd_rkstep2.f90'
-#endif
-#ifdef CMHDB_SOL
-         INCLUDE 'cmhdb_rkstep2.f90'
-#endif
-#ifdef ROTH_SOL
-         INCLUDE 'roth_rkstep2.f90'
-#endif
-#ifdef PROTH_SOL
-         INCLUDE 'proth_rkstep2.f90'
-#endif
-#ifdef MPROTH_SOL
-         INCLUDE 'mproth_rkstep2.f90'
-#endif
-#ifdef BOUSS_SOL
-         INCLUDE 'bouss_rkstep2.f90'
-#endif
-#ifdef ROTBOUSS_SOL
-         INCLUDE 'rotbouss_rkstep2.f90'
-#endif
-#ifdef MPROTBOUSS_SOL
-         INCLUDE 'mprotbouss_rkstep2.f90'
-#endif
-#ifdef GPE_SOL
-         INCLUDE 'gpe_rkstep2.f90'
-#endif
-#ifdef ARGL_SOL
-         INCLUDE 'argl_rkstep2.f90'
-#endif
-#ifdef LAHD_SOL
-         INCLUDE 'lahd_rkstep2.f90'
-#endif
-#ifdef CAHD_SOL
-         INCLUDE 'lahd_rkstep2.f90'
-#endif
-#ifdef LHD_SOL
-         INCLUDE 'lhd_rkstep2.f90'
-#endif
-#ifdef LAMHD_SOL
-         INCLUDE 'lamhd_rkstep2.f90'
-#endif
-#ifdef EDQNMHD_SOL
-         INCLUDE 'edqnmhd_rkstep2.f90'
-#endif
-#ifdef EDQNMROTH_SOL
-         INCLUDE 'edqnmroth_rkstep2.f90'
-#endif
+
+         INCLUDE RKSTEP2_
 
 #ifdef PART_
          IF ( dolag.GT.0 ) THEN
-	 rmp = 1.0_GP/real(n,kind=GP)**3
+         rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-           DO j = 1,n
-             DO k = 1,n
+           DO j = 1,ny
+             DO k = 1,nz
                C7(k,j,i) = vx(k,j,i)*rmp
              END DO
            END DO
@@ -2767,8 +2452,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-           DO j = 1,n
-             DO k = 1,n
+           DO j = 1,ny
+             DO k = 1,nz
                C7(k,j,i) = vy(k,j,i)*rmp
              END DO
            END DO
@@ -2777,8 +2462,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-           DO j = 1,n
-             DO k = 1,n
+           DO j = 1,ny
+             DO k = 1,nz
                C7(k,j,i) = vz(k,j,i)*rmp
              END DO
            END DO
@@ -2791,8 +2476,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-           DO j = 1,n
-             DO k = 1,n
+           DO j = 1,ny
+             DO k = 1,nz
                C11(k,j,i) = ax(k,j,i)*rmp
                C12(k,j,i) = ay(k,j,i)*rmp
                C13(k,j,i) = az(k,j,i)*rmp
@@ -2858,23 +2543,23 @@
          IF (myrank.eq.0) THEN
             OPEN(1,file='benchmark.txt',position='append')
 #if defined(DEF_GHOST_CUDA_)
-            WRITE(1,*) n,(step-ini+1),nprocs,nth, &
-                       GTGetTime(ihcpu1)/(step-ini+1), &
-                       GTGetTime(ihomp1)/(step-ini+1), &
-                       GTGetTime(ihwtm1)/(step-ini+1), &
+            WRITE(1,*) nx,ny,nz,(step-ini+1),nprocs,nth, &
+                       GTGetTime(ihcpu1)/(step-ini+1),   &
+                       GTGetTime(ihomp1)/(step-ini+1),   &
+                       GTGetTime(ihwtm1)/(step-ini+1),   &
                        ffttime/(step-ini+1), tratime/(step-ini+1), &
                        comtime/(step-ini+1), memtime/(step-ini+1)
 #else
-            WRITE(1,*) n,(step-ini+1),nprocs,nth, &
-                       GTGetTime(ihcpu1)/(step-ini+1), &
-                       GTGetTime(ihomp1)/(step-ini+1), &
-                       GTGetTime(ihwtm1)/(step-ini+1), &
+            WRITE(1,*) nx,ny,nz,(step-ini+1),nprocs,nth, &
+                       GTGetTime(ihcpu1)/(step-ini+1),   &
+                       GTGetTime(ihomp1)/(step-ini+1),   &
+                       GTGetTime(ihwtm1)/(step-ini+1),   &
                        ffttime/(step-ini+1), tratime/(step-ini+1), &
                        comtime/(step-ini+1)
 
 #endif
             IF (bench.eq.2) THEN
-               WRITE(1,*) 'FFTW: Create_plan = ', &
+               WRITE(1,*) 'FFTW: Create_plan = ',      &
                        GTGetTime(ihcpu2)/(step-ini+1), &
                        GTGetTime(ihomp2)/(step-ini+1), &
                        GTGetTime(ihwtm2)/(step-ini+1)
@@ -2883,7 +2568,8 @@
 #if defined(PART_)
             IF ( dolag.GT.0 ) THEN
               OPEN(2,file='gpbenchmark.txt',position='append')
-                WRITE(2,*) n,maxparts,rbal/(step-ini+1),(step-ini+1),nprocs,nth, &
+              WRITE(2,*) nx,ny,nz,maxparts,rbal/(step-ini+1),            &
+                           (step-ini+1),nprocs,nth,                      &
                            lagpart%GetTime   (GPTIME_STEP)/(step-ini+1), &
                            lagpart%GetTime   (GPTIME_COMM)/(step-ini+1), &
                            lagpart%GetTime (GPTIME_SPLINE)/(step-ini+1), &
@@ -2900,9 +2586,11 @@
 #if defined(PART_)
 ! Write particle write times to screen:
       IF ( myrank .EQ. 0 ) THEN
-        WRITE(*,*)'main: <GPTIME_GPWRITE>=',lagpart%GetTime(GPTIME_GPWRITE)/nwpart
+        WRITE(*,*) 'main: <GPTIME_GPWRITE>=', &
+	           lagpart%GetTime(GPTIME_GPWRITE)/nwpart
       ENDIF
 #endif
+
 !
 ! End of MAIN3D
 
@@ -2919,13 +2607,19 @@
       DEALLOCATE( R1,R2,R3 )
 
       DEALLOCATE( C1,C2,C3,C4,C5,C6,C7,C8 )
-      DEALLOCATE( ka,ka2 )
+      DEALLOCATE( kx,ky,kz )
+      IF (anis.eq.1) THEN
+         DEALLOCATE( kk2 )
+      ELSE
+         NULLIFY( kk2 )
+      ENDIF
+      DEALLOCATE( kn2 )
 #ifdef VELOC_
       DEALLOCATE( fx,fy,fz )
       IF (mean.eq.1) DEALLOCATE( M1,M2,M3 )
-      IF (rand.eq.2) DEALLOCATE( Faux1, Faux2 )
-      IF (rand.eq.3) DEALLOCATE( fxold, fyold, fzold )
-      IF (rand.eq.3) DEALLOCATE( fxnew, fynew, fznew )
+      IF (rand.eq.2) DEALLOCATE( fxold, fyold, fzold )
+      IF (rand.eq.2) DEALLOCATE( fxnew, fynew, fznew )
+      IF (rand.eq.3) DEALLOCATE( Faux1, Faux2 )
 #endif
 #if defined(VELOC_) || defined (ADVECT_)
       DEALLOCATE( vx,vy,vz )
@@ -2950,8 +2644,8 @@
       DEALLOCATE( ax,ay,az,mx,my,mz )
       DEALLOCATE( C9,C10,C11,C12,C13,C14,C15,C16,C17 )
       IF (mean.eq.1) DEALLOCATE( M4,M5,M6 )
-      IF (rand.eq.3) DEALLOCATE( mxold, myold, mzold )
-      IF (rand.eq.3) DEALLOCATE( mxnew, mynew, mznew )
+      IF (rand.eq.2) DEALLOCATE( mxold, myold, mzold )
+      IF (rand.eq.2) DEALLOCATE( mxnew, mynew, mznew )
 #endif
 #ifdef HALLTERM_
       DEALLOCATE( C18 )

@@ -1,5 +1,24 @@
-! Adjust the amplitude of the mechanical forcing
-! to keep the energy constant in a MHD or Hall-MHD run
+! User-defined forcing scheme.
+! A forcing scheme can be implemented in this file, which
+! is used by the code when 'rand=3' is set in 'parameter.dat'.
+! This scheme is executed every 'fstep' time steps. See the 
+! folder 'examples' for an example. If not needed, this file
+! can be left empty.
+! Forcing arrays are complex (in Fourier space) of size
+! (n,n,ista:iend) and are called:
+!       (fx,fy,fz)   for the velocity 
+!       (mx,my,mz)   for the e.m.f. (magnetic field)
+!       (fs,fs1,...) for scalar fields
+!       (fre,fim)    for quantum solvers
+! You can use temporary real arrays R1-R3 of size
+! (1:n,1:n,ksta:kend) and temporary complex arrays C1-C8 of
+! size (n,n,ista:iend) to do intermediate computations,
+! and two real arrays Faux1 and Faux2 of size (10) to store
+! information of the history of the forcing if needed.
+
+! Hydrodynamic forcing with constant energy for MHD dynamos.
+! Use it with 'fstep'=dt to adjust the amplitude of the
+! forcing in every time step to keep the energy constant.
 
                CALL energy(vx,vy,vz,tmp,0)
                CALL energy(ax,ay,az,tmq,2)
@@ -29,4 +48,9 @@
                      END DO
                   END DO
                END DO
-
+               CALL energy(fx,fy,fz,tmp,1)
+               IF (myrank.eq.0) THEN
+                  OPEN(1,file='force.txt',position='append')
+                  WRITE(1,*) (t-1)*dt,sqrt(tmp)
+                  CLOSE(1)
+               ENDIF

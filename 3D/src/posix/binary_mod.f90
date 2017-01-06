@@ -15,7 +15,8 @@
 ! The format fmtnod should be consistent with the length of 
 ! the string, e.g. if len=5 then fmtnod = '(i5.5)'.
       TYPE IOPLAN
-         INTEGER               :: n,ksta,kend
+         INTEGER               :: ksta,kend
+         INTEGER               :: nx,ny,nz
          CHARACTER(len=3)      :: node
       END TYPE IOPLAN
       CHARACTER(len=6)         :: fmtnod = '(i3.3)'

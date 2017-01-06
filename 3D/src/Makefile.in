@@ -1,10 +1,13 @@
 #****************************************************************************
-# Edit this file to change library paths, compiler flags, and code options
+# Edit this file to change code options, library paths, and compiler flags
 #****************************************************************************
 
-# N        spatial resolution
-# ORD      number of iterations in the Runge-Kutta method
-N        = 512
+# Spatial resolution (grid points in X,Y,Z)
+NX       = 128
+NY       = 64
+NZ       = 32
+
+# ORD:     number of iterations in the Runge-Kutta method
 ORD      = 2
 
 # SOLVER:  (read the file SOLVERS for a list of options)
@@ -12,6 +15,11 @@ SOLVER   = HD
 
 # PRECISION: (SINGLE or DOUBLE)
 PRECISION= SINGLE
+
+# Box size:
+# ARBSIZE=yes  # Box size defined by the user
+# ARBSIZE=no   # 2.pi periodic box
+ARBSIZE  = yes
 
 # IOLIB:
 # posix    builds POSIX I/O
@@ -23,7 +31,7 @@ IOLIB    = mpiio
 # P_HYBRID=no   # MPI-based parallelization only
 P_HYBRID = no
 
-# Parallelization model:
+# Parallelization model for accelerators:
 # P_CUDA=yes    # CUDA-MPI (or CUDA-OpenMP-MPI) hybridization
 # P_CUDA=no     # MPI- or hybrid- parallelization only
 P_CUDA   = no
@@ -39,8 +47,8 @@ PARTICLES = no
 # fftp-3   builds FFTP-3 (links with FFTW 3.x)
 # FFTWxDIR contains the path to the FFTW libraries
 FFTP     = fftp-3
-FFTW2DIR = /share/apps/fftw-2.1.5
-FFTW3DIR = /share/apps/fftw-3.3.4
+FFTW2DIR = /opt/fftw-2.1.5
+FFTW3DIR = /opt/fftw-3.3.4
 
 # IKIND    4 in 32 bits machines, 8 in 64 bits machines
 # CSIZE    8 if L1 cache is <= 64 kb, 16 if L1 cache is 128 kb
@@ -107,14 +115,14 @@ INTEL_OMP     = -fopenmp
 TARGET_INTEL  = 
 #
 # GFortran compiler (GNU)
-CPP_GNU       = /share/apps/gcc-5.2.0/bin/cpp -traditional-cpp
-FC_GNU        = /share/apps/gcc-5.2.0/bin/gfortran
-CC_GNU        = /share/apps/gcc-5.2.0/bin/gcc
+CPP_GNU       = cpp -traditional-cpp
+FC_GNU        = gfortran
+CC_GNU        = gcc
 FFLAGS_GNU    = -O3 -funroll-loops
 FPSPEC_GNU    = -O3 -funroll-loops
 CFLAGS_GNU    = -O3
 GNU_OMP       = -fopenmp
-TARGET_GNU    = -mtune=native -mfpmath=sse
+TARGET_GNU    = -mtune=native -mfpmath=both
 #
 # G95 compiler (G95)
 CPP_G95       = /usr/bin/cpp -traditional-cpp -P
@@ -140,8 +148,8 @@ CULDFLAGS_NVIDIA=
 CUGENCODE_NVIDIA=
 CUARCH_NVIDIA   =
 # PPN = <number># number of GPUs per node; required for device affinity.
-#                 Can be overridden at runtime by setting MPI_PPN env. variable.
-#                 This variable is only used when P_CUDA=yes.
+#                 Can be overridden at runtime by setting MPI_PPN env.
+#                 variable. This variable is only used when P_CUDA=yes.
 PPN             = 4
 
 #****************************************************************************
@@ -155,11 +163,10 @@ MPILD_MPICH   = -lmpich -lmpichf90 -lfmpich -lpthread -lrt -lmpich \
   -lpthread -lrt -luuid
 #
 # OPENMPI (OPEN)
-MPIINC_OPEN   = -I/share/apps/openmpi-1.10.0-gcc52/include
-MPILIB_OPEN   = -L/share/apps/openmpi-1.10.0-gcc52/lib
-MPILD_OPEN    = -pthread -Wl,-rpath -Wl,/share/apps/openmpi-1.10.0-gcc52/lib \
-  -Wl,--enable-new-dtags -lmpi_usempif08 -lmpi_usempi_ignore_tkr -lmpi_mpifh \
-  -lmpi
+MPIINC_OPEN   = -I/opt/openmpi-1.10.0/include
+MPILIB_OPEN   = -L/opt/openmpi-1.10.0/lib
+MPILD_OPEN    = -Wl,-flat_namespace -Wl,-commons,use_dylibs -lmpi_usempif08 \
+  -lmpi_usempi_ignore_tkr -lmpi_mpifh -lmpi
 #
 # MPICH-GM (GM)
 MPIINC_GM     = -I/usr/local/mpich-gm-62/include

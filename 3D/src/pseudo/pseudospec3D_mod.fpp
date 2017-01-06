@@ -13,7 +13,9 @@
   MODULE grid
 !
 ! n: number of points in the spatial grid
-      INTEGER :: n = N_
+      INTEGER :: nx = NX_
+      INTEGER :: ny = NY_
+      INTEGER :: nz = NZ_
       SAVE
 
   END MODULE grid
@@ -34,14 +36,13 @@
 ! of characters used to number the binary files and files with 
 ! the spectra. The format fmtext should be consistent with the 
 ! length of the string, e.g. if len=5 then fmtext = '(i5.5)'.
-      CHARACTER(len=4) :: ext
+      CHARACTER(len=4)      :: ext
       CHARACTER(len=6),SAVE :: fmtext = '(i4.4)'
 
   END MODULE filefmt
 !=================================================================
 
   MODULE fft
-!
       USE fftplans
       TYPE(FFTPLAN) :: planrc, plancr
       SAVE
@@ -59,6 +60,18 @@
   END MODULE ali
 !=================================================================
 
+  MODULE boxsize
+!
+! Lx, Ly, Lz, and Dk are the lengths of the sides
+! of the box, and the width of Fourier shells
+      USE fprecision
+      REAL(KIND=GP)    :: Lx,Ly,Lz
+      REAL(KIND=GP)    :: Dkx,Dky,Dkz,Dkk
+      SAVE
+
+  END MODULE boxsize
+!=================================================================
+      
   MODULE var
       USE fprecision
       REAL(KIND=GP)    :: pi = 3.14159265358979323846_GP
@@ -98,8 +111,10 @@
 
   MODULE kes
       USE fprecision
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)     :: ka
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: ka2
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)        :: kx,ky,kz
+      REAL(KIND=GP), TARGET, ALLOCATABLE, DIMENSION (:,:,:) :: kn2
+      REAL(KIND=GP), POINTER, DIMENSION (:,:,:)             :: kk2
+      INTEGER :: nmax
       SAVE
 
   END MODULE kes

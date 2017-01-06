@@ -34,7 +34,7 @@
          COMPLEX(KIND=GP), DIMENSION (:,:,:), POINTER :: carr
          REAL(KIND=GP), DIMENSION (:,:,:), POINTER    :: rarr
          INTEGER(kind=ikind) :: planr,planc
-         INTEGER :: n
+         INTEGER :: nx,ny,nz
          INTEGER, DIMENSION (:), POINTER :: itype1, itype2
       END TYPE FFTPLAN
       SAVE

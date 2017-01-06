@@ -1,0 +1,52 @@
+! User-defined forcing scheme.
+! A forcing scheme can be implemented in this file, which
+! is used by the code when 'rand=3' is set in 'parameter.dat'.
+! This scheme is executed every 'fstep' time steps. See the 
+! folder 'examples' for an example. If not needed, this file
+! can be left empty.
+! Forcing arrays are complex (in Fourier space) of size
+! (n,n,ista:iend) and are called:
+!       (fx,fy,fz)   for the velocity 
+!       (mx,my,mz)   for the e.m.f. (magnetic field)
+!       (fs,fs1,...) for scalar fields
+!       (fre,fim)    for quantum solvers
+! You can use temporary real arrays R1-R3 of size
+! (1:n,1:n,ksta:kend) and temporary complex arrays C1-C8 of
+! size (n,n,ista:iend) to do intermediate computations,
+! and two real arrays Faux1 and Faux2 of size (10) to store
+! information of the history of the forcing if needed.
+
+! Hydrodynamic forcing with constant energy for HD runs.
+! Use it with 'fstep'=dt to adjust the amplitude of the
+! forcing in every time step to keep the energy constant.
+
+               CALL energy(vx,vy,vz,tmp,0)
+               CALL cross(vx,vy,vz,fx,fy,fz,eps,1)
+               CALL MPI_BCAST(tmp,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+               CALL MPI_BCAST(eps,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+               Faux1(1:9) = Faux1(2:10)
+               Faux2(1:9) = Faux2(2:10)
+               ampl = ampl*nu*tmp/eps
+               Faux1(10) = ampl
+               Faux2(10) = nu*tmp-eps
+               ampl = 0.9_GP*ampl
+               DO i = 1,9
+                  ampl = ampl+(0.1_GP*Faux1(i)+0.01_GP*Faux2(i))/9.0_GP
+               END DO
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+               DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+                  DO j = 1,n
+                     DO k = 1,n
+                        fx(k,j,i) = fx(k,j,i)*ampl
+                        fy(k,j,i) = fy(k,j,i)*ampl
+                        fz(k,j,i) = fz(k,j,i)*ampl
+                     END DO
+                  END DO
+	       END DO
+               CALL energy(fx,fy,fz,tmp,1)
+               IF (myrank.eq.0) THEN
+                  OPEN(1,file='force.txt',position='append')
+                  WRITE(1,*) (t-1)*dt,sqrt(tmp)
+                  CLOSE(1)
+               ENDIF

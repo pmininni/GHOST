@@ -17,16 +17,16 @@ FFTW is used.
 1. Installing FFTW
 ==================
 
-The default version of FFTW for the GHOST code is 3.2.2 (versions 3.x 
-previous to 3.2.2 should also work). The parallel FFT based on FFTW 
-3.x is in the directory 'fftp-3'. The API of FFTW 2.x is incompatible 
-with that of FFTW 3.x, and as a result also incompatible with fftp-3. 
+The default version of FFTW for the GHOST code is 3.3.5 (versions 3.x 
+previous to 3.3.5 also work). The parallel FFT based on FFTW 3.x is
+in the directory 'fftp-3'. The API of FFTW 2.x is incompatible with
+that of FFTW 3.x, and as a result also incompatible with fftp-3. 
 To use FFTW 2.x, use the parallel library in the directory 'fftp-2' 
 instead. Note that FFTW 3.x is faster, although how fast depends 
 strongly on the alignment of arrays, and on whether the hardware 
 supports SIMD instructions. For this to work, FFTW 3.x should be 
-compiled with some form of SSE/SSE2/3dNow!/Altivec support (see the 
-FFTW documentation), and a Fortran compiler that aligns arrays 
+compiled with some form of SSE/SSE2/AVX/3dNow!/Altivec support (see
+the FFTW documentation), and a Fortran compiler that aligns arrays 
 properly should be used to compile GHOST. The parallel library for 
 FFTW 3.x uses more memory, so if you are running on a low-memory 
 environment use FFTW 2.x instead.
@@ -82,20 +82,35 @@ env CC=pgcc CFLAGS='-fastsse' F77=pgf90 ./configure
 2.1. Setting code options:
 
 The linear resolution is set before compilation in the file 
-Makefile.in. The line 
+Makefile.in. The lines 
 
 -------------------------------------------------------------------
-N        = 64
+NX       = 64
+NY       = 64
+NZ       = 64
 -------------------------------------------------------------------
 
-sets the number of grid points in each direction. A few more 
-variables can be set in this file. The variable
+set the number of grid points in each direction (some solvers and
+options only work with NX=NY=NZ, and this option requires slightly
+less memory in some cases). A few more variables can be set in this
+file. The variable
 
 -------------------------------------------------------------------
 ORD      = 2
 -------------------------------------------------------------------
 
 controls the number of iterations in the Runge-Kutta method. 
+
+By default, GHOST uses a 2.pi-periodic box in all directions. To
+use anisotropic boxes, with 2.pi*(Lx,Ly,Lz) lengths in each
+direction, you can set
+
+-------------------------------------------------------------------
+BOXSIZE  = yes
+-------------------------------------------------------------------
+
+The values of (Lx,Ly,Lz) can then be set in the input file at run
+time. Note some solvers may not fully support this option.
 
 The remaining options in this section are optional and the defaults 
 give good performance in most computers. But if needed, you can set 
@@ -135,7 +150,24 @@ integrations are done, or when thousands of processors are used).
 
 Initial conditions for the fields and the external forcings are 
 defined in the files 'initial*.f90'. Examples of these files can 
-be found in the directory 'examples'.
+be found in the directory 'examples'. GHOST also provides a way
+for the user to define a way to update forcing functions in time
+(besides the three options already implemented: constant forcing,
+delta-correlated random-phase shifting, and slowly evolving random
+phases). To define a new updating scheme for the forcing functions,
+you can edit the file 'incscheme.f90' (see the directory 'examples'
+for more detailes).
+
+Note that the name of all files in the directory 'examples' finish
+with '_example-name'. To use any of these files, you must copy the
+file to the 'src' directory and remove the '_example-name' from
+the name of the file. As an example, to use the ABC initial
+conditions for the velocity field, from the 'src' directory you
+must do
+
+-------------------------------------------------------------------
+cp examples/initialv.f90_abc initialv.f90
+-------------------------------------------------------------------
 
 Check the makefile to see all paths and variables are correct. In 
 some computers where MPI or FFTW are already installed, problems 
@@ -241,11 +273,11 @@ in 'include' are named 'solver_component.f90' where 'solver' is
 the name of the solver (in lowercase) and 'component' indicates 
 what action is done by the file. Most common components are
 
-adjustfv : contains routines to adjust the external forcing
+validate : verifies compatibility of options with the solver
 global   : contains routines to compute global quantities
 spectrum : contains routines to compute spectra
 rkstep1  : first step of Runge-Kutta
-rkstep2  : second step of Runge-Kutta
+rkstep2  : second step of Runge-Kutta (contains the equations)
 
 3. Running the code
 ===================
@@ -285,8 +317,8 @@ solvers need at least a list 'status' whith variables
 
 -------------------------------------------------------------------
 &status
-idir = /ptmp/run
-odir = /ptmp/run
+idir = "/ptmp/run"
+odir = "/ptmp/run"
 stat = 0         ! status
 mult = 1         ! multiplier
 bench = 0        ! benchmark
@@ -340,8 +372,8 @@ rand: sets random or constant forcing.
 cort: correlation time for random forcing.
 seed: seed for the random number generator.
 
-Finally, all solvers read initial parameters for the velocity 
-field from the list 'velocity':
+If solvers with a velocity field are used, GHOST reads initial
+parameters for the velocity field from the list 'velocity':
 
 -------------------------------------------------------------------
 &velocity
@@ -414,10 +446,10 @@ in the ABC or Roberts flows). See the files 'initialf*' in the
 directory 'examples' for more details.
 aparam0-9: idem for the initial magnetic field. 
 
-Similar lists are used for solvers with passive scalars. Some 
-solvers may also need extra lists, e.g. 'uniformb', 'rotation', or 
-'hallparam'. See the file 'examples/parameter.txt' and main3D.fpp 
-for more details.
+Similar lists are used for solvers with passive or active scalars,
+wave functions, etc. Some solvers may also need extra lists, e.g.,
+'uniformb', 'rotation', or 'hallparam'. See the file
+'examples/parameter.txt' and main3D.fpp for more details.
 
 3.2. Output files:
 
@@ -463,7 +495,8 @@ centered finite differences.
 
 Examples of simple scripts to read and plot output from GHOST using 
 Python, IDL, Matlab, and VAPOR, can be found in the directory 
-ghost/contrib.
+'ghost/contrib'. These examples also include some explanantions
+on the contents in the output files.
 
 4. References:
 

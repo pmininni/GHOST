@@ -24,6 +24,7 @@
 ! 13 Feb 2007: Transposition uses strip mining (rreddy@psc.edu)
 ! 25 Aug 2009: Hybrid MPI/OpenMP support (D. Rosenberg & P. Mininni)
 ! 30 Aug 2009: SINGLE/DOUBLE precision (D. Rosenberg & P. Mininni)
+!  6 Jan 2017: Anisotropic boxes (A. Alexakis & P. Mininni)
 !
 ! References:
 ! Mininni PD, Gomez DO, Mahajan SM; Astrophys. J. 619, 1019 (2005)
@@ -74,15 +75,17 @@
 !$    USE threads
       IMPLICIT NONE
 
-      INTEGER, INTENT(IN) :: n
+      INTEGER, INTENT(IN) :: n(3)
       INTEGER, INTENT(IN) :: fftdir
       INTEGER, INTENT(IN) :: flags
       TYPE(FFTPLAN), INTENT(OUT) :: plan
 
-      CALL rfftw2d_f77_create_plan(plan%planr,n,n,fftdir,flags)
-      CALL fftw_f77_create_plan(plan%planc,n,fftdir, &
+      CALL rfftw2d_f77_create_plan(plan%planr,n(1),n(2),fftdir,flags)
+      CALL fftw_f77_create_plan(plan%planc,n(3),fftdir, &
                                flags+FFTW_IN_PLACE)
-      plan%n = n
+      plan%nx = n(1)
+      plan%ny = n(2)
+      plan%nz = n(3)
       ALLOCATE( plan%itype1(0:nprocs-1) )
       ALLOCATE( plan%itype2(0:nprocs-1) )
       CALL fftp3d_create_block(n,nprocs,myrank,plan%itype1, &
@@ -134,7 +137,7 @@
       IMPLICIT NONE
 
       INTEGER, INTENT(OUT), DIMENSION(0:nprocs-1) :: itype1,itype2
-      INTEGER, INTENT(IN) :: n,nprocs
+      INTEGER, INTENT(IN) :: n(3),nprocs
       INTEGER, INTENT(IN) :: myrank
 
       INTEGER :: ista,iend
@@ -142,18 +145,18 @@
       INTEGER :: irank,krank
       INTEGER :: itemp1,itemp2
 
-      CALL range(1,n,nprocs,myrank,ksta,kend)
+      CALL range(1,n(3),nprocs,myrank,ksta,kend)
       DO irank = 0,nprocs-1
-         CALL range(1,n/2+1,nprocs,irank,ista,iend)
-         CALL block3d(1,n/2+1,1,n,ksta,ista,iend,1,n,ksta, &
-                     kend,GC_COMPLEX,itemp1)
+         CALL range(1,n(1)/2+1,nprocs,irank,ista,iend)
+         CALL block3d(1,n(1)/2+1,1,n(2),ksta,ista,iend,1,n(2), &
+                     ksta,kend,GC_COMPLEX,itemp1)
          itype1(irank) = itemp1
       END DO
-      CALL range(1,n/2+1,nprocs,myrank,ista,iend)
+      CALL range(1,n(1)/2+1,nprocs,myrank,ista,iend)
       DO krank = 0,nprocs-1
-         CALL range(1,n,nprocs,krank,ksta,kend)
-         CALL block3d(ista,iend,1,n,1,ista,iend,1,n,ksta, &
-                     kend,GC_COMPLEX,itemp2)
+         CALL range(1,n(3),nprocs,krank,ksta,kend)
+         CALL block3d(ista,iend,1,n(2),1,ista,iend,1,n(2),     &
+                     ksta,kend,GC_COMPLEX,itemp2)
          itype2(krank) = itemp2
       END DO
 
@@ -185,10 +188,10 @@
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
 
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(plan%n,plan%n,ista:iend) :: out 
-      COMPLEX(KIND=GP), DIMENSION(plan%n/2+1,plan%n,ksta:kend)          :: c1
-      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%n,plan%n)              :: c2
-      REAL(KIND=GP), INTENT(IN), DIMENSION(plan%n,plan%n,ksta:kend)     :: in
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(plan%nz,plan%ny,ista:iend) :: out 
+      COMPLEX(KIND=GP), DIMENSION(plan%nx/2+1,plan%ny,ksta:kend)      :: c1
+      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%ny,plan%nz)          :: c2
+      REAL(KIND=GP), INTENT(IN), DIMENSION(plan%nx,plan%ny,ksta:kend) :: in
 
       DOUBLE PRECISION                    :: t0, t1
 
@@ -200,7 +203,7 @@
       INTEGER :: irank
       INTEGER :: isendTo,igetFrom
       INTEGER :: istrip,iproc
-      INTEGER :: hcom,jfft,htra
+      INTEGER :: hcom,hfft,htra
 
 !
 ! 2D FFT in each node using the FFTW library
@@ -208,10 +211,10 @@
       CALL GTStart(hfft,GT_WTIME)
 #ifdef DO_HYBRIDyes
       CALL rfftwnd_f77_threads_real_to_complex(nth,plan%planr,kend-ksta+1, &
-                          in,1,plan%n*plan%n,c1,1,plan%n*(plan%n/2+1))
+                          in,1,plan%nx*plan%ny,c1,1,plan%ny*(plan%nx/2+1))
 #else
-      CALL rfftwnd_f77_real_to_complex(plan%planr,kend-ksta+1,in,          &
-                          1,plan%n*plan%n,c1,1,plan%n*(plan%n/2+1))
+      CALL rfftwnd_f77_real_to_complex(plan%planr,kend-ksta+1,in,1,         &
+                          plan%nx*plan%ny,c1,1,plan%ny*(plan%nx/2+1))
 #endif
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 !
@@ -249,11 +252,11 @@
 !$omp parallel do if ((iend-ista)/csize.ge.nth) private (jj,kk,i,j,k)
       DO ii = ista,iend,csize
 !$omp parallel do if ((iend-ista)/csize.lt.nth) private (kk,i,j,k)
-         DO jj = 1,plan%n,csize
-            DO kk = 1,plan%n,csize
+         DO jj = 1,plan%ny,csize
+            DO kk = 1,plan%nz,csize
                DO i = ii,min(iend,ii+csize-1)
-               DO j = jj,min(plan%n,jj+csize-1)
-               DO k = kk,min(plan%n,kk+csize-1)
+               DO j = jj,min(plan%ny,jj+csize-1)
+               DO k = kk,min(plan%nz,kk+csize-1)
                   out(k,j,i) = c2(i,j,k)
                END DO
                END DO
@@ -268,11 +271,11 @@
 !
       CALL GTStart(hfft)
 #ifdef DO_HYBRIDyes
-      CALL fftw_f77_threads(nth,plan%planc,plan%n*(iend-ista+1),out,1, &
-                   plan%n,c2,1,plan%n)
+      CALL fftw_f77_threads(nth,plan%planc,plan%ny*(iend-ista+1),out,1, &
+                   plan%nz,c2,1,plan%nz)
 #else
-      CALL fftw_f77(plan%planc,plan%n*(iend-ista+1),out,1,plan%n,      &
-                   c2,1,plan%n)
+      CALL fftw_f77(plan%planc,plan%ny*(iend-ista+1),out,1,plan%nz,     &
+                   c2,1,plan%nz)
 #endif
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 
@@ -309,10 +312,10 @@
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(plan%n,plan%n,ista:iend) :: in 
-      COMPLEX(KIND=GP), DIMENSION(plan%n/2+1,plan%n,ksta:kend)         :: c1
-      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%n,plan%n)             :: c2
-      REAL(KIND=GP), INTENT(OUT), DIMENSION(plan%n,plan%n,ksta:kend)   :: out
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(plan%nz,plan%ny,ista:iend) :: in 
+      COMPLEX(KIND=GP), DIMENSION(plan%nx/2+1,plan%ny,ksta:kend)       :: c1
+      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%ny,plan%nz)           :: c2
+      REAL(KIND=GP), INTENT(OUT), DIMENSION(plan%nx,plan%ny,ksta:kend) :: out
 
       DOUBLE PRECISION                    :: t0, t1
 
@@ -331,11 +334,11 @@
 !
       CALL GTStart(hfft,GT_WTIME)
 #ifdef DO_HYBRIDyes
-      CALL fftw_f77_threads(nth,plan%planc,plan%n*(iend-ista+1),in,1, &
-                   plan%n,c2,1,plan%n)
+      CALL fftw_f77_threads(nth,plan%planc,plan%ny*(iend-ista+1),in,1, &
+                   plan%nz,c2,1,plan%nz)
 #else
-      CALL fftw_f77(plan%planc,plan%n*(iend-ista+1),in,1,plan%n, &
-                   c2,1,plan%n)
+      CALL fftw_f77(plan%planc,plan%ny*(iend-ista+1),in,1,plan%nz, &
+                   c2,1,plan%nz)
 #endif
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 !
@@ -346,11 +349,11 @@
 !$omp parallel do if ((iend-ista)/csize.ge.nth) private (jj,kk,i,j,k)
       DO ii = ista,iend,csize
 !$omp parallel do if ((iend-ista)/csize.lt.nth) private (kk,i,j,k)
-         DO jj = 1,plan%n,csize
-            DO kk = 1,plan%n,csize
+         DO jj = 1,plan%ny,csize
+            DO kk = 1,plan%nz,csize
                DO i = ii,min(iend,ii+csize-1)
-               DO j = jj,min(plan%n,jj+csize-1)
-               DO k = kk,min(plan%n,kk+csize-1)
+               DO j = jj,min(plan%ny,jj+csize-1)
+               DO k = kk,min(plan%nz,kk+csize-1)
                   c2(i,j,k) = in(k,j,i)
                END DO
                END DO
@@ -394,10 +397,10 @@
       CALL GTStart(hfft)
 #ifdef DO_HYBRIDyes
       CALL rfftwnd_f77_threads_complex_to_real(nth,plan%planr,kend-ksta+1, &
-                         c1,1,plan%n*(plan%n/2+1),out,1,plan%n*plan%n)
+                         c1,1,plan%ny*(plan%nx/2+1),out,1,plan%nx*plan%ny)
 #else
-      CALL rfftwnd_f77_complex_to_real(plan%planr,kend-ksta+1,c1,          &
-                         1,plan%n*(plan%n/2+1),out,1,plan%n*plan%n)
+      CALL rfftwnd_f77_complex_to_real(plan%planr,kend-ksta+1,c1,1,        &
+                         plan%ny*(plan%nx/2+1),out,1,plan%nx*plan%ny)
 #endif
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 

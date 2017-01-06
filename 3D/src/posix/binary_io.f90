@@ -28,11 +28,13 @@
       USE iovar
       IMPLICIT NONE
 
-      INTEGER, INTENT(IN) :: myrank,n
+      INTEGER, INTENT(IN) :: myrank,n(3)
       INTEGER, INTENT(IN) :: ksta,kend
       TYPE(IOPLAN), INTENT(OUT) :: plan
 
-      plan%n = n
+      plan%nx = n(1)
+      plan%ny = n(2)
+      plan%nz = n(3)
       plan%ksta = ksta
       plan%kend = kend
       WRITE(plan%node, fmtnod) myrank
@@ -63,7 +65,7 @@
       IMPLICIT NONE
 
       TYPE(IOPLAN), INTENT(IN)   :: plan
-      REAL(KIND=GP), INTENT(OUT) :: var(plan%n,plan%n,plan%ksta:plan%kend)
+      REAL(KIND=GP), INTENT(OUT) :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
       INTEGER, INTENT(IN)        :: unit
       CHARACTER(len=100), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
@@ -74,7 +76,7 @@
       READ(unit) var
       CLOSE(unit)
       IF ( iswap.gt.0 ) THEN
-        CALL rarray_byte_swap(var,plan%n*plan%n*(plan%kend-plan%ksta+1))
+        CALL rarray_byte_swap(var,plan%nx*plan%ny*(plan%kend-plan%ksta+1))
       ENDIF
 
 
@@ -90,7 +92,7 @@
 ! an extension indicating the time.
 !
 ! Parameters
-!     unit    : file handler [INOUT]
+!     unit  : file handler [INOUT]
 !     dir   : directory in which the files are written [IN]
 !     fname : name of the field component [IN]
 !     nmb   : extension with the time label [IN]
@@ -103,9 +105,8 @@
       USE gutils
       IMPLICIT NONE
 
-      TYPE(IOPLAN), INTENT(IN)           :: plan
-      REAL(KIND=GP), INTENT(IN)          :: var(plan%n,plan%n,plan%ksta:plan%kend)
-
+      TYPE(IOPLAN), INTENT(IN)  :: plan
+      REAL(KIND=GP), INTENT(IN) :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
       INTEGER, INTENT(IN)       :: unit
       CHARACTER(len=100), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb

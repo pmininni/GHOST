@@ -8,8 +8,10 @@ import matplotlib.pyplot as plt
 path = '../../3D/bin/outs/'
 
 # Spatial resolution
-N = 128
-shape = (N,N,N)
+NX = 128
+NY = 128
+NZ = 128
+shape = (NX,NY,NZ)
 
 # Reads binary files
 vx = np.fromfile(path+'vx.0001.out',dtype=np.float32).reshape(shape,order='F')

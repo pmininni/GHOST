@@ -3,10 +3,10 @@
 /*
   cuwrappers.cu
 
-  CUDA wrappers. This includes those structures that allow the Fortran
+  CUDA wrappers. This includes those structures that allow Fortran
   to access C datatypes that might vary with different version of CUDA.
   There may be some overlap between these methods, and those in 
-  cuda_utilos.cu.
+  cuda_utils.cu.
 
   2013 D. Rosenberg & P. Mininni
        ORNL NCCS

@@ -29,7 +29,7 @@
       DOUBLE PRECISION    :: tratime = 0.0D0
       TYPE FFTPLAN
          INTEGER(kind=ikind) :: planr,planc
-         INTEGER :: n
+         INTEGER :: nx,ny,nz
          INTEGER, DIMENSION (:), POINTER :: itype1, itype2
       END TYPE FFTPLAN
       SAVE

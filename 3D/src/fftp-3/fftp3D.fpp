@@ -22,6 +22,7 @@
 ! 13 Feb 2007: Transposition uses strip mining (rreddy@psc.edu)
 ! 25 Aug 2009: Hybrid MPI/OpenMP support (D. Rosenberg & P. Mininni)
 ! 30 Aug 2009: SINGLE/DOUBLE precision (D. Rosenberg & P. Mininni)
+!  3 Jan 2017: Anisotropic boxes (P. Mininni)
 !
 ! References:
 ! Mininni PD, Gomez DO, Mahajan SM; Astrophys. J. 619, 1019 (2005)
@@ -64,8 +65,11 @@
 !              FFTW_FORWARD or FFTW_REAL_TO_COMPLEX (-1)
 !              FFTW_BACKWARD or FFTW_COMPLEX_TO_REAL (+1)
 !     flags  : flags for the FFTW [IN]
-!              FFTW_MEASURE (optimal but slower) or 
 !              FFTW_ESTIMATE (sub-optimal but faster)
+!              FFTW_MEASURE (optimal but slower to create plans)
+!              FFTW_PATIENT AND FFTW_EXHAUSTIVE are also available
+!              for extra performance, but may take a long time to
+!              create plans (specially when using OpenMP)
 !-----------------------------------------------------------------
 
       USE mpivars
@@ -73,30 +77,36 @@
 !$    USE threads
       IMPLICIT NONE
 
-      INTEGER, INTENT(IN) :: n
+      INTEGER, INTENT(IN) :: n(3)
       INTEGER, INTENT(IN) :: fftdir
       INTEGER, INTENT(IN) :: flags
       TYPE(FFTPLAN), INTENT(OUT) :: plan
 
-      ALLOCATE ( plan%ccarr(n,n,ista:iend)    )
-      ALLOCATE ( plan%carr(n/2+1,n,ksta:kend) )
-      ALLOCATE ( plan%rarr(n,n,ksta:kend)     )
+      ALLOCATE ( plan%ccarr(n(3),n(2),ista:iend)    )
+      ALLOCATE ( plan%carr(n(1)/2+1,n(2),ksta:kend) )
+      ALLOCATE ( plan%rarr(n(1),n(2),ksta:kend)     )
 !$    CALL GPMANGLE(plan_with_nthreads)(nth)
 
       IF (fftdir.eq.FFTW_REAL_TO_COMPLEX) THEN
-      CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/n,n/),kend-ksta+1,  &
-                              plan%rarr,(/n,n*(kend-ksta+1)/),1,n*n, &
-                              plan%carr,(/n/2+1,n*(kend-ksta+1)/),1, &
-                              n*(n/2+1),flags)
+      CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/n(1),n(2)/),    &
+                         kend-ksta+1,plan%rarr,                       &
+                         (/n(1),n(2)*(kend-ksta+1)/),1,n(1)*n(2),     &
+                         plan%carr,(/n(1)/2+1,n(2)*(kend-ksta+1)/),1, &
+                         (n(1)/2+1)*n(2),flags)
       ELSE
-      CALL GPMANGLE(plan_many_dft_c2r)(plan%planr,2,(/n,n/),kend-ksta+1,  &
-                         plan%carr,(/n/2+1,n*(kend-ksta+1)/),1,n*(n/2+1), &
-                         plan%rarr,(/n,n*(kend-ksta+1)/),1,n*n,flags)
+      CALL GPMANGLE(plan_many_dft_c2r)(plan%planr,2,(/n(1),n(2)/),    &
+                         kend-ksta+1,plan%carr,                       &
+                         (/n(1)/2+1,n(2)*(kend-ksta+1)/),1,           &
+                         (n(1)/2+1)*n(2),plan%rarr,                   &
+                         (/n(1),n(2)*(kend-ksta+1)/),1,n(1)*n(2),flags)
       ENDIF
-      CALL GPMANGLE(plan_many_dft)(plan%planc,1,n,n*(iend-ista+1), &
-                         plan%ccarr,n*n*(iend-ista+1),1,n,     &
-                         plan%ccarr,n*n*(iend-ista+1),1,n,fftdir,flags)
-      plan%n = n
+      CALL GPMANGLE(plan_many_dft)(plan%planc,1,n(3),n(2)*(iend-ista+1), &
+                         plan%ccarr,(iend-ista+1)*n(2)*n(3),1,n(3),      &
+                         plan%ccarr,(iend-ista+1)*n(2)*n(3),1,n(3),      &
+                         fftdir,flags)
+      plan%nx = n(1)
+      plan%ny = n(2)
+      plan%nz = n(3)
       ALLOCATE( plan%itype1(0:nprocs-1) )
       ALLOCATE( plan%itype2(0:nprocs-1) )
       CALL fftp3d_create_block(n,nprocs,myrank,plan%itype1, &
@@ -132,7 +142,6 @@
       END SUBROUTINE fftp3d_destroy_plan
 
 !*****************************************************************
-!*****************************************************************
       SUBROUTINE fftp3d_create_block(n,nprocs,myrank,itype1,itype2)
 !-----------------------------------------------------------------
 !
@@ -152,7 +161,7 @@
       IMPLICIT NONE
 
       INTEGER, INTENT(OUT), DIMENSION(0:nprocs-1) :: itype1,itype2
-      INTEGER, INTENT(IN) :: n,nprocs
+      INTEGER, INTENT(IN) :: n(3),nprocs
       INTEGER, INTENT(IN) :: myrank
 
       INTEGER :: ista,iend
@@ -160,18 +169,18 @@
       INTEGER :: irank,krank
       INTEGER :: itemp1,itemp2
 
-      CALL range(1,n,nprocs,myrank,ksta,kend)
+      CALL range(1,n(3),nprocs,myrank,ksta,kend)
       DO irank = 0,nprocs-1
-         CALL range(1,n/2+1,nprocs,irank,ista,iend)
-         CALL block3d(1,n/2+1,1,n,ksta,ista,iend,1,n,ksta, &
-                     kend,GC_COMPLEX,itemp1)
+         CALL range(1,n(1)/2+1,nprocs,irank,ista,iend)
+         CALL block3d(1,n(1)/2+1,1,n(2),ksta,ista,iend,1,n(2), &
+                     ksta,kend,GC_COMPLEX,itemp1)
          itype1(irank) = itemp1
       END DO
-      CALL range(1,n/2+1,nprocs,myrank,ista,iend)
+      CALL range(1,n(1)/2+1,nprocs,myrank,ista,iend)
       DO krank = 0,nprocs-1
-         CALL range(1,n,nprocs,krank,ksta,kend)
-         CALL block3d(ista,iend,1,n,1,ista,iend,1,n,ksta, &
-                     kend,GC_COMPLEX,itemp2)
+         CALL range(1,n(3),nprocs,krank,ksta,kend)
+         CALL block3d(ista,iend,1,n(2),1,ista,iend,1,n(2),     &
+                     ksta,kend,GC_COMPLEX,itemp2)
          itype2(krank) = itemp2
       END DO
 
@@ -203,9 +212,9 @@
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
 
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(plan%n,plan%n,ista:iend) :: out 
-      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%n,plan%n)              :: c1
-      REAL(KIND=GP), INTENT(IN), DIMENSION(plan%n,plan%n,ksta:kend)     :: in
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(plan%nz,plan%ny,ista:iend) :: out 
+      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%ny,plan%nz)          :: c1
+      REAL(KIND=GP), INTENT(IN), DIMENSION(plan%nx,plan%ny,ksta:kend) :: in
 
       INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
@@ -260,11 +269,11 @@
 !$omp parallel do if ((iend-ista)/csize.ge.nth) private (jj,kk,i,j,k)
       DO ii = ista,iend,csize
 !$omp parallel do if ((iend-ista)/csize.lt.nth) private (kk,i,j,k)
-         DO jj = 1,plan%n,csize
-            DO kk = 1,plan%n,csize
+         DO jj = 1,plan%ny,csize
+            DO kk = 1,plan%nz,csize
                DO i = ii,min(iend,ii+csize-1)
-               DO j = jj,min(plan%n,jj+csize-1)
-               DO k = kk,min(plan%n,kk+csize-1)
+               DO j = jj,min(plan%ny,jj+csize-1)
+               DO k = kk,min(plan%nz,kk+csize-1)
                   out(k,j,i) = c1(i,j,k)
                END DO
                END DO
@@ -313,9 +322,9 @@
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(plan%n,plan%n,ista:iend) :: in 
-      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%n,plan%n)             :: c1
-      REAL(KIND=GP), INTENT(OUT), DIMENSION(plan%n,plan%n,ksta:kend)   :: out
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(plan%nz,plan%ny,ista:iend) :: in 
+      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%ny,plan%nz)           :: c1
+      REAL(KIND=GP), INTENT(OUT), DIMENSION(plan%nx,plan%ny,ksta:kend) :: out
 
       DOUBLE PRECISION                    :: t0, t1
 
@@ -343,11 +352,11 @@
 !$omp parallel do if ((iend-ista)/csize.ge.nth) private (jj,kk,i,j,k)
       DO ii = ista,iend,csize
 !$omp parallel do if ((iend-ista)/csize.lt.nth) private (kk,i,j,k)
-         DO jj = 1,plan%n,csize
-            DO kk = 1,plan%n,csize
+         DO jj = 1,plan%ny,csize
+            DO kk = 1,plan%nz,csize
                DO i = ii,min(iend,ii+csize-1)
-               DO j = jj,min(plan%n,jj+csize-1)
-               DO k = kk,min(plan%n,kk+csize-1)
+               DO j = jj,min(plan%ny,jj+csize-1)
+               DO k = kk,min(plan%nz,kk+csize-1)
                   c1(i,j,k) = in(k,j,i)
                END DO
                END DO

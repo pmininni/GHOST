@@ -31,25 +31,24 @@
       USE gtimer
       IMPLICIT NONE
 
-      INTEGER, INTENT(IN)   :: myrank,n
+      INTEGER, INTENT(IN)   :: myrank,n(3)
       INTEGER, INTENT(IN)   :: ksta,kend
-      INTEGER, DIMENSION(3) :: sizes,subsizes,starts
+      INTEGER, DIMENSION(3) :: subsizes,starts
       TYPE(IOPLAN), INTENT(OUT) :: plan
 
-      plan%n = n
+      plan%nx = n(1)
+      plan%ny = n(2)
+      plan%nz = n(3)
       plan%ksta = ksta
       plan%kend = kend
 
-      sizes(1) = n
-      sizes(2) = n
-      sizes(3) = n
-      subsizes(1) = n
-      subsizes(2) = n
+      subsizes(1) = n(1)
+      subsizes(2) = n(2)
       subsizes(3) = kend-ksta+1
       starts(1) = 0
       starts(2) = 0
       starts(3) = ksta-1
-      CALL MPI_TYPE_CREATE_SUBARRAY(3,sizes,subsizes,starts, &
+      CALL MPI_TYPE_CREATE_SUBARRAY(3,n,subsizes,starts, &
            MPI_ORDER_FORTRAN,GC_REAL,plan%iotype,ioerr)
       CALL MPI_TYPE_COMMIT(plan%iotype,ioerr)
       CALL GTStart(ihopen ,GT_CPUTIME)
@@ -86,8 +85,8 @@
       USE gutils
       IMPLICIT NONE
       
-      TYPE(IOPLAN),INTENT  (IN)            :: plan
-      REAL(KIND=GP),INTENT(OUT)           :: var(plan%n,plan%n,plan%ksta:plan%kend)
+      TYPE(IOPLAN),INTENT  (IN)      :: plan
+      REAL(KIND=GP),INTENT(OUT) :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
       INTEGER, INTENT(IN)            :: unit
       INTEGER                        :: fh
       CHARACTER(len=100), INTENT(IN) :: dir
@@ -99,17 +98,18 @@
       CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname // &
           '.' // nmb // '.out',MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
       IF ( ioerr.NE.MPI_SUCCESS ) THEN
-        WRITE(*,*)': io_read: cannot open file for reading: ', trim(dir) // '/' // fname // &
-          '.' // nmb // '.out'
-        STOP
+         WRITE(*,*)': io_read: cannot open file for reading: ',      &
+              trim(dir) // '/' // fname // '.' // nmb // '.out'
+         STOP
       ENDIF
       ELSE
 
       CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname  &
                         ,MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
       IF ( ioerr.NE.MPI_SUCCESS ) THEN
-        WRITE(*,*)': io_read: cannot open file for reading: ', trim(dir) // '/' // fname 
-        STOP
+         WRITE(*,*)': io_read: cannot open file for reading: ',    &
+              trim(dir) // '/' // fname 
+         STOP
       ENDIF
       ENDIF
       CALL GTStop(ihopen)
@@ -118,13 +118,13 @@ if (myrank.eq.0) write(*,*)' io_read: read open time:',GTGetTime(ihopen)
       CALL MPI_FILE_SET_VIEW(fh,disp,GC_REAL,plan%iotype,'native', &
           MPI_INFO_NULL,ioerr)
       CALL MPI_FILE_READ_ALL(fh,var, &
-          plan%n*plan%n*(plan%kend-plan%ksta+1),GC_REAL, &
+          plan%nx*plan%ny*(plan%kend-plan%ksta+1),GC_REAL,         &
           MPI_STATUS_IGNORE,ioerr)
       CALL MPI_FILE_CLOSE(fh,ioerr)
       CALL GTStop(ihread)
 if (myrank.eq.0) write(*,*)' io_read: read time:',GTGetTime(ihread)
       IF ( iswap.gt.0 ) THEN
-        CALL rarray_byte_swap(var,plan%n*plan%n*(plan%kend-plan%ksta+1))
+        CALL rarray_byte_swap(var,plan%nx*plan%ny*(plan%kend-plan%ksta+1))
       ENDIF
 
       RETURN
@@ -156,8 +156,8 @@ if (myrank.eq.0) write(*,*)' io_read: read time:',GTGetTime(ihread)
       USE gutils
       IMPLICIT NONE
 
-      TYPE(IOPLAN), INTENT(IN)            :: plan
-      REAL(KIND=GP), INTENT(INOUT)        :: var(plan%n,plan%n,plan%ksta:plan%kend)
+      TYPE(IOPLAN), INTENT(IN)       :: plan
+      REAL(KIND=GP), INTENT(INOUT) :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
       INTEGER, INTENT(IN)            :: unit
       INTEGER                        :: fh
       CHARACTER(len=100), INTENT(IN) :: dir
@@ -167,10 +167,10 @@ if (myrank.eq.0) write(*,*)' io_read: read time:',GTGetTime(ihread)
       CALL GTStart(ihopen)
       IF ( bmangle.EQ.1 ) THEN
       CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname // &
-          '.' // nmb // '.out',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
+          '.' // nmb // '.out',MPI_MODE_CREATE+MPI_MODE_WRONLY,      &
           MPI_INFO_NULL,fh,ioerr)
       ELSE
-      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,fname  &
+      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,fname            &
                         ,MPI_MODE_CREATE+MPI_MODE_WRONLY &
                         ,MPI_INFO_NULL,fh,ioerr)
       ENDIF
@@ -179,17 +179,15 @@ if (myrank.eq.0) write(*,*)' io_read: read time:',GTGetTime(ihread)
       CALL MPI_FILE_SET_VIEW(fh,disp,GC_REAL,plan%iotype,'native', &
           MPI_INFO_NULL,ioerr)
 if (myrank.eq.0) write(*,*)' io_write: write open time:',GTGetTime(ihopen)
-      CALL MPI_FILE_WRITE_ALL(fh,var, &
-          plan%n*plan%n*(plan%kend-plan%ksta+1),GC_REAL, &
+      CALL MPI_FILE_WRITE_ALL(fh,var,                      &
+          plan%nx*plan%ny*(plan%kend-plan%ksta+1),GC_REAL, &
           MPI_STATUS_IGNORE,ioerr)
       CALL MPI_FILE_CLOSE(fh,ioerr)
       CALL GTStop(ihwrite)
 if (myrank.eq.0) write(*,*)' io_write: write time:',GTGetTime(ihread)
 
-
       RETURN
       END SUBROUTINE io_write
-
 
 !*****************************************************************
       SUBROUTINE io_initc(myrank,n,ksta,kend,plan)
@@ -202,6 +200,8 @@ if (myrank.eq.0) write(*,*)' io_write: write time:',GTGetTime(ihread)
 ! Parameters
 !     myrank: the rank of the processor [IN]
 !     n     : the size of the dimensions of the input array [IN]
+!             For Fourier transforms of real fields, this should
+!             be a vector (nz,ny,nx/2+1)       
 !     ksta  : start value of the block in the third dimension [IN]
 !     kend  : end value of the block in the third dimension [IN]
 !     plan  : contains the I/O plan [OUT]
@@ -212,25 +212,24 @@ if (myrank.eq.0) write(*,*)' io_write: write time:',GTGetTime(ihread)
       USE iompi
       IMPLICIT NONE
 
-      INTEGER, INTENT(IN)   :: myrank,n
+      INTEGER, INTENT(IN)   :: myrank,n(3)
       INTEGER, INTENT(IN)   :: ksta,kend
-      INTEGER, DIMENSION(3) :: sizes,subsizes,starts
+      INTEGER, DIMENSION(3) :: subsizes,starts
       TYPE(IOPLAN), INTENT(OUT) :: plan
 
-      plan%n = n
+      plan%nx = n(1)
+      plan%ny = n(2)
+      plan%nz = n(3)
       plan%ksta = ksta
       plan%kend = kend
 
-      sizes(1) = n
-      sizes(2) = n
-      sizes(3) = n
-      subsizes(1) = n
-      subsizes(2) = n
+      subsizes(1) = n(1)
+      subsizes(2) = n(2)
       subsizes(3) = kend-ksta+1
       starts(1) = 0
       starts(2) = 0
       starts(3) = ksta-1
-      CALL MPI_TYPE_CREATE_SUBARRAY(3,sizes,subsizes,starts, &
+      CALL MPI_TYPE_CREATE_SUBARRAY(3,n,subsizes,starts, &
            MPI_ORDER_FORTRAN,GC_COMPLEX,plan%iotype,ioerr)
       CALL MPI_TYPE_COMMIT(plan%iotype,ioerr)
 
@@ -260,26 +259,26 @@ if (myrank.eq.0) write(*,*)' io_write: write time:',GTGetTime(ihread)
       USE iompi
       IMPLICIT NONE
       
-      TYPE(IOPLAN), INTENT(IN)   :: plan
-      COMPLEX(KIND=GP), INTENT(OUT) :: var(plan%n,plan%n,plan%ksta:plan%kend)
-      INTEGER, INTENT(IN)        :: unit
-      INTEGER                    :: fh
+      TYPE(IOPLAN), INTENT(IN)       :: plan
+      COMPLEX(KIND=GP), INTENT(OUT) :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
+      INTEGER, INTENT(IN)            :: unit
+      INTEGER                        :: fh
       CHARACTER(len=100), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname
 
       IF ( bmangle.EQ.1 ) THEN
-      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname // &
+      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname //  &
           '.' // nmb // '.out',MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
       ELSE
 
-      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname  &
+      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname     &
                         ,MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
       ENDIF
       CALL MPI_FILE_SET_VIEW(fh,disp,GC_COMPLEX,plan%iotype,'native', &
           MPI_INFO_NULL,ioerr)
-      CALL MPI_FILE_READ_ALL(fh,var, &
-          plan%n*plan%n*(plan%kend-plan%ksta+1),GC_COMPLEX, &
+      CALL MPI_FILE_READ_ALL(fh,var,                           &
+          plan%nx*plan%ny*(plan%kend-plan%ksta+1),GC_COMPLEX,  &
           MPI_STATUS_IGNORE,ioerr)
       CALL MPI_FILE_CLOSE(fh,ioerr)
 
@@ -308,29 +307,30 @@ if (myrank.eq.0) write(*,*)' io_write: write time:',GTGetTime(ihread)
       USE iompi
       IMPLICIT NONE
 
-      TYPE(IOPLAN), INTENT(IN)  :: plan
-      COMPLEX(KIND=GP), INTENT(IN) :: var(plan%n,plan%n,plan%ksta:plan%kend)
-      INTEGER, INTENT(IN)       :: unit
-      INTEGER                   :: fh
+      TYPE(IOPLAN), INTENT(IN)       :: plan
+      COMPLEX(KIND=GP), INTENT(IN) :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
+      INTEGER, INTENT(IN)            :: unit
+      INTEGER                        :: fh
       CHARACTER(len=100), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname
 
       IF ( bmangle.EQ.1 ) THEN
-      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname // &
-          '.' // nmb // '.out',MPI_MODE_CREATE+MPI_MODE_WRONLY, &
+      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname //  &
+          '.' // nmb // '.out',MPI_MODE_CREATE+MPI_MODE_WRONLY,       &
           MPI_INFO_NULL,fh,ioerr)
       ELSE
-      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname  &
+      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname     &
                         ,MPI_MODE_CREATE+MPI_MODE_WRONLY &
                         ,MPI_INFO_NULL,fh,ioerr)
       ENDIF
       CALL MPI_FILE_SET_VIEW(fh,disp,GC_COMPLEX,plan%iotype,'native', &
           MPI_INFO_NULL,ioerr)
-      CALL MPI_FILE_WRITE_ALL(fh,var, &
-          plan%n*plan%n*(plan%kend-plan%ksta+1),GC_COMPLEX, &
+      CALL MPI_FILE_WRITE_ALL(fh,var,                         &
+          plan%nx*plan%ny*(plan%kend-plan%ksta+1),GC_COMPLEX, &
           MPI_STATUS_IGNORE,ioerr)
       CALL MPI_FILE_CLOSE(fh,ioerr)
 
       RETURN
       END SUBROUTINE io_writec
+    

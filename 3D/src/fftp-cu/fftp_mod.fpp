@@ -40,10 +40,13 @@
          COMPLEX(KIND=GP), POINTER, DIMENSION (:,:,:)  :: ccarrt
          COMPLEX(KIND=GP), POINTER, DIMENSION (:,:,:)  :: carr
          REAL   (KIND=GP), POINTER, DIMENSION (:,:,:)  :: rarr
-         TYPE     (C_PTR)                              :: cu_ccd_,cu_ccd1_,cu_cd_,cu_rd_
-         TYPE     (C_PTR)                              :: pccarr_,pcarr_,prarr_
-         INTEGER  (C_INT)                              :: icuplanr_,icuplanc_
-         INTEGER                                       :: n
+         TYPE     (C_PTR)                              :: cu_ccd_,cu_ccd1_
+         TYPE     (C_PTR)                              :: cu_cd_,cu_rd_
+         TYPE     (C_PTR)                              :: pccarr_,pcarr_
+         TYPE     (C_PTR)                              :: prarr_
+         INTEGER  (C_INT)                              :: icuplanr_
+         INTEGER  (C_INT)                              :: icuplanc_
+         INTEGER                                       :: nx,ny,nz
          INTEGER(C_SIZE_T)                             :: szccd_,szcd_,szrd_
          INTEGER, DIMENSION (:), POINTER               :: itype1,itype2
       END TYPE FFTPLAN

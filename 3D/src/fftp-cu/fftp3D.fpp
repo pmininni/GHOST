@@ -49,7 +49,7 @@
  
       IMPLICIT NONE
 
-      INTEGER, INTENT(IN) :: n
+      INTEGER, INTENT(IN) :: n(3)
       INTEGER, INTENT(IN) :: fftdir
       INTEGER, INTENT(IN) :: flags
       TYPE(FFTPLAN), INTENT(OUT) :: plan
@@ -61,9 +61,9 @@
       INTEGER             :: iplan
 
 
-      plan%szccd_= max(2* n     *n*(iend-ista+1)*GFLOATBYTESZ,GFLOATBYTESZ)
-      plan%szcd_ = max(2*(n/2+1)*n*(kend-ksta+1)*GFLOATBYTESZ,GFLOATBYTESZ)
-      plan%szrd_ = max(   n     *n*(kend-ksta+1)*GFLOATBYTESZ,GFLOATBYTESZ)
+      plan%szccd_= max(2* n(3)     *n(2)*(iend-ista+1)*GFLOATBYTESZ,GFLOATBYTESZ)
+      plan%szcd_ = max(2*(n(1)/2+1)*n(2)*(kend-ksta+1)*GFLOATBYTESZ,GFLOATBYTESZ)
+      plan%szrd_ = max(   n(1)     *n(2)*(kend-ksta+1)*GFLOATBYTESZ,GFLOATBYTESZ)
 
       iret = cudaHostAlloc ( plan%pccarr_, plan%szccd_, cudaHostAllocPortable) 
       IF ( iret.ne.cudaSuccess ) THEN
@@ -82,10 +82,10 @@
         stop
       ENDIF
 
-      CALL c_f_pointer ( plan%pccarr_ , plan%ccarr , (/n          ,n,iend-ista+1/) )
-      CALL c_f_pointer ( plan%pccarr_ , plan%ccarrt, (/iend-ista+1,n,n          /) )
-      CALL c_f_pointer ( plan%pcarr_  , plan%carr  , (/n/2+1      ,n,kend-ksta+1/) )
-      CALL c_f_pointer ( plan%prarr_  , plan%rarr  , (/n          ,n,kend-ksta+1/) )
+      CALL c_f_pointer(plan%pccarr_,plan%ccarr ,(/n(3)       ,n(2),iend-ista+1/))
+      CALL c_f_pointer(plan%pccarr_,plan%ccarrt,(/iend-ista+1,n(2),n(3)       /))
+      CALL c_f_pointer(plan%pcarr_ ,plan%carr  ,(/n(1)/2+1   ,n(2),kend-ksta+1/))
+      CALL c_f_pointer(plan%prarr_ ,plan%rarr  ,(/n(1)       ,n(2),kend-ksta+1/))
 
 
       iret = cudaMalloc(plan%cu_ccd_ , plan%szccd_)
@@ -94,71 +94,54 @@
 #endif
       iret = cudaMalloc(plan%cu_cd_  , plan%szcd_ )
       iret = cudaMalloc(plan%cu_rd_  , plan%szrd_ )
+
       IF (fftdir.eq.FFTCU_REAL_TO_COMPLEX) THEN
         nrank= 2
-        na      (1) = n            ; na      (2) = n              ;
-        pinembed(1) = n            ; pinembed(2) = n*(kend-ksta+1);            
-        istr        = 1            ; idist       = n*n            ;
-        ponembed(1) = n/2+1        ; ponembed(2) = n*(kend-ksta+1);            
-        ostr        = 1            ; odist       = n*(n/2+1)      ;
+        na      (1) = n(1)         ; na      (2) = n(2)              ;
+        pinembed(1) = n(1)         ; pinembed(2) = n(2)*(kend-ksta+1);            
+        istr        = 1            ; idist       = n(1)*n(2)         ;
+        ponembed(1) = n(1)/2+1     ; ponembed(2) = n(2)*(kend-ksta+1);            
+        ostr        = 1            ; odist       = n(2)*(n(1)/2+1)   ;
         iret = cufftPlanMany(plan%icuplanr_,nrank,na,pinembed,istr,idist,&
                              ponembed,ostr,odist,GCUFFTDEFR2C,kend-ksta+1);
         IF ( iret.ne.CUFFT_SUCCESS ) THEN
           write(*,*)'fftp3d_create_plan: cufftPlanMany::icuplanr::r2c failed: iret=',iret
           stop
         ENDIF
-
- 
-!       iret = cufftPlan1d(plan%icuplanc_,n,CUFFT_C2C,1)
-!
-        IF ( iret.ne.CUFFT_SUCCESS) THEN
-          write(*,*) myrank, ': fftp3d_create_plan: cufftPlanMany::icuplanc::r2c failed: iret=',iret
-          write(*,*) myrank,': na=',na(1),' pinembed=',pinembed(1),' ponembed=',ponembed(1)
-          write(*,*) myrank,': istr=',istr,' idist=',idist,' ostr=',ostr,' odist=',odist
-          stop
-        ENDIF
       ELSE
         nrank= 2;
-        na      (1) = n            ; na      (2) = n              ;
-        pinembed(1) = n/2+1        ; pinembed(2) = n*(kend-ksta+1);
-        istr        = 1            ; idist       = n*(n/2+1)      ;
-        ponembed(1) = n            ; ponembed(2) = n*(kend-ksta+1);
-        ostr        = 1            ; odist       = n*n            ; 
+        na      (1) = n(1)         ; na      (2) = n(2)              ;
+        pinembed(1) = n(1)/2+1     ; pinembed(2) = n(2)*(kend-ksta+1);
+        istr        = 1            ; idist       = n(2)*(n(1)/2+1)   ;
+        ponembed(1) = n(1)         ; ponembed(2) = n(2)*(kend-ksta+1);
+        ostr        = 1            ; odist       = n(1)*n(2)         ; 
         iret = cufftPlanMany(plan%icuplanr_,nrank,na,pinembed,istr,idist,&
                              ponembed,ostr,odist,GCUFFTDEFC2R,kend-ksta+1);
         IF ( iret.ne.CUFFT_SUCCESS) THEN
           write(*,*)'fftp3d_create_plan: cufftPlanMany::icuplanr::c2r failed: iret=',iret
           stop
         ENDIF
-        nrank       = 1
       ENDIF
-!     na      (1) = n                ; 
-!     pinembed(1) = max(n*n*(iend-ista+1),0);
-!     istr        = 1                ; idist       = n           ;
-!     ponembed(1) = max(n*n*(iend-ista+1),0); 
-!     ostr        = 1                ; odist       = n           ; 
-!     iret = cufftPlanMany(plan%icuplanc_,nrank,na,pinembed,istr,idist,&
-!                          ponembed,ostr,odist,CUFFT_C2C,max(n*(iend-ista+1),1));
-!
-!     iret = cufftPlan1d(plan%icuplanc_,n,CUFFT_C2C,1)
-
       nrank       = 1
-      na      (1) = n                ; 
-      pinembed(1) = max(n*n*(iend-ista+1),1);
-      istr        = 1                ; idist       = n ;
-      ponembed(1) = max(n*n*(iend-ista+1),1); 
-      ostr        = 1                ; odist       = n ; 
+      na      (1) = n(3)                          ;
+      pinembed(1) = max(n(3)*n(2)*(iend-ista+1),1);
+      istr        = 1                             ; idist      = n(3);
+      ponembed(1) = max(n(3)*n(2)*(iend-ista+1),1);
+      ostr        = 1                             ; odist      = n(3);
       iret = cufftPlanMany(plan%icuplanc_,nrank,na,pinembed,istr,idist,&
-                           ponembed,ostr,odist,GCUFFTDEFC2C,max(n*(iend-ista+1),1));
+                           ponembed,ostr,odist,GCUFFTDEFC2C,max(n(2)*(iend-ista+1),1));
       IF ( iret.ne.CUFFT_SUCCESS) THEN
-        write(*,*)myrank,': fftp3d_create_plan: cufftPlanMany::icuplanc::c2r failed: iret=',iret,&
+        write(*,*)myrank,': fftp3d_create_plan: cufftPlanMany::icuplanc::c2r failed: iret=', &
+                 iret,                                                           &
                  ' na=',na(1),' pinembed=',pinembed(1),' ponembed=',ponembed(1), &
                  ' istr=',istr,' idist=',idist,' ostr=',ostr,' odist=',odist   , &
                  ' ista=',ista,' iend=',iend
         stop
       ENDIF
-      plan%n = n
       
+      plan%nx = nx
+      plan%ny = ny
+      plan%nz = nz
       ALLOCATE( plan%itype1(0:nprocs-1) )
       ALLOCATE( plan%itype2(0:nprocs-1) )
       CALL fftp3d_create_block(n,nprocs,myrank,plan%itype1, &
@@ -227,7 +210,7 @@
       IMPLICIT NONE
 
       INTEGER, INTENT(OUT), DIMENSION(0:nprocs-1) :: itype1,itype2
-      INTEGER, INTENT(IN) :: n,nprocs
+      INTEGER, INTENT(IN) :: n(3),nprocs
       INTEGER, INTENT(IN) :: myrank
 
       INTEGER :: ista,iend
@@ -235,18 +218,18 @@
       INTEGER :: irank,krank
       INTEGER :: itemp1,itemp2
 
-      CALL range(1,n,nprocs,myrank,ksta,kend)
+      CALL range(1,n(3),nprocs,myrank,ksta,kend)
       DO irank = 0,nprocs-1
-         CALL range(1,n/2+1,nprocs,irank,ista,iend)
-         CALL block3d(1,n/2+1,1,n,ksta,ista,iend,1,n,ksta, &
-                     kend,GC_COMPLEX,itemp1)
+         CALL range(1,n(1)/2+1,nprocs,irank,ista,iend)
+         CALL block3d(1,n(1)/2+1,1,n(2),ksta,ista,iend,1,n(2), &
+                     ksta,kend,GC_COMPLEX,itemp1)
          itype1(irank) = itemp1
       END DO
-      CALL range(1,n/2+1,nprocs,myrank,ista,iend)
+      CALL range(1,n(1)/2+1,nprocs,myrank,ista,iend)
       DO krank = 0,nprocs-1
-         CALL range(1,n,nprocs,krank,ksta,kend)
-         CALL block3d(ista,iend,1,n,1,ista,iend,1,n,ksta, &
-                     kend,GC_COMPLEX,itemp2)
+         CALL range(1,n(3),nprocs,krank,ksta,kend)
+         CALL block3d(ista,iend,1,n(2),1,ista,iend,1,n(2),     &
+                     ksta,kend,GC_COMPLEX,itemp2)
          itype2(krank) = itemp2
       END DO
 
@@ -280,9 +263,9 @@
       IMPLICIT NONE
 
       TYPE(FFTPLAN)   , INTENT (IN)                                     :: plan
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(plan%n,plan%n,ista:iend) :: out 
-      COMPLEX(KIND=GP), TARGET , DIMENSION(ista:iend,plan%n,plan%n)     :: c1
-      REAL(KIND=GP), INTENT(IN), DIMENSION(plan%n,plan%n,ksta:kend)     :: in
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(plan%nz,plan%ny,ista:iend) :: out 
+      COMPLEX(KIND=GP), TARGET , DIMENSION(ista:iend,plan%ny,plan%nz)   :: c1
+      REAL(KIND=GP), INTENT(IN), DIMENSION(plan%nx,plan%ny,ksta:kend)   :: in
       TYPE(C_PTR)                                                       :: pc1
 
       INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
@@ -359,11 +342,11 @@
 !
 #if defined(GGPU_TRA)
 !$omp parallel do  private (i,j)
-      DO k = 1,plan%n
-        DO j = 1,plan%n
+      DO k = 1,plan%nz
+        DO j = 1,plan%ny
           DO i = ista,iend
-            !Recall that ccarrt is dimensioned (n,n,ista:iend), starting
-            ! at (1,1,1):
+            !Recall that ccarrt is dimensioned (ista:iend,ny,nz), starting
+            !at (1,1,1):
             plan%ccarrt(i-ista+1,j,k) = c1(i,j,k)
           END DO
         END DO
@@ -378,7 +361,7 @@
 
 !
       CALL GTStart(htra)
-      CALL cuTranspose3C(plan%cu_ccd_,plan%cu_ccd1_, (iend-ista+1), plan%n,plan%n)
+      CALL cuTranspose3C(plan%cu_ccd_,plan%cu_ccd1_, (iend-ista+1), plan%ny, plan%nz)
       CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
 #else
 
@@ -386,12 +369,13 @@
 !$omp parallel do if ((iend-ista)/csize.ge.nth) private (jj,kk,i,j,k)
        DO ii = ista,iend,csize
 !$omp parallel do if ((iend-ista)/csize.lt.nth) private (kk,i,j,k)
-          DO jj = 1,plan%n,csize
-             DO kk = 1,plan%n,csize
+          DO jj = 1,plan%ny,csize
+             DO kk = 1,plan%nz,csize
                 DO i = ii,min(iend,ii+csize-1)
-                DO j = jj,min(plan%n,jj+csize-1)
-                DO k = kk,min(plan%n,kk+csize-1)
-                  !Recall that ccarr is dimensioned (:,:), starting at (1,1):
+                DO j = jj,min(plan%ny,jj+csize-1)
+                DO k = kk,min(plan%nz,kk+csize-1)
+                   !Recall that ccarr is dimensioned (nz,ny,ista:iend),
+                   !starting at (1,1,1):
                    plan%ccarr(k,j,i-ista+1) = c1(i,j,k)
                 END DO
                 END DO
@@ -465,9 +449,9 @@
       IMPLICIT NONE
 
       TYPE(FFTPLAN)   , INTENT(IN)                                     :: plan
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(plan%n,plan%n,ista:iend) :: in 
-      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%n,plan%n)             :: c1
-      REAL(KIND=GP), INTENT(OUT), DIMENSION(plan%n,plan%n,ksta:kend)   :: out
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(plan%nz,plan%ny,ista:iend) :: in 
+      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%ny,plan%nz)           :: c1
+      REAL(KIND=GP), INTENT(OUT), DIMENSION(plan%nx,plan%ny,ksta:kend) :: out
 
 
       INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
@@ -507,7 +491,7 @@
 
 #if defined(GGPU_TRA)
       CALL GTStart(htra)
-      CALL cuTranspose3C(plan%cu_ccd1_,plan%cu_ccd_,plan%n,plan%n,iend-ista+1)
+      CALL cuTranspose3C(plan%cu_ccd1_,plan%cu_ccd_,plan%nz,plan%ny,iend-ista+1)
       CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
 
       CALL GTStart(hmem);
@@ -521,10 +505,9 @@
 !$omp parallel do if ((iend-ista)/csize.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if ((iend-ista)/csize.lt.nth) private (k)
-         DO j = 1,plan%n
-            DO k = 1,plan%n
-!           plan%ccarrt(i-ista+1,j,k) = c1(i,j,k)
-              c1(i,j,k) = plan%ccarrt(i-ista+1,j,k)
+         DO j = 1,plan%ny
+            DO k = 1,plan%nz
+               c1(i,j,k) = plan%ccarrt(i-ista+1,j,k)
             END DO
          END DO
       END DO
@@ -543,12 +526,13 @@
 !$omp parallel do if ((iend-ista)/csize.ge.nth) private (jj,kk,i,j,k)
       DO ii = ista,iend,csize
 !$omp parallel do if ((iend-ista)/csize.lt.nth) private (kk,i,j,k)
-         DO jj = 1,plan%n,csize
-            DO kk = 1,plan%n,csize
+         DO jj = 1,plan%ny,csize
+            DO kk = 1,plan%nz,csize
                DO i = ii,min(iend,ii+csize-1)
-               DO j = jj,min(plan%n,jj+csize-1)
-               DO k = kk,min(plan%n,kk+csize-1)
-                 !ReCALL that ccarr is dimensioned (:,:,:), starting at (1,1,1):
+               DO j = jj,min(plan%ny,jj+csize-1)
+               DO k = kk,min(plan%nz,kk+csize-1)
+                  !Recall that ccarr is dimensioned (nz,ny,ista:iend),
+                  !starting at (1,1,1):
                   c1(i,j,k) = plan%ccarr(k,j,i-ista+1)
                END DO
                END DO
