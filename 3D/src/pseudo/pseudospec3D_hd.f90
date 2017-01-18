@@ -38,7 +38,7 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend)  :: a
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: b
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
@@ -103,7 +103,7 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend)  :: a
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: b
       INTEGER :: i,j,k
 
@@ -116,7 +116,7 @@
             END DO
          END DO
       END DO
-
+      
       RETURN
       END SUBROUTINE laplak3
 
@@ -143,7 +143,7 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend)  :: a,b
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: c
       COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: c1,c2
       INTEGER, INTENT(IN) :: dir
@@ -223,7 +223,7 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend)  :: a,b,c
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: d,e,f
       COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: c1,c2
       COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: c3,c4
@@ -335,7 +335,7 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: d,e,f
       REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)    :: r1,r2
       REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)    :: r3,r4
@@ -422,7 +422,7 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend)  :: a,b,c
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: g
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
@@ -986,6 +986,11 @@
 ! Consistency check for the conservation of energy, 
 ! helicity, and null divergency of the velocity field
 !
+! Output files contain:
+! 'balance.txt':  time, <v^2>, <omega^2>, mechanic injection rate
+! 'helicity.txt': time, kinetic helicity
+! 'divergence.txt' [OPTIONAL]: time, <(div.v)^2>
+!
 ! Parameters
 !     a  : velocity field in the x-direction
 !     b  : velocity field in the y-direction
@@ -1105,6 +1110,14 @@
 ! Computes the energy and helicity power 
 ! spectrum. The output is written to a 
 ! file by the first node.
+!
+! Output files contain:
+! 'kspectrum.XXX.txt': k, Ev(k)
+! 'mspectrum.XXX.txt': k, Eb(k)
+! 'khelicity.XXX.txt': k, Hv(k) (kinetic helicity spectrum)
+! 'mhelicity.XXX.txt': k, Hb(k) (magnetic helicity spectrum)
+! 'mhelicity.XXX.txt': k, Hb(k) (magnetic helicity spectrum)
+! 'ghelicity.XXX.txt': k, G(k)   (generalized helicity in Hall-MHD)
 !
 ! Parameters
 !     a  : input matrix in the x-direction
@@ -1410,6 +1423,10 @@
 ! k_dir=(0,...,nmax/2)*dk. The output is written to a file
 ! by the first node.
 !
+! Output files contain:
+! 'kspec1dIJ.XXX.txt' [I=x,y,z (field component)][J=x,y,z (dir)]:
+!     k_dir, E_comp(k_dir)
+!
 ! Parameters
 !     a  : input matrix with a field component
 !     nmb: the extension used when writting the file
@@ -1610,6 +1627,13 @@
 ! in Fourier space in 3D. The output is written to 
 ! a file by the first node.
 !
+! Output files contain:
+! 'ktransfer.XXX.txt': k, Tv(k) (kinetic energy transfer function)
+! 'mtransfer.XXX.txt': k, Tb(k) (magnetic energy transfer)
+! 'jtransfer.XXX.txt': k, Tj(k) (Lorentz force work)
+! 'kcrostran.XXX.txt': k, TC_v(k) (kinetic cross-helicity transfer)
+! 'mcrostran.XXX.txt': k, TC_b(k) (magnetic cross-helicity transfer)
+!
 ! Parameters
 !     a  : field component in the x-direction
 !     b  : field component in the y-direction
@@ -1794,6 +1818,10 @@
 ! Computes the helicity transfer in Fourier 
 ! space in 3D. The output is written to a 
 ! file by the first node.
+!
+! Output files contain:
+! 'hktransfer.XXX.txt': k, TH_v(k) (transfer of kinetic helicity)
+! 'hmtransfer.XXX.txt': k, TH_b(k) (transfer of magnetic helicity)
 !
 ! Parameters
 !     a  : field component in the x-direction (v or a)

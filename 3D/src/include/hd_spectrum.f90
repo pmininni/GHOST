@@ -1,6 +1,7 @@
 ! Spectra computed in HD runs
 
             CALL spectrum(vx,vy,vz,ext,1,1)
+
 ! Uncomment the following lines to compute 1D spectra
 !           CALL spectr1d(vx,ext,1,1)
 !           CALL spectr1d(vy,ext,2,1)

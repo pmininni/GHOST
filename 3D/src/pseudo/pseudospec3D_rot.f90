@@ -27,9 +27,20 @@
 !
 ! Computes the reduced energy and helicity power spectrum 
 ! in the direction parallel to the preferred direction 
-! (rotation or uniform magnetic field). As a result, the 
-! k-shells are planes with normal (0,0,kz) (kz=0,...,n/2). 
+! (rotation, gravity, or uniform magnetic field, assumed
+! to be in the z-direction). As a result, the k-shells
+! are planes with normal (0,0,kz), kz = Dkz*(0,...,nz/2). 
 ! The output is written to a file by the first node.
+!
+! Output files contain:
+! 'kspecpara.XXX.txt': kz, Ev(kz), Ev_perp(kz), Ev_z(kz)
+!   [Ev: kinetic energy; Ev_perp: energy in vx,vy; Ev_z: same in vz]        
+! 'mspecpara.XXX.txt': kz, Eb(kz), Eb_perp(kz), Eb_z(kz)
+! 'khelipara.XXX.txt': kz, Hv(kz), Hv_perp(kz), Hv_z(kz)
+!   [Hv: kinetic helicity; Hv_perp: v_perp.w_perp, Hv_z: vz.wz]
+! 'mhelipara.XXX.txt': kz, Hb(kz), Hb_perp(kz), Hb_z(kz)
+! 'ghelipara.XXX.txt': kz, G(kz)  ,G_perp(kz) , G_z(kz) 
+!   [Generalized helicity in Hall-MHD]
 !
 ! Parameters
 !     a  : input matrix in the x-direction
@@ -48,15 +59,16 @@
       USE grid
       USE mpivars
       USE filefmt
+      USE boxsize
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
-      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ekh,Ekhtot
-      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ekv,Ekvtot
+      DOUBLE PRECISION, DIMENSION(nz/2+1) :: Ek,Ektot
+      DOUBLE PRECISION, DIMENSION(nz/2+1) :: Ekh,Ekhtot
+      DOUBLE PRECISION, DIMENSION(nz/2+1) :: Ekv,Ekvtot
       DOUBLE PRECISION    :: tmq,tmr
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
       REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin,hel
       INTEGER             :: i,j,k
@@ -66,7 +78,7 @@
 !
 ! Sets Ek to zero
 !
-      DO i = 1,n/2+1
+      DO i = 1,nz/2+1
          Ek (i) = 0.0D0
          Ekh(i) = 0.0D0
          Ekv(i) = 0.0D0
@@ -82,14 +94,15 @@
 !
 ! Computes the kinetic energy spectrum
 !
-      tmp = 1.0_GP/real(n,kind=GP)**6
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn,tmq)
-            DO j = 1,n
-               DO k = 1,n
-                  kmn = int(abs(ka(k))+1)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+            DO j = 1,ny
+               DO k = 1,nz
+                  kmn = int(abs(kz(k))*Lz+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                      tmq = (abs(a(k,j,1))**2+abs(b(k,j,1))**2)*tmp
                      tmr = (abs(c(k,j,1))**2)*tmp
 !$omp critical
@@ -103,10 +116,10 @@
 !$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
             DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(abs(ka(k))+1)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(abs(kz(k))*Lz+1)
+                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                         tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2)*tmp
                         tmr = 2*(abs(c(k,j,i))**2)*tmp
 !$omp critical
@@ -122,10 +135,10 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(abs(ka(k))+1)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(abs(kz(k))*Lz+1)
+                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                         tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2)*tmp
                         tmr = 2*(abs(c(k,j,i))**2)*tmp
 !$omp critical
@@ -144,14 +157,13 @@
       ELSE IF (kin.eq.0) THEN
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn,tmq)
-            DO j = 1,n
-               DO k = 1,n
-                  kmn = int(abs(ka(k))+1)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+            DO j = 1,ny
+               DO k = 1,nz
+                  kmn = int(abs(kz(k))*Lz+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                      tmq = (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2)*tmp
                      tmr = (abs(c3(k,j,1))**2)*tmp
 !$omp critical
-
                      Ek (kmn) = Ek (kmn)+tmq+tmr
                      Ekh(kmn) = Ekh(kmn)+tmq
                      Ekv(kmn) = Ekv(kmn)+tmr
@@ -163,10 +175,10 @@
 !$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
             DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(abs(ka(k))+1)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(abs(kz(k))*Lz+1)
+                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                         tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2)*tmp
                         tmr = 2*(abs(c3(k,j,i))**2)*tmp
 !$omp critical
@@ -182,10 +194,10 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(abs(ka(k))+1)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(abs(kz(k))*Lz+1)
+                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                         tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2)*tmp
                         tmr = 2*(abs(c3(k,j,i))**2)*tmp
 !$omp critical
@@ -204,11 +216,11 @@
 ! and exports the result to a file
 !
       IF (kin.le.1) THEN
-         CALL MPI_REDUCE(Ek ,Ektot ,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+         CALL MPI_REDUCE(Ek ,Ektot ,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                          MPI_COMM_WORLD,ierr)
-         CALL MPI_REDUCE(Ekh,Ekhtot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+         CALL MPI_REDUCE(Ekh,Ekhtot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                          MPI_COMM_WORLD,ierr)
-         CALL MPI_REDUCE(Ekv,Ekvtot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+         CALL MPI_REDUCE(Ekv,Ekvtot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                          MPI_COMM_WORLD,ierr)
          IF (myrank.eq.0) THEN
             IF (kin.eq.1) THEN
@@ -216,8 +228,9 @@
             ELSE
                OPEN(1,file='mspecpara.' // nmb // '.txt')
             ENDIF
-            DO j =1,n/2+1
-               WRITE(1,FMT='(E23.15,E23.15,E23.15)') Ektot(j),Ekhtot(j),Ekvtot(j)
+            DO j = 1,nz/2+1
+               WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') &
+                    Dkz*(j-1),Ektot(j),Ekhtot(j),Ekvtot(j)
             END DO
             CLOSE(1)
          ENDIF
@@ -226,17 +239,17 @@
 ! Computes the helicity spectrum
 !
       IF (hel.eq.1) THEN
-         DO i = 1,n/2+1
+         DO i = 1,nz/2+1
             Ek (i) = 0.0D0
             Ekh(i) = 0.0D0
             Ekv(i) = 0.0D0
          END DO
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn,tmq)
-            DO j = 1,n
-               DO k = 1,n
-                  kmn = int(abs(ka(k))+1)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+            DO j = 1,ny
+               DO k = 1,nz
+                  kmn = int(abs(kz(k))*Lz+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                      tmq = (real(a(k,j,1)*conjg(c1(k,j,1)))+            &
                             real(b(k,j,1)*conjg(c2(k,j,1))))*tmp
                      tmr = (real(c(k,j,1)*conjg(c3(k,j,1))))*tmp
@@ -251,13 +264,13 @@
 !$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
             DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(abs(ka(k))+1)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(abs(kz(k))*Lz+1)
+                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                         tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+       &
                                  real(b(k,j,i)*conjg(c2(k,j,i))))*tmp
-                        tmr = 2*( real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
+                        tmr = 2*(real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
 !$omp critical
                         Ek(kmn) = Ek(kmn)+tmq+tmr
                         Ekh(kmn) = Ekh(kmn)+tmq
@@ -271,13 +284,13 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(abs(ka(k))+1)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(abs(kz(k))*Lz+1)
+                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                         tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+       &
                                  real(b(k,j,i)*conjg(c2(k,j,i))))*tmp
-                        tmr = 2*( real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
+                        tmr = 2*(real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
 !$omp critical
                         Ek (kmn) = Ek (kmn)+tmq+tmr
                         Ekh(kmn) = Ekh(kmn)+tmq
@@ -292,11 +305,11 @@
 ! Computes the reduction between nodes
 ! and exports the result to a file
 !
-         CALL MPI_REDUCE(Ek ,Ektot ,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,   &
+         CALL MPI_REDUCE(Ek ,Ektot ,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM, &
                          0,MPI_COMM_WORLD,ierr)
-         CALL MPI_REDUCE(Ekh,Ekhtot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,   &
+         CALL MPI_REDUCE(Ekh,Ekhtot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM, &
                          0,MPI_COMM_WORLD,ierr)
-         CALL MPI_REDUCE(Ekv,Ekvtot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,   &
+         CALL MPI_REDUCE(Ekv,Ekvtot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM, &
                          0,MPI_COMM_WORLD,ierr)
          IF (myrank.eq.0) THEN
             IF (kin.eq.1) THEN
@@ -306,8 +319,9 @@
             ELSE
                OPEN(1,file='ghelipara.' // nmb // '.txt')
             ENDIF
-            DO j =1,n/2+1
-              WRITE(1,FMT='(E23.15,E23.15,E23.15)') Ektot(j),Ekhtot(j),Ekvtot(j)
+            DO j = 1,nz/2+1
+               WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') &
+                    Dkz*(j-1),Ektot(j),Ekhtot(j),Ekvtot(j)
             ENDDO
             CLOSE(1)
          ENDIF
@@ -322,11 +336,21 @@
 !
 ! Computes the reduced energy and helicity power spectrum 
 ! in the direction perpendicular to the preferred direction 
-! (rotation or uniform magnetic field). The k-shells are 
-! cylindrical surfaces (kperp=1,...,n/2+1). It also computes 
-! the spectrum of 2D modes with kz=0 for (x,y)-field 
-! components and the z-field component separately. The output 
-! is written to a file with three columns by the first node.
+! (rotation, gravity, or uniform magnetic field, assumed to
+! be in the z-direction. The k-shells are cylindrical
+! surfaces with kperp = Dkk*(0,...,max{nx*Dkx/Dkk,nyDky/Dkk}/2).
+! It also computes the spectrum of 2D modes with kz = 0 of
+! (x,y)-field components and the z-field component separately.
+! The output is written to a file with three columns by the
+! first node.
+!
+! Output files contain [kp = Dkk*sqrt(kx**2+ky**2)]:
+! 'kspecperp.XXX.txt': kp, E_v(kp), ev_x,y(kp,kz=0), ev_z(kp,kz=0)
+!   [E_v: kin. ener.; ev_x,y: 2D spec. for vx,vy; ev_z: same for vz]
+! 'mspecperp.XXX.txt': kp, E_b(kp), eb_x,y(kp,kz=0), eb_z(kp,kz=0)
+! 'kheliperp.XXX.txt': kp, H_v(kp), hv_x,y(kp,kz=0), hv_z(kp,kz=0)
+! 'mheliperp.XXX.txt': kp, H_b(kp), hb_x,y(kp,kz=0), hb_z(kp,kz=0)
+! 'gheliperp.XXX.txt': kp, G(kz),   g(kp,kz=0),      g(kp,kz=0)
 !
 ! Parameters
 !     a  : input matrix in the x-direction
@@ -345,15 +369,16 @@
       USE grid
       USE mpivars
       USE filefmt
+      USE boxsize
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
-      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ekp,Eptot
-      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ekz,Eztot
+      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ek,Ektot
+      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ekp,Eptot
+      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ekz,Eztot
       DOUBLE PRECISION    :: tmq,tmr
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
       REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin,hel
       INTEGER             :: i,j,k
@@ -363,7 +388,7 @@
 !
 ! Sets Ek to zero
 !
-      DO i = 1,n/2+1
+      DO i = 1,nmaxperp/2+1
          Ek(i) = 0.0D0
          Ekp(i) = 0.0D0
          Ekz(i) = 0.0D0
@@ -379,13 +404,14 @@
 !
 ! Computes the kinetic energy spectrum
 !
-      tmp = 1.0_GP/real(n,kind=GP)**6
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn,tmq,tmr)
-            DO j = 1,n
-               kmn = int(sqrt(ka(1)**2+ka(j)**2)+.501)
-               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+            DO j = 1,ny
+               kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
+               IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                   tmq = (abs(a(1,j,1))**2+abs(b(1,j,1))**2)*tmp
                   tmr = (abs(c(1,j,1))**2)*tmp
 !$omp critical
@@ -393,7 +419,7 @@
                   Ekz(kmn) = Ekz(kmn)+tmr
                   Ek(kmn) = Ek(kmn)+tmq+tmr
 !$omp end critical
-                  DO k = 2,n
+                  DO k = 2,nz
                      tmq = (abs(a(k,j,1))**2+abs(b(k,j,1))**2+          &
                             abs(c(k,j,1))**2)*tmp
 !$omp atomic
@@ -404,9 +430,9 @@
 !$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq,tmr)
             DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq,tmr)
-               DO j = 1,n
-                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      tmq = 2*(abs(a(1,j,i))**2+abs(b(1,j,i))**2)*tmp
                      tmr = 2*abs(c(1,j,i))**2*tmp
 !$omp critical
@@ -414,7 +440,7 @@
                      Ekz(kmn) = Ekz(kmn)+tmr
                      Ek(kmn) = Ek(kmn)+tmq+tmr
 !$omp end critical
-                     DO k = 2,n
+                     DO k = 2,nz
                         tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+     &
                                  abs(c(k,j,i))**2)*tmp
 !$omp atomic
@@ -427,9 +453,9 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq,tmr)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq,tmr)
-               DO j = 1,n
-                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      tmq = 2*(abs(a(1,j,i))**2+abs(b(1,j,i))**2)*tmp
                      tmr = 2*abs(c(1,j,i))**2*tmp
 !$omp critical
@@ -437,7 +463,7 @@
                      Ekz(kmn) = Ekz(kmn)+tmr
                      Ek(kmn) = Ek(kmn)+tmq+tmr
 !$omp end critical
-                     DO k = 2,n
+                     DO k = 2,nz
                         tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+     &
                                  abs(c(k,j,i))**2)*tmp
 !$omp atomic
@@ -453,9 +479,9 @@
       ELSE IF (kin.eq.0) THEN
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn,tmq,tmr)
-            DO j = 1,n
-               kmn = int(sqrt(ka(1)**2+ka(j)**2)+.501)
-               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+            DO j = 1,ny
+               kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
+               IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                   tmq = (abs(c1(1,j,1))**2+abs(c2(1,j,1))**2)*tmp
                   tmr = abs(c3(1,j,1))**2*tmp
 !$omp critical
@@ -463,7 +489,7 @@
                   Ekz(kmn) = Ekz(kmn)+tmr
                   Ek(kmn) = Ek(kmn)+tmq+tmr
 !$omp end critical
-                  DO k = 2,n
+                  DO k = 2,nz
                      tmq = (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+        &
                             abs(c3(k,j,1))**2)*tmp
 !$omp atomic
@@ -474,9 +500,9 @@
 !$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq,tmr)
             DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq,tmr)
-               DO j = 1,n
-                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      tmq = 2*(abs(c1(1,j,i))**2+abs(c2(1,j,i))**2)*tmp
                      tmr = 2*abs(c3(1,j,i))**2*tmp
 !$omp critical
@@ -484,7 +510,7 @@
                      Ekz(kmn) = Ekz(kmn)+tmr
                      Ek(kmn) = Ek(kmn)+tmq+tmr
 !$omp end critical
-                     DO k = 2,n
+                     DO k = 2,nz
                         tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+   &
                                  abs(c3(k,j,i))**2)*tmp
 !$omp atomic
@@ -497,9 +523,9 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq,tmr)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq,tmr)
-               DO j = 1,n
-                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      tmq = 2*(abs(c1(1,j,i))**2+abs(c2(1,j,i))**2)*tmp
                      tmr = 2*abs(c3(1,j,i))**2*tmp
 !$omp critical
@@ -507,7 +533,7 @@
                      Ekz(kmn) = Ekz(kmn)+tmr
                      Ek(kmn) = Ek(kmn)+tmq+tmr
 !$omp end critical
-                     DO k = 2,n
+                     DO k = 2,nz
                         tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+   &
                                  abs(c3(k,j,i))**2)*tmp
 !$omp atomic
@@ -523,21 +549,21 @@
 ! and exports the result to a file
 !
       IF (kin.le.1) THEN
-         CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0,  &
-                         MPI_COMM_WORLD,ierr)
-         CALL MPI_REDUCE(Ekp,Eptot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
-                         MPI_COMM_WORLD,ierr)
-         CALL MPI_REDUCE(Ekz,Eztot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
-                         MPI_COMM_WORLD,ierr)
+         CALL MPI_REDUCE(Ek,Ektot,nmaxperp/2+1,MPI_DOUBLE_PRECISION,    &
+                         MPI_SUM,0,MPI_COMM_WORLD,ierr)
+         CALL MPI_REDUCE(Ekp,Eptot,nmaxperp/2+1,MPI_DOUBLE_PRECISION,   &
+                         MPI_SUM,0,MPI_COMM_WORLD,ierr)
+         CALL MPI_REDUCE(Ekz,Eztot,nmaxperp/2+1,MPI_DOUBLE_PRECISION,   &
+                         MPI_SUM,0,MPI_COMM_WORLD,ierr)
          IF (myrank.eq.0) THEN
             IF (kin.eq.1) THEN
                OPEN(1,file='kspecperp.' // nmb // '.txt')
             ELSE
                OPEN(1,file='mspecperp.' // nmb // '.txt')
             ENDIF
-            DO j =1,n/2+1
-               WRITE(1,FMT='(E23.15,E23.15,E23.15)') Ektot(j),           &
-                     Eptot(j),Eztot(j)
+            DO j = 1,nmaxperp/2+1
+               WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') Dkk*(j-1),   &
+                     Ektot(j),Eptot(j),Eztot(j)
             END DO
             CLOSE(1)
          ENDIF
@@ -546,16 +572,16 @@
 ! Computes the helicity spectrum
 !
       IF (hel.eq.1) THEN
-         DO i = 1,n/2+1
+         DO i = 1,nmaxperp/2+1
             Ek(i) = 0.0D0
             Ekp(i) = 0.0D0
             Ekz(i) = 0.0D0
          END DO
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn,tmq,tmr)
-            DO j = 1,n
-               kmn = int(sqrt(ka(1)**2+ka(j)**2)+.501)
-               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+            DO j = 1,ny
+               kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
+               IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                   tmq = (real(a(1,j,1)*conjg(c1(1,j,1)))+              &
                          real(b(1,j,1)*conjg(c2(1,j,1))))*tmp
                   tmr = real(c(1,j,1)*conjg(c3(1,j,1)))*tmp
@@ -564,7 +590,7 @@
                   Ekz(kmn) = Ekz(kmn)+tmr
                   Ek(kmn) = Ek(kmn)+tmq+tmr
 !$omp end critical
-                  DO k = 2,n
+                  DO k = 2,nz
                      tmq = (real(a(k,j,1)*conjg(c1(k,j,1)))+           &
                             real(b(k,j,1)*conjg(c2(k,j,1)))+           &
                             real(c(k,j,1)*conjg(c3(k,j,1))))*tmp
@@ -576,9 +602,9 @@
 !$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq,tmr)
             DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq,tmr)
-               DO j = 1,n
-                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      tmq = 2*(real(a(1,j,i)*conjg(c1(1,j,i)))+         &
                            real(b(1,j,i)*conjg(c2(1,j,i))))*tmp
                      tmr = 2*real(c(1,j,i)*conjg(c3(1,j,i)))*tmp
@@ -587,7 +613,7 @@
                      Ekz(kmn) = Ekz(kmn)+tmr
                      Ek(kmn) = Ek(kmn)+tmq+tmr
 !$omp end critical
-                     DO k = 2,n
+                     DO k = 2,nz
                         tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+      &
                                  real(b(k,j,i)*conjg(c2(k,j,i)))+      &
                                  real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
@@ -601,9 +627,9 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq,tmr)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq,tmr)
-               DO j = 1,n
-                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      tmq = 2*(real(a(1,j,i)*conjg(c1(1,j,i)))+         &
                            real(b(1,j,i)*conjg(c2(1,j,i))))*tmp
                      tmr = 2*real(c(1,j,i)*conjg(c3(1,j,i)))*tmp
@@ -612,7 +638,7 @@
                      Ekz(kmn) = Ekz(kmn)+tmr
                      Ek(kmn) = Ek(kmn)+tmq+tmr
 !$omp end critical
-                     DO k = 2,n
+                     DO k = 2,nz
                         tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+      &
                                  real(b(k,j,i)*conjg(c2(k,j,i)))+      &
                                  real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
@@ -627,12 +653,12 @@
 ! Computes the reduction between nodes
 ! and exports the result to a file
 !
-         CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,  &
-                         0,MPI_COMM_WORLD,ierr)
-         CALL MPI_REDUCE(Ekp,Eptot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                         0,MPI_COMM_WORLD,ierr)
-         CALL MPI_REDUCE(Ekz,Eztot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                         0,MPI_COMM_WORLD,ierr)
+         CALL MPI_REDUCE(Ek,Ektot,nmaxperp/2+1,MPI_DOUBLE_PRECISION,   &
+                         MPI_SUM,0,MPI_COMM_WORLD,ierr)
+         CALL MPI_REDUCE(Ekp,Eptot,nmaxperp/2+1,MPI_DOUBLE_PRECISION,  &
+                         MPI_SUM,0,MPI_COMM_WORLD,ierr)
+         CALL MPI_REDUCE(Ekz,Eztot,nmaxperp/2+1,MPI_DOUBLE_PRECISION,  &
+                         MPI_SUM,0,MPI_COMM_WORLD,ierr)
          IF (myrank.eq.0) THEN
             IF (kin.eq.1) THEN
                OPEN(1,file='kheliperp.' // nmb // '.txt')
@@ -641,9 +667,9 @@
             ELSE
                OPEN(1,file='gheliperp.' // nmb // '.txt')
             ENDIF
-            DO j =1,n/2+1
-               WRITE(1,FMT='(E23.15,E23.15,E23.15)') Ektot(j),         &
-                     Eptot(j),Eztot(j)
+            DO j = 1,nmaxperp/2+1
+               WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') Dkk*(j-1),   &
+                     Ektot(j),Eptot(j),Eztot(j)
             END DO
             CLOSE(1)
          ENDIF
@@ -659,8 +685,13 @@
 ! Computes the energy transfer in the direction parallel 
 ! to the preferred direction (rotation or uniform magnetic 
 ! field) in 3D Fourier space. The k-shells are planes with 
-! normal (0,0,kz) (kz=0,...,n/2). The output is written to 
-! a file by the first node.
+! normal (0,0,kz), kz = Dkz*(0,...,nz/2). The output is
+! written to a file by the first node.
+!
+! Output files contain:
+! 'ktranpara.XXX.txt': kz, Tv(kz) (kinetic energy transfer function)
+! 'mtranpara.XXX.txt': kz, Tb(kz) (magnetic energy transfer)
+! 'jtranpara.XXX.txt': kz, Hj(kz) (Lorentz force work)
 !
 ! Parameters
 !     a  : field component in the x-direction
@@ -680,13 +711,14 @@
       USE grid
       USE mpivars
       USE filefmt
+      USE boxsize
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
+      DOUBLE PRECISION, DIMENSION(nz/2+1) :: Ek,Ektot
       DOUBLE PRECISION    :: tmq
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
       REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
@@ -696,20 +728,21 @@
 !
 ! Sets Ek to zero
 !
-      DO i = 1,n/2+1
+      DO i = 1,nz/2+1
          Ek(i) = 0.0D0
       END DO
 !
 ! Computes the kinetic energy transfer
 !
-      tmp = 1.0_GP/real(n,kind=GP)**6
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF ((kin.eq.1).or.(kin.eq.2)) THEN
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn,tmq)
-            DO j = 1,n
-               DO k = 1,n
-                  kmn = int(abs(ka(k))+1)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+            DO j = 1,ny
+               DO k = 1,nz
+                  kmn = int(abs(kz(k))*Lz+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                      tmq = (real(a(k,j,1)*conjg(d(k,j,1)))+         &
                             real(b(k,j,1)*conjg(e(k,j,1)))+         &
                             real(c(k,j,1)*conjg(f(k,j,1))))*tmp
@@ -721,10 +754,10 @@
 !$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
             DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(abs(ka(k))+1)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(abs(kz(k))*Lz+1)
+                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                         tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+    &
                                  real(b(k,j,i)*conjg(e(k,j,i)))+    &
                                  real(c(k,j,i)*conjg(f(k,j,i))))*tmp
@@ -738,10 +771,10 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(abs(ka(k))+1)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(abs(kz(k))*Lz+1)
+                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                         tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+    &
                                  real(b(k,j,i)*conjg(e(k,j,i)))+    &
                                  real(c(k,j,i)*conjg(f(k,j,i))))*tmp
@@ -758,11 +791,11 @@
       ELSE
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn,tmq)
-            DO j = 1,n
-               DO k = 1,n
-                  kmn = int(abs(ka(k))+1)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                     tmq = ka2(k,j,1) *                             &
+            DO j = 1,ny
+               DO k = 1,nz
+                  kmn = int(abs(kz(k))*Lz+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
+                     tmq = kk2(k,j,1) *                             &
                            (real(a(k,j,1)*conjg(d(k,j,1)))+         &
                             real(b(k,j,1)*conjg(e(k,j,1)))+         &
                             real(c(k,j,1)*conjg(f(k,j,1))))*tmp
@@ -774,11 +807,11 @@
 !$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
             DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(abs(ka(k))+1)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                        tmq = 2*ka2(k,j,i) *                        &
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(abs(kz(k))*Lz+1)
+                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
+                        tmq = 2*kk2(k,j,i) *                        &
                               (real(a(k,j,i)*conjg(d(k,j,i)))+      &
                                real(b(k,j,i)*conjg(e(k,j,i)))+      &
                                real(c(k,j,i)*conjg(f(k,j,i))))*tmp
@@ -792,11 +825,11 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(abs(ka(k))+1)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                        tmq = 2*ka2(k,j,i)*                         &
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(abs(kz(k))*Lz+1)
+                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
+                        tmq = 2*kk2(k,j,i)*                         &
                               (real(a(k,j,i)*conjg(d(k,j,i)))+      &
                                real(b(k,j,i)*conjg(e(k,j,i)))+      &
                                real(c(k,j,i)*conjg(f(k,j,i))))*tmp
@@ -812,7 +845,7 @@
 ! Computes the reduction between nodes
 ! and exports the result to a file
 !
-      CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+      CALL MPI_REDUCE(Ek,Ektot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          IF (kin.eq.0) THEN
@@ -822,8 +855,9 @@
          ELSE
             OPEN(1,file='jtranpara.' // nmb // '.txt')
          ENDIF
-         WRITE(1,40) Ektot
-   40    FORMAT( E23.15 ) 
+         DO j = 1,nz/2+1
+            WRITE(1,FMT='(E13.6,E23.15)') Dkz*(j-1),Ektot(j)
+         END DO
          CLOSE(1)
       ENDIF
 
@@ -837,8 +871,13 @@
 ! Computes the energy transfer in the direction perpendicular
 ! to the preferred direction (rotation or uniform magnetic 
 ! field) in 3D Fourier space. The k-shells are cylindrical 
-! surfaces (kperp=1,...,N/2+1). The output is written to a 
-! file by the first node.
+! surfaces with kperp = Dkk*(0,...,max{nx*Dkx/Dkk,nyDky/Dkk}/2).
+! The output is written to a file by the first node.
+!
+! Output files contain [kp = Dkk*sqrt(kx**2+ky**2)]:
+! 'ktranperp.XXX.txt': kp, Tv(kp) (kinetic energy transfer function)
+! 'mtranperp.XXX.txt': kp, Tb(kp) (magnetic energy transfer)
+! 'jtranperp.XXX.txt': kp, Hj(kp) (Lorentz force work)
 !
 ! Parameters
 !     a  : field component in the x-direction
@@ -858,13 +897,14 @@
       USE grid
       USE mpivars
       USE filefmt
-!$    USE threads
+      USE boxsize
+!$    USE threads      
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
+      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ek,Ektot
       DOUBLE PRECISION    :: tmq
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
       REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
@@ -874,20 +914,21 @@
 !
 ! Sets Ek to zero
 !
-      DO i = 1,n/2+1
+      DO i = 1,nmaxperp/2+1
          Ek(i) = 0.0D0
       END DO
 !
 ! Computes the kinetic energy transfer
 !
-      tmp = 1.0_GP/real(n,kind=GP)**6
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF ((kin.eq.1).or.(kin.eq.2)) THEN
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn,tmq)
-            DO j = 1,n
-               kmn = int(sqrt(ka(1)**2+ka(j)**2)+.501)
-               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                  DO k = 1,n
+            DO j = 1,ny
+               kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
+               IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+                  DO k = 1,nz
                      tmq = (real(a(k,j,1)*conjg(d(k,j,1)))+         &
                             real(b(k,j,1)*conjg(e(k,j,1)))+         &
                             real(c(k,j,1)*conjg(f(k,j,1))))*tmp
@@ -899,10 +940,10 @@
 !$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
             DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-               DO j = 1,n
-                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                     DO k = 1,n
+               DO j = 1,ny
+                  kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+                     DO k = 1,nz
                         tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+    &
                                  real(b(k,j,i)*conjg(e(k,j,i)))+    &
                                  real(c(k,j,i)*conjg(f(k,j,i))))*tmp
@@ -916,10 +957,10 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-               DO j = 1,n
-                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                     DO k = 1,n
+               DO j = 1,ny
+                  kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+                     DO k = 1,nz
                         tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+    &
                                  real(b(k,j,i)*conjg(e(k,j,i)))+    &
                                  real(c(k,j,i)*conjg(f(k,j,i))))*tmp
@@ -936,11 +977,11 @@
       ELSE
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn,tmq)
-            DO j = 1,n
-               kmn = int(sqrt(ka(1)**2+ka(j)**2)+.501)
-               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                  DO k = 1,n
-                     tmq = ka2(k,j,1) *                             &
+            DO j = 1,ny
+               kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
+               IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+                  DO k = 1,nz
+                     tmq = kk2(k,j,1) *                             &
                            (real(a(k,j,1)*conjg(d(k,j,1)))+         &
                             real(b(k,j,1)*conjg(e(k,j,1)))+         &
                             real(c(k,j,1)*conjg(f(k,j,1))))*tmp
@@ -952,11 +993,11 @@
 !$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
             DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-               DO j = 1,n
-                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                     DO k = 1,n
-                        tmq = 2*ka2(k,j,i) *                        &
+               DO j = 1,ny
+                  kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+                     DO k = 1,nz
+                        tmq = 2*kk2(k,j,i) *                        &
                               (real(a(k,j,i)*conjg(d(k,j,i)))+      &
                                real(b(k,j,i)*conjg(e(k,j,i)))+      &
                                real(c(k,j,i)*conjg(f(k,j,i))))*tmp
@@ -970,11 +1011,11 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-               DO j = 1,n
-                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                     DO k = 1,n
-                        tmq = 2*ka2(k,j,i)*                         &
+               DO j = 1,ny
+                  kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+                     DO k = 1,nz
+                        tmq = 2*kk2(k,j,i)*                         &
                               (real(a(k,j,i)*conjg(d(k,j,i)))+      &
                                real(b(k,j,i)*conjg(e(k,j,i)))+      &
                                real(c(k,j,i)*conjg(f(k,j,i))))*tmp
@@ -990,8 +1031,8 @@
 ! Computes the reduction between nodes
 ! and exports the result to a file
 !
-      CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
-                      MPI_COMM_WORLD,ierr)
+      CALL MPI_REDUCE(Ek,Ektot,nmaxperp/2+1,MPI_DOUBLE_PRECISION,   &
+                      MPI_SUM,0,MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          IF (kin.eq.0) THEN
             OPEN(1,file='mtranperp.' // nmb // '.txt')
@@ -1000,8 +1041,9 @@
          ELSE
             OPEN(1,file='jtranperp.' // nmb // '.txt')
          ENDIF
-         WRITE(1,40) Ektot
-   40    FORMAT( E23.15 ) 
+         DO j = 1,nmaxperp/2+1
+            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(j-1),Ektot(j)
+         END DO
          CLOSE(1)
       ENDIF
 
@@ -1015,8 +1057,12 @@
 ! Computes the helicity transfer in the direction parallel 
 ! to the preferred direction (rotation or uniform magnetic 
 ! field) in 3D Fourier space. The k-shells are planes with 
-! normal (0,0,kz) (kz=0,...,n/2). The output is written to 
-! a file by the first node.
+! normal (0,0,kz), kz = Dkz*(0,...,nz/2). The output is
+! written to a file by the first node.
+!
+! Output files contain:
+! 'hktranpara.XXX.txt': kz, TH_v(kz) (kinetic helicity transfer)
+! 'hmtranpara.XXX.txt': kz, TH_b(kz) (magnetic helicity transfer)
 !
 ! Parameters
 !     a  : field component in the x-direction (v or a)
@@ -1035,14 +1081,15 @@
       USE grid
       USE mpivars
       USE filefmt
+      USE boxsize
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1) :: Hk,Hktot
+      DOUBLE PRECISION, DIMENSION(nz/2+1) :: Hk,Hktot
       DOUBLE PRECISION    :: tmq
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
       REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
@@ -1052,22 +1099,23 @@
 !
 ! Sets Hk to zero
 !
-      DO i = 1,n/2+1
+      DO i = 1,nz/2+1
          Hk(i) = 0.0D0
       END DO
 !
 ! Computes the helicity transfer
 !
-      tmp = 1.0_GP/real(n,kind=GP)**6
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       CALL rotor3(b,c,c1,1)
       CALL rotor3(a,c,c2,2)
       CALL rotor3(a,b,c3,3)
       IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn,tmq)
-         DO j = 1,n
-            DO k = 1,n
-               kmn = int(abs(ka(k))+1)
-               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+         DO j = 1,ny
+            DO k = 1,nz
+               kmn = int(abs(kz(k))*Lz+1)
+               IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                   tmq = (real(c1(k,j,1)*conjg(d(k,j,1)))+          &
                          real(c2(k,j,1)*conjg(e(k,j,1)))+          &
                          real(c3(k,j,1)*conjg(f(k,j,1))))*tmp
@@ -1079,10 +1127,10 @@
 !$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
          DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-            DO j = 1,n
-               DO k = 1,n
-                  kmn = int(abs(ka(k))+1)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+            DO j = 1,ny
+               DO k = 1,nz
+                  kmn = int(abs(kz(k))*Lz+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                      tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+     &
                               real(c2(k,j,i)*conjg(e(k,j,i)))+     &
                               real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
@@ -1096,10 +1144,10 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-            DO j = 1,n
-               DO k = 1,n
-                  kmn = int(abs(ka(k))+1)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+            DO j = 1,ny
+               DO k = 1,nz
+                  kmn = int(abs(kz(k))*Lz+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                      tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+     &
                               real(c2(k,j,i)*conjg(e(k,j,i)))+     &
                               real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
@@ -1114,7 +1162,7 @@
 ! Computes the reduction between nodes
 ! and exports the result to a file
 !
-      CALL MPI_REDUCE(Hk,Hktot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+      CALL MPI_REDUCE(Hk,Hktot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          IF (kin.eq.0) THEN
@@ -1122,8 +1170,9 @@
          ELSE
             OPEN(1,file='hktranpara.' // nmb // '.txt')
          ENDIF
-         WRITE(1,40) Hktot
-   40    FORMAT( E23.15 ) 
+         DO j = 1,nz/2+1
+            WRITE(1,FMT='(E13.6,E23.15)') Dkz*(j-1),Hktot(j)
+         END DO
          CLOSE(1)
       ENDIF
 
@@ -1137,9 +1186,13 @@
 ! Computes the helicity transfer in the direction perpendicular
 ! to the preferred direction (rotation or uniform magnetic 
 ! field) in 3D Fourier space. The k-shells are cylindrical 
-! surfaces (kperp=1,...,N/2+1). The output is written to a file 
-! by the first node.
+! surfaces with kperp = Dkk*(0,...,max{nx*Dkx/Dkk,nyDky/Dkk}/2).
+! The output is written to a file by the first node.
 !
+! Output files contain [kp = Dkk*sqrt(kx**2+ky**2)]:
+! 'hktranperp.XXX.txt': kp, TH_v(kp) (kinetic helicity transfer)
+! 'hmtranperp.XXX.txt': kp, TH_b(kp) (magnetic helicity transfer)
+!        
 ! Parameters
 !     a  : field component in the x-direction (v or a)
 !     b  : field component in the y-direction (v or a)
@@ -1157,14 +1210,15 @@
       USE grid
       USE mpivars
       USE filefmt
+      USE boxsize
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1) :: Hk,Hktot
+      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Hk,Hktot
       DOUBLE PRECISION    :: tmq
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
       REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
@@ -1174,22 +1228,23 @@
 !
 ! Sets Hk to zero
 !
-      DO i = 1,n/2+1
+      DO i = 1,nmaxperp/2+1
          Hk(i) = 0.0D0
       END DO
 !
 ! Computes the helicity transfer
 !
-      tmp = 1.0_GP/real(n,kind=GP)**6
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       CALL rotor3(b,c,c1,1)
       CALL rotor3(a,c,c2,2)
       CALL rotor3(a,b,c3,3)
       IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn,tmq)
-         DO j = 1,n
-            kmn = int(sqrt(ka(1)**2+ka(j)**2)+.501)
-            IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-               DO k = 1,n
+         DO j = 1,ny
+            kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
+            IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+               DO k = 1,nz
                   tmq = (real(c1(k,j,1)*conjg(d(k,j,1)))+          &
                          real(c2(k,j,1)*conjg(e(k,j,1)))+          &
                          real(c3(k,j,1)*conjg(f(k,j,1))))*tmp
@@ -1201,10 +1256,10 @@
 !$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
          DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-            DO j = 1,n
-               kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
-               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                  DO k = 1,n
+            DO j = 1,ny
+               kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+               IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+                  DO k = 1,nz
                      tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+     &
                               real(c2(k,j,i)*conjg(e(k,j,i)))+     &
                               real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
@@ -1218,10 +1273,10 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-            DO j = 1,n
-               kmn = int(sqrt(ka(i)**2+ka(j)**2)+.501)
-               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                  DO k = 1,n
+            DO j = 1,ny
+               kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+               IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+                  DO k = 1,nz
                      tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+     &
                               real(c2(k,j,i)*conjg(e(k,j,i)))+     &
                               real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
@@ -1236,16 +1291,17 @@
 ! Computes the reduction between nodes
 ! and exports the result to a file
 !
-      CALL MPI_REDUCE(Hk,Hktot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
-                      MPI_COMM_WORLD,ierr)
+      CALL MPI_REDUCE(Hk,Hktot,nmaxperp/2+1,MPI_DOUBLE_PRECISION,  &
+                      MPI_SUM,0,MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          IF (kin.eq.0) THEN
             OPEN(1,file='hmtranperp.' // nmb // '.txt')
          ELSE
             OPEN(1,file='hktranperp.' // nmb // '.txt')
          ENDIF
-         WRITE(1,40) Hktot
-   40    FORMAT( E23.15 ) 
+         DO j = 1,nmaxperp/2+1
+            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(j-1),Hktot(j)
+         END DO
          CLOSE(1)
       ENDIF
 
@@ -1258,10 +1314,19 @@
 !
 ! Computes the axysimmetric energy and helicity power spectrum. 
 ! The spectrum is angle-averaged in the azimuthal direction, 
-! and depends on two wavenumbers, kperp=0,...,n/2 and 
-! kpara=0,....,n/2. The output is written to a binary file by 
-! the first node.
+! and depends on two wavenumbers, (kperp,kpara), with
+! kperp = Dkk*(0,...,max{nx*Dkx/Dkk,nyDky/Dkk}/2) and
+! kpara = Dkz*(0,...,nz/2). The actual values of these wavenumbers
+! can be found in the first column of 'kspecpara' and 'kspecperp'
+! files. The output is written to a binary file by the first node.
 !
+! Output files contain:
+! 'odir/kspec2D.XXX.out': kinetic energy 2D spectrum ev(kperp,kpara)
+! 'odir/mspec2D.XXX.out': magnetic energy spectrum   eb(kperp,kpara)
+! 'odir/kheli2D.XXX.out': kinetic helicity spectrum  hv(kperp,kpara)
+! 'odir/mheli2D.XXX.out': magnetic helicity spectrum hv(kperp,kpara)
+! 'odir/gheli2D.XXX.out': generalized helicity spec. g(kperp,kpara)
+!        
 ! Parameters
 !     a  : input matrix in the x-direction
 !     b  : input matrix in the y-direction
@@ -1280,24 +1345,25 @@
       USE grid
       USE mpivars
       USE filefmt
+      USE boxsize
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL(KIND=GP), DIMENSION(n/2+1,n/2+1)                  :: Ek,Ektot
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
+      REAL(KIND=GP),    DIMENSION(nmaxperp/2+1,nz/2+1)      :: Ek,Ektot
       REAL(KIND=GP)       :: tmq,tmp
       INTEGER, INTENT(IN) :: kin,hel
       INTEGER             :: i,j,k
-      INTEGER             :: kmn,kz
+      INTEGER             :: kmn,kmz
       CHARACTER(len=100), INTENT(IN) :: dir
-      CHARACTER(len=*), INTENT(IN)   :: nmb
+      CHARACTER(len=*),   INTENT(IN) :: nmb
 
 !
 ! Sets Ek to zero
 !
-      DO i = 1,n/2+1
-         DO j = 1,n/2+1
+      DO i = 1,nmaxperp/2+1
+         DO j = 1,nz/2+1
             Ek(i,j) = 0.0_GP
          END DO
       END DO
@@ -1312,56 +1378,57 @@
 !
 ! Computes the kinetic energy spectrum
 !
-      tmp = 1.0_GP/real(n,kind=GP)**6
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kz,kmn,tmq)
-            DO j = 1,n
-               kmn = int(sqrt(ka(1)**2+ka(j)**2)+1.501)
-               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                  DO k = 1,n
-                     kz = int(abs(ka(k))+1)
-                     IF ((kz.gt.0).and.(kz.le.n/2+1)) THEN
+!$omp parallel do private (k,kmz,kmn,tmq)
+            DO j = 1,ny
+               kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
+               IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+                  DO k = 1,nz
+                     kmz = int(abs(kz(k))*Lz+1)
+                     IF ((kmz.gt.0).and.(kmz.le.nz/2+1)) THEN
                      tmq = (abs(a(k,j,1))**2+abs(b(k,j,1))**2+        &
                             abs(c(k,j,1))**2)*tmp
 !$omp atomic
-                     Ek(kmn,kz) = Ek(kmn,kz)+tmq
+                     Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                      ENDIF
                   END DO
                ENDIF
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kz,kmn,tmq)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmz,kmn,tmq)
             DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kz,kmn,tmq)
-               DO j = 1,n
-                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+1.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                     DO k = 1,n
-                        kz = int(abs(ka(k))+1)
-                        IF ((kz.gt.0).and.(kz.le.n/2+1)) THEN
+!$omp parallel do if (iend-2.lt.nth) private (k,kmz,kmn,tmq)
+               DO j = 1,ny
+                  kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+                     DO k = 1,nz
+                        kmz = int(abs(kz(k))*Lz+1)
+                        IF ((kmz.gt.0).and.(kmz.le.nz/2+1)) THEN
                         tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+   &
                                  abs(c(k,j,i))**2)*tmp
 !$omp atomic
-                        Ek(kmn,kz) = Ek(kmn,kz)+tmq
+                        Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                         ENDIF
                      END DO
                   ENDIF
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kz,kmn,tmq)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmz,kmn,tmq)
             DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kz,kmn,tmq)
-               DO j = 1,n
-                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+1.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                     DO k = 1,n
-                        kz = int(abs(ka(k))+1)
-                        IF ((kz.gt.0).and.(kz.le.n/2+1)) THEN
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmz,kmn,tmq)
+               DO j = 1,ny
+                  kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+                     DO k = 1,nz
+                        kmz = int(abs(kz(k))*Lz+1)
+                        IF ((kmz.gt.0).and.(kmz.le.nz/2+1)) THEN
                         tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+   &
                                  abs(c(k,j,i))**2)*tmp
 !$omp atomic
-                        Ek(kmn,kz) = Ek(kmn,kz)+tmq
+                        Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                         ENDIF
                      END DO
                   ENDIF
@@ -1373,53 +1440,53 @@
 !
       ELSE IF (kin.eq.0) THEN
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kz,kmn,tmq)
-            DO j = 1,n
-               kmn = int(sqrt(ka(1)**2+ka(j)**2)+1.501)
-               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                  DO k = 1,n
-                     kz = int(abs(ka(k))+1)
-                     IF ((kz.gt.0).and.(kz.le.n/2+1)) THEN
+!$omp parallel do private (k,kmz,kmn,tmq)
+            DO j = 1,ny
+               kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
+               IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+                  DO k = 1,nz
+                     kmz = int(abs(kz(k))*Lz+1)
+                     IF ((kmz.gt.0).and.(kmz.le.nz/2+1)) THEN
                      tmq = (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+      &
                             abs(c3(k,j,1))**2)*tmp
 !$omp atomic
-                     Ek(kmn,kz) = Ek(kmn,kz)+tmq
+                     Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                      ENDIF
                   END DO
                ENDIF
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kz,kmn,tmq)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmz,kmn,tmq)
             DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kz,kmn,tmq)
-               DO j = 1,n
-                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+1.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                     DO k = 1,n
-                        kz = int(abs(ka(k))+1)
-                        IF ((kz.gt.0).and.(kz.le.n/2+1)) THEN
+!$omp parallel do if (iend-2.lt.nth) private (k,kmz,kmn,tmq)
+               DO j = 1,ny
+                  kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+                     DO k = 1,nz
+                        kmz = int(abs(kz(k))*Lz+1)
+                        IF ((kmz.gt.0).and.(kmz.le.nz/2+1)) THEN
                         tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
                                  abs(c3(k,j,i))**2)*tmp
 !$omp atomic
-                        Ek(kmn,kz) = Ek(kmn,kz)+tmq
+                        Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                         ENDIF
                      END DO
                   ENDIF
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kz,kmn,tmq)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmz,kmn,tmq)
             DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kz,kmn,tmq)
-               DO j = 1,n
-                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+1.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                     DO k = 1,n
-                        kz = int(abs(ka(k))+1)
-                        IF ((kz.gt.0).and.(kz.le.n/2+1)) THEN
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmz,kmn,tmq)
+               DO j = 1,ny
+                  kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+                     DO k = 1,nz
+                        kmz = int(abs(kz(k))*Lz+1)
+                        IF ((kmz.gt.0).and.(kmz.le.nz/2+1)) THEN
                         tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
                                  abs(c3(k,j,i))**2)*tmp
 !$omp atomic
-                        Ek(kmn,kz) = Ek(kmn,kz)+tmq
+                        Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                         ENDIF
                      END DO
                   ENDIF
@@ -1432,7 +1499,7 @@
 ! and exports the result to a file
 !
       IF (kin.le.1) THEN
-         CALL MPI_REDUCE(Ek,Ektot,(n/2+1)*(n/2+1),GC_REAL,            &
+         CALL MPI_REDUCE(Ek,Ektot,(nmaxperp/2+1)*(nz/2+1),GC_REAL,    &
                          MPI_SUM,0,MPI_COMM_WORLD,ierr)
          IF (myrank.eq.0) THEN
             IF (kin.eq.1) THEN
@@ -1450,62 +1517,62 @@
 ! Computes the helicity spectrum
 !
       IF (hel.eq.1) THEN
-         DO i = 1,n/2+1
-            DO j = 1,n/2+1
+         DO i = 1,nmaxperp/2+1
+            DO j = 1,nz/2+1
                Ek(i,j) = 0.0_GP
             END DO
          END DO
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kz,kmn,tmq)
-            DO j = 1,n
-               kmn = int(sqrt(ka(1)**2+ka(j)**2)+1.501)
-               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                  DO k = 1,n
-                  kz = int(abs(ka(k))+1)
-                  IF ((kz.gt.0).and.(kz.le.n/2+1)) THEN
+!$omp parallel do private (k,kmz,kmn,tmq)
+            DO j = 1,ny
+               kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
+               IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+                  DO k = 1,nz
+                  kmz = int(abs(kz(k))*Lz+1)
+                  IF ((kmz.gt.0).and.(kmz.le.nz/2+1)) THEN
                   tmq = (real(a(k,j,1)*conjg(c1(1,j,1)))+       &
                          real(b(k,j,1)*conjg(c2(1,j,1)))+       &
                          real(c(k,j,1)*conjg(c3(k,j,1))))*tmp
 !$omp atomic
-                  Ek(kmn,kz) = Ek(kmn,kz)+tmq
+                  Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                   ENDIF
                   ENDDO
                ENDIF
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kz,kmn,tmq)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmz,kmn,tmq)
             DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kz,kmn,tmq)
-               DO j = 1,n
-                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+1.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                     DO k = 1,n
-                        kz = int(abs(ka(k))+1)
-                        IF ((kz.gt.0).and.(kz.le.n/2+1)) THEN
+!$omp parallel do if (iend-2.lt.nth) private (k,kmz,kmn,tmq)
+               DO j = 1,ny
+                  kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+                     DO k = 1,nz
+                        kmz = int(abs(kz(k))*Lz+1)
+                        IF ((kmz.gt.0).and.(kmz.le.nz/2+1)) THEN
                         tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+    &
                                  real(b(k,j,i)*conjg(c2(k,j,i)))+    &
                                  real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
 !$omp atomic
-                        Ek(kmn,kz) = Ek(kmn,kz)+tmq
+                        Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                         ENDIF
                      END DO
                   ENDIF
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kz,kmn,tmq)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmz,kmn,tmq)
             DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kz,kmn,tmq)
-               DO j = 1,n
-                  kmn = int(sqrt(ka(i)**2+ka(j)**2)+1.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                     DO k = 1,n
-                        kz = int(abs(ka(k))+1)
-                        IF ((kz.gt.0).and.(kz.le.n/2+1)) THEN
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmz,kmn,tmq)
+               DO j = 1,ny
+                  kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+                     DO k = 1,nz
+                        kmz = int(abs(kz(k))*Lz+1)
+                        IF ((kmz.gt.0).and.(kmz.le.nz/2+1)) THEN
                         tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+    &
                                  real(b(k,j,i)*conjg(c2(k,j,i)))+    &
                                  real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
 !$omp atomic
-                        Ek(kmn,kz) = Ek(kmn,kz)+tmq
+                        Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                         ENDIF
                      END DO
                   ENDIF
@@ -1516,7 +1583,7 @@
 ! Computes the reduction between nodes
 ! and exports the result to a file
 !
-         CALL MPI_REDUCE(Ek,Ektot,(n/2+1)*(n/2+1),GC_REAL,           &
+         CALL MPI_REDUCE(Ek,Ektot,(nmaxperp/2+1)*(nz/2+1),GC_REAL,   &
                          MPI_SUM,0,MPI_COMM_WORLD,ierr)
          IF (myrank.eq.0) THEN
             IF (kin.eq.1) THEN
@@ -1541,9 +1608,15 @@
       SUBROUTINE write_fourier(a,fname,nmb,dir)
 !-----------------------------------------------------------------
 !
-! Writes slices with the Fourier modes in the plane kz=0 and
-! ky=0. The output is written to a binary file by the first 
-! node.
+! Writes slices with the Fourier modes in the planes kx=0,
+! ky=0, and kz=0. The output is written to a binary file
+! by the first node.
+!
+! Output files contain [field = vx,vy,...]:
+! 'odir/field_kx': field(kz,ky,kx=0) with size (nz,ny)
+! 'odir/field_ky': field(kz,ky=0,kx) with size (nz,nx/2+1)
+! 'odir/field_kz': field(kz=0,ky,kx) with size (ny,nx/2+1)
+!   [Wavenumbers are k_i=(0,1,...)/L_i (i=x,y,z)]
 !
 ! Parameters
 !     a    : input matrix
@@ -1557,35 +1630,26 @@
       USE grid
       USE mpivars
       USE filefmt
+      USE boxsize
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
-      COMPLEX(KIND=GP), DIMENSION(n,n/2+1)                   :: uk1,uk2
-      COMPLEX(KIND=GP), DIMENSION(n,n/2+1)                   :: ut1,ut2
-      COMPLEX(KIND=GP), DIMENSION(n,n)                       :: ut3
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
+      COMPLEX(KIND=GP), DIMENSION(ny,nx/2+1)             :: uk1,ut1
+      COMPLEX(KIND=GP), DIMENSION(nz,nx/2+1)             :: uk2,ut2
+      COMPLEX(KIND=GP), DIMENSION(nz,ny)                 ::     ut3
       REAL                :: tmp
       INTEGER             :: i,j,k
       CHARACTER(len=100), INTENT(IN) :: dir
-      CHARACTER(len=*), INTENT(IN)   :: nmb,fname
+      CHARACTER(len=*),   INTENT(IN) :: nmb,fname
 
-!
-! Sets Hk to zero
-!
-!$omp parallel do private (j)
-      DO i = 1,n/2+1
-         DO j = 1,n
-            uk1(j,i) = 0.
-            uk2(j,i) = 0.
-         END DO
-      END DO
+      tmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !
 ! Computes the kz=0 slice
 !
-      tmp = 1.0_GP/real(n,kind=GP)**3
 !$omp parallel do private (j)
       DO i = ista,iend
-         DO j = 1,n
+         DO j = 1,ny
             uk1(j,i) = a(1,j,i)*tmp
          END DO
       END DO
@@ -1594,7 +1658,7 @@
 !
 !$omp parallel do private (k)
       DO i = ista,iend
-         DO k = 1,n
+         DO k = 1,nz
             uk2(k,i) = a(k,1,i)*tmp
          END DO
       END DO
@@ -1603,8 +1667,8 @@
 !
       IF (myrank.eq.0) THEN
 !$omp parallel do private (k)
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                ut3(k,j) = a(k,j,1)*tmp
             END DO
          END DO
@@ -1613,9 +1677,9 @@
 ! Computes the reduction between nodes
 ! and exports the result to a file
 !
-      CALL MPI_REDUCE(uk1,ut1,n*(n/2+1),GC_COMPLEX,            &
+      CALL MPI_REDUCE(uk1,ut1,ny*(nx/2+1),GC_COMPLEX,          &
                       MPI_SUM,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_REDUCE(uk2,ut2,n*(n/2+1),GC_COMPLEX,            &
+      CALL MPI_REDUCE(uk2,ut2,nz*(nx/2+1),GC_COMPLEX,            &
                       MPI_SUM,0,MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          OPEN(1,file=trim(dir) // '/' // trim(fname) // '_kz.' // &

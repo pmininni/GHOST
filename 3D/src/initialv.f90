@@ -13,6 +13,12 @@
 !     kdn : minimum wave number (rounded to next integer)
 !     kup : maximum wave number (rounded to next integer)
 
+      IF ( abs(Lx-Ly).gt.tiny ) THEN
+        IF (myrank.eq.0) &
+           PRINT *,'TG initial conditions require at least Lx=Ly'
+        STOP
+      ENDIF
+
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -51,4 +57,4 @@
       CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
 ! We do not normalize if the want the velocity to be given 
 ! just by sine, cosine with amplitude 1
-!     CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
+      CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)

@@ -114,7 +114,7 @@
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)        :: kx,ky,kz
       REAL(KIND=GP), TARGET, ALLOCATABLE, DIMENSION (:,:,:) :: kn2
       REAL(KIND=GP), POINTER, DIMENSION (:,:,:)             :: kk2
-      INTEGER :: nmax
+      INTEGER :: nmax,nmaxperp
       SAVE
 
   END MODULE kes

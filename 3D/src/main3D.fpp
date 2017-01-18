@@ -1300,8 +1300,9 @@
 !     kmax: maximum truncation for dealiasing
 !     tiny: minimum truncation for dealiasing
 
-      kmax = 1.0_GP/9.0_GP
-      nmax = int(max(nx*Dkx/Dkk,ny*Dky/Dkk,nz*Dkz/Dkk))
+      kmax =     1.0_GP/9.0_GP
+      nmax =     int(max(nx*Dkx,ny*Dky,nz*Dkz)/Dkk)
+      nmaxperp = int(max(nx*Dkx,ny*Dky)/Dkk)
 #ifndef DEF_ARBSIZE_
       IF (anis.eq.0)  kmax = kmax*real(nx,kind=GP)**2
 #endif

@@ -24,9 +24,9 @@ seed = 1000      ! seed for the random number generator
 
 ! Boz size
 &boxparams
-Lx = 2.00        ! Length in x
-Ly = 1.00        ! Length in x
-Lz = 3.00        ! Length in x
+Lx = 2.00        ! Length of the box in x
+Ly = 1.00        ! Length of the box in y
+Lz = 3.00        ! Length of the box in z
 /
 
 ! Parameters for the velocity field
