@@ -291,7 +291,8 @@
       CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c4,r4,MPI_COMM_WORLD)
 
-      tmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
@@ -1117,7 +1118,7 @@
 ! 'khelicity.XXX.txt': k, Hv(k) (kinetic helicity spectrum)
 ! 'mhelicity.XXX.txt': k, Hb(k) (magnetic helicity spectrum)
 ! 'mhelicity.XXX.txt': k, Hb(k) (magnetic helicity spectrum)
-! 'ghelicity.XXX.txt': k, G(k)   (generalized helicity in Hall-MHD)
+! 'ghelicity.XXX.txt': k, G(k)  (generalized helicity in Hall-MHD)
 !
 ! Parameters
 !     a  : input matrix in the x-direction

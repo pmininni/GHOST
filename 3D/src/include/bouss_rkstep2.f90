@@ -5,8 +5,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend               ! Gravity:
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,n
-               DO k = 1,n
+            DO j = 1,ny
+               DO k = 1,nz
                   C6(k,j,i) = C6(k,j,i)+xmom*th(k,j,i)
                END DO
             END DO
@@ -18,8 +18,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend               ! heat 'currrent':
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,n
-               DO k = 1,n
+            DO j = 1,ny
+               DO k = 1,nz
                   C5(k,j,i) = C5(k,j,i)+xtemp*vz(k,j,i)
                END DO
             END DO
@@ -40,9 +40,9 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-         DO k = 1,n
-            IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
+         DO j = 1,ny
+         DO k = 1,nz
+            IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
                vx(k,j,i) = C1 (k,j,i)+dt*(nu   *vx(k,j,i)+C7(k,j,i) &
               +fx(k,j,i))*rmp
                vy(k,j,i) = C2 (k,j,i)+dt*(nu   *vy(k,j,i)+C8(k,j,i) &
@@ -51,12 +51,12 @@
               +fz(k,j,i))*rmp
                th(k,j,i) = C20(k,j,i)+dt*(kappa*th(k,j,i)+C5(k,j,i) &
               +fs(k,j,i))*rmp
-            ELSE IF (ka2(k,j,i).gt.kmax) THEN
+            ELSE IF (kn2(k,j,i).gt.kmax) THEN
                vx(k,j,i) = 0.0_GP
                vy(k,j,i) = 0.0_GP
                vz(k,j,i) = 0.0_GP
                th(k,j,i) = 0.0_GP
-            ELSE IF (ka2(k,j,i).lt.tiny) THEN
+            ELSE IF (kn2(k,j,i).lt.tiny) THEN
                vx(k,j,i) = 0.0_GP
                vy(k,j,i) = 0.0_GP
                vz(k,j,i) = 0.0_GP
@@ -73,8 +73,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
           DO i = ista,iend               ! Gravity:
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-             DO j = 1,n
-                DO k = 1,n
+             DO j = 1,ny
+                DO k = 1,nz
                    C6(k,j,i) = C6(k,j,i)+xmom*C20(k,j,i)
                 END DO
             END DO
@@ -91,9 +91,9 @@
           ! Compute L(u) + N(u,u):
           DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,n
-             DO k = 1,n
-              IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
+            DO j = 1,ny
+             DO k = 1,nz
+              IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
                  C1 (k,j,i) = C1 (k,j,i)+C7(k,j,i)
                  C2 (k,j,i) = C2 (k,j,i)+C8(k,j,i)
                  C3 (k,j,i) = C3 (k,j,i)+C4(k,j,i)
@@ -111,8 +111,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
           DO i = ista,iend               ! Gravity:
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-             DO j = 1,n
-                DO k = 1,n
+             DO j = 1,ny
+                DO k = 1,nz
                    C6(k,j,i) = C6(k,j,i)+xmom*C20(k,j,i)
                 END DO
             END DO
@@ -129,8 +129,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
           DO i = ista,iend               ! Gravity:
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-             DO j = 1,n
-                DO k = 1,n
+             DO j = 1,ny
+                DO k = 1,nz
                    vx(k,j,i) = vx(k,j,i)+2.0_GP*C7(k,j,i)*rmp
                    vy(k,j,i) = vy(k,j,i)+2.0_GP*C8(k,j,i)*rmp
                    vz(k,j,i) = vz(k,j,i)+2.0_GP*C4(k,j,i)*rmp

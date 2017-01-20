@@ -1,8 +1,8 @@
 ! Initial condition for the vector potential.
 ! This file contains the expression used for the initial 
 ! vector potential. You can use temporary real arrays R1-R3 
-! of size (1:n,1:n,ksta:kend) and temporary complex arrays 
-! C1-C8 of size (n,n,ista:iend) to do intermediate 
+! of size (1:nx,1:ny,ksta:kend) and temporary complex arrays 
+! C1-C8 of size (1:nz,1:ny,ista:iend) to do intermediate 
 ! computations. The variable a0 should control the global 
 ! amplitude of the initial condition, and variables 
 ! aparam0-9 can be used to control the amplitudes of 
@@ -15,8 +15,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                ax(k,j,i) = 0.0_GP
                ay(k,j,i) = 0.0_GP
                az(k,j,i) = 0.0_GP

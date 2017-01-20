@@ -15,8 +15,8 @@
          CALL laplak3(ay,ay)
          CALL laplak3(az,az)
          DO i = ista,iend               ! electron velocity = v-epsilon.j
-            DO j = 1,n
-               DO k = 1,n
+            DO j = 1,ny
+               DO k = 1,nz
                   C14(k,j,i) = vx(k,j,i)+ep*ax(k,j,i)
                   C15(k,j,i) = vy(k,j,i)+ep*ay(k,j,i)
                   C18(k,j,i) = vz(k,j,i)+ep*az(k,j,i)
@@ -38,10 +38,10 @@
 
          rmp = 1./real(o,kind=GP)
          DO i = ista,iend
-         DO j = 1,n
-         DO k = 1,n
+         DO j = 1,ny
+         DO k = 1,nz
 
-            IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
+            IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
                vx(k,j,i) = C1(k,j,i)+dt*(nu*vx(k,j,i)+C16(k,j,i) &
               +fx(k,j,i))*rmp
                vy(k,j,i) = C2(k,j,i)+dt*(nu*vy(k,j,i)+C17(k,j,i) &

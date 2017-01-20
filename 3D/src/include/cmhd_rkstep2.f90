@@ -15,8 +15,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.ge.nth) private (k)
-         DO j = 1,n
-         DO k = 1,n
+         DO j = 1,ny
+         DO k = 1,nz
             C10(k,j,i) = cp2*C13(k,j,i)-C10(k,j,i)
             C11(k,j,i) = cp2*C14(k,j,i)-C11(k,j,i)
             C12(k,j,i) = cp2*C15(k,j,i)-C12(k,j,i)
@@ -35,10 +35,10 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.ge.nth) private (k)
-         DO j = 1,n
-         DO k = 1,n
+         DO j = 1,ny
+         DO k = 1,nz
 
-            IF ((ka2(k,j,i).le.kmax)) THEN
+            IF ((kn2(k,j,i).le.kmax)) THEN
                vx(k,j,i) = C1(k,j,i)+dt*(vx(k,j,i)+C10(k,j,i)-C13(k,j,i) &
               +fx(k,j,i))*rmp
                vy(k,j,i) = C2(k,j,i)+dt*(vy(k,j,i)+C11(k,j,i)-C14(k,j,i) &

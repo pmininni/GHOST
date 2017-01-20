@@ -39,11 +39,12 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)    :: d
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: x
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r1,r2
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r3,r4
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: a,b
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c
+      COMPLEX(KIND=GP), INTENT(IN),    DIMENSION(nz,ny,ista:iend) :: d
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: x
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r3,r4
       INTEGER :: i,j,k
 
       CALL fftp3d_complex_to_real(plancr,a,r1,MPI_COMM_WORLD)
@@ -53,8 +54,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                x(k,j,i) = d(k,j,i)
             END DO
          END DO
@@ -65,8 +66,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (iend-ista.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = r1(i,j,k)/r4(i,j,k)
                r2(i,j,k) = r2(i,j,k)/r4(i,j,k)
                r3(i,j,k) = r3(i,j,k)/r4(i,j,k)
@@ -106,20 +107,22 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c,d
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: e,f,g
-      REAL(KIND=GP), INTENT(IN)                  :: cp1, gam1
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: h
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r1,r2
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r3,r4
+      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: a,b
+      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: c,d
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: e,f
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: g
+      REAL(KIND=GP),    INTENT(IN)                 :: cp1, gam1
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: h
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r3,r4
       REAL(KIND=GP) :: tmp
       INTEGER       :: i,j,k
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                h(k,j,i) = d(k,j,i)
                e(k,j,i) = a(k,j,i)
                f(k,j,i) = b(k,j,i)
@@ -133,12 +136,12 @@
       CALL fftp3d_complex_to_real(plancr,g,r3,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,h,r4,MPI_COMM_WORLD)
 
-      tmp = 1.0_GP/real(n,kind=GP)**3
+      tmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (iend-ista.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r4(i,j,k) = 0.5_GP*( r1(i,j,k)*r1(i,j,k)*tmp*tmp + &
                                     r2(i,j,k)*r2(i,j,k)*tmp*tmp + &
                                     r3(i,j,k)*r3(i,j,k)*tmp*tmp + &
@@ -159,13 +162,13 @@
       SUBROUTINE divrhov(d,a,b,c,e)
 !-----------------------------------------------------------------
 !
-! Computes the divergence of the product of scalar 'd' by vector A=(a,b,c) 
+! Computes the divergence of the product of scalar 'd' by
+! vector A = (a,b,c) 
 !
 ! Parameters
 !     a  : input matrix with v_x (in Fourier space)
 !     b  : input matrix with v_y (in Fourier space)
-!     c  : input matrix with v_z (in Fourier space)
-!     A = (a,b,c)
+!     c  : input matrix with v_z (in Fourier space) [A = (a,b,c)]
 !     d  : input matrix with density (in Fourier space)
 !     e  : output matrix with div(d.A) (in Fourier space)
 !
@@ -178,19 +181,20 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c,d
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: e
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: f,g,h
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r1,r2
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r3,r4
+      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: a,b
+      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: c,d
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: e
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: f,g,h
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r3,r4
       REAL(KIND=GP) :: tmp
       INTEGER       :: i,j,k
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                e(k,j,i) = d(k,j,i)
                f(k,j,i) = a(k,j,i)
                g(k,j,i) = b(k,j,i)
@@ -204,12 +208,13 @@
       CALL fftp3d_complex_to_real(plancr,h,r3,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,e,r4,MPI_COMM_WORLD)
 
-      tmp = 1.0_GP/real(n,kind=GP)**6
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
 !$omp parallel do if (iend-ista.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (iend-ista.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = r4(i,j,k)*r1(i,j,k)*tmp
                r2(i,j,k) = r4(i,j,k)*r2(i,j,k)*tmp
                r3(i,j,k) = r4(i,j,k)*r3(i,j,k)*tmp
@@ -227,8 +232,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                e(k,j,i) = e(k,j,i) + f(k,j,i) + g(k,j,i)
             END DO
          END DO
@@ -242,7 +247,7 @@
 !-----------------------------------------------------------------
 !
 ! Computes the kinetic dissipation term 
-! nu*del^2(vel) + nu2*grad(div(vel)) 
+! nu*del^2(vel) + nu2*grad(div(vel))
 !
 ! Parameters
 !     a  : input/output matrix with v_x/(diss(v)_x) (in Fourier space)
@@ -256,10 +261,12 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend)  :: a,b,c
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: d,e,f,g
-      REAL(KIND=GP), INTENT(IN) :: nu,nu2
-      INTEGER                   :: i,j,k
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: a
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: d,e,f,g
+      REAL(KIND=GP),    INTENT(IN)                 :: nu,nu2
+      INTEGER                                      :: i,j,k
 
                                           ! div(vel)
       CALL derivk3(a,e,1)
@@ -268,8 +275,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                d(k,j,i) = e(k,j,i)+f(k,j,i)+g(k,j,i)
             END DO
          END DO
@@ -285,8 +292,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                a(k,j,i) = nu*a(k,j,i)+nu2*e(k,j,i)
                b(k,j,i) = nu*b(k,j,i)+nu2*f(k,j,i)
                c(k,j,i) = nu*c(k,j,i)+nu2*g(k,j,i)
@@ -304,16 +311,17 @@
 ! Computes the kinetic and internal energy for compressible runs, 
 ! including the mass density 
 !
+! Output file contains:
+! 'compr_ener.txt': time, kinetic energy, internal energy
+!
 ! Parameters
 !     a  : input matrix with v_x (in Fourier space)
 !     b  : input matrix with v_y (in Fourier space)
-!     c  : input matrix with v_z (in Fourier space)
-!     A = (a,b,c)
+!     c  : input matrix with v_z (in Fourier space) [A = (a,b,c)]
 !     d  : input matrix with density (in Fourier space)
 !     t  : number of time steps made
 !     dt : time step
-!   gam1 : gamma-1 constant (adiabatic constant)
-
+!     gam1 : gamma-1 constant (adiabatic constant)
 !
       USE fprecision
       USE kes
@@ -324,18 +332,21 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c,d
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: e,f,g,h
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r1,r2
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r3,r4
-      REAL(KIND=GP), INTENT(IN)     :: gam1,cp1,dt
-      INTEGER, INTENT(IN)           :: t
-      REAL(KIND=GP)       :: tmp, tmp1, gam0
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: e,f,g,h
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r3,r4
+      REAL(KIND=GP),    INTENT(IN)  :: gam1,cp1,dt
+      INTEGER,          INTENT(IN)  :: t
+      REAL(KIND=GP)                 :: tmp, tmp1, gam0
       DOUBLE PRECISION              :: tot_ekin
       DOUBLE PRECISION              :: loc_ekin
       DOUBLE PRECISION              :: tot_eint
       DOUBLE PRECISION              :: loc_eint
-      INTEGER             :: i,j,k
+      INTEGER                       :: i,j,k
 
       tot_ekin = 0.0D0
       tot_eint = 0.0D0
@@ -343,8 +354,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                e(k,j,i) = d(k,j,i)
                f(k,j,i) = a(k,j,i)
                g(k,j,i) = b(k,j,i)
@@ -360,14 +371,16 @@
 
       loc_ekin = 0.0D0
       loc_eint = 0.0D0
-      tmp = 1.0_GP/real(n,kind=GP)**9
-      tmp1 = 1.0_GP/real(n,kind=GP)**3
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**3
+      tmp1 = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       gam0 = gam1 + 1.0_GP
 !$omp parallel do if (iend-ista.ge.nth) private (j,i) reduction(+:loc_ekin,loc_eint)
       DO k = ksta,kend
 !$omp parallel do if (iend-ista.lt.nth) private (i) reduction(+:loc_ekin,loc_eint)
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                loc_ekin = loc_ekin + r4(i,j,k) * (r1(i,j,k)*r1(i,j,k)   + &
                                                   r2(i,j,k)*r2(i,j,k)   + &
                                                   r3(i,j,k)*r3(i,j,k) ) * tmp

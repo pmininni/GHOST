@@ -1,13 +1,13 @@
-! External forcing for the scalar.
-! This file contains the expression used for the external 
-! forcing. You can use temporary real arrays 
-! R1-R3 of size (1:n,1:n,ksta:kend) and temporary complex 
-! arrays C1-C8 of size (n,n,ista:iend) to do intermediate 
-! computations. The variable ci0 should control the global 
-! concentration , and variables siparam0-9 can be
-! used to control the amplitudes of individual terms, where
-! i is (1, 2, 3). At the end, the spectral space should be 
-! stored in the array fsi.
+! Initial condition for the scalar (multi-scalar solvers).
+! This file contains the expression used for the initial 
+! concentration of the passive scalar. You can use temporary 
+! real arrays R1-R3 of size (1:nx,1:ny,ksta:kend) and temporary 
+! complex arrays C1-C8 of size (1:nz,1:ny,ista:iend) to do 
+! intermediate computations. The variable ci0 should control 
+! the global amplitude of the concentration, and variables 
+! ciparam0-9 can be used to control the amplitudes of individual 
+! terms, where i is the scalar i. At the end, the initial passive 
+! scalars in spectral space should be stored in the array thi.
 
 ! Superposition of harmonic modes with random phases 
 !     c1param0  : minimum wave number, all scalars
@@ -17,95 +17,95 @@
          th1(1,1,1) = 0.
          th2(1,1,1) = 0.
 !        th3(1,1,1) = 0.
-         DO j = 2,n/2+1
+         DO j = 2,ny/2+1
 
-            IF ((ka2(1,j,1).le.c1param1**2).and.(ka2(1,j,1).ge.c1param0**2)) THEN
-               dump = 1./sqrt(ka2(1,j,1))
+            IF ((kk2(1,j,1).le.c1param1**2).and.(kk2(1,j,1).ge.c1param0**2)) THEN
+               dump = 1./sqrt(kk2(1,j,1))
                phase = 2*pi*randu(seed)
                th1(1,j,1) = (COS(phase)+im*SIN(phase))*dump
-               th1(1,n-j+2,1) = conjg(th1(1,j,1))
-               dump = 1./sqrt(ka2(1,j,1))
+               th1(1,ny-j+2,1) = conjg(th1(1,j,1))
+               dump = 1./sqrt(kk2(1,j,1))
                phase = 2*pi*randu(seed)
                th2(1,j,1) = (COS(phase)+im*SIN(phase))*dump
-               th2(1,n-j+2,1) = conjg(th2(1,j,1))
-!              dump = 1./sqrt(ka2(1,j,1))
+               th2(1,ny-j+2,1) = conjg(th2(1,j,1))
+!              dump = 1./sqrt(kk2(1,j,1))
 !              phase = 2*pi*randu(seed)
 !              th3(1,j,1) = (COS(phase)+im*SIN(phase))*dump
-!              th3(1,n-j+2,1) = conjg(th3(1,j,1))
+!              th3(1,ny-j+2,1) = conjg(th3(1,j,1))
             ELSE
                th1(1,j,1) = 0.
-               th1(1,n-j+2,1) = 0.
+               th1(1,ny-j+2,1) = 0.
                th2(1,j,1) = 0.
-               th2(1,n-j+2,1) = 0.
+               th2(1,ny-j+2,1) = 0.
 !              th3(1,j,1) = 0.
-!              th3(1,n-j+2,1) = 0.
+!              th3(1,ny-j+2,1) = 0.
             ENDIF
 
          END DO
-         DO k = 2,n/2+1
+         DO k = 2,nz/2+1
 
-            IF ((ka2(k,1,1).le.c1param1**2).and.(ka2(k,1,1).ge.c1param0**2)) THEN
-               dump = 1./sqrt(ka2(k,1,1))
+            IF ((kk2(k,1,1).le.c1param1**2).and.(kk2(k,1,1).ge.c1param0**2)) THEN
+               dump = 1./sqrt(kk2(k,1,1))
                phase = 2*pi*randu(seed)
                th1(k,1,1) = (COS(phase)+im*SIN(phase))*dump
-               th1(n-k+2,1,1) = conjg(th1(k,1,1))
-               dump = 1./sqrt(ka2(k,1,1))
+               th1(nz-k+2,1,1) = conjg(th1(k,1,1))
+               dump = 1./sqrt(kk2(k,1,1))
                phase = 2*pi*randu(seed)
                th2(k,1,1) = (COS(phase)+im*SIN(phase))*dump
-               th2(n-k+2,1,1) = conjg(th2(k,1,1))
-!              dump = 1./sqrt(ka2(k,1,1))
+               th2(nz-k+2,1,1) = conjg(th2(k,1,1))
+!              dump = 1./sqrt(kk2(k,1,1))
 !              phase = 2*pi*randu(seed)
 !              th3(k,1,1) = (COS(phase)+im*SIN(phase))*dump
-!              th3(n-k+2,1,1) = conjg(th3(k,1,1))
+!              th3(nz-k+2,1,1) = conjg(th3(k,1,1))
             ELSE
                th1(k,1,1) = 0.
-               th1(n-k+2,1,1) = 0.
+               th1(nz-k+2,1,1) = 0.
                th2(k,1,1) = 0.
-               th2(n-k+2,1,1) = 0.
+               th2(nz-k+2,1,1) = 0.
 !              th3(k,1,1) = 0.
-!              th3(n-k+2,1,1) = 0.
+!              th3(nz-k+2,1,1) = 0.
             ENDIF
 
          END DO
-         DO j = 2,n
-            DO k = 2,n/2+1
+         DO j = 2,ny
+            DO k = 2,nz/2+1
      
-            IF ((ka2(k,j,1).le.c1param1**2).and.(ka2(k,j,1).ge.c1param0**2)) THEN
-               dump = 1./sqrt(ka2(k,j,1))
+            IF ((kk2(k,j,1).le.c1param1**2).and.(kk2(k,j,1).ge.c1param0**2)) THEN
+               dump = 1./sqrt(kk2(k,j,1))
                phase = 2*pi*randu(seed)
                th1(k,j,1) = (COS(phase)+im*SIN(phase))*dump
-               th1(n-k+2,n-j+2,1) = conjg(th1(k,j,1))
-               dump = 1./sqrt(ka2(k,j,1))
+               th1(nz-k+2,ny-j+2,1) = conjg(th1(k,j,1))
+               dump = 1./sqrt(kk2(k,j,1))
                phase = 2*pi*randu(seed)
                th2(k,j,1) = (COS(phase)+im*SIN(phase))*dump
-               th2(n-k+2,n-j+2,1) = conjg(th2(k,j,1))
-!              dump = 1./sqrt(ka2(k,j,1))
+               th2(nz-k+2,ny-j+2,1) = conjg(th2(k,j,1))
+!              dump = 1./sqrt(kk2(k,j,1))
 !              phase = 2*pi*randu(seed)
 !              th3(k,j,1) = (COS(phase)+im*SIN(phase))*dump
-!              th3(n-k+2,n-j+2,1) = conjg(th3(k,j,1))
+!              th3(nz-k+2,ny-j+2,1) = conjg(th3(k,j,1))
             ELSE
                th1(k,j,1) = 0.
-               th1(n-k+2,n-j+2,1) = 0.
+               th1(nz-k+2,ny-j+2,1) = 0.
                th2(k,j,1) = 0.
-               th2(n-k+2,n-j+2,1) = 0.
+               th2(nz-k+2,ny-j+2,1) = 0.
 !              th3(k,j,1) = 0.
-!              th3(n-k+2,n-j+2,1) = 0.
+!              th3(nz-k+2,ny-j+2,1) = 0.
             ENDIF
 
             END DO
          END DO
          DO i = 2,iend
-            DO j = 1,n
-               DO k = 1,n
+            DO j = 1,ny
+               DO k = 1,nz
 
-               IF ((ka2(k,j,i).le.c1param1**2).and.(ka2(k,j,i).ge.c1param0**2)) THEN
-                  dump = 1./sqrt(ka2(k,j,i))
+               IF ((kk2(k,j,i).le.c1param1**2).and.(kk2(k,j,i).ge.c1param0**2)) THEN
+                  dump = 1./sqrt(kk2(k,j,i))
                   phase = 2*pi*randu(seed)
                   th1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
-                  dump = 1./sqrt(ka2(k,j,i))
+                  dump = 1./sqrt(kk2(k,j,i))
                   phase = 2*pi*randu(seed)
                   th2(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
-!                 dump = 1./sqrt(ka2(k,j,i))
+!                 dump = 1./sqrt(kk2(k,j,i))
 !                 phase = 2*pi*randu(seed)
 !                 th3(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
                ELSE
@@ -119,17 +119,17 @@
          END DO
       ELSE
          DO i = ista,iend
-            DO j = 1,n
-               DO k = 1,n
+            DO j = 1,ny
+               DO k = 1,nz
 
-               IF ((ka2(k,j,i).le.c1param1**2).and.(ka2(k,j,i).ge.c1param0**2)) THEN
-                  dump = 1./sqrt(ka2(k,j,i))
+               IF ((kk2(k,j,i).le.c1param1**2).and.(kk2(k,j,i).ge.c1param0**2)) THEN
+                  dump = 1./sqrt(kk2(k,j,i))
                   phase = 2*pi*randu(seed)
                   th1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
-                  dump = 1./sqrt(ka2(k,j,i))
+                  dump = 1./sqrt(kk2(k,j,i))
                   phase = 2*pi*randu(seed)
                   th2(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
-!                 dump = 1./sqrt(ka2(k,j,i))
+!                 dump = 1./sqrt(kk2(k,j,i))
 !                 phase = 2*pi*randu(seed)
 !                 th3(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
                ELSE
@@ -152,8 +152,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                th1(k,j,i) = th1(k,j,i)*cc10/sqrt(tmp1)
                th2(k,j,i) = th2(k,j,i)*cc20/sqrt(tmp2)
 !              th3(k,j,i) = th3(k,j,i)*cc30/sqrt(tmp3)

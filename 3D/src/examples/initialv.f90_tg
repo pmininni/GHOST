@@ -1,8 +1,8 @@
 ! Initial condition for the velocity.
 ! This file contains the expression used for the initial 
 ! velocity field. You can use temporary real arrays R1-R3 
-! of size (1:nx,1:ny,ksta:kend) and temporary complex arrays 
-! C1-C8 of size (nz,ny,ista:iend) to do intermediate 
+! of size (1:nx,1:ny,ksta:kend) and temporary complex arrays
+! C1-C8 of size (1:nz,1:ny,ista:iend) to do intermediate
 ! computations. The variable u0 should control the global 
 ! amplitude of the velocity, and variables vparam0-9 can be
 ! used to control the amplitudes of individual terms. At the

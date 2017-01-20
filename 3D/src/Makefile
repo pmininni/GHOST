@@ -92,8 +92,8 @@ CUDA_GHOSTyes  = -DDEF_GHOST_CUDA_ -DG_PPN_=$(PPN)
 CUDA_OBJSno    =
 CUDA_OBJSyes   = $(CONTRIB)/nvidia/setaffinity_for_nvidia.o
 
-GDEF           = $(IODEF$(IOLIB)) $(CUDA_GHOST$(P_CUDA)) $(LAGPDEF$(PARTICLES)) \
-	         $(ARBSIZEDEF$(ARBSIZE))
+GDEF           = $(IODEF$(IOLIB)) $(CUDA_GHOST$(P_CUDA)) \
+                 $(LAGPDEF$(PARTICLES)) $(ARBSIZEDEF$(ARBSIZE))
 CONTRIBOBJS    = $(CUDA_OBJS$(P_CUDA))
 
 # FFT Target variables derived from above FFT library quantities:
@@ -133,6 +133,7 @@ BIN         = ../bin
 # Objects
 HD_OBJS        = pseudospec3D_mod.o module_dns.o pseudospec3D_hd.o  
 PHD_OBJS       = $(HD_OBJS) pseudospec3D_phd.o
+MPHD_OBJS      = $(PHD_OBJS)
 MHD_OBJS       = $(HD_OBJS) pseudospec3D_mhd.o
 MHDB_OBJS      = $(MHD_OBJS) pseudospec3D_rot.o
 RMHDB_OBJS     = $(MHDB_OBJS)

@@ -78,10 +78,10 @@
 !
 ! Sets Ek to zero
 !
-      DO i = 1,nz/2+1
-         Ek (i) = 0.0D0
-         Ekh(i) = 0.0D0
-         Ekv(i) = 0.0D0
+      DO k = 1,nz/2+1
+         Ek (k) = 0.0D0
+         Ekh(k) = 0.0D0
+         Ekv(k) = 0.0D0
       END DO
 !
 ! Computes the curl of the field if needed
@@ -228,9 +228,9 @@
             ELSE
                OPEN(1,file='mspecpara.' // nmb // '.txt')
             ENDIF
-            DO j = 1,nz/2+1
+            DO k = 1,nz/2+1
                WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') &
-                    Dkz*(j-1),Ektot(j),Ekhtot(j),Ekvtot(j)
+                    Dkz*(k-1),Ektot(k),Ekhtot(k),Ekvtot(k)
             END DO
             CLOSE(1)
          ENDIF
@@ -239,10 +239,10 @@
 ! Computes the helicity spectrum
 !
       IF (hel.eq.1) THEN
-         DO i = 1,nz/2+1
-            Ek (i) = 0.0D0
-            Ekh(i) = 0.0D0
-            Ekv(i) = 0.0D0
+         DO k = 1,nz/2+1
+            Ek (k) = 0.0D0
+            Ekh(k) = 0.0D0
+            Ekv(k) = 0.0D0
          END DO
          IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn,tmq)
@@ -319,9 +319,9 @@
             ELSE
                OPEN(1,file='ghelipara.' // nmb // '.txt')
             ENDIF
-            DO j = 1,nz/2+1
+            DO k = 1,nz/2+1
                WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') &
-                    Dkz*(j-1),Ektot(j),Ekhtot(j),Ekvtot(j)
+                    Dkz*(k-1),Ektot(k),Ekhtot(k),Ekvtot(k)
             ENDDO
             CLOSE(1)
          ENDIF
@@ -728,8 +728,8 @@
 !
 ! Sets Ek to zero
 !
-      DO i = 1,nz/2+1
-         Ek(i) = 0.0D0
+      DO k = 1,nz/2+1
+         Ek(k) = 0.0D0
       END DO
 !
 ! Computes the kinetic energy transfer
@@ -855,8 +855,8 @@
          ELSE
             OPEN(1,file='jtranpara.' // nmb // '.txt')
          ENDIF
-         DO j = 1,nz/2+1
-            WRITE(1,FMT='(E13.6,E23.15)') Dkz*(j-1),Ektot(j)
+         DO k = 1,nz/2+1
+            WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Ektot(k)
          END DO
          CLOSE(1)
       ENDIF
@@ -1099,8 +1099,8 @@
 !
 ! Sets Hk to zero
 !
-      DO i = 1,nz/2+1
-         Hk(i) = 0.0D0
+      DO k = 1,nz/2+1
+         Hk(k) = 0.0D0
       END DO
 !
 ! Computes the helicity transfer
@@ -1170,8 +1170,8 @@
          ELSE
             OPEN(1,file='hktranpara.' // nmb // '.txt')
          ENDIF
-         DO j = 1,nz/2+1
-            WRITE(1,FMT='(E13.6,E23.15)') Dkz*(j-1),Hktot(j)
+         DO k = 1,nz/2+1
+            WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Hktot(k)
          END DO
          CLOSE(1)
       ENDIF
@@ -1363,8 +1363,8 @@
 ! Sets Ek to zero
 !
       DO i = 1,nmaxperp/2+1
-         DO j = 1,nz/2+1
-            Ek(i,j) = 0.0_GP
+         DO k = 1,nz/2+1
+            Ek(i,k) = 0.0_GP
          END DO
       END DO
 !
@@ -1518,8 +1518,8 @@
 !
       IF (hel.eq.1) THEN
          DO i = 1,nmaxperp/2+1
-            DO j = 1,nz/2+1
-               Ek(i,j) = 0.0_GP
+            DO k = 1,nz/2+1
+               Ek(i,k) = 0.0_GP
             END DO
          END DO
          IF (ista.eq.1) THEN

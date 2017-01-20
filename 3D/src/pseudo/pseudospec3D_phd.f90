@@ -43,11 +43,12 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c,d
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: e
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1,c2
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r3
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: c,d
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: e
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: c1,c2
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r3
       REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
 
@@ -62,8 +63,8 @@
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r3(i,j,k) = r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -79,8 +80,8 @@
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r3(i,j,k) = r3(i,j,k)+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -93,12 +94,14 @@
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
 
-      tmp = -1./real(n,kind=GP)**6   !we need -A.grad(B)
+! We need -A.grad(B)
+      tmp = -1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r3(i,j,k) = (r3(i,j,k)+r1(i,j,k)*r2(i,j,k))*tmp
             END DO
          END DO
@@ -130,32 +133,32 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
       DOUBLE PRECISION, INTENT(OUT) :: b
       DOUBLE PRECISION              :: bloc
       REAL(KIND=GP)                 :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
 
-      bloc = 0.
-      tmp = 1./real(n,kind=GP)**6
-
+      bloc = 0.0D0
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
 !
 ! Computes the variance
 !
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
 !$omp parallel do private (k) reduction(+:bloc)
-            DO j = 1,n
-               DO k = 1,n
+            DO j = 1,ny
+               DO k = 1,nz
                   bloc = bloc+tmp*abs(a(k,j,1))**2
                END DO
             END DO
 !$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:bloc)
             DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:bloc)
-               DO j = 1,n
-                  DO k = 1,n
+               DO j = 1,ny
+                  DO k = 1,nz
                      bloc = bloc+2*tmp*abs(a(k,j,i))**2
                   END DO
                END DO
@@ -164,8 +167,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:bloc)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:bloc)
-               DO j = 1,n
-                  DO k = 1,n
+               DO j = 1,ny
+                  DO k = 1,nz
                      bloc = bloc+2*tmp*abs(a(k,j,i))**2
                   END DO
                END DO
@@ -177,17 +180,17 @@
       ELSE IF (kin.eq.0) THEN
          IF (ista.eq.1) THEN
 !$omp parallel do private (k) reduction(+:bloc)
-            DO j = 1,n
-               DO k = 1,n
-                  bloc = bloc+tmp*ka2(k,j,1)*abs(a(k,j,1))**2
+            DO j = 1,ny
+               DO k = 1,nz
+                  bloc = bloc+tmp*kk2(k,j,1)*abs(a(k,j,1))**2
                END DO
             END DO
 !$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:bloc)
             DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:bloc)
-               DO j = 1,n
-                  DO k = 1,n
-                     bloc = bloc+2*tmp*ka2(k,j,i)*abs(a(k,j,i))**2
+               DO j = 1,ny
+                  DO k = 1,nz
+                     bloc = bloc+2*tmp*kk2(k,j,i)*abs(a(k,j,i))**2
                   END DO
                END DO
             END DO
@@ -195,9 +198,9 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:bloc)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:bloc)
-               DO j = 1,n
-                  DO k = 1,n
-                     bloc = bloc+2*tmp*ka2(k,j,i)*abs(a(k,j,i))**2
+               DO j = 1,ny
+                  DO k = 1,nz
+                     bloc = bloc+2*tmp*kk2(k,j,i)*abs(a(k,j,i))**2
                   END DO
                END DO
             END DO
@@ -231,29 +234,30 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
       DOUBLE PRECISION, INTENT(OUT) :: c
       DOUBLE PRECISION              :: cloc
-      REAL(KIND=GP)                :: tmp
+      REAL(KIND=GP)                 :: tmp
       INTEGER             :: i,j,k
 
-      cloc = 0.
-      tmp = 1./real(n,kind=GP)**6
+      cloc = 0.0D0
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
 !
 ! Computes the averaged inner product between the fields
 !
       IF (ista.eq.1) THEN
 !$omp parallel do private (k) reduction(+:cloc)
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                cloc = cloc+tmp*real(a(k,j,1)*conjg(b(k,j,1)))
             END DO
          END DO
 !$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:cloc)
          DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:cloc)
-            DO j = 1,n
-               DO k = 1,n
+            DO j = 1,ny
+               DO k = 1,nz
                   cloc = cloc+2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
                END DO
             END DO
@@ -262,8 +266,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:cloc)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:cloc)
-            DO j = 1,n
-               DO k = 1,n
+            DO j = 1,ny
+               DO k = 1,nz
                   cloc = cloc+2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
                END DO
             END DO
@@ -285,6 +289,9 @@
 ! Consistency check for the conservation of energy, 
 ! helicity, and null divergency of the velocity field
 !
+! Output file contains:
+! 'scalar.txt':  time, <theta^2>, <|grad(theta)|^2>, injection rate
+!
 ! Parameters
 !     a : scalar concentration
 !     b : source of the scalar
@@ -296,7 +303,7 @@
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
       DOUBLE PRECISION    :: eng,ens,pot
       REAL(KIND=GP), INTENT(IN)    :: dt
       INTEGER, INTENT(IN) :: t
@@ -328,7 +335,12 @@
       SUBROUTINE mpscheck2(a1,b1,a2,b2,t,dt)
 !-----------------------------------------------------------------
 !
-! Consistency check for the conservation of 2 'multscalar' energies
+! Consistency check for the conservation of 2 'multiscalar' energies
+!
+! Output file contains:
+! 'mscalar.txt':  time,
+!     [FIRST SCALAR:]  <theta^2>, <|grad(theta)|^2>, injection rate,
+!     [SECOND SCALAR:] <theta^2>, <|grad(theta)|^2>, injection rate
 !
 ! Parameters
 !     a_i : i_th scalar concentration, i=1-2
@@ -341,7 +353,8 @@
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a1,a2,b1,b2
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a1,a2
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: b1,b2
       DOUBLE PRECISION    :: eng(2),ens(2),pot(2)
       REAL(KIND=GP), INTENT(IN)    :: dt
       INTEGER, INTENT(IN) :: t
@@ -364,8 +377,8 @@
 !
       IF (myrank.eq.0) THEN
          OPEN(1,file='mscalar.txt',position='append')
-         WRITE(1,10) (t-1)*dt,eng(1),ens(1),pot(1),eng(2),ens(2),pot(2)
-   10    FORMAT( E13.6,E22.14,E22.14,E22.14,E22.14,E22.14,E22.14 )
+         WRITE(1,20) (t-1)*dt,eng(1),ens(1),pot(1),eng(2),ens(2),pot(2)
+   20    FORMAT( E13.6,E22.14,E22.14,E22.14,E22.14,E22.14,E22.14 )
          CLOSE(1)
       ENDIF
 
@@ -376,7 +389,13 @@
       SUBROUTINE mpscheck3(a1,b1,a2,b2,a3,b3,t,dt)
 !-----------------------------------------------------------------
 !
-! Consistency check for the conservation of 3 'multscalar' energies
+! Consistency check for the conservation of 3 'multiscalar' energies
+!
+! Output file contains:
+! 'mscalar.txt':  time,
+!     [FIRST SCALAR:]  <theta^2>, <|grad(theta)|^2>, injection rate,
+!     [SECOND SCALAR:] <theta^2>, <|grad(theta)|^2>, injection rate,
+!     [THIRD SCALAR:]  <theta^2>, <|grad(theta)|^2>, injection rate
 !
 ! Parameters
 !     a_i : i_th scalar concentration, i=1-3
@@ -389,7 +408,9 @@
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a1,a2,a3,b1,b2,b3
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a1,a2
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a3,b1
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: b2,b3
       DOUBLE PRECISION    :: eng(3),ens(3),pot(3)
       REAL(KIND=GP), INTENT(IN)    :: dt
       INTEGER, INTENT(IN) :: t
@@ -415,8 +436,10 @@
 !
       IF (myrank.eq.0) THEN
          OPEN(1,file='mscalar.txt',position='append')
-         WRITE(1,10) (t-1)*dt,eng(1),ens(1),pot(1),eng(2),ens(2),pot(2),eng(3),ens(3),pot(3)
-   10    FORMAT( E13.6,E22.14,E22.14,E22.14,E22.14,E22.14,E22.14,E22.14,E22.14,E22.14 )
+         WRITE(1,30) (t-1)*dt,eng(1),ens(1),pot(1),eng(2),ens(2), &
+              pot(2),eng(3),ens(3),pot(3)
+   30    FORMAT( E13.6,E22.14,E22.14,E22.14,E22.14,E22.14,        &
+              E22.14,E22.14,E22.14,E22.14 )
          CLOSE(1)
       ENDIF
 
@@ -430,6 +453,10 @@
 ! Computes the passive/active scalar power spectrum. The 
 ! output is written to a file by the first node.
 !
+! Output files contain:
+! 'sspectrum.XXX.txt' : k, V(k) (power spectrum of the scalar)
+! 'sNspectrum.XXX.txt': k, V(k) (same for the N-th scalar)
+!
 ! Parameters
 !     a  : input matrix with the scalar
 !     nmb: the extension used when writting the file
@@ -440,12 +467,14 @@
       USE grid
       USE mpivars
       USE filefmt
+      USE boxsize
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1)                     :: Ek
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
+      DOUBLE PRECISION, DIMENSION(nmax/2+1)                   :: Ek
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
       INTEGER, INTENT(IN)                                    :: isc
+      INTEGER                      :: i
       CHARACTER(len=*), INTENT(IN) :: nmb
       CHARACTER(len=1)             :: si
 
@@ -463,9 +492,9 @@
          ELSE
            OPEN(1,file='sspectrum.' // nmb // '.txt')
          ENDIF
-         WRITE(1,20) Ek
-   20    FORMAT( E23.15 ) 
-         CLOSE(1)
+         DO i=1,nmax/2+1
+            WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Ek(i)
+         END DO
       ENDIF
 
       RETURN
@@ -488,14 +517,15 @@
       USE kes
       USE grid
       USE mpivars
+      USE boxsize
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
-      DOUBLE PRECISION, INTENT(OUT), DIMENSION(n/2+1) :: Ektot
-      DOUBLE PRECISION, DIMENSION(n/2+1)              :: Ek
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
+      DOUBLE PRECISION, INTENT(OUT), DIMENSION(nmax/2+1)    :: Ektot
+      DOUBLE PRECISION,              DIMENSION(nmax/2+1)    :: Ek
       DOUBLE PRECISION :: tmq
-      REAL(KIND=GP), INTENT(IN)                       :: shift
+      REAL(KIND=GP),    INTENT(IN)                          :: shift
       REAL(KIND=GP)    :: tmp,round
       INTEGER          :: i,j,k
       INTEGER          :: kmn
@@ -503,7 +533,7 @@
 !
 ! Sets Ek to zero
 !
-      DO i = 1,n/2+1
+      DO i = 1,nmax/2+1
          Ek(i) = 0.0D0
       END DO
 !
@@ -513,13 +543,14 @@
 !
 ! Computes the power spectrum
 !
-      tmp = 1./real(n,kind=GP)**6
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn,tmq)
-         DO j = 1,n
-            DO k = 1,n
-               kmn = int(sqrt(ka2(k,j,1))+round)
-               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+         DO j = 1,ny
+            DO k = 1,nz
+               kmn = int(sqrt(kk2(k,j,1))/Dkk+round)
+               IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                   tmq = tmp*abs(a(k,j,1))**2
 !$omp atomic
                   Ek(kmn) = Ek(kmn)+tmq
@@ -529,10 +560,10 @@
 !$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
          DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-            DO j = 1,n
-               DO k = 1,n
-                  kmn = int(sqrt(ka2(k,j,i))+round)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+            DO j = 1,ny
+               DO k = 1,nz
+                  kmn = int(sqrt(kk2(k,j,i))/Dkk+round)
+                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      tmq = 2*tmp*abs(a(k,j,i))**2
 !$omp atomic
                      Ek(kmn) = Ek(kmn)+tmq
@@ -544,10 +575,10 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-            DO j = 1,n
-               DO k = 1,n
-                  kmn = int(sqrt(ka2(k,j,i))+round)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+            DO j = 1,ny
+               DO k = 1,nz
+                  kmn = int(sqrt(kk2(k,j,i))/Dkk+round)
+                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      tmq = 2*tmp*abs(a(k,j,i))**2
 !$omp atomic
                      Ek(kmn) = Ek(kmn)+tmq
@@ -559,8 +590,8 @@
 !
 ! Computes the reduction between nodes
 !
-      CALL MPI_ALLREDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM, &
-                      MPI_COMM_WORLD,ierr)
+      CALL MPI_ALLREDUCE(Ek,Ektot,nmax/2+1,MPI_DOUBLE_PRECISION, &
+                      MPI_SUM,MPI_COMM_WORLD,ierr)
 
       RETURN
       END SUBROUTINE spectrscc
@@ -573,13 +604,17 @@
 ! in 3D. The output is written to a file by the 
 ! first node.
 !
+! Output files contain:
+! 'stransfer.XXX.txt' : k, Ts(k) (scalar transfer function)
+! 'sNtransfer.XXX.txt': k, Ts(k) (same for the N-th scalar)
+!
 ! Parameters
 !     a  : scalar
 !     b  : nonlinear term
 !     nmb: the extension used when writting the file
 !     isc: if doing multi-scalar, gives index of scalar 
 !          whose transfer is being computed (1, 2, or 3) and
-!          names file as s<isc>trasfer.XXX.txt. If isc=0, then
+!          names file as s<isc>transfer.XXX.txt. If isc=0, then
 !          filename is stransfer.XXX.txt
 !          
 !
@@ -589,34 +624,36 @@
       USE grid
       USE mpivars
       USE filefmt
+      USE boxsize
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX (KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
-      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek,Ektot
+      COMPLEX (KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
+      DOUBLE PRECISION, DIMENSION(nmax/2+1) :: Ek,Ektot
       DOUBLE PRECISION :: tmq
       REAL(KIND=GP)    :: tmp
-      INTEGER,           INTENT(IN)                           :: isc
+      INTEGER,           INTENT(IN)                             :: isc
       INTEGER          :: i,j,k
       INTEGER          :: kmn
-      CHARACTER(len=*) , INTENT(IN)                           :: nmb
+      CHARACTER(len=*) , INTENT(IN)                             :: nmb
       CHARACTER(len=1) :: si
 !
 ! Sets Ek to zero
 !
-      DO i = 1,n/2+1
+      DO i = 1,nmax/2+1
          Ek(i) = 0.0D0
       END DO
 !
 ! Computes the scalar transfer
 !
-      tmp = 1./real(n,kind=GP)**6
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn,tmq)
-         DO j = 1,n
-            DO k = 1,n
-               kmn = int(sqrt(ka2(k,j,1))+.501)
-               IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+         DO j = 1,ny
+            DO k = 1,nz
+               kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
+               IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                   tmq = tmp*real(a(k,j,1)*conjg(b(k,j,1)))
 !$omp atomic
                   Ek(kmn) = Ek(kmn)+tmq
@@ -626,10 +663,10 @@
 !$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
          DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-            DO j = 1,n
-               DO k = 1,n
-                  kmn = int(sqrt(ka2(k,j,i))+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+            DO j = 1,ny
+               DO k = 1,nz
+                  kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      tmq = 2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
 !$omp atomic
                      Ek(kmn) = Ek(kmn)+tmq
@@ -641,10 +678,10 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-            DO j = 1,n
-               DO k = 1,n
-                  kmn = int(sqrt(ka2(k,j,i))+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+            DO j = 1,ny
+               DO k = 1,nz
+                  kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      tmq = 2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
 !$omp atomic
                      Ek(kmn) = Ek(kmn)+tmq
@@ -657,7 +694,7 @@
 ! Computes the reduction between nodes
 ! and exports the result to a file
 !
-      CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+      CALL MPI_REDUCE(Ek,Ektot,nmax/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
         IF ( isc.GT.0 ) THEN
@@ -666,10 +703,9 @@
         ELSE
           OPEN(1,file='stransfer.' // nmb // '.txt')
         ENDIF
-        
-         WRITE(1,30) Ektot
-   30    FORMAT( E23.15 ) 
-         CLOSE(1)
+        DO i=1,nmax/2+1
+           WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Ektot(i)
+        END DO
       ENDIF
 
       RETURN
@@ -683,6 +719,9 @@
 ! passive scalar, and their product. The output is 
 ! written to a file by the first node.
 !
+! Output file contains:
+! 'profilex.txt': x, <v_i>(x), <theta>(x), <v_i.theta>(x)
+!
 ! Parameters
 !     a    : vector field component in the x-direction
 !     b    : scalar field
@@ -690,18 +729,20 @@
 !
       USE fprecision
       USE commtypes
+      USE var
       USE kes
       USE fft
       USE grid
       USE mpivars
+      USE boxsize
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)                :: r1,r2
-      REAL(KIND=GP), DIMENSION(n)  :: meth,mev,methv
-      REAL(KIND=GP), DIMENSION(n)  :: mth,mv,mthv
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
+      COMPLEX(KIND=GP),             DIMENSION(nz,ny,ista:iend) :: c1,c2
+      REAL(KIND=GP),                DIMENSION(nx,ny,ksta:kend) :: r1,r2
+      REAL(KIND=GP), DIMENSION(nx) :: meth,mev,methv
+      REAL(KIND=GP), DIMENSION(nx) :: mth,mv,mthv
       REAL(KIND=GP)                :: tmp,tmq
       INTEGER                      :: i,j,k
       CHARACTER(len=*), INTENT(IN) :: nmb
@@ -712,8 +753,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                c1(k,j,i) = a(k,j,i)
                c2(k,j,i) = b(k,j,i)
             END DO
@@ -724,7 +765,7 @@
 !
 ! Computes the mean profiles
 !    
-      DO i = 1,n
+      DO i = 1,nx
          mev(i) = 0.0_GP
          meth(i) = 0.0_GP
          methv(i) = 0.0_GP
@@ -732,8 +773,8 @@
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
 !$omp critical
                mev(i) = mev(i)+r1(i,j,k)
                meth(i) = meth(i)+r2(i,j,k)
@@ -742,9 +783,11 @@
             END DO
          END DO
       END DO
-      tmp = 1.0_GP/float(n)**5
-      tmq = 1.0_GP/float(n)**8
-      DO i = 1,n
+      tmp = 1.0_GP/(real(nx,kind=GP)*      &
+                    real(ny,kind=GP)**2*real(nz,kind=GP)**2)
+      tmq = 1.0_GP/(real(nx,kind=GP)**2*   &
+                    real(ny,kind=GP)**3*real(nz,kind=GP)**3)
+      DO i = 1,nx
          mev(i) = mev(i)*tmp
          meth(i) = meth(i)*tmp
          methv(i) = methv(i)*tmq
@@ -752,18 +795,18 @@
 !
 ! Computes the reduction between nodes
 !
-      CALL MPI_REDUCE(mev,mv,n,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_REDUCE(meth,mth,n,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_REDUCE(methv,mthv,n,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_REDUCE(mev,mv,nx,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_REDUCE(meth,mth,nx,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_REDUCE(methv,mthv,nx,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       IF (myrank.eq.0) THEN
-
          OPEN(1,file='profilex.' // nmb // '.txt')
-         DO i = 1,n
-            WRITE(1,40) mv(i),mth(i),mthv(i)
+         DO i = 1,nx
+            WRITE(1,40) 2*pi*Lx*(real(i,kind=GP)-1)/real(nx,kind=GP), &
+                        mv(i),mth(i),mthv(i)
          END DO
          CLOSE(1) 
-   40    FORMAT( E23.15,E23.15,E23.15 ) 
+   40    FORMAT( E23.15,E23.15,E23.15,E23.15 )
       ENDIF
 
       RETURN
@@ -777,6 +820,9 @@
 ! passive scalar, and their product. The output is 
 ! written to a file by the first node.
 !
+! Output file contains:
+! 'profilez.txt': z, <v_i>(z), <theta>(z), <v_i.theta>(z)
+!
 ! Parameters
 !     a    : vector field component in the z-direction
 !     b    : scalar field
@@ -784,18 +830,20 @@
 !
       USE fprecision
       USE commtypes
+      USE var
       USE kes
       USE fft
       USE grid
       USE mpivars
+      USE boxsize
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)                :: r1,r2
-      REAL(KIND=GP), DIMENSION(n)  :: meth,mev,methv
-      REAL(KIND=GP), DIMENSION(n)  :: mth,mv,mthv
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
+      COMPLEX(KIND=GP),             DIMENSION(nz,ny,ista:iend) :: c1,c2
+      REAL(KIND=GP),                DIMENSION(nx,ny,ksta:kend) :: r1,r2
+      REAL(KIND=GP), DIMENSION(nz) :: meth,mev,methv
+      REAL(KIND=GP), DIMENSION(nz) :: mth,mv,mthv
       REAL(KIND=GP)                :: tmp,tmq
       INTEGER                      :: i,j,k
       CHARACTER(len=*), INTENT(IN) :: nmb
@@ -806,8 +854,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                c1(k,j,i) = a(k,j,i)
                c2(k,j,i) = b(k,j,i)
             END DO
@@ -818,7 +866,7 @@
 !
 ! Computes the mean profiles
 !    
-      DO i = 1,n
+      DO i = 1,nz
          mev(i) = 0.0_GP
          meth(i) = 0.0_GP
          methv(i) = 0.0_GP
@@ -826,8 +874,8 @@
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
 !$omp critical
                mev(k) =  mev(k)+r1(i,j,k)
                meth(k) = meth(k)+r2(i,j,k)
@@ -836,28 +884,29 @@
             END DO
          END DO
       END DO
-      tmp = 1.0_GP/float(n)**5
-      tmq = 1.0_GP/float(n)**8
-      DO i = 1,n
-         mev(i) = mev(i)*tmp
-         meth(i) = meth(i)*tmp
-         methv(i) = methv(i)*tmq
+      tmp = 1.0_GP/(real(nx,kind=GP)**2*   &
+                    real(ny,kind=GP)**2*real(nz,kind=GP))
+      tmq = 1.0_GP/(real(nx,kind=GP)**3*   &
+                    real(ny,kind=GP)**3*real(nz,kind=GP)**2)
+      DO k = 1,nz
+         mev(k) = mev(k)*tmp
+         meth(k) = meth(k)*tmp
+         methv(k) = methv(k)*tmq
       END DO
 !
 ! Computes the reduction between nodes
 !
-      CALL MPI_REDUCE(mev,mv,n,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_REDUCE(meth,mth,n,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_REDUCE(methv,mthv,n,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_REDUCE(mev,mv,nz,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_REDUCE(meth,mth,nz,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_REDUCE(methv,mthv,nz,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       IF (myrank.eq.0) THEN
-
-         OPEN(1,file='profilez.' // nmb // '.txt')
-         DO i = 1,n
-            WRITE(1,40) mv(i),mth(i),mthv(i)
+         DO k = 1,nz
+            WRITE(1,50) 2*pi*Lz*(real(k,kind=GP)-1)/real(nz,kind=GP), &
+                        mv(k),mth(k),mthv(k)
          END DO
          CLOSE(1) 
-   40    FORMAT( E23.15,E23.15,E23.15 ) 
+   50    FORMAT( E23.15,E23.15,E23.15,E23.15 ) 
       ENDIF
 
       RETURN

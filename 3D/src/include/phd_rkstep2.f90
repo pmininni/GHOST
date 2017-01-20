@@ -18,9 +18,9 @@
 
          rmp = 1./REAL(o,KIND=GP)
          DO i = ista,iend 
-         DO j = 1,n
-         DO k = 1,n
-            IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
+         DO j = 1,ny
+         DO k = 1,nz
+            IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
                vx(k,j,i) = C1(k,j,i)+dt*(nu*vx(k,j,i)+C7(k,j,i) &
               +fx(k,j,i))*rmp
                vy(k,j,i) = C2(k,j,i)+dt*(nu*vy(k,j,i)+C8(k,j,i) &
@@ -29,12 +29,12 @@
               +fz(k,j,i))*rmp
                th(k,j,i) = C20(k,j,i)+dt*(kappa*th(k,j,i)+C5(k,j,i) &
               +fs(k,j,i))*rmp
-            ELSE IF (ka2(k,j,i).gt.kmax) THEN
+            ELSE IF (kn2(k,j,i).gt.kmax) THEN
                vx(k,j,i) = 0.0_GP
                vy(k,j,i) = 0.0_GP
                vz(k,j,i) = 0.0_GP
                th(k,j,i) = 0.0_GP
-            ELSE IF (ka2(k,j,i).lt.tiny) THEN
+            ELSE IF (kn2(k,j,i).lt.tiny) THEN
                vx(k,j,i) = 0.0_GP
                vy(k,j,i) = 0.0_GP
                vz(k,j,i) = 0.0_GP

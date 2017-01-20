@@ -5,8 +5,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend               ! Coriolis force
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,n
-               DO k = 1,n
+            DO j = 1,ny
+               DO k = 1,nz
                   C4(k,j,i) = C4(k,j,i)-2*omega*vy(k,j,i)
                   C5(k,j,i) = C5(k,j,i)+2*omega*vx(k,j,i)
                END DO
@@ -37,7 +37,7 @@
 !!          CALL sctrans(C23,C24,ext,3)
             CALL sctpara(C21,C5 ,ext,1)
             CALL sctpara(C22,C6 ,ext,2)
-!.          CALL sctpara(C23,C24,ext,3)
+!!          CALL sctpara(C23,C24,ext,3)
             CALL sctperp(C21,C5 ,ext,1)
             CALL sctperp(C22,C6 ,ext,2)
 !!          CALL sctperp(C23,C24,ext,3)
@@ -47,9 +47,9 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-         DO k = 1,n
-            IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
+         DO j = 1,ny
+         DO k = 1,nz
+            IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
                vx(k,j,i) = C1(k,j,i)+dt*(nu*vx(k,j,i)+C7(k,j,i) &
               +fx(k,j,i))*rmp
                vy(k,j,i) = C2(k,j,i)+dt*(nu*vy(k,j,i)+C8(k,j,i) &
@@ -62,14 +62,14 @@
               +fs2(k,j,i))*rmp
 !!             th3(k,j,i) = C23(k,j,i)+dt*(kappa3*th3(k,j,i)+C24(k,j,i) &
 !!            +fs3(k,j,i))*rmp
-           ELSE IF (ka2(k,j,i).gt.kmax) THEN
+           ELSE IF (kn2(k,j,i).gt.kmax) THEN
                vx (k,j,i) = 0.0_GP
                vy (k,j,i) = 0.0_GP
                vz (k,j,i) = 0.0_GP
                th1(k,j,i) = 0.0_GP
                th2(k,j,i) = 0.0_GP
 !!             th3(k,j,i) = 0.0_GP
-            ELSE IF (ka2(k,j,i).lt.tiny) THEN
+            ELSE IF (kn2(k,j,i).lt.tiny) THEN
                vx (k,j,i) = 0.0_GP
                vy (k,j,i) = 0.0_GP
                vz (k,j,i) = 0.0_GP

@@ -5,16 +5,16 @@
          CALL rotor3(ax,az,C8,2)
          CALL rotor3(ax,ay,C9,3)
          IF (myrank.eq.0) THEN          ! b = b + B_0
-            C7(1,1,1) = bx0*real(n,kind=GP)**3
-            C8(1,1,1) = by0*real(n,kind=GP)**3
-            C9(1,1,1) = bz0*real(n,kind=GP)**3
+            C7(1,1,1) = bx0*real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)
+            C8(1,1,1) = by0*real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)
+            C9(1,1,1) = bz0*real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)
          ENDIF
          CALL prodre3(vx,vy,vz,C10,C11,C12)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend               ! Coriolis force
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,n
-               DO k = 1,n
+            DO j = 1,ny
+               DO k = 1,nz
                   C10(k,j,i) = C10(k,j,i)-2*omega*vy(k,j,i)
                   C11(k,j,i) = C11(k,j,i)+2*omega*vx(k,j,i)
                END DO
@@ -46,10 +46,10 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.ge.nth) private (k)
-         DO j = 1,n
-         DO k = 1,n
+         DO j = 1,ny
+         DO k = 1,nz
 
-            IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
+            IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
                vx(k,j,i) = C1(k,j,i)+dt*(nu*vx(k,j,i)+C16(k,j,i) &
               +fx(k,j,i))*rmp
                vy(k,j,i) = C2(k,j,i)+dt*(nu*vy(k,j,i)+C17(k,j,i) &
