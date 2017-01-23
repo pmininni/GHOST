@@ -1,15 +1,15 @@
 ! Write velocity of test particles
            CALL lagpart%io_write_pdbv(1,odir,'vtp',lgext,(t-1)*dt)
 ! Write magnetic field and current density:
-           tmp = 1.0E0 / real(n,kind=GP)**3
+           rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-              DO j = 1,n
-                 DO k = 1,n
-                    C1(k,j,i) = ax(k,j,i)*tmp
-                    C2(k,j,i) = ay(k,j,i)*tmp
-                    C3(k,j,i) = az(k,j,i)*tmp
+              DO j = 1,ny
+                 DO k = 1,nz
+                    C1(k,j,i) = ax(k,j,i)*rmp
+                    C2(k,j,i) = ay(k,j,i)*rmp
+                    C3(k,j,i) = az(k,j,i)*rmp
                  END DO
               END DO
            END DO

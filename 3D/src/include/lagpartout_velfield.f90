@@ -4,12 +4,12 @@
 ! Set the Lagrangian velocities so output doesn't
 ! give 0: 
 !
-           rmp = 1.0_GP/real(n,kind=GP)**3
+           rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-             DO j = 1,n
-               DO k = 1,n
+             DO j = 1,ny
+               DO k = 1,nz
                  C7(k,j,i) = vx(k,j,i)*rmp
                END DO
              END DO
@@ -18,8 +18,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-             DO j = 1,n
-               DO k = 1,n
+             DO j = 1,ny
+               DO k = 1,nz
                  C7(k,j,i) = vy(k,j,i)*rmp
                END DO
              END DO
@@ -28,8 +28,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-             DO j = 1,n
-               DO k = 1,n
+             DO j = 1,ny
+               DO k = 1,nz
                  C7(k,j,i) = vz(k,j,i)*rmp
                END DO
              END DO
@@ -57,8 +57,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-             DO j = 1,n
-               DO k = 1,n
+             DO j = 1,ny
+               DO k = 1,nz
                  C7(k,j,i) = vx(k,j,i)*rmp
                END DO
              END DO
@@ -67,8 +67,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-             DO j = 1,n
-               DO k = 1,n
+             DO j = 1,ny
+               DO k = 1,nz
                  C7(k,j,i) = vy(k,j,i)*rmp
                END DO
              END DO
@@ -77,8 +77,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-             DO j = 1,n
-               DO k = 1,n
+             DO j = 1,ny
+               DO k = 1,nz
                  C7(k,j,i) = vz(k,j,i)*rmp
                END DO
              END DO
@@ -102,8 +102,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-              DO j = 1,n
-                 DO k = 1,n
+              DO j = 1,ny
+                 DO k = 1,nz
                     C1(k,j,i) = vx(k,j,i)*rmp
                     C2(k,j,i) = vy(k,j,i)*rmp
                     C3(k,j,i) = vz(k,j,i)*rmp
@@ -130,8 +130,8 @@
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
            DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-             DO j = 1,n
-                DO i = 1,n
+             DO j = 1,ny
+                DO i = 1,nz
                    R4(i,j,k) = R4(i,j,k)*rmp
                 END DO
              END DO
@@ -142,8 +142,8 @@
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
            DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-             DO j = 1,n
-                DO i = 1,n
+             DO j = 1,ny
+                DO i = 1,nz
                    R4(i,j,k) = R4(i,j,k)*rmp
                 END DO
              END DO
@@ -154,8 +154,8 @@
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
            DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-             DO j = 1,n
-                DO i = 1,n
+             DO j = 1,ny
+                DO i = 1,nz
                    R4(i,j,k) = R4(i,j,k)*rmp
                 END DO
              END DO
@@ -170,8 +170,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-              DO j = 1,n
-                 DO k = 1,n
+              DO j = 1,ny
+                 DO k = 1,nz
                     C1(k,j,i) = C1(k,j,i)*rmp
                  END DO
               END DO
@@ -183,8 +183,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-              DO j = 1,n
-                 DO k = 1,n
+              DO j = 1,ny
+                 DO k = 1,nz
                     C1(k,j,i) = 0.5*(C1(k,j,i)+C2(k,j,i))*rmp
                  END DO
               END DO
@@ -196,8 +196,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-              DO j = 1,n
-                 DO k = 1,n
+              DO j = 1,ny
+                 DO k = 1,nz
                     C1(k,j,i) = 0.5*(C1(k,j,i)+C2(k,j,i))*rmp
                  END DO
               END DO
@@ -208,8 +208,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-              DO j = 1,n
-                 DO k = 1,n
+              DO j = 1,ny
+                 DO k = 1,nz
                     C1(k,j,i) = C1(k,j,i)*rmp
                  END DO
               END DO
@@ -221,8 +221,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-              DO j = 1,n
-                 DO k = 1,n
+              DO j = 1,ny
+                 DO k = 1,nz
                     C1(k,j,i) = 0.5*(C1(k,j,i)+C2(k,j,i))*rmp
                  END DO
               END DO

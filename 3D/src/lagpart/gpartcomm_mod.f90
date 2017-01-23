@@ -230,8 +230,6 @@ MODULE class_GPartComm
     INTEGER                               :: jbr,jtr,n2p,nt,nxy
     INTEGER,ALLOCATABLE,DIMENSION(:)      :: jfwd,kfend,kfsta,nzf
 
-
-
     ! Compute the no. sendto and recv from tasks there are:
 
     ! If there aren't enough 'slices' with nearest neighbors to 
@@ -822,7 +820,7 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 !  METHOD     : LocalDataExchSF
 !  DESCRIPTION: Does 'bdy exchange' of (single) velocity component, when there's
-!               only a single MPI task.. This is a single-field interface.
+!               only a single MPI task. This is a single-field interface.
 !  ARGUMENTS  :
 !    this              : 'this' class instance (IN)
 !    vxext,vyext,vzext : Eulerian velocity components returned on extended
@@ -1641,7 +1639,6 @@ MODULE class_GPartComm
     INTEGER      ,INTENT   (IN)                :: rank
     INTEGER                                    :: i,ii,j,jj,k,kk
     INTEGER                                    :: igetfrom,iproc,irank,isendto,istrip
-    INTEGER                                    :: nx,ny,nz,nxy,nzy
     REAL(KIND=GP),INTENT(INOUT)                :: &
       ofield(od(1,1):od(1,2),od(2,1):od(2,2),od(3,1):od(3,2))
     REAL(KIND=GP),INTENT(INOUT)                :: &
@@ -1658,13 +1655,7 @@ MODULE class_GPartComm
       ENDIF
     ENDIF 
 
-
     ! NOTE: rank is transpose problem rank; irank is MPI rank...
-!   nx = idims(1)
-!   ny = idims(2)
-!   IF ( rank .GT. 2 ) nz = idims(3)
-!   nxy = nx*ny
-!   nzy = nz*ny
 
     CALL GTStart(this%hcomm_)
     DO iproc = 0, this%nprocs_-1, this%nstrip_
@@ -1709,7 +1700,6 @@ MODULE class_GPartComm
 
     IF ( rank .EQ. 3 ) THEN
 
-
 !!!$omp parallel do if ((idims(3)-1)/this%csize_.ge.this%nth_) private (jj,kk,i,j,k)
      DO ii = od(3,1),od(3,2),this%csize_
 !!!$omp parallel do if ((idims(3)-1)/this%csize_.lt.this%nth_) private (kk,i,j,k)
@@ -1728,7 +1718,6 @@ MODULE class_GPartComm
         END DO
      END DO
 
-
     ELSE
 
       write(*,*) 'GPartComm_Transpose: rank two not implemented'
@@ -1746,7 +1735,7 @@ MODULE class_GPartComm
 !  DESCRIPTION: Does global 'inverse'transpose to take a x-y complete field,
 !               infield, to a yz-complete field, outfield. Handles
 !               2D and 3D fields.
-!               
+!
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
 !    ofield  : output field, yz-complete 
@@ -1782,13 +1771,8 @@ MODULE class_GPartComm
       ENDIF
     ENDIF 
 
-
     ! NOTE: rank is transpose problem rank; irank is MPI rank...
-!   nx = idims(1)
-!   ny = idims(2)
-!   IF ( rank .GT. 2 ) nz = idims(3)
-!   nxy = nx*ny
-!   nzy = nz*ny
+
     IF ( rank .EQ. 3 ) THEN
 
 !!!$omp parallel do if ((idims(3)-1)/this%csize_.ge.this%nth_) private (jj,kk,i,j,k)
@@ -1801,8 +1785,6 @@ MODULE class_GPartComm
                 DO j = jj,min(od(2,2)-od(2,1)+1,jj+this%csize_-1)
                   DO k = kk,min(od(1,2)-od(1,1)+1,kk+this%csize_-1)
                      tmp(i,j,k) = ifield(k,j,i)
-!!                   ofield(k+(j-1)*nz+(i-1)*nzy) = tmp(i+(j-1)*nz+(k-1)*nzy)
-!!!                  ofield(k+(j-1)*nx+(i-1)*nxy) = tmp(i+(j-1)*nx+(k-1)*nxy)
                   END DO
                 END DO
               END DO
@@ -1812,16 +1794,6 @@ MODULE class_GPartComm
      END DO
 
     ELSE
-
-       DO ii = 1,ny,this%csize_
-         DO jj = 1,nx,this%csize_
-            DO i = ii,min(ny,ii+this%csize_-1)
-              DO j = jj,min(nx,jj+this%csize_-1)
-!                tmp(i,j) = ifield(j,i)
-              END DO
-            END DO
-         END DO
-      END DO
 
     ENDIF
 
@@ -1937,8 +1909,6 @@ MODULE class_GPartComm
     CALL range(1,this%nd_(3),this%nprocs_,this%myrank_,ksta,kend)
     DO irank = 0,this%nprocs_-1
        CALL range(1,this%nd_(1),this%nprocs_,irank,ista,iend)
-!      CALL block3d(1,this%nd_(1),1,this%nd_(2),ksta,1,iend-ista+1, &
-!                   1,this%nd_(2),1,kend-ksta+1,GC_REAL,itemp1)
        CALL block3d(1,this%nd_(1),1,this%nd_(2),ksta,ista,iend, &
                     1,this%nd_(2),ksta,kend,GC_REAL,itemp1)
        this%itypekp_(irank) = itemp1
@@ -1946,8 +1916,6 @@ MODULE class_GPartComm
     CALL range(1,this%nd_(1),this%nprocs_,this%myrank_,ista,iend)
     DO krank = 0,this%nprocs_-1
        CALL range(1,this%nd_(3),this%nprocs_,krank,ksta,kend)
-!      CALL block3d(ista,iend,1,this%nd_(2),1,ista,iend, &
-!                  1,this%nd_(2),1,kend-ksta+1,GC_REAL,itemp2)
        CALL block3d(ista,iend,1,this%nd_(2),1,ista,iend, &
                    1,this%nd_(2),ksta,kend,GC_REAL,itemp2)
        this%itypeip_(krank) = itemp2
@@ -2005,12 +1973,10 @@ MODULE class_GPartComm
     REAL(KIND=GP),INTENT   (IN),DIMENSION(*)        :: lx,ly,lz
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,ngvdb)  :: gvdb,ptmp
 
-
 !   CALL GTStart(this%hcomm_)
 !   CALL MPI_ALLREDUCE(nl,ng,1,MPI_INTEGER,   &
 !                      MPI_SUM,this%comm_,this%ierr_)
 !   CALL GTAcc(this%hcomm_)
-
 
 !!  IF ( this%myrank_.EQ.0 .AND. ng.NE.ngvdb ) THEN
 !!    IF ( .NOT.present(scaller) ) THEN

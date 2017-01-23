@@ -8,12 +8,6 @@ import matplotlib.pyplot as plt
 # Path to the data
 path = '../../3D/bin/'
 
-# Spatial resolution
-N = 128
-
-# Array with wavenumbers starting at 1
-k = np.arange(N/2+1,dtype=np.float32)+1 
-
 # Reads and plots all spectra in the directory.
 # We only plot one every five spectra, starting
 # from the second.
@@ -22,8 +16,9 @@ nfiles = np.size(filelist)
 plt.figure(1)
 for i in range(1, nfiles, 5):
   ene = np.loadtxt(filelist[i])
-  plt.loglog(k,ene)
-plt.xlim(1,N/3)
+  plt.loglog(ene[:,0],ene[:,1])
+nmax = 2*(np.size(ene[:,0])-1)
+plt.xlim(1,nmax/3)
 plt.xlabel('k')
 plt.ylabel('E(k)')
 plt.show()

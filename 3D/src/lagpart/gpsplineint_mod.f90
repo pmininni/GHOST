@@ -42,7 +42,7 @@ MODULE class_GPSplineInt
         REAL(KIND=GP),ALLOCATABLE,DIMENSION    (:)   :: az_,bz_,betz_,cz_,gamz_,pz_,xxz_
         REAL(KIND=GP),ALLOCATABLE,DIMENSION    (:)   :: xrk_,yrk_,zrk_
         REAL(KIND=GP),ALLOCATABLE,DIMENSION  (:,:)   :: wrkl_
-        REAL(KIND=GP)                                :: dx_(3),dxi_(3),xbnds_(3,2),zetax_,zetay_,zetaz_
+        REAL(KIND=GP)                                :: dxi_(3),xbnds_(3,2),zetax_,zetay_,zetaz_
         TYPE(GPartComm),POINTER                      :: gpcomm_
         INTEGER      ,ALLOCATABLE,DIMENSION  (:,:)   :: ilg_,jlg_,klg_
         INTEGER                                      :: maxint_
@@ -93,8 +93,8 @@ MODULE class_GPSplineInt
 !    nzghost : no. z-ghost zones required for interpolation
 !    maxpart : max no. interpolation points/Lag. particles
 !    gpcomm  : GHOST particle communicator object
-!    hdataex  : handle to data exchange. Must be valid.
-!    htransp  : handle to timer for transpose. Must be valid.
+!    hdataex : handle to data exchange. Must be valid.
+!    htransp : handle to timer for transpose. Must be valid.
 !-----------------------------------------------------------------
     IMPLICIT NONE
     CLASS(GPSplineInt)                           :: this
@@ -127,7 +127,6 @@ MODULE class_GPSplineInt
     DO j = 1, this%rank_
       DO k = 1,2
         this%ibnds_(j,k)  = ibnds(j,k)
-!!      this%xbnds_(j,k)  = xbnds(j,k)
         this%xbnds_(j,k)  = real(ibnds(j,k),kind=GP)-1.0_GP
       ENDDO
       this%ldims_(j)  = ibnds(j,2) - ibnds(j,1) + 1
@@ -148,7 +147,7 @@ MODULE class_GPSplineInt
       STOP
     ENDIF
 
-    IF ( this%rank_ .EQ. 3 .AND. this%ldims_(3) .NE.  (this%ibnds_(3,2)-this%ibnds_(3,1)+1) ) THEN
+    IF ( this%rank_.EQ.3 .AND. this%ldims_(3).NE.(this%ibnds_(3,2)-this%ibnds_(3,1)+1) ) THEN
       WRITE(*,*) 'GPSplineInt::ctor: Inconsitent 3-indices; rank=3'
       STOP
     ENDIF
@@ -159,7 +158,7 @@ MODULE class_GPSplineInt
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-
+  
   SUBROUTINE GPSplineInt_dtor(this)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -220,7 +219,7 @@ MODULE class_GPSplineInt
 !    np       : no. interploation points (lenghts of fp,xp,yp,zp).
 !-----------------------------------------------------------------
     IMPLICIT NONE
-    CLASS(GPSplineInt)                        :: this
+    CLASS(GPSplineInt)                       :: this
     INTEGER      ,INTENT   (IN)              :: np
     INTEGER                                  :: lag,nx,ny,nxy,nz
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(np):: fp
@@ -727,7 +726,7 @@ MODULE class_GPSplineInt
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : Init
-!  DESCRIPTION: Does initialzation of object. Called by constructor
+!  DESCRIPTION: Does initialization of object. Called by constructor
 !  ARGUMENTS  : 
 !    this     : 'this' class instance
 !-----------------------------------------------------------------
@@ -743,7 +742,7 @@ MODULE class_GPSplineInt
     ENDDO
 
     CALL GPSplineInt_MatInvQ(this,this%nd_(1),this%ax_,this%bx_,this%cx_,&
-         this%px_,this%gamx_,this%betx_,this%xxx_,this%zetax_)
+    this%px_,this%gamx_,this%betx_,this%xxx_,this%zetax_)
     CALL GPSplineInt_MatInvQ(this,this%nd_(2),this%ay_,this%by_,this%cy_,&
     this%py_,this%gamy_,this%bety_,this%xxy_,this%zetay_)
     IF ( this%rank_ .GT. 2 ) THEN
@@ -1051,11 +1050,6 @@ MODULE class_GPSplineInt
     nz = this%ldims_(3)
     nxy = nx*ny
 
-!!  nx = this%nd_(1)
-!!  ny = this%nd_(2)
-!!  nz = this%ldims_(3)
-!!  nxy = nx*ny
-!
 !  Compute the k-equation (coefficient in z) :
 !  Note that the we work on the transposed system here...;
 !  

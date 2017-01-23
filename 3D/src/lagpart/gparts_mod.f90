@@ -71,6 +71,7 @@ MODULE class_GPart
         REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:,:) :: gptmp0_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: ltmp0_,ltmp1_
         REAL(KIND=GP)                                :: lxbnds_(3,2),gext_(3)
+        REAL(KIND=GP)                                :: delta_(3),invdel_(3)
         CHARACTER(len=1024)                          :: seedfile_,sfile_
         CHARACTER(len=MPI_MAX_ERROR_STRING)          :: serr_
       CONTAINS
@@ -162,7 +163,9 @@ MODULE class_GPart
 !    wrtunit : (optional) write particle positions in box units (==1) (i.e.,
 !              x,y,z in [0,2.pi]), or in grid units (==0) (x,y,z in [0,N]).
 !-----------------------------------------------------------------
+    USE var
     USE grid
+    USE boxsize
     USE mpivars
     USE commtypes
     USE random
@@ -182,7 +185,15 @@ MODULE class_GPart
     this%nvdb_     = 0
     this%comm_     = comm
     this%maxparts_ = mparts
-    this%nd_(1:3)  = n
+    this%nd_(1)    = nx
+    this%nd_(2)    = ny
+    this%nd_(3)    = nz
+    this%delta_(1) = 2*pi*Lx/real(nx,kind=GP)
+    this%delta_(2) = 2*pi*Ly/real(ny,kind=GP)
+    this%delta_(3) = 2*pi*Lz/real(nz,kind=GP)
+    this%invdel_(1)= real(nx,kind=GP)/2*pi*Lx
+    this%invdel_(2)= real(ny,kind=GP)/2*pi*Ly
+    this%invdel_(3)= real(nz,kind=GP)/2*pi*Lz
     this%seedfile_ = 'gploc.dat'
     this%iinterp_  = 3          ! fixed for now
     this%inittype_ = inittype
@@ -223,12 +234,14 @@ MODULE class_GPart
     CALL this%gpcomm_%SetCacheParam(csize,nstrip)
     CALL this%gpcomm_%Init()
 
-    DO j = 1,2
-      this%libnds_(j,1) = 1 ; 
-      this%libnds_(j,2) = n ; 
-      this%lxbnds_(j,1) = 0.0_GP
-      this%lxbnds_(j,2) = real(n-1,kind=GP)
-    ENDDO
+    this%libnds_(1,1) = 1  ;
+    this%libnds_(1,2) = nx ;
+    this%lxbnds_(1,1) = 0.0_GP
+    this%lxbnds_(1,2) = real(nx-1,kind=GP)
+    this%libnds_(2,1) = 1  ;
+    this%libnds_(2,2) = ny ;
+    this%lxbnds_(2,1) = 0.0_GP
+    this%lxbnds_(2,2) = real(ny-1,kind=GP)
     this%libnds_(3,1) = ksta ; 
     this%libnds_(3,2) = kend ; 
     this%lxbnds_(3,1) = real(ksta-1,kind=GP) - 0.50_GP
@@ -267,7 +280,7 @@ MODULE class_GPart
     ALLOCATE(this%ptmp1_ (3,this%maxparts_))
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
       ALLOCATE(this%gptmp0_ (3,this%maxparts_))
-      ALLOCATE(this%vdb_(3,this%maxparts_))
+      ALLOCATE(this%vdb_ (3,this%maxparts_))
     ENDIF
     IF ( this%intacc_.EQ. 1 ) THEN
       ALLOCATE(this%vk0_  (3,this%maxparts_))
@@ -668,7 +681,6 @@ MODULE class_GPart
     USE commtypes
     USE mpivars
     USE grid
-    USE var
 
     IMPLICIT NONE
     CLASS(GPart) ,INTENT(INOUT)       :: this
@@ -708,10 +720,10 @@ MODULE class_GPart
     IF ( this%iouttype_ .EQ. 0 ) THEN
       IF ( this%bcollective_ .EQ. 1 ) THEN
         ! pass in the current linear _local_ particle coord arrays
-        IF ( this%wrtunit_ .EQ. 1 ) THEN
-           this%ptmp0_(1,:) = this%px_*2*pi/real(n,kind=GP)
-           this%ptmp0_(2,:) = this%py_*2*pi/real(n,kind=GP)
-           this%ptmp0_(3,:) = this%pz_*2*pi/real(n,kind=GP)
+        IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to box units
+           this%ptmp0_(1,:) = this%px_*this%delta_(1)
+           this%ptmp0_(2,:) = this%py_*this%delta_(2)
+           this%ptmp0_(3,:) = this%pz_*this%delta_(3)
            CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%nparts_, &
                 this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
         ELSE
@@ -720,13 +732,21 @@ MODULE class_GPart
         ENDIF
       ELSE
         ! pass in the synched-up VDB (copied to ptmp0_):
-        IF ( this%wrtunit_ .EQ. 1 ) this%ptmp0_ = this%ptmp0_*2*pi/real(n,kind=GP)
+        IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to box units
+           this%ptmp0_(1,:) = this%ptmp0_(1,:)*this%delta_(1)
+           this%ptmp0_(2,:) = this%ptmp0_(2,:)*this%delta_(2)
+           this%ptmp0_(3,:) = this%ptmp0_(3,:)*this%delta_(3)
+        ENDIF
         CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time,this%maxparts_, &
-             this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
+                this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
       ENDIF
     ELSE
       ! pass in the synched-up VDB (copied to ptmp0_):
-      IF ( this%wrtunit_ .EQ. 1 ) this%ptmp0_ = this%ptmp0_*2*pi/real(n,kind=GP)
+      IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to box units
+         this%ptmp0_(1,:) = this%ptmp0_(1,:)*this%delta_(1)
+         this%ptmp0_(2,:) = this%ptmp0_(2,:)*this%delta_(2)
+         this%ptmp0_(3,:) = this%ptmp0_(3,:)*this%delta_(3)
+      ENDIF
       CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time,this%maxparts_, &
            this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
     ENDIF
@@ -764,7 +784,6 @@ MODULE class_GPart
     USE commtypes
     USE mpivars
     USE grid
-    USE var
 
     IMPLICIT NONE
     CLASS(GPart) ,INTENT(INOUT)       :: this
@@ -792,10 +811,10 @@ MODULE class_GPart
         ! pass in the current linear _local_ particle coord arrays
         CALL GPart_GetLocalWrk(this,this%id_,this%lvx_,this%lvy_,this%lvz_,this%npartsm_, &
                                this%vdb_,this%maxparts_)
-        IF ( this%wrtunit_ .EQ. 1) THEN
-           this%ptmp0_(1,:) = this%xk1_(1,:)*2*pi/real(n,kind=GP)
-           this%ptmp0_(2,:) = this%xk1_(2,:)*2*pi/real(n,kind=GP)
-           this%ptmp0_(3,:) = this%xk1_(3,:)*2*pi/real(n,kind=GP)
+        IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to box units
+           this%ptmp0_(1,:) = this%xk1_(1,:)*this%delta_(1)
+           this%ptmp0_(2,:) = this%xk1_(2,:)*this%delta_(2)
+           this%ptmp0_(3,:) = this%xk1_(3,:)*this%delta_(3)
            CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%nparts_, &
                 this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
         ELSE
@@ -804,13 +823,21 @@ MODULE class_GPart
         ENDIF
       ELSE
         ! pass in the synched-up VDB (copied to ptmp0_):
-        IF ( this%wrtunit_ .EQ. 1 ) this%ptmp0_ = this%ptmp0_*2*pi/real(n,kind=GP)
+        IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to box units
+           this%ptmp0_(1,:) = this%ptmp0_(1,:)*this%delta_(1)
+           this%ptmp0_(2,:) = this%ptmp0_(2,:)*this%delta_(2)
+           this%ptmp0_(3,:) = this%ptmp0_(3,:)*this%delta_(3)
+        ENDIF
         CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time, this%maxparts_, &
              this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
       ENDIF
     ELSE
       ! pass in the synched-up VDB (copied to ptmp0_):
-      IF ( this%wrtunit_ .EQ. 1 ) this%ptmp0_ = this%ptmp0_*2*pi/real(n,kind=GP)
+      IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to box units
+         this%ptmp0_(1,:) = this%ptmp0_(1,:)*this%delta_(1)
+         this%ptmp0_(2,:) = this%ptmp0_(2,:)*this%delta_(2)
+         this%ptmp0_(3,:) = this%ptmp0_(3,:)*this%delta_(3)
+      ENDIF
       CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time,this%maxparts_,&
            this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
     ENDIF
@@ -829,7 +856,7 @@ MODULE class_GPart
 !  METHOD     : io_write_vec
 !  DESCRIPTION: Does write of Lagrangian vector that is
 !               currently stored. This vector may not be the
-!               advecting velocities if a call to SetLagVec
+!               advecting velocity if a call to SetLagVec
 !               is made with a different vector. This is a 
 !               special API for outputting the class' internal 
 !               'velocity' vector using underlying mehods that
@@ -998,18 +1025,18 @@ MODULE class_GPart
     USE mpivars
 
     IMPLICIT NONE
-    CLASS(GPart) ,INTENT(INOUT)                         :: this
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend):: evar(n,n,ksta:kend)
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend):: tmp1,tmp2
-    REAL(KIND=GP),INTENT   (IN)                         :: time
-    INTEGER      ,INTENT   (IN)                         :: iunit
-    INTEGER                                             :: fh,offset,nt,szint,szreal
-    INTEGER                                             :: ht,j
-    LOGICAL      ,INTENT   (IN)                         :: doupdate
-    CHARACTER(len=100), INTENT(IN)                      :: dir
-    CHARACTER(len=*)  , INTENT(IN)                      :: nmb
-    CHARACTER(len=*)  , INTENT(IN)                      :: spref
-    CHARACTER(len=1024)                                 :: sfile
+    CLASS(GPart) ,INTENT(INOUT)                            :: this
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: evar
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: tmp1,tmp2
+    REAL(KIND=GP),INTENT   (IN)                            :: time
+    INTEGER      ,INTENT   (IN)                            :: iunit
+    INTEGER                                                :: fh,offset,nt,szint,szreal
+    INTEGER                                                :: ht,j
+    LOGICAL      ,INTENT   (IN)                            :: doupdate
+    CHARACTER(len=100), INTENT(IN)                         :: dir
+    CHARACTER(len=*)  , INTENT(IN)                         :: nmb
+    CHARACTER(len=*)  , INTENT(IN)                         :: spref
+    CHARACTER(len=1024)                                    :: sfile
 
     CALL GPart_EulerToLag(this,this%ltmp1_,this%nparts_,evar,doupdate,tmp1,tmp2)
 
@@ -1320,7 +1347,6 @@ MODULE class_GPart
     USE commtypes
     USE mpivars
     USE grid
-    USE var
 
     IMPLICIT NONE
     CLASS(GPart)    ,INTENT(INOUT)            :: this
@@ -1381,7 +1407,11 @@ MODULE class_GPart
 
     IF ( .NOT.(present(id).and.present(lx).and.present(ly).and.present(lz).and.present(nl)) ) THEN 
       ! Store in member data arrays
-      IF ( this%wrtunit_ .EQ. 1 ) this%ptmp0_ = this%ptmp0_*real(n,kind=GP)/(2*pi)
+      IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates from box units
+         this%ptmp0_(1,:) = this%px_*this%invdel_(1)
+         this%ptmp0_(2,:) = this%py_*this%invdel_(2)
+         this%ptmp0_(3,:) = this%pz_*this%invdel_(3)
+      ENDIF
       CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
                              this%nparts_,this%ptmp0_,this%maxparts_)
     ELSE
@@ -1678,10 +1708,10 @@ MODULE class_GPart
     USE grid
 
     IMPLICIT NONE
-    CLASS(GPart) ,INTENT(INOUT)                          :: this
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend) :: vx,vy,vz,tmp1,tmp2
-    REAL(KIND=GP),INTENT   (IN)                          :: xk
-    INTEGER                                              :: j,ng
+    CLASS(GPart) ,INTENT(INOUT)                            :: this
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: vx,vy,vz,tmp1,tmp2
+    REAL(KIND=GP),INTENT   (IN)                            :: xk
+    INTEGER                                                :: j,ng
  
     ! u(t+dt) = u*: done already
 
@@ -1780,20 +1810,20 @@ MODULE class_GPart
 !    xk      : multiplicative RK time stage factor
 !    tmpX    : REAL temp arrays the same size as vx, vy, vz
 !-----------------------------------------------------------------
-    USE grid
     USE fprecision
     USE commtypes
     USE mpivars
+    USE grid
 
     IMPLICIT NONE
-    CLASS(GPart) ,INTENT(INOUT)                          :: this
-    INTEGER                                              :: i,j
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend) :: vx,vy,vz,tmp1,tmp2,tmp3
-    REAL(KIND=GP),INTENT   (IN)                          :: dt,xk
-    REAL(KIND=GP)                                        :: dtfact
-    REAL(KIND=GP),ALLOCATABLE  ,DIMENSION            (:) :: lid,gid
+    CLASS(GPart) ,INTENT(INOUT)                            :: this
+    INTEGER                                                :: i,j
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: vx,vy,vz
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: tmp1,tmp2,tmp3
+    REAL(KIND=GP),INTENT   (IN)                            :: dt,xk
+    REAL(KIND=GP)                                          :: dtfact
+    REAL(KIND=GP),ALLOCATABLE  ,DIMENSION              (:) :: lid,gid
 
-    dtfact = dt*xk*real(n,kind=GP)/(8.0_GP*atan(1.0_GP))
     CALL GTStart(this%htimers_(GPTIME_STEP))
 
     ! Find F(u*):
@@ -1801,6 +1831,7 @@ MODULE class_GPart
     CALL GPart_R3toR3(this,tmp3,vx) ! Want vx intact to use later
     CALL GPart_EulerToLag(this,this%lvx_,this%nparts_,tmp3,.true.,tmp1,tmp2)
     ! ux* <-- ux + dt * F(U*)*xk:
+    dtfact = dt*xk*this%invdel_(1)
 !$omp parallel do
     DO j = 1, this%nparts_
       this%px_(j) = this%ptmp0_(1,j) + dtfact*this%lvx_(j)
@@ -1813,6 +1844,7 @@ MODULE class_GPart
     CALL GPart_R3toR3(this,tmp3,vy) ! Want vy intact to use later
     CALL GPart_EulerToLag(this,this%lvy_,this%nparts_,tmp3,.false.,tmp1,tmp2)
     ! uy* <-- uy + dt * F(U*)*xk:
+    dtfact = dt*xk*this%invdel_(2)
 !$omp parallel do
     DO j = 1, this%nparts_
       this%py_(j) = this%ptmp0_(2,j) + dtfact*this%lvy_(j)
@@ -1824,6 +1856,7 @@ MODULE class_GPart
     CALL GPart_R3toR3(this,tmp3,vz) ! Want vz intact to use later
     CALL GPart_EulerToLag(this,this%lvz_,this%nparts_,tmp3,.false.,tmp1,tmp2)
     ! uz* <-- uz + dt * F(U*)*xk:
+    dtfact = dt*xk*this%invdel_(3)
 !$omp parallel do
     DO j = 1, this%nparts_
       this%pz_(j) = this%ptmp0_(3,j) + dtfact*this%lvz_(j)
@@ -1891,14 +1924,14 @@ MODULE class_GPart
     USE mpivars
 
     IMPLICIT NONE
-    CLASS(GPart) ,INTENT(INOUT)                          :: this
-    LOGICAL      ,INTENT   (IN)                          :: doupdate
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend) :: vx,vy,vz,tmp1,tmp2
-    INTEGER      ,INTENT   (IN),OPTIONAL                 :: setacc
+    CLASS(GPart) ,INTENT(INOUT)                            :: this
+    LOGICAL      ,INTENT   (IN)                            :: doupdate
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: vx,vy,vz,tmp1,tmp2
+    INTEGER      ,INTENT   (IN),OPTIONAL                   :: setacc
 
-    REAL(KIND=GP),ALLOCATABLE  ,DIMENSION            (:) :: lid,gid
-    INTEGER                                              :: i,j
-    LOGICAL                                              :: doset
+    REAL(KIND=GP),ALLOCATABLE  ,DIMENSION              (:) :: lid,gid
+    INTEGER                                                :: i,j
+    LOGICAL                                                :: doset
 
     doset = .false. 
     IF ( present(setacc) ) THEN
@@ -1938,7 +1971,7 @@ MODULE class_GPart
 !               d.b. Array lag must be large enough to accommodate 
 !               max. no. particles; no checking is done. Note
 !               that 'evar' array must have local dimensions 
-!               for a real array in GHOST (n X n X (kend-ksta+1)).
+!               for a real array in GHOST (nx X ny X (kend-ksta+1)).
 !               Global computation of spline or other interpolation 
 !               operator will be done here.
 !
@@ -1958,12 +1991,12 @@ MODULE class_GPart
     USE mpivars
 
     IMPLICIT NONE
-    CLASS(GPart) ,INTENT(INOUT)                           :: this
-    INTEGER      ,INTENT   (IN)                           :: nl
-    LOGICAL      ,INTENT   (IN)                           :: doupdate
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend)  :: evar,tmp1,tmp2
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION           (nl)  :: lag
-    INTEGER                                               :: j
+    CLASS(GPart) ,INTENT(INOUT)                            :: this
+    INTEGER      ,INTENT   (IN)                            :: nl
+    LOGICAL      ,INTENT   (IN)                            :: doupdate
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: evar,tmp1,tmp2
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION             (nl) :: lag
+    INTEGER                                                :: j
 
     IF ( doupdate ) THEN
       CALL GTStart(this%htimers_(GPTIME_PUPDATE))
@@ -2652,7 +2685,7 @@ MODULE class_GPart
 !  DESCRIPTION: Copies input 3D real array to output 3D real array.
 !  ARGUMENTS  :
 !    this    : 'this' class instance
-!    vout    : result, returned; size standard in GHOST: (n,n,ksta:kend)
+!    vout    : result, returned; size standard in GHOST: (nx,ny,ksta:kend)
 !    vin     : input array, size standard in GHOST
 !-----------------------------------------------------------------
     USE grid
@@ -2662,16 +2695,16 @@ MODULE class_GPart
     USE threads
 
     IMPLICIT NONE
-    CLASS(GPart) ,INTENT(INOUT)                        :: this
-    REAL(KIND=GP),INTENT(OUT),DIMENSION(n,n,ksta:kend) :: vout
-    REAL(KIND=GP),INTENT (IN),DIMENSION(n,n,ksta:kend) :: vin
-    INTEGER                                            :: i,j,k
+    CLASS(GPart) ,INTENT(INOUT)                          :: this
+    REAL(KIND=GP),INTENT(OUT),DIMENSION(nx,ny,ksta:kend) :: vout
+    REAL(KIND=GP),INTENT (IN),DIMENSION(nx,ny,ksta:kend) :: vin
+    INTEGER                                              :: i,j,k
 
 !$omp parallel do if (kend-ksta.ge.nth) private (i,k)
     DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-      DO j = 1, n
-        DO i = 1, n
+      DO j = 1, ny
+        DO i = 1, nx
           vout(i,j,k) = vin(i,j,k)
         ENDDO
       ENDDO

@@ -2313,19 +2313,19 @@
          IF ( dolag.GT.0 ) THEN
            IF ((timep.eq.pstep).and.(bench.eq.0)) THEN
 #if defined(LAGPART_)
-             INCLUDE 'hd_lagpartout.f90'
+             INCLUDE 'lagpartout_velfield.f90'
 #endif
 #if defined(MAGFIELD_)
-             INCLUDE 'mhd_lagpartout.f90'
+             INCLUDE 'lagpartout_magfield.f90'
 #endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
-             INCLUDE 'mhd_testpartout.f90'
+             INCLUDE 'testpartout_magfield.f90'
 #endif
 #if defined(SCALAR_)
-             INCLUDE 'scalar_lagpartout.f90'
+             INCLUDE 'lagpartout_scalar.f90'
 #endif
 #if defined(MULTISCALAR_)
-             INCLUDE 'mscalar_lagpartout.f90'
+             INCLUDE 'lagpartout_mscalar.f90'
 #endif
            ENDIF
          ENDIF

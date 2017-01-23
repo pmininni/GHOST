@@ -3,12 +3,13 @@
 ! Set the Lagrangian velocities so output doesn't
 ! give 0: 
 !
+           rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-             DO j = 1,n
-               DO k = 1,n
-                 C7(k,j,i) = vx(k,j,i)/real(n,kind=GP)**3
+             DO j = 1,ny
+               DO k = 1,nz
+                 C7(k,j,i) = vx(k,j,i)*rmp
                END DO
              END DO
            END DO
@@ -16,9 +17,9 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-             DO j = 1,n
-               DO k = 1,n
-                 C7(k,j,i) = vy(k,j,i)/real(n,kind=GP)**3
+             DO j = 1,ny
+               DO k = 1,nz
+                 C7(k,j,i) = vy(k,j,i)*rmp
                END DO
              END DO
            END DO
@@ -26,9 +27,9 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-             DO j = 1,n
-               DO k = 1,n
-                 C7(k,j,i) = vz(k,j,i)/real(n,kind=GP)**3
+             DO j = 1,ny
+               DO k = 1,nz
+                 C7(k,j,i) = vz(k,j,i)*rmp
                END DO
              END DO
            END DO

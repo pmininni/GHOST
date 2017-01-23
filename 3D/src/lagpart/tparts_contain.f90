@@ -80,6 +80,7 @@
     twopi = 8.0_GP*atan(1.0_GP)
     low   = 1.0e-20_GP
 
+!$omp parallel do
     DO j = 1, this%nparts_
 
      CALL prandom_number(u1)
@@ -178,18 +179,17 @@
     USE mpivars
 
     IMPLICIT NONE
-    CLASS(TestGPart) ,INTENT(INOUT)                      :: this
-    INTEGER                                              :: i,j
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend) :: vx,vy,vz
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend) :: tmp1,tmp2,tmp3
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend) :: bx,by,bz
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend) :: jx,jy,jz
-    REAL(KIND=GP),INTENT   (IN)                          :: dt,xk
-    REAL(KIND=GP)                                        :: dtfact
-    REAL(KIND=GP)                                        :: dtv
-    REAL(KIND=GP), ALLOCATABLE, DIMENSION            (:) :: lid,gid
+    CLASS(TestGPart) ,INTENT(INOUT)                        :: this
+    INTEGER                                                :: i,j
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: vx,vy,vz
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: tmp1,tmp2,tmp3
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: bx,by,bz
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: jx,jy,jz
+    REAL(KIND=GP),INTENT   (IN)                            :: dt,xk
+    REAL(KIND=GP)                                          :: dtfact
+    REAL(KIND=GP)                                          :: dtv
+    REAL(KIND=GP), ALLOCATABLE, DIMENSION              (:) :: lid,gid
 
-    dtfact = dt*xk*real(n,kind=GP)/(8.0_GP*atan(1.0_GP))
     dtv    = dt*xk
     CALL GTStart(this%htimers_(GPTIME_STEP))
 
@@ -204,10 +204,14 @@
     CALL GPart_EulerToLag(this,this%lfy_,this%nparts_,jy,.false.,tmp1,tmp2)
     CALL GPart_EulerToLag(this,this%lfz_,this%nparts_,jz,.false.,tmp1,tmp2)
 !   Lorentz force
+!$omp parallel do
     DO j = 1, this%nparts_
-       this%lfx_(j) = this%lfx_(j) + (this%pvy_(j)-this%lvy_(j))*this%lbz_(j)-(this%pvz_(j)-this%lvz_(j))*this%lby_(j)
-       this%lfy_(j) = this%lfy_(j) + (this%pvz_(j)-this%lvz_(j))*this%lbx_(j)-(this%pvx_(j)-this%lvx_(j))*this%lbz_(j)
-       this%lfz_(j) = this%lfz_(j) + (this%pvx_(j)-this%lvx_(j))*this%lby_(j)-(this%pvy_(j)-this%lvy_(j))*this%lbx_(j)
+       this%lfx_(j) = this%lfx_(j) + (this%pvy_(j)-this%lvy_(j))*this%lbz_(j)- &
+                      (this%pvz_(j)-this%lvz_(j))*this%lby_(j)
+       this%lfy_(j) = this%lfy_(j) + (this%pvz_(j)-this%lvz_(j))*this%lbx_(j)- &
+                      (this%pvx_(j)-this%lvx_(j))*this%lbz_(j)
+       this%lfz_(j) = this%lfz_(j) + (this%pvx_(j)-this%lvx_(j))*this%lby_(j)- &
+                      (this%pvy_(j)-this%lvy_(j))*this%lbx_(j)
 ! Lorentz force only with magnetic field (conservative)
 !      this%lfx_(j) = this%pvy_(j)*this%lbz_(j)-this%pvz_(j)*this%lby_(j)
 !      this%lfy_(j) = this%pvz_(j)*this%lbx_(j)-this%pvx_(j)*this%lbz_(j)
@@ -215,18 +219,24 @@
     ENDDO
 
     ! ... x:
+    dtfact = dt*xk*this%invdel_(1)
+!$omp parallel do
     DO j = 1, this%nparts_
       this%px_(j) = this%ptmp0_(1,j) + dtfact*this%pvx_(j)
       this%pvx_(j) = this%ttmp0_(1,j) + dtv*this%lfx_(j)
     ENDDO
 
     ! ... y:
+    dtfact = dt*xk*this%invdel_(2)
+!$omp parallel do
     DO j = 1, this%nparts_
       this%py_(j) = this%ptmp0_(2,j) + dtfact*this%pvy_(j)
       this%pvy_(j) = this%ttmp0_(2,j) + dtv*this%lfy_(j)
     ENDDO
 
     ! ... z:
+    dtfact = dt*xk*this%invdel_(3)
+!$omp parallel do
     DO j = 1, this%nparts_
       this%pz_(j) = this%ptmp0_(3,j) + dtfact*this%pvz_(j)
       this%pvz_(j) = this%ttmp0_(3,j) + dtv*this%lfz_(j)
@@ -283,10 +293,11 @@
     USE grid
 
     IMPLICIT NONE
-    CLASS(TestGPart) ,INTENT(INOUT)             :: this
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(n,n,ksta:kend) :: vx,vy,vz,tmp1,tmp2
-    REAL(KIND=GP),INTENT   (IN)                 :: xk
-    INTEGER                                     :: j,ng
+    CLASS(TestGPart) ,INTENT(INOUT)                        :: this
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: vx,vy,vz
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: tmp1,tmp2
+    REAL(KIND=GP),INTENT   (IN)                            :: xk
+    INTEGER                                                :: j,ng
 
     ! u(t+dt) = u*: done already
 

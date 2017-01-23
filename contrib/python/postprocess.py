@@ -13,10 +13,17 @@ import matplotlib.pyplot as plt
 # Path to the binary data
 path = '../../3D/bin/outs/'
 
+# Box size
+Lx = 2*np.pi
+Ly = 2*np.pi
+
 # Spatial resolution
-N = 128
-dx = 2*np.pi/N
-shape = (N,N,N)
+NX = 128
+NY = 128
+NZ = 128
+dx = Lx/NX
+dy = Ly/NX
+shape = (NX,NY,NZ)
 
 # Reads binary files, computes vertical vorticity
 # using centered finite differences, and saves in 
@@ -32,6 +39,6 @@ for file in filelist:
   vy = (adv-ret)/(2*dx) # dv_y/dx
   adv = np.roll(vx,-1,axis=1)
   ret = np.roll(vx,1,axis=1)
-  vx = (adv-ret)/(2*dx) # dv_x/dy 
+  vx = (adv-ret)/(2*dy) # dv_x/dy 
   wz = vy-vx
   wz.tofile(path+'wz.'+ind+'.out')

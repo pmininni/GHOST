@@ -17,7 +17,7 @@ MODULE gutils
       REAL   , DIMENSION  (:), ALLOCATABLE   :: fpdf2_
       REAL   , DIMENSION  (:), ALLOCATABLE   :: gpdf2_
       INTEGER, DIMENSION  (:), ALLOCATABLE   :: ikeep_
-      INTEGER                             :: nbins_=2500,nbins2_(2)=(/2500,2500/),nikeep_=0
+      INTEGER  :: nbins_=2500,nbins2_(2)=(/2500,2500/),nikeep_=0
 !
 !
 ! Methods:

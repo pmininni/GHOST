@@ -18,7 +18,7 @@ vx = np.fromfile(path+'vx.0001.out',dtype=np.float32).reshape(shape,order='F')
 
 # Show a horizontal cut of the field in the middle of the box
 plt.figure(1)
-plt.imshow(vx[:,:,N/2])
+plt.imshow(vx[:,:,NZ/2])
 plt.xlabel('x')
 plt.ylabel('y')
 plt.show()
