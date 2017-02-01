@@ -25,15 +25,14 @@ MODULE cuda_bindings
 !    my_gpu : integer GPU id. IF < 0, setaffinity will choose based on
 !             rank%ppn 
 !*****************************************************************
-  INTEGER(C_INT) function setaffinity_for_nvidia(my_rank,ppn,my_gpu) bind(C,name="setaffinity_for_nvidia")
+  INTEGER(C_INT) function setaffinity_for_nvidia(my_rank,ppn,my_gpu) &
+                 bind(C,name="setaffinity_for_nvidia")
     USE iso_c_binding
     IMPLICIT NONE
     INTEGER(C_INT)       :: my_rank
     INTEGER(C_INT)       :: ppn
     INTEGER(C_INT)       :: my_gpu
-!write(*,*)'setaffinity_for_nvidia (bind): my_rank=',my_rank,' ppn=',ppn, ' my_gpu=',my_gpu
   END FUNCTION setaffinity_for_nvidia
-
 
 !*****************************************************************
 !*****************************************************************
@@ -73,27 +72,66 @@ MODULE cuda_bindings
 ! cudaSetDeviceFlags
 !    flag : C_INT type
 !*****************************************************************
-  INTEGER(C_INT) function cudaSetDeviceFlags(flag)  bind(C,name="cudaSetDeviceFlags")
+  INTEGER(C_INT) function cudaSetDeviceFlags(flag) bind(C,name="cudaSetDeviceFlags")
     USE, INTRINSIC :: iso_c_binding
     IMPLICIT NONE
     INTEGER(C_INT),value :: flag
   END FUNCTION cudaSetDeviceFlags
 
-!!!*****************************************************************
-!!!*****************************************************************
-!   cudaGetDeviceProperties
+!*****************************************************************
+!*****************************************************************
+! cudaGetDeviceProperties
 !     gets 'standardized' set of device properties using wrapper
 !     method.
-!      prop : struct cudaDeviceProp pointer
-!      idev : integer device id
-!  *****************************************************************
-    SUBROUTINE cudaGetDeviceProperties(prop,idev) bind(C,name="w_cudagetdeviceproperties_")
+!     prop : struct cudaDeviceProp pointer
+!     idev : integer device id
+!*****************************************************************
+  SUBROUTINE cudaGetDeviceProperties(prop,idev) &
+             bind(C,name="w_cudagetdeviceproperties_")
       USE iso_c_binding
       USE cutypes
       IMPLICIT NONE
       INTEGER(C_INT)        :: idev
       TYPE(cudaDevicePropG) :: prop
     END SUBROUTINE cudaGetDeviceProperties
+
+
+!!!!!!!!!!!!!!!!!!!! Stream utilities !!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+!*****************************************************************
+!*****************************************************************
+! cudaStreamCreate
+!     stream     : cudaStream_t pointer
+!*****************************************************************
+  INTEGER(C_INT) function cudaStreamCreate(stream_) &
+         bind(C,name="ptr_cudaStreamCreate")
+    USE iso_c_binding
+    IMPLICIT NONE
+    TYPE(C_PTR)             :: stream_
+  END FUNCTION cudaStreamCreate
+
+!*****************************************************************
+!*****************************************************************
+! cudaStreamDestroy
+!     stream     : cudaStream_t pointer (in)
+!*****************************************************************
+  INTEGER(C_INT) function cudaStreamDestroy(stream) bind(C,name="cudaStreamDestroy")
+    USE iso_c_binding
+    IMPLICIT NONE
+    TYPE(C_PTR),value       :: stream
+  END FUNCTION cudaStreamDestroy
+
+!*****************************************************************
+!*****************************************************************
+! cudaStreamSyncrhonize
+!     stream     : cudaStream_t pointer (in)
+!*****************************************************************
+  INTEGER(C_INT) function cudaStreamSynchronize(stream) &
+                 bind(C,name="f_cudaStreamSynchronize")
+    USE iso_c_binding
+    IMPLICIT NONE
+    TYPE(C_PTR),value       :: stream
+  END FUNCTION cudaStreamSynchronize
 
 
 !!!!!!!!!!!!!!!!!!!! Mem/compute utilities !!!!!!!!!!!!!!!!!!!!!!!
@@ -105,7 +143,8 @@ MODULE cuda_bindings
 !    buffer: void* hstsrc
 !    count : integer
 !*****************************************************************
-  INTEGER(C_INT) function cudaMemcpyHost2Dev(devdst, hostsrc, count)  bind(C,name="cudaMemcpyHost2Dev")
+  INTEGER(C_INT) function cudaMemcpyHost2Dev(devdst, hostsrc, count) &
+                 bind(C,name="cudaMemcpyHost2Dev")
     USE iso_c_binding
     IMPLICIT NONE
     TYPE(C_PTR),value       :: devdst, hostsrc
@@ -114,19 +153,91 @@ MODULE cuda_bindings
 
 !*****************************************************************
 !*****************************************************************
-!
 ! cudaMemcpyDev2Host
 !    buffer: void* devdst
 !    buffer: void* hstsrc
 !    count : integer
 !*****************************************************************
-  INTEGER(C_INT) function cudaMemcpyDev2Host(hostdst, devsrc, count)  bind(C,name="cudaMemcpyDev2Host")
+  INTEGER(C_INT) function cudaMemcpyDev2Host(hostdst, devsrc, count) &
+                 bind(C,name="cudaMemcpyDev2Host")
     USE iso_c_binding
     IMPLICIT NONE
     TYPE(C_PTR),value      :: devsrc, hostdst
     INTEGER(C_SIZE_T),value:: count
   END FUNCTION cudaMemcpyDev2Host
  
+!*****************************************************************
+!*****************************************************************
+! cudaMemcpyAsycHost2Dev
+!    buffer: void* devdst
+!    buffer: void* hstsrc
+!    count : integer
+!    stream: C pointer
+!*****************************************************************
+  INTEGER(C_INT) function cudaMemcpyAsyncHost2Dev(devdst, hostsrc, count, stream) &
+                 bind(C,name="cudaMemcpyAsyncHost2Dev")
+    USE iso_c_binding
+    IMPLICIT NONE
+    TYPE(C_PTR),value       :: devdst, hostsrc
+    INTEGER(C_SIZE_T),value :: count
+    TYPE(C_PTR),value       :: stream
+  END FUNCTION cudaMemcpyAsyncHost2Dev
+
+!*****************************************************************
+!*****************************************************************
+! cudaMemcpyAsyncDev2Host
+!    buffer: void* devdst
+!    buffer: void* hstsrc
+!    count : integer
+!    stream: C pointer
+!*****************************************************************
+  INTEGER(C_INT) function cudaMemcpyAsyncDev2Host(hostdst, devsrc, count, stream) &
+                 bind(C,name="cudaMemcpyAsyncDev2Host")
+    USE iso_c_binding
+    IMPLICIT NONE
+    TYPE(C_PTR),value      :: devsrc, hostdst
+    INTEGER(C_SIZE_T),value:: count
+    TYPE(C_PTR),value      :: stream
+  END FUNCTION cudaMemcpyAsyncDev2Host
+
+!*****************************************************************
+!*****************************************************************
+! cudaMemcpyAsycHost2Dev
+!    buffer: void* devdst
+!    buffer: void* hstsrc
+!    count : integer
+!    stream: C pointer
+!*****************************************************************
+  INTEGER(C_INT) function cudaMemcpyAsyncOffHost2Dev(devdst, byteoffdev, &
+                                    hostsrc, byteoffhost, count, stream) &
+                 bind(C,name="cudaMemcpyAsyncOffHost2Dev")
+    USE iso_c_binding
+    IMPLICIT NONE
+    TYPE(C_PTR),value       :: devdst, hostsrc
+    INTEGER(C_SIZE_T),value :: byteoffdev, byteoffhost
+    INTEGER(C_SIZE_T),value :: count
+    TYPE(C_PTR),value       :: stream
+  END FUNCTION cudaMemcpyAsyncOffHost2Dev
+
+!*****************************************************************
+!*****************************************************************
+! cudaMemcpyAsyncDev2Host
+!    buffer: void* devdst
+!    buffer: void* hstsrc
+!    count : integer
+!    stream: C pointer
+!*****************************************************************
+  INTEGER(C_INT) function cudaMemcpyAsyncOffDev2Host(hostdst, byteoffhost, &
+                                        devsrc, byteoffdev, count, stream) &
+                 bind(C,name="cudaMemcpyAsyncOffDev2Host")
+    USE iso_c_binding
+    IMPLICIT NONE
+    TYPE(C_PTR),value       :: devsrc, hostdst
+    INTEGER(C_SIZE_T),value :: byteoffdev, byteoffhost
+    INTEGER(C_SIZE_T),value :: count
+    TYPE(C_PTR),value       :: stream
+  END FUNCTION cudaMemcpyAsyncOffDev2Host
+
 !*****************************************************************
 !*****************************************************************
 ! cudaMalloc
@@ -149,7 +260,8 @@ MODULE cuda_bindings
 !            cudaHostAllocPortable, cudaHostAllocDefault. If the last
 !            is used, this function seems to behave the same as cudaMallocHost.
 !*****************************************************************
-  INTEGER(C_INT) function cudaHostAlloc(buffer, isize, flags)  bind(C,name="cudaHostAlloc")
+  INTEGER(C_INT) function cudaHostAlloc(buffer, isize, flags) &
+                 bind(C,name="cudaHostAlloc")
     USE, INTRINSIC :: iso_c_binding
     IMPLICIT NONE
     TYPE(C_PTR)            :: buffer
@@ -163,13 +275,13 @@ MODULE cuda_bindings
 !    buffer: void** pointer
 !    isize : integer byte size of buffer
 !*****************************************************************
-  INTEGER(C_INT) function cudaMallocHost(buffer, isize)  bind(C,name="cudaMallocHost")
+  INTEGER(C_INT) function cudaMallocHost(buffer, isize) &
+                 bind(C,name="cudaMallocHost")
     USE, INTRINSIC :: iso_c_binding
     IMPLICIT NONE
     TYPE(C_PTR)               :: buffer
     INTEGER(C_SIZE_T), value  :: isize
   END FUNCTION cudaMallocHost
-
  
 !*****************************************************************
 !*****************************************************************
@@ -200,12 +312,29 @@ MODULE cuda_bindings
 !    phost  : void*  host pointer mapping
 !    flags  : 0 (for now)
 !*****************************************************************
-  INTEGER(C_INT) function cudaHostGetDevicePointer(pdevice, phost, flags)  bind(C,name="cudaHostGetDevicePointer")
+  INTEGER(C_INT) function cudaHostGetDevicePointer(pdevice, phost, flags) &
+                 bind(C,name="cudaHostGetDevicePointer")
     USE, INTRINSIC :: iso_c_binding
     IMPLICIT NONE
     TYPE(C_PTR)          :: pdevice, phost
     INTEGER(C_INT), value:: flags
   END FUNCTION cudaHostGetDevicePointer
+
+
+!!!!!!!!!!!!!!!!!!!! cuFFT utilities !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  
+!*****************************************************************
+!*****************************************************************
+! cufftSetStream:: Set stream for FFT plan
+!     pplan      : cufftHandle pointer (in)
+!     stream     : cudaStream_t pointer (in)
+!*****************************************************************
+ INTEGER(C_INT) function cufftSetStream(pplan,stream) bind(C,name="f_cufftSetStream")
+  USE, INTRINSIC :: iso_c_binding
+  IMPLICIT NONE
+  INTEGER(C_INT),value :: pplan
+  TYPE(C_PTR),value    :: stream
+ END FUNCTION cufftSetStream
 
 !*****************************************************************
 !*****************************************************************
@@ -291,7 +420,8 @@ MODULE cuda_bindings
 !    dataout   : output data (cufftComplex)
 !
 !*****************************************************************
- INTEGER(C_INT) function cufftExecR2C(pplan, datain, dataout) bind(C,name="cufftExecR2C")
+ INTEGER(C_INT) function cufftExecR2C(pplan, datain, dataout) &
+                bind(C,name="cufftExecR2C")
   USE, INTRINSIC :: iso_c_binding
   IMPLICIT NONE
   TYPE(C_PTR),value   :: datain
@@ -307,7 +437,8 @@ MODULE cuda_bindings
 !    dataout   : output data (cufftComplex)
 !
 !*****************************************************************
- INTEGER(C_INT) function cufftExecC2R(pplan, datain, dataout) bind(C,name="cufftExecC2R")
+ INTEGER(C_INT) function cufftExecC2R(pplan, datain, dataout) &
+                bind(C,name="cufftExecC2R")
   USE, INTRINSIC :: iso_c_binding
   IMPLICIT NONE
   TYPE(C_PTR),value    :: datain
@@ -325,7 +456,8 @@ MODULE cuda_bindings
 !                same as FFTCU_REAL_TO_COMPLEX, and FFTCU_COMPLEX_TO_REAL, respectively
 !
 !*****************************************************************
- INTEGER(C_INT) function cufftExecC2C(pplan, datain, dataout, idir) bind(C,name="cufftExecC2C")
+ INTEGER(C_INT) function cufftExecC2C(pplan, datain, dataout, idir) &
+                bind(C,name="cufftExecC2C")
   USE, INTRINSIC :: iso_c_binding
   IMPLICIT NONE
   TYPE(C_PTR),value    :: datain
@@ -376,7 +508,8 @@ MODULE cuda_bindings
 !                same as FFTCU_REAL_TO_COMPLEX, and FFTCU_COMPLEX_TO_REAL, respectively
 !
 !*****************************************************************
- INTEGER(C_INT) function cufftExecZ2Z(pplan, datain, dataout, idir) bind(C,name="cufftExecZ2Z")
+ INTEGER(C_INT) function cufftExecZ2Z(pplan, datain, dataout, idir) &
+                bind(C,name="cufftExecZ2Z")
   USE, INTRINSIC :: iso_c_binding
   IMPLICIT NONE
   TYPE(C_PTR),value    :: datain
@@ -385,6 +518,140 @@ MODULE cuda_bindings
   INTEGER(C_INT),value :: pplan
  END FUNCTION cufftExecZ2Z
 
+!*****************************************************************
+!*****************************************************************
+! cufftExecOffR2C:: execute CUDA FFT plan, R-->C, with offsets
+!    pplan     : cufftHandle pointer (out)
+!    datain    : input data (cufftReal)
+!    byteoffin : offset for input pointer (in)
+!    dataout   : output data (cufftComplex)
+!    byteoffout: offset for output pointer (in)
+!
+!*****************************************************************
+ INTEGER(C_INT) function cufftExecOffR2C(pplan, datain, byteoffin, dataout, byteoffout) &
+                bind(C,name="cufftExecOffR2C")
+  USE, INTRINSIC :: iso_c_binding
+  IMPLICIT NONE
+  TYPE(C_PTR),value       :: datain
+  TYPE(C_PTR),value       :: dataout
+  INTEGER(C_INT),value    :: pplan
+  INTEGER(C_SIZE_T),value :: byteoffin
+  INTEGER(C_SIZE_T),value :: byteoffout
+ END FUNCTION cufftExecOffR2C
+
+!*****************************************************************
+!*****************************************************************
+! cufftExecOffC2R:: execute CUDA FFT plan, C-->R, with offsets
+!    pplan     : cufftHandle pointer (out)
+!    byteoffin : offset for input pointer (in)
+!    datain    : input data (cufftReal)
+!    dataout   : output data (cufftComplex)
+!    byteoffout: offset for output pointer (in)
+!
+!*****************************************************************
+ INTEGER(C_INT) function cufftExecOffC2R(pplan, datain, byteoffin, dataout, byteoffout) &
+                bind(C,name="cufftExecOffC2R")
+  USE, INTRINSIC :: iso_c_binding
+  IMPLICIT NONE
+  TYPE(C_PTR),value       :: datain
+  TYPE(C_PTR),value       :: dataout
+  INTEGER(C_INT),value    :: pplan
+  INTEGER(C_SIZE_T),value :: byteoffin
+  INTEGER(C_SIZE_T),value :: byteoffout
+ END FUNCTION cufftExecOffC2R
+
+!*****************************************************************
+!*****************************************************************
+! cufftExecOffC2C:: execute CUDA FFT plan, C-->C, with offsets
+!    pplan     : cufftHandle pointer (out)
+!    datain    : input data (cufftReal)
+!    byteoffin : offset for input pointer (in)
+!    dataout   : output data (cufftComplex)
+!    byteoffout: offset for output pointer (in)
+!    idir      : transpform direction: CUFFT_FORWARD or CUFFT_INVERSE, 
+!                same as FFTCU_REAL_TO_COMPLEX, and FFTCU_COMPLEX_TO_REAL, respectively
+!
+!*****************************************************************
+ INTEGER(C_INT) function cufftExecOffC2C(pplan, datain, byteoffin, dataout, byteoffout, idir)&
+                bind(C,name="cufftExecOffC2C")
+  USE, INTRINSIC :: iso_c_binding
+  IMPLICIT NONE
+  TYPE(C_PTR),value       :: datain
+  TYPE(C_PTR),value       :: dataout
+  INTEGER(C_INT),value    :: idir
+  INTEGER(C_INT),value    :: pplan
+  INTEGER(C_SIZE_T),value :: byteoffin
+  INTEGER(C_SIZE_T),value :: byteoffout
+ END FUNCTION cufftExecOffC2C
+
+!*****************************************************************
+!*****************************************************************
+! cufftExecOffD2Z:: execute CUDA FFT plan, D-->Z, double to double complex, w offset
+!    pplan     : cufftHandle pointer (out)
+!    datain    : input data (cufftDouble)
+!    byteoffin : offset for input pointer (in)
+!    dataout   : output data (cufftDoubleComplex)
+!    byteoffout: offset for output pointer (in)
+!
+!*****************************************************************
+ INTEGER(C_INT) function cufftExecOffD2Z(pplan, datain, byteoffin, dataout, byteoffout) &
+                bind(C,name="cufftExecOffD2Z")
+  USE, INTRINSIC :: iso_c_binding
+  IMPLICIT NONE
+  TYPE(C_PTR),value       :: datain
+  TYPE(C_PTR),value       :: dataout
+  INTEGER(C_INT),value    :: pplan
+  INTEGER(C_SIZE_T),value :: byteoffin
+  INTEGER(C_SIZE_T),value :: byteoffout
+ END FUNCTION cufftExecOffD2Z
+
+!*****************************************************************
+!*****************************************************************
+! cufftExecOffZ2D:: execute CUDA FFT plan, Z-->D, double complex to double, w offset
+!    pplan     : cufftHandle pointer (out)
+!    datain    : input data (cufftDoubleComplex)
+!    byteoffin : offset for input pointer (in)
+!    dataout   : output data (cufftDouble)
+!    byteoffout: offset for output pointer (in)
+!
+!*****************************************************************
+ INTEGER(C_INT) function cufftExecOffZ2D(pplan, datain, byteoffin, dataout, byteoffout) &
+                bind(C,name="cufftExecOffZ2D")
+  USE, INTRINSIC :: iso_c_binding
+  IMPLICIT NONE
+  TYPE(C_PTR),value       :: datain
+  TYPE(C_PTR),value       :: dataout
+  INTEGER(C_INT),value    :: pplan
+  INTEGER(C_SIZE_T),value :: byteoffin
+  INTEGER(C_SIZE_T),value :: byteoffout
+ END FUNCTION cufftExecOffZ2D
+
+!*****************************************************************
+!*****************************************************************
+! cufftExecOffZ2Z:: execute CUDA FFT plan, Z-->Z, double complex to double complex w offset
+!    pplan     : cufftHandle pointer (out)
+!    datain    : input data (cufftDoubleComplex)
+!    byteoffin : offset for input pointer (in)
+!    dataout   : output data (cufftDoubleComplex)
+!    byteoffout: offset for output pointer (in)
+!    idir      : transpform direction: CUFFT_FORWARD or CUFFT_INVERSE, 
+!                same as FFTCU_REAL_TO_COMPLEX, and FFTCU_COMPLEX_TO_REAL, respectively
+!
+!*****************************************************************
+ INTEGER(C_INT) function cufftExecOffZ2Z(pplan, datain, byteoffin, dataout, byteoffout, idir)&
+                bind(C,name="cufftExecOffZ2Z")
+  USE, INTRINSIC :: iso_c_binding
+  IMPLICIT NONE
+  TYPE(C_PTR),value       :: datain
+  TYPE(C_PTR),value       :: dataout
+  INTEGER(C_INT),value    :: idir
+  INTEGER(C_INT),value    :: pplan
+  INTEGER(C_SIZE_T),value :: byteoffin
+  INTEGER(C_SIZE_T),value :: byteoffout
+ END FUNCTION cufftExecOffZ2Z
+
+
+!!!!!!!!!!!!!!!!!!!! Miscelaneous !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !*****************************************************************
 !*****************************************************************
@@ -405,7 +672,6 @@ MODULE cuda_bindings
   INTEGER(C_INT),value :: height
  END SUBROUTINE cuTranspose
 
-
 !*****************************************************************
 !*****************************************************************
 ! cuTranspose3:: take tranpose of real 'datain' and store in 'dataout',
@@ -423,7 +689,6 @@ MODULE cuda_bindings
   INTEGER(C_INT),value :: nx, ny, nz
  END SUBROUTINE cuTranspose3
 
-
 !*****************************************************************
 !*****************************************************************
 ! cuTranspose3C:: take tranpose of complex 'datain' and store in 'dataout',
@@ -440,7 +705,6 @@ MODULE cuda_bindings
   TYPE(C_PTR),value    :: datain
   INTEGER(C_INT),value :: nx, ny, nz
  END SUBROUTINE cuTranspose3C
-
 
  END INTERFACE 
 
@@ -478,6 +742,5 @@ MODULE cuda_bindings
       sret = serr(iret)
 
   END SUBROUTINE GetCUFFTErr
-
 
 END MODULE cuda_bindings

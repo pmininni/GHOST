@@ -3,8 +3,8 @@
 #****************************************************************************
 
 # Spatial resolution (grid points in X,Y,Z)
-NX       = 64
-NY       = 64
+NX       = 128
+NY       = 128
 NZ       = 128
 
 # ORD:     number of iterations in the Runge-Kutta method
@@ -116,7 +116,7 @@ TARGET_INTEL  =
 #
 # GFortran compiler (GNU)
 CPP_GNU       = cpp -traditional-cpp
-FC_GNU        = gfortran
+FC_GNU        = gfortran -fbounds-check
 CC_GNU        = gcc
 FFLAGS_GNU    = -O3 -funroll-loops
 FPSPEC_GNU    = -O3 -funroll-loops
@@ -140,13 +140,16 @@ TARGET_G95    = -msse
 #
 # NVCC NVIDIA CUDA compiler:
 CUCC_NVIDIA     = nvcc
-CUINC_NVIDIA    = /usr/local/cuda_4.0.17/cuda/include
-CULIBDIR_NVIDIA = /usr/local/cuda_4.0.17/cuda/lib64
+CUINC_NVIDIA    = -I/usr/local/cuda/6.5/include
+CULIBDIR_NVIDIA = -L/usr/local/cuda/6.5/lib64
 CULIB_NVIDIA    = -lcudart -lcufft
-CUCFLAGS_NVIDIA =
+CUCFLAGS_NVIDIA = -O3
 CULDFLAGS_NVIDIA=
 CUGENCODE_NVIDIA=
 CUARCH_NVIDIA   =
+# NSTREAMS = number of streams for asynchronous memcopy and FFT computations.
+#            Should be <= the number of slices in each MPI job.
+NSTREAMS        = 1
 # PPN = <number># number of GPUs per node; required for device affinity.
 #                 Can be overridden at runtime by setting MPI_PPN env.
 #                 variable. This variable is only used when P_CUDA=yes.

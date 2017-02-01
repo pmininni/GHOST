@@ -23,7 +23,6 @@
 #include "fftcu_wrappers.h"
 #undef GGPU_TRA 
 
-
 !*****************************************************************
       SUBROUTINE fftp3d_create_plan(plan,n,fftdir,flags)
 !-----------------------------------------------------------------
@@ -55,39 +54,37 @@
       TYPE(FFTPLAN), INTENT(OUT) :: plan
 
       INTEGER             :: istr, idist, ostr, odist, nrank
+      INTEGER             :: i, first, last
       INTEGER             :: iret
       INTEGER             :: na(2)
       INTEGER             :: pinembed(2), ponembed(2)
       INTEGER             :: iplan
 
-
+! Allocate pinned memory in the host
       plan%szccd_= max(2* n(3)     *n(2)*(iend-ista+1)*GFLOATBYTESZ,GFLOATBYTESZ)
       plan%szcd_ = max(2*(n(1)/2+1)*n(2)*(kend-ksta+1)*GFLOATBYTESZ,GFLOATBYTESZ)
       plan%szrd_ = max(   n(1)     *n(2)*(kend-ksta+1)*GFLOATBYTESZ,GFLOATBYTESZ)
-
       iret = cudaHostAlloc ( plan%pccarr_, plan%szccd_, cudaHostAllocPortable) 
       IF ( iret.ne.cudaSuccess ) THEN
-        write(*,*)'fftp3d_create_plan: first pccarr_ alloc failed: iret=', iret
-        stop
+         write(*,*)'fftp3d_create_plan: first pccarr_ alloc failed: iret=', iret
+         stop
       ENDIF
-
       iret = cudaHostAlloc ( plan%pcarr_ , plan%szcd_ , cudaHostAllocPortable) 
       IF ( iret.ne.cudaSuccess ) THEN
-        write(*,*)'fftp3d_create_plan: first pcarr_ alloc failed: iret=',iret
-        stop
+         write(*,*)'fftp3d_create_plan: first pcarr_ alloc failed: iret=',iret
+         stop
       ENDIF
       iret = cudaHostAlloc ( plan%prarr_ , plan%szrd_ , cudaHostAllocPortable)
       IF ( iret.ne.cudaSuccess ) THEN
-        write(*,*)'fftp3d_create_plan: first prarr_ alloc failed: iret=',iret
-        stop
+         write(*,*)'fftp3d_create_plan: first prarr_ alloc failed: iret=',iret
+         stop
       ENDIF
-
       CALL c_f_pointer(plan%pccarr_,plan%ccarr ,(/n(3)       ,n(2),iend-ista+1/))
       CALL c_f_pointer(plan%pccarr_,plan%ccarrt,(/iend-ista+1,n(2),n(3)       /))
       CALL c_f_pointer(plan%pcarr_ ,plan%carr  ,(/n(1)/2+1   ,n(2),kend-ksta+1/))
       CALL c_f_pointer(plan%prarr_ ,plan%rarr  ,(/n(1)       ,n(2),kend-ksta+1/))
 
-
+! Allocate memory in the device
       iret = cudaMalloc(plan%cu_ccd_ , plan%szccd_)
 #if defined(GGPU_TRA)
       iret = cudaMalloc(plan%cu_ccd1_, plan%szccd_)
@@ -95,53 +92,82 @@
       iret = cudaMalloc(plan%cu_cd_  , plan%szcd_ )
       iret = cudaMalloc(plan%cu_rd_  , plan%szrd_ )
 
-      IF (fftdir.eq.FFTCU_REAL_TO_COMPLEX) THEN
-        nrank= 2
-        na      (1) = n(1)         ; na      (2) = n(2)              ;
-        pinembed(1) = n(1)         ; pinembed(2) = n(2)*(kend-ksta+1);            
-        istr        = 1            ; idist       = n(1)*n(2)         ;
-        ponembed(1) = n(1)/2+1     ; ponembed(2) = n(2)*(kend-ksta+1);            
-        ostr        = 1            ; odist       = n(2)*(n(1)/2+1)   ;
-        iret = cufftPlanMany(plan%icuplanr_,nrank,na,pinembed,istr,idist,&
-                             ponembed,ostr,odist,GCUFFTDEFR2C,kend-ksta+1);
-        IF ( iret.ne.CUFFT_SUCCESS ) THEN
-          write(*,*)'fftp3d_create_plan: cufftPlanMany::icuplanr::r2c failed: iret=',iret
-          stop
-        ENDIF
-      ELSE
-        nrank= 2;
-        na      (1) = n(1)         ; na      (2) = n(2)              ;
-        pinembed(1) = n(1)/2+1     ; pinembed(2) = n(2)*(kend-ksta+1);
-        istr        = 1            ; idist       = n(2)*(n(1)/2+1)   ;
-        ponembed(1) = n(1)         ; ponembed(2) = n(2)*(kend-ksta+1);
-        ostr        = 1            ; odist       = n(1)*n(2)         ; 
-        iret = cufftPlanMany(plan%icuplanr_,nrank,na,pinembed,istr,idist,&
-                             ponembed,ostr,odist,GCUFFTDEFC2R,kend-ksta+1);
-        IF ( iret.ne.CUFFT_SUCCESS) THEN
-          write(*,*)'fftp3d_create_plan: cufftPlanMany::icuplanr::c2r failed: iret=',iret
-          stop
-        ENDIF
-      ENDIF
-      nrank       = 1
-      na      (1) = n(3)                          ;
-      pinembed(1) = max(n(3)*n(2)*(iend-ista+1),1);
-      istr        = 1                             ; idist      = n(3);
-      ponembed(1) = max(n(3)*n(2)*(iend-ista+1),1);
-      ostr        = 1                             ; odist      = n(3);
-      iret = cufftPlanMany(plan%icuplanc_,nrank,na,pinembed,istr,idist,&
-                           ponembed,ostr,odist,GCUFFTDEFC2C,max(n(2)*(iend-ista+1),1));
-      IF ( iret.ne.CUFFT_SUCCESS) THEN
-        write(*,*)myrank,': fftp3d_create_plan: cufftPlanMany::icuplanc::c2r failed: iret=', &
-                 iret,                                                           &
+!
+! Create streams in the GPU
+      IF (streams_created.ne.1) THEN
+         streams_created = 1
+         DO i = 1,nstreams
+            iret = cudaStreamCreate(pstream_(i))
+         END DO
+      END IF
+
+! Create plans and auxiliary arrays for each stream
+      DO i = 1,nstreams      
+
+         CALL range(ista,iend,nstreams,i-1,first,last)
+	     issta (i) = first
+	     issnd (i) = last
+         CALL range(ksta,kend,nstreams,i-1,first,last)
+	     kssta (i) = first
+	     kssnd (i) = last
+         plan%str_szccd_(i) = max(2* n(3)     *n(2)*(issnd(i)-issta(i)+1) &
+                                              *GFLOATBYTESZ,GFLOATBYTESZ)
+         plan%str_szcd_ (i) = max(2*(n(1)/2+1)*n(2)*(kssnd(i)-kssta(i)+1) &
+                                              *GFLOATBYTESZ,GFLOATBYTESZ)
+         plan%str_szrd_ (i) = max(   n(1)     *n(2)*(kssnd(i)-kssta(i)+1) &
+                                              *GFLOATBYTESZ,GFLOATBYTESZ)
+
+         IF (fftdir.eq.FFTCU_REAL_TO_COMPLEX) THEN
+            nrank= 2
+            na      (1) = n(1)         ; na      (2) = n(2)              ;
+            pinembed(1) = n(1)         ; pinembed(2) = n(2)*(kssnd(i)-kssta(i)+1);            
+            istr        = 1            ; idist       = n(1)*n(2)         ;
+            ponembed(1) = n(1)/2+1     ; ponembed(2) = n(2)*(kssnd(i)-kssta(i)+1);            
+            ostr        = 1            ; odist       = n(2)*(n(1)/2+1)   ;
+            iret = cufftPlanMany(plan%icuplanr_(i),nrank,na,pinembed,istr,idist, &
+                            ponembed,ostr,odist,GCUFFTDEFR2C,kssnd(i)-kssta(i)+1);
+            IF ( iret.ne.CUFFT_SUCCESS ) THEN
+               write(*,*)'fftp3d_create_plan: cufftPlanMany::icuplanr::r2c failed: iret=',&
+                         iret,'stream=',i
+               stop
+            ENDIF
+         ELSE
+            nrank= 2;
+            na      (1) = n(1)         ; na      (2) = n(2)              ;
+            pinembed(1) = n(1)/2+1     ; pinembed(2) = n(2)*(kssnd(i)-kssta(i)+1);
+            istr        = 1            ; idist       = n(2)*(n(1)/2+1)   ;
+            ponembed(1) = n(1)         ; ponembed(2) = n(2)*(kssnd(i)-kssta(i)+1);
+            ostr        = 1            ; odist       = n(1)*n(2)         ; 
+            iret = cufftPlanMany(plan%icuplanr_(i),nrank,na,pinembed,istr,idist, &
+                            ponembed,ostr,odist,GCUFFTDEFC2R,kssnd(i)-kssta(i)+1);
+            IF ( iret.ne.CUFFT_SUCCESS) THEN
+               write(*,*)'fftp3d_create_plan: cufftPlanMany::icuplanr::c2r failed: iret=',&
+                         iret,'stream=',i
+               stop
+	    ENDIF
+         ENDIF
+         nrank       = 1
+         na      (1) = n(3)                         ;
+         pinembed(1) = max(n(3)*n(2)*(issnd(i)-issta(i)+1),1);
+         istr        = 1                            ; idist      = n(3);
+         ponembed(1) = max(n(3)*n(2)*(issnd(i)-issta(i)+1),1);
+         ostr        = 1                            ; odist      = n(3);
+         iret = cufftPlanMany(plan%icuplanc_(i),nrank,na,pinembed,istr,idist,    &
+              ponembed,ostr,odist,GCUFFTDEFC2C,max(n(2)*(issnd(i)-issta(i)+1),1));
+         IF ( iret.ne.CUFFT_SUCCESS) THEN
+            write(*,*)': fftp3d_create_plan: cufftPlanMany::icuplanc::c2c failed: iret=',&
+                 iret,' myrank=',myrank,                                         &
                  ' na=',na(1),' pinembed=',pinembed(1),' ponembed=',ponembed(1), &
                  ' istr=',istr,' idist=',idist,' ostr=',ostr,' odist=',odist   , &
                  ' ista=',ista,' iend=',iend
-        stop
-      ENDIF
+            stop
+	 ENDIF
+
+      END DO
       
-      plan%nx = nx
-      plan%ny = ny
-      plan%nz = nz
+      plan%nx = n(1)
+      plan%ny = n(2)
+      plan%nz = n(3)
       ALLOCATE( plan%itype1(0:nprocs-1) )
       ALLOCATE( plan%itype2(0:nprocs-1) )
       CALL fftp3d_create_block(n,nprocs,myrank,plan%itype1, &
@@ -168,11 +194,19 @@
       IMPLICIT NONE
 
       TYPE(FFTPLAN), INTENT(INOUT) :: plan
-
       INTEGER                      :: iret
+      INTEGER                      :: i
 
-      iret = cufftDestroy(plan%icuplanr_)
-      iret = cufftDestroy(plan%icuplanc_)
+      IF (streams_created.eq.1) THEN
+         streams_created = 0
+         DO i = 1,nstreams
+            iret = cudaStreamDestroy(pstream_(i))
+         END DO
+      ENDIF
+      DO i = 1,nstreams
+         iret = cufftDestroy(plan%icuplanr_(i))
+         iret = cufftDestroy(plan%icuplanc_(i))
+      END DO
       iret = cudaFreeHost (plan%pccarr_)
       iret = cudaFreeHost (plan%pcarr_)
       iret = cudaFreeHost (plan%prarr_)
@@ -268,6 +302,7 @@
       REAL(KIND=GP), INTENT(IN), DIMENSION(plan%nx,plan%ny,ksta:kend)   :: in
       TYPE(C_PTR)                                                       :: pc1
 
+      INTEGER  (C_SIZE_T)                 :: byteoffset1,  byteoffset2
       INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
       INTEGER, INTENT(IN)                 :: comm
@@ -284,29 +319,59 @@
       CALL GTStart(hmem,GT_WTIME)
       CALL GTStart(htra,GT_WTIME)
 !
-! 2D real-to-complex FFT in each node using the FFTCU library
-     
-      plan%rarr = in
+! 2D real-to-complex FFT in each device using the FFTCU library
+      DO i = 1,nstreams ! Set streams for each FFT plan
+         iret = cufftSetStream(plan%icuplanr_(i),pstream_(i));
+      END DO
+      plan%rarr = in      
 !
-! Data sent to cufftXXXXXX must reside on device:
+! Data sent to cuFFT must reside on device:
       CALL GTStart(hmem)
-      iret = cudaMemCpyHost2Dev(plan%cu_rd_, plan%prarr_, plan%szrd_ )
-      IF ( iret.ne.cudaSuccess ) THEN
-        write(*,*)'fftp3d_real_to_complex: first prarr_->cu_rd_ copy failed: iret=',iret
-        stop
-      ENDIF
+      DO i = 1,nstreams
+         byteoffset1 = plan%nx*plan%ny*(kssta(i)-ksta)*GFLOATBYTESZ
+	 byteoffset2 = plan%nx*plan%ny*(kssta(i)-ksta)*GFLOATBYTESZ
+         iret = cudaMemCpyAsyncOffHost2Dev(  plan%cu_rd_, & ! Dev
+                                             byteoffset1, & ! OFFSET Dev
+                                             plan%prarr_, & ! Host
+                                             byteoffset2, & ! OFFSET Host
+                           plan%str_szrd_(i), pstream_(i) )
+         IF ( iret.ne.cudaSuccess ) THEN
+            write(*,*)'fftp3d_real_to_complex: first prarr_->cu_rd_ copy failed: iret=',&
+	              iret,'stream=',i
+            stop
+         ENDIF
+      END DO
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
  
       CALL GTStart(hfft)
-      iret = GCUFFTEXECR2C(plan%icuplanr_, plan%cu_rd_, plan%cu_cd_ )
-      IF ( iret.ne.CUFFT_SUCCESS) THEN
-        write(*,*)'fftp3d_real_to_complex: cufftExecR2C failed: iret=',iret
-        stop
-      ENDIF
+      DO i = 1,nstreams
+         byteoffset1 = plan%nx*plan%ny*(kssta(i)-ksta)        *GFLOATBYTESZ
+         byteoffset2 = 2*(plan%nx/2+1)*plan%ny*(kssta(i)-ksta)*GFLOATBYTESZ
+         iret = GCUFFTEXECOFFR2C(plan%icuplanr_(i), plan%cu_rd_, & ! Dev
+                                                    byteoffset1, & ! OFFSET
+                                                    plan%cu_cd_, & ! Dev
+                                                    byteoffset2)   ! OFFSET
+         IF ( iret.ne.CUFFT_SUCCESS) THEN
+            write(*,*)'fftp3d_real_to_complex: cufftExecR2C failed: iret=', &
+                      iret,'stream=',i
+            stop
+         ENDIF
+      END DO
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 
       CALL GTStart(hmem)
-      iret = cudaMemCpyDev2Host(plan%pcarr_, plan%cu_cd_, plan%szcd_ )
+      DO i = 1,nstreams
+         byteoffset1 = 2*(plan%nx/2+1)*plan%ny*(kssta(i)-ksta)*GFLOATBYTESZ
+	 byteoffset2 = 2*(plan%nx/2+1)*plan%ny*(kssta(i)-ksta)*GFLOATBYTESZ
+         iret = cudaMemCpyAsyncOffDev2Host(  plan%pcarr_, & ! Host
+	                                     byteoffset1, & ! OFFSET Host
+                                             plan%cu_cd_, & ! Dev
+	                                     byteoffset2, & ! OFFSET Dev
+                         plan%str_szcd_(i), pstream_(i) )
+      END DO
+      DO i = 1,nstreams
+         iret = cudaStreamSynchronize(pstream_(i))
+      END DO
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
 
 ! NOTE: If nrocs = 1, then we can carry out the transpose directly
@@ -339,7 +404,7 @@
          ENDDO
       ENDDO
       CALL GTStop(hcom); comtime = comtime + GTGetTime(hcom)
-!
+
 #if defined(GGPU_TRA)
 !$omp parallel do  private (i,j)
       DO k = 1,plan%nz
@@ -358,11 +423,11 @@
         stop
       ENDIF
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
-
-!
       CALL GTStart(htra)
-      CALL cuTranspose3C(plan%cu_ccd_,plan%cu_ccd1_, (iend-ista+1), plan%ny, plan%nz)
+      CALL cuTranspose3C(plan%cu_ccd_,plan%cu_ccd1_, (iend-ista+1), &
+                         plan%ny, plan%nz)
       CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
+
 #else
 
       CALL GTStart(htra)
@@ -387,33 +452,67 @@
 !
 ! 1D FFT in each node using the FFTCU library
 !
+      DO i = 1,nstreams ! Set streams for each FFT plan
+         iret = cufftSetStream(plan%icuplanc_(i),pstream_(i));
+      END DO
       CALL GTStart(hmem)
-      iret = cudaMemCpyHost2Dev(plan%cu_ccd_, plan%pccarr_, plan%szccd_ )
-      IF ( iret.ne.cudaSuccess ) THEN
-        write(*,*)'fftp3d_real_to_complex: first pccarr->cu_ccd_ copy failed: iret=',iret
-        stop
-      ENDIF
+      DO i = 1,nstreams
+         byteoffset1 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
+         byteoffset2 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
+         iret = cudaMemCpyAsyncOffHost2Dev(  plan%cu_ccd_, & ! Dev
+	                                      byteoffset1, & ! OFFSET Dev
+                                             plan%pccarr_, & ! Host
+	                                      byteoffset2, & ! OFFSET Host
+                         plan%str_szccd_(i), pstream_(i) )
+         IF ( iret.ne.cudaSuccess ) THEN
+            write(*,*)'fftp3d_real_to_complex: first pccarr->cu_ccd_ copy failed: iret=',&
+	              iret,'stream=',i
+            stop
+         ENDIF
+      END DO
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
 #endif
 
-
       CALL GTStart(hfft)
-      iret = GCUFFTEXECC2C(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_REAL_TO_COMPLEX)
-      IF ( iret.ne.CUFFT_SUCCESS ) THEN
-        write(*,*)'fftp3d_real_to_complex: cufftExecC2C failed: iret=',iret
-        stop
-      ENDIF
+      DO i = 1,nstreams
+         byteoffset1 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
+	 byteoffset2 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
+         iret = GCUFFTEXECOFFC2C(plan%icuplanc_(i), plan%cu_ccd_, & ! Dev
+                                                     byteoffset1, & ! OFFSET
+                                                    plan%cu_ccd_, & ! Dev
+                                                     byteoffset2, & ! OFFSET
+                                           FFTCU_REAL_TO_COMPLEX)
+         IF ( iret.ne.CUFFT_SUCCESS ) THEN
+            write(*,*)'fftp3d_real_to_complex: cufftExecC2C failed: iret=',&
+                      iret,'stream=',i
+            stop
+         ENDIF
+      END DO
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 
       CALL GTStart(hmem)
-      iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd_, plan%szccd_ )
-      IF ( iret.ne.cudaSuccess ) THEN
-        write(*,*)'fftp3d_real_to_complex: first cu_ccd_->pccarr_ copy failed: iret=',iret
-        stop
-      ENDIF
+      DO i = 1,nstreams
+         byteoffset1 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
+	 byteoffset2 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
+         iret = cudaMemCpyAsyncOffDev2Host(  plan%pccarr_, & ! Host
+                                              byteoffset1, & ! OFFSET Host
+                                             plan%cu_ccd_, & ! Dev
+                                              byteoffset2, & ! OFFSET Dev
+                         plan%str_szccd_(i), pstream_(i) )
+         IF ( iret.ne.cudaSuccess ) THEN
+            write(*,*)'fftp3d_real_to_complex: first cu_ccd_->pccarr_ copy failed: iret=',&
+	              iret,'stream=',i
+            stop
+         ENDIF
+      END DO
+      DO i = 1,nstreams
+         iret = cudaStreamSynchronize(pstream_(i))
+      END DO
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
 
-      CALL  GTFree(hcom); CALL GTFree(hfft); CALL GTFree(htra); CALL GTFree(hmem)
+!
+! Free time counters
+      CALL GTFree(hcom); CALL GTFree(hfft); CALL GTFree(htra); CALL GTFree(hmem)
 
       out = plan%ccarr
 
@@ -453,7 +552,7 @@
       COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%ny,plan%nz)           :: c1
       REAL(KIND=GP), INTENT(OUT), DIMENSION(plan%nx,plan%ny,ksta:kend) :: out
 
-
+      INTEGER  (C_SIZE_T)                 :: byteoffset1,  byteoffset2
       INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
       INTEGER, INTENT(IN)                 :: comm
@@ -471,37 +570,64 @@
       CALL GTStart(htra,GT_WTIME);
 !
 ! 1D FFT in each node using the FFTCU library
-!
-      CALL GTStart(hmem);
+      DO i = 1,nstreams ! Set streams for each FFT plan
+         iret = cufftSetStream(plan%icuplanc_(i), pstream_(i));
+      END DO
       plan%ccarr = in
-      iret = cudaMemCpyHost2Dev(plan%cu_ccd_, plan%pccarr_, plan%szccd_ )
-      IF ( iret.ne.cudaSuccess ) THEN
-        write(*,*)'fftp3d_complex_to_real: pccarr_->cu_ccd_ copy failed: iret=',iret
-        stop
-      ENDIF
+!
+! Data sent to cuFFT must reside on device:
+      CALL GTStart(hmem);
+      DO i = 1,nstreams
+         byteoffset1 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
+	 byteoffset1 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
+         iret = cudaMemCpyAsyncOffHost2Dev(  plan%cu_ccd_, & ! Dev
+                                              byteoffset1, & ! OFFSET Dev
+                                             plan%pccarr_, & ! Host
+                                              byteoffset2, & ! OFFSET Host
+                         plan%str_szccd_(i), pstream_(i) )
+         IF ( iret.ne.cudaSuccess ) THEN
+            write(*,*)'fftp3d_complex_to_real: pccarr_->cu_ccd_ copy failed: iret=',&
+                      iret,'stream=',i
+            stop
+         ENDIF
+      END DO
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
 
       CALL GTStart(hfft);
-      iret = GCUFFTEXECC2C(plan%icuplanc_, plan%cu_ccd_, plan%cu_ccd_, FFTCU_COMPLEX_TO_REAL)
-      IF ( iret.ne.CUFFT_SUCCESS ) THEN
-        write(*,*)'fftp3d_complex_to_real: cufftExecC2C failed: iret=',iret
-        stop
-      ENDIF
+      DO i = 1,nstreams
+         byteoffset1 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
+	 byteoffset2 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
+         iret = GCUFFTEXECOFFC2C(plan%icuplanc_(i), plan%cu_ccd_, & ! Dev
+                                                     byteoffset1, & ! OFFSET
+                                                    plan%cu_ccd_, & ! Dev
+                                                     byteoffset2, & ! OFFSET
+                                           FFTCU_COMPLEX_TO_REAL)
+         IF ( iret.ne.CUFFT_SUCCESS ) THEN
+            write(*,*)'fftp3d_complex_to_real: cufftExecC2C failed: iret=',&
+                      iret,'stream=',i
+            stop
+         ENDIF
+      END DO
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 
 #if defined(GGPU_TRA)
+      DO i = 1,nstreams
+         iret = cudaStreamSynchronize(pstream_(i))
+      END DO
       CALL GTStart(htra)
-      CALL cuTranspose3C(plan%cu_ccd1_,plan%cu_ccd_,plan%nz,plan%ny,iend-ista+1)
+      CALL cuTranspose3C(plan%cu_ccd1_,plan%cu_ccd_,plan%nz, &
+                         plan%ny,iend-ista+1)
       CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
 
       CALL GTStart(hmem);
-      iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd1_, plan%szccd_ )
+      iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd1_, &
+                                plan%szccd_ )
       IF ( iret.ne.cudaSuccess ) THEN
-        write(*,*)'fftp3d_complex_to_real: cu_ccd_->pccarr_ copy failed: iret=',iret
-        stop
+         write(*,*)'fftp3d_complex_to_real: cu_ccd_->pccarr_ copy failed: iret=',&
+                   iret
+         stop
       ENDIF
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
-
 !$omp parallel do if ((iend-ista)/csize.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if ((iend-ista)/csize.lt.nth) private (k)
@@ -511,13 +637,27 @@
             END DO
          END DO
       END DO
+
 #else
+
       CALL GTStart(hmem);
-      iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd_, plan%szccd_ )
-      IF ( iret.ne.cudaSuccess ) THEN
-        write(*,*)'fftp3d_complex_to_real: cu_ccd_->pccarr_ copy failed: iret=',iret
-        stop
-      ENDIF
+      DO i = 1,nstreams
+         byteoffset1 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
+         byteoffset2 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
+         iret = cudaMemCpyAsyncOffDev2Host(  plan%pccarr_, & ! Host
+	                                      byteoffset1, & ! OFFSET Host
+                                             plan%cu_ccd_, & ! Dev
+	                                      byteoffset2, & ! OFFSET Dev
+                           plan%str_szccd_(i), pstream_(i) )
+         IF ( iret.ne.cudaSuccess ) THEN
+            write(*,*)'fftp3d_complex_to_real: cu_ccd_->pccarr_ copy failed: iret=',&
+                      iret,'stream=',i
+            stop
+         ENDIF
+      END DO
+      DO i = 1,nstreams
+         iret = cudaStreamSynchronize(pstream_(i))
+      END DO
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
 !
 ! Cache friendly transposition
@@ -574,32 +714,64 @@
 !
 ! 2D FFT in each node using the FFTCU library
 !
+      DO i = 1,nstreams ! Set streams for each FFT plan
+         iret = cufftSetStream(plan%icuplanr_(i), pstream_(i));
+      END DO
       CALL GTStart(hmem);
-      iret = cudaMemCpyHost2Dev(plan%cu_cd_, plan%pcarr_, plan%szcd_ )
-      IF ( iret.ne.cudaSuccess ) THEN
-        write(*,*)'fftp3d_complex_to_real: pccar_->cu_rd_ copy failed: iret=',iret
-        stop
-      ENDIF
+      DO i = 1,nstreams
+         byteoffset1 = 2*(plan%nx/2+1)*plan%ny*(kssta(i)-ksta)*GFLOATBYTESZ
+         byteoffset2 = 2*(plan%nx/2+1)*plan%ny*(kssta(i)-ksta)*GFLOATBYTESZ
+         iret = cudaMemCpyAsyncOffHost2Dev(  plan%cu_cd_, & ! Dev
+	                                     byteoffset1, & ! OFFSET Dev
+                                             plan%pcarr_, & ! Host
+	                                     byteoffset2, & ! OFFSET Host
+                         plan%str_szcd_(i), pstream_(i) )
+         IF ( iret.ne.cudaSuccess ) THEN
+            write(*,*)'fftp3d_complex_to_real: pccar_->cu_rd_ copy failed: iret=',&
+                      iret,'stream=',i
+            stop
+         ENDIF
+      END DO
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
 
       CALL GTStart(hfft);
-      iret = GCUFFTEXECC2R(plan%icuplanr_, plan%cu_cd_, plan%cu_rd_)
-      IF ( iret.ne.CUFFT_SUCCESS ) THEN
-        write(*,*)'fftp3d_complex_to_real: cufftExecC2R failed: iret=',iret
-        stop
-      ENDIF
+      DO i = 1,nstreams
+         byteoffset1 = plan%nx*plan%ny*(kssta(i)-ksta)        *GFLOATBYTESZ
+	 byteoffset2 = 2*(plan%nx/2+1)*plan%ny*(kssta(i)-ksta)*GFLOATBYTESZ
+         iret = GCUFFTEXECOFFC2R(plan%icuplanr_(i), plan%cu_cd_, & ! Dev
+	                                            byteoffset1, & ! OFFSET
+                                                    plan%cu_rd_, & ! Dev
+	                                            byteoffset2)   ! OFFSET
+         IF ( iret.ne.CUFFT_SUCCESS ) THEN
+            write(*,*)'fftp3d_complex_to_real: cufftExecC2R failed: iret=', &
+                      iret,'stream=',i
+            stop
+         ENDIF
+      END DO
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 
       CALL GTStart(hmem)
-      iret = cudaMemCpyDev2Host(plan%prarr_, plan%cu_rd_, plan%szrd_ )
-      IF ( iret.ne.cudaSuccess ) THEN
-        write(*,*)'fftp3d_complex_to_real: >cu_rd_->prarr copy failed: iret=',iret
-        stop
-      ENDIF
-      out = plan%rarr
+      DO i = 1,nstreams
+         byteoffset1 = plan%nx*plan%ny*(kssta(i)-ksta)*GFLOATBYTESZ
+         byteoffset2 = plan%nx*plan%ny*(kssta(i)-ksta)*GFLOATBYTESZ
+         iret = cudaMemCpyAsyncOffDev2Host(  plan%prarr_, & ! Host
+	                                     byteoffset1, & ! OFFSET Host
+                                             plan%cu_rd_, & ! Dev
+	                                     byteoffset2, & ! OFFSET Dev
+                         plan%str_szrd_(i), pstream_(i) )
+         IF ( iret.ne.cudaSuccess ) THEN
+            write(*,*)'fftp3d_complex_to_real: >cu_rd_->prarr copy failed: iret=',&
+                      iret,'stream=',i
+            stop
+         ENDIF
+      END DO
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
 
+!
+! Free time counters
       CALL GTFree(hcom); CALL GTFree(hfft); CALL GTFree(htra); CALL GTFree(hmem); 
+
+      out = plan%rarr
 
       RETURN
       END SUBROUTINE fftp3d_complex_to_real

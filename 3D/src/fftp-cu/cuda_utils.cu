@@ -16,37 +16,97 @@
 extern "C" {
 
 /* Memcpy methods: */
-cudaError_t cudaMemcpyHost2Dev( void *devdst, const void *hostsrc,  size_t count)
+cudaError_t cudaMemcpyHost2Dev( void *devdst, const void *hostsrc, size_t count)
 {
   cudaError_t iret;
-  iret = cudaMemcpy( devdst, hostsrc, count,  cudaMemcpyHostToDevice ) ;
+  iret = cudaMemcpy( devdst, hostsrc, count, cudaMemcpyHostToDevice ) ;
   return iret;
 }
 
-cudaError_t cudaMemcpyDev2Host( void *hostdst, const void *devsrc,  size_t count)
+cudaError_t cudaMemcpyDev2Host( void *hostdst, const void *devsrc, size_t count)
 {
   cudaError_t iret;
-  iret = cudaMemcpy( hostdst , devsrc, count,  cudaMemcpyDeviceToHost ); 
+  iret = cudaMemcpy( hostdst , devsrc, count, cudaMemcpyDeviceToHost ); 
   return iret;
 }
 
-/* New interface for cufftPlanMany: */
-int  MycufftPlanMany(cufftHandle *plan, int rank, int *n, int *inembed,
-                       int istride, int idist, int *onembed, int ostride,
-                       int odist, cufftType type, int batch) 
+cudaError_t cudaMemcpyAsyncHost2Dev( void *devdst, const void *hostsrc, size_t count, cudaStream_t *stream)
 {
-  int iret;
-  
-  if ( inembed != NULL && inembed[0] <= 0 ) {
-    iret = (int)cufftPlanMany(plan,rank,n,NULL,istride,idist,
-                                     NULL,ostride,odist,type,batch);
-  } else {
-    iret = (int)cufftPlanMany(plan,rank,n,inembed,istride,idist,
-                                           onembed,ostride,odist,type,batch);
-  }
+  cudaError_t iret;
+  iret = cudaMemcpyAsync( devdst, hostsrc, count, cudaMemcpyHostToDevice, *stream );
   return iret;
 }
 
+cudaError_t cudaMemcpyAsyncDev2Host( void *hostdst, const void *devsrc, size_t count, cudaStream_t *stream)
+{
+  cudaError_t iret;
+  iret = cudaMemcpyAsync( hostdst, devsrc, count, cudaMemcpyDeviceToHost, *stream ); 
+  return iret;
+}
+
+cudaError_t cudaMemcpyAsyncOffHost2Dev( void *devdst, size_t byteoffdev, const void *hostsrc, size_t byteoffhost, size_t count, cudaStream_t *stream)
+{
+  cudaError_t iret;
+  iret = cudaMemcpyAsync( (char *) devdst + byteoffdev, (char *) hostsrc + byteoffhost, count, cudaMemcpyHostToDevice, *stream );
+  return iret;
+}
+
+cudaError_t cudaMemcpyAsyncOffDev2Host( void *hostdst, size_t byteoffhost, const void *devsrc, size_t byteoffdev, size_t count, cudaStream_t *stream)
+{
+  cudaError_t iret;
+  iret = cudaMemcpyAsync( (char *) hostdst + byteoffhost, (char *) devsrc + byteoffdev, count, cudaMemcpyDeviceToHost, *stream ); 
+  return iret;
+}
+
+/* Stream methods: */
+cudaError_t ptr_cudaStreamCreate( cudaStream_t **stream)
+{
+  *stream = (cudaStream_t *) malloc(sizeof(cudaStream_t));
+  return cudaStreamCreate( *stream );
+}
+
+cudaError_t f_cudaStreamSynchronize( cudaStream_t *stream)
+{
+  cudaError_t iret;
+  iret = cudaStreamSynchronize( *stream );
+  return iret;
+}
+
+cufftResult f_cufftSetStream( cufftHandle plan, cudaStream_t *stream)
+{
+  cufftResult iret;
+  iret = cufftSetStream( plan, *stream );
+  return iret;
+}
+
+/* Interfaces for cuFFT with offsets: */
+
+cufftResult cufftExecOffC2R( cufftHandle plan, void *datain, size_t byteoffin, void *dataout, size_t byteoffout)
+{
+  cufftResult iret;
+  char* ptrin  = (char *) datain  + byteoffin;
+  char* ptrout = (char *) dataout + byteoffout;
+  iret = cufftExecC2R( plan, (cufftComplex *) ptrin, (cufftReal *) ptrout );
+  return iret;
+}
+
+cufftResult cufftExecOffR2C( cufftHandle plan, void *datain, size_t byteoffin, void *dataout, size_t byteoffout)
+{
+  cufftResult iret;
+  char* ptrin  = (char *) datain  + byteoffin;
+  char* ptrout = (char *) dataout + byteoffout;
+  iret = cufftExecR2C( plan, (cufftReal *) ptrin, (cufftComplex *) ptrout );
+  return iret;
+}
+
+cufftResult cufftExecOffC2C( cufftHandle plan, void *datain, size_t byteoffin, void *dataout, size_t byteoffout, int dir)
+{
+  cufftResult iret;
+  char* ptrin  = (char *) datain  + byteoffin;
+  char* ptrout = (char *) dataout + byteoffout;
+  iret = cufftExecC2C( plan, (cufftComplex *) ptrin, (cufftComplex *) ptrout, dir );
+  return iret;
+}
 
 } /* end, extern "C" interface */
 

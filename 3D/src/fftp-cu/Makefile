@@ -17,7 +17,8 @@ edit:
 	$(CPP) -DG$(PRECISION)_PRECISION fprecision_mod.fpp -o \
            fprecision_mod.f90
 	$(CPP) -DIKIND_=$(IKIND) -DCSIZE_=$(CSIZE) -DNSTRIP_=$(NSTRIP) \
-	   -DG$(PRECISION)_PRECISION fftp_mod.fpp -o fftp_mod.f90
+	   -DNSTREAMS_=$(NSTREAMS) -DG$(PRECISION)_PRECISION fftp_mod.fpp \
+           -o fftp_mod.f90
 	$(CPP) -DG$(PRECISION)_PRECISION fftp3D.fpp -o fftp3D.f90
 
 clean:

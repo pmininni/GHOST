@@ -24,6 +24,7 @@
       INTEGER, PARAMETER  :: ikind = IKIND_
       INTEGER, PARAMETER  :: csize = CSIZE_
       INTEGER, PARAMETER  :: nstrip = NSTRIP_
+      INTEGER, PARAMETER  :: nstreams = NSTREAMS_
       INTEGER, PARAMETER  :: FFTCU_REAL_TO_COMPLEX = -1
       INTEGER, PARAMETER  :: FFTCU_COMPLEX_TO_REAL =  1
       INTEGER, PARAMETER  :: FFTW_REAL_TO_COMPLEX = -1
@@ -31,6 +32,10 @@
       INTEGER, PARAMETER  :: FFTW_MEASURE =  0
       INTEGER, PARAMETER  :: FFTW_PATIENT =  0
       INTEGER, PARAMETER  :: FFTW_ESTIMATE=  0
+      INTEGER, SAVE       :: streams_created = 0
+      TYPE  (C_PTR)       :: pstream_(nstreams)
+      INTEGER, DIMENSION (nstreams) :: issta,issnd
+      INTEGER, DIMENSION (nstreams) :: kssta,kssnd
       DOUBLE PRECISION    :: comtime = 0.0
       DOUBLE PRECISION    :: ffttime = 0.0
       DOUBLE PRECISION    :: memtime = 0.0
@@ -44,10 +49,13 @@
          TYPE     (C_PTR)                              :: cu_cd_,cu_rd_
          TYPE     (C_PTR)                              :: pccarr_,pcarr_
          TYPE     (C_PTR)                              :: prarr_
-         INTEGER  (C_INT)                              :: icuplanr_
-         INTEGER  (C_INT)                              :: icuplanc_
+         INTEGER  (C_INT),        DIMENSION (nstreams) :: icuplanr_
+         INTEGER  (C_INT),        DIMENSION (nstreams) :: icuplanc_
          INTEGER                                       :: nx,ny,nz
          INTEGER(C_SIZE_T)                             :: szccd_,szcd_,szrd_
+         INTEGER(C_SIZE_T),       DIMENSION (nstreams) :: str_szccd_
+         INTEGER(C_SIZE_T),       DIMENSION (nstreams) :: str_szcd_
+         INTEGER(C_SIZE_T),       DIMENSION (nstreams) :: str_szrd_
          INTEGER, DIMENSION (:), POINTER               :: itype1,itype2
       END TYPE FFTPLAN
       SAVE

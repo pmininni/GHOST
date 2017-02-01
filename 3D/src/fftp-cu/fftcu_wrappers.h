@@ -7,6 +7,9 @@
 #define CONCAT(prefix,name)    prefix/**/name
 #if defined(GDOUBLE_PRECISION)
 #  define GFLOATBYTESZ     8
+#  define GCUFFTEXECOFFR2C cufftExecOffD2Z
+#  define GCUFFTEXECOFFC2R cufftExecOffZ2D
+#  define GCUFFTEXECOFFC2C cufftExecOffZ2Z
 #  define GCUFFTEXECR2C    cufftExecD2Z
 #  define GCUFFTEXECC2R    cufftExecZ2D
 #  define GCUFFTEXECC2C    cufftExecZ2Z
@@ -15,6 +18,9 @@
 #  define GCUFFTDEFC2C     CUFFT_Z2Z
 #elif defined(GSINGLE_PRECISION) 
 #  define GFLOATBYTESZ     4
+#  define GCUFFTEXECOFFR2C cufftExecOffR2C
+#  define GCUFFTEXECOFFC2R cufftExecOffC2R
+#  define GCUFFTEXECOFFC2C cufftExecOffC2C
 #  define GCUFFTEXECR2C    cufftExecR2C
 #  define GCUFFTEXECC2R    cufftExecC2R
 #  define GCUFFTEXECC2C    cufftExecC2C
