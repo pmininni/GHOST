@@ -1700,7 +1700,7 @@
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
                DO j = 1,ny
                   DO k = 1,nz
-                     kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
                      IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+       &
                                  real(b(k,j,i)*conjg(e(k,j,i)))+       &
@@ -1717,7 +1717,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
                DO j = 1,ny
                   DO k = 1,nz
-                     kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
                      IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+       &
                                  real(b(k,j,i)*conjg(e(k,j,i)))+       &
@@ -1753,7 +1753,7 @@
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
                DO j = 1,ny
                   DO k = 1,nz
-                     kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
                      IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         tmq = 2*kk2(k,j,i)*                            &
                               (real(a(k,j,i)*conjg(d(k,j,i)))+         &
@@ -1771,7 +1771,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
                DO j = 1,ny
                   DO k = 1,nz
-                     kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
                      IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         tmq = 2*kk2(k,j,i)*                            &
                               (real(a(k,j,i)*conjg(d(k,j,i)))+         &

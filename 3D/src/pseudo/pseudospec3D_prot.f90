@@ -551,7 +551,7 @@
 ! Sets Ek to zero
 !
       DO i = 1,nmaxperp/2+1
-         DO j = 1,nz/2+1
+         DO k = 1,nz/2+1
             Ek(i,k) = 0.0_GP
          END DO
       END DO
