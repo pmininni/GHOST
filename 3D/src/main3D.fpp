@@ -456,8 +456,8 @@
 !       we remove the following block. But on systems with 
 !       multiple devices per node, this will have to be 
 !       considered carefully, and possibly re-def'd:
-#if 0   
-  #if 0
+#if defined(DEF_GHOST_CUDA_)
+#if defined(CUDA_BIND_LINUX_)
 ! Initializes CUDA for Linux-based systems. This is a call to an
 ! NVIDIA-developed intermediary code that gets the GPU dev. no. 
 ! by looking in cpu_info and finding the device that resides on 
@@ -468,7 +468,8 @@
      idevice = -1
      iret    = setaffinity_for_nvidia(myrank,ppn,idevice)
      iret    = cudaSetDevice(idevice);
-  #else
+#endif
+#if defined(CUDA_BIND_DEVICE_)
 ! Initializes CUDA by selecting device. The list of devices can
 ! be changed by modifying the env. variable CUDA_VISIBLE_DEVICES:
      iret    = cudaGetDeviceCount(ncuda)
@@ -485,7 +486,7 @@
        STOP
      ENDIF
      iret = cudaGetDevice(idevice)
-  #endif
+#endif
 #endif
 
      CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
@@ -2024,9 +2025,9 @@
             tind = tind+1
             WRITE(ext, fmtext) tind
 #ifdef VELOC_
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
             rmp = 1.0_GP/ &
 	          (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
                DO j = 1,ny

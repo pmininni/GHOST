@@ -88,7 +88,7 @@ FFTWINC     = -I$(FFTWDIR)/include
 FFTWLIBDIR  = -L$(FFTWDIR)/lib
 
 CUDA_GHOSTno   =
-CUDA_GHOSTyes  = -DDEF_GHOST_CUDA_ -DG_PPN_=$(PPN)
+CUDA_GHOSTyes  = -DDEF_GHOST_CUDA_ -DG_PPN_=$(PPN) $(CUBIND_NVIDIA)
 CUDA_OBJSno    =
 CUDA_OBJSyes   = $(CONTRIB)/nvidia/setaffinity_for_nvidia.o
 
