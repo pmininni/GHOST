@@ -113,7 +113,7 @@ cufftResult cufftExecOffZ2D( cufftHandle plan, void *datain, size_t byteoffin, v
   cufftResult iret;
   char* ptrin  = (char *) datain  + byteoffin;
   char* ptrout = (char *) dataout + byteoffout;
-  iret = cufftExecZ2D( plan, (cufftComplex *) ptrin, (cufftReal *) ptrout );
+  iret = cufftExecZ2D( plan, (cufftDoubleComplex *) ptrin, (cufftDoubleReal *) ptrout );
   return iret;
 }
 
@@ -122,7 +122,7 @@ cufftResult cufftExecOffD2Z( cufftHandle plan, void *datain, size_t byteoffin, v
   cufftResult iret;
   char* ptrin  = (char *) datain  + byteoffin;
   char* ptrout = (char *) dataout + byteoffout;
-  iret = cufftExecD2Z( plan, (cufftReal *) ptrin, (cufftComplex *) ptrout );
+  iret = cufftExecD2Z( plan, (cufftDoubleReal *) ptrin, (cufftDoubleComplex *) ptrout );
   return iret;
 }
 
@@ -131,7 +131,7 @@ cufftResult cufftExecOffZ2Z( cufftHandle plan, void *datain, size_t byteoffin, v
   cufftResult iret;
   char* ptrin  = (char *) datain  + byteoffin;
   char* ptrout = (char *) dataout + byteoffout;
-  iret = cufftExecZ2Z( plan, (cufftComplex *) ptrin, (cufftComplex *) ptrout, dir );
+  iret = cufftExecZ2Z( plan, (cufftDoubleComplex *) ptrin, (cufftDoubleComplex *) ptrout, dir );
   return iret;
 }
 
