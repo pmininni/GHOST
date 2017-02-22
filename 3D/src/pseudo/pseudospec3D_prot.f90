@@ -265,7 +265,8 @@
            OPEN(1,file='sspecperp.' // nmb // '.txt')
          ENDIF
          DO j = 1,nmaxperp/2+1
-         WRITE(1,FMT='(E23.15,E23.15)') Dkk*(j-1),Ektot(j),Eptot(j)
+            WRITE(1,FMT='(E23.15,E23.15,E23.15)') Dkk*(j-1), &
+                                         Ektot(j), Eptot(j)
          END DO
          CLOSE(1)
       ENDIF
