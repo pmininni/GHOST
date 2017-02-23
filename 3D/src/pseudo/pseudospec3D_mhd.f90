@@ -546,9 +546,10 @@
       SUBROUTINE crosspec(a,b,c,d,e,f,nmb)
 !-----------------------------------------------------------------
 !
-! Computes the cross-helicity spectrum. The 
-! output is written to a file by the first 
-! node.
+! Computes the cross-helicity spectrum. Normalization of the
+! spectrum is such that E = sum[E(k).Dkk], where Dkk is the
+! width of the Fourier shells. The output is written to a
+! file by the first node.
 !
 ! Output file contains:
 ! 'cspectrum.XXX.txt': k, C(k)
@@ -586,7 +587,7 @@
       IF (myrank.eq.0) THEN
          OPEN(1,file='cspectrum.' // nmb // '.txt')
          DO i=1,nmax/2+1
-            WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Cktot(i)
+            WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Cktot(i)/Dkk
          END DO
          CLOSE(1)
       ENDIF

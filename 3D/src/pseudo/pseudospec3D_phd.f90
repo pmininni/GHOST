@@ -450,8 +450,10 @@
       SUBROUTINE spectrsc(a,nmb,isc)
 !-----------------------------------------------------------------
 !
-! Computes the passive/active scalar power spectrum. The 
-! output is written to a file by the first node.
+! Computes the passive/active scalar power spectrum.
+! Normalization of the spectrum is such that E = sum[E(k).Dkk],
+! where Dkk is the width of the Fourier shells. The output
+! is written to a file by the first node.
 !
 ! Output files contain:
 ! 'sspectrum.XXX.txt' : k, V(k) (power spectrum of the scalar)
@@ -493,7 +495,7 @@
            OPEN(1,file='sspectrum.' // nmb // '.txt')
          ENDIF
          DO i=1,nmax/2+1
-            WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Ek(i)
+            WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Ek(i)/Dkk
          END DO
       ENDIF
 
@@ -600,8 +602,10 @@
       SUBROUTINE sctrans(a,b,nmb,isc)
 !-----------------------------------------------------------------
 !
-! Computes the scalar transfer in Fourier space 
-! in 3D. The output is written to a file by the 
+! Computes the scalar transfer in Fourier space in 3D.
+! Normalization of the transfer function is such that the
+! flux is Pi = -sum[T(k).Dkk], where Dkk is the width of the
+! Fourier shells. The output is written to a file by the 
 ! first node.
 !
 ! Output files contain:
@@ -704,7 +708,7 @@
           OPEN(1,file='stransfer.' // nmb // '.txt')
         ENDIF
         DO i=1,nmax/2+1
-           WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Ektot(i)
+           WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Ektot(i)/Dkk
         END DO
       ENDIF
 

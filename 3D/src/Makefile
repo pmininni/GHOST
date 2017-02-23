@@ -247,7 +247,7 @@ clean:  undo
 dist:
 	rm -f $(BIN)/*HD* $(BIN)/*MHD* $(BIN)/*ROT* $(BIN)/*BOUSS* \
               $(BIN)/*GPE* $(BIN)/*ARGL* $(BIN)/boots $(BIN)/trunc \
-              $(BIN)/vt $(BIN)/shear $(BIN)/wv $(BIN)/wt           \
+              $(BIN)/vt $(BIN)/shear $(BIN)/wv $(BIN)/wt $(BIN)/README* \
               *HD* *MHD* *ROT* *BOUSS* \
               *GPE* *ARGL* boots trunc vt shear wv
 	$(MAKE) clean
@@ -262,6 +262,21 @@ edit:
 	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)' \
 	   DO_HYBRID='DO_HYBRID$(P_HYBRID)' P_CUDA='$(P_CUDA)'
 	cd ../
+	echo "Output for this solver includes the following files:" >> \
+	   $(BIN)/README_output.txt
+	echo "(note some output files may not be created, depending" >> \
+	   $(BIN)/README_output.txt
+	echo "on specific solver and options being used)."  >> \
+	   $(BIN)/README_output.txt
+	echo >> $(BIN)/README_output.txt
+	for file in $(OBJS:.o=.f90); do \
+	 echo "From subroutines in" $$file "(see file for more details):"  >> \
+	   $(BIN)/README_output.txt ; \
+	 perl -ne 'print if /Output files contain/ .. /Parameters/' \
+	   $(OBJSDIR)/$$file >> $(BIN)/README_output.txt ; \
+	 echo >> $(BIN)/README_output.txt ; \
+	done
+	perl -i -lpe 's/! Parameters//g' $(BIN)/README_output.txt
 	if [ ${UNDER} -eq 1 ]; then \
 	if [ -e main3D.fpp.bak ]; then \
 	 echo 'Files have already been modified!'; else \

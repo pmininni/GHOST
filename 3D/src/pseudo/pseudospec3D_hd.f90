@@ -1091,12 +1091,12 @@
          CLOSE(1)
          IF (hel.eq.1) THEN
             OPEN(1,file='helicity.txt',position='append')
-            WRITE(1,*) (t-1)*dt,khe
+            WRITE(1,FMT='(E13.6,E25.18)') (t-1)*dt,khe
             CLOSE(1)
          ENDIF
          IF (chk.eq.1) THEN
             OPEN(1,file='divergence.txt',position='append')
-            WRITE(1,*) (t-1)*dt,div
+            WRITE(1,FMT='(E13.6,E25.18)') (t-1)*dt,div
             CLOSE(1)
          ENDIF
       ENDIF
@@ -1108,9 +1108,10 @@
       SUBROUTINE spectrum(a,b,c,nmb,kin,hel)
 !-----------------------------------------------------------------
 !
-! Computes the energy and helicity power 
-! spectrum. The output is written to a 
-! file by the first node.
+! Computes the energy and helicity power spectrum.
+! Normalization of the spectrum is such that E = sum[E(k).Dkk],
+! where Dkk is the width of the Fourier shells. The output
+! is written to a file by the first node.
 !
 ! Output files contain:
 ! 'kspectrum.XXX.txt': k, Ev(k)
@@ -1159,7 +1160,7 @@
                OPEN(1,file='mspectrum.' // nmb // '.txt')
             ENDIF
             DO i=1,nmax/2+1
-               WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Ek(i)
+               WRITE(1,FMT='(E13.6,E23.15)') Dkk*i,.5_GP*Ek(i)/Dkk
             END DO
             CLOSE(1)
          ENDIF
@@ -1177,7 +1178,7 @@
                OPEN(1,file='ghelicity.' // nmb // '.txt')
             ENDIF
             DO i=1,nmax/2+1
-               WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Hk(i)
+               WRITE(1,FMT='(E13.6,E23.15)') Dkk*i,Hk(i)/Dkk
             END DO
             CLOSE(1)
          ENDIF
@@ -1421,8 +1422,10 @@
 ! Computes the 1D longitudinal or transverse kinetic energy 
 ! spectrum following the nomenclature of Monin and Yaglom. 
 ! The k-shells are planes with normal (0,0,k_dir), with 
-! k_dir=(0,...,nmax/2)*dk. The output is written to a file
-! by the first node.
+! k_dir=(0,...,nmax/2)*dk. Normalization of the spectrum is
+! such that E = sum[E(k).dk], where dk is the width of the
+! Fourier shells. The output is written to a file by the
+! first node.
 !
 ! Output files contain:
 ! 'kspec1dIJ.XXX.txt' [I=x,y,z (field component)][J=x,y,z (dir)]:
@@ -1612,7 +1615,8 @@
          OPEN(1,file='kspec1d' // coord(cmp:cmp) // coord(dir:dir)  &
               // '.' // nmb // '.txt')
          DO i=1,n(dir)/2+1
-            WRITE(1,FMT='(E13.6,E23.15)')  Dn(dir)*(i-1),Ektot(i)
+            WRITE(1,FMT='(E13.6,E23.15)') &
+                  Dn(dir)*(i-1),.5_GP*Ektot(i)/Dn(dir)
          END DO
          CLOSE(1)
       ENDIF
@@ -1624,9 +1628,11 @@
       SUBROUTINE entrans(a,b,c,d,e,f,nmb,kin)
 !-----------------------------------------------------------------
 !
-! Computes the energy (or cross-helicity) transfer 
-! in Fourier space in 3D. The output is written to 
-! a file by the first node.
+! Computes the energy (or cross-helicity) transfer in Fourier
+! space in 3D. Normalization of the transfer function is such
+! that the flux is Pi = -sum[T(k).Dkk], where Dkk is the width
+! of the Fourier shells. The output is written to a file by
+! the first node.
 !
 ! Output files contain:
 ! 'ktransfer.XXX.txt': k, Tv(k) (kinetic energy transfer function)
@@ -1804,7 +1810,7 @@
             OPEN(1,file='kcrostran.' // nmb // '.txt')
          ENDIF
          DO i=1,nmax/2+1
-            WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Ektot(i)
+            WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Ektot(i)/Dkk
          END DO
          CLOSE(1)
       ENDIF
@@ -1816,9 +1822,11 @@
       SUBROUTINE heltrans(a,b,c,d,e,f,nmb,kin)
 !-----------------------------------------------------------------
 !
-! Computes the helicity transfer in Fourier 
-! space in 3D. The output is written to a 
-! file by the first node.
+! Computes the helicity transfer in Fourier space in 3D.
+! Normalization of the transfer function is such that the
+! flux is Pi = -sum[T(k).Dkk], where Dkk is the width of the
+! Fourier shells. The output is written to a file by the
+! first node.
 !
 ! Output files contain:
 ! 'hktransfer.XXX.txt': k, TH_v(k) (transfer of kinetic helicity)
@@ -1931,7 +1939,7 @@
             OPEN(1,file='hktransfer.' // nmb // '.txt')
          ENDIF
          DO i=1,nmax/2+1
-            WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Hktot(i)
+            WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Hktot(i)/Dkk
          END DO
          CLOSE(1)
       ENDIF
@@ -1943,9 +1951,10 @@
       SUBROUTINE pspectrum(a,fnout,svmax)
 !-----------------------------------------------------------------
 !
-! Computes the 'power' spectrum of specified 
-! scalar quantity. The output is written to a 
-! file by the first node.
+! Computes the 'power' spectrum of specified scalar quantity.
+! Normalization of the spectrum is such that E = sum[E(k).Dkk],
+! where Dkk is the width of the Fourier shells. The output is
+! written to a file by the first node.
 !
 ! Parameters
 !     a    : input complex array
@@ -1974,7 +1983,7 @@
          imax = min(svmax,nmax/2+1)
          OPEN(1,file=trim(fnout))
          DO i=1,imax
-            WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Ek(i)
+            WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Ek(i)/Dkk
          END DO
          CLOSE(1)
       ENDIF
@@ -1986,7 +1995,7 @@
       SUBROUTINE pspectrumc(a,Ektot)
 !-----------------------------------------------------------------
 !
-! Computes the 'power' spectrum of a, returning it
+! Computes the 'power' spectrum of a, returning it.
 !
 ! Parameters
 !     a    : input array

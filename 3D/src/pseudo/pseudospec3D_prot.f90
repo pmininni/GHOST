@@ -30,7 +30,9 @@
 ! the direction parallel to the preferred direction (rotation
 ! or uniform magnetic field). As a result, the k-shells 
 ! are planes with normal (0,0,kz), kz = Dkz*(0,...,nz/2).
-! The output is written to a file by the first node.
+! Normalization of the reduced spectrum is such that
+! E = sum[E(kz).Dkz], where Dkz is the width of the Fourier shells
+! in kz. The output is written to a file by the first node.
 !
 ! Output files contain:
 ! 'sspecpara.XXX.txt' : kz, V(kz) (power spectrum of the scalar)
@@ -129,7 +131,7 @@
            OPEN(1,file='sspecpara.' // nmb // '.txt')
          ENDIF
          DO k = 1,nz/2+1
-            WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Ektot(k)
+            WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Ektot(k)*Lz
          END DO
          CLOSE(1)
       ENDIF
@@ -146,8 +148,11 @@
 ! (rotation or uniform magnetic field). The k-shells are 
 ! cylindrical surfaces with
 ! kperp = Dkk*(0,...,max{nx*Dkx/Dkk,nyDky/Dkk}/2). It also
-! computes the spectrum of 2D modes with kz=0. The output
-! is written to a file with two columns by the first node.
+! computes the spectrum of 2D modes with kz=0.
+! Normalization of the reduced spectrum is such that
+! E = sum[E(kperp).Dkk], where Dkk is the width of the Fourier
+! shells. The output is written to a file with two columns by
+! the first node.
 !
 ! Output files contain [kp = Dkk*sqrt(kx**2+ky**2)]:
 ! 'sspecperp.XXX.txt' : kp, V(kp), v(kp,kz=0)
@@ -266,7 +271,7 @@
          ENDIF
          DO j = 1,nmaxperp/2+1
             WRITE(1,FMT='(E23.15,E23.15,E23.15)') Dkk*(j-1), &
-                                         Ektot(j), Eptot(j)
+                                 Ektot(j)/Dkk, Eptot(j)/Dkk
          END DO
          CLOSE(1)
       ENDIF
@@ -282,7 +287,10 @@
 ! the direction parallel to the preferred direction (rotation 
 ! or uniform magnetic field) in 3D Fourier space. The k-shells
 ! are planes with normal (0,0,kz), kz = Dkz*(0,...,nz/2).
-! The output is written to a file by the first node.
+! Normalization of the transfer function is such that the
+! flux is Pi = -sum[T(kz).Dkz], where Dkz is the width of the
+! Fourier shells. The output is written to a file by the
+! first node.
 !
 ! Output files contain:
 ! 'stranpara.XXX.txt' : kz, Ts(kz) (scalar transfer function)
@@ -381,7 +389,7 @@
            OPEN(1,file='stranpara.' // nmb // '.txt')
          ENDIF
          DO k = 1,nz/2+1
-            WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Ektot(k)
+            WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Ektot(k)*Lz
          END DO
          CLOSE(1)
       ENDIF
@@ -397,8 +405,11 @@
 ! the direction perpendicular to the preferred direction 
 ! (rotation or uniform magnetic field) in 3D Fourier space. 
 ! The k-shells are cylindrical surfaces with
-! kperp = Dkk*(0,...,max{nx*Dkx/Dkk,nyDky/Dkk}/2). The output
-! is written to a file by the first node.
+! kperp = Dkk*(0,...,max{nx*Dkx/Dkk,nyDky/Dkk}/2).
+! Normalization of the transfer function is such that the
+! flux is Pi = -sum[T(kperp).Dkk], where Dkk is the width of
+! the Fourier shells. The output is written to a file by the 
+! first node.
 !
 ! Output files contain [kp = Dkk*sqrt(kx**2+ky**2)]:
 ! 'stranperp.XXX.txt' : kp, Ts(kp) (scalar transfer function)
@@ -497,7 +508,7 @@
            OPEN(1,file='stranperp.' // nmb // '.txt')
          ENDIF
          DO j = 1,nmaxperp/2+1
-            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(j-1),Ektot(j)
+            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(j-1),Ektot(j)/Dkk
          END DO
          CLOSE(1)
       ENDIF
@@ -515,8 +526,10 @@
 ! with kperp = Dkk*(0,...,max{nx*Dkx/Dkk,nyDky/Dkk}/2) and
 ! kpara = Dkz*(0,...,nz/2). The actual values of these
 ! wavenumbers can be found in the first column of 'kspecpara'
-! and 'kspecperp' files. The output is written to a binary
-! file by the first node.
+! and 'kspecperp' files. This spectrum is not normalized (i.e.,
+! it is not divided by the area of the bins in Fourier space,
+! nor by sin(theta) to obtain curcles in the isotropic case).
+! The output is written to a binary file by the first node.
 !
 ! Output files contain:
 ! 'odir/sspec2D.XXX.out' : 2D spectrum v(kperp,kpara)

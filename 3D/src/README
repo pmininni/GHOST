@@ -234,7 +234,7 @@ export OMP_NUM_THREADS=4
 and in a C-like shell do
 
 -------------------------------------------------------------------
-setenv OMP_NUM_THREADS=4
+setenv OMP_NUM_THREADS 4
 -------------------------------------------------------------------
 
 For the hybrid code to scale properly, processor affinity and/or 
@@ -464,7 +464,7 @@ and component, the node number, and a number that labels the time
 of the snapshot of the field. As an example, the x-component of 
 the velocity field in the node 20 in a hydrodynamic simulation is 
 stored as 'vx.020.NNN.out', where NNN is proportional to the time 
-where the snapshot was taken. The actual time can be computed as 
+at which the snapshot was taken. The actual time can be computed as 
 t = dt*tstep*(NNN-1). If MPI I/O is used, the naming convention is 
 the same but there is no number for the node.
 
@@ -473,15 +473,14 @@ Spectra of kinetic and magnetic energy are written to files named
 of kinetic and magnetic helicity are written to files 
 'khelicity.MMM.txt' and 'mhelicity.MMM.txt'. Extra files with 
 the energy transfer function, or the spectrum in the parallel and 
-perpendicular directions (e.g. to the axis of rotation), are also 
+perpendicular directions (e.g., to the axis of rotation), are also 
 written by some of the solvers. Here, MMM is proportional to the 
-time where the spectra were computed, and the actual time is given 
-by t = dt*sstep*(MMM-1).
+time at which the spectra were computed, and the actual time is
+given by t = dt*sstep*(MMM-1).
 
 The code also writes text files with quantities integrated over all 
-volume ('helicity.txt', 'balance.txt', etc.). The contents of these 
-files is described in the source files. When the external force is 
-constant (rand=0 in 'parameter.txt'), the files 'balance.txt' and 
+volume ('helicity.txt', 'balance.txt', etc.). When the external force
+is constant (rand=0 in 'parameter.txt'), the files 'balance.txt' and 
 'injection.txt' can be used to verify consistency of the code when 
 doing a simulation in a new machine. In a hydrodynamic run, the file 
 'balance.txt' has four columns with the time (t), two times the 
@@ -492,6 +491,14 @@ dE/dt = -2.nu.Omega+eps
 
 where the time derivative of the energy can be computed using 
 centered finite differences.
+
+A description of the contents of all output files for a specific
+solver is automatically generated at compile time, named
+"README_output.txt", and placed in the same directory as the
+executable file (by default, ../bin). More details about the output
+files can be found in the comments in the source file (the text in
+"README_output.txt" indicates the specific source file in which the
+comments for a given output file can be found).
 
 Examples of simple scripts to read and plot output from GHOST using 
 Python, IDL, Matlab, and VAPOR, can be found in the directory 

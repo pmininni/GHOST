@@ -29,8 +29,11 @@
 ! in the direction parallel to the preferred direction 
 ! (rotation, gravity, or uniform magnetic field, assumed
 ! to be in the z-direction). As a result, the k-shells
-! are planes with normal (0,0,kz), kz = Dkz*(0,...,nz/2). 
-! The output is written to a file by the first node.
+! are planes with normal (0,0,kz), kz = Dkz*(0,...,nz/2).
+! Normalization of the reduced spectrum is such that
+! E = sum[E(kz).Dkz], where Dkz is the width of the Fourier
+! shells in kz. The output is written to a file by the
+! first node.        
 !
 ! Output files contain:
 ! 'kspecpara.XXX.txt': kz, Ev(kz), Ev_perp(kz), Ev_z(kz)
@@ -230,7 +233,8 @@
             ENDIF
             DO k = 1,nz/2+1
                WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') &
-                    Dkz*(k-1),Ektot(k),Ekhtot(k),Ekvtot(k)
+                              Dkz*(k-1),.5_GP*Ektot(k)*Lz, &
+                    .5_GP*Ekhtot(k)*Lz,.5_GP*Ekvtot(k)*Lz
             END DO
             CLOSE(1)
          ENDIF
@@ -321,7 +325,7 @@
             ENDIF
             DO k = 1,nz/2+1
                WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') &
-                    Dkz*(k-1),Ektot(k),Ekhtot(k),Ekvtot(k)
+                     Dkz*(k-1),Ektot(k)*Lz,Ekhtot(k)*Lz,Ekvtot(k)*Lz
             ENDDO
             CLOSE(1)
          ENDIF
@@ -341,8 +345,10 @@
 ! surfaces with kperp = Dkk*(0,...,max{nx*Dkx/Dkk,nyDky/Dkk}/2).
 ! It also computes the spectrum of 2D modes with kz = 0 of
 ! (x,y)-field components and the z-field component separately.
-! The output is written to a file with three columns by the
-! first node.
+! Normalization of the reduced spectrum is such that
+! E = sum[E(kperp).Dkk], where Dkk is the width of the Fourier
+! shells. The output is written to a file with three columns
+! by the first node.
 !
 ! Output files contain [kp = Dkk*sqrt(kx**2+ky**2)]:
 ! 'kspecperp.XXX.txt': kp, E_v(kp), ev_x,y(kp,kz=0), ev_z(kp,kz=0)
@@ -562,8 +568,9 @@
                OPEN(1,file='mspecperp.' // nmb // '.txt')
             ENDIF
             DO j = 1,nmaxperp/2+1
-               WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') Dkk*(j-1),   &
-                     Ektot(j),Eptot(j),Eztot(j)
+               WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') &
+                             Dkk*(j-1),.5_GP*Ektot(j)/Dkk, &
+                    .5_GP*Eptot(j)/Dkk,.5_GP*Eztot(j)/Dkk
             END DO
             CLOSE(1)
          ENDIF
@@ -669,7 +676,7 @@
             ENDIF
             DO j = 1,nmaxperp/2+1
                WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') Dkk*(j-1),   &
-                     Ektot(j),Eptot(j),Eztot(j)
+                              Ektot(j)/Dkk,Eptot(j)/Dkk,Eztot(j)/Dkk
             END DO
             CLOSE(1)
          ENDIF
@@ -685,8 +692,11 @@
 ! Computes the energy transfer in the direction parallel 
 ! to the preferred direction (rotation or uniform magnetic 
 ! field) in 3D Fourier space. The k-shells are planes with 
-! normal (0,0,kz), kz = Dkz*(0,...,nz/2). The output is
-! written to a file by the first node.
+! normal (0,0,kz), kz = Dkz*(0,...,nz/2). Normalization of
+! the transfer function is such that the flux is
+! Pi = -sum[T(kz).Dkz], where Dkz is the width of the
+! Fourier shells. The output is written to a file by the
+! first node.
 !
 ! Output files contain:
 ! 'ktranpara.XXX.txt': kz, Tv(kz) (kinetic energy transfer function)
@@ -856,7 +866,7 @@
             OPEN(1,file='jtranpara.' // nmb // '.txt')
          ENDIF
          DO k = 1,nz/2+1
-            WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Ektot(k)
+            WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Ektot(k)*Lz
          END DO
          CLOSE(1)
       ENDIF
@@ -872,7 +882,10 @@
 ! to the preferred direction (rotation or uniform magnetic 
 ! field) in 3D Fourier space. The k-shells are cylindrical 
 ! surfaces with kperp = Dkk*(0,...,max{nx*Dkx/Dkk,nyDky/Dkk}/2).
-! The output is written to a file by the first node.
+! Normalization of the transfer function is such that the
+! flux is Pi = -sum[T(kperp).Dkk], where Dkk is the width of the
+! Fourier shells. The output is written to a file by the first
+! node.
 !
 ! Output files contain [kp = Dkk*sqrt(kx**2+ky**2)]:
 ! 'ktranperp.XXX.txt': kp, Tv(kp) (kinetic energy transfer function)
@@ -1042,7 +1055,7 @@
             OPEN(1,file='jtranperp.' // nmb // '.txt')
          ENDIF
          DO j = 1,nmaxperp/2+1
-            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(j-1),Ektot(j)
+            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(j-1),Ektot(j)/Dkk
          END DO
          CLOSE(1)
       ENDIF
@@ -1057,8 +1070,11 @@
 ! Computes the helicity transfer in the direction parallel 
 ! to the preferred direction (rotation or uniform magnetic 
 ! field) in 3D Fourier space. The k-shells are planes with 
-! normal (0,0,kz), kz = Dkz*(0,...,nz/2). The output is
-! written to a file by the first node.
+! normal (0,0,kz), kz = Dkz*(0,...,nz/2). Normalization of
+! the transfer function is such that the flux is
+! Pi = -sum[T(kz).Dkz], where Dkz is the width of the
+! Fourier shells. The output is written to a file by the
+! first node.
 !
 ! Output files contain:
 ! 'hktranpara.XXX.txt': kz, TH_v(kz) (kinetic helicity transfer)
@@ -1171,7 +1187,7 @@
             OPEN(1,file='hktranpara.' // nmb // '.txt')
          ENDIF
          DO k = 1,nz/2+1
-            WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Hktot(k)
+            WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Hktot(k)*Lz
          END DO
          CLOSE(1)
       ENDIF
@@ -1187,12 +1203,15 @@
 ! to the preferred direction (rotation or uniform magnetic 
 ! field) in 3D Fourier space. The k-shells are cylindrical 
 ! surfaces with kperp = Dkk*(0,...,max{nx*Dkx/Dkk,nyDky/Dkk}/2).
-! The output is written to a file by the first node.
+! Normalization of the transfer function is such that the
+! flux is Pi = -sum[T(kperp).Dkk], where Dkk is the width of the
+! Fourier shells. The output is written to a file by the first
+! node.
 !
 ! Output files contain [kp = Dkk*sqrt(kx**2+ky**2)]:
 ! 'hktranperp.XXX.txt': kp, TH_v(kp) (kinetic helicity transfer)
 ! 'hmtranperp.XXX.txt': kp, TH_b(kp) (magnetic helicity transfer)
-!        
+!
 ! Parameters
 !     a  : field component in the x-direction (v or a)
 !     b  : field component in the y-direction (v or a)
@@ -1300,7 +1319,7 @@
             OPEN(1,file='hktranperp.' // nmb // '.txt')
          ENDIF
          DO j = 1,nmaxperp/2+1
-            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(j-1),Hktot(j)
+            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(j-1),Hktot(j)/Dkk
          END DO
          CLOSE(1)
       ENDIF
@@ -1318,7 +1337,11 @@
 ! kperp = Dkk*(0,...,max{nx*Dkx/Dkk,nyDky/Dkk}/2) and
 ! kpara = Dkz*(0,...,nz/2). The actual values of these wavenumbers
 ! can be found in the first column of 'kspecpara' and 'kspecperp'
-! files. The output is written to a binary file by the first node.
+! files. This spectrum is not normalized (i.e., the energy is not
+! divided by 2, it is not divided by the area of the bins in
+! Fourier space, nor by sin(theta) to obtain curcles in the
+! isotropic case). The output is written to a binary file by the
+! first node.
 !
 ! Output files contain:
 ! 'odir/kspec2D.XXX.out': kinetic energy 2D spectrum ev(kperp,kpara)
