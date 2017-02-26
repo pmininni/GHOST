@@ -33,7 +33,11 @@
             THEN
             times = 0
             CALL entrans(C1,C2,C3,C7,C8,C4,ext,1)
+            CALL entpara(C1,C2,C3,C7,C8,C4,ext,1)
+            CALL entperp(C1,C2,C3,C7,C8,C4,ext,1)
             CALL sctrans(C20,C5,ext,0)
+            CALL sctpara(C20,C5,ext,0)
+            CALL sctperp(C20,C5,ext,0)
          ENDIF
 
          rmp = 1.0_GP/(real(o,kind=GP))
