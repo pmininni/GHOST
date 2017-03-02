@@ -503,7 +503,7 @@
       IF (myrank.eq.0) THEN
         IF ( isc.gt.0 ) THEN
            WRITE(si,'(i1.1)')isc
-           OPEN(1,file='s' // trim(si) // 'tranpara.' // nmb // '.txt')
+           OPEN(1,file='s' // trim(si) // 'tranperp.' // nmb // '.txt')
          ELSE
            OPEN(1,file='stranperp.' // nmb // '.txt')
          ENDIF
