@@ -56,7 +56,8 @@ MODULE class_GPart
         INTEGER                                      :: itimetype_
         TYPE(GPartComm)                              :: gpcomm_
         TYPE(GPSplineInt)                            :: intop_
-        INTEGER                                      :: intorder_,itorder_,nd_(3),libnds_(3,2)
+        INTEGER                                      :: intorder_,itorder_,nd_(3)
+        INTEGER                                      :: libnds_(3,2),tibnds_(3,2)
         INTEGER                                      :: myrank_,nprocs_
         INTEGER                                      :: htimers_(GPMAXTIMERS)
         INTEGER                                      :: ierr_,iseed_,istep_
@@ -178,6 +179,7 @@ MODULE class_GPart
     INTEGER                             :: disp(3),lens(3),types(3),szreal
     INTEGER          ,INTENT   (IN)     :: iexchtyp,iinterp,inittype
     INTEGER          ,INTENT   (IN)     :: intorder,iouttyp
+    INTEGER                             :: tsta,tend
     INTEGER                             :: j,nc
 
     this%nparts_   = 0 
@@ -191,9 +193,9 @@ MODULE class_GPart
     this%delta_(1) = 2*pi*Lx/real(nx,kind=GP)
     this%delta_(2) = 2*pi*Ly/real(ny,kind=GP)
     this%delta_(3) = 2*pi*Lz/real(nz,kind=GP)
-    this%invdel_(1)= real(nx,kind=GP)/2*pi*Lx
-    this%invdel_(2)= real(ny,kind=GP)/2*pi*Ly
-    this%invdel_(3)= real(nz,kind=GP)/2*pi*Lz
+    this%invdel_(1)= real(nx,kind=GP)/(2*pi*Lx)
+    this%invdel_(2)= real(ny,kind=GP)/(2*pi*Ly)
+    this%invdel_(3)= real(nz,kind=GP)/(2*pi*Lz)
     this%seedfile_ = 'gploc.dat'
     this%iinterp_  = 3          ! fixed for now
     this%inittype_ = inittype
@@ -252,6 +254,13 @@ MODULE class_GPart
     IF ( this%myrank_ .EQ. this%nprocs_-1 ) THEN
       this%lxbnds_(3,2) = real(kend,kind=GP) 
     ENDIF
+    CALL range(1,nx,nprocs,myrank,tsta,tend) !Bounds of transposed real array
+    this%tibnds_(1,1) = 1  ;
+    this%tibnds_(1,2) = nz ;
+    this%tibnds_(2,1) = 1  ;
+    this%tibnds_(2,2) = ny ;
+    this%tibnds_(3,1) = tsta ; 
+    this%tibnds_(3,2) = tend ; 
 
     DO j = 1,3
       this%gext_ (j) = real(this%nd_(j)-1,kind=GP)
@@ -259,9 +268,9 @@ MODULE class_GPart
 
     ! Instantiate interp operation. Remember that a valid timer 
     ! handle must be passed:
-    CALL this%intop_%GPSplineInt_ctor(3,this%nd_,this%libnds_,this%lxbnds_,&
-         this%intorder_,this%maxparts_,this%gpcomm_,this%htimers_(GPTIME_DATAEX),&
-         this%htimers_(GPTIME_TRANSP))
+    CALL this%intop_%GPSplineInt_ctor(3,this%nd_,this%libnds_,this%lxbnds_, &
+         this%tibnds_,this%intorder_,this%maxparts_,this%gpcomm_,&
+         this%htimers_(GPTIME_DATAEX),this%htimers_(GPTIME_TRANSP))
 
     ! Create part. d.b. structure type for I/O
     CALL MPI_TYPE_SIZE(GC_REAL,szreal,this%ierr_)
@@ -564,7 +573,7 @@ MODULE class_GPart
        this%px_(j) = min(max(c,x1),x2)
        CALL prandom_number(r)
        x1 = real(this%libnds_(2,1)-1,kind=GP); x2 = real(this%libnds_(2,2)-1,kind=GP);
-       c = r*(this%nd_(1)-1);
+       c = r*(this%nd_(2)-1);
        this%py_(j) = min(max(c,x1),x2)
        CALL prandom_number(r)
        x1 = real(this%libnds_(3,1)-1,kind=GP); x2 = real(this%libnds_(3,2)-1,kind=GP);
@@ -582,8 +591,18 @@ MODULE class_GPart
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,this%nparts_, &
                            this%vdb_,this%maxparts_)
-    CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,this%maxparts_, &
+
+    IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to box units
+       this%ptmp0_(1,:) = this%vdb_(1,:)*this%delta_(1)
+       this%ptmp0_(2,:) = this%vdb_(2,:)*this%delta_(2)
+       this%ptmp0_(3,:) = this%vdb_(3,:)*this%delta_(3)
+       CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,this%maxparts_, &
+                               this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
+    ELSE
+       CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,this%maxparts_, &
                                this%vdb_(1,:),this%vdb_(2,:),this%vdb_(3,:))
+    ENDIF
+
     IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
       IF ( this%myrank_.eq.0 ) THEN
         WRITE(*,*) 'GPart_InitRandSeed: Invalid particle after GetLocalWrk call'
@@ -628,8 +647,13 @@ MODULE class_GPart
     DO WHILE ( this%ierr_.EQ.0 )
       READ(5,*,IOSTAT=this%ierr_) x, y, z
       IF ( this%ierr_ .NE. 0 ) THEN
-!!      WRITE(*,*) 'GPart::InitUserSeed: terminating read; nt=', nt, ' ierr=',this%ierr_
+!!        WRITE(*,*) 'GPart::InitUserSeed: terminating read; nt=', nt, ' ierr=',this%ierr_
         EXIT
+      ENDIF
+      IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates from box units
+         x = x*this%invdel_(1)
+         y = y*this%invdel_(2)
+         z = z*this%invdel_(3)
       ENDIF
       IF ( z.GE.this%lxbnds_(3,1) .AND. z.LT.this%lxbnds_(3,2) .AND. &
            y.GE.this%lxbnds_(2,1) .AND. y.LT.this%lxbnds_(2,2) .AND. &

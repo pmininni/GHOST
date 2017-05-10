@@ -46,9 +46,11 @@ MODULE class_GPSplineInt
         TYPE(GPartComm),POINTER                      :: gpcomm_
         INTEGER      ,ALLOCATABLE,DIMENSION  (:,:)   :: ilg_,jlg_,klg_
         INTEGER                                      :: maxint_
-        INTEGER                                      :: ierr_,ibnds_(3,2),ldims_(3),ider_(3),nd_(3)
+        INTEGER                                      :: ierr_,ider_(3),nd_(3)
+        INTEGER                                      :: ibnds_(3,2),obnds_(3,2)
+        INTEGER                                      :: ldims_(3),odims_(3)
         INTEGER                                      :: hdataex_,htransp_
-        INTEGER                                      :: ntot_
+        INTEGER                                      :: ntot_,ttot_
         INTEGER                                      :: rank_
         CHARACTER(len=1024)                          :: serr_
       CONTAINS
@@ -79,7 +81,8 @@ MODULE class_GPSplineInt
 ! Methods:
   CONTAINS
 
-  SUBROUTINE GPSplineInt_ctor(this,rank,nd,ibnds,xbnds,nzghost,maxpart,gpcomm,hdataex,htransp)
+  SUBROUTINE GPSplineInt_ctor(this,rank,nd,ibnds,xbnds,obnds,nzghost,maxpart,gpcomm, &
+                              hdataex,htransp)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Main explicit constructor
@@ -90,6 +93,8 @@ MODULE class_GPSplineInt
 !    ibnds   : starting and ending indices for each direction for this MPI task.
 !              Integer array of size (rank,2).
 !    xbnds   : task's slab bounds
+!    obnds   : starting and ending indices for each transposed array for this task
+!              Integer array of size (rank,2).
 !    nzghost : no. z-ghost zones required for interpolation
 !    maxpart : max no. interpolation points/Lag. particles
 !    gpcomm  : GHOST particle communicator object
@@ -101,7 +106,7 @@ MODULE class_GPSplineInt
     TYPE(GPartComm),TARGET                       :: gpcomm
     INTEGER        ,INTENT(IN)                   :: hdataex,htransp,maxpart,nzghost,rank
     INTEGER        ,INTENT(IN),DIMENSION  (rank) :: nd
-    INTEGER        ,INTENT(IN),DIMENSION(rank,2) :: ibnds
+    INTEGER        ,INTENT(IN),DIMENSION(rank,2) :: ibnds,obnds
     INTEGER                                      :: j,k
     REAL(KIND=GP)  ,INTENT(IN),DIMENSION(rank,2) :: xbnds
 
@@ -110,7 +115,9 @@ MODULE class_GPSplineInt
     this%rank_    = rank
     this%ider_    = 0
     this%ldims_   = 0
+    this%odims_   = 0
     this%ntot_    = 1
+    this%ttot_    = 1
     j = GTValidHandle(htransp)
     IF ( j.NE.GTERR_GOOD_HANDLE ) THEN
       WRITE(*,*) 'GPSplineInt_ctor: invalid transpose timer handle: ',j
@@ -127,11 +134,14 @@ MODULE class_GPSplineInt
     DO j = 1, this%rank_
       DO k = 1,2
         this%ibnds_(j,k)  = ibnds(j,k)
+        this%obnds_(j,k)  = obnds(j,k)
         this%xbnds_(j,k)  = real(ibnds(j,k),kind=GP)-1.0_GP
       ENDDO
       this%ldims_(j)  = ibnds(j,2) - ibnds(j,1) + 1
+      this%odims_(j)  = obnds(j,2) - obnds(j,1) + 1
       this%nd_   (j)  = nd   (j)
       this%ntot_ = this%ntot_*this%ldims_(j)
+      this%ttot_ = this%ttot_*this%odims_(j)
     ENDDO
     ! Note: Expand by no. ghost zones:
     this%xbnds_(3,1)  = this%xbnds_(3,1)-real(nzghost,kind=GP)
@@ -644,9 +654,9 @@ MODULE class_GPSplineInt
     ALLOCATE(this%ay_   (this%nd_(2)) )
     ALLOCATE(this%by_   (this%nd_(2)) )
     ALLOCATE(this%cy_   (this%nd_(2)) )
-    ALLOCATE(this%bety_ (this%nd_(1)) )
+    ALLOCATE(this%bety_ (this%nd_(2)) )
     ALLOCATE(this%gamy_ (this%nd_(2)) )
-    ALLOCATE(this%py_   (this%nd_(1)) )
+    ALLOCATE(this%py_   (this%nd_(2)) )
     ALLOCATE(this%xxy_  (this%nd_(2)) )
 
     ALLOCATE(this%wrkl_(9,this%maxint_))
@@ -661,9 +671,9 @@ MODULE class_GPSplineInt
     ALLOCATE(this%az_   (this%nd_(3)) )
     ALLOCATE(this%bz_   (this%nd_(3)) )
     ALLOCATE(this%cz_   (this%nd_(3)) )
-    ALLOCATE(this%betz_ (this%nd_(1)) )
+    ALLOCATE(this%betz_ (this%nd_(3)) )
     ALLOCATE(this%gamz_ (this%nd_(3)) )
-    ALLOCATE(this%pz_   (this%nd_(1)) )
+    ALLOCATE(this%pz_   (this%nd_(3)) )
     ALLOCATE(this%xxz_  (this%nd_(3)) )
     ENDIF
 
@@ -856,10 +866,12 @@ MODULE class_GPSplineInt
     CLASS(GPSplineInt)                                :: this
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%ntot_) :: field
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%ntot_) :: tmp1,tmp2
+    REAL(KIND=GP),DIMENSION(this%ttot_)               :: tmptr,tmpt2
     INTEGER                                           :: i,j,k
     INTEGER                                           :: jm,km
     INTEGER                                           :: nx,nxy,ny,nz
     INTEGER                                           :: ibnds(3,2)
+    INTEGER                                           :: obnds(3,2)
 
     nx = this%ldims_(1)
     ny = this%ldims_(2)
@@ -1011,18 +1023,6 @@ MODULE class_GPSplineInt
       ENDDO
     ENDDO
  
-!  Copy splfld -> field :
-!$omp parallel do private(i,jm,j,km)
-    DO k=1,nz
-      km = k-1
-      DO j=1,ny
-        jm = j-1
-        DO i=1,nx
-          field(i+jm*nx+km*nxy) = tmp2(i+jm*nx+km*nxy)
-        ENDDO
-      ENDDO
-    ENDDO
-
 ! Note tmp2 now contains the contributions for full tensor product
 ! field from x, y only....
 
@@ -1031,43 +1031,49 @@ MODULE class_GPSplineInt
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ! Must transpose data so that it is z-y complete, in order to
 ! carry out computation in z:
-!!    call gpcomm%GTranspose (vt,obnds,v ,ibnds,3,tmp1) ! make z-y complete
-!!    call gpcomm%GITranspose(vb,ibnds,vt,obnds,3,tmp1) ! make x-y complete again
+!!    call gpcomm%GTranspose (vt,obnds,v ,ibnds,3) ! make z-y complete
+!!    call gpcomm%GITranspose(vb,ibnds,vt,obnds,3) ! make x-y complete again
 
     ibnds(1,1) = 1
     ibnds(1,2) = this%nd_(1)
     ibnds(2,1) = 1
     ibnds(2,2) = this%nd_(2)
-    ibnds(3,1) = 1  
+    ibnds(3,1) = 1 
     ibnds(3,2) = this%ldims_(3)
+    obnds(1,1) = 1
+    obnds(1,2) = this%nd_(3)
+    obnds(2,1) = 1
+    obnds(2,2) = this%nd_(2)
+    obnds(3,1) = 1  
+    obnds(3,2) = this%odims_(3)
 
     CALL GTStart(this%htransp_)
-    CALL this%gpcomm_%GTranspose(field,ibnds,tmp2,ibnds,3,tmp1)
+    CALL this%gpcomm_%GTranspose(tmptr,obnds,tmp2,ibnds,3,tmpt2)
     CALL GTAcc(this%htransp_)
 
-    nx = this%nd_(3)
-    ny = this%nd_(2)
-    nz = this%ldims_(3)
+    nx = this%odims_(1)
+    ny = this%odims_(2)
+    nz = this%odims_(3)
     nxy = nx*ny
 
 !  Compute the k-equation (coefficient in z) :
 !  Note that the we work on the transposed system here...;
 !  
-!  tmp2  <== spline coeff. field;
-!  field <== 'field', semi-'tensored' with spl. coeffs
+!  tmpt2  <== spline coeff. field;
+!  tmptr <== 'field', semi-'tensored' with spl. coeffs
 !$omp parallel do private(j,jm,km)
     DO k=1,nz
       km = k-1
       DO j=1,ny
         jm = j-1
-        tmp2 (1+jm*nx+km*nxy) = field(1+jm*nx+km*nxy)*this%betz_(1)
+        tmpt2 (1+jm*nx+km*nxy) = tmptr(1+jm*nx+km*nxy)*this%betz_(1)
       ENDDO
     ENDDO
     DO k=1,nz
       km = k-1
       DO j=1,ny
         jm = j-1
-        tmp2(nx+jm*nx+km*nxy) = field(nx+jm*nx+km*nxy)
+        tmpt2(nx+jm*nx+km*nxy) = tmptr(nx+jm*nx+km*nxy)
       ENDDO
     ENDDO
 !
@@ -1076,8 +1082,8 @@ MODULE class_GPSplineInt
       DO j=1,ny
         jm = j-1
         DO i=2,nx-2
-          tmp2 (i+jm*nx+km*nxy) =  &
-          (field(i+jm*nx+km*nxy) - this%az_(i)*tmp2(i-1+jm*nx+km*nxy) )*this%betz_(i) 
+          tmpt2 (i+jm*nx+km*nxy) =  &
+          (tmptr(i+jm*nx+km*nxy) - this%az_(i)*tmpt2(i-1+jm*nx+km*nxy) )*this%betz_(i) 
         ENDDO
       ENDDO
     ENDDO
@@ -1086,7 +1092,8 @@ MODULE class_GPSplineInt
       DO j=1,ny
         jm = j-1
         DO i=2,nx-2
-          tmp2(nx+jm*nx+km*nxy) = tmp2(nx+jm*nx+km*nxy) - this%xxz_(i-1)*tmp2(i-1+jm*nx+km*nxy)
+          tmpt2(nx+jm*nx+km*nxy) = &
+          tmpt2(nx+jm*nx+km*nxy) - this%xxz_(i-1)*tmpt2(i-1+jm*nx+km*nxy)
         ENDDO
       ENDDO
     ENDDO
@@ -1096,14 +1103,16 @@ MODULE class_GPSplineInt
       DO j=1,ny
         jm = j-1
 !  ** n-1 **
-        tmp2 (nx-1+jm*nx+km*nxy) = &
-        (field(nx-1+jm*nx+km*nxy) - this%az_(nx-1)*tmp2(nx-2+jm*nx+km*nxy))*this%betz_(nx-1)
-        tmp2 (nx+jm*nx+km*nxy) = tmp2(nx+jm*nx+km*nxy) - this%xxz_(nx-2)*tmp2(nx-1+jm*nx+km*nxy)
+        tmpt2 (nx-1+jm*nx+km*nxy) = &
+        (tmptr(nx-1+jm*nx+km*nxy) - this%az_(nx-1)*tmpt2(nx-2+jm*nx+km*nxy))*this%betz_(nx-1)
+        tmpt2 (nx+jm*nx+km*nxy)   = &
+        tmpt2(nx+jm*nx+km*nxy) - this%xxz_(nx-2)*tmpt2(nx-1+jm*nx+km*nxy)
 !  ** n  **
-        tmp2 (nx+jm*nx+km*nxy) = (tmp2(nx+jm*nx+km*nxy) - tmp2(nx-1+jm*nx+km*nxy)*this%zetaz_) &
-                                * this%betz_(nx)
+        tmpt2 (nx+jm*nx+km*nxy)   = &
+        (tmpt2(nx+jm*nx+km*nxy) - tmpt2(nx-1+jm*nx+km*nxy)*this%zetaz_)*this%betz_(nx)
 !  Backsubstitution phase :
-        tmp2(nx-1+jm*nx+km*nxy) = tmp2(nx-1+jm*nx+km*nxy) - this%gamz_(nx)*tmp2(nx+jm*nx+km*nxy)
+        tmpt2(nx-1+jm*nx+km*nxy)  = &
+        tmpt2(nx-1+jm*nx+km*nxy) - this%gamz_(nx)*tmpt2(nx+jm*nx+km*nxy)
       ENDDO
     ENDDO
 !
@@ -1112,15 +1121,15 @@ MODULE class_GPSplineInt
       DO k=1,nz
         km = k-1
           DO i=nx-2,1,-1
-          tmp2(i+jm*nx+km*nxy) = tmp2(i+jm*nx+km*nxy) &
-          - this%gamz_(i+1)*tmp2(i+1+jm*nx+km*nxy) - this%pz_(i)*tmp2(nx+jm*nx+km*nxy)
+          tmpt2(i+jm*nx+km*nxy) = tmpt2(i+jm*nx+km*nxy) &
+          - this%gamz_(i+1)*tmpt2(i+1+jm*nx+km*nxy) - this%pz_(i)*tmpt2(nx+jm*nx+km*nxy)
         ENDDO
       ENDDO
     ENDDO
 !
 !  Transpose back to standard orientation:
     CALL GTStart(this%htransp_)
-    CALL this%gpcomm_%GITranspose(field,ibnds,tmp2,ibnds,3,tmp1)
+    CALL this%gpcomm_%GITranspose(field,ibnds,tmpt2,obnds,3,tmptr)
     CALL GTAcc(this%htransp_)
 ! 
 ! Spline coeff field is now slab-decomposed to be xy complete, and 

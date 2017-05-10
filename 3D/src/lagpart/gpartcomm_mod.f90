@@ -1629,8 +1629,8 @@ MODULE class_GPartComm
 !    ifield  : input field that is xy complete
 !    id      : local dimensions of ifield. 
 !    rank    : rank of field (how many 'od, id' array elements)
-!    tmp     : real field of size required to hold field and its
-!              transpose locally. 
+!    tmp     : real field of size required to hold field 
+!              transpose locally (i.e., of size ofield)
 !-----------------------------------------------------------------
     IMPLICIT NONE
 
@@ -1743,8 +1743,8 @@ MODULE class_GPartComm
 !    ifield  : input field that is xy complete
 !    id      : local dimensions of ifield. 
 !    rank    : rank of field (how many 'od, id' array elements)
-!    tmp     : real field of size required to hold field and its
-!              transpose locally. 
+!    tmp     : real field of size required to hold field locally
+!              (i.e., of size ifield)
 !-----------------------------------------------------------------
     USE gtimer
     IMPLICIT NONE
@@ -1760,7 +1760,7 @@ MODULE class_GPartComm
     REAL(KIND=GP),INTENT(INOUT)                :: &
       ifield(id(1,1):id(1,2),id(2,1):id(2,2),id(3,1):id(3,2))
     REAL(KIND=GP),INTENT(INOUT)                :: &
-      tmp   (od(3,1):od(3,2),od(2,1):od(2,2),od(1,1):od(1,2))
+      tmp   (id(3,1):id(3,2),id(2,1):id(2,2),id(1,1):id(1,2))
 
     IF ( .NOT.this%btransinit_ ) THEN
       IF ( rank.EQ.2 ) THEN
@@ -1776,14 +1776,14 @@ MODULE class_GPartComm
     IF ( rank .EQ. 3 ) THEN
 
 !!!$omp parallel do if ((idims(3)-1)/this%csize_.ge.this%nth_) private (jj,kk,i,j,k)
-     DO ii = od(3,1),od(3,2),this%csize_
+     DO ii = id(3,1),id(3,2),this%csize_
 !!!$omp parallel do if ((idims(3)-1)/this%csize_.lt.this%nth_) private (kk,i,j,k)
-        DO jj = od(2,1),od(2,2),this%csize_
-           DO kk = od(1,1),od(1,2),this%csize_
+        DO jj = id(2,1),id(2,2),this%csize_
+           DO kk = id(1,1),id(1,2),this%csize_
  
-              DO i = ii,min(od(3,2)-od(3,1)+1,ii+this%csize_-1)
-                DO j = jj,min(od(2,2)-od(2,1)+1,jj+this%csize_-1)
-                  DO k = kk,min(od(1,2)-od(1,1)+1,kk+this%csize_-1)
+              DO i = ii,min(id(3,2)-id(3,1)+1,ii+this%csize_-1)
+                DO j = jj,min(id(2,2)-id(2,1)+1,jj+this%csize_-1)
+                  DO k = kk,min(id(1,2)-id(1,1)+1,kk+this%csize_-1)
                      tmp(i,j,k) = ifield(k,j,i)
                   END DO
                 END DO
