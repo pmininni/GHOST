@@ -109,6 +109,29 @@
 #define INCLUDEFNAME_ 'cmhdb_
 #endif
 
+#ifdef CHMHD_SOL
+#define DNS_
+#define CMHD_
+#define VELOC_
+#define SCALAR_
+#define MAGFIELD_
+#define HALLTERM_
+#define COMPRESSIBLE_
+#define INCLUDEFNAME_ 'chmhd_
+#endif
+
+#ifdef CHMHDB_SOL
+#define DNS_
+#define CMHD_
+#define VELOC_
+#define SCALAR_
+#define MAGFIELD_
+#define HALLTERM_
+#define UNIFORMB_
+#define COMPRESSIBLE_
+#define INCLUDEFNAME_ 'chmhdb_
+#endif
+
 #ifdef ROTH_SOL
 #define DNS_
 #define VELOC_

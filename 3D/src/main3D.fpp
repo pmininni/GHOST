@@ -29,6 +29,8 @@
 !           COMPRHD_SOL    builds the compressible HD solver
 !           CMHD_SOL       builds the compressible MHD solver
 !           CMHDB_SOL      builds the compressible MHD solver with B_0
+!           CHMHD_SOL      builds the compressible Hall-MHD solver
+!           CHMHDB_SOL     builds the compressible HMHD solver with B_0
 !           ROTH_SOL       builds the HD solver in a rotating frame
 !           PROTH_SOL      builds the ROTH solver with passive scalar
 !           MPROTH_SOL     builds the ROTH solver with multi-scalar

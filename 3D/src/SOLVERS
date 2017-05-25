@@ -34,6 +34,8 @@ to build a solver other than the default):
    COMPRHD    Compressible HD solver
    CMHD       Compressible MHD solver
    CMHDB      Compressible MHD solver with uniform B_0
+   CHMHD      Compressible Hall-MHD solver
+   CHMHDB     Compressible Hall-MHD solver with uniform B_0
    ROTH       HD solver in a rotating frame
    PROTH      ROTH solver with passive scalar
    MPROTH     ROTH solver with multi-scalar

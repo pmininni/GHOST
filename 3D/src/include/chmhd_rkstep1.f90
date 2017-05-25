@@ -1,6 +1,6 @@
-! Step 1 of Runge-Kutta for the MHD equations
+! Step 1 of Runge-Kutta for the CHMHD equations
 ! Copies v_x,y,z into the auxiliary arrays C1-3
-! and a_x,y,z into the auxiliary arrays C4-6
+! and a_x,y,z, th into the auxiliary arrays C4-6, C20
 
          C1(k,j,i) = vx(k,j,i)
          C2(k,j,i) = vy(k,j,i)
