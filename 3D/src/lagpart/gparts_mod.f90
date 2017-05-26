@@ -634,26 +634,34 @@ MODULE class_GPart
     REAL(KIND=GP)                     :: x,y,z
 
     ! Note: each record (line) consists of x y z real positions
-    ! within [0,N-1]^3 box
+    ! within [0,NX-1]x[0,NY-1]x[0,NZ-1] box or the equivalent
+    ! in box units depending on wrtunit_ class options.
     OPEN(UNIT=5,FILE=trim(this%seedfile_),STATUS='OLD',ACTION='READ',&
          IOSTAT=this%ierr_, IOMSG=this%serr_);
     IF ( this%ierr_ .NE. 0 ) THEN
       WRITE(*,*)'GPart::InitUserSeed: file:',this%seedfile_,' err: ', trim(this%serr_) 
       STOP
     ENDIF
+    READ(5,*,IOSTAT=this%ierr_) nt
+    IF ( this%myrank_.eq.0 .AND. nt.NE.this%maxparts_ ) THEN
+      WRITE(*,*) 'GPart_InitUserSeed: Inconsistent seed file: required no. part.=', &
+      this%maxparts_,' total listed: ',nt,' file:',this%seedfile_
+      STOP
+    ENDIF
+    READ(5,*,IOSTAT=this%ierr_) x
 
     nt = 0  ! global part. record counter
     nl = 0  ! local particle counter
     DO WHILE ( this%ierr_.EQ.0 )
       READ(5,*,IOSTAT=this%ierr_) x, y, z
       IF ( this%ierr_ .NE. 0 ) THEN
-!!        WRITE(*,*) 'GPart::InitUserSeed: terminating read; nt=', nt, ' ierr=',this%ierr_
+!!      WRITE(*,*) 'GPart::InitUserSeed: terminating read; nt=', nt, ' ierr=',this%ierr_
         EXIT
       ENDIF
-      IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates from box units
-         x = x*this%invdel_(1)
-         y = y*this%invdel_(2)
-         z = z*this%invdel_(3)
+      IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to grid units
+        x = x*this%invdel_(1)
+        y = y*this%invdel_(2)
+        z = z*this%invdel_(3)
       ENDIF
       IF ( z.GE.this%lxbnds_(3,1) .AND. z.LT.this%lxbnds_(3,2) .AND. &
            y.GE.this%lxbnds_(2,1) .AND. y.LT.this%lxbnds_(2,2) .AND. &
