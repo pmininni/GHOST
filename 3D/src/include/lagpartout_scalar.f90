@@ -1,10 +1,10 @@
 ! Write scalar
-           tmp = 1.0D0 / real(n,kind=GP)**3
+           tmp = 1.0D0/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-             DO j = 1,n
-               DO k = 1,n
+             DO j = 1,ny
+               DO k = 1,nz
                  C7(k,j,i) = th(k,j,i)*tmp
                END DO
              END DO
