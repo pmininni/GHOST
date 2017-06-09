@@ -10,16 +10,16 @@
             CALL specsc2D(th,ext,odir,0)
 
 ! Uncomment the following lines to compute hor. averaged quantities
-!  CALL havgwrite(0,'shear'  ,ext,vx,vy,vz,th,omega,bvfreq) ! shear
-!  CALL havgwrite(1,'tgradz' ,ext,vx,vy,vz,th,omega,bvfreq) ! dtheta/dz
-!  CALL havgwrite(2,'hawdtdz',ext,vx,vy,vz,th,omega,bvfreq) ! u_z*dtheta/dz
-!  CALL havgwrite(3,'hahke'  ,ext,vx,vy,vz,th,omega,bvfreq) ! hor. k.e.
-!  CALL havgwrite(4,'havke'  ,ext,vx,vy,vz,th,omega,bvfreq) ! vert. k.e.
-!  CALL havgwrite(5,'haphel' ,ext,vx,vy,vz,th,omega,bvfreq) ! perp. helicity
-!  CALL havgwrite(6,'haomzt' ,ext,vx,vy,vz,th,omega,bvfreq) ! ometa_z*theta
-!  CALL havgwrite(7,'hapv2'  ,ext,vx,vy,vz,th,omega,bvfreq) ! pot'l vorticity^2
-!  CALL havgwrite(8,'hasuph' ,ext,vx,vy,vz,th,omega,bvfreq) ! super-helicity
-!  CALL havgwrite(9,'hari'   ,ext,vx,vy,vz,th,omega,bvfreq) ! Richardson no.
+!  CALL havgwrite(0,'shear'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! shear
+!  CALL havgwrite(1,'tgradz' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! dtheta/dz
+!  CALL havgwrite(2,'hawdtdz',ext,vx,vy,vz,th,omegaz,bvfreq) ! u_z*dtheta/dz
+!  CALL havgwrite(3,'hahke'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! hor. k.e.
+!  CALL havgwrite(4,'havke'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! vert. k.e.
+!  CALL havgwrite(5,'haphel' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! perp. helicity
+!  CALL havgwrite(6,'haomzt' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! ometa_z*theta
+!  CALL havgwrite(7,'hapv2'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! pot'l vorticity^2
+!  CALL havgwrite(8,'hasuph' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! super-helicity
+!  CALL havgwrite(9,'hari'   ,ext,vx,vy,vz,th,omegaz,bvfreq) ! Richardson no.
 
 ! Uncomment the following line to compute vert. spectrum of pot'l vorticity
 !  CALL spectpv(vx,vy,vz,th,ext)

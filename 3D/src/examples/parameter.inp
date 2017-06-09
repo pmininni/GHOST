@@ -96,7 +96,9 @@ gspe = 1         ! computes generalized helicity if 1
 
 ! Parameters for runs with uniform rotation (ROTH, ROTBOUSS solvers)
 &rotation
-omega = 10.00    ! uniform rotation in z
+omegax = 0.00    ! uniform rotation in x
+omegay = 0.00    ! uniform rotation in y
+omegaz = 10.00   ! uniform rotation in z
 /
 
 ! Parameters for compressible runs (COMPHD, CMHD and CMHDB solvers)

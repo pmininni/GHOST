@@ -1416,30 +1416,32 @@
       END SUBROUTINE spectrumc
 
 !*****************************************************************
-      SUBROUTINE spectr1d(a,nmb,cmp,dir)
+      SUBROUTINE spectr1d(a,nmb,spref,cmp,dir)
 !-----------------------------------------------------------------
 !
 ! Computes the 1D longitudinal or transverse kinetic energy 
 ! spectrum following the nomenclature of Monin and Yaglom. 
-! The k-shells are planes with normal (0,0,k_dir), with 
+! The k-shells are planes with normal k_dir, with 
 ! k_dir=(0,...,nmax/2)*dk. Normalization of the spectrum is
 ! such that E = sum[E(k).dk], where dk is the width of the
 ! Fourier shells. The output is written to a file by the
 ! first node.
 !
 ! Output files contain:
-! 'kspec1dIJ.XXX.txt' [I=x,y,z (field component)][J=x,y,z (dir)]:
+! 'Pspec1dIJ.XXX.txt' [I=x,y,z (field component)][J=x,y,z (dir)]
+!     [P=prefix: 'k' for kinetic energy, 'm' for magnetic, etc.]:
 !     k_dir, E_comp(k_dir)
 !
 ! Parameters
-!     a  : input matrix with a field component
-!     nmb: the extension used when writting the file
-!     cmp: =1 the input matrix is v_x
-!          =2 the input matrix is v_y
-!          =3 the input matrix is v_z
-!     dir: =1 computes the 1D spectrum in k_x
-!          =2 computes the 1D spectrum in k_y
-!          =3 computes the 1D spectrum in k_z
+!     a    : input matrix with a field component
+!     nmb  : the extension used when writting the file
+!     spref: filename prefix
+!     cmp  : =1 the input matrix is v_x
+!            =2 the input matrix is v_y
+!            =3 the input matrix is v_z
+!     dir  : =1 computes the 1D spectrum in k_x
+!            =2 computes the 1D spectrum in k_y
+!            =3 computes the 1D spectrum in k_z
 !
       USE fprecision
       USE commtypes
@@ -1461,7 +1463,7 @@
       INTEGER             :: n(3)
       INTEGER             :: kmn
       CHARACTER(len=3)    :: coord
-      CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=*), INTENT(IN) :: nmb,spref
 
 !
 ! Sets Ek to zero
@@ -1612,8 +1614,8 @@
          coord = 'xyz'
          n  = (/nx,ny,nz/)
          Dn = (/Dkx,Dky,Dkz/)
-         OPEN(1,file='kspec1d' // coord(cmp:cmp) // coord(dir:dir)  &
-              // '.' // nmb // '.txt')
+         OPEN(1,file=trim(spref) // 'spec1d' // coord(cmp:cmp) &
+              // coord(dir:dir) // '.' // nmb // '.txt')
          DO i=1,n(dir)/2+1
             WRITE(1,FMT='(E13.6,E23.15)') &
                   Dn(dir)*(i-1),.5_GP*Ektot(i)/Dn(dir)

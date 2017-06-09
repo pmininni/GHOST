@@ -15,8 +15,8 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,ny
                DO k = 1,nz
-                  C10(k,j,i) = C10(k,j,i)-2*omega*vy(k,j,i)
-                  C11(k,j,i) = C11(k,j,i)+2*omega*vx(k,j,i)
+                  C10(k,j,i) = C10(k,j,i)-2*omegaz*vy(k,j,i)
+                  C11(k,j,i) = C11(k,j,i)+2*omegaz*vx(k,j,i)
                END DO
             END DO
          END DO

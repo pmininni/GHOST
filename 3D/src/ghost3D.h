@@ -181,6 +181,17 @@
 #define INCLUDEFNAME_ 'rotbouss_
 #endif
 
+#ifdef ROTBOUMHDB_SOL
+#define DNS_
+#define VELOC_
+#define SCALAR_
+#define MAGFIELD_
+#define UNIFORMB_
+#define ROTATION_
+#define BOUSSINESQ_
+#define INCLUDEFNAME_ 'rotboumhdb_
+#endif
+
 #ifdef MPROTBOUSS_SOL
 #define DNS_
 #define VELOC_

@@ -36,6 +36,7 @@
 !           MPROTH_SOL     builds the ROTH solver with multi-scalar
 !           BOUSS_SOL      builds the BOUSS solver
 !           ROTBOUSS_SOL   builds the BOUSS solver in a rotating frame
+!           ROTBOUMHDB_SOL builds BOUSS and MHD with rotation and B_0
 !           MPROTBOUSS_SOL builds the BOUSS eq, rotating, multi-scalar
 !           GPE_SOL        builds the Gross-Pitaevskii Equation solver
 !           ARGL_SOL       builds the Advective Real Ginzburg Landau
@@ -277,7 +278,7 @@
       REAL(KIND=GP)    :: bz0
 #endif
 #ifdef ROTATION_
-      REAL(KIND=GP)    :: omega
+      REAL(KIND=GP)    :: omegax,omegay,omegaz
 #endif
 #ifdef WAVEFUNCTION_
       REAL(KIND=GP)    :: cspeed,lambda,rho0,kttherm
@@ -415,7 +416,7 @@
       NAMELIST / hallparam / ep,gspe
 #endif
 #ifdef ROTATION_
-      NAMELIST / rotation / omega
+      NAMELIST / rotation / omegax,omegay,omegaz
 #endif
 #ifdef BOUSSINESQ_
       NAMELIST / boussinesq / bvfreq,xmom,xtemp
@@ -1050,6 +1051,9 @@
 !     by0: uniform magnetic field in y
 !     bz0: uniform magnetic field in z
 
+      bx0 = 0.0_GP
+      by0 = 0.0_GP
+      bz0 = 0.0_GP
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=uniformb)
@@ -1080,14 +1084,21 @@
 #ifdef ROTATION_
 ! Reads parameters for runs with rotation from the 
 ! namelist 'rotation' on the external file 'parameter.inp'
-!     omega: amplitude of the uniform rotation
+!     omegax: amplitude of the uniform rotation along x
+!     omegay: amplitude of the uniform rotation along y
+!     omegaz: amplitude of the uniform rotation along z
 
+      omegax = 0.0_GP
+      omegay = 0.0_GP
+      omegaz = 0.0_GP
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=rotation)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(omega,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(omegax,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(omegay,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(omegaz,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #ifdef WAVEFUNCTION_

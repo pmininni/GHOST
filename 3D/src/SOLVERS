@@ -41,6 +41,7 @@ to build a solver other than the default):
    MPROTH     ROTH solver with multi-scalar
    BOUSS      Boussinesq solver
    ROTBOUSS   BOUSS solver in a rotating frame
+   ROTBOUMHDB BOUSS and MHD solver with rotation and B_0
    MPROTBOUSS BOUSS solver in a rotating frame with multi-scalar
    GPE        Gross-Pitaevskii Equation (GPE) solver
    ARGL       Advective Real Ginzburg Landau solver
