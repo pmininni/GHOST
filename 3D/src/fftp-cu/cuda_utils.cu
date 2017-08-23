@@ -58,6 +58,13 @@ cudaError_t cudaMemcpyAsyncOffDev2Host( void *hostdst, size_t byteoffhost, const
   return iret;
 }
 
+cufftResult cufftPlanManyNULL( cufftHandle *plan, int rank, int *n, int *inembed, int istride, int idist, int *onembed, int ostride, int odist, cufftType type, int batch)
+{
+  cufftResult iret;
+  iret = cufftPlanMany(plan, rank, n, NULL, istride, idist, NULL, ostride, odist, type, batch);
+  return iret;
+}
+
 /* Stream methods: */
 cudaError_t ptr_cudaStreamCreate( cudaStream_t **stream)
 {
@@ -95,6 +102,7 @@ cufftResult cufftExecOffR2C( cufftHandle plan, void *datain, size_t byteoffin, v
   cufftResult iret;
   char* ptrin  = (char *) datain  + byteoffin;
   char* ptrout = (char *) dataout + byteoffout;
+
   iret = cufftExecR2C( plan, (cufftReal *) ptrin, (cufftComplex *) ptrout );
   return iret;
 }

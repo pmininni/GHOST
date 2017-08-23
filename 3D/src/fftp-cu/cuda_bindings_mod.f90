@@ -400,6 +400,24 @@ MODULE cuda_bindings
   INTEGER(C_INT),value  :: batch
   END FUNCTION cufftPlanMany
 
+  INTEGER(C_INT) function cufftPlanManyNULL(pplan,rank,pn,&
+ pinembed,istride,idist,ponembed,ostride,odist,cutype,batch)  bind(C,name="cufftPlanManyNULL")
+!  USE, INTRINSIC :: iso_c_binding
+   USE  :: iso_c_binding
+  IMPLICIT NONE
+  INTEGER(C_INT)        :: pplan
+  INTEGER(C_INT),value  :: rank
+  INTEGER(C_INT)        :: pn(*)
+  INTEGER(C_INT)        :: pinembed(*)
+  INTEGER(C_INT),value  :: istride
+  INTEGER(C_INT),value  :: idist
+  INTEGER(C_INT)        :: ponembed(*)
+  INTEGER(C_INT),value  :: ostride
+  INTEGER(C_INT),value  :: odist
+  INTEGER(C_INT),value  :: cutype
+  INTEGER(C_INT),value  :: batch
+  END FUNCTION cufftPlanManyNULL
+
 !*****************************************************************
 !*****************************************************************
 ! cufftDestroy:: destroy CUDA FFT plan
