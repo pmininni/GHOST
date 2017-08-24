@@ -27,15 +27,15 @@
       SUBROUTINE fftp3d_create_plan(plan,n,fftdir,flags)
 !-----------------------------------------------------------------
 !
-! Creates plans for the FFTCU in each node.
+! Creates plans for the CUFFT in each node.
 !
 ! Parameters
 !     plan   : contains the parallel 2D plan [OUT]
 !     n      : the size of the dimensions of the input array [IN]
 !     fftdir : the direction of the Fourier transform [IN]
-!              FFTCU_REAL_TO_COMPLEX (-1)
-!              or FFTCU_COMPLEX_TO_REAL (+1)
-!     flags  : flags for the FFTCU [IN]
+!              FFFTCU_REAL_TO_COMPLEX (-1)
+!              or FFFTCU_COMPLEX_TO_REAL (+1)
+!     flags  : flags for the CUFFT [IN]
 !              Curently unused.
 !-----------------------------------------------------------------
 
@@ -207,7 +207,7 @@
       SUBROUTINE fftp3d_destroy_plan(plan)
 !-----------------------------------------------------------------
 !
-! Destroys FFTCU plans in each node.
+! Destroys CUFFT plans in each node.
 !
 ! Parameters
 !     plan : the parallel 2D plan [INOUT]
@@ -303,7 +303,7 @@
 !
 ! Computes the 3D real-to-complex FFT in parallel. The 
 ! complex output has the same structure than the output 
-! of the 3D FFTCU, but the output is transposed.
+! of the 3D CUFFT, but the output is transposed.
 !
 ! Parameters
 !     plan : the 3D plan created with fftp3d_create_plan [IN]
@@ -346,7 +346,7 @@
       CALL GTStart(hmem,GT_WTIME)
       CALL GTStart(htra,GT_WTIME)
 !
-! 2D real-to-complex FFT in each device using the FFTCU library
+! 2D real-to-complex FFT in each device using the CUFFT library
       DO i = 1,nstreams ! Set streams for each FFT plan
          iret = cufftSetStream(plan%icuplanr_(i),pstream_(i));
       END DO
@@ -478,7 +478,7 @@
        END DO
       CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
 !
-! 1D FFT in each node using the FFTCU library
+! 1D FFT in each node using the CUFFT library
 !
       DO i = 1,nstreams ! Set streams for each FFT plan
          iret = cufftSetStream(plan%icuplanc_(i),pstream_(i));
@@ -553,8 +553,8 @@
 !
 ! Computes the 2D complex-to-real FFT in parallel. The 
 ! complex input has the same structure than the input 
-! of the 2D FFTCU, but should be transposed. The real 
-! output has the same order than the output of the FFTCU.
+! of the 2D CUFFT, but should be transposed. The real 
+! output has the same order than the output of the CUFFT.
 ! The input data is destroyed during the computation.
 !
 ! Parameters
@@ -597,7 +597,7 @@
       CALL GTStart(hmem,GT_WTIME);
       CALL GTStart(htra,GT_WTIME);
 !
-! 1D FFT in each node using the FFTCU library
+! 1D FFT in each node using the CUFFT library
       DO i = 1,nstreams ! Set streams for each FFT plan
          iret = cufftSetStream(plan%icuplanc_(i), pstream_(i));
       END DO
@@ -741,7 +741,7 @@
       enddo
       CALL GTStop(hcom); comtime = comtime + GTGetTime(hcom)
 !
-! 2D FFT in each node using the FFTCU library
+! 2D FFT in each node using the CUFFT library
 !
       DO i = 1,nstreams ! Set streams for each FFT plan
          iret = cufftSetStream(plan%icuplanr_(i), pstream_(i));

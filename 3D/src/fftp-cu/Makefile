@@ -4,7 +4,7 @@
 #****************************************************************************
 
 FOBJS  = fprecision_mod.o fftp_mod.o cuda_bindings_mod.o fftp.o fftp3D.o 
-CUOBJS = cuda_utils.o cuwrappers.o
+CUOBJS = cuda_utils.o cuwrappers.o cuda_math.o
 
 all: $(FOBJS) $(CUOBJS)
 
