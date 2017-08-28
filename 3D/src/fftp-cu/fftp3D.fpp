@@ -45,6 +45,7 @@
       USE, INTRINSIC :: iso_c_binding
       USE cuda_bindings
       USE cutypes
+      USE gtimer
  
       IMPLICIT NONE
 
@@ -200,6 +201,16 @@
       CALL fftp3d_create_block(n,nprocs,myrank,plan%itype1, &
                               plan%itype2)
 
+
+      ! Initialize timer handles:
+      CALL GTStart(hcom,GT_WTIME)
+      CALL GTStart(hfft,GT_WTIME)
+      CALL GTStart(hmem,GT_WTIME)
+      CALL GTStart(htra,GT_WTIME)
+      CALL GTStart(htot,GT_WTIME)
+
+
+
       RETURN
       END SUBROUTINE fftp3d_create_plan
 
@@ -217,6 +228,7 @@
       USE cuda_bindings
       USE cutypes
       USE threads
+      USE gtimer
 
       IMPLICIT NONE
 
@@ -245,6 +257,9 @@
       iret = cudaFree(plan%cu_rd_)
       DEALLOCATE( plan%itype1 )
       DEALLOCATE( plan%itype2 )
+!
+! Free time counters
+      CALL GTFree(hcom); CALL GTFree(htra); CALL GTFree(hmem); CALL GTFree(htot);
 
       RETURN
       END SUBROUTINE fftp3d_destroy_plan
@@ -338,13 +353,11 @@
       INTEGER :: irank
       INTEGER :: isendTo,igetFrom
       INTEGER :: istrip,iproc
-      INTEGER :: hcom,hfft,hmem,htra
+      REAL    :: etime
 
-      ! Initialize timer handles:
-      CALL GTStart(hcom,GT_WTIME)
-      CALL GTStart(hfft,GT_WTIME)
-      CALL GTStart(hmem,GT_WTIME)
-      CALL GTStart(htra,GT_WTIME)
+!
+!     NOTE: timers, hcom,hfft,hmem,htra,htot initialized in fftp3d_create_plan
+      CALL GTStart(htot)
 !
 ! 2D real-to-complex FFT in each device using the CUFFT library
       DO i = 1,nstreams ! Set streams for each FFT plan
@@ -483,6 +496,7 @@
       DO i = 1,nstreams ! Set streams for each FFT plan
          iret = cufftSetStream(plan%icuplanc_(i),pstream_(i));
       END DO
+
       CALL GTStart(hmem)
       DO i = 1,nstreams
          byteoffset1 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
@@ -538,14 +552,13 @@
       END DO
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
 
-!
-! Free time counters
-      CALL GTFree(hcom); CALL GTFree(hfft); CALL GTFree(htra); CALL GTFree(hmem)
+      CALL GTStop(htot); tottime = tottime + GTGetTime(htot)
 
       out = plan%ccarr
 
       RETURN
       END SUBROUTINE fftp3d_real_to_complex
+
 
 !*****************************************************************
       SUBROUTINE fftp3d_complex_to_real(plan,in,out,comm)
@@ -589,15 +602,11 @@
       INTEGER :: irank
       INTEGER :: isendTo, igetFrom
       INTEGER :: istrip,iproc
-      INTEGER :: hcom,hfft,hmem,htra
 
-      ! Initialize timer handles:
-      CALL GTStart(hcom,GT_WTIME);
-      CALL GTStart(hfft,GT_WTIME);
-      CALL GTStart(hmem,GT_WTIME);
-      CALL GTStart(htra,GT_WTIME);
 !
-! 1D FFT in each node using the CUFFT library
+!     NOTE: timers, hcom,hfft,hmem,htra,htot initialized in fftp3d_create_plan
+      CALL GTStart(htot)
+!
       DO i = 1,nstreams ! Set streams for each FFT plan
          iret = cufftSetStream(plan%icuplanc_(i), pstream_(i));
       END DO
@@ -621,7 +630,7 @@
       END DO
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
 
-      CALL GTStart(hfft);
+      CALL GTSTart(hfft)
       DO i = 1,nstreams
          byteoffset1 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
 	 byteoffset2 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
@@ -763,7 +772,7 @@
       END DO
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
 
-      CALL GTStart(hfft);
+      CALL GTStart(hfft)
       DO i = 1,nstreams
          byteoffset1 = plan%nx*plan%ny*(kssta(i)-ksta)        *GFLOATBYTESZ
 	 byteoffset2 = 2*(plan%nx/2+1)*plan%ny*(kssta(i)-ksta)*GFLOATBYTESZ
@@ -799,9 +808,7 @@
       END DO
       CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
 
-!
-! Free time counters
-      CALL GTFree(hcom); CALL GTFree(hfft); CALL GTFree(htra); CALL GTFree(hmem); 
+      CALL GTStop(htot); tottime = tottime + GTGetTime(htot)
 
       out = plan%rarr
 

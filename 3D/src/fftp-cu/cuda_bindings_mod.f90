@@ -33,6 +33,50 @@ MODULE cuda_bindings
     INTEGER(C_INT)       :: ppn
     INTEGER(C_INT)       :: my_gpu
   END FUNCTION setaffinity_for_nvidia
+!*****************************************************************
+
+!*****************************************************************
+!*****************************************************************
+! cudaEventCreate
+!    cuevent: event handle
+!*****************************************************************
+  INTEGER(C_INT) function cudaEventCreate(cuevent) &
+                 bind(C,name="cudaEventCreate")
+    USE iso_c_binding
+    IMPLICIT NONE
+    INTEGER(C_INT)       :: cuevent
+  END FUNCTION cudaEventCreate
+
+
+!*****************************************************************
+!*****************************************************************
+! cudaEventRecord
+!    cuevent: event handle
+!    strid  : stream id
+!*****************************************************************
+  INTEGER(C_INT) function cudaEventRecord(cuevent, strid) &
+                 bind(C,name="cudaEventRecord")
+    USE iso_c_binding
+    IMPLICIT NONE
+    INTEGER(C_INT)       :: cuevent
+    INTEGER(C_INT)       :: strid
+  END FUNCTION cudaEventRecord
+
+!*****************************************************************
+!*****************************************************************
+! cudaEventElapsedTime
+!    time    : elapsed time (ms)
+!    estart  : start event handle
+!    estop   : stop event handle
+!*****************************************************************
+  INTEGER(C_INT) function cudaEventElapsedTime(time, estart, estop) &
+                 bind(C,name="cudaEventElapsedTime")
+    USE iso_c_binding
+    IMPLICIT NONE
+    REAL (C_FLOAT)       :: time
+    INTEGER(C_INT)       :: estart
+    INTEGER(C_INT)       :: estop
+  END FUNCTION cudaEventElapsedTime
 
 !*****************************************************************
 !*****************************************************************
