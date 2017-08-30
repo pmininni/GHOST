@@ -90,6 +90,7 @@
       USE threads
       USE boxsize
       USE gtimer
+      USE fftplans
 #ifdef DNS_
       USE dns
 #endif
@@ -486,6 +487,10 @@
      CALL cudaGetDeviceProperties(devprop,idevice)
      IF ( devprop%major .GT. 999 ) THEN
        WRITE(*,*)'MAIN: CUDA device emulation not allowed!'
+       STOP
+     ENDIF
+     IF ( nstreams .GT. 1 .AND. devprop%deviceOverlap .EQ. 0 ) THEN
+       WRITE(*,*)'MAIN: Async transfer and computation overlap not supported!'
        STOP
      ENDIF
      iret = cudaGetDevice(idevice)
@@ -1893,6 +1898,7 @@
          tratime = 0.0D0
 #if defined(DEF_GHOST_CUDA_)
          memtime = 0.0D0
+         tottime = 0.0D0
 #endif
 
       ENDIF
@@ -2559,18 +2565,20 @@
             OPEN(1,file='benchmark.txt',position='append')
 #if defined(DEF_GHOST_CUDA_)
             WRITE(1,*) nx,ny,nz,(step-ini+1),nprocs,nth, &
-                       GTGetTime(ihcpu1)/(step-ini+1),   &
-                       GTGetTime(ihomp1)/(step-ini+1),   &
-                       GTGetTime(ihwtm1)/(step-ini+1),   &
+                       nstreams                        , &
+                       GTGetTime(ihcpu1)/(step-ini+1)  , &
+                       GTGetTime(ihomp1)/(step-ini+1)  , &
+                       GTGetTime(ihwtm1)/(step-ini+1)  , &
                        ffttime/(step-ini+1), tratime/(step-ini+1), &
-                       comtime/(step-ini+1), memtime/(step-ini+1)
+                       comtime/(step-ini+1), memtime/(step-ini+1), &
+                       tottime/(step-ini+1)
 #else
             WRITE(1,*) nx,ny,nz,(step-ini+1),nprocs,nth, &
                        GTGetTime(ihcpu1)/(step-ini+1),   &
                        GTGetTime(ihomp1)/(step-ini+1),   &
                        GTGetTime(ihwtm1)/(step-ini+1),   &
                        ffttime/(step-ini+1), tratime/(step-ini+1), &
-                       comtime/(step-ini+1)
+                       comtime/(step-ini+1), tottime/(step-ini+1)
 
 #endif
             IF (bench.eq.2) THEN
@@ -2582,8 +2590,8 @@
             CLOSE(1)
 #if defined(PART_)
             IF ( dolag.GT.0 ) THEN
-              OPEN(2,file='gpbenchmark.txt',position='append')
-              WRITE(2,*) nx,ny,nz,maxparts,rbal/(step-ini+1),            &
+              OPEN(1,file='gpbenchmark.txt',position='append')
+              WRITE(1,*) nx,ny,nz,maxparts,rbal/(step-ini+1),            &
                            (step-ini+1),nprocs,nth,                      &
                            lagpart%GetTime   (GPTIME_STEP)/(step-ini+1), &
                            lagpart%GetTime   (GPTIME_COMM)/(step-ini+1), &
@@ -2592,7 +2600,7 @@
                            lagpart%GetTime (GPTIME_DATAEX)/(step-ini+1), &
                            lagpart%GetTime (GPTIME_INTERP)/(step-ini+1), &
                            lagpart%GetTime(GPTIME_PUPDATE)/(step-ini+1)
-              CLOSE(2)
+              CLOSE(1)
             ENDIF
 #endif
          ENDIF
@@ -2605,6 +2613,7 @@
 	           lagpart%GetTime(GPTIME_GPWRITE)/nwpart
       ENDIF
 #endif
+      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
 !
 ! End of MAIN3D
