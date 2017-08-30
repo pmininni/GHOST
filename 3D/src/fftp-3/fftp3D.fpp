@@ -75,6 +75,7 @@
       USE mpivars
       USE fftplans
 !$    USE threads
+      USE gtimer
       IMPLICIT NONE
 
       INTEGER, INTENT(IN) :: n(3)
@@ -112,6 +113,12 @@
       CALL fftp3d_create_block(n,nprocs,myrank,plan%itype1, &
                               plan%itype2)
 
+      CALL GTStart(hcom,GT_WTIME)
+      CALL GTStart(hfft,GT_WTIME)
+      CALL GTStart(htra,GT_WTIME)
+      CALL GTStart(htot,GT_WTIME)
+
+
       RETURN
       END SUBROUTINE fftp3d_create_plan
 
@@ -126,6 +133,7 @@
 !-----------------------------------------------------------------
 
       USE fftplans
+      USE gtimer
       IMPLICIT NONE
 
       TYPE(FFTPLAN), INTENT(INOUT) :: plan
@@ -137,6 +145,11 @@
       DEALLOCATE( plan%rarr   )
       DEALLOCATE( plan%itype1 )
       DEALLOCATE( plan%itype2 )
+
+      CALL GTFree(hcom)
+      CALL GTFree(hfft)
+      CALL GTFree(htra)
+      CALL GTFree(htot)
 
       RETURN
       END SUBROUTINE fftp3d_destroy_plan
@@ -224,12 +237,13 @@
       INTEGER :: irank
       INTEGER :: isendTo,igetFrom
       INTEGER :: istrip,iproc
-      INTEGER :: hcom,hfft,htra
 
 !
 ! 2D FFT in each node using the FFTW library
 !
-      CALL GTStart(hfft,GT_WTIME)
+      CALL GTStart(htot)
+
+      CALL GTStart(hfft)
       CALL GPMANGLE(execute_dft_r2c)(plan%planr,in,plan%carr)
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft); 
 
@@ -238,7 +252,7 @@
 ! Transposes the result between nodes using 
 ! strip mining when nstrip>1 (rreddy@psc.edu)
 !
-      CALL GTStart(hcom,GT_WTIME)
+      CALL GTStart(hcom)
       do iproc = 0, nprocs-1, nstrip
          do istrip=0, nstrip-1
             irank = iproc + istrip
@@ -265,7 +279,7 @@
 !
 ! Cache friendly transposition
 !
-      CALL GTStart(htra,GT_WTIME)
+      CALL GTStart(htra)
 !$omp parallel do if ((iend-ista)/csize.ge.nth) private (jj,kk,i,j,k)
       DO ii = ista,iend,csize
 !$omp parallel do if ((iend-ista)/csize.lt.nth) private (kk,i,j,k)
@@ -289,8 +303,7 @@
       CALL GPMANGLE(execute_dft)(plan%planc,out,out)
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 
-      CALL GTFree(hcom); CALL GTFree(hfft); CALL GTFree(htra)
-
+      CALL GTStop(htot); tottime = tottime + GTGetTime(htot)
 
       RETURN
       END SUBROUTINE fftp3d_real_to_complex
@@ -336,16 +349,17 @@
       INTEGER :: irank
       INTEGER :: isendTo, igetFrom
       INTEGER :: istrip,iproc
-      INTEGER :: hcom,hfft,htra
 
 !
 ! 1D FFT in each node using the FFTW library
 
-      CALL GTStart(hfft,GT_WTIME)
+      CALL GTStart(htot)
+
+      CALL GTStart(hfft)
       CALL GPMANGLE(execute_dft)(plan%planc,in,in)
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 
-      CALL GTStart(htra,GT_WTIME)
+      CALL GTStart(htra)
 !
 ! Cache friendly transposition
 !
@@ -369,7 +383,7 @@
 ! Transposes the result between nodes using 
 ! strip mining when nstrip>1 (rreddy@psc.edu)
 !
-      CALL GTStart(hcom,GT_WTIME)
+      CALL GTStart(hcom)
       do iproc = 0, nprocs-1, nstrip
          do istrip=0, nstrip-1
             irank = iproc + istrip
@@ -398,8 +412,8 @@
       CALL GTStart(hfft)
       CALL GPMANGLE(execute_dft_c2r)(plan%planr,plan%carr,out)
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
-
-      CALL GTFree(hcom); CALL GTFree(hfft); CALL GTFree(htra)
+      
+      CALL GTStop(htot); tottime = tottime + GTGetTime(htot)
 
       RETURN
       END SUBROUTINE fftp3d_complex_to_real

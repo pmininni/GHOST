@@ -26,9 +26,11 @@
       INTEGER, PARAMETER  :: nstrip = NSTRIP_
       INTEGER, PARAMETER  :: FFTW_REAL_TO_COMPLEX = FFTW_FORWARD
       INTEGER, PARAMETER  :: FFTW_COMPLEX_TO_REAL = FFTW_BACKWARD
+      INTEGER             :: hcom,hfft,hmem,htra,htot
       DOUBLE PRECISION    :: comtime = 0.0
       DOUBLE PRECISION    :: ffttime = 0.0
       DOUBLE PRECISION    :: tratime = 0.0
+      DOUBLE PRECISION    :: tottime = 0.0
       TYPE FFTPLAN
          COMPLEX(KIND=GP), DIMENSION (:,:,:), POINTER :: ccarr
          COMPLEX(KIND=GP), DIMENSION (:,:,:), POINTER :: carr
