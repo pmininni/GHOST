@@ -31,7 +31,7 @@ shape = (NX,NY,NZ)
 filelist = sorted(glob.glob(path+'vx.*.out'))
 for file in filelist:
   vx = np.fromfile(file,dtype=np.float32).reshape(shape,order='F')
-  ind = string.lstrip(file,path+'vx.').rstrip('.out')
+  ind = file.lstrip(path+'vx.').rstrip('.out')
   str = 'vy.'+ind+'.out'
   vy = np.fromfile(path+str,dtype=np.float32).reshape(shape,order='F')
   adv = np.roll(vy,-1,axis=0)
