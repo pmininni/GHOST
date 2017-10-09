@@ -1872,7 +1872,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,ny
             DO k = 1,nz
-               IF (ka2(k,j,i).gt.kmax) THEN
+               IF (kn2(k,j,i).gt.kmax) THEN
                   C1(k,j,i) = 0.0_GP
                ENDIF
             END DO
