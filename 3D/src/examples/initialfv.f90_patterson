@@ -22,8 +22,8 @@
          C3(1,1,1) = 0.
          DO j = 2,n/2+1
 
-            IF ((ka2(1,j,1).le.kup**2).and.(ka2(1,j,1).ge.kdn**2)) THEN
-               dump = 1./sqrt(ka2(1,j,1))
+            IF ((kk2(1,j,1).le.kup**2).and.(kk2(1,j,1).ge.kdn**2)) THEN
+               dump = 1./sqrt(kk2(1,j,1))
                phase = 2*pi*randu(seed)
                C1(1,j,1) = (COS(phase)+im*SIN(phase))*dump
                C1(1,n-j+2,1) = conjg(C1(1,j,1))
@@ -45,8 +45,8 @@
          END DO
          DO k = 2,n/2+1
 
-            IF ((ka2(k,1,1).le.kup**2).and.(ka2(k,1,1).ge.kdn**2)) THEN
-               dump = 1./sqrt(ka2(k,1,1))
+            IF ((kk2(k,1,1).le.kup**2).and.(kk2(k,1,1).ge.kdn**2)) THEN
+               dump = 1./sqrt(kk2(k,1,1))
                phase = 2*pi*randu(seed)
                C1(k,1,1) = (COS(phase)+im*SIN(phase))*dump
                C1(n-k+2,1,1) = conjg(C1(k,1,1))
@@ -69,8 +69,8 @@
          DO j = 2,n
             DO k = 2,n/2+1
      
-            IF ((ka2(k,j,1).le.kup**2).and.(ka2(k,j,1).ge.kdn**2)) THEN
-               dump = 1./sqrt(ka2(k,j,1))
+            IF ((kk2(k,j,1).le.kup**2).and.(kk2(k,j,1).ge.kdn**2)) THEN
+               dump = 1./sqrt(kk2(k,j,1))
                phase = 2*pi*randu(seed)
                C1(k,j,1) = (COS(phase)+im*SIN(phase))*dump
                C1(n-k+2,n-j+2,1) = conjg(C1(k,j,1))
@@ -95,8 +95,8 @@
             DO j = 1,n
                DO k = 1,n
 
-               IF ((ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
-                  dump = 1./sqrt(ka2(k,j,i))
+               IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+                  dump = 1./sqrt(kk2(k,j,i))
                   phase = 2*pi*randu(seed)
                   C1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
                   phase = 2*pi*randu(seed)
@@ -117,8 +117,8 @@
             DO j = 1,n
                DO k = 1,n
 
-               IF ((ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
-                  dump = 1./sqrt(ka2(k,j,i))
+               IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+                  dump = 1./sqrt(kk2(k,j,i))
                   phase = 2*pi*randu(seed)
                   C1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
                   phase = 2*pi*randu(seed)
@@ -151,8 +151,8 @@
          C3(1,1,1) = 0.
          DO j = 2,n/2+1
 
-            IF ((ka2(1,j,1).le.kup**2).and.(ka2(1,j,1).ge.kdn**2)) THEN
-               dump = 1./sqrt(ka2(1,j,1))
+            IF ((kk2(1,j,1).le.kup**2).and.(kk2(1,j,1).ge.kdn**2)) THEN
+               dump = 1./sqrt(kk2(1,j,1))
                phase = 2*pi*randu(seed)
                C1(1,j,1) = (COS(phase)+im*SIN(phase))*dump
                C1(1,n-j+2,1) = conjg(C1(1,j,1))
@@ -174,8 +174,8 @@
          END DO
          DO k = 2,n/2+1
 
-            IF ((ka2(k,1,1).le.kup**2).and.(ka2(k,1,1).ge.kdn**2)) THEN
-               dump = 1./sqrt(ka2(k,1,1))
+            IF ((kk2(k,1,1).le.kup**2).and.(kk2(k,1,1).ge.kdn**2)) THEN
+               dump = 1./sqrt(kk2(k,1,1))
                phase = 2*pi*randu(seed)
                C1(k,1,1) = (COS(phase)+im*SIN(phase))*dump
                C1(n-k+2,1,1) = conjg(C1(k,1,1))
@@ -198,8 +198,8 @@
          DO j = 2,n
             DO k = 2,n/2+1
      
-            IF ((ka2(k,j,1).le.kup**2).and.(ka2(k,j,1).ge.kdn**2)) THEN
-               dump = 1./sqrt(ka2(k,j,1))
+            IF ((kk2(k,j,1).le.kup**2).and.(kk2(k,j,1).ge.kdn**2)) THEN
+               dump = 1./sqrt(kk2(k,j,1))
                phase = 2*pi*randu(seed)
                C1(k,j,1) = (COS(phase)+im*SIN(phase))*dump
                C1(n-k+2,n-j+2,1) = conjg(C1(k,j,1))
@@ -224,8 +224,8 @@
             DO j = 1,n
                DO k = 1,n
 
-               IF ((ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
-                  dump = 1./sqrt(ka2(k,j,i))
+               IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+                  dump = 1./sqrt(kk2(k,j,i))
                   phase = 2*pi*randu(seed)
                   C1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
                   phase = 2*pi*randu(seed)
@@ -246,8 +246,8 @@
             DO j = 1,n
                DO k = 1,n
 
-               IF ((ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
-                  dump = 1./sqrt(ka2(k,j,i))
+               IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+                  dump = 1./sqrt(kk2(k,j,i))
                   phase = 2*pi*randu(seed)
                   C1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
                   phase = 2*pi*randu(seed)
@@ -283,7 +283,7 @@
       DO i = ista,iend
           DO j = 1,n
              DO k = 1,n
-                IF ((ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
+                IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
                   C1(k,j,i) = fparam8*C5(k,j,i)+fparam9*C8(k,j,i)
                   C2(k,j,i) = fparam8*C6(k,j,i)+fparam9*C3(k,j,i)
                 ENDIF
@@ -296,8 +296,8 @@
       DO i = ista,iend
          DO j = 1,n
             DO k = 1,n
-               IF ((ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
-                  dump = 1./sqrt(ka2(k,j,i))
+               IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+                  dump = 1./sqrt(kk2(k,j,i))
                   fx(k,j,i) = fparam9*C4(k,j,i)+fparam8*C7(k,j,i)+ &
                               C1(k,j,i)*dump
                ENDIF
@@ -311,7 +311,7 @@
       DO i = ista,iend
          DO j = 1,n
             DO k = 1,n
-               IF ((ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
+               IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
                   C1(k,j,i) = fparam8*C4(k,j,i)+fparam9*C7(k,j,i)
                   C2(k,j,i) = fparam8*C6(k,j,i)+fparam9*C3(k,j,i)
                ENDIF
@@ -324,8 +324,8 @@
       DO i = ista,iend
          DO j = 1,n
             DO k = 1,n
-               IF ((ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
-                  dump = 1./sqrt(ka2(k,j,i))
+               IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+                  dump = 1./sqrt(kk2(k,j,i))
                   fy(k,j,i) = fparam9*C5(k,j,i)+fparam8*C8(k,j,i)+ &
                               C1(k,j,i)*dump
                ENDIF
@@ -339,7 +339,7 @@
       DO i = ista,iend
          DO j = 1,n
             DO k = 1,n
-               IF ((ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
+               IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
                   C1(k,j,i) = fparam8*C4(k,j,i)+fparam9*C7(k,j,i)
                   C2(k,j,i) = fparam8*C5(k,j,i)+fparam9*C8(k,j,i)
                ENDIF
@@ -352,8 +352,8 @@
       DO i = ista,iend
          DO j = 1,n
             DO k = 1,n
-               IF ((ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
-                  dump = 1./sqrt(ka2(k,j,i))
+               IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+                  dump = 1./sqrt(kk2(k,j,i))
                   fz(k,j,i) = fparam9*C6(k,j,i)+fparam8*C3(k,j,i)+ &
                               C1(k,j,i)*dump
                ENDIF
