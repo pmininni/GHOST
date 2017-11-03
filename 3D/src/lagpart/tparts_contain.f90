@@ -459,7 +459,7 @@
         CALL GPart_binary_read_pdb_t0(this,iunit,&
          trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
         ELSE
-        CALL GPart_binary_read_pdb_co(this,iunit, trim(spref),time,this%ptmp0_)
+        CALL GPart_binary_read_pdb_t0(this,iunit, trim(spref),time,this%ptmp0_)
         ENDIF
       ENDIF
     ELSE                         ! ASCII files

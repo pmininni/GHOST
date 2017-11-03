@@ -1423,7 +1423,7 @@ MODULE class_GPart
         CALL GPart_binary_read_pdb_t0(this,iunit,&
          trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
         ELSE
-        CALL GPart_binary_read_pdb_co(this,iunit, trim(spref),time,this%ptmp0_)
+        CALL GPart_binary_read_pdb_t0(this,iunit, trim(spref),time,this%ptmp0_)
         ENDIF
       ENDIF
     ELSE                         ! ASCII files
@@ -1434,16 +1434,16 @@ MODULE class_GPart
       CALL GPart_ascii_read_pdb (this,iunit,trim(spref),time,this%ptmp0_)
       ENDIF
     ENDIF
-
+    IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates from box units
+       this%ptmp0_(1,:) = this%ptmp0_(1,:)*this%invdel_(1)
+       this%ptmp0_(2,:) = this%ptmp0_(2,:)*this%invdel_(2)
+       this%ptmp0_(3,:) = this%ptmp0_(3,:)*this%invdel_(3)
+    ENDIF
+    
     CALL GTAcc(this%htimers_(GPTIME_GPREAD))
 
     IF ( .NOT.(present(id).and.present(lx).and.present(ly).and.present(lz).and.present(nl)) ) THEN 
       ! Store in member data arrays
-      IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates from box units
-         this%ptmp0_(1,:) = this%px_*this%invdel_(1)
-         this%ptmp0_(2,:) = this%py_*this%invdel_(2)
-         this%ptmp0_(3,:) = this%pz_*this%invdel_(3)
-      ENDIF
       CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
                              this%nparts_,this%ptmp0_,this%maxparts_)
     ELSE
