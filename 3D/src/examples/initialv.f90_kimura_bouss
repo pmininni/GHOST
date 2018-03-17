@@ -18,82 +18,82 @@
 !     vparam8, vparam9 are used for temporal storage
 !
       IF (ista.eq.1) THEN
-        DO j=2,n/2+1
+        DO j=2,ny/2+1
            C1    (1,j,1) = 0.0_GP
-           C1(1,n-j+2,1) = 0.0_GP
+           C1(1,ny-j+2,1) = 0.0_GP
            C2    (1,j,1) = 0.0_GP
-           C2(1,n-j+2,1) = 0.0_GP
+           C2(1,ny-j+2,1) = 0.0_GP
            C3    (1,j,1) = 0.0_GP
-           C3(1,n-j+2,1) = 0.0_GP
-           IF ((ka2(1,j,1).le.kup**2).and.(ka2(1,j,1).ge.kdn**2)) THEN
-              dump = 16.0*sqrt(2.0/pi)*vparam0**(-5.0)*ka2(1,j,1)**2 * exp(-2.0*ka2(1,j,1)/vparam0**2)
+           C3(1,ny-j+2,1) = 0.0_GP
+           IF ((kn2(1,j,1).le.kup**2).and.(kn2(1,j,1).ge.kdn**2)) THEN
+              dump = 16.0*sqrt(2.0/pi)*vparam0**(-5.0)*kn2(1,j,1)**2 * exp(-2.0*kn2(1,j,1)/vparam0**2)
               dump = sqrt(dump/3.0)                  ! assume equipartition
               phase = 2*pi*randu(seed)
               C1    (1,j,1) = (COS(phase)+im*SIN(phase))*dump
-              C1(1,n-j+2,1) = conjg(C1(1,j,1))
+              C1(1,ny-j+2,1) = conjg(C1(1,j,1))
               phase = 2*pi*randu(seed)
               C2    (1,j,1) = (COS(phase)+im*SIN(phase))*dump
-              C2(1,n-j+2,1) = conjg(C2(1,j,1))
+              C2(1,ny-j+2,1) = conjg(C2(1,j,1))
               phase = 2*pi*randu(seed)
               C3    (1,j,1) = (COS(phase)+im*SIN(phase))*dump
-              C3(1,n-j+2,1) = conjg(C3(1,j,1))
+              C3(1,ny-j+2,1) = conjg(C3(1,j,1))
            ENDIF
         ENDDO
 
-        DO k=2,n/2+1
+        DO k=2,nz/2+1
            C1    (k,1,1) = 0.0_GP
-           C1(n-k+2,1,1) = 0.0_GP
+           C1(nz-k+2,1,1) = 0.0_GP
            C2    (k,1,1) = 0.0_GP
-           C2(n-k+2,1,1) = 0.0_GP
+           C2(nz-k+2,1,1) = 0.0_GP
            C3    (k,1,1) = 0.0_GP
-           C3(n-k+2,1,1) = 0.0_GP
-           IF ((ka2(k,1,1).le.kup**2).and.(ka2(k,1,1).ge.kdn**2)) THEN
-              dump = 16.0*sqrt(2.0/pi)*vparam0**(-5.0)*ka2(k,1,1)**2 * exp(-2.0*ka2(k,1,1)/vparam0**2)
+           C3(nz-k+2,1,1) = 0.0_GP
+           IF ((kn2(k,1,1).le.kup**2).and.(kn2(k,1,1).ge.kdn**2)) THEN
+              dump = 16.0*sqrt(2.0/pi)*vparam0**(-5.0)*kn2(k,1,1)**2 * exp(-2.0*kn2(k,1,1)/vparam0**2)
               dump = sqrt(dump/3.0)                  ! assume equipartition
               phase = 2*pi*randu(seed)
               C1    (k,1,1) = (COS(phase)+im*SIN(phase))*dump
-              C1(n-k+2,1,1) = conjg(C1(k,1,1))
+              C1(nz-k+2,1,1) = conjg(C1(k,1,1))
               phase = 2*pi*randu(seed)
               C2    (k,1,1) = (COS(phase)+im*SIN(phase))*dump
-              C2(n-k+2,1,1) = conjg(C2(k,1,1))
+              C2(nz-k+2,1,1) = conjg(C2(k,1,1))
               phase = 2*pi*randu(seed)
               C3    (k,1,1) = (COS(phase)+im*SIN(phase))*dump
-              C3(n-k+2,1,1) = conjg(C3(k,1,1))
+              C3(nz-k+2,1,1) = conjg(C3(k,1,1))
            ENDIF
         ENDDO
 
-        DO j = 2,n
-           DO k = 2,n/2+1
+        DO j = 2,ny
+           DO k = 2,nz/2+1
               C1        (k,j,1) = 0.0_GP
-              C1(n-k+2,n-j+2,1) = 0.0_GP
+              C1(nz-k+2,ny-j+2,1) = 0.0_GP
               C2(        k,j,1) = 0.0_GP
-              C2(n-k+2,n-j+2,1) = 0.0_GP
+              C2(nz-k+2,ny-j+2,1) = 0.0_GP
               C3(        k,j,1) = 0.0_GP
-              C3(n-k+2,n-j+2,1) = 0.0_GP
-              IF ((ka2(k,j,1).le.kup**2).and.(ka2(k,j,1).ge.kdn**2)) THEN
-                  dump = 16.0*sqrt(2.0/pi)*vparam0**(-5.0)*ka2(k,j,1)**2 * exp(-2.0*ka2(k,j,1)/vparam0**2)
+              C3(nz-k+2,ny-j+2,1) = 0.0_GP
+              IF ((kn2(k,j,1).le.kup**2).and.(kn2(k,j,1).ge.kdn**2)) THEN
+                  dump = 16.0*sqrt(2.0/pi)*vparam0**(-5.0)*kn2(k,j,1)**2 * exp(-2.0*kn2(k,j,1)/vparam0**2)
                   dump = sqrt(dump/3.0)                  ! assume equipartition
                   phase = 2*pi*randu(seed)
                   C1        (k,j,1) = (COS(phase)+im*SIN(phase))*dump
-                  C1(n-k+2,n-j+2,1) = conjg(C1(k,j,1))
+                  C1(nz-k+2,ny-j+2,1) = conjg(C1(k,j,1))
                   phase = 2*pi*randu(seed)
                   C2        (k,j,1) = (COS(phase)+im*SIN(phase))*dump
-                  C2(n-k+2,n-j+2,1) = conjg(C2(k,j,1))
+                  C2(nz-k+2,ny-j+2,1) = conjg(C2(k,j,1))
                   phase = 2*pi*randu(seed)
                   C3        (k,j,1) = (COS(phase)+im*SIN(phase))*dump
-                  C3(n-k+2,n-j+2,1) = conjg(C3(k,j,1))
+                  C3(nz-k+2,ny-j+2,1) = conjg(C3(k,j,1))
               ENDIF
            ENDDO
         ENDDO
 
         DO i = 2,iend
-           DO j = 1,n
-              DO k = 1,n
+           DO j = 1,ny
+              DO k = 1,nz
                 C1(k,j,i) = 0.0_GP
                 C2(k,j,i) = 0.0_GP
                 C3(k,j,i) = 0.0_GP
-                IF ((ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
-                  dump = 16.0*sqrt(2.0/pi)*vparam0**(-5.0)*ka2(k,j,i)**2 * exp(-2.0*ka2(k,j,i)/vparam0**2)
+                IF ((kn2(k,j,i).le.kup**2).and.(kn2(k,j,i).ge.kdn**2)) THEN
+                  dump = 16.0*sqrt(2.0/pi)*vparam0**(-5.0)*kn2(k,j,i)**2 * exp(-2.0*kn2(k,j,i)/vparam0**2)
                   dump = sqrt(dump/3.0)                  ! assume equipartition
                   phase = 2*pi*randu(seed)
                   C1(k,j,i) = (COS(phase)+im*SIN(phase))*dump
@@ -109,11 +109,11 @@
 
       ELSE
          DO i = ista,iend
-            DO j = 1,n
-               DO k = 1,n
+            DO j = 1,ny
+               DO k = 1,nz
 
-               IF ((ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
-                  dump = 16.0*sqrt(2.0/pi)*vparam0**(-5.0)*ka2(k,j,i)**2 * exp(-2.0*ka2(k,j,i)/vparam0**2)
+               IF ((kn2(k,j,i).le.kup**2).and.(kn2(k,j,i).ge.kdn**2)) THEN
+                  dump = 16.0*sqrt(2.0/pi)*vparam0**(-5.0)*kn2(k,j,i)**2 * exp(-2.0*kn2(k,j,i)/vparam0**2)
                   dump = sqrt(dump/3.0)                  ! assume equipartition
                   phase = 2*pi*randu(seed)
                   C1(k,j,i) = (COS(phase)+im*SIN(phase))*dump
