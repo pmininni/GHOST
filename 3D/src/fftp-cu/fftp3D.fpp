@@ -67,20 +67,11 @@
       plan%szrd_ = max(   n(1)     *n(2)*(kend-ksta+1)*GFLOATBYTESZ,GFLOATBYTESZ)
 
       iret = cudaHostAlloc ( plan%pccarr_, plan%szccd_, cudaHostAllocPortable) 
-      IF ( iret.ne.cudaSuccess ) THEN
-         write(*,*)'fftp3d_create_plan: first pccarr_ alloc failed: iret=', iret
-         stop
-      ENDIF
+      cudaErrChk()
       iret = cudaHostAlloc ( plan%pcarr_ , plan%szcd_ , cudaHostAllocPortable) 
-      IF ( iret.ne.cudaSuccess ) THEN
-         write(*,*)'fftp3d_create_plan: first pcarr_ alloc failed: iret=',iret
-         stop
-      ENDIF
+      cudaErrChk()
       iret = cudaHostAlloc ( plan%prarr_ , plan%szrd_ , cudaHostAllocPortable)
-      IF ( iret.ne.cudaSuccess ) THEN
-         write(*,*)'fftp3d_create_plan: first prarr_ alloc failed: iret=',iret
-         stop
-      ENDIF
+      cudaErrChk()
       CALL c_f_pointer(plan%pccarr_,plan%ccarr ,(/n(3)       ,n(2),iend-ista+1/))
       CALL c_f_pointer(plan%pccarr_,plan%ccarrt,(/iend-ista+1,n(2),n(3)       /))
       CALL c_f_pointer(plan%pcarr_ ,plan%carr  ,(/n(1)/2+1   ,n(2),kend-ksta+1/))
@@ -88,23 +79,15 @@
 
 ! Allocate memory in the device
       iret = cudaMalloc(plan%cu_ccd_ , plan%szccd_)
-      IF ( iret.ne.cudaSuccess ) THEN
-         write(*,*)'fftp3d_create_plan: first cu_ccd_ alloc failed: iret=',iret
-         stop
-      ENDIF
+      cudaErrChk()
 #if defined(GGPU_TRA)
       iret = cudaMalloc(plan%cu_ccd1_, plan%szccd_)
 #endif
       iret = cudaMalloc(plan%cu_cd_  , plan%szcd_ )
-      IF ( iret.ne.cudaSuccess ) THEN
-         write(*,*)'fftp3d_create_plan: first cu_cd_ alloc failed: iret=',iret
-         stop
-      ENDIF
+
+      cudaErrChk()
       iret = cudaMalloc(plan%cu_rd_  , plan%szrd_ )
-      IF ( iret.ne.cudaSuccess ) THEN
-         write(*,*)'fftp3d_create_plan: first cu_rd_ alloc failed: iret=',iret
-         stop
-      ENDIF
+      cudaErrChk()
 
 !
 ! Create streams in the GPU
@@ -112,6 +95,7 @@
          streams_created = 1
          DO i = 1,nstreams
             iret = cudaStreamCreate(pstream_(i))
+            cudaErrChk()
          END DO
       END IF
 
@@ -147,11 +131,7 @@
             ostr        = 1            ; odist       = n(2)*(n(1)/2+1)   ;
             iret = cufftPlanMany(plan%icuplanr_(i),nrank,na,pinembed,istr,idist, &
                             ponembed,ostr,odist,GCUFFTDEFR2C,kssnd(i)-kssta(i)+1);
-            IF ( iret.ne.CUFFT_SUCCESS ) THEN
-               write(*,*)'fftp3d_create_plan: cufftPlanMany::icuplanr::r2c failed: iret=',&
-                         iret,'stream=',i
-               stop
-            ENDIF
+            cudaErrChk()
          ELSE
             nrank= 2;
 !!          na      (1) = n(1)         ; na      (2) = n(2)              ;
@@ -166,11 +146,7 @@
             ostr        = 1            ; odist       = n(1)*n(2)         ; 
             iret = cufftPlanMany(plan%icuplanr_(i),nrank,na,pinembed,istr,idist, &
                             ponembed,ostr,odist,GCUFFTDEFC2R,kssnd(i)-kssta(i)+1);
-            IF ( iret.ne.CUFFT_SUCCESS) THEN
-               write(*,*)'fftp3d_create_plan: cufftPlanMany::icuplanr::c2r failed: iret=',&
-                         iret,'stream=',i
-               stop
-	    ENDIF
+            cudaErrChk()
          ENDIF
          nrank       = 1
          na      (1) = n(3)                         ;
@@ -182,14 +158,17 @@
 
          iret = cufftPlanMany(plan%icuplanc_(i),nrank,na,pinembed,istr,idist,    &
               ponembed,ostr,odist,GCUFFTDEFC2C,max(n(2)*(issnd(i)-issta(i)+1),1));
+         cudaErrChk()
+#if 0
          IF ( iret.ne.CUFFT_SUCCESS) THEN
-            write(*,*)': fftp3d_create_plan: cufftPlanMany::icuplanc::c2c failed: iret=',&
+            WRITE(*,*)': fftp3d_create_plan: cufftPlanMany::icuplanc::c2c failed: iret=',&
                  iret,' myrank=',myrank,                                         &
                  ' na=',na(1),' pinembed=',pinembed(1),' ponembed=',ponembed(1), &
                  ' istr=',istr,' idist=',idist,' ostr=',ostr,' odist=',odist   , &
                  ' ista=',ista,' iend=',iend
-            stop
-	 ENDIF
+           STOP 
+         ENDIF
+#endif
 
       END DO
       
@@ -392,11 +371,7 @@
                                                     byteoffset1, & ! OFFSET
                                                     plan%cu_cd_, & ! Dev
                                                     byteoffset2)   ! OFFSET
-         IF ( iret.ne.CUFFT_SUCCESS) THEN
-            write(*,*)'fftp3d_real_to_complex: cufftExecR2C failed: iret=', &
-                      iret,'stream=',i
-            stop
-         ENDIF
+         cudaErrChk()
       END DO
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 
@@ -524,11 +499,7 @@
                                                     plan%cu_ccd_, & ! Dev
                                                     byteoffset2 , & ! OFFSET
                                            FFTCU_REAL_TO_COMPLEX)
-         IF ( iret.ne.CUFFT_SUCCESS ) THEN
-            write(*,*)'fftp3d_real_to_complex: cufftExecC2C failed: iret=',&
-                      iret,'stream=',i
-            stop
-         ENDIF
+         cudaErrChk()
       END DO
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 
@@ -639,11 +610,7 @@
                                                     plan%cu_ccd_, & ! Dev
                                                     byteoffset2 , & ! OFFSET
                                            FFTCU_COMPLEX_TO_REAL)
-         IF ( iret.ne.CUFFT_SUCCESS ) THEN
-            write(*,*)'fftp3d_complex_to_real: cufftExecC2C failed: iret=',&
-                      iret,'stream=',i
-            stop
-         ENDIF
+         cudaErrChk()
       END DO
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 
@@ -780,11 +747,7 @@
 	                                            byteoffset1, & ! OFFSET
                                                     plan%cu_rd_, & ! Dev
 	                                            byteoffset2)   ! OFFSET
-         IF ( iret.ne.CUFFT_SUCCESS ) THEN
-            write(*,*)'fftp3d_complex_to_real: cufftExecC2R failed: iret=', &
-                      iret,'stream=',i
-            stop
-         ENDIF
+         cudaErrChk()
       END DO
       CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
 

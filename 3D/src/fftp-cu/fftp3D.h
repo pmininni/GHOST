@@ -5,6 +5,8 @@
 !      National Center for Computational Science, ORNL
 !=================================================================
 #define CONCAT(prefix,name)    prefix/**/name
+#define cudaErrChk() call scudaErrChk(C_LOC(__FILE__), __LINE__)
+
 #if defined(GDOUBLE_PRECISION)
 #  define GFLOATBYTESZ     8
 #  define GCUFFTEXECOFFR2C cufftExecOffD2Z
