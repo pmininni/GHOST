@@ -18,9 +18,7 @@
 #include "cufft.h"
 
 int   w_cudaMemCpyHost2Dev( void *devdst, const void *hostsrc,  size_t count);
-
 int   w_cudaMemCpyDev2Host( void *hostdst, const void *devsrc,  size_t count);
-
 
 /***********************
 int w_cufftExecR2C      ( cufftHandle plan, void *idata, void *odata);
