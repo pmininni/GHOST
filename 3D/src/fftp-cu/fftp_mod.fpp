@@ -139,6 +139,8 @@
 
       TYPE, BIND(C) :: cudaDevicePropG
         INTEGER   (C_INT) :: canMapHostMemory
+        INTEGER   (C_INT) :: managedMemory
+        INTEGER   (C_INT) :: concurrentManagedAccess
         INTEGER   (C_INT) :: clockRate
         INTEGER   (C_INT) :: computeMode
         INTEGER   (C_INT) :: deviceOverlap
