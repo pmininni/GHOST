@@ -246,7 +246,7 @@ MODULE cuda_bindings
 
 !*****************************************************************
 !*****************************************************************
-! cudaMemcpyAsycHost2Dev
+! cudaMemcpyAsyncOffHost2Dev
 !    buffer: void* devdst
 !    buffer: void* hstsrc
 !    count : integer
@@ -281,6 +281,25 @@ MODULE cuda_bindings
     INTEGER(C_SIZE_T),value :: count
     TYPE(C_PTR),value       :: stream
   END FUNCTION cudaMemcpyAsyncOffDev2Host
+
+!*****************************************************************
+!*****************************************************************
+! cudaStreamAttach: attach _Managed_ memory to stream
+!    stream    : C pointer to stream
+!    devptr    : void* pointer 
+!    byteoffset: size_t offset into devptr
+!    len       : buffer length (currently unused)
+!    
+!*****************************************************************
+  INTEGER(C_INT) function cudaStreamAttach(stream, devptr, byteoffset, len) &
+                 bind(C,name="cudaStreamAttach")
+    USE iso_c_binding
+    IMPLICIT NONE
+    TYPE(C_PTR),value       :: stream
+    TYPE(C_PTR),value       :: devptr
+    INTEGER(C_SIZE_T),value :: len
+    INTEGER(C_SIZE_T),value :: byteoffset
+  END FUNCTION cudaStreamAttach
 
 !*****************************************************************
 !*****************************************************************
@@ -767,6 +786,18 @@ MODULE cuda_bindings
   TYPE(C_PTR),value    :: datain
   INTEGER(C_INT),value :: nx, ny, nz
  END SUBROUTINE cuTranspose3C
+
+!*****************************************************************
+!*****************************************************************
+! scudaErrChk :: Check for CUDA error, and exit if found
+!
+!*****************************************************************
+ SUBROUTINE scudaErrChk(sfile, iline) bind(C,name="w_cudaErrChk_")
+  USE, INTRINSIC :: iso_c_binding
+  IMPLICIT NONE
+  INTEGER(C_INT) ,value :: iline
+  TYPE   (C_PTR) ,value :: sfile
+ END SUBROUTINE scudaErrChk
 
  END INTERFACE 
 
