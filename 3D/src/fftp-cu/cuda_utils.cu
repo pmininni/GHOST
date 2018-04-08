@@ -51,6 +51,13 @@ cudaError_t cudaMemcpyAsyncOffHost2Dev( void *devdst, size_t byteoffdev, const v
   return iret;
 }
 
+cudaError_t cudaStreamAttach( cudaStream_t *stream, void *devptr, size_t byteoffset, size_t len)
+{
+  cudaError_t iret;
+  iret = cudaStreamAttachMemAsync( *stream, (char *) devptr + byteoffset, 0, cudaMemAttachSingle );
+  return iret;
+}
+
 cudaError_t cudaMemcpyAsyncOffDev2Host( void *hostdst, size_t byteoffhost, const void *devsrc, size_t byteoffdev, size_t count, cudaStream_t *stream)
 {
   cudaError_t iret;
@@ -141,6 +148,15 @@ cufftResult cufftExecOffZ2Z( cufftHandle plan, void *datain, size_t byteoffin, v
   char* ptrout = (char *) dataout + byteoffout;
   iret = cufftExecZ2Z( plan, (cufftDoubleComplex *) ptrin, (cufftDoubleComplex *) ptrout, dir );
   return iret;
+}
+
+void  w_cudaErrChk_(char *sfile, int iline)
+{
+  cudaError_t err=cudaGetLastError(); 
+  if ( err != cudaSuccess ) {
+    printf("Cuda fatal: %s:%d: '%s'\n",sfile,iline,cudaGetErrorString(err));
+    exit(0);
+  }
 }
 
 } /* end, extern "C" interface */
