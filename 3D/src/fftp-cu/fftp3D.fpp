@@ -587,7 +587,7 @@
       CALL GTStart(hmem);
       DO i = 1,nstreams
          byteoffset1 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
-         byteoffset1 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
+         byteoffset2 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
          iret = cudaMemcpyAsyncOffHost2Dev(  plan%cu_ccd_, & ! Dev
                                              byteoffset1 , & ! OFFSET Dev
                                              plan%pccarr_, & ! Host
