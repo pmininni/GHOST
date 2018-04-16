@@ -42,6 +42,7 @@
       DOUBLE PRECISION    :: memtime = 0.0
       DOUBLE PRECISION    :: tratime = 0.0
       DOUBLE PRECISION    :: tottime = 0.0
+      CHARACTER, TARGET   :: cfileerr(1024)
       TYPE FFTPLAN
          COMPLEX(KIND=GP), POINTER, DIMENSION (:,:,:)  :: ccarr
          COMPLEX(KIND=GP), POINTER, DIMENSION (:,:,:)  :: ccarrt
