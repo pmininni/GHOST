@@ -485,10 +485,6 @@
        STOP
      ENDIF
      CALL cudaGetDeviceProperties(devprop,idevice)
-     IF ( devprop%major .GT. 999 ) THEN
-       WRITE(*,*)'MAIN: CUDA device emulation not allowed!'
-       STOP
-     ENDIF
      IF ( nstreams .GT. 1 .AND. devprop%deviceOverlap .EQ. 0 ) THEN
        WRITE(*,*)'MAIN: Async transfer and computation overlap not supported!'
        STOP
@@ -1399,9 +1395,12 @@
 #endif
       IF (bench.eq.2) THEN
          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-         CALL GTStart(ihcpu2,GT_CPUTIME)
-         CALL GTStart(ihomp2,GT_OMPTIME)
-         CALL GTStart(ihwtm2,GT_WTIME)
+         CALL GTInitHandle(ihcpu2,GT_CPUTIME)
+         CALL GTInitHandle(ihomp2,GT_OMPTIME)
+         CALL GTInitHandle(ihwtm2,GT_WTIME)
+         CALL GTStart(ihcpu2)
+         CALL GTStart(ihomp2)
+         CALL GTStart(ihwtm2)
       ENDIF
       CALL fftp3d_create_plan(planrc,(/nx,ny,nz/),FFTW_REAL_TO_COMPLEX, &
                              FFTW_ESTIMATE)
@@ -1889,9 +1888,12 @@
 
       IF (bench.eq.1) THEN
          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-         CALL GTStart(ihcpu1,GT_CPUTIME)
-         CALL GTStart(ihomp1,GT_OMPTIME)
-         CALL GTStart(ihwtm1,GT_WTIME)
+         CALL GTInitHandle(ihcpu1,GT_CPUTIME)
+         CALL GTInitHandle(ihomp1,GT_OMPTIME)
+         CALL GTInitHandle(ihwtm1,GT_WTIME)
+         CALL GTStart(ihcpu1)
+         CALL GTStart(ihomp1)
+         CALL GTStart(ihwtm1)
 ! Must reset FFT internal timers after initialization:
          comtime = 0.0D0
          ffttime = 0.0D0
@@ -2572,6 +2574,7 @@
                        ffttime/(step-ini+1), tratime/(step-ini+1), &
                        comtime/(step-ini+1), memtime/(step-ini+1), &
                        tottime/(step-ini+1)
+write(*,*) 'wtime=', GTGetTime(ihwtm1)/(step-ini+1), ' fft=', ffttime/(step-ini+1), ' transp=',tratime/(step-ini+1), ' comm=',comtime/(step-ini+1), ' mem=', memtime/(step-ini+1), ' ttot=',tottime/(step-ini+1)
 #else
             WRITE(1,*) nx,ny,nz,(step-ini+1),nprocs,nth, &
                        GTGetTime(ihcpu1)/(step-ini+1),   &
@@ -2579,7 +2582,7 @@
                        GTGetTime(ihwtm1)/(step-ini+1),   &
                        ffttime/(step-ini+1), tratime/(step-ini+1), &
                        comtime/(step-ini+1), tottime/(step-ini+1)
-
+write(*,*) 'wtime=', GTGetTime(ihwtm1)/(step-ini+1), ' fft=', ffttime/(step-ini+1), ' transp=',tratime/(step-ini+1), ' comm=',comtime/(step-ini+1), ' mem=',0.0, ' ttot=',tottime/(step-ini+1) 
 #endif
             IF (bench.eq.2) THEN
                WRITE(1,*) 'FFTW: Create_plan = ',      &

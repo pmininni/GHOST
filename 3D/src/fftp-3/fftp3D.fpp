@@ -113,10 +113,10 @@
       CALL fftp3d_create_block(n,nprocs,myrank,plan%itype1, &
                               plan%itype2)
 
-      CALL GTStart(hcom,GT_WTIME)
-      CALL GTStart(hfft,GT_WTIME)
-      CALL GTStart(htra,GT_WTIME)
-      CALL GTStart(htot,GT_WTIME)
+      CALL GTInitHandle(hcom,GT_WTIME)
+      CALL GTInitHandle(hfft,GT_WTIME)
+      CALL GTInitHandle(htra,GT_WTIME)
+      CALL GTInitHandle(htot,GT_WTIME)
 
 
       RETURN
@@ -245,7 +245,7 @@
 
       CALL GTStart(hfft)
       CALL GPMANGLE(execute_dft_r2c)(plan%planr,in,plan%carr)
-      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft); 
+      CALL GTStop(hfft); 
 
 !
 !
@@ -275,7 +275,7 @@
             CALL MPI_WAIT(ireq2(irank),istatus,ierr)
          enddo
       enddo
-      CALL GTStop(hcom); comtime = comtime + GTGetTime(hcom)
+      CALL GTStop(hcom); 
 !
 ! Cache friendly transposition
 !
@@ -295,15 +295,21 @@
             END DO
          END DO
       END DO
-      CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
+      CALL GTStop(htra); 
 !
 ! 1D FFT in each node using the FFTW library
 !
       CALL GTStart(hfft)
       CALL GPMANGLE(execute_dft)(plan%planc,out,out)
-      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
+      CALL GTStop(hfft); 
 
-      CALL GTStop(htot); tottime = tottime + GTGetTime(htot)
+      CALL GTStop(htot); 
+     
+      ! Update local accumulated timers:
+      ffttime = GTGetTime(hfft)
+      tratime = GTGetTime(htra)
+      comtime = GTGetTime(hcom)
+      tottime = GTGetTime(htot)
 
       RETURN
       END SUBROUTINE fftp3d_real_to_complex
@@ -357,7 +363,7 @@
 
       CALL GTStart(hfft)
       CALL GPMANGLE(execute_dft)(plan%planc,in,in)
-      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
+      CALL GTStop(hfft); 
 
       CALL GTStart(htra)
 !
@@ -378,7 +384,7 @@
             END DO
          END DO
       END DO
-      CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
+      CALL GTStop(htra); 
 !
 ! Transposes the result between nodes using 
 ! strip mining when nstrip>1 (rreddy@psc.edu)
@@ -405,15 +411,21 @@
             CALL MPI_WAIT(ireq2(irank),istatus,ierr)
          enddo
       enddo
-      CALL GTStop(hcom); comtime = comtime + GTGetTime(hcom)
+      CALL GTStop(hcom); 
 !
 ! 2D FFT in each node using the FFTW library
 !
       CALL GTStart(hfft)
       CALL GPMANGLE(execute_dft_c2r)(plan%planr,plan%carr,out)
-      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
+      CALL GTStop(hfft); 
       
-      CALL GTStop(htot); tottime = tottime + GTGetTime(htot)
+      CALL GTStop(htot); 
+
+      ! Update local accumulated timers:
+      ffttime = GTGetTime(hfft)
+      tratime = GTGetTime(htra)
+      comtime = GTGetTime(hcom)
+      tottime = GTGetTime(htot)
 
       RETURN
       END SUBROUTINE fftp3d_complex_to_real

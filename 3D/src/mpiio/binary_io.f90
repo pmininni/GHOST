@@ -51,9 +51,9 @@
       CALL MPI_TYPE_CREATE_SUBARRAY(3,n,subsizes,starts, &
            MPI_ORDER_FORTRAN,GC_REAL,plan%iotype,ioerr)
       CALL MPI_TYPE_COMMIT(plan%iotype,ioerr)
-      CALL GTStart(ihopen ,GT_CPUTIME)
-      CALL GTStart(ihread ,GT_CPUTIME)
-      CALL GTStart(ihwrite,GT_CPUTIME)
+      CALL GTInitHandle(ihopen ,GT_CPUTIME)
+      CALL GTInitHandle(ihread ,GT_CPUTIME)
+      CALL GTInitHandle(ihwrite,GT_CPUTIME)
 
       RETURN
       END SUBROUTINE io_init
