@@ -23,14 +23,10 @@ MODULE gtimer
       
 !
 ! Methods:
-      PUBLIC                            :: GTStop, GTStart, GTAcc, GTFree
+      PUBLIC                            :: GTStop, GTStart, GTInitHandle, GTAcc, GTFree
       PUBLIC                            :: GTGetTime, GTValidHandle, GTReset
       PUBLIC                            :: GTGetHandle
-      PRIVATE                           :: GTbasic, GTStartnew, GTStartold
 
-      INTERFACE  GTStart 
-        MODULE PROCEDURE GTStartnew, GTStartold
-      END INTERFACE
 !
 !
 !
@@ -38,7 +34,7 @@ MODULE gtimer
       CONTAINS
 
       
-      SUBROUTINE GTStartnew(ih,itype)
+      SUBROUTINE GTInitHandle(ih,itype)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 ! DESCRIPTION: Initializes time level, returns handle to it if 
@@ -58,7 +54,7 @@ MODULE gtimer
 
 
       IF ( itype .LT. GT_WTIME .OR. itype .GT. GT_OMPTIME ) THEN
-        WRITE(*,*) 'GTStart: invalid time type: ', itype 
+        WRITE(*,*) 'GTInitHandle: invalid time type: ', itype 
         STOP
       ENDIF
 
@@ -67,7 +63,7 @@ MODULE gtimer
 !!    ierr = GTValidHandle(ih)
 !!    IF ( ierr.EQ.GTERR_GOOD_HANDLE ) THEN
 !!      IF ( itype.NE.itype_(ih) ) THEN
-!!        WRITE(*,*) 'GTStart: invalid time type for valid handle: ', itype 
+!!        WRITE(*,*) 'GTInitHandle: invalid time type for valid handle: ', itype 
 !!        STOP
 !!      ENDIF
 !!      t0_     (ih) = GTbasic(itype_(ih))      
@@ -76,24 +72,23 @@ MODULE gtimer
 
       ih   = GTGetHandle()
       ierr = GTValidHandle(ih)
-      CALL GTHandleCatch(ih,ierr,'GTStartnew')
+      CALL GTHandleCatch(ih,ierr,'GTInitHandle')
       ihandle_(ih) = ih
       itype_  (ih) = itype
       t0_     (ih) = GTbasic(itype_(ih))      
 
       RETURN
 
-      END SUBROUTINE GTStartnew
+      END SUBROUTINE GTInitHandle
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
 !
-      SUBROUTINE GTStartold(ih)
+      SUBROUTINE GTStart(ih)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-! DESCRIPTION: Initializes time level, returns handle to it if successful. 
-! Handle must not be stale, as it will be used to find time type
-! and other data. 
+! DESCRIPTION: Starts timer for specified handle. Handle must be valid, 
+! created by call to GTInitHandle method.
 !
 ! ARGUMENTS  :
 !     ih     : (returned), Integer handle to timer level
@@ -109,13 +104,13 @@ MODULE gtimer
 !     reset time (time type is checked)
       ierr = GTValidHandle(ih)
       IF ( ierr.NE.GTERR_GOOD_HANDLE ) THEN
-        WRITE(*,*) 'GTStartold: handle must be valid, else you must specify time type'
+        WRITE(*,*) 'GTStart: Invalide handle. Make sure GT'
       ENDIF
       t0_     (ih) = GTbasic(itype_(ih))
 
       RETURN
 
-      END SUBROUTINE GTStartold
+      END SUBROUTINE GTStart
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -124,9 +119,9 @@ MODULE gtimer
       SUBROUTINE GTStop(ih)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-! DESCRIPTION: Finalizes time level, and computes elapsed time for specified 
-! handle. The handle is not deleted with this call; caller is responsible for
-! deleting it. 
+! DESCRIPTION: Finalizes time level, and computes cumulative elapsed time 
+! for specified ! handle. The handle is not deleted with this call; caller 
+! is responsible for deleting it. 
 !
 ! ARGUMENTS  :
 !     ih : Input integer handle to timer level (checked for validity,
@@ -143,7 +138,7 @@ MODULE gtimer
         CALL GTHandleCatch(ih,ierr,'GTStop')
       ENDIF
 
-      t1_(ih) = GTbasic(itype_(ih)) - t0_(ih);
+      t1_(ih) = t1_(ih) + GTbasic(itype_(ih)) - t0_(ih);
 
       RETURN
 
