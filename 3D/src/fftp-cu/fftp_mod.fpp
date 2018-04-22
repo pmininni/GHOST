@@ -50,7 +50,7 @@
          REAL   (KIND=GP), POINTER, DIMENSION (:,:,:)  :: rarr
          TYPE     (C_PTR)                              :: cu_ccd_,cu_ccd1_
          TYPE     (C_PTR)                              :: cu_cd_,cu_rd_
-         TYPE     (C_PTR)                              :: pccarr_,pcarr_
+         TYPE     (C_PTR)                              :: pccarr_,pccarrt_,pcarr_
          TYPE     (C_PTR)                              :: prarr_
          INTEGER  (C_INT),        DIMENSION (nstreams) :: icuplanr_
          INTEGER  (C_INT),        DIMENSION (nstreams) :: icuplanc_
