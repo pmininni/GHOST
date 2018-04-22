@@ -457,7 +457,8 @@ MODULE gutils
       ENDIF
 
       ! Write PDF to disk:
-      CALL GTStart(hwrite,GT_WTIME)
+      CALL GTInitHandle(hwrite,GT_WTIME)
+      CALL GTStart(hwrite)
       IF ( myrank.eq.0 ) THEN
 
         IF ( dolog .GT. 0 ) THEN
@@ -745,7 +746,8 @@ MODULE gutils
 
 !if ( myrank.eq. 0 ) write(*,*)'dojpdf: writing to disk...'
       ! Write PDF to disk:
-      CALL GTStart(hwrite,GT_WTIME)
+      CALL GTInitHandle(hwrite,GT_WTIME)
+      CALL GTStart(hwrite)
       IF ( myrank.eq.0 ) THEN
         DO j = 1, 2
           IF ( dolog(j) .GT. 0 ) fmin(j) = 10.0_GP**fmin(j)
