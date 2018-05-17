@@ -13,6 +13,8 @@
 !           index 'k' is 'z'
 !
 ! 2015 P.D. Mininni and M.E. Brachet
+!
+! 17 May 2018: Support for elongated box (N.Muller & P.D.Mininni) 
 !=================================================================
 
 !*****************************************************************
@@ -33,18 +35,18 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(n,n,ista:iend) :: zre,zim
-      REAL(KIND=GP), INTENT(OUT), DIMENSION(n_dim_1d)         :: xvec1D
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: zre,zim
+      REAL(KIND=GP), INTENT(OUT), DIMENSION(n_dim_1d)          :: xvec1D
       INTEGER             :: i,j,k
       INTEGER             :: offset1,offset2
 
 !$omp parallel do if ((iend-ista).ge.nth) private(j,k,offset1,offset2)
       DO i = ista,iend
-         offset1 = 4*(i-ista)*n*n
+         offset1 = 4*(i-ista)*ny*nz
 !$omp parallel do if ((iend-ista).lt.nth) private(k,offset2)
-         DO j = 1,n
-            offset2 = offset1+4*(j-1)*n
-            DO k = 1,n
+         DO j = 1,ny
+            offset2 = offset1 + 4*(j-1)*nz
+            DO k = 1,nz
                xvec1D(1+4*(k-1)+offset2) = REAL(zre(k,j,i))
                xvec1D(2+4*(k-1)+offset2) = AIMAG(zre(k,j,i))
                xvec1D(3+4*(k-1)+offset2) = REAL(zim(k,j,i))
@@ -76,18 +78,18 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: zre,zim
-      REAL(KIND=GP), INTENT(IN), DIMENSION(n_dim_1d)          :: xvec1D
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: zre,zim
+      REAL(KIND=GP), INTENT(IN), DIMENSION(n_dim_1d)            :: xvec1D
       INTEGER             :: i,j,k
       INTEGER             :: offset1,offset2
 
 !$omp parallel do if ((iend-ista).ge.nth) private(j,k,offset1,offset2)
       DO i = ista,iend
-         offset1 = 4*(i-ista)*n*n
+         offset1 = 4*(i-ista)*ny*nz
 !$omp parallel do if ((iend-ista).lt.nth) private(k,offset2)
-         DO j = 1,n
-            offset2 = offset1+4*(j-1)*n
-            DO k = 1,n
+         DO j = 1,ny
+            offset2 = offset1+4*(j-1)*nz
+            DO k = 1,nz
                zre(k,j,i) = xvec1D(1+4*(k-1)+offset2)+ &
                          im*xvec1D(2+4*(k-1)+offset2)
                zim(k,j,i) = xvec1D(3+4*(k-1)+offset2)+ &
@@ -123,12 +125,12 @@
 !$    USE threads
       IMPLICIT NONE
       
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)    :: vx,vy,vz
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: C3,C4
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: C5,C6
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)              :: zre,zim
-      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ksta:kend)     :: vsq
-      REAL(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend)  :: R1
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend)    :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: C3,C4
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: C5,C6
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)              :: zre,zim
+      REAL(KIND=GP), INTENT(IN), DIMENSION(nx,ny,ksta:kend)     :: vsq
+      REAL(KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend)  :: R1
       REAL(KIND=GP), INTENT(IN), DIMENSION(n_dim_1d)  :: xguess
       REAL(KIND=GP), INTENT(OUT), DIMENSION(n_dim_1d) :: rhs
       REAL(KIND=GP), INTENT(IN) :: dt
@@ -149,13 +151,13 @@
 !             - v.grad(zre) - alpha.k^2.zim)/(1+alpha.k^2.dt)
 
       CALL squareabs(zre,zim,R1,1)
-      rmq = real(n,kind=GP)**3*omegag/beta
+      rmq = real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)*omegag/beta
       IF (cflow.eq.0) THEN ! If not doing counterflow we have |v^2|
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
          DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-            DO j = 1,n
-               DO i = 1,n
+            DO j = 1,ny
+               DO i = 1,nx
                   R1(i,j,k) = rmq-R1(i,j,k)-vsq(i,j,k)
                END DO
             END DO
@@ -164,8 +166,8 @@
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
          DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-            DO j = 1,n
-               DO i = 1,n
+            DO j = 1,ny
+               DO i = 1,nx
                   R1(i,j,k) = rmq-R1(i,j,k)
                END DO
             END DO
@@ -178,14 +180,14 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
-               IF (ka2(k,j,i).le.kmax) THEN
-                  rmp = dt/(1.0_GP+alpha*ka2(k,j,i)*dt)
+         DO j = 1,ny
+            DO k = 1,nz
+               IF (kn2(k,j,i).le.kmax) THEN
+                  rmp = dt/(1.0_GP+alpha*kk2(k,j,i)*dt)
                   zre(k,j,i) = -(beta*C3(k,j,i)-C6(k,j,i)-    &
-                               alpha*ka2(k,j,i)*zre(k,j,i))*rmp
+                               alpha*kk2(k,j,i)*zre(k,j,i))*rmp
                   zim(k,j,i) = -(beta*C4(k,j,i)+C5(k,j,i)-    &
-                               alpha*ka2(k,j,i)*zim(k,j,i))*rmp
+                               alpha*kk2(k,j,i)*zim(k,j,i))*rmp
                ELSE
                   zre(k,j,i) = 0.0_GP
                   zim(k,j,i) = 0.0_GP
@@ -227,15 +229,15 @@
 !$    USE threads
       IMPLICIT NONE
       
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)    :: vx,vy,vz
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: C3,C4
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: C5,C6
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: C1,C2
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: zre,zim
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: zreg,zimg
-      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ksta:kend)    :: vsq
-      REAL(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: R1
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)         :: R2
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend)    :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: C3,C4
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: C5,C6
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: C1,C2
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)             :: zre,zim
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)             :: zreg,zimg
+      REAL(KIND=GP), INTENT(IN), DIMENSION(nx,ny,ksta:kend)    :: vsq
+      REAL(KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: R1
+      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)       :: R2
       REAL(KIND=GP), INTENT(IN), DIMENSION(n_dim_1d)  :: xguess,from
       REAL(KIND=GP), INTENT(OUT), DIMENSION(n_dim_1d) :: to
       REAL(KIND=GP), INTENT(IN) :: dt
@@ -247,13 +249,13 @@
       CALL OneTo3D(from,zreg,zimg)
 
       CALL squareabs(zre,zim,R1,1)
-      rmq = real(n,kind=GP)**3*omegag/beta
+      rmq = real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)*omegag/beta
       IF (cflow.eq.0) THEN ! If not doing counterflow we have |v^2|
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
          DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-            DO j = 1,n
-               DO i = 1,n
+            DO j = 1,ny
+               DO i = 1,nx
                   R1(i,j,k) = rmq-2*R1(i,j,k)-vsq(i,j,k)
                END DO
             END DO
@@ -262,8 +264,8 @@
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
          DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-            DO j = 1,n
-               DO i = 1,n
+            DO j = 1,ny
+               DO i = 1,nx
                   R1(i,j,k) = rmq-2*R1(i,j,k)
                END DO
             END DO
@@ -278,14 +280,14 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
-               IF (ka2(k,j,i).le.kmax) THEN
-                  rmp = dt/(1.0_GP+alpha*ka2(k,j,i)*dt)
+         DO j = 1,ny
+            DO k = 1,nz
+               IF (kn2(k,j,i).le.kmax) THEN
+                  rmp = dt/(1.0_GP+alpha*kk2(k,j,i)*dt)
                   zre(k,j,i) = (beta*(C3(k,j,i)-zre(k,j,i))-C6(k,j,i)- &
-                               alpha*ka2(k,j,i)*zreg(k,j,i))*rmp
+                               alpha*kk2(k,j,i)*zreg(k,j,i))*rmp
                   zim(k,j,i) = (beta*(C4(k,j,i)-zim(k,j,i))+C5(k,j,i)- &
-                               alpha*ka2(k,j,i)*zimg(k,j,i))*rmp
+                               alpha*kk2(k,j,i)*zimg(k,j,i))*rmp
                ELSE
                   zre(k,j,i) = 0.0_GP
                   zim(k,j,i) = 0.0_GP
@@ -331,13 +333,13 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)    :: vx,vy,vz
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: zre,zim
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: C3,C4
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: C5,C6
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend)    :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: zre,zim
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: C3,C4
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: C5,C6
       DOUBLE PRECISION    :: errnewt,ss
-      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ksta:kend)    :: vsq
-      REAL(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: R1
+      REAL(KIND=GP), INTENT(IN), DIMENSION(nx,ny,ksta:kend)    :: vsq
+      REAL(KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: R1
       REAL(KIND=GP), ALLOCATABLE, DIMENSION(:) :: xguess,rhs
       REAL(KIND=GP), ALLOCATABLE, DIMENSION(:) :: deltax
       REAL(KIND=GP), INTENT(IN) :: dt
@@ -408,7 +410,8 @@
       INTEGER :: i
 
       stemp = 0.0D0
-      tmp = 1.0_GP/real(n,kind=GP)**6
+      tmp = 1.0_GP/  &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
 !$omp parallel do reduction(+:stemp)
       DO i = 1,n_dim_1d
          stemp = stemp+u1(i)*u2(i)*tmp
@@ -445,10 +448,10 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2
-      REAL(KIND=GP), INTENT(OUT), DIMENSION(n,n,ksta:kend)   :: ra,rb
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)             :: c1,c2
+      REAL(KIND=GP), INTENT(OUT), DIMENSION(nx,ny,ksta:kend)   :: ra,rb
+      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)    :: r1
       REAL(KIND=GP)       :: rmp
       INTEGER, INTENT(IN) :: dealias
       INTEGER :: i,j,k
@@ -459,8 +462,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                c1(k,j,i) = a(k,j,i)
                c2(k,j,i) = b(k,j,i)
             END DO
@@ -468,12 +471,13 @@
       END DO
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c2,rb,MPI_COMM_WORLD)
-      rmp = 1.0_GP/real(n,kind=GP)**6
+      rmp = 1.0_GP/  &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                ra(i,j,k) = (r1(i,j,k)**2-rb(i,j,k)**2)*rmp
                rb(i,j,k) = 2*r1(i,j,k)*rb(i,j,k)*rmp
             END DO
@@ -488,9 +492,9 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,n
-               DO k = 1,n
-                  IF (ka2(k,j,i).gt.kmax) THEN
+            DO j = 1,ny
+               DO k = 1,nz
+                  IF (kn2(k,j,i).gt.kmax) THEN
                      c1(k,j,i) = 0.0_GP
                      c2(k,j,i) = 0.0_GP
                   ENDIF
@@ -528,11 +532,11 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(n,n,ista:iend) :: ca,cb
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: a,b
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1,c2
-      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ksta:kend)     :: ra,rb
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2,r3
+      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: ca,cb
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: a,b
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: c1,c2
+      REAL(KIND=GP), INTENT(IN), DIMENSION(nx,ny,ksta:kend)     :: ra,rb
+      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)    :: r1,r2,r3
       REAL(KIND=GP)    :: rmp
       INTEGER :: i,j,k
 
@@ -542,8 +546,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                c1(k,j,i) = ca(k,j,i)
                c2(k,j,i) = cb(k,j,i)
             END DO
@@ -551,12 +555,13 @@
       END DO
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
-      rmp = 1.0_GP/real(n,kind=GP)**6
+      rmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r3(i,j,k) = (ra(i,j,k)*r1(i,j,k)+rb(i,j,k)*r2(i,j,k))*rmp
                r1(i,j,k) = (rb(i,j,k)*r1(i,j,k)-ra(i,j,k)*r2(i,j,k))*rmp
             END DO
@@ -600,16 +605,16 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)    :: vx,vy,vz
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: C3,C4
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: C5,C6
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend)    :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: C3,C4
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: C5,C6
       DOUBLE PRECISION, INTENT(IN) :: errnewt
       DOUBLE PRECISION    :: ss,tt,ts,rhonew
       DOUBLE PRECISION    :: omeganew,omegaold,rhoold
       DOUBLE PRECISION    :: alpha,beta,err
       
-      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ksta:kend)    :: vsq
-      REAL(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: R1
+      REAL(KIND=GP), INTENT(IN), DIMENSION(nx,ny,ksta:kend)    :: vsq
+      REAL(KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: R1
       REAL(KIND=GP), INTENT(IN), DIMENSION(n_dim_1d)    :: xguess
       REAL(KIND=GP), INTENT(INOUT), DIMENSION(n_dim_1d) :: rhs
       REAL(KIND=GP), INTENT(OUT), DIMENSION(n_dim_1d)   :: xnew
