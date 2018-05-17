@@ -48,7 +48,7 @@ PARTICLES = no
 # FFTWxDIR contains the path to the FFTW libraries
 FFTP     = fftp-3
 FFTW2DIR = /opt/fftw-2.1.5
-FFTW3DIR = /opt/fftw-3.3.4
+FFTW3DIR = /opt/fftw-3.3.7
 
 # IKIND    4 in 32 bits machines, 8 in 64 bits machines
 # CSIZE    8 if L1 cache is <= 64 kb, 16 if L1 cache is 128 kb
@@ -116,7 +116,7 @@ TARGET_INTEL  =
 #
 # GFortran compiler (GNU)
 CPP_GNU       = cpp -traditional-cpp
-FC_GNU        = gfortran -fbounds-check
+FC_GNU        = gfortran
 CC_GNU        = gcc
 FFLAGS_GNU    = -O3 -funroll-loops
 FPSPEC_GNU    = -O3 -funroll-loops
