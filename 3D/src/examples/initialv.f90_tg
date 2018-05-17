@@ -9,7 +9,7 @@
 ! end, the three components of the velocity in spectral
 ! space should be stored in the arrays vx, vy, and vz.
 
-! Superposition of Taylor-Green vortices in an isotropic box
+! Superposition of Taylor-Green vortices
 !     kdn : minimum wave number (rounded to next integer)
 !     kup : maximum wave number (rounded to next integer)
 

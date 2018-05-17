@@ -20,8 +20,8 @@
 !$omp parallel do if (kend-ksta.ge.nth) private (i,j,rmp,rmq,cdump,cdumq)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i,rmp,rmq,cdump,cdumq)
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                R1(i,j,k) = sqrt(omegag/beta)
                R2(i,j,k) = sqrt(omegag/beta)
             END DO
@@ -34,14 +34,14 @@
 ! We generate the functions lambda (rm1) and mu (rm2)
 !$omp parallel do if (kend-ksta.ge.nth) private (i,j,rmp,rmq)
       DO k = ksta,kend
-         rmp = sqrt(2*abs(cos(2*pi*ki*(real(k,kind=GP)-1)/real(n,kind=GP))))
-         rmq = rmp*sign(1.0_GP,cos(2*pi*ki*(real(k,kind=GP)-1)/real(n,kind=GP)))
+         rmp = sqrt(2*abs(cos(2*pi*ki*(real(k,kind=GP)-1)/real(nz,kind=GP))))
+         rmq = rmp*sign(1.0_GP,cos(2*pi*ki*(real(k,kind=GP)-1)/real(nz,kind=GP)))
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
 
-               rm1 = cos(2*pi*ki*(real(i,kind=GP)-1)/real(n,kind=GP))*rmp
-               rm2 = cos(2*pi*ki*(real(j,kind=GP)-1)/real(n,kind=GP))*rmq
+               rm1 = cos(2*pi*ki*(real(i,kind=GP)-1)/real(nx,kind=GP))*rmp
+               rm2 = cos(2*pi*ki*(real(j,kind=GP)-1)/real(ny,kind=GP))*rmq
 
 ! We generate phi_e(rm1-1./sqrt(2),rm2)
 
