@@ -12,13 +12,14 @@
         IF (o.eq.1) THEN ! Only iterate once (first order)
 
         CALL squareabs(zre,zim,R1,1)
-        rmq = real(n,kind=GP)**3*omegag/beta
+        rmq = real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)* &
+              omegag/beta
         IF (cflow.eq.0) THEN ! If not doing counterflow we have the |v^2| term
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
            DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-              DO j = 1,n
-                 DO i = 1,n
+              DO j = 1,ny
+                 DO i = 1,nx
                     R1(i,j,k) = rmq-R1(i,j,k)-vsq(i,j,k)
                  END DO
               END DO
@@ -27,8 +28,8 @@
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
          DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-            DO j = 1,n
-               DO i = 1,n
+            DO j = 1,ny
+               DO i = 1,nx
                    R1(i,j,k) = rmq-R1(i,j,k)
                END DO
             END DO
@@ -42,10 +43,10 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-        DO j = 1,n
-        DO k = 1,n
-           IF (ka2(k,j,i).le.kmax) THEN
-              rmp = 1.0_GP/(1.0_GP+alpha*ka2(k,j,i)*dt)
+        DO j = 1,ny
+        DO k = 1,nz
+           IF (kn2(k,j,i).le.kmax) THEN
+              rmp = 1.0_GP/(1.0_GP+alpha*kk2(k,j,i)*dt)
               zre(k,j,i) = (zre(k,j,i)+dt*(beta*C3(k,j,i) &
                           -C6(k,j,i)+fre(k,j,i)))*rmp
               zim(k,j,i) = (zim(k,j,i)+dt*(beta*C4(k,j,i) &
@@ -59,15 +60,17 @@
         END DO
 
         IF ((t.eq.step).and.(iter_max_newt.gt.0)) THEN ! Do Newton at the end
-           n_dim_1d = 4*(iend-ista+1)*n*n
+           n_dim_1d = 4*(iend-ista+1)*ny*nz
            CALL newton(zre,zim,cflow_newt,dt_newt,vx,vy,vz,vsq,R1,C3,C4,C5,C6)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-              DO j = 1,n
-                 DO k = 1,n
-                    C3(k,j,i) = zre(k,j,i)/real(n,kind=GP)**3
-                    C4(k,j,i) = zim(k,j,i)/real(n,kind=GP)**3
+              DO j = 1,ny
+                 DO k = 1,nz
+                     C3(j,j,i) = zre(k,j,i)/(real(nx,kind=GP)* & 
+                                 real(ny,kind=GP)*real(nz,kind=GP))
+                     C4(j,j,i) = zim(k,j,i)/(real(nx,kind=GP)* &
+                                 real(ny,kind=GP)*real(nz,kind=GP))
                  END DO
               END DO
            END DO
@@ -79,8 +82,8 @@
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
               DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-                 DO j = 1,n
-                    DO i = 1,n
+                 DO j = 1,ny
+                    DO i = 1,nx
                        R1(i,j,k) = R1(i,j,k)**2+R2(i,j,k)**2
                     END DO
                  END DO
@@ -102,8 +105,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-              DO j = 1,n
-                 DO k = 1,n
+              DO j = 1,ny
+                 DO k = 1,nz
                     zre(k,j,i) = zre(k,j,i)*tmr
                     zim(k,j,i) = zim(k,j,i)*tmr
                  END DO

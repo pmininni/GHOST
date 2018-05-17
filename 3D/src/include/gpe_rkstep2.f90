@@ -17,9 +17,9 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,n
-            DO k = 1,n
-               IF (ka2(k,j,i).le.kmax) THEN
+            DO j = 1,ny
+            DO k = 1,nz
+               IF (kn2(k,j,i).le.kmax) THEN
                   C7(k,j,i) = -omegag*zim(k,j,i)+beta*C4(k,j,i) &
                  -alpha*C6(k,j,i) ! store K1
                   C8(k,j,i) = omegag*zre(k,j,i)-beta*C3(k,j,i)  &
@@ -41,9 +41,9 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,n
-            DO k = 1,n
-               IF (ka2(k,j,i).le.kmax) THEN
+            DO j = 1,ny
+            DO k = 1,nz
+               IF (kn2(k,j,i).le.kmax) THEN
                   C4(k,j,i) = -omegag*zim(k,j,i)+beta*C4(k,j,i) &
                  -alpha*C6(k,j,i) ! K2
                   C5(k,j,i) = omegag*zre(k,j,i)-beta*C3(k,j,i)  &
@@ -61,9 +61,9 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-               DO j = 1,n
-               DO k = 1,n
-                  IF (ka2(k,j,i).le.kmax) THEN
+               DO j = 1,ny
+               DO k = 1,nz
+                  IF (kn2(k,j,i).le.kmax) THEN
                      C7(k,j,i) = C7(k,j,i)+2*C4(k,j,i) ! K1+2.K2
                      C8(k,j,i) = C8(k,j,i)+2*C5(k,j,i) ! K1+2.K2
                   ENDIF
@@ -77,9 +77,9 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,n
-            DO k = 1,n
-               IF (ka2(k,j,i).le.kmax) THEN
+            DO j = 1,ny
+            DO k = 1,nz
+               IF (kn2(k,j,i).le.kmax) THEN
                   C4(k,j,i) = (-omegag*zim(k,j,i)+beta*C4(k,j,i) &
                  -alpha*C6(k,j,i)) ! K3
                   C5(k,j,i) = (omegag*zre(k,j,i)-beta*C3(k,j,i)  &
@@ -102,9 +102,9 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,n
-            DO k = 1,n
-               IF (ka2(k,j,i).le.kmax) THEN
+            DO j = 1,ny
+            DO k = 1,nz
+               IF (kn2(k,j,i).le.kmax) THEN
                   C7(k,j,i) = C7(k,j,i)+(-omegag*zim(k,j,i)+beta*C4(k,j,i) &
                  -alpha*C6(k,j,i)) ! K1+2.K2+2.K3+K4
                   C8(k,j,i) = C8(k,j,i)+(omegag*zre(k,j,i)-beta*C3(k,j,i)  &
