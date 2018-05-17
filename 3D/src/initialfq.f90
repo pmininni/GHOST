@@ -11,8 +11,8 @@
 ! Null forcing
 
       DO i = ista,iend
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                fre(k,j,i) = 0.
                fim(k,j,i) = 0.
             END DO
