@@ -353,6 +353,7 @@
 #ifdef PART_
       CHARACTER(len=1024)   :: lgseedfile,slgfpfile
 #endif
+      LOGICAL               :: bbenchexist
 
 !
 ! Namelists for the input files
@@ -620,7 +621,7 @@
 !     bench: = 0 production run
 !            = 1 benchmark run (no I/O)
 !            = 2 higher level benchmark run (+time to create plans)
-!     outs : = 0 writes velocity [and vector potential (MAGFIELD_)]
+!     outs : = 0 writes velocity [and vect potential (MAGFIELD_)]
 !            = 1 writes vorticity [and magnetic field (MAGFIELD_)]
 !            = 2 writes current density (MAGFIELD_)
 !     mean : = 0 skips mean field computation
@@ -2563,9 +2564,13 @@
           rbal = rbal + lagpart%GetLoadBal()
         ENDIF
 #endif
+         inquire( file='benchmark.txt', exist=bbenchexist )
          IF (myrank.eq.0) THEN
             OPEN(1,file='benchmark.txt',position='append')
 #if defined(DEF_GHOST_CUDA_)
+            IF ( .NOT. bbenchexist ) THEN
+              WRITE(1,*) ' nx ny nz nsteps nprocs nth nstrm TCPU TOMP TWTIME TFFT TTRA TCOM TMEM TTOT'
+            ENDIF
             WRITE(1,*) nx,ny,nz,(step-ini+1),nprocs,nth, &
                        nstreams                        , &
                        GTGetTime(ihcpu1)/(step-ini+1)  , &
@@ -2574,24 +2579,18 @@
                        ffttime/(step-ini+1), tratime/(step-ini+1), &
                        comtime/(step-ini+1), memtime/(step-ini+1), &
                        tottime/(step-ini+1)
-            WRITE(*,*) 'wtime=', GTGetTime(ihwtm1)/(step-ini+1),   &
-                       ' fft=', ffttime/(step-ini+1),              &
-                       ' transp=',tratime/(step-ini+1),            &
-                       ' comm=',comtime/(step-ini+1),              &
-                       ' mem=', memtime/(step-ini+1),              &
-                       ' ttot=',tottime/(step-ini+1)
+write(*,*) 'wtime=', GTGetTime(ihwtm1)/(step-ini+1), ' fft=', ffttime/(step-ini+1), ' transp=',tratime/(step-ini+1), ' comm=',comtime/(step-ini+1), ' mem=', memtime/(step-ini+1), ' ttot=',tottime/(step-ini+1)
 #else
+            IF ( .NOT. bbenchexist ) THEN
+              WRITE(1,*) ' nx ny nz nsteps nprocs nth TCPU TOMP TWTIME TFFT TTRA TCOM TTOT'
+            ENDIF
             WRITE(1,*) nx,ny,nz,(step-ini+1),nprocs,nth, &
                        GTGetTime(ihcpu1)/(step-ini+1),   &
                        GTGetTime(ihomp1)/(step-ini+1),   &
                        GTGetTime(ihwtm1)/(step-ini+1),   &
                        ffttime/(step-ini+1), tratime/(step-ini+1), &
                        comtime/(step-ini+1), tottime/(step-ini+1)
-            WRITE(*,*) 'wtime=', GTGetTime(ihwtm1)/(step-ini+1),   &
-                       ' fft=', ffttime/(step-ini+1),              &
-                       ' transp=',tratime/(step-ini+1),            &
-                       ' comm=',comtime/(step-ini+1), ' mem=',0.0, &
-                       ' ttot=',tottime/(step-ini+1) 
+write(*,*) 'wtime=', GTGetTime(ihwtm1)/(step-ini+1), ' fft=', ffttime/(step-ini+1), ' transp=',tratime/(step-ini+1), ' comm=',comtime/(step-ini+1), ' mem=',0.0, ' ttot=',tottime/(step-ini+1) 
 #endif
             IF (bench.eq.2) THEN
                WRITE(1,*) 'FFTW: Create_plan = ',      &
