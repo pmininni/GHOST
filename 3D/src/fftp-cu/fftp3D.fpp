@@ -182,11 +182,11 @@
 
 
       ! Initialize timer handles:
-      CALL GTStart(hcom,GT_WTIME)
-      CALL GTStart(hfft,GT_WTIME)
-      CALL GTStart(hmem,GT_WTIME)
-      CALL GTStart(htra,GT_WTIME)
-      CALL GTStart(htot,GT_WTIME)
+      CALL GTInitHandle(hcom,GT_WTIME)
+      CALL GTInitHandle(hfft,GT_WTIME)
+      CALL GTInitHandle(hmem,GT_WTIME)
+      CALL GTInitHandle(htra,GT_WTIME)
+      CALL GTInitHandle(htot,GT_WTIME)
 
 
 
@@ -361,7 +361,7 @@
             stop
          ENDIF
       END DO
-      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
+      CALL GTStop(hmem); 
  
       CALL GTStart(hfft)
       DO i = 1,nstreams
@@ -373,7 +373,7 @@
                                                     byteoffset2)   ! OFFSET
          cudaErrChk()
       END DO
-      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
+      CALL GTStop(hfft); 
 
       CALL GTStart(hmem)
       DO i = 1,nstreams
@@ -388,7 +388,7 @@
       DO i = 1,nstreams
          iret = cudaStreamSynchronize(pstream_(i))
       END DO
-      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
+      CALL GTStop(hmem); 
 
 ! NOTE: If nrocs = 1, then we can carry out the transpose directly
 !       on the CUDA device.
@@ -419,7 +419,7 @@
             CALL MPI_WAIT(ireq2(irank),istatus,ierr)
          ENDDO
       ENDDO
-      CALL GTStop(hcom); comtime = comtime + GTGetTime(hcom)
+      CALL GTStop(hcom); 
 
 #if defined(GGPU_TRA)
 !$omp parallel do  private (i,j)
@@ -438,11 +438,11 @@
         write(*,*)'fftp3d_real_to_complex: first pccarr->cu_ccd_ copy failed: iret=',iret
         stop
       ENDIF
-      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
+      CALL GTStop(hmem); 
       CALL GTStart(htra)
       CALL cuTranspose3C(plan%cu_ccd_,plan%cu_ccd1_, (iend-ista+1), &
                          plan%ny, plan%nz)
-      CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
+      CALL GTStop(htra); 
 
 #else
 
@@ -464,7 +464,7 @@
              END DO
           END DO
        END DO
-      CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
+      CALL GTStop(htra); 
 !
 ! 1D FFT in each node using the CUFFT library
 !
@@ -487,7 +487,7 @@
             stop
          ENDIF
       END DO
-      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
+      CALL GTStop(hmem); 
 #endif
 
       CALL GTStart(hfft)
@@ -501,7 +501,7 @@
                                            FFTCU_REAL_TO_COMPLEX)
          cudaErrChk()
       END DO
-      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
+      CALL GTStop(hfft); 
 
       CALL GTStart(hmem)
       DO i = 1,nstreams
@@ -521,9 +521,16 @@
       DO i = 1,nstreams
          iret = cudaStreamSynchronize(pstream_(i))
       END DO
-      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
+      CALL GTStop(hmem); 
 
-      CALL GTStop(htot); tottime = tottime + GTGetTime(htot)
+      CALL GTStop(htot); 
+
+      ! Update local accumulated timers:
+      ffttime = GTGetTime(hfft)
+      tratime = GTGetTime(htra)
+      comtime = GTGetTime(hcom)
+      tottime = GTGetTime(htot)
+      memtime = GTGetTime(hmem)
 
       out = plan%ccarr
 
@@ -599,7 +606,7 @@
             stop
          ENDIF
       END DO
-      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
+      CALL GTStop(hmem); 
 
       CALL GTSTart(hfft)
       DO i = 1,nstreams
@@ -612,7 +619,7 @@
                                            FFTCU_COMPLEX_TO_REAL)
          cudaErrChk()
       END DO
-      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
+      CALL GTStop(hfft); 
 
 
 #if defined(GGPU_TRA)
@@ -622,7 +629,7 @@
       CALL GTStart(htra)
       CALL cuTranspose3C(plan%cu_ccd1_,plan%cu_ccd_,plan%nz, &
                          plan%ny,iend-ista+1)
-      CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
+      CALL GTStop(htra); 
 
       CALL GTStart(hmem);
       iret = cudaMemCpyDev2Host(plan%pccarr_, plan%cu_ccd1_, &
@@ -632,7 +639,7 @@
                    iret
          stop
       ENDIF
-      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
+      CALL GTStop(hmem); 
 !$omp parallel do if ((iend-ista)/csize.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if ((iend-ista)/csize.lt.nth) private (k)
@@ -663,7 +670,7 @@
       DO i = 1,nstreams
          iret = cudaStreamSynchronize(pstream_(i))
       END DO
-      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
+      CALL GTStop(hmem); 
 !
 ! Cache friendly transposition
 !
@@ -685,7 +692,7 @@
             END DO
          END DO
       END DO
-      CALL GTStop(htra); tratime = tratime + GTGetTime(htra)
+      CALL GTStop(htra); 
 #endif
 
 !
@@ -715,7 +722,7 @@
             CALL MPI_WAIT(ireq2(irank),istatus,ierr)
          enddo
       enddo
-      CALL GTStop(hcom); comtime = comtime + GTGetTime(hcom)
+      CALL GTStop(hcom); 
 !
 ! 2D FFT in each node using the CUFFT library
 !
@@ -737,7 +744,7 @@
             stop
          ENDIF
       END DO
-      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
+      CALL GTStop(hmem); 
 
       CALL GTStart(hfft)
       DO i = 1,nstreams
@@ -749,7 +756,7 @@
 	                                            byteoffset2)   ! OFFSET
          cudaErrChk()
       END DO
-      CALL GTStop(hfft); ffttime = ffttime + GTGetTime(hfft)
+      CALL GTStop(hfft); 
 
       CALL GTStart(hmem)
       DO i = 1,nstreams
@@ -769,9 +776,16 @@
       DO i = 1,nstreams
          iret = cudaStreamSynchronize(pstream_(i))
       END DO
-      CALL GTStop(hmem); memtime = memtime + GTGetTime(hmem)
+      CALL GTStop(hmem); 
 
-      CALL GTStop(htot); tottime = tottime + GTGetTime(htot)
+      CALL GTStop(htot); 
+
+      ! Update local accumulated timers:
+      ffttime = GTGetTime(hfft)
+      tratime = GTGetTime(htra)
+      comtime = GTGetTime(hcom)
+      tottime = GTGetTime(htot)
+      memtime = GTGetTime(hmem)
 
       out = plan%rarr
 
