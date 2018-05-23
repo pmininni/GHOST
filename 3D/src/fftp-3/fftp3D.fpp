@@ -279,6 +279,7 @@
 !
 ! Cache friendly transposition
 !
+      CALL GTStart(htra)
 !$omp parallel do if ((iend-ista)/csize.ge.nth) private (jj,kk,i,j,k)
       DO ii = ista,iend,csize
 !$omp parallel do if ((iend-ista)/csize.lt.nth) private (kk,i,j,k)
@@ -294,6 +295,7 @@
             END DO
          END DO
       END DO
+      CALL GTStop(htra)
 !
 ! 1D FFT in each node using the FFTW library
 !
@@ -366,6 +368,7 @@
 !
 ! Cache friendly transposition
 !
+      CALL GTStart(htra)
 !$omp parallel do if ((iend-ista)/csize.ge.nth) private (jj,kk,i,j,k)
       DO ii = ista,iend,csize
 !$omp parallel do if ((iend-ista)/csize.lt.nth) private (kk,i,j,k)
@@ -381,6 +384,7 @@
             END DO
          END DO
       END DO
+      CALL GTStop(htra)
 !
 ! Transposes the result between nodes using 
 ! strip mining when nstrip>1 (rreddy@psc.edu)
