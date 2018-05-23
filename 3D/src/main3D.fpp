@@ -488,7 +488,7 @@
      CALL cudaGetDeviceProperties(devprop,idevice)
      IF ( nstreams .GT. 1 .AND. devprop%deviceOverlap .EQ. 0 ) THEN
        WRITE(*,*)'MAIN: Async transfer and computation overlap not supported!'
-       STOP
+!      STOP
      ENDIF
      iret = cudaGetDevice(idevice)
 #endif
@@ -1895,15 +1895,6 @@
          CALL GTStart(ihcpu1)
          CALL GTStart(ihomp1)
          CALL GTStart(ihwtm1)
-! Must reset FFT internal timers after initialization:
-         comtime = 0.0D0
-         ffttime = 0.0D0
-         tratime = 0.0D0
-#if defined(DEF_GHOST_CUDA_)
-         memtime = 0.0D0
-         tottime = 0.0D0
-#endif
-
       ENDIF
 
  RK : DO t = ini,step
@@ -2569,7 +2560,7 @@
             OPEN(1,file='benchmark.txt',position='append')
 #if defined(DEF_GHOST_CUDA_)
             IF ( .NOT. bbenchexist ) THEN
-              WRITE(1,*) '# nx ny nz nsteps nprocs nth nstrm TCPU TOMP TWTIME TFFT TTRA TCOM TMEM TTOT'
+              WRITE(1,*) '# nx ny nz nsteps nprocs nth nstrm TCPU TOMP TWTIME TFFT TTRA TCOM TMEM TASS TTOT'
             ENDIF
             WRITE(1,*) nx,ny,nz,(step-ini+1),nprocs,nth, &
                        nstreams                        , &
@@ -2578,11 +2569,11 @@
                        GTGetTime(ihwtm1)/(step-ini+1)  , &
                        ffttime/(step-ini+1), tratime/(step-ini+1), &
                        comtime/(step-ini+1), memtime/(step-ini+1), &
-                       tottime/(step-ini+1)
+                       asstime/(step-ini+1), tottime/(step-ini+1)
 write(*,*) 'wtime=', GTGetTime(ihwtm1)/(step-ini+1), ' fft=', ffttime/(step-ini+1), ' transp=',tratime/(step-ini+1), ' comm=',comtime/(step-ini+1), ' mem=', memtime/(step-ini+1), ' ttot=',tottime/(step-ini+1)
 #else
             IF ( .NOT. bbenchexist ) THEN
-              WRITE(1,*) '#  nx ny nz nsteps nprocs nth TCPU TOMP TWTIME TFFT TTRA TCOM TTOT'
+              WRITE(1,*) '# nx ny nz nsteps nprocs nth TCPU TOMP TWTIME TFFT TTRA TCOM TTOT'
             ENDIF
             WRITE(1,*) nx,ny,nz,(step-ini+1),nprocs,nth, &
                        GTGetTime(ihcpu1)/(step-ini+1),   &
