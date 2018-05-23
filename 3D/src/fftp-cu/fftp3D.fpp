@@ -348,7 +348,15 @@
       END DO
 
       CALL GTStart(hass)
-      plan%rarr = in      
+!$omp parallel do if (kend-ksta.ge.nth) private (i,j)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,plan%ny
+            DO i = 1,plan%nx
+              plan%rarr(i,j,k-ksta+1) = in(i,j,k)
+            END DO
+         END DO
+      END DO
       CALL GTStop(hass)
 
 !
@@ -512,7 +520,15 @@
 
 
       CALL GTStart(hass)
-      out = plan%ccarr
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,plan%ny
+            DO k = 1,plan%nz
+               out(k,j,i) = plan%ccarr(k,j,i-ista+1)
+            END DO
+         END DO
+      END DO
       CALL GTStop(hass)
 
       CALL GTStop(htot); 
@@ -581,7 +597,15 @@
       END DO
 
       CALL GTStart(hass)
-      plan%ccarr = in
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,plan%ny
+            DO k = 1,plan%nz
+               plan%ccarr(k,j,i-ista+1) = in(k,j,i)
+            END DO
+         END DO
+      END DO
       CALL GTStop(hass)
 !
 ! Data sent to cuFFT must reside on device:
@@ -594,11 +618,7 @@
                                              plan%pccarr_, & ! Host
                                              byteoffset2 , & ! OFFSET Host
                          plan%str_szccd_(i), pstream_(i) )
-         IF ( iret.ne.cudaSuccess ) THEN
-            write(*,*)'fftp3d_complex_to_real: pccarr_->cu_ccd_ copy failed: iret=',&
-                      iret,'stream=',i
-            stop
-         ENDIF
+         cudaErrChk()
       END DO
       CALL GTStop(hmem); 
 
@@ -751,7 +771,15 @@
 
 
       CALL GTStart(hass)
-      out = plan%rarr
+!$omp parallel do if (kend-ksta.ge.nth) private (i,j)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,plan%ny
+            DO i = 1,plan%nx
+              out(i,j,k) = plan%rarr(i,j,k-ksta+1)
+            END DO
+         END DO
+      END DO
       CALL GTStop(hass)
 
       CALL GTStop(htot); 
@@ -763,8 +791,6 @@
       tratime = GTGetTime(htra)
       asstime = GTGetTime(hass)
       tottime = GTGetTime(htot)
-
-
 
       RETURN
       END SUBROUTINE fftp3d_complex_to_real
