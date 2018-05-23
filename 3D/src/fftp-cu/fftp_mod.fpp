@@ -36,11 +36,12 @@
       TYPE  (C_PTR)       :: pstream_(nstreams)
       INTEGER, DIMENSION (nstreams) :: issta,issnd
       INTEGER, DIMENSION (nstreams) :: kssta,kssnd
-      INTEGER             :: hcom,hfft,hmem,htra,htot
+      INTEGER             :: hcom,hfft,hmem,htra,hass,htot
       DOUBLE PRECISION    :: comtime = 0.0
       DOUBLE PRECISION    :: ffttime = 0.0
       DOUBLE PRECISION    :: memtime = 0.0
       DOUBLE PRECISION    :: tratime = 0.0
+      DOUBLE PRECISION    :: asstime = 0.0
       DOUBLE PRECISION    :: tottime = 0.0
       CHARACTER, TARGET   :: cfileerr(1024)
       TYPE FFTPLAN

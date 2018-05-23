@@ -187,6 +187,7 @@
       CALL GTInitHandle(hfft,GT_WTIME)
       CALL GTInitHandle(hmem,GT_WTIME)
       CALL GTInitHandle(htra,GT_WTIME)
+      CALL GTInitHandle(hass,GT_WTIME)
       CALL GTInitHandle(htot,GT_WTIME)
 
 
@@ -238,7 +239,12 @@
       DEALLOCATE( plan%itype2 )
 !
 ! Free time counters
-      CALL GTFree(hcom); CALL GTFree(htra); CALL GTFree(hmem); CALL GTFree(htot);
+      CALL GTFree(hcom); 
+      CALL GTFree(hfft); 
+      CALL GTFree(hmem); 
+      CALL GTFree(htra); 
+      CALL GTFree(hass); 
+      CALL GTFree(htot);
 
       RETURN
       END SUBROUTINE fftp3d_destroy_plan
@@ -340,7 +346,10 @@
       DO i = 1,nstreams ! Set streams for each FFT plan
          iret = cufftSetStream(plan%icuplanr_(i),pstream_(i));
       END DO
+
+      CALL GTStart(hass)
       plan%rarr = in      
+      CALL GTStop(hass)
 
 !
 ! Data sent to cuFFT must reside on device:
@@ -424,11 +433,11 @@
       CALL GTStart(htra)
       CALL cuTranspose3C(plan%cu_ccd_,plan%cu_ccd1_, (iend-ista+1), &
                          plan%ny, plan%nz)
-      CALL GTStop(htra); 
 
       DO i = 1,nstreams ! Set streams for each FFT plan
          iret = cufftSetStream(plan%icuplanc_(i),pstream_(i));
       END DO
+      CALL GTStop(htra); 
 
 #else
 
@@ -454,11 +463,11 @@
 !
 ! 1D FFT in each node using the CUFFT library
 !
+      CALL GTStart(hmem)
       DO i = 1,nstreams ! Set streams for each FFT plan
          iret = cufftSetStream(plan%icuplanc_(i),pstream_(i));
       END DO
 
-      CALL GTStart(hmem)
       DO i = 1,nstreams
          byteoffset1 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
          byteoffset2 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
@@ -501,16 +510,21 @@
       END DO
       CALL GTStop(hmem); 
 
+
+      CALL GTStart(hass)
+      out = plan%ccarr
+      CALL GTStop(hass)
+
       CALL GTStop(htot); 
 
       ! Update local accumulated timers:
-      ffttime = GTGetTime(hfft)
-      tratime = GTGetTime(htra)
       comtime = GTGetTime(hcom)
-      tottime = GTGetTime(htot)
+      ffttime = GTGetTime(hfft)
       memtime = GTGetTime(hmem)
+      tratime = GTGetTime(htra)
+      asstime = GTGetTime(hass)
+      tottime = GTGetTime(htot)
 
-      out = plan%ccarr
 
       RETURN
       END SUBROUTINE fftp3d_real_to_complex
@@ -565,7 +579,10 @@
       DO i = 1,nstreams ! Set streams for each FFT plan
          iret = cufftSetStream(plan%icuplanc_(i), pstream_(i));
       END DO
+
+      CALL GTStart(hass)
       plan%ccarr = in
+      CALL GTStop(hass)
 !
 ! Data sent to cuFFT must reside on device:
       CALL GTStart(hmem);
@@ -588,7 +605,7 @@
       CALL GTSTart(hfft)
       DO i = 1,nstreams
          byteoffset1 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
-	 byteoffset2 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
+         byteoffset2 = 2*plan%nz*plan%ny*(issta(i)-ista)*GFLOATBYTESZ
          iret = GCUFFTEXECOFFC2C(plan%icuplanc_(i), plan%cu_ccd_, & ! Dev
                                                     byteoffset1 , & ! OFFSET
                                                     plan%cu_ccd_, & ! Dev
@@ -600,9 +617,12 @@
 
 
 #if defined(GGPU_TRA)
+      CALL GTStart(hfft); 
       DO i = 1,nstreams
          iret = cudaStreamSynchronize(pstream_(i))
       END DO
+      CALL GTStop(hfft); 
+
       CALL GTStart(htra)
       CALL cuTranspose3C(plan%cu_ccd1_,plan%cu_ccd_,plan%nz, &
                          plan%ny,iend-ista+1)
@@ -685,17 +705,17 @@
 !
 ! 2D FFT in each node using the CUFFT library
 !
+      CALL GTStart(hmem);
       DO i = 1,nstreams ! Set streams for each FFT plan
          iret = cufftSetStream(plan%icuplanr_(i), pstream_(i));
       END DO
-      CALL GTStart(hmem);
       DO i = 1,nstreams
          byteoffset1 = 2*(plan%nx/2+1)*plan%ny*(kssta(i)-ksta)*GFLOATBYTESZ
          byteoffset2 = 2*(plan%nx/2+1)*plan%ny*(kssta(i)-ksta)*GFLOATBYTESZ
          iret = cudaMemcpyAsyncOffHost2Dev(  plan%cu_cd_, & ! Dev
-	                                     byteoffset1, & ! OFFSET Dev
+                                             byteoffset1, & ! OFFSET Dev
                                              plan%pcarr_, & ! Host
-	                                     byteoffset2, & ! OFFSET Host
+                                             byteoffset2, & ! OFFSET Host
                          plan%str_szcd_(i), pstream_(i) )
          cudaErrChk()
       END DO
@@ -704,11 +724,11 @@
       CALL GTStart(hfft)
       DO i = 1,nstreams
          byteoffset1 = plan%nx*plan%ny*(kssta(i)-ksta)        *GFLOATBYTESZ
-	 byteoffset2 = 2*(plan%nx/2+1)*plan%ny*(kssta(i)-ksta)*GFLOATBYTESZ
+         byteoffset2 = 2*(plan%nx/2+1)*plan%ny*(kssta(i)-ksta)*GFLOATBYTESZ
          iret = GCUFFTEXECOFFC2R(plan%icuplanr_(i), plan%cu_cd_, & ! Dev
-	                                            byteoffset1, & ! OFFSET
+                                                    byteoffset1, & ! OFFSET
                                                     plan%cu_rd_, & ! Dev
-	                                            byteoffset2)   ! OFFSET
+                                                    byteoffset2)   ! OFFSET
          cudaErrChk()
       END DO
       CALL GTStop(hfft); 
@@ -718,9 +738,9 @@
          byteoffset1 = plan%nx*plan%ny*(kssta(i)-ksta)*GFLOATBYTESZ
          byteoffset2 = plan%nx*plan%ny*(kssta(i)-ksta)*GFLOATBYTESZ
          iret = cudaMemCpyAsyncOffDev2Host(  plan%prarr_, & ! Host
-	                                     byteoffset1, & ! OFFSET Host
+                                             byteoffset1, & ! OFFSET Host
                                              plan%cu_rd_, & ! Dev
-	                                     byteoffset2, & ! OFFSET Dev
+                                             byteoffset2, & ! OFFSET Dev
                          plan%str_szrd_(i), pstream_(i) )
          cudaErrChk()
       END DO
@@ -729,16 +749,21 @@
       END DO
       CALL GTStop(hmem); 
 
+
+      CALL GTStart(hass)
+      out = plan%rarr
+      CALL GTStop(hass)
+
       CALL GTStop(htot); 
 
       ! Update local accumulated timers:
-      ffttime = GTGetTime(hfft)
-      tratime = GTGetTime(htra)
       comtime = GTGetTime(hcom)
-      tottime = GTGetTime(htot)
+      ffttime = GTGetTime(hfft)
       memtime = GTGetTime(hmem)
+      tratime = GTGetTime(htra)
+      asstime = GTGetTime(hass)
+      tottime = GTGetTime(htot)
 
-      out = plan%rarr
 
 
       RETURN
