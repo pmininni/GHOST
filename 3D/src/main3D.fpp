@@ -176,6 +176,10 @@
 #ifdef HALLTERM_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C18
 #endif
+#ifdef WAVEFUNCTION_
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: iold,qold,kold,cold
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: inew,qnew,knew,cnew
+#endif
 #ifdef EDQNM_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C19
       DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: tepq,thpq,tve,tvh
@@ -186,9 +190,9 @@
 
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: R1,R2,R3
 #ifdef VELOC_
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)        :: Faux1,Faux2
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fxold,fyold,fzold
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fxnew,fynew,fznew
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)        :: Faux1,Faux2
 #endif
 #ifdef MAGFIELD_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: mxold,myold,mzold
@@ -538,7 +542,7 @@
       ALLOCATE( C27(nz,ny,ista:iend) )
 #endif
 #ifdef MAGFIELD_
-      ALLOCATE( C9(nz,ny,ista:iend),  C10(nz,ny,ista:iend) )
+      ALLOCATE( C9 (nz,ny,ista:iend), C10(nz,ny,ista:iend) )
       ALLOCATE( C11(nz,ny,ista:iend), C12(nz,ny,ista:iend) )
       ALLOCATE( C13(nz,ny,ista:iend), C14(nz,ny,ista:iend) )
       ALLOCATE( C15(nz,ny,ista:iend), C16(nz,ny,ista:iend) )
@@ -580,6 +584,12 @@
       ALLOCATE( R3(nx,ny,ksta:kend) )
 #ifdef ADVECT_
       ALLOCATE( vsq(nx,ny,ksta:kend) )
+#endif
+#ifdef WAVEFUNCTION_
+      ALLOCATE( iold(nmax/2+1), qold(nmax/2+1) )
+      ALLOCATE( kold(nmax/2+1), cold(nmax/2+1) )
+      ALLOCATE( inew(nmax/2+1), qnew(nmax/2+1) )
+      ALLOCATE( knew(nmax/2+1), cnew(nmax/2+1) )
 #endif
 #ifdef PART_
       ALLOCATE( R4(nx,ny,ksta:kend) )
@@ -1130,12 +1140,6 @@
       iter_max_bicg = 0    !Default value
       tol_newt = 0.0_GP    !Default value
       tolbicg_rel = 0.0_GP !Default value
-#ifdef ARGL_SOL
-      IF ( ord.ne.1 ) THEN ! Check if the order is correct for ARGL
-         WRITE(*,*)'MAIN: ARGL solver must be compiled with ord=1'
-         STOP
-      ENDIF
-#endif
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=wavefunction)
