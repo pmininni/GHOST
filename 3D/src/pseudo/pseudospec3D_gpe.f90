@@ -433,6 +433,66 @@
 !     b : imaginary part of the wavefunction in Fourier space
 !     nmb: the extension used when writting the file
 !
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+      USE boxsize
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
+      DOUBLE PRECISION, DIMENSION(nmax/2+1)        :: Eint,Equa,Einc,Ecom
+      INTEGER                      :: i
+      CHARACTER(len=*), INTENT(IN) :: nmb
+
+!
+! Computes all the energy  spectra
+!
+      CALL gperealspecc(a,b,Eint,Equa,Einc,Ecom)
+!
+! Exports the energy spectrum to a file
+!
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='intspectrum.' // nmb // '.txt')
+         DO i=1,nmax/2+1
+            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(i-1),Eint(i)/Dkk
+         END DO
+         CLOSE(1)
+         OPEN(1,file='qspectrum.' // nmb // '.txt')
+         DO i=1,nmax/2+1                                       
+            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(i-1),Equa(i)/Dkk   
+         END DO  
+         CLOSE(1)
+         OPEN(1,file='kincspectrum.' // nmb // '.txt')
+         DO i=1,nmax/2+1
+            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(i-1),Einc(i)/Dkk
+         END DO
+         CLOSE(1)
+         OPEN(1,file='kcomspectrum.' // nmb // '.txt')
+         DO i=1,nmax/2+1
+            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(i-1),Ecom(i)/Dkk
+         END DO
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE gperealspec
+        
+!*****************************************************************
+      SUBROUTINE gperealspecc(a,b,Eint,Equa,Einc,Ecom)
+!-----------------------------------------------------------------
+!
+! Computes the spectrum of kinetic, quantum, and potential (or 
+! internal) energy, returning them.
+!
+! Parameters
+!     a   : real part of the wavefunction in Fourier space
+!     b   : imaginary part of the wavefunction in Fourier space
+!     Eint: at the output contains the internal energy spectrum
+!     Equa: at the output contains the quantum energy spectrum
+!     Einc: at the output contains the incompressible energy spec.
+!     Ecom: at the output contains the compressible energy spec.
+!
       USE fprecision
       USE commtypes
       USE kes
@@ -441,20 +501,19 @@
       USE grid
       USE hbar
       USE mpivars
-      USE filefmt
       USE boxsize
 !$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
       COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: c1,c2,c3,c4
-      DOUBLE PRECISION, DIMENSION(nmax/2+1)        :: Ek,Ektot,Ec,Ectot
+      DOUBLE PRECISION, INTENT(OUT), DIMENSION(nmax/2+1) :: Eint,Equa,Einc,Ecom
+      DOUBLE PRECISION, DIMENSION(nmax/2+1)        :: Ek1,Ek2
       REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)    :: r1,r2,r3
       REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)    :: qua,kin
       REAL(KIND=GP)    :: rmp,rmq
       INTEGER          :: i,j,k
       INTEGER          :: kmn
-      CHARACTER(len=*), INTENT(IN) :: nmb
 
 !
 ! Transforms the wavefunction to real space
@@ -472,7 +531,7 @@
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
 !
-! Computes and writes the internal energy spectrum
+! Computes the internal energy spectrum
 ! Eint = 2.alpha.beta.(|z|^2-rho0)^2
 !
       rmp = sqrt(alpha*beta)*omegag/beta
@@ -499,20 +558,13 @@
             END DO
          END DO
       END DO
-      CALL spectrscc(c1,Ek,1.0_GP)
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='intspectrum.' // nmb // '.txt')
-         DO i=1,nmax/2+1
-            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(i-1),Ek(i)/Dkk
-         END DO
-         CLOSE(1)
-      ENDIF
+      CALL spectrscc(c1,Eint,1.0_GP)
 !
 ! Computes z/sqrt(|z|^2) inplace
 !
       CALL zturn(r1,r2)
 !
-! Computes and writes the quantum energy spectrum, and 
+! Computes the quantum energy spectrum, and 
 ! prepares to compute the kinetic energy spectra
 ! Equa ~ (zturnre*grad(zre)+zturnim*grad(zim))^2
 ! Ekin ~ (zturnre*grad(zim)-zturnim*grad(zre))^2
@@ -543,7 +595,7 @@
       END DO
       CALL fftp3d_real_to_complex(planrc,qua,c1,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,kin,c2,MPI_COMM_WORLD)
-      CALL spectrscc(c1,Ektot,1.0_GP)
+      CALL spectrscc(c1,Ek1,1.0_GP)
 
       CALL derivk3(a,c1,2)   ! y component
       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
@@ -571,8 +623,8 @@
       END DO
       CALL fftp3d_real_to_complex(planrc,qua,c1,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,kin,c3,MPI_COMM_WORLD)
-      CALL spectrscc(c1,Ek,1.0_GP)
-      IF (myrank.eq.0) Ektot = Ektot+Ek
+      CALL spectrscc(c1,Ek2,1.0_GP)
+      Ek1 = Ek1+Ek2
 
       CALL derivk3(a,c1,3)   ! z component
       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
@@ -600,57 +652,116 @@
       END DO
       CALL fftp3d_real_to_complex(planrc,qua,c1,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,kin,c4,MPI_COMM_WORLD)
-      CALL spectrscc(c1,Ek,1.0_GP)
-      IF (myrank.eq.0) THEN
-         rmq = 2*alpha**2/ &
+      CALL spectrscc(c1,Ek2,1.0_GP)
+      rmq = 2*alpha**2/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
-         Ektot = (Ektot+Ek)*rmq
-         OPEN(1,file='qspectrum.' // nmb // '.txt')
-         DO i=1,nmax/2+1                                       
-            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(i-1),Ektot(i)/Dkk   
-         END DO  
-         CLOSE(1)
-      ENDIF
+      Equa = (Ek1+Ek2)*rmq
 !
 ! Computes the compressible and incompressible kinetic energy spectra
 !
       CALL gauge3(c2,c3,c4,c1,1)      ! x component 
-      CALL spectrscc(c1,Ektot,1.0_GP) ! incompressible
+      CALL spectrscc(c1,Einc,1.0_GP) ! incompressible
       c1 = c2-c1
-      CALL spectrscc(c1,Ectot,1.0_GP) ! compressible
+      CALL spectrscc(c1,Ecom,1.0_GP) ! compressible
 
       CALL gauge3(c2,c3,c4,c1,2)      ! y component
-      CALL spectrscc(c1,Ek,1.0_GP)    ! incompressible
+      CALL spectrscc(c1,Ek1,1.0_GP)    ! incompressible
       c1 = c3-c1
-      CALL spectrscc(c1,Ec,1.0_GP)    ! compressible
-      IF (myrank.eq.0) THEN
-         Ektot = Ektot+Ek
-         Ectot = Ectot+Ec
-      ENDIF
+      CALL spectrscc(c1,Ek2,1.0_GP)    ! compressible
+      Einc = Einc+Ek1
+      Ecom = Ecom+Ek2
 
       CALL gauge3(c2,c3,c4,c1,3)      ! z component
-      CALL spectrscc(c1,Ek,1.0_GP)    ! incompressible
+      CALL spectrscc(c1,Ek1,1.0_GP)    ! incompressible
       c1 = c4-c1
-      CALL spectrscc(c1,Ec,1.0_GP)    ! compressible
-      IF (myrank.eq.0) THEN
-         rmq = 2*alpha**2/ &
+      CALL spectrscc(c1,Ek2,1.0_GP)    ! compressible
+      rmq = 2*alpha**2/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
-         Ektot = (Ektot+Ek)*rmq
-         Ectot = (Ectot+Ec)*rmq
-         OPEN(1,file='kincspectrum.' // nmb // '.txt')
+      Einc = (Einc+Ek1)*rmq
+      Ecom = (Ecom+Ek2)*rmq
+
+      RETURN
+      END SUBROUTINE gperealspecc
+
+!*****************************************************************
+      SUBROUTINE gperealtrans(dt,io,qo,ko,co,in,qn,kn,cn,nmb)
+!-----------------------------------------------------------------
+!
+! Computes the energy transfers in Fourier space for the GPE
+! equations in 3D. Normalization of the transfer function is such
+! that the fluxes are Pi = -sum[T(k).Dkk], where Dkk is the width
+! of the Fourier shells. The output is written to files by the
+! first node.
+!
+! Output files contain:
+! 'inttransfer.XXX.txt' : k, Ti(k) (internal energy transfer function)
+! 'qtransfer.XXX.txt'   : k, Tq(k) (quantum energy transfer)
+! 'kinctransfer.XXX.txt': k, Tk(k) (incompressible kin. energy transfer)
+! 'kcomtransfer.XXX.txt': k, Tc(k) (compressible kin. energy transfer)
+!   [Each transfer function is computed as to T_x(k) = dE_x(k)/dt]
+!
+! Parameters
+!     dt : time step
+!     io : spectrum of internal energy at t-dt
+!     qo : spectrum of quantum energy at t-dt
+!     ko : spectrum of incompressible kin. energy at t-dt
+!     co : spectrum of compressible kin. energy at t-dt
+!     in : spectrum of internal energy at t
+!     qn : spectrum of quantum energy at t
+!     kn : spectrum of incompressible kin. energy at t
+!     cn : spectrum of compressible kin. energy at t-dt
+!     nmb: nmb: the extension used when writting the file
+!
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+      USE boxsize
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, INTENT(IN), DIMENSION(nmax/2+1)    :: io,qo,ko,co
+      DOUBLE PRECISION, INTENT(INOUT), DIMENSION(nmax/2+1) :: in,qn,kn,cn
+      REAL(KIND=GP),INTENT(IN)     :: dt
+      INTEGER                      :: i
+      CHARACTER(len=*), INTENT(IN) :: nmb
+
+!
+! Computes time derivatives
+!
+      IF (myrank.eq.0) THEN
          DO i=1,nmax/2+1
-            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(i-1),Ektot(i)/Dkk
+            in(i) = (in(i)-io(i))/dt
+            qn(i) = (qn(i)-qo(i))/dt
+            kn(i) = (kn(i)-ko(i))/dt
+            cn(i) = (cn(i)-co(i))/dt
+         END DO
+!
+! Exports the transfer functions to files
+!
+         OPEN(1,file='inttransfer.' // nmb // '.txt')
+         DO i=1,nmax/2+1
+            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(i-1),in(i)/Dkk
          END DO
          CLOSE(1)
-         OPEN(1,file='kcomspectrum.' // nmb // '.txt')
+         OPEN(1,file='qtransfer.' // nmb // '.txt')
+         DO i=1,nmax/2+1                                       
+            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(i-1),qn(i)/Dkk   
+         END DO  
+         CLOSE(1)
+         OPEN(1,file='kinctransfer.' // nmb // '.txt')
          DO i=1,nmax/2+1
-            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(i-1),Ectot(i)/Dkk
+            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(i-1),kn(i)/Dkk
+         END DO
+         CLOSE(1)
+         OPEN(1,file='kcomtransfer.' // nmb // '.txt')
+         DO i=1,nmax/2+1
+            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(i-1),cn(i)/Dkk
          END DO
          CLOSE(1)
       ENDIF
 
       RETURN
-      END SUBROUTINE gperealspec
+      END SUBROUTINE gperealtrans
 
 !*****************************************************************
       SUBROUTINE zturn(ra,rb)
@@ -1251,7 +1362,7 @@
 ! classical fluid). The output is written to a file by the first node.
 !
 ! Output files contain:
-! 'hspectrum.XXX.txt': k, Regularized_helicity(k), Classical_helicity(k)
+! 'hspectrum.XXX.txt': k, H_regularized(k), H_classical(k)
 !
 ! Parameters
 !     a    : real part of the wavefunction in Fourier space

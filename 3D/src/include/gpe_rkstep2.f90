@@ -6,6 +6,9 @@
 !    dzre/dt = - omegag.zim + beta.|z|^2 zim - alpha.Lap(zim)
 !    dzim/dt = omegag.zre - beta.|z|^2 zre + alpha.Lap(zre)
 
+         IF ((trans.eq.1).and.(times.eq.0).and.(bench.eq.0).and.(o.eq.ord)) &
+            CALL gperealspecc(zre,zim,iold,qold,kold,cold)
+
          CALL squareabs(zre,zim,R1,1)
          CALL nonlgpe(R1,zre,C3)
          CALL nonlgpe(R1,zim,C4)
@@ -118,4 +121,10 @@
             END DO
             END DO
             END DO
+         ENDIF
+
+         IF ((trans.eq.1).and.(times.eq.0).and.(bench.eq.0).and.(o.eq.1)) &
+              THEN
+              CALL gperealspecc(zre,zim,inew,qnew,knew,cnew)
+              CALL gperealtrans(dt,iold,qold,kold,cold,inew,qnew,knew,cnew,ext)
          ENDIF
