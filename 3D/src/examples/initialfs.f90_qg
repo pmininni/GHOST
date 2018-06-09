@@ -1,4 +1,4 @@
- External source of passive/active scalar.
+! External source of passive/active scalar.
 ! The scalar can be passive (e.g., in the PHD solver) or 
 ! active (as in the Boussinesq solvers). 
 ! This file contains the expression used for the external 
@@ -39,35 +39,35 @@
       IF (ista.eq.1) THEN
         DO j=2,ny/2+1
            fs    (1,j,1) = 0.0_GP
-           fs(1,n-j+2,1) = 0.0_GP
-           tmp = ka(1)**2+ka(j)**2
+           fs(1,ny-j+2,1) = 0.0_GP
+           tmp = kx(1)**2+ky(j)**2
            IF (tmp.gt.tiny) THEN
-              C2    (1,j,1) = -2.0*(omega/tmp)*C4(1,j,1) ! balanced pressure
-              fs    (1,j,1) = -cdump*ka(k)*C2(1,j,1)     ! theta
-              fs(1,n-j+2,1) = conjg(fs(1,j,1))
+              C2    (1,j,1) = -2.0*(omegaz/tmp)*C4(1,j,1) ! balanced pressure
+              fs    (1,j,1) = -cdump*kz(k)*C2(1,j,1)     ! theta
+              fs(1,ny-j+2,1) = conjg(fs(1,j,1))
            ENDIF
         ENDDO
 
         DO k=2,nz/2+1
-           fs    (k,1,1) = 0.0_GP
-           fs(n-k+2,1,1) = 0.0_GP
-           tmp = ka(1)**2+ka(1)**2
+           fs     (k,1,1) = 0.0_GP
+           fs(nz-k+2,1,1) = 0.0_GP
+           tmp = kx(1)**2+ky(1)**2
            IF (tmp.gt.tiny) THEN
-              C2    (k,1,1) = -2.0*(omega/tmp)*C4(k,1,1) ! balanced pressure
-              fs    (k,1,1) = -cdump*ka(k)*C2(k,1,1)     ! theta
-              fs(n-k+2,1,1) = conjg(fs(k,1,1))
+              C2    (k,1,1) = -2.0*(omegaz/tmp)*C4(k,1,1) ! balanced pressure
+              fs    (k,1,1) = -cdump*kz(k)*C2(k,1,1)     ! theta
+              fs(nz-k+2,1,1) = conjg(fs(k,1,1))
            ENDIF
         ENDDO
 
         DO j = 2,ny
            DO k = 2,nz/2+1
-              fs        (k,j,1) = 0.0_GP
-              fs(n-k+2,n-j+2,1) = 0.0_GP
-              tmp = ka(1)**2+ka(j)**2
+              fs          (k,j,1) = 0.0_GP
+              fs(nz-k+2,ny-j+2,1) = 0.0_GP
+              tmp = kx(1)**2+ky(j)**2
               IF (tmp.gt.tiny) THEN
-                  C2    (k,j,1) = -2.0*(omega/tmp)*C4(k,j,1) ! balanced pressure
-                  fs    (k,j,1) = -cdump*ka(k)*C2(k,j,1)     ! theta
-                  fs(n-k+2,n-j+2,1) = conjg(fs(k,j,1))
+                  C2    (k,j,1) = -2.0*(omegaz/tmp)*C4(k,j,1) ! balanced pressure
+                  fs    (k,j,1) = -cdump*kz(k)*C2(k,j,1)     ! theta
+                  fs(nz-k+2,ny-j+2,1) = conjg(fs(k,j,1))
               ENDIF
            ENDDO
         ENDDO
@@ -76,10 +76,10 @@
            DO j = 1,ny
               DO k = 1,nz
                 fs(k,j,i) = 0.0_GP
-                tmp = ka(i)**2+ka(j)**2
+                tmp = kx(i)**2+ky(j)**2
                 IF (tmp.gt.tiny) THEN
-                  C2    (k,j,i) = -2.0*(omega/tmp)*C4(k,j,i) ! balanced pressure
-                  fs    (k,j,i) = -cdump*ka(k)*C2(k,j,i)     ! theta
+                  C2    (k,j,i) = -2.0*(omegaz/tmp)*C4(k,j,i) ! balanced pressure
+                  fs    (k,j,i) = -cdump*kz(k)*C2(k,j,i)     ! theta
                 ENDIF
               ENDDO
            ENDDO
@@ -90,11 +90,11 @@
          DO i = ista,iend
             DO j = 1,ny
                DO k = 1,nz
-                 tmp = ka(i)**2+ka(j)**2
+                 tmp = kx(i)**2+ky(j)**2
                   C2(k,j,i) = 0.0_GP
                   IF ( tmp.gt.tiny ) then
-                    C2(k,j,i) = -2.0*(omega/tmp)*C4(k,j,i) ! balanced pressure
-                    fs(k,j,i) = -cdump*ka(k)*C2(k,j,i)     ! theta
+                    C2(k,j,i) = -2.0*(omegaz/tmp)*C4(k,j,i) ! balanced pressure
+                    fs(k,j,i) = -cdump*kz(k)*C2(k,j,i)     ! theta
                   ENDIF
                ENDDO
             ENDDO
