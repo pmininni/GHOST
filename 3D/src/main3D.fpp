@@ -311,7 +311,7 @@
       INTEGER :: ihomp1,ihomp2
       INTEGER :: ihwtm1,ihwtm2
 #if defined(SCALAR_) || defined(MULTISCALAR_) 
-      INTEGER :: injt
+      INTEGER :: injt,injtm
       INTEGER :: creset
 #endif
 #ifdef MAGFIELD_
@@ -399,7 +399,7 @@
       NAMELIST / mscalar / s3param5,s3param6,s3param7,s3param8,s3param9 
 #endif
 #if defined(SCALAR_) || defined(MULTISCALAR_)
-      NAMELIST / inject / injt,creset
+      NAMELIST / inject / injt,injtm,creset
 #endif
 #ifdef COMPRESSIBLE_
       NAMELIST / compressible / smach, gam1, nu2
@@ -854,11 +854,11 @@
 ! Reads general configuration flags for runs with 
 ! a passive/active scalar from the namelist 'inject' 
 ! on the external file 'parameter.inp'
-!     injt : = 0 when stat=0 generates initial v and th (SCALAR_)
-!            = 1 when stat.ne.0 imports v and generates th (SCALAR_)
+!     injtm : = 0 when stat=0 generates initial v,th (SCALAR_), th[1-3]
+!             = 1 when stat.ne.0 imports v,th and generates th[1-3]
 !     creset: = 0: don't reset counters; 1 = reset counters 
 
-      injt   = 0
+      injtm  = 0
       creset = 1
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
@@ -866,6 +866,7 @@
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(injt  ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(injtm ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(creset,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
 ! Reads parameters for the passive/active scalar from the 
@@ -1695,7 +1696,7 @@
 #endif
 
 #ifdef MULTISCALAR_
- INJM: IF (injt.eq.0) THEN
+ INJM: IF (injtm.eq.0) THEN
          CALL io_read(1,idir,'th1',ext,planio,R1)
          CALL fftp3d_real_to_complex(planrc,R1,th1,MPI_COMM_WORLD)
          CALL io_read(1,idir,'th2',ext,planio,R1)

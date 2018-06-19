@@ -148,6 +148,7 @@ ROTH_OBJS      = $(HD_OBJS) pseudospec3D_rot.o
 PROTH_OBJS     = $(PHD_OBJS) pseudospec3D_rot.o pseudospec3D_prot.o
 MPROTH_OBJS    = $(PROTH_OBJS) 
 BOUSS_OBJS     = $(PROTH_OBJS) pseudospec3D_bouss.o
+MPBOUSS_OBJS   = $(BOUSS_OBJS)
 ROTBOUSS_OBJS  = $(BOUSS_OBJS)
 ROTBOUMHDB_OBJS= $(BOUSS_OBJS) pseudospec3D_mhd.o
 MPROTBOUSS_OBJS= $(MPROTH_OBJS) pseudospec3D_bouss.o
