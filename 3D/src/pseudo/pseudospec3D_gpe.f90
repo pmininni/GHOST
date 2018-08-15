@@ -1283,7 +1283,7 @@
          DO j = 1,ny
             DO i = 1,nx
                rmp = 1.0_GP/(r1(i,j,k)**2+r2(i,j,k)**2+       &
-                     (real(nx,kind=GP)*real(ny,kind=GP)*    &
+                     (real(nx,kind=GP)*real(ny,kind=GP)*      &
                      real(nz,kind=GP))**2*regu*omegag/beta)
                r3(i,j,k) = 2*alpha*(r1(i,j,k)*r4(i,j,k)-      &
                            r2(i,j,k)*r3(i,j,k))*rmp       ! v_x
@@ -1432,7 +1432,7 @@
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
-            DO i = 1,nz
+            DO i = 1,nx
                r9(i,j,k)  = (r5(i,j,k)*r8(i,j,k)-r7(i,j,k)*          &
                             r6(i,j,k))*tmp
                r10(i,j,k) = (r7(i,j,k)*r4(i,j,k)-r3(i,j,k)*          &
@@ -1441,10 +1441,10 @@
                             r4(i,j,k))*tmp
                r12(i,j,k) = (real(nx,kind=GP)*real(ny,kind=GP)*      &
                             real(nz,kind=GP))**2/(r3(i,j,k)**2 +     &
-                            r4(i,j,k)**2 +    &
-                            r5(i,j,k)**2 + r6(i,j,k)**2         +    &
-                            r7(i,j,k)**2 + r8(i,j,k)**2         +    &
-                            (real(nx,kind=GP)*real(ny,kind=GP)*   &
+                            r4(i,j,k)**2 +                           &
+                            r5(i,j,k)**2 + r6(i,j,k)**2 +            &
+                            r7(i,j,k)**2 + r8(i,j,k)**2 +            &
+                            (real(nx,kind=GP)*real(ny,kind=GP)*      &
                             real(nz,kind=GP))**2*regu*omegag/beta)
             END DO
          END DO
@@ -2006,8 +2006,8 @@
 
       REAL(KIND=GP), INTENT(OUT), DIMENSION(nx,ny,ksta:kend)  :: r1,r2
       CHARACTER(len=100), INTENT(IN) :: dir
-      CHARACTER(len=*), INTENT(IN) :: nmb
-      TYPE(IOPLAN),INTENT  (IN)    :: plan
+      CHARACTER(len=*), INTENT(IN)   :: nmb
+      TYPE(IOPLAN),INTENT  (IN)      :: plan
 
       REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)    :: r3,r4,r5,r6
       INTEGER :: i,j,k
