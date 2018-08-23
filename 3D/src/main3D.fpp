@@ -585,12 +585,6 @@
 #ifdef ADVECT_
       ALLOCATE( vsq(nx,ny,ksta:kend) )
 #endif
-#ifdef WAVEFUNCTION_
-      ALLOCATE( iold(nmax/2+1), qold(nmax/2+1) )
-      ALLOCATE( kold(nmax/2+1), cold(nmax/2+1) )
-      ALLOCATE( inew(nmax/2+1), qnew(nmax/2+1) )
-      ALLOCATE( knew(nmax/2+1), cnew(nmax/2+1) )
-#endif
 #ifdef PART_
       ALLOCATE( R4(nx,ny,ksta:kend) )
       ALLOCATE( R5(nx,ny,ksta:kend) )
@@ -603,19 +597,6 @@
       ALLOCATE( Rj1(nx,ny,ksta:kend) )        
       ALLOCATE( Rj2(nx,ny,ksta:kend) )
       ALLOCATE( Rj3(nx,ny,ksta:kend) )
-#endif
-#ifdef EDQNM_
-      ALLOCATE( C19(nz,ny,ista:iend) )
-      ALLOCATE( Eden(nz,ny,ista:iend) )
-      ALLOCATE( Hden(nz,ny,ista:iend) )
-      ALLOCATE( tepq(n/2+1) )      !!!!!!! CHECK LATER !!!!!!!!
-      ALLOCATE( thpq(n/2+1) )      ! Here we should have nmax !
-      ALLOCATE( tve (n/2+1) )
-      ALLOCATE( tvh (n/2+1) )
-      ALLOCATE( Eold(n/2+1) )
-      ALLOCATE( Hold(n/2+1) )
-      ALLOCATE( Eext(3*(n/2+1)) )
-      ALLOCATE( Hext(3*(n/2+1)) )
 #endif
 
 !
@@ -1386,6 +1367,30 @@
             END DO
          END DO
       ENDIF
+
+! Any auxiliary array for a specific solver, for 
+! computation of spectra or other quantities dependent 
+! on resolution or box length should be allocated here
+
+#ifdef WAVEFUNCTION_
+      ALLOCATE( iold(nmax/2+1), qold(nmax/2+1) )
+      ALLOCATE( kold(nmax/2+1), cold(nmax/2+1) )
+      ALLOCATE( inew(nmax/2+1), qnew(nmax/2+1) )
+      ALLOCATE( knew(nmax/2+1), cnew(nmax/2+1) )
+#endif
+#ifdef EDQNM_
+      ALLOCATE( C19(nz,ny,ista:iend) )
+      ALLOCATE( Eden(nz,ny,ista:iend) )
+      ALLOCATE( Hden(nz,ny,ista:iend) )
+      ALLOCATE( tepq(n/2+1) )      !!!!!!! CHECK LATER !!!!!!!!
+      ALLOCATE( thpq(n/2+1) )      ! Here we should have nmax !
+      ALLOCATE( tve (n/2+1) )
+      ALLOCATE( tvh (n/2+1) )
+      ALLOCATE( Eold(n/2+1) )
+      ALLOCATE( Hold(n/2+1) )
+      ALLOCATE( Eext(3*(n/2+1)) )
+      ALLOCATE( Hext(3*(n/2+1)) )
+#endif
 
 ! Initializes the FFT library. This must be done at
 ! this stage as it requires the variable "bench" to
