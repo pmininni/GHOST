@@ -224,7 +224,7 @@ MODULE class_GPart
     
     ! Initialize timers (get handles):
     DO j = 1, GPMAXTIMERS
-      CALL GTStart(this%htimers_(j),this%itimetype_)
+      CALL GTInitHandle(this%htimers_(j),this%itimetype_)
       IF ( this%htimers_(j).EQ.GTNULLHANDLE ) THEN
         WRITE(*,*) 'GPart_ctor: Not enough timers available'
         STOP
@@ -747,7 +747,7 @@ MODULE class_GPart
     ENDIF
 
     CALL GTStart(this%htimers_(GPTIME_GPWRITE))
-    CALL GTStart(ht,GT_WTIME)
+    CALL GTInitHandle(ht,GT_WTIME)
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
       IF ( this%bcollective_ .EQ. 1 ) THEN
@@ -836,7 +836,7 @@ MODULE class_GPart
     ENDIF
 
     CALL GTStart(this%htimers_(GPTIME_GPWRITE))
-    CALL GTStart(ht,GT_WTIME)
+    CALL GTInitHandle(ht,GT_WTIME)
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
       IF ( this%bcollective_ .EQ. 1 ) THEN
@@ -924,7 +924,7 @@ MODULE class_GPart
       ENDIF
     ENDIF
 
-    CALL GTStart(ht,GT_WTIME)
+    CALL GTInitHandle(ht,GT_WTIME)
 
     ! If doing non-collective binary or ascii writes, synch up vector:
     IF ( this%iouttype_.EQ.0 .AND. this%bcollective_.EQ.0 .OR. this%iouttype_.EQ.1 ) THEN
@@ -998,7 +998,7 @@ MODULE class_GPart
       ENDIF
     ENDIF
 
-    CALL GTStart(ht,GT_WTIME)
+    CALL GTInitHandle(ht,GT_WTIME)
 
     ! If doing non-collective binary or ascii writes, synch up vector:
     IF ( this%iouttype_.EQ.0 .AND. this%bcollective_.EQ.0 .OR. this%iouttype_.EQ.1 ) THEN
@@ -1072,7 +1072,7 @@ MODULE class_GPart
 
     CALL GPart_EulerToLag(this,this%ltmp1_,this%nparts_,evar,doupdate,tmp1,tmp2)
 
-    CALL GTStart(ht,GT_WTIME)
+    CALL GTInitHandle(ht,GT_WTIME)
     ! If doing non-collective binary or ascii writes, synch up vector:
     IF ( this%iouttype_.EQ.0 .AND. this%bcollective_.EQ.0 .OR. this%iouttype_.EQ.1 ) THEN
       CALL this%gpcomm_%LagSynch(this%ltmp0_,this%maxparts_,this%id_,this%ltmp1_,&
