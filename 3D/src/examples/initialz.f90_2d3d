@@ -1,0 +1,98 @@
+! Initial condition for the wavefunction.
+! This file contains the expression used for the initial
+! wavefunction. You can use temporary real arrays R1-R3
+! of size (1:nx,1:ny,ksta:kend) and temporary complex arrays
+! C1-C8 of size (nz,ny,ista:iend) to do intermediate
+! computations. The variables rho0 and zparam0-9 can be used 
+! to control properties of the initial wavefunction. At the
+! end, the real and imaginary parts of the wavefunction in 
+! spectral space should be stored in the arrays zre and zim.
+!
+! The functions lambda and mu are already in (R1-R2)
+!
+! We compute lambda rms and max in zparam6-7
+!
+      rmp = 0.0_GP
+      rmq = 0.0_GP
+      rms = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+      DO k = ksta,kend
+         DO j = 1,ny
+            DO i = 1,nx
+               rmp = rmp + rms*R1(i,j,k)**2
+               IF (rmq.lt.R1(i,j,k)) rmq = R1(i,j,k)
+            END DO
+         END DO
+      END DO
+      CALL MPI_ALLREDUCE(rmp,zparam6,1, GC_REAL,      &
+                         MPI_SUM,MPI_COMM_WORLD,ierr)
+      CALL MPI_ALLREDUCE(rmq,zparam7,1, GC_REAL,      &
+                         MPI_MAX,MPI_COMM_WORLD,ierr)
+      zparam6 = sqrt(zparam6)
+!
+! We compute mu rms and max in zpram 8 -9
+!
+      rmp = 0.0_GP
+      rmq = 0.0_GP
+      DO k = ksta,kend
+         DO j = 1,ny
+            DO i = 1,nx
+               rmp = rmp + rms*R2(i,j,k)**2
+               IF (rmq.lt.R2(i,j,k)) rmq = R2(i,j,k)
+            END DO
+         END DO
+      END DO
+      CALL MPI_ALLREDUCE(rmp,zparam8,1, GC_REAL,      &
+                         MPI_SUM,MPI_COMM_WORLD,ierr)
+      CALL MPI_ALLREDUCE(rmq,zparam9,1, GC_REAL,      &
+                         MPI_MAX,MPI_COMM_WORLD,ierr)
+      zparam8 = sqrt(zparam8)
+!
+! delta lambda and mu in rms and rmt
+      rms = 2*sqrt(alpha)*sqrt(pi)*sqrt(zparam6)/sqrt(zparam8)
+      rmt = 2*sqrt(alpha)*sqrt(pi)*sqrt(zparam8)/sqrt(zparam6)
+!
+! lambda and mu loop extremities
+! floor(zparam7/rms+.5_GP)
+! floor(zparam9/rmt+.5_GP)
+!
+! We generate phi_e(R1-1./sqrt(2),R2)
+
+      DO k = ksta,kend
+         DO j = 1,ny
+            DO i = 1,nx
+               cdump = 1.0_GP
+               DO ki = -floor(zparam7/rms+.5_GP),floor(zparam7/rms+.5_GP)
+               DO kj = -floor(zparam9/rmt+.5_GP),floor(zparam9/rmt+.5_GP)
+                  rmp = 1.0_GP/sqrt(((R1(i,j,k)-rms*real(ki,kind=GP))**2 +  &
+                        (R2(i,j,k)-rmt*real(kj,kind=GP))**2)+10._GP**(-8._GP))
+                  rmq = tanh(sqrt((R1(i,j,k)-rms*real(ki,kind=GP))**2    +  &
+                        (R2(i,j,k)-rmt*real(kj,kind=GP))**2)*2.0_GP*pi   /  &
+                        (sqrt(4.0_GP*zparam7**2+4.0_GP*zparam9**2)*lambda))
+                  cdump = cdump*((R1(i,j,k)-rms*real(ki,kind=GP))        +  &
+                          im*(R2(i,j,k)-rmt*real(kj,kind=GP)))*rmp*rmq
+               END DO
+               END DO
+               cdumq = sqrt(omegag/beta)*cdump
+               R1(i,j,k) =  real(cdumq)
+               R2(i,j,k) = aimag(cdumq)
+            END DO
+         END DO
+      END DO
+!
+      CALL fftp3d_real_to_complex(planrc,R1,zre,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R2,zim,MPI_COMM_WORLD)
+!
+! dealias initial data
+!
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               IF (kn2(k,j,i).gt.kmax) THEN
+                  zre(k,j,i) = 0.0_GP
+                  zim(k,j,i) = 0.0_GP
+               ENDIF
+            END DO
+         END DO
+      END DO

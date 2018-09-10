@@ -1,0 +1,190 @@
+! Initial condition for the velocity.
+! This file contains the expression used for the initial
+! velocity field. You can use temporary real arrays R1-R3
+! of size (1:nx,1:ny,ksta:kend) and temporary complex arrays
+! C1-C8 of size (nz,ny,ista:iend) to do intermediate
+! computations. The variable u0 should control the global
+! amplitude of the velocity, and variables vparam0-9 can be
+! used to control the amplitudes of individual terms. At the
+! end, the three components of the velocity in spectral
+! space should be stored in the arrays vx, vy, and vz.
+!
+! first compute Clebsch potentials
+! lambda (in R1), mu (in R2)
+! such that the incompressible velocity
+! is lambda grad mu - grad phi
+! Superposition plane waves
+!     int(vparam1) : lambda wave number
+!     int(vparam2) :     mu wave number
+!         vparam3  : Total energy
+! Amount of random phases
+!         vparam4  : 0 to 1
+! Amount of 3D perturbation
+!         vparam5  : 0 to 1
+!         vparam6  : 3D perturbation wave number (kz)
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               R1(i,j,k) = 0.0_GP
+            END DO
+         END DO
+      END DO
+!
+      rmt = 0.0_GP
+      rms = 0.0_GP
+!
+      DO ki = 1,2*int(vparam1)
+! random phases
+      rmp = 2*pi*randu(seed) *vparam4
+      rmq = 2*pi*randu(seed) *vparam4
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+           DO j = 1,ny
+              DO i = 1,nx
+                 R1(i,j,k) = R1(i,j,k) + cos(2*pi*Lx*real(i-1,kind=GP) &
+                   /real(nx,kind=GP)*floor(.5_GP+vparam1*cos((ki-1)*pi &
+                   /(2.0_GP*int(vparam1)))) + 2*pi*Ly                  &
+                   *real(j-1,kind=GP)/real(ny,kind=GP)*floor(.5_GP     &
+                   +vparam1*sin((ki-1)*pi/(2.0_GP*int(vparam1))))      &
+                   +rmp)/(2.0_GP*int(vparam1))                         &
+! 3D perturbtion
+                   *(1.0_GP+vparam5*cos(rmq+2*pi*Lz*zparam6            &
+                   *real(k-1,kind=GP)/real(nz,kind=GP)))
+              END DO
+           END DO
+        END DO
+      END DO
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               R2(i,j,k) = 0.0_GP
+            END DO
+         END DO
+      END DO
+!
+      DO ki = 1,2*int(vparam2)
+! random phase
+      rmq = 2*pi*randu(seed) *vparam4
+!
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+           DO j = 1,ny
+              DO i = 1,nx
+                 R2(i,j,k) = R2(i,j,k) + cos(2*pi*Lx*real(i-1,kind=GP) &
+                   /real(nx,kind=GP)*floor(.5_GP+vparam2*cos((ki-1)*pi &
+                   /(2.0_GP*int(vparam2)))) + 2*pi*Ly                  &
+                   *real(j-1,kind=GP)/real(ny,kind=GP)*floor(.5_GP     &
+                   +vparam2*sin((ki-1)*pi/(2.0_GP*int(vparam2))))      &
+                   +rmq)/(2.0_GP*int(vparam2))
+              END DO
+           END DO
+        END DO
+      END DO
+!
+      CALL fftp3d_real_to_complex(planrc,R2,C2,MPI_COMM_WORLD)
+! gradx mu in C1
+      CALL derivk3(C2,C1,1)
+! grad mux in R3
+      CALL fftp3d_complex_to_real(plancr,C1,R3,MPI_COMM_WORLD)
+! compute lambda grad mu x in R3
+      rms = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               R3(i,j,k) = R3(i,j,k)*R1(i,j,k)*rms
+            END DO
+         END DO
+      END DO
+! get vx in C3
+      CALL fftp3d_real_to_complex(planrc,R3,C3,MPI_COMM_WORLD)
+! grady mu in C1
+      CALL derivk3(C2,C1,2)
+! grad muy in R3
+      CALL fftp3d_complex_to_real(plancr,C1,R3,MPI_COMM_WORLD)
+! compute lambda grad mu y in R3
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               R3(i,j,k) = R3(i,j,k)*R1(i,j,k)*rms
+            END DO
+         END DO
+      END DO
+! get vy in C4
+      CALL fftp3d_real_to_complex(planrc,R3,C4,MPI_COMM_WORLD)
+! gradz  mu in C1
+      CALL derivk3(C2,C1,3)
+! grad muz in R3
+      CALL fftp3d_complex_to_real(plancr,C1,R3,MPI_COMM_WORLD)
+! compute lambda grad mu z in R3
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               R3(i,j,k) = R3(i,j,k)*R1(i,j,k)*rms
+            END DO
+         END DO
+      END DO
+! get vz in C5
+      CALL fftp3d_real_to_complex(planrc,R3,C5,MPI_COMM_WORLD)
+!
+! dealias v
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               IF (kn2(k,j,i).gt.kmax) THEN
+                  C3(k,j,i) = 0.0_GP
+                  C4(k,j,i) = 0.0_GP
+                  C5(k,j,i) = 0.0_GP
+               ENDIF
+            END DO
+        END DO
+      END DO
+! make v incomp
+      CALL nonlhd3(C3,C4,C5,vx,1)
+      CALL nonlhd3(C3,C4,C5,vy,2)
+      CALL nonlhd3(C3,C4,C5,vz,3)
+! Renormalize and dealias v so that v**2 = vparam3
+      CALL energy(vx,vy,vz,tmp,1)
+      CALL MPI_BCAST(tmp,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+      tmq = sqrt(vparam3/tmp)
+!
+! because of nonlhd3 we now need to correct a - sign in the definition of v...
+!
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               vx(k,j,i) = -tmq * vx(k,j,i)
+               vy(k,j,i) = -tmq * vy(k,j,i)
+               vz(k,j,i) = -tmq * vz(k,j,i)
+            END DO
+         END DO
+      END DO
+!
+! Renormalize lambda and mu
+      tmr = sqrt(tmq)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               R1(i,j,k) = R1(i,j,k)*tmr
+               R2(i,j,k) = R2(i,j,k)*tmr
+            END DO
+         END DO
+      END DO
