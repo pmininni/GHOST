@@ -52,7 +52,7 @@
                    +vparam1*sin((ki-1)*pi/(2.0_GP*int(vparam1))))      &
                    +rmp)/(2.0_GP*int(vparam1))                         &
 ! 3D perturbtion
-                   *(1.0_GP+vparam5*cos(rmq+2*pi*Lz*zparam6            &
+                   *(1.0_GP+vparam5*cos(rmq+2*pi*Lz*vparam6            &
                    *real(k-1,kind=GP)/real(nz,kind=GP)))
               END DO
            END DO
