@@ -107,6 +107,7 @@ MODULE class_GPart
         PROCEDURE,PUBLIC :: synch_acc         => GPart_synch_acc
       END TYPE GPart
 
+      INCLUDE 'iparts_dtype.f90'
       INCLUDE 'tparts_dtype.f90'
 
       PRIVATE :: GPart_Init               , GPart_StepRKK     
@@ -126,6 +127,7 @@ MODULE class_GPart
       PRIVATE :: GPart_GetTime            , GPart_GetLoadBal
       PRIVATE :: GPart_io_write_acc       , GPart_R3toR3
 
+      INCLUDE 'iparts_private.f90'
       INCLUDE 'tparts_private.f90'
 
 ! Methods:
@@ -2746,6 +2748,7 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+  INCLUDE 'iparts_contain.f90'
   INCLUDE 'tparts_contain.f90'
   
 END MODULE class_GPart

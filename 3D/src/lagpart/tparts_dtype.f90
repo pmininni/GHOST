@@ -7,13 +7,11 @@
 !      Universidad de Buenos Aires.
 !=================================================================
 
-  TYPE, PUBLIC, EXTENDS ( GPart ) :: TestGPart
+  TYPE, PUBLIC, EXTENDS ( VGPart ) :: TestGPart
         PRIVATE
         ! Member data:
-        REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: pvx_,pvy_,pvz_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: lbx_,lby_,lbz_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: lfx_,lfy_,lfz_
-        REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:,:) :: ttmp0_
       CONTAINS
         ! Public methods:
         PROCEDURE,PUBLIC :: TestGPart_ctor
@@ -22,6 +20,4 @@
         PROCEDURE,PUBLIC :: SetStepVel        => TestGPart_SetStepRKK
         PROCEDURE,PUBLIC :: StepTestp         => TestGPart_StepRKK
         PROCEDURE,PUBLIC :: EndStage          => TestGPart_EndStageRKK
-        PROCEDURE,PUBLIC :: io_write_pdbv     => TestGPart_io_write_pdbv
-        PROCEDURE,PUBLIC :: io_readv          => TestGPart_io_read_pdbv
       END TYPE TestGPart
