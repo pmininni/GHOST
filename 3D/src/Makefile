@@ -45,11 +45,13 @@ LAGP         = $(GHOME)/lagpart
 # Lagrangian particle variables:
 LAGPDEFyes   = -DDEF_GHOST_LAGP   
 LAGPDEFlag   = $(LAGPDEFyes)
+LAGPDEFiner  = -DDEF_GHOST_INERP
 LAGPDEFtest  = -DDEF_GHOST_TESTP
-LAGPDEFno    =   
+LAGPDEFno    = 
 LAGPOBJSyes  = $(LAGP)/gpdbrec_mod.o $(LAGP)/gpartcomm_mod.o \
 	       $(LAGP)/gpsplineint_mod.o  $(LAGP)/gparts_mod.o
 LAGPOBJSlag  = $(LAGPOBJSyes)
+LAGPOBJSiner = $(LAGPOBJSyes)
 LAGPOBJStest = $(LAGPOBJSyes)
 LAGPOBJSno   = 
 

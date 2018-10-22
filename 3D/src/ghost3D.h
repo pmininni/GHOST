@@ -266,8 +266,15 @@
 #define LAGPART_
 #endif
 
+#ifdef DEF_GHOST_INERP
+#define PART_
+#define VPART_
+#define INERPART_ 
+#endif
+
 #ifdef DEF_GHOST_TESTP
 #define PART_ 
+#define VPART_
 #define TESTPART_ 
 #endif
 

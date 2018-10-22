@@ -204,6 +204,9 @@
 #ifdef PART_
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: R4,R5,R6
 #endif
+#if defined(INERPART_)
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: Rv1,Rv2
+#endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: Rb1,Rb2,Rb3
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: Rj1,Rj2,Rj3
@@ -343,6 +346,10 @@
 #ifdef LAGPART_
       TYPE (GPart) :: lagpart,lagfp
 #endif
+#if defined(INERPART_)
+      REAL(KIND=GP)         :: tau, grav
+      TYPE (InerGPart)      :: lagpart
+#endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
       REAL(KIND=GP)         :: gyrof, vtherm
       TYPE (TestGPart)      :: lagpart
@@ -448,6 +455,9 @@
       NAMELIST / plagpart / ilgexchtype,ilgouttype,ilgwrtunit,lgseedfile
       NAMELIST / plagpart / injtp,ilgcoll,cresetp,dolag,dopacc
       NAMELIST / plagpart / blgdofp,ilgfpfiletype,blgfpfilecoll,slgfpfile
+#endif
+#if defined(INERPART_)
+      NAMELIST / pinerpart / tau,grav
 #endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
       NAMELIST / ptestpart / gyrof,vtherm
@@ -585,10 +595,20 @@
 #ifdef ADVECT_
       ALLOCATE( vsq(nx,ny,ksta:kend) )
 #endif
+#ifdef WAVEFUNCTION_
+      ALLOCATE( iold(nmax/2+1), qold(nmax/2+1) )
+      ALLOCATE( kold(nmax/2+1), cold(nmax/2+1) )
+      ALLOCATE( inew(nmax/2+1), qnew(nmax/2+1) )
+      ALLOCATE( knew(nmax/2+1), cnew(nmax/2+1) )
+#endif
 #ifdef PART_
       ALLOCATE( R4(nx,ny,ksta:kend) )
       ALLOCATE( R5(nx,ny,ksta:kend) )
       ALLOCATE( R6(nx,ny,ksta:kend) )
+#endif
+#if defined (INERPART_)
+      ALLOCATE( Rv1(nx,ny,ksta:kend) )
+      ALLOCATE( Rv2(nx,ny,ksta:kend) )
 #endif
 #if defined (TESTPART_) && defined(MAGFIELD_)
       ALLOCATE( Rb1(nx,ny,ksta:kend) )        
@@ -597,6 +617,19 @@
       ALLOCATE( Rj1(nx,ny,ksta:kend) )        
       ALLOCATE( Rj2(nx,ny,ksta:kend) )
       ALLOCATE( Rj3(nx,ny,ksta:kend) )
+#endif
+#ifdef EDQNM_
+      ALLOCATE( C19(nz,ny,ista:iend) )
+      ALLOCATE( Eden(nz,ny,ista:iend) )
+      ALLOCATE( Hden(nz,ny,ista:iend) )
+      ALLOCATE( tepq(n/2+1) )      !!!!!!! CHECK LATER !!!!!!!!
+      ALLOCATE( thpq(n/2+1) )      ! Here we should have nmax !
+      ALLOCATE( tve (n/2+1) )
+      ALLOCATE( tvh (n/2+1) )
+      ALLOCATE( Eold(n/2+1) )
+      ALLOCATE( Hold(n/2+1) )
+      ALLOCATE( Eext(3*(n/2+1)) )
+      ALLOCATE( Hext(3*(n/2+1)) )
 #endif
 
 !
@@ -1250,8 +1283,8 @@
          READ(1,NML=plagpart)
          CLOSE(1)
       ENDIF
-#if defined(TESTPART_) && defined(MAGFIELD_)
-      dopacc       = 0 ! Lag. accel. not supported for test particles
+#if defined(VPART_)
+      dopacc       = 0 ! Lag. accel. not supported for particles w/velocity
 #endif
       CALL MPI_BCAST(maxparts     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(injtp        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -1275,6 +1308,20 @@
         STOP
       ENDIF  
       pstep = tstep/lgmult
+#endif
+
+#if defined(INERPART_)
+! Reads parameters for runs with inertial particles
+!     tau      : Stokes time
+!     grav     : Gravitational acceleration
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
+         READ(1,NML=pinerpart)
+      CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(tau    ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(grav   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #if defined(TESTPART_) && defined(MAGFIELD_)
@@ -1367,30 +1414,6 @@
             END DO
          END DO
       ENDIF
-
-! Any auxiliary array for a specific solver, for 
-! computation of spectra or other quantities dependent 
-! on resolution or box length should be allocated here
-
-#ifdef WAVEFUNCTION_
-      ALLOCATE( iold(nmax/2+1), qold(nmax/2+1) )
-      ALLOCATE( kold(nmax/2+1), cold(nmax/2+1) )
-      ALLOCATE( inew(nmax/2+1), qnew(nmax/2+1) )
-      ALLOCATE( knew(nmax/2+1), cnew(nmax/2+1) )
-#endif
-#ifdef EDQNM_
-      ALLOCATE( C19(nz,ny,ista:iend) )
-      ALLOCATE( Eden(nz,ny,ista:iend) )
-      ALLOCATE( Hden(nz,ny,ista:iend) )
-      ALLOCATE( tepq(n/2+1) )      !!!!!!! CHECK LATER !!!!!!!!
-      ALLOCATE( thpq(n/2+1) )      ! Here we should have nmax !
-      ALLOCATE( tve (n/2+1) )
-      ALLOCATE( tvh (n/2+1) )
-      ALLOCATE( Eold(n/2+1) )
-      ALLOCATE( Hold(n/2+1) )
-      ALLOCATE( Eext(3*(n/2+1)) )
-      ALLOCATE( Hext(3*(n/2+1)) )
-#endif
 
 ! Initializes the FFT library. This must be done at
 ! this stage as it requires the variable "bench" to
@@ -1528,6 +1551,9 @@
              nstrip,dopacc,ilgwrtunit)
         CALL lagpart%SetRandSeed(seed)
         CALL lagpart%SetSeedFile(trim(lgseedfile))
+#if defined(INERPART_)
+        CALL lagpart%InerGPart_ctor()
+#endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
         CALL lagpart%TestGPart_ctor()
 #endif
@@ -1536,7 +1562,7 @@
 #ifdef LAGPART_
       IF ( blgdofp.GT.0 ) THEN ! 'Fixed point' particles: interpolates
                                ! Eulerian fields at given points, and
-			       ! outputs them without evolving them.
+                               ! outputs them without evolving them.
         CALL lagfp%GPart_ctor(MPI_COMM_WORLD,maxparts,GPINIT_USERLOC,&
              ilgintrptype,3,ilgexchtype,ilgfpfiletype,blgfpfilecoll,&
              csize,nstrip,0)
@@ -1595,6 +1621,40 @@
 #ifdef PART_
       IF ( dolag.GT.0 ) THEN
         CALL lagpart%Init()
+#if defined(INERPART_)
+         rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+           DO j = 1,ny
+             DO k = 1,nz
+               C7(k,j,i) = vx(k,j,i)*rmp
+             END DO
+           END DO
+         END DO
+         CALL fftp3d_complex_to_real(plancr,C7,R1,MPI_COMM_WORLD)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+           DO j = 1,ny
+             DO k = 1,nz
+               C7(k,j,i) = vy(k,j,i)*rmp
+             END DO
+           END DO
+         END DO
+         CALL fftp3d_complex_to_real(plancr,C7,R2,MPI_COMM_WORLD)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+           DO j = 1,ny
+             DO k = 1,nz
+               C7(k,j,i) = vz(k,j,i)*rmp
+             END DO
+           END DO
+         END DO
+         CALL fftp3d_complex_to_real(plancr,C7,R3,MPI_COMM_WORLD)
+         CALL lagpart%InitVel(R1,R2,R3,tau,grav,Rv1,Rv2)
+#endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
         CALL lagpart%InitVel(vtherm)
 #endif
@@ -1814,12 +1874,49 @@
       IF ( dolag.GT.0 ) THEN
         IF (injtp.eq.0) THEN
           WRITE(lgext, lgfmtext) pind
-          CALL lagpart%io_read(1,idir,'xlg',lgext)
+          CALL lagpart%io_read (1,idir,'xlg',lgext)
+#if defined(INERPART_)
+          CALL lagpart%io_readv(1,idir,'vip',lgext)
+#endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
           CALL lagpart%io_readv(1,idir,'vtp',lgext)
 #endif
         ELSE
           CALL lagpart%Init()
+#if defined(INERPART_)
+          rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+              DO k = 1,nz
+                C7(k,j,i) = vx(k,j,i)*rmp
+              END DO
+            END DO
+          END DO
+          CALL fftp3d_complex_to_real(plancr,C7,R1,MPI_COMM_WORLD)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+              DO k = 1,nz
+                C7(k,j,i) = vy(k,j,i)*rmp
+              END DO
+            END DO
+          END DO
+          CALL fftp3d_complex_to_real(plancr,C7,R2,MPI_COMM_WORLD)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+              DO k = 1,nz
+                C7(k,j,i) = vz(k,j,i)*rmp
+              END DO
+            END DO
+          END DO
+          CALL fftp3d_complex_to_real(plancr,C7,R3,MPI_COMM_WORLD)
+          CALL lagpart%InitVel(R1,R2,R3,tau,grav,Rv1,Rv2)
+#endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
           CALL lagpart%InitVel(vtherm)
 #endif
@@ -2342,14 +2439,17 @@
 #if defined(MAGFIELD_)
              INCLUDE 'lagpartout_magfield.f90'
 #endif
-#if defined(TESTPART_) && defined(MAGFIELD_)
-             INCLUDE 'testpartout_magfield.f90'
-#endif
 #if defined(SCALAR_)
              INCLUDE 'lagpartout_scalar.f90'
 #endif
 #if defined(MULTISCALAR_)
              INCLUDE 'lagpartout_mscalar.f90'
+#endif
+#if defined(INERPART_)
+             INCLUDE 'inerpartout_velfield.f90'
+#endif
+#if defined(TESTPART_) && defined(MAGFIELD_)
+             INCLUDE 'testpartout_magfield.f90'
 #endif
            ENDIF
          ENDIF
@@ -2448,6 +2548,9 @@
 #ifdef PART_
          IF ( dolag.GT.0 ) THEN
            CALL lagpart%SetStep()
+#if defined(INERPART_)
+           CALL lagpart%SetStepVel()
+#endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
            CALL lagpart%SetStepVel()
 #endif
@@ -2497,6 +2600,11 @@
 #ifdef LAGPART_
          CALL lagpart%Step(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),R4,R5,R6)
 #endif
+
+#if defined(INERPART_)
+         CALL lagpart%StepInerp(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),Rv1,Rv2)
+#endif
+
 #if defined(TESTPART_) && defined(MAGFIELD_)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
@@ -2535,7 +2643,7 @@
          Rj2 = gyrof*mu*Rj2
          Rj3 = gyrof*mu*Rj3
          CALL lagpart%StepTestp(R1,R2,R3,Rb1,Rb2,Rb3,Rj1,Rj2,Rj3,dt &
-	                          ,1.0_GP/real(o,kind=GP),R4,R5,R6)
+                               ,1.0_GP/real(o,kind=GP),R4,R5,R6)
 #endif
          ENDIF
 #endif
@@ -2709,6 +2817,9 @@
 #endif
 #ifdef PART_
       DEALLOCATE( R4,R5,R6 )
+#endif
+#if defined(INERPART_)
+      DEALLOCATE( Rv1,Rv2 )
 #endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
       DEALLOCATE( Rb1,Rb2,Rb3 )
