@@ -132,7 +132,7 @@
 ! InerGPart SUBROUTINES
 !=================================================================
 
-  SUBROUTINE InerGPart_ctor(this)
+  SUBROUTINE InerGPart_ctor(this,tau,grav)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Explicit constructor for inertial particles. Should be called
@@ -140,10 +140,17 @@
 !
 !  ARGUMENTS:
 !    this    : 'this' class instance
+!    tau     : Stokes time
+!    grav    : gravity acceleration
 !-----------------------------------------------------------------
+    USE fprecision
 
     IMPLICIT NONE
     CLASS(InerGPart), INTENT(INOUT)     :: this
+    REAL(KIND=GP),INTENT(IN)            :: tau,grav
+
+    this%invtau_ = 1.0_GP/tau
+    this%grav_   = grav
 
     ALLOCATE(this%pvx_     (this%maxparts_))
     ALLOCATE(this%pvy_     (this%maxparts_))
@@ -182,7 +189,7 @@
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-  SUBROUTINE InerGPart_InitVel(this,vx,vy,vz,tau,grav,tmp1,tmp2)
+  SUBROUTINE InerGPart_InitVel(this,vx,vy,vz,tmp1,tmp2)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : InitVel
@@ -206,11 +213,7 @@
     CLASS(InerGPart),INTENT(INOUT)                         :: this
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: vx,vy,vz
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: tmp1,tmp2
-    REAL(KIND=GP),INTENT(IN)                               :: tau,grav
     
-    this%invtau_ = 1.0_GP/tau
-    this%grav_   = grav
-
     CALL GPart_EulerToLag(this,this%pvx_,this%nparts_,vx,.true. ,tmp1,tmp2)
     CALL GPart_EulerToLag(this,this%pvy_,this%nparts_,vy,.false.,tmp1,tmp2)
     CALL GPart_EulerToLag(this,this%pvz_,this%nparts_,vz,.false.,tmp1,tmp2)
