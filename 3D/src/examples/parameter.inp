@@ -160,6 +160,12 @@ ilgwrtunit = 0   ! Write part. positions in box units (=1) or grid units (=0)
 lgseedfile = 'user_seed_file.dat'
 /
 
+! Parameters for intertial particles
+&pinerpart
+grav = 0         ! Effective gravity acc. = (1-rho_part/rho_fluid)*G
+tau = 0.1        ! Stokes time
+/
+
 ! Parameters for test particles
 &ptestpart
 gyrof = 1.0      ! Gyrofrequency
