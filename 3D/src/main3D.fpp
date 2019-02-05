@@ -1999,6 +1999,14 @@
          CALL GTInitHandle(ihcpu1,GT_CPUTIME)
          CALL GTInitHandle(ihomp1,GT_OMPTIME)
          CALL GTInitHandle(ihwtm1,GT_WTIME)
+         ffttime  = 0.D00 ! re-inititialize fftp timers
+         tratime  = 0.0D0
+         comtime  = 0.D00
+         tottime  = 0.0D0
+#if defined(DEF_GHOST_CUDA_)
+         memtime  = 0.0D0
+         asstime  = 0.D00
+#endif
          CALL GTStart(ihcpu1)
          CALL GTStart(ihomp1)
          CALL GTStart(ihwtm1)
