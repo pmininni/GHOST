@@ -1313,7 +1313,7 @@
 #if defined(INERPART_)
 ! Reads parameters for runs with inertial particles
 !     tau      : Stokes time
-!     grav     : Gravitational acceleration
+!     grav     : Effective gravity acceleration
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
@@ -1552,7 +1552,7 @@
         CALL lagpart%SetRandSeed(seed)
         CALL lagpart%SetSeedFile(trim(lgseedfile))
 #if defined(INERPART_)
-        CALL lagpart%InerGPart_ctor()
+        CALL lagpart%InerGPart_ctor(tau,grav)
 #endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
         CALL lagpart%TestGPart_ctor()
@@ -1653,7 +1653,7 @@
            END DO
          END DO
          CALL fftp3d_complex_to_real(plancr,C7,R3,MPI_COMM_WORLD)
-         CALL lagpart%InitVel(R1,R2,R3,tau,grav,Rv1,Rv2)
+         CALL lagpart%InitVel(R1,R2,R3,Rv1,Rv2)
 #endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
         CALL lagpart%InitVel(vtherm)
@@ -1915,7 +1915,7 @@
             END DO
           END DO
           CALL fftp3d_complex_to_real(plancr,C7,R3,MPI_COMM_WORLD)
-          CALL lagpart%InitVel(R1,R2,R3,tau,grav,Rv1,Rv2)
+          CALL lagpart%InitVel(R1,R2,R3,Rv1,Rv2)
 #endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
           CALL lagpart%InitVel(vtherm)

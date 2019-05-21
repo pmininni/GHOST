@@ -5,10 +5,14 @@
 !
 ! Reads dataset, and computes dataset that is prolongated in 
 ! wavenumber space, and outputs to real space. The files
-! to be read are specified on input, as is the max linear size of the
-! old grid; the output files are the originial files appended with with the 
-! prolongation size 'PXXX'. This is the 'boostrap regridding'
-! procedure (BOOTS).
+! to be read are specified on input, as is the linear size of the
+! old grid; the output files are the originial files appended with
+! the prolongation size 'PXXX-XXX-XXX'.
+! This is the 'boostrap regridding' procedure (BOOTS).
+!
+! Note that the number of mpi tasks must be of the form 2^i * 
+! nx_new / nx_old, with i .ne. 1. For example, for nx_new = 384 and
+! nx_old = 128 possible num of tasks are 1, 6, 12, 24, 48, etc.
 !
 ! NOTATION: index 'i' is 'x' 
 !           index 'j' is 'y'
@@ -18,6 +22,8 @@
 !      NCAR
 !
 ! 17 Nov 2010: Initial version
+! 15 Mar 2019: Added support for anisotropic boxes and
+!              error checking for number of tasks (M. Fontana)
 !=================================================================
 
 !
@@ -47,15 +53,15 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C1t
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: B1
 
-
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vvt
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: br
-      REAL(KIND=GP)                                 :: fact
+      REAL(KIND=GP)                                 :: fact, rmp, rmq, rms
+      
 !
 ! Auxiliary variables
 
-      REAL(KIND=GP)    :: kprol2, kprol
-      INTEGER :: nfiles,nmt,np,npt,nt,ntprocs,npkeep
+      INTEGER :: nfiles,nmt,np,npt,ntprocs,npkeep
+      INTEGER :: nxt,nyt,nzt
       INTEGER :: i,ib,ie,ind,itsta,itend,j,k,ktsta,ktend
       INTEGER :: istak,iendk,kstak,kendk
       INTEGER :: commtrunc, fh, groupworld, flags, grouptrunc
@@ -64,27 +70,29 @@
       TYPE(IOPLAN)  :: planio, planiot
       TYPE(FFTPLAN) :: planrct
 
-      CHARACTER(len=8)   :: suff
+      CHARACTER(len=19)  :: suff
       CHARACTER(len=100) :: odir,idir
       CHARACTER(len=256) :: fname, fout, msg
       CHARACTER(len=1024):: fnlist
-!
-      NAMELIST / regrid / idir, odir, fnlist, iswap, oswap, nt
 
-!
-! Initializes the MPI and I/O libraries
+      NAMELIST / regrid / idir, odir, fnlist, iswap, oswap, nxt, nyt, nzt
+
+! Initializes the MPI and I/O libraries considering all the tasks
+! and the biggest possible array size (i.e. the new dimensions)
       CALL MPI_INIT(ierr)
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
-      CALL range(1,n/2+1,nprocs,myrank,ista,iend)
-      CALL range(1,n,nprocs,myrank,ksta,kend)
-      CALL io_init(myrank,n,ksta,kend,planio)
+      CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
+      CALL range(1,nz,nprocs,myrank,ksta,kend)
+      CALL io_init(myrank,(/nx,ny,nz/),ksta,kend,planio)
       idir   = '.'
       odir   = '.'
       fnlist = ''
       iswap  = 0
       oswap  = 0
-      nt     = 0
+      nxt    = 0
+      nyt    = 0
+      nzt    = 0
 !
 ! Reads from the external file 'boots.txt' the 
 ! parameters that will be used to compute the transfer
@@ -93,10 +101,12 @@
 !     fnlist : file list to prolongate, separated by ';'
 !     iswap  : do endian swap on input?
 !     oswap  : do endian swap on output?
-!     nt     : original linear size of the old grid
+!     nxt    : original linear size of the old grid in x direction
+!     nyt    : original linear size of the old grid in y direction
+!     nzt    : original linear size of the old grid in z direction
 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='boots.txt',status='unknown',form="formatted")
+         OPEN(1,file='boots.inp',status='unknown',form="formatted")
          READ(1,NML=regrid)
          CLOSE(1)
       ENDIF
@@ -105,23 +115,53 @@
       CALL MPI_BCAST(fnlist,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(oswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(nt    ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(nxt   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(nyt   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(nzt   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
 
-      IF ( nt .GT. n .OR. nt .LT. 1 ) THEN
-        STOP 'MAIN: prolongation specification incorrect; input nt must be less than N' 
+      !
+      !  n here refers to the prolongated grid, and nt
+      !  is the grid size of the 'old grid'
+
+      ! Check input
+      IF ( nxt .GT. nx .OR. nxt .LT. 1 ) THEN
+        IF ( myrank .eq. 0) PRINT*, 'MAIN: prolongation specification incorrect; input nxt must be less than Nx'
+        CALL MPI_Finalize(ierr)
+        STOP  
+      ENDIF
+      IF ( nyt .GT. ny .OR. nyt .LT. 1 ) THEN
+        IF ( myrank .eq. 0) PRINT*, 'MAIN: prolongation specification incorrect; input nxt must be less than Nx'
+        CALL MPI_Finalize(ierr)
+        STOP
+      ENDIF
+      IF ( nzt .GT. nz .OR. nzt .LT. 1 ) THEN
+        IF ( myrank .eq. 0) PRINT*, 'MAIN: prolongation specification incorrect; input nxt must be less than Nx'
+        CALL MPI_Finalize(ierr)
+        STOP
       ENDIF
 
-      WRITE(suff,'(a2,i5.5)') '_P', n
-!
-!  n, here refers to the prolongated grid, and nt
-!  is the grid size of the 'old grid'
+      ! First check that nprocs is not 1, and that nx is not nxt.
+      ! After that catch non-integer number of slices,
+      ! then check quotient is power of two, finally exclude the 2^1 case
+      IF ( nprocs .ne. 1 .AND. nxt .ne. nx .AND. &
+            ( mod(nprocs*nxt, nx) .ne. 0 .OR. &
+              IAND(nprocs*nxt/nx, nprocs*nxt/nx - 1) .ne. 0 .OR. &
+              nprocs .eq. nx/nxt ) ) THEN
+        IF ( myrank .eq. 0) PRINT*, 'MAIN: number of tasks must be of the form 2^i * (nx_new/nx_old) with i =/= 1'
+        CALL MPI_Finalize(ierr)
+        STOP
+      ENDIF
+
+      ! Suffix for the output
+      WRITE(suff,'(a2,i5.5,a1,i5.5,a1,i5.5)') '_P', nx, "-", ny, "-", nz
      
-! Create new communicator for the truncated data:
-      np      = n / nprocs
-      ntprocs = nt / np
-      nmt     = mod(nt,np) 
+! Determine size and create a new communicator for the truncated data:
+      np      = nx / nprocs
+      ntprocs = nxt / np
+      nmt     = mod(nxt,np) 
       IF ( nmt .GT. 0 ) ntprocs = ntprocs + 1
       ntprocs = min(ntprocs, nprocs)
+
       CALL MPI_COMM_GROUP(MPI_COMM_WORLD, groupworld, ierr)
       commtrunc  = MPI_COMM_NULL
       grouptrunc = MPI_GROUP_NULL
@@ -129,65 +169,85 @@
         iExclude(1,1) = ntprocs
         iExclude(2,1) = nprocs-1
         iExclude(3,1) = 1
-      CALL MPI_COMM_GROUP(MPI_COMM_WORLD, groupworld, ierr)
-      commtrunc  = MPI_COMM_NULL
+        CALL MPI_COMM_GROUP(MPI_COMM_WORLD, groupworld, ierr)
+        commtrunc  = MPI_COMM_NULL
         CALL MPI_GROUP_RANGE_EXCL(groupworld, 1, iExclude, grouptrunc, ierr)   
-      CALL MPI_COMM_GROUP(MPI_COMM_WORLD, groupworld, ierr)
-      commtrunc  = MPI_COMM_NULL
+        CALL MPI_COMM_GROUP(MPI_COMM_WORLD, groupworld, ierr)
+        commtrunc  = MPI_COMM_NULL
         CALL MPI_COMM_CREATE(MPI_COMM_WORLD, grouptrunc, commtrunc, ierr)
       ELSE IF ( ntprocs .EQ. nprocs ) THEN
         CALL MPI_COMM_DUP(MPI_COMM_WORLD,commtrunc,ierr)
         CALL MPI_COMM_GROUP(MPI_COMM_WORLD,grouptrunc,ierr)
       ENDIF
-      CALL range(1,nt    ,ntprocs,myrank,ktsta,ktend)
-      CALL range(1,nt/2+1,ntprocs,myrank,itsta,itend)
+      CALL range(1,nzt    ,ntprocs,myrank,ktsta,ktend)
+      CALL range(1,nxt/2+1,ntprocs,myrank,itsta,itend)
 
+! Allocate arrays and initialize I/O and FFTs
 
-!     kprol  = real(n,kind=GP)/2.0 - 1.0
-      kprol  = real(n,kind=GP)/3.0
-      kprol2 = (real(kprol,kind=GP) )**2
-      kmax   = (real(n,kind=GP)/3.)**2
-
-      ALLOCATE( vvt(nt,nt,ktsta:ktend) )
-      ALLOCATE( C1t(nt,nt,itsta:itend) )
-      ALLOCATE( B1(n,n,ista:iend) )
-      ALLOCATE( ka(n),ka2(n,n,ista:iend) )
-      ALLOCATE( br(n,n,ksta:kend) )
+      ALLOCATE( vvt(nxt,nyt,ktsta:ktend) )
+      ALLOCATE( C1t(nzt,nyt,itsta:itend) )
+      ALLOCATE( B1(nz,ny,ista:iend) )
+      ALLOCATE( kx(nx), ky(ny), kz(nz) )
+      ALLOCATE( kn2(nz,ny,ista:iend) )
+      ALLOCATE( br(nx,ny,ksta:kend) )
 
       IF ( myrank .LT. ntprocs ) THEN
         npkeep = nprocs; nprocs = ntprocs
-        CALL io_init(myrank,nt,ktsta,ktend,planiot)
+        CALL io_init(myrank,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
         nprocs = npkeep
       ENDIF
-!
+
       flags  = FFTW_MEASURE
 
-      CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, flags)
+      CALL fftp3d_create_plan(plancr,(/nx,ny,nz/),FFTW_COMPLEX_TO_REAL, flags)
 
       IF ( myrank .LT. ntprocs ) THEN
+        ! Temporarily redefine ksta,ista,kend,iend to accomodate
+        ! for ntprocs tasks. Then return to the standard definition
         npkeep = nprocs; nprocs = ntprocs
-        CALL range(1,nt    ,ntprocs,myrank,ksta,kend)
-        CALL range(1,nt/2+1,ntprocs,myrank,ista,iend)
-        CALL fftp3d_create_plan(planrct,nt,FFTW_REAL_TO_COMPLEX,flags)
+        CALL range(1,nzt    ,ntprocs,myrank,ksta,kend)
+        CALL range(1,nxt/2+1,ntprocs,myrank,ista,iend)
+        CALL fftp3d_create_plan(planrct,(/nxt,nyt,nzt/),FFTW_REAL_TO_COMPLEX,flags)
         nprocs = npkeep
-        CALL range(1,n/2+1,nprocs,myrank,ista,iend)
-        CALL range(1,n,nprocs,myrank,ksta,kend)
+        CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
+        CALL range(1,nz,nprocs,myrank,ksta,kend)
       ENDIF
-!
-      DO i = 1,n/2
-         ka(i) = real(i-1,kind=GP)
-         ka(i+n/2) = real(i-n/2-1,kind=GP)
-      END DO
 
+! Some constants for the FFT
+!     kmax: maximum truncation for dealiasing
+!     tiny: minimum truncation for dealiasing
+      kmax =     1.0_GP/9.0_GP
+!#ifdef EDQNM_
+      kmax =     1.0_GP/4.0_GP
+!#endif
+
+! Populate wavenumber-associated arrays
+      DO i = 1,nx/2
+         kx(i) = real(i-1,kind=GP)
+         kx(i+nx/2) = real(i-nx/2-1,kind=GP)
+      END DO
+      DO j = 1,ny/2
+         ky(j) = real(j-1,kind=GP)
+         ky(j+ny/2) = real(j-ny/2-1,kind=GP)
+      END DO
+      DO k = 1,nz/2
+         kz(k) = real(k-1,kind=GP)
+         kz(k+nz/2) = real(k-nz/2-1,kind=GP)
+      END DO
+      rmp = 1.0_GP/real(nx,kind=GP)**2
+      rmq = 1.0_GP/real(ny,kind=GP)**2
+      rms = 1.0_GP/real(nz,kind=GP)**2
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
-         DO j = 1,n
-            DO k = 1,n
-               ka2(k,j,i) = ka(i)**2+ka(j)**2+ka(k)**2
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
             END DO
          END DO
       END DO
 
-     
       ib = 1
       ie = len(fnlist)
       DO WHILE ( len(trim(fnlist(ib:ie))) .GT. 0 )  
@@ -216,7 +276,7 @@
              STOP
            ENDIF
            CALL MPI_FILE_READ_ALL(fh,vvt, &
-               planiot%n*planiot%n*(planiot%kend-planiot%ksta+1),GC_REAL, &
+               planiot%nx*planiot%ny*(planiot%kend-planiot%ksta+1),GC_REAL, &
                MPI_STATUS_IGNORE,ioerr)
            IF ( ioerr .NE. MPI_SUCCESS ) THEN
              WRITE(*,*) 'main: Error with MPI_FILE_READ_ALL'
@@ -225,7 +285,7 @@
            CALL MPI_FILE_CLOSE(fh,ioerr)
 
            IF ( iswap .NE. 0 ) THEN
-             CALL rarray_byte_swap(vvt, nt*nt*(ktend-ktsta+1))
+             CALL rarray_byte_swap(vvt, nxt*nyt*(ktend-ktsta+1))
            ENDIF
 
          ENDIF
@@ -233,58 +293,60 @@
 !
 ! Compute FT of variable on smaller grid:
       IF ( myrank .LT. ntprocs ) THEN
+        ! Temporarily redefine ksta,ista,kend,iend to accomodate
+        ! for ntprocs tasks. Then return to the standard definition
          npkeep = nprocs; nprocs = ntprocs
-         CALL range(1,nt    ,ntprocs,myrank,ksta,kend)
-         CALL range(1,nt/2+1,ntprocs,myrank,ista,iend)
+         CALL range(1,nzt    ,ntprocs,myrank,ksta,kend)
+         CALL range(1,nxt/2+1,ntprocs,myrank,ista,iend)
          CALL fftp3d_real_to_complex(planrct,vvt,C1t,commtrunc)
          nprocs = npkeep
-         CALL range(1,n/2+1,nprocs,myrank,ista,iend)
-         CALL range(1,n,nprocs,myrank,ksta,kend)
+         CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
+         CALL range(1,nz,nprocs,myrank,ksta,kend)
       ENDIF
 
 !
 ! Prolongate in Fourier space:
-         fact = 1.0_GP/real(nt,kind=GP)**3
+         fact = 1.0_GP/ \
+            (real(nxt,kind=GP)*real(nyt,kind=GP)*real(nzt,kind=GP))
          B1 = 0.0
          DO i = itsta,itend
-            DO j = 1,nt/2
-               DO k = 1,nt/2
+            DO j = 1,nyt/2
+               DO k = 1,nzt/2
                   B1(k,j,i) = C1t(k,j,i) * fact
                END DO
-               DO k = n-nt/2+1,n
-                  B1(k,j,i) = C1t(k-n+nt,j,i) * fact
+               DO k = nz-nzt/2+1,nz
+                  B1(k,j,i) = C1t(k-nz+nzt,j,i) * fact
                END DO
             END DO
-            DO j = n-nt/2+1,n
-               DO k = 1,nt/2
-                  B1(k,j,i) = C1t(k,j-n+nt,i) * fact
+            DO j = ny-nyt/2+1,ny
+               DO k = 1,nzt/2
+                  B1(k,j,i) = C1t(k,j-ny+nyt,i) * fact
                END DO
-               DO k = n-nt/2+1,n
-                  B1(k,j,i) = C1t(k-n+nt,j-n+nt,i) * fact
+               DO k = nz-nzt/2+1,nz
+                  B1(k,j,i) = C1t(k-nz+nzt,j-ny+nyt,i) * fact
                END DO
             END DO
          END DO
-!
-!
+
 #if 1
 ! Spherically truncate prolongated spectrum in Fourier space:
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,n
-               DO k = 1,n
-                  IF (  ka2(k,j,i).GT.kprol2 ) B1(k,j,i) = 0.0
+            DO j = 1,ny
+               DO k = 1,nz
+                  IF (  kn2(k,j,i).GT.kmax ) B1(k,j,i) = 0.0
                END DO
             END DO
          END DO
 #endif
-!
-! Compute inverse FT of prolongated variable:
+
+! Compute inverse FFT of prolongated variable:
          CALL fftp3d_complex_to_real(plancr,B1,br,MPI_COMM_WORLD)
 !
 ! Byte-swap on output:
          IF ( oswap .NE. 0 ) THEN
-           CALL rarray_byte_swap(br, n*n*(kend-ksta+1))
+           CALL rarray_byte_swap(br, nx*ny*(kend-ksta+1))
          ENDIF
 !
 ! Put to disk:
@@ -304,15 +366,13 @@
         CALL MPI_GROUP_FREE(grouptrunc, ierr)
       ENDIF
 
-
       DEALLOCATE ( vvt )
       DEALLOCATE ( C1t )
       DEALLOCATE ( B1 )
-      DEALLOCATE ( ka)
-      DEALLOCATE ( ka2)
+      DEALLOCATE ( kx, ky, kz )
+      DEALLOCATE ( kn2 )
       DEALLOCATE ( br )
 
       CALL MPI_FINALIZE(ierr)
 
       END PROGRAM BOOTS3D
-
