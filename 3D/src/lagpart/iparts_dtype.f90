@@ -26,7 +26,7 @@
         PRIVATE
         ! Member data:
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: dfx_,dfy_,dfz_
-        REAL(KIND=GP)    :: invtau_,grav_
+        REAL(KIND=GP)    :: invtau_,grav_,gamma_
       CONTAINS
         ! Public methods:
         PROCEDURE,PUBLIC :: InerGPart_ctor
@@ -34,5 +34,6 @@
         PROCEDURE,PUBLIC :: InitVel           => InerGPart_InitVel
         PROCEDURE,PUBLIC :: SetStepVel        => InerGPart_SetStepRKK
         PROCEDURE,PUBLIC :: StepInerp         => InerGPart_StepRKK
+        PROCEDURE,PUBLIC :: StepLitep         => InerGPart_lite_StepRKK
         PROCEDURE,PUBLIC :: EndStage          => InerGPart_EndStageRKK
       END TYPE InerGPart

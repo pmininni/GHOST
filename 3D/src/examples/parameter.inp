@@ -160,6 +160,14 @@ ilgwrtunit = 0   ! Write part. positions in box units (=1) or grid units (=0)
 lgseedfile = 'user_seed_file.dat'
 /
 
+! Parameters for inertial particles
+&pinerpart
+tau = 1.00       ! Stokes time
+grav = 0.00      ! Gravitational acceleration
+dolightp = 0     ! Compute mass ratio terms (0=heavy particles, 1=light part)
+gamma = 0.00     ! Fluid to particle mass ratio (ignored when dolightp=0)
+/
+
 ! Parameters for test particles
 &ptestpart
 gyrof = 1.0      ! Gyrofrequency
