@@ -1,0 +1,48 @@
+! Initial condition for the passive/active scalar/density.
+! The scalar can be passive (e.g., in the PHD solver) or
+! active (as in the Boussinesq or compressible solvers).
+! This file contains the expression used for the initial
+! concentration of the scalar. You can use temporary
+! real arrays R1-R3 of size (1:nx,1:ny,ksta:kend) and temporary
+! complex arrays C1-C8 of size (1:nz,1:ny,ista:iend) to do
+! intermediate computations. The variable cc10 should control
+! the global amplitude of the concentration, and variables
+! ciparam0-9 etc can be used to control the amplitudes 
+! terms. At the end, the initial concentration of the scalar in
+! spectral space should be stored in the array th.
+
+! Set initial concentration of a 'Gaussian cylinder' centered
+! at  (s1param0, s1param1) with a FWHM of s1param3:
+!     s1param0 : initial x location of wire (in [0,1])
+!     s1param1 : initial y location of wire (in [0,1])
+!     s1param3 : fall-of cylindrical radius of scalar
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+
+              tmp = (real(i-1,kind=GP)/real(nx-1,kind=GP)-s1param0)**2 &
+                  + (real(j-1,kind=GP)/real(ny-1,kind=GP)-s1param1)**2 
+              R1(i,j,k) = exp(-tmp/s1param3**2)
+
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_real_to_complex(planrc,R1,th1,MPI_COMM_WORLD)
+
+      CALL variance(th1,tmp,1)
+      CALL MPI_BCAST(tmp,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               th1(k,j,i) = th1(k,j,i)*cc10/sqrt(tmp)
+            END DO
+         END DO
+      END DO
+
+

@@ -1,0 +1,51 @@
+! Initial condition for the passive/active scalar/density.
+! The scalar can be passive (e.g., in the PHD solver) or
+! active (as in the Boussinesq or compressible solvers).
+! This file contains the expression used for the initial
+! concentration of the scalar. You can use temporary
+! real arrays R1-R3 of size (1:nx,1:ny,ksta:kend) and temporary
+! complex arrays C1-C8 of size (1:nz,1:ny,ista:iend) to do
+! intermediate computations. The variable c0 should control
+! the global amplitude of the concentration, and variables
+! cparam0-9 can be used to control the amplitudes of individual
+! terms. At the end, the initial concentration of the scalar in
+! spectral space should be stored in the array th.
+
+! Set initial concentration of a 'puff' to be a Gaussian ball
+! centered at (sparam0, sparam1, sparam2) with a FWHM of sparam3:
+!     sparam0 : initial x location of puff (in [0,1])
+!     sparam1 : initial y location of puff (in [0,1])
+!     sparam2 : initial z location of puff (in [0,1])
+!     sparam3 : initial radius of puff
+!     s0      : magnitude of scalar forcing
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+
+              tmp = (real(i-1,kind=GP)/real(nx-1,kind=GP)-sparam0)**2 &
+                  + (real(j-1,kind=GP)/real(ny-1,kind=GP)-sparam1)**2 &
+                  + (real(k-1,kind=GP)/real(nz-1,kind=GP)-sparam2)**2 
+              R1(i,j,k) = exp(-tmp**2/sparam3**2)
+
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_real_to_complex(planrc,R1,fs,MPI_COMM_WORLD)
+
+      CALL variance(fs,tmp,1)
+      CALL MPI_BCAST(tmp,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               fs(k,j,i) = fs(k,j,i)*s0/sqrt(tmp)
+            END DO
+         END DO
+      END DO
+
+

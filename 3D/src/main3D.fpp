@@ -1314,7 +1314,7 @@
 #if defined(INERPART_)
 ! Reads parameters for runs with inertial particles
 !     tau      : Stokes time
-!     grav     : Gravitational acceleration
+!     grav     : Effective gravity acceleration
 !     gamma    : Mass ratio (= m_f/m_p, f:fluid, p:particle)
 !     dolightp : = 0 do not compute mass ratio terms (heavy particles);
 !                = 1 compute mass ratio terms (light particles);
@@ -1560,7 +1560,7 @@
         CALL lagpart%SetRandSeed(seed)
         CALL lagpart%SetSeedFile(trim(lgseedfile))
 #if defined(INERPART_)
-        CALL lagpart%InerGPart_ctor()
+        CALL lagpart%InerGPart_ctor(tau,grav,gamma)
 #endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
         CALL lagpart%TestGPart_ctor()
@@ -1661,7 +1661,7 @@
            END DO
          END DO
          CALL fftp3d_complex_to_real(plancr,C7,R3,MPI_COMM_WORLD)
-         CALL lagpart%InitVel(R1,R2,R3,tau,grav,gamma,Rv1,Rv2)
+         CALL lagpart%InitVel(R1,R2,R3,Rv1,Rv2)
 #endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
         CALL lagpart%InitVel(vtherm)
@@ -1923,7 +1923,7 @@
             END DO
           END DO
           CALL fftp3d_complex_to_real(plancr,C7,R3,MPI_COMM_WORLD)
-          CALL lagpart%InitVel(R1,R2,R3,tau,grav,gamma,Rv1,Rv2)
+          CALL lagpart%InitVel(R1,R2,R3,Rv1,Rv2)
 #endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
           CALL lagpart%InitVel(vtherm)
