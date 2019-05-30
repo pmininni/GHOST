@@ -132,7 +132,7 @@
 ! InerGPart SUBROUTINES
 !=================================================================
 
-  SUBROUTINE InerGPart_ctor(this,tau,grav)
+  SUBROUTINE InerGPart_ctor(this,tau,grav,gamma)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Explicit constructor for inertial particles. Should be called
