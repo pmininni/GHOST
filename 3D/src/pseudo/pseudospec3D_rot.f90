@@ -1706,15 +1706,15 @@
                       MPI_SUM,0,MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          OPEN(1,file=trim(dir) // '/' // trim(fname) // '_kz.' // &
-              nmb // '.out',form='unformatted')
+              nmb // '.out',form='unformatted',access='stream')
          WRITE(1) ut1
          CLOSE(1)
          OPEN(1,file=trim(dir) // '/' // trim(fname) // '_ky.' // &
-              nmb // '.out',form='unformatted')
+              nmb // '.out',form='unformatted',access='stream')
          WRITE(1) ut2
          CLOSE(1)
          OPEN(1,file=trim(dir) // '/' // trim(fname) // '_kx.' // &
-              nmb // '.out',form='unformatted')
+              nmb // '.out',form='unformatted',access='stream')
          WRITE(1) ut3
          CLOSE(1)
       ENDIF
