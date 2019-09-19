@@ -2517,9 +2517,9 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
                   DO j = 1,n
                      DO k = 1,n
-                        M4(k,j,i) = M4(k,j,i)+vx(k,j,i)
-                        M5(k,j,i) = M5(k,j,i)+vy(k,j,i)
-                        M6(k,j,i) = M6(k,j,i)+vz(k,j,i)
+                        M4(k,j,i) = M4(k,j,i)+C1(k,j,i)
+                        M5(k,j,i) = M5(k,j,i)+C2(k,j,i)
+                        M6(k,j,i) = M6(k,j,i)+C3(k,j,i)
                      END DO
                   END DO
                END DO
