@@ -6,3 +6,4 @@
 
       PRIVATE :: InerGPart_InitVel        , InerGPart_StepRKK
       PRIVATE :: InerGPart_SetStepRKK     , InerGPart_EndStageRKK
+      PRIVATE :: InerGPart_lite_StepRKK

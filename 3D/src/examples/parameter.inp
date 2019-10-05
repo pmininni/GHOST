@@ -155,15 +155,18 @@ cresetp = 0      ! Resets file number counters at time of injection when 1
 lgmult = 2       ! Multiplier for particle output (must divide tstep evenly)
 ilginittype = 0  ! Initialization type for locations (0=random, 1=user)
 ilgexchtype = 1  ! Boundary exchange type (0=nearest neighbor, 1=voxel db)
-ilgouttype = 1   ! Output type (0=binary, 1=ASCII)
+ilgouttype = 0   ! Output type (0=binary, 1=ASCII)
+ilgcoll = 0      ! I/O method when using binary output (0=task 0, 1=collective) 
 ilgwrtunit = 0   ! Write part. positions in box units (=1) or grid units (=0)
 lgseedfile = 'user_seed_file.dat'
 /
 
-! Parameters for intertial particles
+! Parameters for inertial particles
 &pinerpart
-grav = 0         ! Effective gravity acc. = (1-rho_part/rho_fluid)*G
 tau = 0.1        ! Stokes time
+grav = 0.00      ! Effective gravity acceleration
+dolightp = 0     ! Compute mass ratio terms (0=heavy particles, 1=light part)
+gamma = 0.00     ! Fluid to particle mass ratio (ignored when dolightp=0)
 /
 
 ! Parameters for test particles

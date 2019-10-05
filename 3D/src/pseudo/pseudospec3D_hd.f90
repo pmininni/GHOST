@@ -1087,16 +1087,16 @@
       IF (myrank.eq.0) THEN
          OPEN(1,file='balance.txt',position='append')
          WRITE(1,10) (t-1)*dt,eng,ens,pot
-   10    FORMAT( E13.6,E25.18,E25.18,E25.18 )
+   10    FORMAT( E13.6,E25.18,E25.18,E26.18 )
          CLOSE(1)
          IF (hel.eq.1) THEN
             OPEN(1,file='helicity.txt',position='append')
-            WRITE(1,FMT='(E13.6,E25.18)') (t-1)*dt,khe
+            WRITE(1,FMT='(E13.6,E26.18)') (t-1)*dt,khe
             CLOSE(1)
          ENDIF
          IF (chk.eq.1) THEN
             OPEN(1,file='divergence.txt',position='append')
-            WRITE(1,FMT='(E13.6,E25.18)') (t-1)*dt,div
+            WRITE(1,FMT='(E13.6,E26.18)') (t-1)*dt,div
             CLOSE(1)
          ENDIF
       ENDIF

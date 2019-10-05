@@ -347,7 +347,8 @@
       TYPE (GPart) :: lagpart,lagfp
 #endif
 #if defined(INERPART_)
-      REAL(KIND=GP)         :: tau, grav
+      INTEGER               :: dolightp
+      REAL(KIND=GP)         :: tau, grav, gamma
       TYPE (InerGPart)      :: lagpart
 #endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
@@ -457,7 +458,7 @@
       NAMELIST / plagpart / blgdofp,ilgfpfiletype,blgfpfilecoll,slgfpfile
 #endif
 #if defined(INERPART_)
-      NAMELIST / pinerpart / tau,grav
+      NAMELIST / pinerpart / tau,grav,gamma,dolightp
 #endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
       NAMELIST / ptestpart / gyrof,vtherm
@@ -1314,14 +1315,21 @@
 ! Reads parameters for runs with inertial particles
 !     tau      : Stokes time
 !     grav     : Effective gravity acceleration
+!     gamma    : Mass ratio (= m_f/m_p, f:fluid, p:particle)
+!     dolightp : = 0 do not compute mass ratio terms (heavy particles);
+!                = 1 compute mass ratio terms (light particles);
 
+      gamma    = 0.0_GP
+      dolightp = 0
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=pinerpart)
       CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(tau    ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(grav   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tau     ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(grav    ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(gamma   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dolightp,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #if defined(TESTPART_) && defined(MAGFIELD_)
@@ -1552,7 +1560,7 @@
         CALL lagpart%SetRandSeed(seed)
         CALL lagpart%SetSeedFile(trim(lgseedfile))
 #if defined(INERPART_)
-        CALL lagpart%InerGPart_ctor(tau,grav)
+        CALL lagpart%InerGPart_ctor(tau,grav,gamma)
 #endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
         CALL lagpart%TestGPart_ctor()
@@ -2518,9 +2526,9 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
                   DO j = 1,ny
                      DO k = 1,nz
-                        M4(k,j,i) = M4(k,j,i)+vx(k,j,i)
-                        M5(k,j,i) = M5(k,j,i)+vy(k,j,i)
-                        M6(k,j,i) = M6(k,j,i)+vz(k,j,i)
+                        M4(k,j,i) = M4(k,j,i)+C1(k,j,i)
+                        M5(k,j,i) = M5(k,j,i)+C2(k,j,i)
+                        M6(k,j,i) = M6(k,j,i)+C3(k,j,i)
                      END DO
                   END DO
                END DO
@@ -2610,7 +2618,45 @@
 #endif
 
 #if defined(INERPART_)
-         CALL lagpart%StepInerp(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),Rv1,Rv2)
+         IF ( dolightp.EQ.0 ) THEN  ! Heavy particles
+            CALL lagpart%StepInerp(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),Rv1,Rv2)
+         ELSE                       ! Light particles
+            CALL gradre3(vx,vy,vz,C4,C5,C6)
+            rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+            rmq = 1.0_GP/dt
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+              DO j = 1,ny
+                DO k = 1,nz   ! Du_x/Dt = (du/dt + u.grad(u))_x
+                  C7(k,j,i) = ((vx(k,j,i)-C1(k,j,i))*rmq + C4(k,j,i))*rmp
+                END DO
+              END DO
+            END DO
+            CALL fftp3d_complex_to_real(plancr,C7,R4,MPI_COMM_WORLD)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+              DO j = 1,ny
+                DO k = 1,nz   ! Du_y/Dt = (du/dt + u.grad(u))_y
+                  C7(k,j,i) = ((vy(k,j,i)-C2(k,j,i))*rmq + C5(k,j,i))*rmp
+                END DO
+              END DO
+            END DO
+            CALL fftp3d_complex_to_real(plancr,C7,R5,MPI_COMM_WORLD)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+              DO j = 1,ny
+                DO k = 1,nz   ! Du_z/Dt = (du/dt + u.grad(u))_z
+                  C7(k,j,i) = ((vz(k,j,i)-C3(k,j,i))*rmq + C6(k,j,i))*rmp
+                END DO
+              END DO
+            END DO
+            CALL fftp3d_complex_to_real(plancr,C7,R6,MPI_COMM_WORLD)
+            CALL lagpart%StepLitep(R1,R2,R3,R4,R5,R6,dt, &
+                                   1.0_GP/real(o,kind=GP),Rv1,Rv2)
+         ENDIF
 #endif
 
 #if defined(TESTPART_) && defined(MAGFIELD_)
