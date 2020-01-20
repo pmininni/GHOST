@@ -596,12 +596,6 @@
 #ifdef ADVECT_
       ALLOCATE( vsq(nx,ny,ksta:kend) )
 #endif
-#ifdef WAVEFUNCTION_
-      ALLOCATE( iold(nmax/2+1), qold(nmax/2+1) )
-      ALLOCATE( kold(nmax/2+1), cold(nmax/2+1) )
-      ALLOCATE( inew(nmax/2+1), qnew(nmax/2+1) )
-      ALLOCATE( knew(nmax/2+1), cnew(nmax/2+1) )
-#endif
 #ifdef PART_
       ALLOCATE( R4(nx,ny,ksta:kend) )
       ALLOCATE( R5(nx,ny,ksta:kend) )
@@ -620,11 +614,12 @@
       ALLOCATE( Rj3(nx,ny,ksta:kend) )
 #endif
 #ifdef EDQNM_
+      n = nx ! EDQNM solvers only work in cubic boxes
       ALLOCATE( C19(nz,ny,ista:iend) )
       ALLOCATE( Eden(nz,ny,ista:iend) )
       ALLOCATE( Hden(nz,ny,ista:iend) )
-      ALLOCATE( tepq(n/2+1) )      !!!!!!! CHECK LATER !!!!!!!!
-      ALLOCATE( thpq(n/2+1) )      ! Here we should have nmax !
+      ALLOCATE( tepq(n/2+1) )
+      ALLOCATE( thpq(n/2+1) )
       ALLOCATE( tve (n/2+1) )
       ALLOCATE( tvh (n/2+1) )
       ALLOCATE( Eold(n/2+1) )
@@ -1364,7 +1359,7 @@
       IF (anis.eq.0)  kmax = kmax*real(nx,kind=GP)**2
 #endif
 #ifdef EDQNM_
-      kmax = (real(n,kind=GP)/2.0_GP-0.5_GP)**2 !!!!!! CHECK !!!!!!!
+      kmax = (real(n,kind=GP)/2.0_GP-0.5_GP)**2
 #endif
       tiny  = min(1e-5_GP,.1_GP/real(nmax,kind=GP))
       tinyf = min(1e-15_GP,.1_GP/real(nmax,kind=GP))
@@ -1454,6 +1449,17 @@
          CALL GTStop(ihomp2)
          CALL GTStop(ihwtm2)
       ENDIF
+
+! Now that we have nmax we can allocate some temporary
+! arrays needed to compute transfer functions in quantum
+! flows
+
+#ifdef WAVEFUNCTION_
+      ALLOCATE( iold(nmax/2+1), qold(nmax/2+1) )
+      ALLOCATE( kold(nmax/2+1), cold(nmax/2+1) )
+      ALLOCATE( inew(nmax/2+1), qnew(nmax/2+1) )
+      ALLOCATE( knew(nmax/2+1), cnew(nmax/2+1) )
+#endif
 
 ! Initializes arrays to keep track of the forcing 
 ! if slowly evolving phases are used, and allocates

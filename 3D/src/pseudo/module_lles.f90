@@ -26,8 +26,8 @@ CONTAINS
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
     DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-       DO j = 1,n
-          DO k = 1,n
+       DO j = 1,ny
+          DO k = 1,nz
              fx(k,j,i) = fx(k,j,i)*f0/sqrt(tmp)
              fy(k,j,i) = fy(k,j,i)*f0/sqrt(tmp)
              fz(k,j,i) = fz(k,j,i)*f0/sqrt(tmp)

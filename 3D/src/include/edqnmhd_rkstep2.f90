@@ -9,11 +9,11 @@
          DO k = 1,n
             Eden(k,j,i) = (abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+           &
                           abs(vz(k,j,i))**2)*rmp
-            Hden(k,j,i) = 2*rmp*(ka(k)*(real(vx(k,j,i))*aimag(vy(k,j,i))- &
+            Hden(k,j,i) = 2*rmp*(kz(k)*(real(vx(k,j,i))*aimag(vy(k,j,i))- &
                           real(vy(k,j,i))*aimag(vx(k,j,i)))               &
-                          +ka(j)*(real(vz(k,j,i))*aimag(vx(k,j,i))-       &
+                          +ky(j)*(real(vz(k,j,i))*aimag(vx(k,j,i))-       &
                           real(vx(k,j,i))*aimag(vz(k,j,i)))               &
-                          +ka(i)*(real(vy(k,j,i))*aimag(vz(k,j,i))-       &
+                          +kx(i)*(real(vy(k,j,i))*aimag(vz(k,j,i))-       &
                           real(vz(k,j,i))*aimag(vy(k,j,i))))
          END DO
          END DO
@@ -41,8 +41,8 @@
          DO i = ista,iend 
          DO j = 1,n
          DO k = 1,n
-            IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
-               ki = int(sqrt(ka2(k,j,i)) + 0.501)
+            IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
+               ki = int(sqrt(kk2(k,j,i)) + 0.501)
                vx(k,j,i) = C1(k,j,i)+dt*((nu+tve(ki))*vx(k,j,i)+C7(k,j,i) &
               +tvh(ki)*C5(k,j,i)+fx(k,j,i))*rmp
                vy(k,j,i) = C2(k,j,i)+dt*((nu+tve(ki))*vy(k,j,i)+C8(k,j,i) &
