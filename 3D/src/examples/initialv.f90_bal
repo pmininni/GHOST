@@ -1,8 +1,8 @@
 ! Initial condition for the velocity.
 ! This file contains the expression used for the initial 
 ! velocity field. You can use temporary real arrays R1-R3 
-! of size (1:n,1:n,ksta:kend) and temporary complex arrays 
-! C1-C8 of size (n,n,ista:iend) to do intermediate 
+! of size (1:nx,1:ny,ksta:kend) and temporary complex arrays 
+! C1-C8 of size (nz,ny,ista:iend) to do intermediate 
 ! computations. The variable u0 should control the global 
 ! amplitude of the velocity, and variables vparam0-9 can be
 ! used to control the amplitudes of individual terms. At the
@@ -17,72 +17,72 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                vz(k,j,i) = 0.0_GP
             END DO
          END DO
       END DO
 
       IF (ista.eq.1) THEN
-        DO j=2,n/2+1
-           vx    (1,j,1) = 0.0_GP
-           vx(1,n-j+2,1) = 0.0_GP
-           vy    (1,j,1) = 0.0_GP
-           vy(1,n-j+2,1) = 0.0_GP
-           IF (ka(j).gt.tiny.and.(ka2(1,j,1).le.kup**2).and.(ka2(1,j,1).ge.kdn**2)) THEN
-              dump = 1.0_GP  !1./sqrt(ka2(1,j,1))**5
+        DO j=2,ny/2+1
+           vx     (1,j,1) = 0.0_GP
+           vx(1,ny-j+2,1) = 0.0_GP
+           vy     (1,j,1) = 0.0_GP
+           vy(1,ny-j+2,1) = 0.0_GP
+           IF (ky(j).gt.tiny.and.(kk2(1,j,1).le.kup**2).and.(kk2(1,j,1).ge.kdn**2)) THEN
+              dump = 1.0_GP  !1./sqrt(kk2(1,j,1))**5
               phase = 2*pi*randu(seed)
-              vx    (1,j,1) = (COS(phase)+im*SIN(phase))*dump
-              vx(1,n-j+2,1) = conjg(vx(1,j,1))
-              vy    (1,j,1) = -ka(1)/ka(j) * vx(1,j,1)
-              vy(1,n-j+2,1) = conjg(vy(1,j,1))
+              vx     (1,j,1) = (COS(phase)+im*SIN(phase))*dump
+              vx(1,ny-j+2,1) = conjg(vx(1,j,1))
+              vy     (1,j,1) = -kx(1)/ky(j) * vx(1,j,1)
+              vy(1,ny-j+2,1) = conjg(vy(1,j,1))
               
            ENDIF
         ENDDO
 
-        DO k=2,n/2+1
-           vx    (k,1,1) = 0.0_GP
-           vx(n-k+2,1,1) = 0.0_GP
-           vy    (k,1,1) = 0.0_GP
-           vy(n-k+2,1,1) = 0.0_GP
-           IF (ka(1).gt.tiny.and.(ka2(k,1,1).le.kup**2).and.(ka2(k,1,1).ge.kdn**2)) THEN
-              dump = 1.0_GP  !1./sqrt(ka2(k,1,1))**5
+        DO k=2,nz/2+1
+           vx     (k,1,1) = 0.0_GP
+           vx(nz-k+2,1,1) = 0.0_GP
+           vy     (k,1,1) = 0.0_GP
+           vy(nz-k+2,1,1) = 0.0_GP
+           IF (ky(1).gt.tiny.and.(kk2(k,1,1).le.kup**2).and.(kk2(k,1,1).ge.kdn**2)) THEN
+              dump = 1.0_GP  !1./sqrt(kk2(k,1,1))**5
               phase = 2*pi*randu(seed)
-              vx    (k,1,1) = (COS(phase)+im*SIN(phase))*dump
-              vx(n-k+2,1,1) = conjg(vx(k,1,1))
-              vy    (k,1,1) = -ka(1)/ka(1) * vx(k,1,1)
-              vy(n-k+2,1,1) = conjg(vy(k,1,1))
+              vx     (k,1,1) = (COS(phase)+im*SIN(phase))*dump
+              vx(nz-k+2,1,1) = conjg(vx(k,1,1))
+              vy     (k,1,1) = -kx(1)/ky(1) * vx(k,1,1)
+              vy(nz-k+2,1,1) = conjg(vy(k,1,1))
            ENDIF
         ENDDO
 
-        DO j = 2,n
-           DO k = 2,n/2+1
-              vx        (k,j,1) = 0.0_GP
-              vx(n-k+2,n-j+2,1) = 0.0_GP
-              vy(        k,j,1) = 0.0_GP
-              vy(n-k+2,n-j+2,1) = 0.0_GP
-              IF ((ka2(k,j,1).le.kup**2).and.(ka2(k,j,1).ge.kdn**2)) THEN
-                  dump = 1.0_GP !1./sqrt(ka2(k,j,1))**5
+        DO j = 2,ny
+           DO k = 2,nz/2+1
+              vx          (k,j,1) = 0.0_GP
+              vx(nz-k+2,ny-j+2,1) = 0.0_GP
+              vy          (k,j,1) = 0.0_GP
+              vy(nz-k+2,ny-j+2,1) = 0.0_GP
+              IF ((kk2(k,j,1).le.kup**2).and.(kk2(k,j,1).ge.kdn**2)) THEN
+                  dump = 1.0_GP !1./sqrt(kk2(k,j,1))**5
                   phase = 2*pi*randu(seed)
-                  vx        (k,j,1) = (COS(phase)+im*SIN(phase))*dump
-                  vx(n-k+2,n-j+2,1) = conjg(vx(k,j,1))
-                  vy        (k,j,1) = -ka(1)/ka(j) * vx(k,j,1)
-                  vy(n-k+2,n-j+2,1) = conjg(vy(k,j,1))
+                  vx          (k,j,1) = (COS(phase)+im*SIN(phase))*dump
+                  vx(nz-k+2,ny-j+2,1) = conjg(vx(k,j,1))
+                  vy          (k,j,1) = -kx(1)/ky(j) * vx(k,j,1)
+                  vy(nz-k+2,ny-j+2,1) = conjg(vy(k,j,1))
               ENDIF
            ENDDO
         ENDDO
 
         DO i = 2,iend
-           DO j = 1,n
-              DO k = 1,n
+           DO j = 1,ny
+              DO k = 1,nz
                 vx(k,j,i) = 0.0_GP
                 vy(k,j,i) = 0.0_GP
-                IF (ka(j).gt.tiny.and.(ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
-                  dump = 1.0_GP  !1./sqrt(ka2(k,j,i))**5
+                IF (ky(j).gt.tiny.and.(kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+                  dump = 1.0_GP  !1./sqrt(kk2(k,j,i))**5
                   phase = 2*pi*randu(seed)
                   vx(k,j,i) = (COS(phase)+im*SIN(phase))*dump
-                  vy(k,j,i) = -ka(i)/ka(j) * vx(k,j,i)
+                  vy(k,j,i) = -kx(i)/ky(j) * vx(k,j,i)
                 ENDIF
               ENDDO
            ENDDO
@@ -91,15 +91,15 @@
 
       ELSE
          DO i = ista,iend
-            DO j = 1,n
-               DO k = 1,n
+            DO j = 1,ny
+               DO k = 1,nz
                  vx(k,j,i) = 0.
                  vy(k,j,i) = 0.
-                 IF (ka(j).gt.tiny.and.(ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
-                   dump = 1.0_GP !1./sqrt(ka2(k,j,i))**5
+                 IF (ky(j).gt.tiny.and.(kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+                   dump = 1.0_GP !1./sqrt(kk2(k,j,i))**5
                    phase = 2*pi*randu(seed)
                    vx(k,j,i) = (COS(phase)+im*SIN(phase))*dump
-                   vy(k,j,i) = -ka(i)/ka(j) * vx(k,j,i)
+                   vy(k,j,i) = -kx(i)/ky(j) * vx(k,j,i)
                   ENDIF
                ENDDO
             ENDDO
@@ -107,4 +107,3 @@
       ENDIF
 
       CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
-
