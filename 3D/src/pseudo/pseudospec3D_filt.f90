@@ -37,8 +37,8 @@
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,nx,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,nx,ista:iend) :: d,e,f
       REAL(KIND=GP), INTENT(IN) :: alp
       REAL(KIND=GP)             :: tmp
       INTEGER                   :: i,j,k
@@ -84,8 +84,8 @@
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: b
       REAL(KIND=GP), INTENT(IN) :: alp
       REAL(KIND=GP)             :: tmp
       INTEGER                   :: i,j,k
@@ -128,8 +128,8 @@
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: b
       REAL(KIND=GP), INTENT(IN) :: delta
       REAL(KIND=GP)             :: tmp
       INTEGER                   :: i,j,k
@@ -172,8 +172,8 @@
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: b
       REAL(KIND=GP), INTENT(IN) :: delta
       REAL(KIND=GP)             :: tmp
       INTEGER                   :: i,j,k
@@ -216,8 +216,8 @@
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: b
       REAL(KIND=GP), INTENT(IN) :: delta
       REAL(KIND=GP)             :: tmp
       INTEGER                   :: i,j,k
@@ -239,4 +239,3 @@
 
       RETURN
       END SUBROUTINE sharp
-
