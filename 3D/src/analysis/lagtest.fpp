@@ -34,6 +34,7 @@
       real(KIND=GP),ALLOCATABLE,DIMENSION     (:) :: gpx,gpy,gpz
       real(KIND=GP)                               :: del,r,suml,sumel,sumg,sumeg,time,x,y,z
       real(KIND=GP)                               :: kx,ky,kz,pi,tiny,xbnds(3,2),xi,xj,xk,xm,xn
+      integer                                     :: n
       integer      ,ALLOCATABLE,DIMENSION     (:) :: id,gid
       integer                                     :: irank,i,ir,j,jm,k,ki,km,kbsta,kbend,ktsta,ktend,no
       integer                                     :: maxparts,nd(3),nparts,intorder
@@ -49,6 +50,16 @@
       character(len=100) :: odir,idir
       character(len=256) :: fname,fout,msg
       character(len=1024):: fnlist
+
+!
+! Verifies proper compilation of the tool
+
+      IF ( (nx.ne.ny).or.(nx.ne.nz).or.(ny.ne.nz) ) THEN
+        IF (myrank.eq.0) &
+           PRINT *,'This tool only works with cubic data in (2.pi)^3 domains'
+        STOP
+      ENDIF
+      n = nx
 !    
 !
 ! Initializes the MPI and I/O libraries
