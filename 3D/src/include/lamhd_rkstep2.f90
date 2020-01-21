@@ -26,11 +26,13 @@
             CALL aentrans(ax,ay,az,C7,C8,C9,alpm,ext,0)
          ENDIF
 
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
-            DO j = 1,n
-               DO k = 1,n
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+         DO k = 1,nz
 
-            IF ((ka2(k,j,i).le.kmax).and.(ka2(k,j,i).ge.tiny)) THEN
+            IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
                vx(k,j,i) = C1(k,j,i)+dt*(nu*vx(k,j,i)+C16(k,j,i) &
               +fx(k,j,i))/real(o,kind=GP)
                vy(k,j,i) = C2(k,j,i)+dt*(nu*vy(k,j,i)+C17(k,j,i) &
@@ -38,11 +40,11 @@
                vz(k,j,i) = C3(k,j,i)+dt*(nu*vz(k,j,i)+C10(k,j,i) &
               +fz(k,j,i))/real(o,kind=GP)
                ax(k,j,i) = C4(k,j,i)+dt*(mu*ax(k,j,i)+C7(k,j,i)  &
-              +mx(k,j,i))*(1+alpm**2*ka2(k,j,i))/real(o,kind=GP)
+              +mx(k,j,i))*(1+alpm**2*kk2(k,j,i))/real(o,kind=GP)
                ay(k,j,i) = C5(k,j,i)+dt*(mu*ay(k,j,i)+C8(k,j,i)  &
-              +my(k,j,i))*(1+alpm**2*ka2(k,j,i))/real(o,kind=GP)
+              +my(k,j,i))*(1+alpm**2*kk2(k,j,i))/real(o,kind=GP)
                az(k,j,i) = C6(k,j,i)+dt*(mu*az(k,j,i)+C9(k,j,i)  &
-              +mz(k,j,i))*(1+alpm**2*ka2(k,j,i))/real(o,kind=GP)
+              +mz(k,j,i))*(1+alpm**2*kk2(k,j,i))/real(o,kind=GP)
              ELSE
                vx(k,j,i) = 0.
                vy(k,j,i) = 0.
@@ -52,6 +54,6 @@
                az(k,j,i) = 0.
             ENDIF
 
-                END DO
-            END DO
+         END DO
+         END DO
          END DO
