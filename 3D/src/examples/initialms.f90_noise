@@ -112,7 +112,7 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       C1 = 0.0_GP
 
-      tmp = 1.0_GP/real(n,KIND=GP)**3
+      tmp = 1.0_GP/real(nx,KIND=GP)*real(ny,KIND=GP)*real(nz,KIND=GP)
 
 ! Compute noise components:
       IF (ista.eq.1) THEN
@@ -206,7 +206,7 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       C1 = 0.0_GP
 
-      tmp = 1.0_GP/real(n,KIND=GP)**3
+      tmp = 1.0_GP/real(nx,KIND=GP)*real(ny,KIND=GP)*real(nz,KIND=GP)
 
 ! Compute noise components:
       IF (ista.eq.1) THEN

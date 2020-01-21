@@ -1,8 +1,8 @@
 ! Initial condition for the wavefunction.
 ! This file contains the expression used for the initial
 ! wavefunction. You can use temporary real arrays R1-R3
-! of size (1:n,1:n,ksta:kend) and temporary complex arrays
-! C1-C8 of size (n,n,ista:iend) to do intermediate
+! of size (1:nx,1:ny,ksta:kend) and temporary complex arrays
+! C1-C8 of size (nz,ny,ista:iend) to do intermediate
 ! computations. The variables rho0 and zparam0-9 can be used 
 ! to control properties of the initial wavefunction. At the
 ! end, the real and imaginary parts of the wavefunction in 
@@ -13,6 +13,12 @@
 ! call to 'normalize' in initialv should be commented out).
 !     kdn    : minimum wave number
 !     kup    : maximum wave number
+
+      IF ( abs(Lx-Ly).gt.tiny ) THEN
+        IF (myrank.eq.0) &
+           PRINT *,'TG initial conditions require at least Lx=Ly'
+        STOP
+      ENDIF
 
       dump = 1.0_GP/sqrt(2.0_GP)
 

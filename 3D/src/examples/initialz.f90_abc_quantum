@@ -1,8 +1,8 @@
 ! Initial condition for the wavefunction.
 ! This file contains the expression used for the initial
 ! wavefunction. You can use temporary real arrays R1-R3
-! of size (1:n,1:n,ksta:kend) and temporary complex arrays
-! C1-C8 of size (n,n,ista:iend) to do intermediate
+! of size (1:nx,1:ny,ksta:kend) and temporary complex arrays
+! C1-C8 of size (nz,ny,ista:iend) to do intermediate
 ! computations. The variables rho0 and zparam0-9 can be used 
 ! to control properties of the initial wavefunction. At the
 ! end, the real and imaginary parts of the wavefunction in 
@@ -10,11 +10,17 @@
 
 ! Array of vortices for the ABC flow
 
+      IF ( (abs(Lx-Ly).gt.tiny).or.(abs(Lx-Lz).gt.tiny) ) THEN
+        IF (myrank.eq.0) &
+           PRINT *,'ABC initial conditions require Lx=Ly=Lz'
+        STOP
+      ENDIF
+
 !$omp parallel do if (kend-ksta.ge.nth) private (i,j,rmp,rmq)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                R1(i,j,k) = sqrt(omegag/beta)
                R2(i,j,k) = 0.0_GP
             END DO
@@ -24,27 +30,27 @@
 !$omp parallel do if (kend-ksta.ge.nth) private (i,j,rmp,rmq,cdump,cdumq)
        DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i,rmp,rmq,cdump,cdumq)
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                cdump=(1._GP,0._GP)
 !
-               cdump=cdump*exp((0._GP,1._GP)*2*pi*(real(i,kind=GP)-1)/real(n,kind=GP)* &
+               cdump=cdump*exp((0._GP,1._GP)*2*pi*(real(i,kind=GP)-1)/real(nx,kind=GP)* &
                (int((vparam1*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
-               real(n,kind=GP)))/(2.0_GP*alpha)+0.5_GP) &
+               real(ny,kind=GP)))/(2.0_GP*alpha)+0.5_GP) &
                +int((vparam2*SIN(2*pi*ki*(real(k,kind=GP)-1)/ &
-               real(n,kind=GP)))/(2.0_GP*alpha)+0.5_GP)) )
+               real(nz,kind=GP)))/(2.0_GP*alpha)+0.5_GP)) )
 !
-               cdump=cdump*exp((0._GP,1._GP)*2*pi*(real(j,kind=GP)-1)/real(n,kind=GP)* &
+               cdump=cdump*exp((0._GP,1._GP)*2*pi*(real(j,kind=GP)-1)/real(ny,kind=GP)* &
                (int((vparam0*SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
-               real(n,kind=GP)))/(2.0_GP*alpha)+0.5_GP) &
+               real(nx,kind=GP)))/(2.0_GP*alpha)+0.5_GP) &
                +int((vparam2*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
-               real(n,kind=GP)))/(2.0_GP*alpha)+0.5_GP)) )
+               real(nz,kind=GP)))/(2.0_GP*alpha)+0.5_GP)) )
 !
-               cdump=cdump*exp((0._GP,1._GP)*2*pi*(real(k,kind=GP)-1)/real(n,kind=GP)* &
+               cdump=cdump*exp((0._GP,1._GP)*2*pi*(real(k,kind=GP)-1)/real(nz,kind=GP)* &
                (int((vparam0*COS(2*pi*ki*(real(i,kind=GP)-1)/ &
-               real(n,kind=GP)))/(2.0_GP*alpha)+0.5_GP) &
+               real(nx,kind=GP)))/(2.0_GP*alpha)+0.5_GP) &
                +int((vparam1*SIN(2*pi*ki*(real(j,kind=GP)-1)/ &
-               real(n,kind=GP)))/(2.0_GP*alpha)+0.5_GP)) )
+               real(ny,kind=GP)))/(2.0_GP*alpha)+0.5_GP)) )
 !
                cdump=cdump*cmplx(R1(i,j,k),R2(i,j,k))
                R1(i,j,k) =  real(cdump)

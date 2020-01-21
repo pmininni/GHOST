@@ -23,9 +23,11 @@
         STOP
       ENDIF
 
+!$omp parallel do if (kend-ksta.ge.nth) private (i,j,rmp,rmq)
       DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
-            DO i = 1,nz
+            DO i = 1,nx
 
             R1(i,j,k) = 0.
             R2(i,j,k) = 0.
@@ -33,14 +35,14 @@
 
             DO ki = kdn,kup
                R1(i,j,k) = R1(i,j,k)+(vparam1*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
-                          real(n,kind=GP))+vparam2*SIN(2*pi*ki*(real(k,kind=GP)-1)/   &
-                          real(n,kind=GP)))!/ki**vparam3
+                          real(ny,kind=GP))+vparam2*SIN(2*pi*ki*(real(k,kind=GP)-1)/   &
+                          real(nz,kind=GP)))!/ki**vparam3
                R2(i,j,k) = R2(i,j,k)+(vparam0*SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
-                          real(n,kind=GP))+vparam2*COS(2*pi*ki*(real(k,kind=GP)-1)/   &
-                          real(n,kind=GP)))!/ki**vparam3 
+                          real(nx,kind=GP))+vparam2*COS(2*pi*ki*(real(k,kind=GP)-1)/   &
+                          real(nz,kind=GP)))!/ki**vparam3 
                R3(i,j,k) = R3(i,j,k)+(vparam0*COS(2*pi*ki*(real(i,kind=GP)-1)/ &
-                          real(n,kind=GP))+vparam1*SIN(2*pi*ki*(real(j,kind=GP)-1)/   &
-                          real(n,kind=GP)))!/ki**vparam3
+                          real(nx,kind=GP))+vparam1*SIN(2*pi*ki*(real(j,kind=GP)-1)/   &
+                          real(ny,kind=GP)))!/ki**vparam3
             END DO
 
             END DO

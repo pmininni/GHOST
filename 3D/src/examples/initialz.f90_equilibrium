@@ -1,8 +1,8 @@
 ! Initial condition for the wavefunction.
 ! This file contains the expression used for the initial
 ! wavefunction. You can use temporary real arrays R1-R3
-! of size (1:n,1:n,ksta:kend) and temporary complex arrays
-! C1-C8 of size (n,n,ista:iend) to do intermediate
+! of size (1:nx,1:ny,ksta:kend) and temporary complex arrays
+! C1-C8 of size (nz,ny,ista:iend) to do intermediate
 ! computations. The variables rho0 and zparam0-9 can be used 
 ! to control properties of the initial wavefunction. At the
 ! end, the real and imaginary parts of the wavefunction in 
@@ -14,8 +14,8 @@
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                R1(i,j,k) = rho0
             END DO
          END DO
@@ -25,8 +25,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
                zim(k,j,i) = 0.0_GP
             END DO
          END DO

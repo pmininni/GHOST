@@ -1,14 +1,20 @@
 ! Initial condition for the wavefunction.
 ! This file contains the expression used for the initial
 ! wavefunction. You can use temporary real arrays R1-R3
-! of size (1:n,1:n,ksta:kend) and temporary complex arrays
-! C1-C8 of size (n,n,ista:iend) to do intermediate
+! of size (1:nx,1:ny,ksta:kend) and temporary complex arrays
+! C1-C8 of size (nz,ny,ista:iend) to do intermediate
 ! computations. The variables rho0 and zparam0-9 can be used 
 ! to control properties of the initial wavefunction. At the
 ! end, the real and imaginary parts of the wavefunction in 
 ! spectral space should be stored in the arrays zre and zim.
 
 ! Array of vortices for the trefoil
+
+      IF ( (anis.eq.1).or.(nx.ne.ny).or.(nx.ne.nz).or.(ny.ne.nz) ) THEN
+        IF (myrank.eq.0) &
+           PRINT *,'Quantum knots require Lx=Ly=Lz=2.pi and isotropic grids'
+        STOP
+      ENDIF
 
 ! Set phi(1,1,1) to one
 ! i=j=1 and we integrate along z
@@ -26,12 +32,12 @@
             R2(1,1,ksta) = AIMAG(cdump)
          ENDIF
          DO k = ksta,kend-1
-            cdump = cdump*EXP(im*R3(1,1,k)*pi/(alpha*REAL(n,KIND=GP)))
+            cdump = cdump*EXP(im*R3(1,1,k)*pi/(alpha*REAL(nx,KIND=GP)))
             R1(1,1,k+1) = REAL(cdump)
             R2(1,1,k+1) = AIMAG(cdump)
          END DO
          IF ( myrank.lt.nprocs-1 ) THEN
-            cdump = cdump*EXP(im*R3(1,1,kend)*pi/(alpha*REAL(n,KIND=GP)))
+            cdump = cdump*EXP(im*R3(1,1,kend)*pi/(alpha*REAL(nx,KIND=GP)))
             CALL MPI_SEND(cdump,1,GC_COMPLEX,myrank+1,1,MPI_COMM_WORLD,ierr)
          ENDIF
       ENDIF
@@ -41,8 +47,8 @@
 
       CALL fftp3d_complex_to_real(plancr,C1,R3,MPI_COMM_WORLD) ! vx
       DO k = ksta,kend
-         DO i = 1,n-1
-            cdump = (R1(i,1,k)+im*R2(i,1,k))*EXP(im*R3(i,1,k)*pi/(alpha*REAL(n,KIND=GP)))
+         DO i = 1,nx-1
+            cdump = (R1(i,1,k)+im*R2(i,1,k))*EXP(im*R3(i,1,k)*pi/(alpha*REAL(nx,KIND=GP)))
             R1(i+1,1,k) = REAL(cdump)
             R2(i+1,1,k) = AIMAG(cdump)
          END DO
@@ -52,9 +58,9 @@
 
       CALL fftp3d_complex_to_real(plancr,C2,R3,MPI_COMM_WORLD) ! vy
       DO k = ksta,kend
-         DO i = 1,n
-            DO j = 1,n-1
-               cdump = (R1(i,j,k)+im*R2(i,j,k))*EXP(im*R3(i,j,k)*pi/(alpha*REAL(n,KIND=GP)))
+         DO i = 1,nx
+            DO j = 1,ny-1
+               cdump = (R1(i,j,k)+im*R2(i,j,k))*EXP(im*R3(i,j,k)*pi/(alpha*REAL(nx,KIND=GP)))
                R1(i,j+1,k) = REAL(cdump)
                R2(i,j+1,k) = AIMAG(cdump)
             END DO
@@ -63,18 +69,18 @@
 
 ! We set the amplitude of the density
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
 
             rmt = 2*pi
             DO ki = 1,4*n
-               rm1 = 2.0_GP*pi*REAL(ki-1,KIND=GP)/REAL(4*n,KIND=GP)
+               rm1 = 2.0_GP*pi*REAL(ki-1,KIND=GP)/REAL(4*nx,KIND=GP)
                rmp = pi + (vparam0*(Sin(rm1) + 2.0_GP*Sin(2.0_GP*rm1)))/3.0_GP ! x
                rmq = pi + (vparam0*(Cos(rm1) - 2.0_GP*Cos(2.0_GP*rm1)))/3.0_GP ! y
                rms = pi - (vparam0*Sin(3.0_GP*rm1))/3.0_GP !z
-               rmt = min(rmt,sqrt((2*pi*REAL(i-1,KIND=GP)/REAL(n,KIND=GP)-rmp)**2 &
-                                 +(2*pi*REAL(j-1,KIND=GP)/REAL(n,KIND=GP)-rmq)**2 &
-                                 +(2*pi*REAL(k-1,KIND=GP)/REAL(n,KIND=GP)-rms)**2))
+               rmt = min(rmt,sqrt((2*pi*REAL(i-1,KIND=GP)/REAL(nx,KIND=GP)-rmp)**2 &
+                                 +(2*pi*REAL(j-1,KIND=GP)/REAL(ny,KIND=GP)-rmq)**2 &
+                                 +(2*pi*REAL(k-1,KIND=GP)/REAL(nz,KIND=GP)-rms)**2))
             END DO
 
             tmq = sqrt((11.0_GP*(rmt/lambda)**2/32.0_GP+11.0_GP*(rmt/lambda)**4/384.0_GP) &

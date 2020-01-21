@@ -1,8 +1,8 @@
 ! Initial condition for the velocity.
 ! This file contains the expression used for the initial
 ! velocity field. You can use temporary real arrays R1-R3
-! of size (1:n,1:n,ksta:kend) and temporary complex arrays
-! C1-C8 of size (n,n,ista:iend) to do intermediate
+! of size (1:nx,1:ny,ksta:kend) and temporary complex arrays
+! C1-C8 of size (nz,ny,ista:iend) to do intermediate
 ! computations. The variable u0 should control the global
 ! amplitude of the velocity, and variables vparam0-9 can be
 ! used to control the amplitudes of individual terms. At the
@@ -18,9 +18,8 @@
 !               of the initial spectrum. Its value should be 
 !               something like alpha*ko where ko is the maximum
 !               of the spectrum and alpha is a constant
-!     vparam8 tiene que ser dump1(kup)/dump2(kup) donde dump1 y 
-!     dump2 son los dump que aparecen primero y segundo en los IF
-!     respectivamente
+!     (vparam8 must be dump1(kup)/dump2(kup), where dump1 and
+!     dump2 are the first and second 'dump' in the IFs below)
 
       vparam8 = kup**2
 
@@ -28,113 +27,113 @@
          C1(1,1,1) = 0.
          C2(1,1,1) = 0.
          C3(1,1,1) = 0.
-         DO j = 2,n/2+1
-            IF ((ka2(1,j,1).le.kup**2).and.(ka2(1,j,1).ge.kdn**2)) THEN
-               dump = 1.!sqrt(ka2(1,j,1))
+         DO j = 2,ny/2+1
+            IF ((kk2(1,j,1).le.kup**2).and.(kk2(1,j,1).ge.kdn**2)) THEN
+               dump = 1. !sqrt(kk2(1,j,1))
             ELSE
-               dump = vparam8*(1./ka2(1,j,1))
+               dump = vparam8*(1./kk2(1,j,1))
             ENDIF
-               vparam9 = 1./abs(ka(j))
+               vparam9 = 1./abs(ky(j))
                phase = 2*pi*randu(seed)
                cdump = COS(phase)+im*SIN(phase)
                phase = 2*pi*randu(seed)
                jdump = COS(phase)+im*SIN(phase)
-               C1(1,j,1) = cdump*dump*ka(j)*vparam9
-               C1(1,n-j+2,1) = conjg(C1(1,j,1))
-               C2(1,j,1) = 0.
-               C2(1,n-j+2,1) = 0.
-               C3(1,j,1) = -jdump*dump/(sqrt(ka2(1,j,1))*vparam9)
-               C3(1,n-j+2,1) = conjg(C3(1,j,1))
+               C1     (1,j,1) = cdump*dump*ky(j)*vparam9
+               C1(1,ny-j+2,1) = conjg(C1(1,j,1))
+               C2     (1,j,1) = 0.
+               C2(1,ny-j+2,1) = 0.
+               C3     (1,j,1) = -jdump*dump/(sqrt(kk2(1,j,1))*vparam9)
+               C3(1,ny-j+2,1) = conjg(C3(1,j,1))
          END DO
-         DO k = 2,n/2+1
-            IF ((ka2(k,1,1).le.kup**2).and.(ka2(k,1,1).ge.kdn**2)) THEN
-               dump = 1.!sqrt(ka2(k,1,1))
+         DO k = 2,nz/2+1
+            IF ((kk2(k,1,1).le.kup**2).and.(kk2(k,1,1).ge.kdn**2)) THEN
+               dump = 1. !sqrt(kk2(k,1,1))
             ELSE
-               dump = vparam8*(1./ka2(k,1,1))
+               dump = vparam8*(1./kk2(k,1,1))
             ENDIF
                phase = 2*pi*randu(seed)
                cdump = COS(phase)+im*SIN(phase)
                phase = 2*pi*randu(seed)
                jdump = COS(phase)+im*SIN(phase)
-               C1(k,1,1) = cdump*dump
-               C1(n-k+2,1,1) = conjg(C1(k,1,1))
-               C2(k,1,1) = jdump*dump
-               C2(n-k+2,1,1) = conjg(C2(k,1,1))
-               C3(k,1,1) = 0.
-               C3(n-k+2,1,1) = 0.
+               C1     (k,1,1) = cdump*dump
+               C1(nz-k+2,1,1) = conjg(C1(k,1,1))
+               C2     (k,1,1) = jdump*dump
+               C2(nz-k+2,1,1) = conjg(C2(k,1,1))
+               C3     (k,1,1) = 0.
+               C3(nz-k+2,1,1) = 0.
          END DO
-         DO j = 2,n
-            DO k = 2,n/2+1
-            IF ((ka2(k,j,1).le.kup**2).and.(ka2(k,j,1).ge.kdn**2)) THEN
-               dump = 1.!sqrt(ka2(k,j,1))
+         DO j = 2,ny
+            DO k = 2,nz/2+1
+            IF ((kk2(k,j,1).le.kup**2).and.(kk2(k,j,1).ge.kdn**2)) THEN
+               dump = 1. !sqrt(kk2(k,j,1))
             ELSE
-               dump = vparam8*(1./ka2(k,j,1))
+               dump = vparam8*(1./kk2(k,j,1))
             ENDIF   
-               vparam9 = 1./abs(ka(j))
+               vparam9 = 1./abs(ky(j))
                phase = 2*pi*randu(seed)
                cdump = COS(phase)+im*SIN(phase)
                phase = 2*pi*randu(seed)
                jdump = COS(phase)+im*SIN(phase)
-               C1(k,j,1) = cdump*ka(j)*vparam9
-               C1(n-k+2,n-j+2,1) = conjg(C1(k,j,1))
-               C2(k,j,1) = ka(j)*ka(k)*jdump*dump*vparam9/              &
-                            sqrt(ka2(k,j,1))
-               C2(n-k+2,n-j+2,1) = conjg(C2(k,j,1))
-               C3(k,j,1) = -jdump*dump/(sqrt(ka2(k,j,1))*vparam9)
-               C3(n-k+2,n-j+2,1) = conjg(C3(k,j,1))
+               C1          (k,j,1) = cdump*ky(j)*vparam9
+               C1(nz-k+2,ny-j+2,1) = conjg(C1(k,j,1))
+               C2          (k,j,1) = ky(j)*kz(k)*jdump*dump*vparam9/    &
+                                     sqrt(kk2(k,j,1))
+               C2(nz-k+2,ny-j+2,1) = conjg(C2(k,j,1))
+               C3          (k,j,1) = -jdump*dump/(sqrt(kk2(k,j,1))*vparam9)
+               C3(nz-k+2,ny-j+2,1) = conjg(C3(k,j,1))
             END DO
          END DO
          DO i = 2,iend
-            DO j = 1,n
-               DO k = 1,n
-               IF ((ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
-                  dump = 1.!sqrt(ka2(k,j,i))
+            DO j = 1,ny
+               DO k = 1,nz
+               IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+                  dump = 1. !sqrt(kk2(k,j,i))
                ELSE
-                  dump = vparam8*(1./ka2(k,j,i))
+                  dump = vparam8*(1./kk2(k,j,i))
                ENDIF   
-                  vparam9 = 1./sqrt(ka(i)**2+ka(j)**2)
+                  vparam9 = 1./sqrt(kx(i)**2+ky(j)**2)
                   phase = 2*pi*randu(seed)
                   cdump = COS(phase)+im*SIN(phase)
                   phase = 2*pi*randu(seed)
                   jdump = COS(phase)+im*SIN(phase)
-                  C1(k,j,i) = 2*(cdump*ka(j) + jdump*ka(k)*ka(i)/       &
-                               sqrt(ka2(k,j,i)))*                       &
+                  C1(k,j,i) = 2*(cdump*ky(j) + jdump*kz(k)*kx(i)/       &
+                               sqrt(kk2(k,j,i)))*                       &
                                vparam9*dump
-                  C2(k,j,i) = 2*(-cdump*ka(i)+ka(j)*ka(k)*jdump         &
-                               /sqrt(ka2(k,j,i)))*vparam9*dump
-                  C3(k,j,i) = -2*jdump*dump/(sqrt(ka2(k,j,i))*vparam9)
+                  C2(k,j,i) = 2*(-cdump*kx(i)+ky(j)*kz(k)*jdump         &
+                               /sqrt(kk2(k,j,i)))*vparam9*dump
+                  C3(k,j,i) = -2*jdump*dump/(sqrt(kk2(k,j,i))*vparam9)
                END DO
             END DO
          END DO
       ELSE
          DO i = ista,iend
-            DO j = 1,n
-               DO k = 1,n
-               IF ((ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
-               dump = 1.!sqrt(ka2(k,j,i))
+            DO j = 1,ny
+               DO k = 1,nz
+               IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+               dump = 1. !sqrt(kk2(k,j,i))
                ELSE
-               dump = vparam8*(1./ka2(k,j,i))
+               dump = vparam8*(1./kk2(k,j,i))
                ENDIF
-               vparam9 = 1./sqrt(ka(i)**2+ka(j)**2)
+               vparam9 = 1./sqrt(kx(i)**2+ky(j)**2)
                phase = 2*pi*randu(seed)
                cdump = COS(phase)+im*SIN(phase)
                phase = 2*pi*randu(seed)
                jdump = COS(phase)+im*SIN(phase)
-               C1(k,j,i) = 2*(cdump*ka(j) + jdump*ka(k)*ka(i)/          &
-                            sqrt(ka2(k,j,i)))*                          &
+               C1(k,j,i) = 2*(cdump*ky(j) + jdump*kz(k)*kx(i)/          &
+                            sqrt(kk2(k,j,i)))*                          &
                              vparam9*dump
-               C2(k,j,i) = 2*(-cdump*ka(i)+ka(j)*ka(k)*jdump            &
-                               /sqrt(ka2(k,j,i)))*vparam9*dump
-               C3(k,j,i) = -2*jdump*dump/(sqrt(ka2(k,j,i))*vparam9)
+               C2(k,j,i) = 2*(-cdump*kx(i)+ky(j)*kz(k)*jdump            &
+                               /sqrt(kk2(k,j,i)))*vparam9*dump
+               C3(k,j,i) = -2*jdump*dump/(sqrt(kk2(k,j,i))*vparam9)
                END DO
             END DO
         END DO   
       ENDIF
 
         DO i = ista,iend
-           DO j = 1,n
-              DO k = 1,n
-                 IF (ka2(k,j,i).le.kmax) THEN
+           DO j = 1,ny
+              DO k = 1,nz
+                 IF (kn2(k,j,i).le.kmax) THEN
                  vx(k,j,i) = C1(k,j,i)
                  vy(k,j,i) = C2(k,j,i)
                  vz(k,j,i) = C3(k,j,i)
