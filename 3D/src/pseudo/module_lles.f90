@@ -7,27 +7,31 @@
 
 !=================================================================
 MODULE alpha
+  USE fprecision
   REAL(KIND=GP), SAVE :: alpk,alpm
 
 CONTAINS
   SUBROUTINE normalize(fx,fy,fz,f0,kin,comm)
+    USE commtypes
     USE grid
     USE mpivars
+!$  USE threads
     IMPLICIT NONE
     
     DOUBLE PRECISION    :: tmp
-    COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: fx,fy,fz
+    COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,nx,ista:iend) :: fx,fy,fz
     REAL(KIND=GP), INTENT(IN) :: f0
     INTEGER, INTENT(IN) :: kin
     INTEGER, INTENT(IN) :: comm
+    INTEGER :: i,j,k
     
     CALL aenergy(fx,fy,fz,tmp,alpk,kin)
     CALL MPI_BCAST(tmp,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
     DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-       DO j = 1,n
-          DO k = 1,n
+       DO j = 1,ny
+          DO k = 1,nz
              fx(k,j,i) = fx(k,j,i)*f0/sqrt(tmp)
              fy(k,j,i) = fy(k,j,i)*f0/sqrt(tmp)
              fz(k,j,i) = fz(k,j,i)*f0/sqrt(tmp)

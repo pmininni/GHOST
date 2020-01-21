@@ -15,7 +15,6 @@ CONTAINS
     USE commtypes
     USE grid
     USE mpivars
-    USE mpivars
 !$  USE threads
     IMPLICIT NONE
 

@@ -52,7 +52,32 @@ to build a solver other than the default):
    EDQNMHD    EDQNM HD solver
    EDQNMROTH  EDQNM ROTH solver
 
-2. trans
+2. utils
+========
+
+GHOST has several utilities to perform analysis of turbulent flows
+using the outputs produced by different solvers, or to do 
+post-processing of the data. Sources for these utilities can be
+found in GHOST/3D/src/analysis (see the sources for more details). 
+Note many of these tools may only work in some specific domains 
+(e.g., in cubic domains with isotropic grids), or be only fully
+supported in GHOST v1. The following utilities can be currently 
+built ('make util_name'):
+
+   boots  Regrids data to higher spatial resolution
+   trunc  Truncates data to lower spatial resolution
+   cancel Computes cancellation exponents
+   shear  Computes strain rate tensor
+   vt     Computes velocity gradient tensor
+   wv     Computes wave-vortical decomposition
+   trans  Computes shell-to-shell transfer (see below)
+   triad  Computes triadic transfer functions (see below)
+   struc  Computes structure functions (see below)
+
+The utilities 'boots' and 'trunc' can also be used to change
+data endianness.
+
+3. trans
 ========
 
 The code to compute shell-to-shell transfers is built with 
@@ -64,7 +89,7 @@ The code to compute shell-to-shell transfers is built with
    HMHD   Hall-MHD transfer functions
    ROTH   transfer functions for HD in a rotating frame
 
-3. triad
+4. triad
 ========
 
 The code to compute triadic transfer functions is built with 
@@ -73,7 +98,7 @@ The code to compute triadic transfer functions is built with
 
    HD     HD transfer functions [DEFAULT]
 
-4. struc
+5. struc
 ========
 
 The code to compute structure functions is built with 'make struc'. 

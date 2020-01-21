@@ -1,8 +1,8 @@
 ! Initial condition for the velocity.
 ! This file contains the expression used for the initial 
 ! velocity field. You can use temporary real arrays R1-R3 
-! of size (1:n,1:n,ksta:kend) and temporary complex arrays 
-! C1-C8 of size (n,n,ista:iend) to do intermediate 
+! of size (1:nx,1:ny,ksta:kend) and temporary complex arrays 
+! C1-C8 of size (nz,ny,ista:iend) to do intermediate 
 ! computations. The variable u0 should control the global 
 ! amplitude of the velocity, and variables vparam0-9 can be
 ! used to control the amplitudes of individual terms. At the
@@ -10,8 +10,8 @@
 ! space should be stored in the arrays vx, vy, and vz.
 
 ! Initial conditions from Kimura & Herring (JFM 328:253 (1996))
-! For this paper, kdn=1, and kup = N/2+1, but we can use any
-! interval
+! For this paper, kdn=1, and kup = N/2+1 (in a cubic box of 
+! length 2.pi), but we can use any interval
 !     kdn    : minimum wave number
 !     kup    : maximum wave number
 !     vparam0: wave number peak in spectrum

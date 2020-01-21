@@ -46,7 +46,8 @@ PARTICLES = no
 # FFTP:
 # fftp-2   builds FFTP-2 (links with FFTW 2.x)
 # fftp-3   builds FFTP-3 (links with FFTW 3.x)
-# FFTWxDIR contains the path to the FFTW libraries
+# FFTWxDIR contains the path to the FFTW libraries. Only the path to the 
+# version of FFTW that is used is needed, the other can be left empty.
 FFTP     = fftp-3
 FFTW2DIR = /opt/ohpc/pub/libs/gnu7/fftw/2.1.5
 FFTW3DIR = /opt/ohpc/pub/libs/gnu7/fftw/3.3.7

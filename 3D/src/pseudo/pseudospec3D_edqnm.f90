@@ -293,6 +293,7 @@
       USE mpivars
       USE grid
       USE fft
+      USE edqnm
       IMPLICIT NONE
 
       DOUBLE PRECISION, INTENT (IN), DIMENSION(n/2+1)     :: Ein
@@ -345,10 +346,6 @@
          expo   = ((z*nn-v*m)-power*(w*m-y*nn))/dden
          ddelta = expo*x/m - power*y/m - z/m
       ENDIF
-!     write(*,*)'spec_fit: pden=',pden,' pnum=',pnum,' dden=', dden
-!     write(*,*)'spec_fit: power=',power,' expo=',expo,' ddelta=',ddelta
-!     write(*,*)'spec_fit: z=',z,' nn=',nn, ' v=',v,' m=',m,' kinf=',kinf,' ksup=',ksup,' tinyf',tinyf
-!     write(*,*)'Ein=',Ein
       IF ( power.ge.0. .and. ddelta.ge.0. ) THEN
          expo   = exp(expo)
          DO k = 1,3*(n/2+1)
@@ -431,6 +428,7 @@
       USE mpivars
       USE grid
       USE kes
+      USE edqnm
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
@@ -496,6 +494,7 @@
       USE grid
       USE kes
       USE var
+      USE edqnm
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
@@ -515,14 +514,14 @@
 
       i = 1
       j = 1
-      kx2= ka(i)**2
-      ky2= ka(j)**2
+      kx2= kx(i)**2
+      ky2= ky(j)**2
       norm = real(n,kind=GP)**3
       inorm = 1./dble(norm)
       DO k = 2,n
-         IF (ka2(k,j,i).gt.kmax) CYCLE
-         kz2= ka(k)**2
-         km = int(sqrt(ka2(k,j,i))+.501)        
+         IF (kn2(k,j,i).gt.kmax) CYCLE
+         kz2= kz(k)**2
+         km = int(sqrt(kk2(k,j,i))+.501)        
          vxr = dble (vx(k,j,i))*inorm
          vxi = aimag(vx(k,j,i))*inorm
          vyr = dble (vy(k,j,i))*inorm
@@ -531,9 +530,9 @@
          vzi = 0.
          v2 = vxr**2+vxi**2+vyr**2+vyi**2+vzr**2+vzi**2
          E  = v2 + 2.0*tepq(km)*dt*ef(k,j,i)/eold(km)
-         w2 = ka(k)*( vxr*vyi - vxi*vyr ) &
-            + ka(j)*( vzr*vxi - vzi*vxr ) &
-            + ka(i)*( vyr*vzi - vyi*vzr )
+         w2 = kz(k)*( vxr*vyi - vxi*vyr ) &
+            + ky(j)*( vzr*vxi - vzi*vxr ) &
+            + kx(i)*( vyr*vzi - vyi*vzr )
          IF ( hel.eq.1 ) THEN
             H = w2 + thpq(km)*dt*hf(k,j,i)/hold(km)
          ELSE
@@ -559,8 +558,8 @@
 
          tmp1 = 1.
          tmp2 = 1.
-         tmp = (E*sqrt(1.-H**2/(0.25*ka2(k,j,i)*E**2)))/   &
-               (v2*sqrt(1.-w2**2/(0.25*ka2(k,j,i)*v2**2)))
+         tmp = (E*sqrt(1.-H**2/(0.25*kk2(k,j,i)*E**2)))/   &
+               (v2*sqrt(1.-w2**2/(0.25*kk2(k,j,i)*v2**2)))
          vx2 = tmp*(vxr**2+vxi**2-0.5*v2) + 0.5*E
          vy2 = tmp*(vyr**2+vyi**2-0.5*v2) + 0.5*E
          tmp1 = sign(tmp1,vx2)
@@ -568,7 +567,7 @@
          mx  = sqrt(abs(vx2))
          my  = sqrt(abs(vy2))
          sxy = H
-         dsxy= ka(k)*mx*my
+         dsxy= kz(k)*mx*my
 
          IF ( tmp1.ge.0. .and. tmp2.ge.0. .and. abs(sxy).le.abs(dsxy) & 
             .and. dsxy.ne.0. ) THEN
@@ -626,6 +625,7 @@
       USE grid
       USE kes
       USE var
+      USE edqnm
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
@@ -645,14 +645,14 @@
 
       i = 1
       k = 1
-      kx2= ka(i)**2
-      kz2= ka(k)**2
+      kx2= kx(i)**2
+      kz2= kz(k)**2
       norm = real(n,kind=GP)**3
       inorm = 1./dble(norm)
       DO j = 2,n
-         IF (ka2(k,j,i).gt.kmax) CYCLE
-         ky2= ka(j)**2
-         km = int(sqrt(ka2(k,j,i))+.501)        
+         IF (kn2(k,j,i).gt.kmax) CYCLE
+         ky2= ky(j)**2
+         km = int(sqrt(kk2(k,j,i))+.501)        
          vxr = dble (vx(k,j,i))*inorm
          vxi = aimag(vx(k,j,i))*inorm
          vyr = 0.
@@ -661,9 +661,9 @@
          vzi = aimag(vz(k,j,i))*inorm
          v2 = vxr**2+vxi**2+vyr**2+vyi**2+vzr**2+vzi**2
          E  = v2 + 2.0*tepq(km)*dt*ef(k,j,i)/eold(km)
-         w2 = ka(k)*( vxr*vyi - vxi*vyr ) &
-            + ka(j)*( vzr*vxi - vzi*vxr ) &
-            + ka(i)*( vyr*vzi - vyi*vzr )  
+         w2 = kz(k)*( vxr*vyi - vxi*vyr ) &
+            + ky(j)*( vzr*vxi - vzi*vxr ) &
+            + kx(i)*( vyr*vzi - vyi*vzr )  
          IF ( hel.eq.1 ) THEN
             H = w2 + thpq(km)*dt*hf(k,j,i)/hold(km)
          ELSE
@@ -689,8 +689,8 @@
 
          tmp1 = 1.
          tmp2 = 1.
-         tmp = (E*sqrt(1.-H**2/(0.25*ka2(k,j,i)*E**2)))/   &
-               (v2*sqrt(1.-w2**2/(0.25*ka2(k,j,i)*v2**2)))
+         tmp = (E*sqrt(1.-H**2/(0.25*kk2(k,j,i)*E**2)))/   &
+               (v2*sqrt(1.-w2**2/(0.25*kk2(k,j,i)*v2**2)))
          vx2 = tmp*(vxr**2+vxi**2-0.5*v2) + 0.5*E
          vz2 = tmp*(vzr**2+vzi**2-0.5*v2) + 0.5*E
          tmp1 = sign(tmp1,vx2)
@@ -698,7 +698,7 @@
          mx  = sqrt(abs(vx2))
          mz  = sqrt(abs(vz2))
          szx = H
-         dszx= ka(j)*mx*mz
+         dszx= ky(j)*mx*mz
 
          IF ( tmp1.ge.0. .and. tmp2.ge.0. .and. abs(szx).le.abs(dszx) &
             .and. dszx.ne.0. ) THEN
@@ -756,6 +756,7 @@
       USE grid
       USE kes
       USE var
+      USE edqnm
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
@@ -775,14 +776,14 @@
 
       j = 1
       k = 1
-      ky2= ka(j)**2
-      kz2= ka(k)**2
+      ky2= ky(j)**2
+      kz2= kz(k)**2
       norm = real(n,kind=GP)**3
       inorm = 1./dble(norm)
       DO i = ista+ip,iend
-         IF (ka2(k,j,i).gt.kmax) CYCLE
-         kx2= ka(i)**2
-         km = int(sqrt(ka2(k,j,i))+.501)        
+         IF (kn2(k,j,i).gt.kmax) CYCLE
+         kx2= kx(i)**2
+         km = int(sqrt(kk2(k,j,i))+.501)        
          vxr = 0.
          vxi = 0.
          vyr = dble (vy(k,j,i))*inorm
@@ -791,9 +792,9 @@
          vzi = aimag(vz(k,j,i))*inorm
          v2 = vxr**2+vxi**2+vyr**2+vyi**2+vzr**2+vzi**2
          E  = v2 + 2.0*tepq(km)*dt*ef(k,j,i)/eold(km)
-         w2 = ka(k)*( vxr*vyi - vxi*vyr ) &
-            + ka(j)*( vzr*vxi - vzi*vxr ) &
-            + ka(i)*( vyr*vzi - vyi*vzr )  
+         w2 = kz(k)*( vxr*vyi - vxi*vyr ) &
+            + ky(j)*( vzr*vxi - vzi*vxr ) &
+            + kx(i)*( vyr*vzi - vyi*vzr )  
          IF ( hel.eq.1 ) THEN
             H = w2 + thpq(km)*dt*hf(k,j,i)/hold(km)
          ELSE
@@ -819,8 +820,8 @@
 
          tmp1 = 1.
          tmp2 = 1.
-         tmp = (E*sqrt(1.-H**2/(0.25*ka2(k,j,i)*E**2)))/   &
-               (v2*sqrt(1.-w2**2/(0.25*ka2(k,j,i)*v2**2)))
+         tmp = (E*sqrt(1.-H**2/(0.25*kk2(k,j,i)*E**2)))/   &
+               (v2*sqrt(1.-w2**2/(0.25*kk2(k,j,i)*v2**2)))
          vy2 = tmp*(vyr**2+vyi**2-0.5*v2) + 0.5*E
          vz2 = tmp*(vzr**2+vzi**2-0.5*v2) + 0.5*E
          tmp1 = sign(tmp1,vy2)
@@ -829,7 +830,7 @@
          mz  = sqrt(abs(vz2))
 
          syz = H
-         dsyz= ka(i)*mz*my
+         dsyz= kx(i)*mz*my
 
          IF ( tmp1.ge.0. .and. tmp2.ge.0. .and. abs(syz).le.abs(dsyz) &
             .and. dsyz.ne.0. ) THEN
@@ -886,6 +887,7 @@
       USE grid
       USE kes
       USE var
+      USE edqnm
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
@@ -905,15 +907,15 @@
       INTEGER             :: i,j,k,km
 
       i = 1
-      kx2= ka(i)**2
+      kx2= kx(i)**2
       norm = real(n,kind=GP)**3
       inorm = 1./dble(norm)
       DO j = 2,n
-      ky2= ka(j)**2
+      ky2= ky(j)**2
       DO k = 2,n
-         IF (ka2(k,j,i).gt.kmax) CYCLE
-         kz2= ka(k)**2
-         km = int(sqrt(ka2(k,j,i))+.501)        
+         IF (kn2(k,j,i).gt.kmax) CYCLE
+         kz2= kz(k)**2
+         km = int(sqrt(kk2(k,j,i))+.501)        
          vxr = dble (vx(k,j,i))*inorm
          vxi = aimag(vx(k,j,i))*inorm
          vyr = dble (vy(k,j,i))*inorm
@@ -921,9 +923,9 @@
          vzr = dble (vz(k,j,i))*inorm
          vzi = aimag(vz(k,j,i))*inorm
          v2 = vxr**2+vxi**2+vyr**2+vyi**2+vzr**2+vzi**2
-         w2 = ka(k)*( vxr*vyi - vxi*vyr ) &
-            + ka(j)*( vzr*vxi - vzi*vxr ) &
-            + ka(i)*( vyr*vzi - vyi*vzr )  
+         w2 = kz(k)*( vxr*vyi - vxi*vyr ) &
+            + ky(j)*( vzr*vxi - vzi*vxr ) &
+            + kx(i)*( vyr*vzi - vyi*vzr )  
          E  = v2 + 2.0*tepq(km)*dt*ef(k,j,i)/eold(km)
          IF ( hel.eq.1 ) THEN
             H = w2 + thpq(km)*dt*hf(k,j,i)/hold(km)
@@ -959,8 +961,8 @@
 
          tmp1 = 1.
          tmp2 = 1.
-         vx2 = ((E*sqrt(1.-H**2/(0.25*ka2(k,j,i)*E**2)))/ &
-             (v2*sqrt(1.-w2**2/(0.25*ka2(k,j,i)*v2**2)))) &
+         vx2 = ((E*sqrt(1.-H**2/(0.25*kk2(k,j,i)*E**2)))/ &
+             (v2*sqrt(1.-w2**2/(0.25*kk2(k,j,i)*v2**2)))) &
              * (vxr**2+vxi**2-0.5*v2) + 0.5*E
          tmp1= sign(tmp1,vx2)
          mx  = sqrt(abs(vx2))
@@ -970,9 +972,9 @@
          my  = sqrt(abs(tmp3)*kz2*tmp)
          mz  = sqrt(abs(tmp3)*ky2*tmp)
 
-         sxy = ka(k)*H
+         sxy = kz(k)*H
          dsxy= (ky2+kz2)*mx*my
-         szx = ka(j)*H
+         szx = ky(j)*H
          dszx= (ky2+kz2)*mx*mz
 
          IF ( tmp1.ge.0. .and. tmp2.ge.0. .and. abs(sxy).le.abs(dsxy) &
@@ -1056,6 +1058,7 @@
       USE grid
       USE kes
       USE var
+      USE edqnm
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
@@ -1075,15 +1078,15 @@
       INTEGER             :: i,j,k,km
 
       j = 1
-      ky2= ka(j)**2
+      ky2= ky(j)**2
       norm = real(n,kind=GP)**3
       inorm = 1./dble(norm)
       DO i = ista+ip,iend
-      kx2= ka(i)**2
+      kx2= kx(i)**2
       DO k = 2,n     
-         IF (ka2(k,j,i).gt.kmax) CYCLE
-         kz2= ka(k)**2
-         km = int(sqrt(ka2(k,j,i))+.501)
+         IF (kn2(k,j,i).gt.kmax) CYCLE
+         kz2= kz(k)**2
+         km = int(sqrt(kk2(k,j,i))+.501)
          vxr = real (vx(k,j,i))*inorm
          vxi = aimag(vx(k,j,i))*inorm
          vyr = real (vy(k,j,i))*inorm
@@ -1092,9 +1095,9 @@
          vzi = aimag(vz(k,j,i))*inorm
          v2 = vxr**2+vxi**2+vyr**2+vyi**2+vzr**2+vzi**2
          E  = v2 + 2.0*tepq(km)*dt*ef(k,j,i)/eold(km)
-         w2 = ka(k)*( vxr*vyi - vxi*vyr ) &
-            + ka(j)*( vzr*vxi - vzi*vxr ) &
-            + ka(i)*( vyr*vzi - vyi*vzr )  
+         w2 = kz(k)*( vxr*vyi - vxi*vyr ) &
+            + ky(j)*( vzr*vxi - vzi*vxr ) &
+            + kx(i)*( vyr*vzi - vyi*vzr )  
          IF ( hel.eq.1 ) THEN
             H = w2 + thpq(km)*dt*hf(k,j,i)/hold(km)
          ELSE
@@ -1129,8 +1132,8 @@
 
          tmp1 = 1.
          tmp2 = 1.
-         vy2 = ((E*sqrt(1.-H*H/(0.25*ka2(k,j,i)*E*E)))/   &
-             (v2*sqrt(1.-w2*w2/(0.25*ka2(k,j,i)*v2*v2)))) &
+         vy2 = ((E*sqrt(1.-H*H/(0.25*kk2(k,j,i)*E*E)))/   &
+             (v2*sqrt(1.-w2*w2/(0.25*kk2(k,j,i)*v2*v2)))) &
              * (vyr**2+vyi**2-0.5*v2) + 0.5*E
          tmp1 = sign(tmp1,vy2)
          my  = sqrt(vy2)
@@ -1140,9 +1143,9 @@
          mx  = sqrt(abs(tmp3)*kz2*tmp)
          mz  = sqrt(abs(tmp3)*kx2*tmp)
 
-         sxy = ka(k)*H
+         sxy = kz(k)*H
          dsxy= (kx2+kz2)*mx*my
-         syz = ka(i)*H
+         syz = kx(i)*H
          dsyz= (kx2+kz2)*my*mz
 
          IF ( tmp1.ge.0. .and. tmp2.ge.0. .and. abs(sxy).le.abs(dsxy) &
@@ -1226,6 +1229,7 @@
       USE grid
       USE kes
       USE var
+      USE edqnm
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
@@ -1245,15 +1249,15 @@
       INTEGER             :: i,j,k,km
 
       k = 1
-      kz2= ka(k)**2
+      kz2= kz(k)**2
       norm = real(n,kind=GP)**3
       inorm = 1./dble(norm)
       DO i = ista+ip,iend
-      kx2= ka(i)**2
+      kx2= kx(i)**2
       DO j = 2,n     
-         IF (ka2(k,j,i).gt.kmax) CYCLE
-         ky2= ka(j)**2
-         km = int(sqrt(ka2(k,j,i))+.501)        
+         IF (kn2(k,j,i).gt.kmax) CYCLE
+         ky2= ky(j)**2
+         km = int(sqrt(kk2(k,j,i))+.501)        
          vxr = real (vx(k,j,i))*inorm
          vxi = aimag(vx(k,j,i))*inorm
          vyr = real (vy(k,j,i))*inorm
@@ -1262,9 +1266,9 @@
          vzi = aimag(vz(k,j,i))*inorm
          v2 = vxr**2+vxi**2+vyr**2+vyi**2+vzr**2+vzi**2
          E  = v2 + 2.0*tepq(km)*dt*ef(k,j,i)/eold(km)
-         w2 = ka(k)*( vxr*vyi - vxi*vyr ) &
-            + ka(j)*( vzr*vxi - vzi*vxr ) &
-            + ka(i)*( vyr*vzi - vyi*vzr )  
+         w2 = kz(k)*( vxr*vyi - vxi*vyr ) &
+            + ky(j)*( vzr*vxi - vzi*vxr ) &
+            + kx(i)*( vyr*vzi - vyi*vzr )  
          IF ( hel.eq.1 ) THEN
             H = w2 + thpq(km)*dt*hf(k,j,i)/hold(km)
          ELSE
@@ -1299,8 +1303,8 @@
 
          tmp1 = 1.
          tmp2 = 1.
-         vz2 = ((E*sqrt(1.-H*H/(0.25*ka2(k,j,i)*E*E)))/   &
-             (v2*sqrt(1.-w2*w2/(0.25*ka2(k,j,i)*v2*v2)))) &
+         vz2 = ((E*sqrt(1.-H*H/(0.25*kk2(k,j,i)*E*E)))/   &
+             (v2*sqrt(1.-w2*w2/(0.25*kk2(k,j,i)*v2*v2)))) &
              * ((vzr**2+vzi**2)-0.5*v2) + 0.5*E
          tmp1= sign(tmp1,vz2)
          mz  = sqrt(abs(vz2))
@@ -1310,9 +1314,9 @@
          mx  = sqrt(abs(tmp3)*ky2*tmp)
          my  = sqrt(abs(tmp3)*kx2*tmp)
 
-         szx = ka(j)*H
+         szx = ky(j)*H
          dszx= (kx2+ky2)*mx*mz
-         syz = ka(i)*H
+         syz = kx(i)*H
          dsyz= (kx2+ky2)*my*mz
 
          IF ( tmp1.ge.0. .and. tmp2.ge.0. .and. abs(szx).le.abs(dszx) &
@@ -1396,6 +1400,7 @@
       USE grid
       USE kes
       USE var
+      USE edqnm
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz
@@ -1416,24 +1421,24 @@
       norm = real(n,kind=GP)**3
       inorm = 1./dble(norm)
       DO i = ista+ip,iend
-      kx2= ka(i)**2
+      kx2= kx(i)**2
       DO j = 2,n     
-      ky2= ka(j)**2
+      ky2= ky(j)**2
       DO k = 2,n
-         IF (ka2(k,j,i).gt.kmax) CYCLE
-         kz2= ka(k)**2
-         km = int(sqrt(ka2(k,j,i))+.501)        
+         IF (kn2(k,j,i).gt.kmax) CYCLE
+         kz2= kz(k)**2
+         km = int(sqrt(kk2(k,j,i))+.501)        
          vxr = real (vx(k,j,i))*inorm
          vxi = aimag(vx(k,j,i))*inorm
          vyr = real (vy(k,j,i))*inorm
          vyi = aimag(vy(k,j,i))*inorm
-         vzr = (-ka(i)*vxr-ka(j)*vyr)/ka(k)    !Divergence-free
-         vzi = (-ka(i)*vxi-ka(j)*vyi)/ka(k)    !Divergence-free
+         vzr = (-kx(i)*vxr-ky(j)*vyr)/kz(k)    !Divergence-free
+         vzi = (-kx(i)*vxi-ky(j)*vyi)/kz(k)    !Divergence-free
          v2 = vxr**2+vxi**2+vyr**2+vyi**2+vzr**2+vzi**2
          E  = v2 + 2.0*tepq(km)*dt*ef(k,j,i)/eold(km)
-         w2 = ka(k)*( vxr*vyi - vxi*vyr ) &
-            + ka(j)*( vzr*vxi - vzi*vxr ) &
-            + ka(i)*( vyr*vzi - vyi*vzr )  
+         w2 = kz(k)*( vxr*vyi - vxi*vyr ) &
+            + ky(j)*( vzr*vxi - vzi*vxr ) &
+            + kx(i)*( vyr*vzi - vyi*vzr )  
          IF ( hel.eq.1 ) THEN
             H = w2 + thpq(km)*dt*hf(k,j,i)/hold(km)
          ELSE
@@ -1450,35 +1455,35 @@
          tmp1= 1.
          tmp2= 1.
          tmp3= 1.
-         tmq = (E*sqrt(1.-H**2/(0.25*ka2(k,j,i)*E**2)))/        &
-               (v2*sqrt(1-w2**2/(0.25*ka2(k,j,i)*v2**2)))
-         vx2 = tmq*(vxr**2+vxi**2-(1.-kx2/ka2(k,j,i))*0.5*v2) + &
-             (1.-kx2/ka2(k,j,i))*0.5*E
-         vy2 = tmq*(vyr**2+vyi**2-(1.-ky2/ka2(k,j,i))*0.5*v2) + &
-             (1.-ky2/ka2(k,j,i))*0.5*E;
-         vz2 = tmq*(vzr**2+vzi**2-(1.-kz2/ka2(k,j,i))*0.5*v2) + &
-             (1.-kz2/ka2(k,j,i))*0.5*E
+         tmq = (E*sqrt(1.-H**2/(0.25*kk2(k,j,i)*E**2)))/        &
+               (v2*sqrt(1-w2**2/(0.25*kk2(k,j,i)*v2**2)))
+         vx2 = tmq*(vxr**2+vxi**2-(1.-kx2/kk2(k,j,i))*0.5*v2) + &
+             (1.-kx2/kk2(k,j,i))*0.5*E
+         vy2 = tmq*(vyr**2+vyi**2-(1.-ky2/kk2(k,j,i))*0.5*v2) + &
+             (1.-ky2/kk2(k,j,i))*0.5*E;
+         vz2 = tmq*(vzr**2+vzi**2-(1.-kz2/kk2(k,j,i))*0.5*v2) + &
+             (1.-kz2/kk2(k,j,i))*0.5*E
          tmp1= sign(tmp1,vx2)
          tmp2= sign(tmp2,vy2)
          tmp3= sign(tmp3,vz2)
          mx  = sqrt(abs(vx2))
          my  = sqrt(abs(vy2))
          mz  = sqrt(abs(vz2))
-         szx = H*ka(j)
-         dszx= ka2(k,j,i)*mx*mz
-         sxy = H*ka(k)
-         dsxy= ka2(k,j,i)*my*mx
-         syz = H*ka(i)
-         dsyz= ka2(k,j,i)*my*mz
+         szx = H*ky(j)
+         dszx= kk2(k,j,i)*mx*mz
+         sxy = H*kz(k)
+         dsxy= kk2(k,j,i)*my*mx
+         syz = H*kx(i)
+         dsyz= kk2(k,j,i)*my*mz
 
          czx = (ky2*E - mx*mx*(kx2+ky2) - mz*mz*(ky2+kz2))
-         dczx= 2.*ka(i)*ka(k)*mx*mz
+         dczx= 2.*kx(i)*kz(k)*mx*mz
 
          cxy = (kz2*E - mx*mx*(kx2+kz2) - my*my*(ky2+kz2))
-         dcxy= 2.*ka(i)*ka(j)*mx*my
+         dcxy= 2.*kx(i)*ky(j)*mx*my
 
          cyz = (kx2*E - my*my*(kx2+ky2) - mz*mz*(kx2+kz2))
-         dcyz= 2.*ka(j)*ka(k)*my*mz
+         dcyz= 2.*ky(j)*kz(k)*my*mz
 
          IF ( tmp1.ge.0. .and. tmp2.ge.0. .and. tmp3.ge.0. &
         .and. abs(sxy).le.abs(dsxy) .and. dsxy.ne.0. .and. &
@@ -1524,10 +1529,10 @@
               vyi = tmq*(-syz*vzr+cyz*vzi)
            ENDIF
          ELSE
-           tmp = (1.-kx2/ka2(k,j,i))*0.5*E*(1.+sqrt(1.-H**2/(0.25*E**2* &
-                  ka2(k,j,i))))
-           tmq = (1.-kx2/ka2(k,j,i))*0.5*E*(1.-sqrt(1.-H**2/(0.25*E**2* &
-                  ka2(k,j,i))))
+           tmp = (1.-kx2/kk2(k,j,i))*0.5*E*(1.+sqrt(1.-H**2/(0.25*E**2* &
+                  kk2(k,j,i))))
+           tmq = (1.-kx2/kk2(k,j,i))*0.5*E*(1.-sqrt(1.-H**2/(0.25*E**2* &
+                  kk2(k,j,i))))
            IF ( vx2.gt.tmp) vx2 = tmp
            IF ( vx2.lt.tmq) vx2 = tmq
            tmp1  = 1.
@@ -1538,8 +1543,8 @@
            tmp   = 1.
            tmp2  = 1.
            tmp3  = 1.
-           tmp4  = kx2*ky2*kz2*(-mx**4*ka2(k,j,i) + mx*mx*(ky2 + kz2)*E &
-              - H*H*(ky2+kz2)**2/(ka2(k,j,i)**2))
+           tmp4  = kx2*ky2*kz2*(-mx**4*kk2(k,j,i) + mx*mx*(ky2 + kz2)*E &
+              - H*H*(ky2+kz2)**2/(kk2(k,j,i)**2))
            tmp   = sign(tmp ,tmp4)
            delta = 4.*sqrt(abs(tmp4))*tmq
            tmp4  = (-vx2*(2.*(kx2+kz2)*(ky2+kz2)-4.*kx2*ky2) &
@@ -1551,23 +1556,23 @@
            tmp3  = sign(tmp3,tmp4)
            mz    = sqrt(abs(tmp4))
 
-           szx = H*ka(j)
-           dszx= ka2(k,j,i)*mx*mz
+           szx = H*ky(j)
+           dszx= kk2(k,j,i)*mx*mz
 
-           sxy = H*ka(k)
-           dsxy= ka2(k,j,i)*my*mx
+           sxy = H*kz(k)
+           dsxy= kk2(k,j,i)*my*mx
 
-           syz = H*ka(i)
-           dsyz= ka2(k,j,i)*my*mz
+           syz = H*kx(i)
+           dsyz= kk2(k,j,i)*my*mz
 
            czx = (ky2*E - mx*mx*(kx2+ky2) - mz*mz*(ky2+kz2))
-           dczx= 2.*ka(i)*ka(k)*mx*mz
+           dczx= 2.*kx(i)*kz(k)*mx*mz
 
            cxy = (kz2*E - mx*mx*(kx2+kz2) - my*my*(ky2+kz2))
-           dcxy= 2.*ka(i)*ka(j)*mx*my
+           dcxy= 2.*kx(i)*ky(j)*mx*my
 
            cyz = (kx2*E - my*my*(kx2+ky2) - mz*mz*(kx2+kz2))
-           dcyz= 2.*ka(j)*ka(k)*my*mz
+           dcyz= 2.*ky(j)*kz(k)*my*mz
            IF ( tmp.ge.0. .and. tmp1.ge.0. .and. tmp2.ge.0. .and. tmp3.ge.0. &
            .and.abs(sxy).le.abs(dsxy) .and. dsxy.ne.0. .and. &
             abs(szx).le.abs(dszx) .and. dszx.ne.0. &

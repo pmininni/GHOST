@@ -3,10 +3,11 @@
 ! compatible with all possible configurations of GHOST.
 
       IF ( (abs(omegax).gt.tiny).or.(abs(omegay).gt.tiny ) ) THEN
-        IF (myrank.eq.0) &
+        IF (myrank.eq.0) THEN
            PRINT *,'This solver has rotation only in the z-direction.'
            PRINT *,'Please set omegax and omegay = 0, or remove them'
            PRINT *,'from the input file.'
+        ENDIF
         STOP
       ENDIF
 

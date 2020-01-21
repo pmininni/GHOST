@@ -5,14 +5,14 @@
 ! folder 'examples' for an example. If not needed, this file
 ! can be left empty.
 ! Forcing arrays are complex (in Fourier space) of size
-! (n,n,ista:iend) and are called:
+! (nz,ny,ista:iend) and are called:
 !       (fx,fy,fz)   for the velocity 
 !       (mx,my,mz)   for the e.m.f. (magnetic field)
 !       (fs,fs1,...) for scalar fields
 !       (fre,fim)    for quantum solvers
 ! You can use temporary real arrays R1-R3 of size
-! (1:n,1:n,ksta:kend) and temporary complex arrays C1-C8 of
-! size (n,n,ista:iend) to do intermediate computations,
+! (1:nx,1:ny,ksta:kend) and temporary complex arrays C1-C8 of
+! size (nz,ny,ista:iend) to do intermediate computations,
 ! and two real arrays Faux1 and Faux2 of size (10) to store
 ! information of the history of the forcing if needed.
 
@@ -36,8 +36,8 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-                  DO j = 1,n
-                     DO k = 1,n
+                  DO j = 1,ny
+                     DO k = 1,nz
                         fx(k,j,i) = fx(k,j,i)*ampl
                         fy(k,j,i) = fy(k,j,i)*ampl
                         fz(k,j,i) = fz(k,j,i)*ampl
