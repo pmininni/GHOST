@@ -45,7 +45,7 @@
 !
 ! Auxiliary variables
 
-      REAL(KIND=GP)    :: tmp,mean,norm
+      REAL(KIND=GP)    :: tmp,mean,norm,rmp,rmq,rms
       REAL(KIND=GP)    :: total_box,total_loc
 
       INTEGER :: n
@@ -83,7 +83,7 @@
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       CALL range(1,n,nprocs,myrank,ksta,kend)
-      CALL io_init(myrank,n,ksta,kend,planio)
+      CALL io_init(myrank,(/n,n,n/),ksta,kend,planio)
 
 !
 ! Reads from the external file 'cancel.txt' the 
@@ -171,8 +171,9 @@
          CALL fftp3d_create_plan(plancr,(/n,n,n/),FFTW_COMPLEX_TO_REAL, &
              FFTW_ESTIMATE)
          ALLOCATE( kx(n), ky(n), kz(n) )
-         ALLOCATE( kn2(n,n,ista:iend), kk2(n,n,ista:iend) )
-         kmax = (real(n,kind=GP)/3.)**2
+         ALLOCATE( kn2(n,n,ista:iend) )
+         ALLOCATE( kk2(n,n,ista:iend) )
+         kmax = 1.0_GP/9.0_GP
          tiny = 1e-5
          DO i = 1,n/2
             kx(i) = real(i-1,kind=GP)
@@ -180,6 +181,18 @@
          END DO
 	 ky = kx
 	 kz = kx
+	 rmp = 1.0_GP/real(nx,kind=GP)**2
+         rmq = 1.0_GP/real(ny,kind=GP)**2
+         rms = 1.0_GP/real(nz,kind=GP)**2
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+                  kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
+               END DO
+            END DO
+         END DO
          DO i = ista,iend
             DO j = 1,n
                DO k = 1,n
@@ -187,7 +200,6 @@
                END DO
             END DO
          END DO
-	 kn2 = kk2
          IF (comp.eq.1) THEN
             CALL io_read(1,idir,'vy',ext,planio,v1)
             CALL fftp3d_real_to_complex(planrc,v1,C1,MPI_COMM_WORLD)

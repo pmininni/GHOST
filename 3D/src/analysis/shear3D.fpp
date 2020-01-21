@@ -130,7 +130,7 @@
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       CALL range(1,n,nprocs,myrank,ksta,kend)
-      CALL io_init(myrank,n,ksta,kend,planio)
+      CALL io_init(myrank,(/n,n,n/),ksta,kend,planio)
       nth = 1
 !$    nth = omp_get_max_threads()
 !$    CALL fftp3d_init_threads(ierr)
@@ -248,7 +248,8 @@ if (myrank.eq.0) write(*,*)'main: broadcast done.'
       ALLOCATE( th(n,n,ista:iend) )
 #endif
       ALLOCATE( kx(n), ky(n), kz(n) )
-      ALLOCATE( kn2(n,n,ista:iend), kk2(n,n,ista:iend) )
+      ALLOCATE( kn2(n,n,ista:iend) )
+      ALLOCATE( kk2(n,n,ista:iend) )
       ALLOCATE( R1(n,n,ksta:kend) )
       ALLOCATE( R2(n,n,ksta:kend) )
       ALLOCATE( R3(n,n,ksta:kend) )

@@ -48,7 +48,7 @@
       IMPLICIT NONE
 
 !
-! Arrays for the fields and structure functions
+! Arrays for the fields
 
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C1t
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: B1
@@ -66,7 +66,7 @@
       INTEGER :: istak,iendk,kstak,kendk
       INTEGER :: commtrunc, fh, groupworld, flags, grouptrunc
       INTEGER :: iExclude(3,1), iInclude(3,1)
-
+ 
       TYPE(IOPLAN)  :: planio, planiot
       TYPE(FFTPLAN) :: planrct
 
@@ -130,12 +130,12 @@
         STOP  
       ENDIF
       IF ( nyt .GT. ny .OR. nyt .LT. 1 ) THEN
-        IF ( myrank .eq. 0) PRINT*, 'MAIN: prolongation specification incorrect; input nxt must be less than Nx'
+        IF ( myrank .eq. 0) PRINT*, 'MAIN: prolongation specification incorrect; input nyt must be less than Ny'
         CALL MPI_Finalize(ierr)
         STOP
       ENDIF
       IF ( nzt .GT. nz .OR. nzt .LT. 1 ) THEN
-        IF ( myrank .eq. 0) PRINT*, 'MAIN: prolongation specification incorrect; input nxt must be less than Nx'
+        IF ( myrank .eq. 0) PRINT*, 'MAIN: prolongation specification incorrect; input nzt must be less than Nz'
         CALL MPI_Finalize(ierr)
         STOP
       ENDIF
@@ -217,9 +217,6 @@
 !     kmax: maximum truncation for dealiasing
 !     tiny: minimum truncation for dealiasing
       kmax =     1.0_GP/9.0_GP
-!#ifdef EDQNM_
-      kmax =     1.0_GP/4.0_GP
-!#endif
 
 ! Populate wavenumber-associated arrays
       DO i = 1,nx/2

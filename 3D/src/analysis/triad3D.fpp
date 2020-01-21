@@ -5,12 +5,9 @@
 !
 ! Numerically computes the triadic transfers for a fixed 
 ! giving shell q, a band of receiving shells k, and all 
-! mediating shells p. A pseudo-spectral method is used to 
-! compute spatial derivatives.
-! To compile, you need the FFTW library installed on your 
-! system. You should link with the FFTP subroutines and use 
-! the FFTPLANS and MPIVARS modules (see the file 
-! 'fftp_mod.f90').
+! mediating shells p. The pseudo-spectral method is used to 
+! compute spatial derivatives. This tool ONLY works with
+! cubic data in (2.pi)^3 domains.
 !
 ! NOTATION: index 'i' is 'x' 
 !           index 'j' is 'y'
@@ -56,6 +53,7 @@
 
       REAL(KIND=GP)    :: tmp
 
+      INTEGER :: n
       INTEGER :: stat
       INTEGER :: cold
       INTEGER :: kini
@@ -71,6 +69,16 @@
       CHARACTER(len=100) :: odir,idir
 
 !
+! Verifies proper compilation of the tool
+
+      IF ( (nx.ne.ny).or.(ny.ne.nz) ) THEN
+        IF (myrank.eq.0) &
+           PRINT *,'This tool only works with cubic data in (2.pi)^3 domains'
+        STOP
+      ENDIF
+      n = nx
+
+!
 ! Initializes the MPI and I/O libraries
 
       CALL MPI_INIT(ierr)
@@ -78,16 +86,16 @@
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       CALL range(1,n,nprocs,myrank,ksta,kend)
-      CALL io_init(myrank,n,ksta,kend,planio)
+      CALL io_init(myrank,(/n,n,n/),ksta,kend,planio)
 
 !
 ! Initializes the FFT library
 ! Use FFTW_ESTIMATE in short runs and FFTW_MEASURE 
 ! in long runs
 
-      CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
+      CALL fftp3d_create_plan(planrc,(/n,n,n/),FFTW_REAL_TO_COMPLEX, &
           FFTW_MEASURE)
-      CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
+      CALL fftp3d_create_plan(plancr,(/n,n,n/),FFTW_COMPLEX_TO_REAL, &
           FFTW_MEASURE)
 
 !
@@ -97,7 +105,8 @@
       ALLOCATE( vy(n,n,ista:iend) )
       ALLOCATE( vz(n,n,ista:iend) )
       ALLOCATE( C1(n,n,ista:iend) )
-      ALLOCATE( ka(n), ka2(n,n,ista:iend) )
+      ALLOCATE( kx(n), ky(n), kz(n) )
+      ALLOCATE( kn2(n,n,ista:iend), kk2(n,n,ista:iend) )
       ALLOCATE( Rxx(n,n,ksta:kend),Rxy(n,n,ksta:kend),Rxz(n,n,ksta:kend) )
       ALLOCATE( Ryx(n,n,ksta:kend),Ryy(n,n,ksta:kend),Ryz(n,n,ksta:kend) )
       ALLOCATE( Rzx(n,n,ksta:kend),Rzy(n,n,ksta:kend),Rzz(n,n,ksta:kend) )
@@ -115,16 +124,19 @@
 ! number matrixes
 
       DO i = 1,n/2
-         ka(i) = REAL(i-1,KIND=GP)
-         ka(i+n/2) = REAL(i-n/2-1,KIND=GP)
+         kx(i) = real(i-1,kind=GP)
+         kx(i+n/2) = real(i-n/2-1,kind=GP)
       END DO
+      ky = kx
+      kz = kx
       DO i = ista,iend
          DO j = 1,n
             DO k = 1,n
-               ka2(k,j,i) = ka(i)**2+ka(j)**2+ka(k)**2
+               kk2(k,j,i) = kx(i)**2+ky(j)**2+kz(k)**2
             END DO
          END DO
       END DO
+      kn2 = kk2
 
 !
 ! Reads from the external file 'triadtran.txt' the 

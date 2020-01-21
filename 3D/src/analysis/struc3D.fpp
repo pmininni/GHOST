@@ -139,7 +139,7 @@
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       CALL range(1,n,nprocs,myrank,ksta,kend)
-      CALL io_init(myrank,n,ksta,kend,planio)
+      CALL io_init(myrank,(/n,n,n/),ksta,kend,planio)
 
 !
 ! Reads from the external file 'structure.txt' the 

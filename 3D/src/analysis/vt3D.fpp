@@ -5,8 +5,8 @@
 !
 ! Reads velocity binaries and computes all or specified
 ! components of velocity gradient tensor in Fourier space, and
-! then outputs these to disk in real space,
-!
+! then outputs these to disk in real space. This tool ONLY works
+! with cubic data in (2.pi)^3 domains.
 !
 ! 2011 D. Rosenberg
 !      NCAR
@@ -36,18 +36,19 @@
       IMPLICIT NONE
 
 !
-! Arrays for the fields and structure functions
+! Arrays for the fields
 
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vc
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: dvc
 
 
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: rv
-      REAL(KIND=GP)                                 :: tmp
+      REAL(KIND=GP)                                 :: tmp,rmp,rmq,rms
 !
 ! Auxiliary variables
 
-      INTEGER :: i,ic,iir,ind,ir,iswap,it,oswap,j,jc,jjc,k
+      INTEGER :: n
+      INTEGER :: i,ic,iir,ind,ir,it,j,jc,jjc,k
       INTEGER :: irow(3),jcol(3),istat(1024), nrow,ncol,nstat
 
       TYPE(IOPLAN) :: planio
@@ -60,13 +61,22 @@
       NAMELIST / vt / idir, odir, srow, scol, stat, iswap, oswap
 
 !
+! Verifies proper compilation of the tool
+
+      IF ( (nx.ne.ny).or.(ny.ne.nz) ) THEN
+        IF (myrank.eq.0) &
+           PRINT *,'This tool only works with cubic data in (2.pi)^3 domains'
+        STOP
+      ENDIF
+      n = nx
+!
 ! Initializes the MPI and I/O libraries
       CALL MPI_INIT(ierr)
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
       CALL range(1,n/2+1,nprocs,myrank,ista,iend)
       CALL range(1,n,nprocs,myrank,ksta,kend)
-      CALL io_init(myrank,n,ksta,kend,planio)
+      CALL io_init(myrank,(/n,n,n/),ksta,kend,planio)
       idir   = '.'
       odir   = '.'
       srow   = '1'
@@ -103,38 +113,44 @@
       pref = 'VT'
 !
      
-      kmax   = (real(n,kind=GP)/3.)**2
-
       ALLOCATE( vc(n,n,ista:iend) )
       ALLOCATE( dvc(n,n,ista:iend) )
-      ALLOCATE( ka(n),ka2(n,n,ista:iend) )
+      ALLOCATE( kx(n), ky(n), kz(n) )
+      ALLOCATE( kn2(n,n,ista:iend), kk2(n,n,ista:iend) )
       ALLOCATE( rv(n,n,ksta:kend) )
 !
 
-      CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
+      CALL fftp3d_create_plan(planrc,(/n,n,n/),FFTW_REAL_TO_COMPLEX, &
           FFTW_MEASURE)
-      CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
+      CALL fftp3d_create_plan(plancr,(/n,n,n/),FFTW_COMPLEX_TO_REAL, &
           FFTW_MEASURE)
-!
-! Some constants for the FFT
-!     kmax: maximum truncation for dealiasing
-!     tiny: minimum truncation for dealiasing
-
-      kmax = (REAL(n,KIND=GP)/3.)**2
-      tiny = 1e-5
 
 !
 ! Builds the wave number and the square wave 
 ! number matrixes
 
       DO i = 1,n/2
-         ka(i) = REAL(i-1,KIND=GP)
-         ka(i+n/2) = REAL(i-n/2-1,KIND=GP)
+         kx(i) = real(i-1,kind=GP)
+         kx(i+n/2) = real(i-n/2-1,kind=GP)
+      END DO
+      ky = kx
+      kz = kx
+      rmp = 1.0_GP/real(nx,kind=GP)**2
+      rmq = 1.0_GP/real(ny,kind=GP)**2
+      rms = 1.0_GP/real(nz,kind=GP)**2
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
+            END DO
+         END DO
       END DO
       DO i = ista,iend
          DO j = 1,n
             DO k = 1,n
-               ka2(k,j,i) = ka(i)**2+ka(j)**2+ka(k)**2
+               kk2(k,j,i) = kx(i)**2+ky(j)**2+kz(k)**2
             END DO
          END DO
       END DO
@@ -205,8 +221,8 @@
 
       DEALLOCATE ( vc,dvc)
       DEALLOCATE ( rv)
-      DEALLOCATE ( ka)
-      DEALLOCATE ( ka2)
+      DEALLOCATE ( kx,ky,kz)
+      DEALLOCATE ( kn2,kk2)
 
       CALL MPI_FINALIZE(ierr)
 
