@@ -380,7 +380,7 @@
       DOUBLE PRECISION    :: engk,engm,eng,ens
       DOUBLE PRECISION    :: divk,divm,asq,crh
       DOUBLE PRECISION    :: helk,helm,cur,tmp
-      DOUBLE PRECISION    :: helg
+      DOUBLE PRECISION    :: helg, g1sq, g2sq
       REAL(KIND=GP)                :: tmq
       REAL(KIND=GP), INTENT(IN)    :: dt
       INTEGER, INTENT(IN) :: hel,crs,chk
@@ -506,6 +506,9 @@
             END DO
          END DO
          CALL helicity(c1,c2,c3,helg)
+         CALL energy(c1,c2,c3,g1sq,1)
+         CALL energy(c1,c2,c3,g2sq,0)
+
       ENDIF
 !
 ! Creates external files to store the results
@@ -529,7 +532,8 @@
             CLOSE(1)
          ELSE IF (crs.eq.2) THEN
             OPEN(1,file='cross.txt',position='append')
-            WRITE(1,10) (t-1)*dt,crh,asq,helg
+            WRITE(1,30) (t-1)*dt,crh,asq,helg,g1sq,g2sq
+   30       FORMAT( E13.6,E22.14,E22.14,E22.14,E22.14,E22.14 )
             CLOSE(1)
          ENDIF
          IF (chk.eq.1) THEN
