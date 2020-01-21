@@ -1,0 +1,457 @@
+! External mechanical forcing.
+! This file contains the expression used for the external
+! mechanical forcing. You can use temporary real arrays
+! R1-R3 of size (1:n,1:n,ksta:kend) and temporary complex
+! arrays C1-C8 of size (n,n,ista:iend) to do intermediate
+! computations. The variable m0 should control the global
+! amplitude of the forcing, and variables fparam0-9 can be
+! used to control the amplitudes of individual terms. At the
+! end, the three components of the forcing in spectral
+! space should be stored in the arrays mx, my, and mz.
+
+! Generates random phased initial conditions for the
+! velocity with the value of rho_k specified.
+
+!     kdn : minimum wave number 
+!     kup : maximum wave number
+!     v0  : twice the global energy in the magnetic field
+!     fparam0: seed for random number generation
+!     fparam1: related to the helicity by fparam1 = ARCSIN(rho_k)/2 ... almost
+!     fparam3: used in file for SIN(fparam1)
+!     fparam4: used in file for COS(fparam2)
+!     fparam5: used in file for the magnitude of the first random vector
+!     fparam6: used in file for the magnitude of the second random vector
+!     fparam7: used in file for the initial correlation between the two random vectors
+
+      seed = fparam0
+
+      C1 = 0.0_GP
+      C2 = 0.0_GP
+      C3 = 0.0_GP
+
+      C4 = 0.0_GP
+      C5 = 0.0_GP
+      C6 = 0.0_GP
+
+! Compute first divergence free random vector
+! Generate divergence-free noise:
+      tmp = 1.0_GP/real(nx,KIND=GP)*real(ny,KIND=GP)*real(nz,KIND=GP)
+! To ensure Div v = 0: Set noise, Nz, s.t. kx Nx + ky Ny + kz Nz=0:
+      IF (ista.eq.1) THEN
+!$omp parallel do
+        DO j = 2,ny/2+1
+          IF ((kk2(1,j,1).le.kup**2).and.(kk2(1,j,1).ge.kdn**2)) THEN
+          dump = 0.0_GP
+          !rmq  = sqrt(kk2(1,j,1))
+          !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
+          dump = 1.0_GP
+          phase = 2.0*pi*randu(seed);
+          cdump = (cos(phase)+im*sin(phase))*dump
+          IF ( kz(1).GT.tiny ) THEN
+          C1    (1,j,1) = cdump
+          C1(1,ny-j+2,1) = conjg(C1(1,j,1))
+          phase = 2.0*pi*randu(seed);
+          cdump = (cos(phase)+im*sin(phase))*dump
+          C2    (1,j,1) = cdump
+          C2(1,ny-j+2,1) = conjg(C2(1,j,1))
+          C3(1,j,1) = -(kx(1)*C1(1,j,1) + ky(j)*C2(1,j,1))/kz(1)
+          C3(1,ny-j+2,1) = conjg(C3(1,j,1))
+          ENDIF
+          ELSE
+          C1    (1,j,1) = 0.0_GP
+          C1(1,ny-j+2,1) = 0.0_GP
+          C2    (1,j,1) = 0.0_GP
+          C2(1,ny-j+2,1) = 0.0_GP
+          C3(1,j,1) = 0.0_GP
+          C3(1,ny-j+2,1) = 0.0_GP
+          ENDIF
+        END DO
+!$omp parallel do
+        DO k = 2,nz/2+1
+          IF ((kk2(k,1,1).le.kup**2).and.(kk2(k,1,1).ge.kdn**2)) THEN
+          dump = 0.0_GP
+          !rmq  = sqrt(kk2(k,1,1))
+          !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
+          dump = 1.0_GP
+          phase = 2.0*pi*randu(seed);
+          cdump = (cos(phase)+im*sin(phase))*dump
+          IF ( kz(k).GT.tiny ) THEN
+          C1    (k,1,1) = cdump
+          C1(nz-k+2,1,1) = conjg(C1(k,1,1))
+          phase = 2.0*pi*randu(seed);
+          cdump = (cos(phase)+im*sin(phase))*dump
+          C2    (k,1,1) = cdump
+          C2(nz-k+2,1,1) = conjg(C2(k,1,1))
+          C3(k,1,1) = -(kx(1)*C1(k,1,1) + ky(1)*C2(k,1,1))/kz(k)
+          C3(nz-k+2,1,1) = conjg(C3(k,1,1))
+          ENDIF
+          ELSE
+          C1    (k,1,1) = 0.0_GP
+          C1(nz-k+2,1,1) = 0.0_GP
+          C2    (k,1,1) = 0.0_GP
+          C2(nz-k+2,1,1) = 0.0_GP
+          C3(k,1,1) = 0.0_GP
+          C3(nz-k+2,1,1) = 0.0_GP
+          ENDIF
+        END DO
+!$omp parallel do private (k)
+        DO j = 2,ny
+          DO k = 2,nz/2+1
+            IF ((kk2(k,j,1).le.kup**2).and.(kk2(k,j,1).ge.kdn**2)) THEN
+            dump = 0.0_GP
+            !rmq  = sqrt(kk2(k,j,1))
+            !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))            
+            dump = 1.0_GP
+            phase = 2.0*pi*randu(seed);
+            cdump = (cos(phase)+im*sin(phase))*dump
+            IF ( kz(k).GT.tiny ) THEN
+            C1        (k,j,1) = cdump
+            C1(nz-k+2,ny-j+2,1) = conjg(C1(k,j,1))
+            phase = 2.0*pi*randu(seed);
+            cdump = (cos(phase)+im*sin(phase))*dump
+            C2        (k,j,1) = cdump
+            C2(nz-k+2,ny-j+2,1) = conjg(C2(k,j,1))
+            C3(k,j,1) = -(kx(1)*C1(k,j,1) + ky(j)*C2(k,j,1))/kz(k)
+            C3(nz-k+2,ny-j+2,1) = conjg(C3(k,j,1))
+            ENDIF
+            ELSE
+            C1        (k,j,1) = 0.0_GP
+            C1(nz-k+2,ny-j+2,1) = 0.0_GP
+            C2        (k,j,1) = 0.0_GP
+            C2(nz-k+2,ny-j+2,1) = 0.0_GP
+            C3(k,j,1) = 0.0_GP
+            C3(nz-k+2,ny-j+2,1) = 0.0_GP 
+            ENDIF
+          END DO
+        END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k)
+        DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+              dump = 0.0_GP
+              !rmq  = sqrt(kk2(k,j,i))
+              !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2)) 
+              dump = 1.0_GP              
+              phase = 2.0*pi*randu(seed);
+              cdump = (cos(phase)+im*sin(phase))*dump
+              IF ( kz(k).GT.tiny ) THEN
+              C1(k,j,i) = cdump
+              phase = 2.0*pi*randu(seed);
+              cdump = (cos(phase)+im*sin(phase))*dump
+              C2(k,j,i) = cdump
+              C3(k,j,i) = -(kx(i)*C1(k,j,i) + ky(j)*C2(k,j,i))/kz(k)
+              ENDIF
+              ELSE
+              C1(k,j,i) = 0.0_GP
+              C2(k,j,i) = 0.0_GP
+              C3(k,j,i) = 0.0_GP 
+              ENDIF
+            END DO
+          END DO
+        END DO
+      ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+              dump = 0.0_GP
+              !rmq  = sqrt(kk2(k,j,i))
+              !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
+              dump = 1.0_GP
+              phase = 2.0*pi*randu(seed);
+              cdump = (cos(phase)+im*sin(phase))*dump
+              IF ( kz(k).GT.tiny ) THEN
+              C1(k,j,i) = cdump
+              phase = 2.0*pi*randu(seed);
+              cdump = (cos(phase)+im*sin(phase))*dump
+              C2(k,j,i) = cdump
+              C3(k,j,i) = -(kx(i)*C1(k,j,i) + ky(j)*C2(k,j,i))/kz(k)
+              ENDIF
+              ELSE
+              C1(k,j,i) = 0.0_GP
+              C2(k,j,i) = 0.0_GP
+              C3(k,j,i) = 0.0_GP 
+              ENDIF
+            END DO
+          END DO
+        END DO
+      ENDIF
+
+! Compute second divergence free random vector
+! To ensure Div v = 0: Set noise, Nz, s.t. kx Nx + ky Ny + kz Nz=0:
+      IF (ista.eq.1) THEN
+!$omp parallel do
+        DO j = 2,ny/2+1
+          IF ((kk2(1,j,1).le.kup**2).and.(kk2(1,j,1).ge.kdn**2)) THEN
+          dump = 1.0_GP
+          !rmq  = sqrt(kk2(1,j,1))
+          !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
+          phase = 2.0*pi*randu(seed);
+          cdump = (cos(phase)+im*sin(phase))*dump
+          IF ( kz(1).GT.tiny ) THEN
+          C4    (1,j,1) = cdump
+          C4(1,ny-j+2,1) = conjg(C4(1,j,1))
+          phase = 2.0*pi*randu(seed);
+          cdump = (cos(phase)+im*sin(phase))*dump
+          C5    (1,j,1) = cdump
+          C5(1,ny-j+2,1) = conjg(C5(1,j,1))
+          C6(1,j,1) = -(kx(1)*C4(1,j,1) + ky(j)*C5(1,j,1))/kz(1)
+          C6(1,ny-j+2,1) = conjg(C6(1,j,1))
+          ENDIF
+          ELSE
+          C4    (1,j,1) = 0.0_GP 
+          C4(1,ny-j+2,1) = 0.0_GP
+          C5    (1,j,1) = 0.0_GP
+          C5(1,ny-j+2,1) = 0.0_GP
+          C6(1,j,1) = 0.0_GP
+          C6(1,ny-j+2,1) = 0.0_GP
+          ENDIF
+        END DO
+!$omp parallel do
+        DO k = 2,nz/2+1
+          IF ((kk2(k,1,1).le.kup**2).and.(kk2(k,1,1).ge.kdn**2)) THEN
+          dump = 1.0_GP
+          !rmq  = sqrt(kk2(k,1,1))
+          !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
+          phase = 2.0*pi*randu(seed);
+          cdump = (cos(phase)+im*sin(phase))*dump
+          IF ( kz(k).GT.tiny ) THEN
+          C4    (k,1,1) = cdump
+          C4(nz-k+2,1,1) = conjg(C4(k,1,1))
+          phase = 2.0*pi*randu(seed);
+          cdump = (cos(phase)+im*sin(phase))*dump
+          C5    (k,1,1) = cdump
+          C5(nz-k+2,1,1) = conjg(C5(k,1,1))
+          C6(k,1,1) = -(kx(1)*C4(k,1,1) + ky(1)*C5(k,1,1))/kz(k)
+          C6(nz-k+2,1,1) = conjg(C6(k,1,1))
+          ENDIF
+          ELSE
+          C4    (k,1,1) = 0.0_GP 
+          C4(nz-k+2,1,1) = 0.0_GP
+          C5    (k,1,1) = 0.0_GP
+          C5(nz-k+2,1,1) = 0.0_GP
+          C6(k,1,1) = 0.0_GP
+          C6(nz-k+2,1,1) = 0.0_GP
+          ENDIF
+        END DO
+!$omp parallel do private (k)
+        DO j = 2,ny
+          DO k = 2,nz/2+1
+            IF ((kk2(k,j,1).le.kup**2).and.(kk2(k,j,1).ge.kdn**2)) THEN
+            dump = 1.0_GP
+            !rmq  = sqrt(kk2(k,j,1))
+            !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
+            phase = 2.0*pi*randu(seed);
+            cdump = (cos(phase)+im*sin(phase))*dump
+            IF ( kz(k).GT.tiny ) THEN
+            C4        (k,j,1) = cdump
+            C4(nz-k+2,ny-j+2,1) = conjg(C4(k,j,1))
+            phase = 2.0*pi*randu(seed);
+            cdump = (cos(phase)+im*sin(phase))*dump
+            C5        (k,j,1) = cdump
+            C5(nz-k+2,ny-j+2,1) = conjg(C5(k,j,1))
+            C6(k,j,1) = -(kx(1)*C4(k,j,1) + ky(j)*C5(k,j,1))/kz(k)
+            C6(nz-k+2,ny-j+2,1) = conjg(C6(k,j,1))
+            ENDIF
+            ELSE
+            C4        (k,j,1) = 0.0_GP 
+            C4(nz-k+2,ny-j+2,1) = 0.0_GP
+            C5        (k,j,1) = 0.0_GP
+            C5(nz-k+2,ny-j+2,1) = 0.0_GP
+            C6(k,j,1) = 0.0_GP
+            C6(nz-k+2,ny-j+2,1) = 0.0_GP 
+            ENDIF
+          END DO
+        END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k)
+        DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+              dump = 1.0_GP
+              !rmq  = sqrt(kk2(k,j,i))
+              !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
+              phase = 2.0*pi*randu(seed);
+              cdump = (cos(phase)+im*sin(phase))*dump
+              IF ( kz(k).GT.tiny ) THEN
+              C4(k,j,i) = cdump
+              phase = 2.0*pi*randu(seed);
+              cdump = (cos(phase)+im*sin(phase))*dump
+              C5(k,j,i) = cdump
+              C6(k,j,i) = -(kx(i)*C4(k,j,i) + ky(j)*C5(k,j,i))/kz(k)
+              ENDIF
+              ELSE
+              C4(k,j,i) = 0.0_GP 
+              C5(k,j,i) = 0.0_GP
+              C6(k,j,i) = 0.0_GP
+              ENDIF
+            END DO
+          END DO
+        END DO
+      ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+              dump = 1.0_GP
+              !rmq  = sqrt(kk2(k,j,i))
+              !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
+              phase = 2.0*pi*randu(seed);
+              cdump = (cos(phase)+im*sin(phase))*dump
+              IF ( kz(k).GT.tiny ) THEN
+              C4(k,j,i) = cdump
+              phase = 2.0*pi*randu(seed);
+              cdump = (cos(phase)+im*sin(phase))*dump
+              C5(k,j,i) = cdump
+              C6(k,j,i) = -(kx(i)*C4(k,j,i) + ky(j)*C5(k,j,i))/kz(k)
+              ENDIF
+              ELSE
+              C4(k,j,i) = 0.0_GP 
+              C5(k,j,i) = 0.0_GP
+              C6(k,j,i) = 0.0_GP
+              ENDIF
+            END DO
+          END DO
+        END DO
+      ENDIF
+
+! deorrelate vectors 
+      ! Normalize vectors to unity       
+      CALL normalize(C1,C2,C3,1.0_GP,1,MPI_COMM_WORLD)
+      CALL normalize(C4,C5,C6,1.0_GP,1,MPI_COMM_WORLD)
+      
+      !Compute initial correlation between two vectors
+      CALL cross(C1,C2,C3,C4,C5,C6,tmp,1)
+      fparam7 = tmp
+      CALL MPI_BCAST(fparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+
+      !Compute angle needed for decorrelation
+      fparam7 = ASIN(-1.0_GP*fparam7)/2.0_GP
+      fparam3 = SIN(fparam7)
+      fparam4 = COS(fparam7)
+      
+      DO i = ista,iend
+          DO j = 1,ny
+             DO k = 1,nz
+                C7(k,j,i) = fparam3*C4(k,j,i)+fparam4*C1(k,j,i)
+                C8(k,j,i) = fparam3*C1(k,j,i)+fparam4*C4(k,j,i)
+             END DO
+          END DO
+      END DO
+      C1 = C7
+      C4 = C8
+
+      DO i = ista,iend
+          DO j = 1,ny
+             DO k = 1,nz
+                C7(k,j,i) = fparam3*C5(k,j,i)+fparam4*C2(k,j,i)
+                C8(k,j,i) = fparam3*C2(k,j,i)+fparam4*C5(k,j,i)
+             END DO
+          END DO
+      END DO
+      C2 = C7
+      C5 = C8
+
+      DO i = ista,iend
+          DO j = 1,ny
+             DO k = 1,nz
+                C7(k,j,i) = fparam3*C6(k,j,i)+fparam4*C3(k,j,i)
+                C8(k,j,i) = fparam3*C3(k,j,i)+fparam4*C6(k,j,i)
+             END DO
+          END DO
+      END DO
+      C3 = C7
+      C6 = C8
+
+      !CALL helicity(C1,C2,C3,tmp)
+      !write(6,*) 'HV1', tmp
+      !CALL helicity(C4,C5,C6,tmp)
+      !write(6,*) 'HV2', tmp
+      !CALL cross(C1,C2,C3,C4,C5,C6,tmp,0)
+      !write(6,*) 'HV3', tmp
+
+      !CALL energy(C1,C2,C3,tmp,1)
+      !write(6,*) tmp
+
+      !CALL energy(C4,C5,C6,tmp,1)
+      !write(6,*) tmp
+! Correlate vectors
+      ! Define angle needed for desired correlation
+      fparam3 = SIN(fparam1)
+      fparam4 = COS(fparam1)
+
+      ! Normalize vectors such that the velocity and magnetic field have the desired 
+      ! amplitude
+      !mparam5 = (u0 - (mparam3**2/mparam4**2)*a0)/(mparam4**2 - mparam3**4/mparam4**2)
+      !mparam6 = (a0 - mparam5*mparam3**2)/mparam4**2
+      CALL normalize(C1,C2,C3,1.0_GP,1,MPI_COMM_WORLD)
+      CALL normalize(C4,C5,C6,1.0_GP,1,MPI_COMM_WORLD)
+
+      DO i = ista,iend
+          DO j = 1,ny
+             DO k = 1,nz
+                C7(k,j,i) = fparam3*C2(k,j,i)+fparam4*C5(k,j,i)
+                C8(k,j,i) = fparam3*C3(k,j,i)+fparam4*C6(k,j,i)
+             END DO
+          END DO
+      END DO
+      CALL rotor3(C7,C8,C7,1)
+      DO i = ista,iend
+          DO j = 1,ny
+             DO k = 1,nz
+                IF ( kk2(k,j,i).GT.tiny ) THEN
+                fx(k,j,i) = fparam4*C1(k,j,i)+fparam3*C4(k,j,i)+ &
+                            C7(k,j,i)/sqrt(kk2(k,j,i))
+                ENDIF
+             END DO
+          END DO
+      END DO
+
+      DO i = ista,iend
+          DO j = 1,ny
+             DO k = 1,nz
+                C7(k,j,i) = fparam3*C1(k,j,i)+fparam4*C4(k,j,i)
+                C8(k,j,i) = fparam3*C3(k,j,i)+fparam4*C6(k,j,i)
+             END DO
+          END DO
+      END DO
+      CALL rotor3(C7,C8,C7,2)
+      DO i = ista,iend
+          DO j = 1,ny
+             DO k = 1,nz
+                IF ( kk2(k,j,i).GT.tiny ) THEN
+                fy(k,j,i) = fparam4*C2(k,j,i)+fparam3*C5(k,j,i)+ &
+                            C7(k,j,i)/sqrt(kk2(k,j,i))
+                ENDIF
+             END DO
+          END DO
+      END DO
+
+      DO i = ista,iend
+          DO j = 1,ny
+             DO k = 1,nz
+                C7(k,j,i) = fparam3*C1(k,j,i)+fparam4*C4(k,j,i)
+                C8(k,j,i) = fparam3*C2(k,j,i)+fparam4*C5(k,j,i)
+             END DO
+          END DO
+      END DO
+      CALL rotor3(C7,C8,C7,3)
+      DO i = ista,iend
+          DO j = 1,ny
+             DO k = 1,nz
+                IF ( kk2(k,j,i).GT.tiny ) THEN
+                fz(k,j,i) = fparam4*C3(k,j,i)+fparam3*C6(k,j,i)+ &
+                            C7(k,j,i)/sqrt(kk2(k,j,i))
+                END IF
+             END DO
+          END DO
+      END DO
+
+      CALL normalize(fx,fy,fz,f0,1,MPI_COMM_WORLD)
