@@ -12,7 +12,7 @@
 !
 ! Parameters
 !     n      : the size of the dimensions of the (largest) input array [IN]
-!     nt     : the truncation size
+!     nt     : the truncation size [IN]
 !     nprocs : the number of processors for untruncated data [IN]
 !     myrank : the rank of the processor [IN]
 !     itype1 : contains a derived data type for sending [OUT]
@@ -23,7 +23,7 @@
       IMPLICIT NONE
 
       INTEGER, INTENT(OUT), DIMENSION(0:nprocs-1) :: itype1,itype2
-      INTEGER, INTENT(IN) :: n,nprocs,nt
+      INTEGER, INTENT(IN) :: n(3),nt(3),nprocs
       INTEGER, INTENT(IN) :: myrank
 
       INTEGER :: ista,iend
@@ -31,24 +31,21 @@
       INTEGER :: irank,krank
       INTEGER :: itemp1,itemp2
 
-      CALL trrange(1,n,nt,nprocs,myrank,ksta,kend)
+      CALL trrange(1,n(3),nt(3),nprocs,myrank,ksta,kend)
       DO irank = 0,nprocs-1
-         CALL trrange(1,n/2+1,nt/2+1,nprocs,irank,ista,iend)
-         CALL block3d(1,nt/2+1,1,nt,ksta,ista,iend,1,nt,ksta, &
-                      kend,GC_COMPLEX,itemp1)
-
+         CALL trrange(1,n(1)/2+1,nt(1)/2+1,nprocs,irank,ista,iend)
+         CALL block3d(1,nt(1)/2+1,1,nt(2),ksta,ista,iend,1,nt(2), &
+                      ksta,kend,GC_COMPLEX,itemp1)
          itype1(irank) = itemp1
       END DO
-      CALL trrange(1,n/2+1,nt/2+1,nprocs,myrank,ista,iend)
-      iend = min(iend,ista+nt)
+      CALL trrange(1,n(1)/2+1,nt(1)/2+1,nprocs,myrank,ista,iend)
+      iend = min(iend,ista+nt(1))
       DO krank = 0,nprocs-1
-         CALL trrange(1,n,nt,nprocs,krank,ksta,kend)
-         CALL block3d(ista,iend,1,nt,1,ista,iend,1,nt,ksta, &
-                      kend,GC_COMPLEX,itemp2)
-
+         CALL trrange(1,n(3),nt(3),nprocs,krank,ksta,kend)
+         CALL block3d(ista,iend,1,nt(2),1,ista,iend,1,nt(2),      &
+                      ksta,kend,GC_COMPLEX,itemp2)
          itype2(krank) = itemp2
       END DO
-
 
       RETURN
       END SUBROUTINE fftp3d_create_trblock
@@ -89,7 +86,6 @@
       RETURN
       END SUBROUTINE trrange
 
-
 !*****************************************************************
       SUBROUTINE fftp3d_create_trplan(plan,n,nt,fftdir,flags)
 !-----------------------------------------------------------------
@@ -116,36 +112,37 @@
 !$    USE threads
       IMPLICIT NONE
 
-      INTEGER, INTENT(IN) :: n, nt
+      INTEGER, INTENT(IN) :: n(3), nt(3)
       INTEGER, INTENT(IN) :: fftdir
       INTEGER, INTENT(IN) :: flags
       TYPE(FFTPLAN), INTENT(OUT) :: plan
 
-      ALLOCATE ( plan%ccarr(nt,nt,ista:iend)    )
-      ALLOCATE ( plan%carr(nt/2+1,nt,ksta:kend) )
-      ALLOCATE ( plan%rarr(nt,nt,ksta:kend)     )
+      ALLOCATE ( plan%ccarr(nt(3),nt(2),ista:iend)    )
+      ALLOCATE ( plan%carr(nt(1)/2+1,nt(2),ksta:kend) )
+      ALLOCATE ( plan%rarr(nt(1),nt(2),ksta:kend)     )
 
 #if !defined(DEF_GHOST_CUDA_)
       IF ( fftdir.EQ.FFTW_REAL_TO_COMPLEX ) THEN
-      CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/nt,nt/),kend-ksta+1,  &
-                       plan%rarr,(/nt,nt*(kend-ksta+1)/),1,nt*nt, &
-                       plan%carr,(/nt/2+1,nt*(kend-ksta+1)/),1,nt*(nt/2+1),flags)
+      CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/nt(1),nt(2)/),kend-ksta+1,  &
+                       plan%rarr,(/nt(1),nt(2)*(kend-ksta+1)/),1,nt(1)*nt(2),     &
+                       plan%carr,(/nt(1)/2+1,nt(2)*(kend-ksta+1)/),1,             &
+		       (nt(1)/2+1)*nt(2),flags)
       ELSE
-      CALL GPMANGLE(plan_many_dft_c2r)(plan%planr,2,(/nt,nt/),kend-ksta+1,  &
-                       plan%carr,(/nt/2+1,nt*(kend-ksta+1)/),1,nt*(nt/2+1), &
-                       plan%rarr,(/nt,nt*(kend-ksta+1)/),1,nt*nt,flags)
+      CALL GPMANGLE(plan_many_dft_c2r)(plan%planr,2,(/nt(1),nt(2)/),kend-ksta+1,  &
+                       plan%carr,(/nt(1)/2+1,nt(2)*(kend-ksta+1)/),1,             &
+		       (nt(1)/2+1)*nt(2),plan%rarr,(/nt(1),nt(2)*(kend-ksta+1)/), &
+		       1,nt(1)*nt(2),flags)
       ENDIF
-      CALL GPMANGLE(plan_many_dft)(plan%planc,1,nt,nt*(iend-ista+1), &
-                       plan%ccarr,nt*nt*(iend-ista+1),1,nt,     &
-                       plan%ccarr,nt*nt*(iend-ista+1),1,nt,fftdir,flags)
+      CALL GPMANGLE(plan_many_dft)(plan%planc,1,nt(3),nt(2)*(iend-ista+1),        &
+                       plan%ccarr,(iend-ista+1)*nt(2)*nt(3),1,nt(3),              &
+                       plan%ccarr,(iend-ista+1)*nt(2)*nt(3),1,nt(3),fftdir,flags)
 #endif
-      plan%n = nt
+      plan%nx = nt(1)
+      plan%ny = nt(2)
+      plan%nz = nt(3)
       ALLOCATE( plan%itype1(0:nprocs-1) )
       ALLOCATE( plan%itype2(0:nprocs-1) )
-      CALL fftp3d_create_trblock(n,nt,nprocs,myrank,plan%itype1, &
-                       plan%itype2)
-!     CALL fftp3d_create_block(nt,nprocs,myrank,plan%itype1, &
-!                      plan%itype2)
+      CALL fftp3d_create_trblock(n,nt,nprocs,myrank,plan%itype1,plan%itype2)
 
       RETURN
       END SUBROUTINE fftp3d_create_trplan

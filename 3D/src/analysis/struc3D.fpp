@@ -6,7 +6,8 @@
 ! Numerically computes the structure functions in 3D HD, 
 ! MHD, and Hall-MHD simulations with the GHOST code. An 
 ! SO(2) or SO(3) decomposition is used to compute field 
-! increments depending on the solver.
+! increments depending on the solver. This tool ONLY works
+! with cubic data in (2.pi)^3 domains.
 !
 ! Conditional compilation options:
 !           HD_SOL    Hydrodynamic SO(3) structure functions
@@ -59,7 +60,6 @@
 #define SCALAR_
 #endif
 
-
 !
 ! Modules
 
@@ -109,6 +109,7 @@
       INTEGER, PARAMETER        :: ngen = 26
 #endif
       INTEGER, DIMENSION (ngen) :: j1,j2,j3
+      INTEGER :: n
       INTEGER :: gini
       INTEGER :: curl
       INTEGER :: stat
@@ -119,6 +120,16 @@
       TYPE(IOPLAN) :: planio
 
       CHARACTER(len=100) :: odir,idir
+
+!
+! Verifies proper compilation of the tool
+
+      IF ( (nx.ne.ny).or.(ny.ne.nz) ) THEN
+        IF (myrank.eq.0) &
+           PRINT *,'This tool only works with cubic data in (2.pi)^3 domains'
+        STOP
+      ENDIF
+      n = nx
 
 !
 ! Initializes the MPI and I/O libraries
@@ -201,24 +212,28 @@ if ( myrank.eq. 0 ) write(*,*)'main: stat=',stat,' done.'
          ALLOCATE( wx(n,n,ksta:kend) )
          ALLOCATE( wy(n,n,ksta:kend) )
          ALLOCATE( wz(n,n,ksta:kend) )
-         CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
+         CALL fftp3d_create_plan(planrc,(/n,n,n/),FFTW_REAL_TO_COMPLEX, &
              FFTW_ESTIMATE)
-         CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
+         CALL fftp3d_create_plan(plancr,(/n,n,n/),FFTW_COMPLEX_TO_REAL, &
              FFTW_ESTIMATE)
-         ALLOCATE( ka(n), ka2(n,n,ista:iend) )
+         ALLOCATE( kx(n), ky(n), kz(n) )
+         ALLOCATE( kn2(n,n,ista:iend), kk2(n,n,ista:iend) )
          kmax = (real(n,kind=GP)/3.)**2
          tiny = 1e-5
          DO i = 1,n/2
-            ka(i) = real(i-1,kind=GP)
-            ka(i+n/2) = real(i-n/2-1,kind=GP)
+            kx(i) = real(i-1,kind=GP)
+            kx(i+n/2) = real(i-n/2-1,kind=GP)
          END DO
+	 ky = kx
+	 kz = kx
          DO i = ista,iend
             DO j = 1,n
                DO k = 1,n
-                  ka2(k,j,i) = ka(i)**2+ka(j)**2+ka(k)**2
+                  kk2(k,j,i) = kx(i)**2+ky(j)**2+kz(k)**2
                END DO
             END DO
          END DO
+	 kn2 = kk2
          CALL fftp3d_real_to_complex(planrc,vx,C1,MPI_COMM_WORLD)
          CALL fftp3d_real_to_complex(planrc,vy,C2,MPI_COMM_WORLD)
          CALL fftp3d_real_to_complex(planrc,vz,C3,MPI_COMM_WORLD)
@@ -228,7 +243,7 @@ if ( myrank.eq. 0 ) write(*,*)'main: stat=',stat,' done.'
          CALL fftp3d_complex_to_real(plancr,C4,wx,MPI_COMM_WORLD)
          CALL fftp3d_complex_to_real(plancr,C5,wy,MPI_COMM_WORLD)
          CALL fftp3d_complex_to_real(plancr,C3,wz,MPI_COMM_WORLD)
-         DEALLOCATE ( C1,C2,C3,C4,C5,ka,ka2 )
+         DEALLOCATE ( C1,C2,C3,C4,C5,kx,ky,kz,kn2,kk2 )
          CALL fftp3d_destroy_plan(plancr)
          CALL fftp3d_destroy_plan(planrc)
       ENDIF

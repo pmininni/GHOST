@@ -48,11 +48,11 @@
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ax,ay,az
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: cx,cy,cz
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1
-      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ksta:kend)    :: rbx,rby,rbz
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)                :: r1,r2
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: ax,ay,az
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: cx,cy,cz
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)             :: c1
+      REAL(KIND=GP), INTENT(IN), DIMENSION(nx,ny,ksta:kend)    :: rbx,rby,rbz
+      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)                :: r1,r2
       REAL(KIND=GP), INTENT(OUT)   :: out
       REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: k1,q1
@@ -66,8 +66,8 @@
       CALL dshell(q1,cx,c1,1)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rbx(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -75,8 +75,8 @@
       CALL shell(k1,ax,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -88,8 +88,8 @@
       CALL dshell(q1,cx,c1,2)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rby(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -97,8 +97,8 @@
       CALL shell(k1,ax,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -110,8 +110,8 @@
       CALL dshell(q1,cx,c1,3)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rbz(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -119,8 +119,8 @@
       CALL shell(k1,ax,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -132,8 +132,8 @@
       CALL dshell(q1,cy,c1,1)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rbx(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -141,8 +141,8 @@
       CALL shell(k1,ay,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -154,8 +154,8 @@
       CALL dshell(q1,cy,c1,2)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rby(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -163,8 +163,8 @@
       CALL shell(k1,ay,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -176,8 +176,8 @@
       CALL dshell(q1,cy,c1,3)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rbz(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -185,8 +185,8 @@
       CALL shell(k1,ay,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -198,8 +198,8 @@
       CALL dshell(q1,cz,c1,1)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rbx(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -207,8 +207,8 @@
       CALL shell(k1,az,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -220,8 +220,8 @@
       CALL dshell(q1,cz,c1,2)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rby(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -229,8 +229,8 @@
       CALL shell(k1,az,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -242,8 +242,8 @@
       CALL dshell(q1,cz,c1,3)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rbz(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -251,14 +251,14 @@
       CALL shell(k1,az,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
       END DO
 
-      tmp = tmp/real(n,kind=GP)**9
+      tmp = tmp/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**3
       CALL MPI_REDUCE(tmp,out,1,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       RETURN
@@ -296,11 +296,11 @@
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ax,ay,az
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: cx,cy,cz
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1
-      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ksta:kend)    :: rbx,rby,rbz
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)                :: r1,r2
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: ax,ay,az
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: cx,cy,cz
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)             :: c1
+      REAL(KIND=GP), INTENT(IN), DIMENSION(nx,ny,ksta:kend)    :: rbx,rby,rbz
+      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)                :: r1,r2
       REAL(KIND=GP), INTENT(OUT)   :: out
       REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: k1,q1
@@ -314,8 +314,8 @@
       CALL dshellpara(q1,cx,c1,1)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rbx(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -323,8 +323,8 @@
       CALL shellpara(k1,ax,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -336,8 +336,8 @@
       CALL dshellpara(q1,cx,c1,2)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rby(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -345,8 +345,8 @@
       CALL shellpara(k1,ax,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -358,8 +358,8 @@
       CALL dshellpara(q1,cx,c1,3)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rbz(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -367,8 +367,8 @@
       CALL shellpara(k1,ax,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -380,8 +380,8 @@
       CALL dshellpara(q1,cy,c1,1)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rbx(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -389,8 +389,8 @@
       CALL shellpara(k1,ay,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -402,8 +402,8 @@
       CALL dshellpara(q1,cy,c1,2)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rby(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -411,8 +411,8 @@
       CALL shellpara(k1,ay,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -424,8 +424,8 @@
       CALL dshellpara(q1,cy,c1,3)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rbz(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -433,8 +433,8 @@
       CALL shellpara(k1,ay,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -446,8 +446,8 @@
       CALL dshellpara(q1,cz,c1,1)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rbx(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -455,8 +455,8 @@
       CALL shellpara(k1,az,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -468,8 +468,8 @@
       CALL dshellpara(q1,cz,c1,2)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rby(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -477,8 +477,8 @@
       CALL shellpara(k1,az,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -490,8 +490,8 @@
       CALL dshellpara(q1,cz,c1,3)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rbz(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -499,14 +499,14 @@
       CALL shellpara(k1,az,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
       END DO
 
-      tmp = tmp/real(n,kind=GP)**9
+      tmp = tmp/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**3
       CALL MPI_REDUCE(tmp,out,1,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       RETURN
@@ -543,11 +543,11 @@
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ax,ay,az
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: cx,cy,cz
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1
-      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ksta:kend)    :: rbx,rby,rbz
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)                :: r1,r2
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: ax,ay,az
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: cx,cy,cz
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)             :: c1
+      REAL(KIND=GP), INTENT(IN), DIMENSION(nx,ny,ksta:kend)    :: rbx,rby,rbz
+      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)                :: r1,r2
       REAL(KIND=GP),INTENT(OUT)    :: out
       REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: k1,q1
@@ -561,8 +561,8 @@
       CALL dshellperp(q1,cx,c1,1)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rbx(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -570,8 +570,8 @@
       CALL shellperp(k1,ax,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -583,8 +583,8 @@
       CALL dshellperp(q1,cx,c1,2)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rby(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -592,8 +592,8 @@
       CALL shellperp(k1,ax,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -605,8 +605,8 @@
       CALL dshellperp(q1,cx,c1,3)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rbz(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -614,8 +614,8 @@
       CALL shellperp(k1,ax,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -627,8 +627,8 @@
       CALL dshellperp(q1,cy,c1,1)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rbx(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -636,8 +636,8 @@
       CALL shellperp(k1,ay,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -649,8 +649,8 @@
       CALL dshellperp(q1,cy,c1,2)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rby(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -658,8 +658,8 @@
       CALL shellperp(k1,ay,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -671,8 +671,8 @@
       CALL dshellperp(q1,cy,c1,3)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rbz(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -680,8 +680,8 @@
       CALL shellperp(k1,ay,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -693,8 +693,8 @@
       CALL dshellperp(q1,cz,c1,1)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rbx(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -702,8 +702,8 @@
       CALL shellperp(k1,az,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -715,8 +715,8 @@
       CALL dshellperp(q1,cz,c1,2)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rby(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -724,8 +724,8 @@
       CALL shellperp(k1,az,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -737,8 +737,8 @@
       CALL dshellperp(q1,cz,c1,3)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rbz(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -746,14 +746,14 @@
       CALL shellperp(k1,az,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
       END DO
 
-      tmp = tmp/real(n,kind=GP)**9
+      tmp = tmp/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**3
       CALL MPI_REDUCE(tmp,out,1,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       RETURN
@@ -786,10 +786,10 @@
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ax,ay,az
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1
-      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ksta:kend)    :: rbx,rby,rbz
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)                :: r1,r2,r3,r4
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: ax,ay,az
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)             :: c1
+      REAL(KIND=GP), INTENT(IN), DIMENSION(nx,ny,ksta:kend)    :: rbx,rby,rbz
+      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)                :: r1,r2,r3,r4
       REAL(KIND=GP),INTENT(OUT)    :: out
       REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: k1,q1
@@ -807,8 +807,8 @@
       CALL shell(q1,az,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r4(i,j,k)*(rby(i,j,k)*r3(i,j,k)      &
                      -rbz(i,j,k)*r2(i,j,k))
             END DO
@@ -823,8 +823,8 @@
       CALL shell(q1,ax,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r4(i,j,k)*(rbz(i,j,k)*r1(i,j,k)      &
                      -rbx(i,j,k)*r3(i,j,k))
             END DO
@@ -837,15 +837,15 @@
       CALL shell(k1,az,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r4,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r4(i,j,k)*(rbx(i,j,k)*r2(i,j,k)      &
                      -rby(i,j,k)*r1(i,j,k))
             END DO
          END DO
       END DO
 
-      tmp = tmp/real(n,kind=GP)**9
+      tmp = tmp/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**3
       CALL MPI_REDUCE(tmp,out,1,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       RETURN
@@ -887,12 +887,12 @@
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ax,ay,az
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1
-      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ksta:kend)    :: rxx,rxy,rxz
-      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ksta:kend)    :: ryx,ryy,ryz
-      REAL(KIND=GP), INTENT(IN), DIMENSION(n,n,ksta:kend)    :: rzx,rzy,rzz
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)                :: r1,r2
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: ax,ay,az
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)             :: c1
+      REAL(KIND=GP), INTENT(IN), DIMENSION(nx,ny,ksta:kend)    :: rxx,rxy,rxz
+      REAL(KIND=GP), INTENT(IN), DIMENSION(nx,ny,ksta:kend)    :: ryx,ryy,ryz
+      REAL(KIND=GP), INTENT(IN), DIMENSION(nx,ny,ksta:kend)    :: rzx,rzy,rzz
+      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)                :: r1,r2
       REAL(KIND=GP), INTENT(OUT)   :: out
       REAL(KIND=GP)                :: tmp
       INTEGER, INTENT(IN) :: k1,p1
@@ -906,8 +906,8 @@
       CALL shell(p1,ax,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rxx(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -915,8 +915,8 @@
       CALL shell(k1,ax,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -928,8 +928,8 @@
       CALL shell(p1,ay,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rxy(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -937,8 +937,8 @@
       CALL shell(k1,ax,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -950,8 +950,8 @@
       CALL shell(p1,az,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rxz(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -959,8 +959,8 @@
       CALL shell(k1,ax,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -972,8 +972,8 @@
       CALL shell(p1,ax,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = ryx(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -981,8 +981,8 @@
       CALL shell(k1,ay,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -994,8 +994,8 @@
       CALL shell(p1,ay,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = ryy(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -1003,8 +1003,8 @@
       CALL shell(k1,ay,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -1016,8 +1016,8 @@
       CALL shell(p1,az,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = ryz(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -1025,8 +1025,8 @@
       CALL shell(k1,ay,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -1038,8 +1038,8 @@
       CALL shell(p1,ax,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rzx(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -1047,8 +1047,8 @@
       CALL shell(k1,az,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -1060,8 +1060,8 @@
       CALL shell(p1,ay,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rzy(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -1069,8 +1069,8 @@
       CALL shell(k1,az,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
@@ -1082,8 +1082,8 @@
       CALL shell(p1,az,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                r1(i,j,k) = rzz(i,j,k)*r1(i,j,k)
             END DO
          END DO
@@ -1091,15 +1091,15 @@
       CALL shell(k1,az,c1)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                tmp = tmp+r1(i,j,k)*r2(i,j,k)
             END DO
          END DO
       END DO
 
-      tmp = tmp/real(n,kind=GP)**9
-      tmp = tmp/real(n,kind=GP)**3
+      tmp = tmp/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**3
+      tmp = tmp/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
       CALL MPI_REDUCE(tmp,out,1,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       RETURN
@@ -1126,23 +1126,23 @@
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend)  :: a
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: b
       INTEGER, INTENT(IN) :: k1
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
 
       DO i = ista,iend
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
 
-            IF ((ka2(k,j,i).ge.k1**2).and.(ka2(k,j,i).lt.(k1+1)**2)) THEN
+            IF ((kk2(k,j,i).ge.k1**2).and.(kk2(k,j,i).lt.(k1+1)**2)) THEN
                IF (dir.eq.1) THEN
-                  b(k,j,i) = im*ka(i)*a(k,j,i)
+                  b(k,j,i) = im*kx(i)*a(k,j,i)
                ELSE IF (dir.eq.2) THEN
-                  b(k,j,i) = im*ka(j)*a(k,j,i)
+                  b(k,j,i) = im*ky(j)*a(k,j,i)
                ELSE
-                  b(k,j,i) = im*ka(k)*a(k,j,i)
+                  b(k,j,i) = im*kz(k)*a(k,j,i)
                ENDIF
             ELSE
                b(k,j,i) = 0.
@@ -1177,23 +1177,23 @@
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend)  :: a
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: b
       INTEGER, INTENT(IN) :: k1
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
 
       DO i = ista,iend
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
 
-            IF ((ka(k)**2.ge.k1**2).and.(ka(k)**2.lt.(k1+1)**2)) THEN
+            IF ((kz(k)**2.ge.k1**2).and.(kz(k)**2.lt.(k1+1)**2)) THEN
                IF (dir.eq.1) THEN
-                  b(k,j,i) = im*ka(i)*a(k,j,i)
+                  b(k,j,i) = im*kx(i)*a(k,j,i)
                ELSE IF (dir.eq.2) THEN
-                  b(k,j,i) = im*ka(j)*a(k,j,i)
+                  b(k,j,i) = im*ky(j)*a(k,j,i)
                ELSE
-                  b(k,j,i) = im*ka(k)*a(k,j,i)
+                  b(k,j,i) = im*kz(k)*a(k,j,i)
                ENDIF
             ELSE
                b(k,j,i) = 0.
@@ -1227,25 +1227,25 @@
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend)  :: a
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: b
       REAL(KIND=GP)                :: kperp2
       INTEGER, INTENT(IN) :: k1
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
 
       DO i = ista,iend
-         DO j = 1,n
-            kperp2 = ka(i)**2+ka(j)**2
-            DO k = 1,n
+         DO j = 1,ny
+            kperp2 = kx(i)**2+ky(j)**2
+            DO k = 1,nz
 
             IF ((kperp2.ge.k1**2).and.(kperp2.lt.(k1+1)**2)) THEN
                IF (dir.eq.1) THEN
-                  b(k,j,i) = im*ka(i)*a(k,j,i)
+                  b(k,j,i) = im*kx(i)*a(k,j,i)
                ELSE IF (dir.eq.2) THEN
-                  b(k,j,i) = im*ka(j)*a(k,j,i)
+                  b(k,j,i) = im*ky(j)*a(k,j,i)
                ELSE
-                  b(k,j,i) = im*ka(k)*a(k,j,i)
+                  b(k,j,i) = im*kz(k)*a(k,j,i)
                ENDIF
             ELSE
                b(k,j,i) = 0.
@@ -1276,16 +1276,16 @@
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend)  :: a
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: b
       INTEGER, INTENT(IN) :: k1
       INTEGER             :: i,j,k
 
       DO i = ista,iend
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
 
-            IF ((ka2(k,j,i).ge.k1**2).and.(ka2(k,j,i).lt.(k1+1)**2)) THEN
+            IF ((kk2(k,j,i).ge.k1**2).and.(kk2(k,j,i).lt.(k1+1)**2)) THEN
                b(k,j,i) = a(k,j,i)
             ELSE
                b(k,j,i) = 0.
@@ -1317,16 +1317,16 @@
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend)  :: a
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: b
       INTEGER, INTENT(IN) :: k1
       INTEGER             :: i,j,k
 
       DO i = ista,iend
-         DO j = 1,n
-            DO k = 1,n
+         DO j = 1,ny
+            DO k = 1,nz
 
-            IF ((ka(k)**2.ge.k1**2).and.(ka(k)**2.lt.(k1+1)**2)) THEN
+            IF ((kz(k)**2.ge.k1**2).and.(kz(k)**2.lt.(k1+1)**2)) THEN
                b(k,j,i) = a(k,j,i)
             ELSE
                b(k,j,i) = 0.
@@ -1357,16 +1357,16 @@
       USE mpivars
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend)  :: a
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: b
       REAL(KIND=GP)                :: kperp2
       INTEGER, INTENT(IN) :: k1
       INTEGER             :: i,j,k
 
       DO i = ista,iend
-         DO j = 1,n
-            kperp2 = ka(i)**2+ka(j)**2
-            DO k = 1,n
+         DO j = 1,ny
+            kperp2 = kx(i)**2+ky(j)**2
+            DO k = 1,nz
 
             IF ((kperp2.ge.k1**2).and.(kperp2.lt.(k1+1)**2)) THEN
                b(k,j,i) = a(k,j,i)

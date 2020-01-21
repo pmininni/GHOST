@@ -184,7 +184,7 @@ all: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o $(UTILS)/gutils_mod.o \
 
 main: all
 
-trans triad: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) \
+trans triad: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS) $(IOLIB)/binary_io.o $(OBJS) \
 	        $(TRAN_OBJS)
 	$(MAKE) $@$(SOLVER)
 	$(MAKE) undo

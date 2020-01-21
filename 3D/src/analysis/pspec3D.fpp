@@ -3,8 +3,8 @@
 !=================================================================
 ! PSPEC3D code (part of the GHOST suite)
 !
-! Reads real quantity, computes power spectrum, output to a file
-!
+! Reads real quantity, computes power spectrum, output to a file.
+! This tool ONLY works with cubic data in (2.pi)^3 domains.
 !
 ! 2013 D. Rosenberg
 !      NCAR
@@ -38,12 +38,12 @@
 
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vc
 
-
       REAL(KIND=GP)   , ALLOCATABLE, DIMENSION (:,:,:) :: rv
       REAL(KIND=GP)                                    :: tmp
 !
 ! Auxiliary variables
 
+      INTEGER :: n
       INTEGER :: i,ic,iir,ind,ir,iswap,it,maxfn,oswap,j,jc,jjc,k
       INTEGER :: nfiles
 
@@ -56,6 +56,15 @@
 !
       NAMELIST / pspec / idir, odir, fnstr, iswap, oswap
 
+!
+! Verifies proper compilation of the tool
+
+      IF ( (nx.ne.ny).or.(ny.ne.nz) ) THEN
+        IF (myrank.eq.0) &
+           PRINT *,'This tool only works with cubic data in (2.pi)^3 domains'
+        STOP
+      ENDIF
+      n = nx
 !
 ! Initializes the MPI and I/O libraries
       CALL MPI_INIT(ierr)
@@ -94,13 +103,14 @@
       kmax   = (real(n,kind=GP)/3.)**2
 
       ALLOCATE( vc(n,n,ista:iend) )
-      ALLOCATE( ka(n),ka2(n,n,ista:iend) )
+      ALLOCATE( kx(n), ky(n), kz(n) )
+      ALLOCATE( kn2(n,n,ista:iend), kk2(n,n,ista:iend) )
       ALLOCATE( rv(n,n,ksta:kend) )
 !
 
-      CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
+      CALL fftp3d_create_plan(planrc,(/n,n,n/),FFTW_REAL_TO_COMPLEX, &
           FFTW_MEASURE)
-      CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
+      CALL fftp3d_create_plan(plancr,(/n,n,n/),FFTW_COMPLEX_TO_REAL, &
           FFTW_MEASURE)
 !
 ! Some constants for the FFT
@@ -115,16 +125,20 @@
 ! number matrixes
 
       DO i = 1,n/2
-         ka(i) = REAL(i-1,KIND=GP)
-         ka(i+n/2) = REAL(i-n/2-1,KIND=GP)
+         kx(i) = real(i-1,kind=GP)
+         kx(i+n/2) = real(i-n/2-1,kind=GP)
       END DO
+      ky = kx
+      kz = kx
+      DO i = 1,n/2
       DO i = ista,iend
          DO j = 1,n
             DO k = 1,n
-               ka2(k,j,i) = ka(i)**2+ka(j)**2+ka(k)**2
+               kk2(k,j,i) = kx(i)**2+ky(j)**2+kz(k)**2
             END DO
          END DO
       END DO
+      kn2 = kk2
 
       CALL parsestr(fnstr,';', fnin, maxfn, 256, nfiles) 
 
@@ -154,16 +168,14 @@
       CALL fftp3d_destroy_plan(plancr)
       CALL fftp3d_destroy_plan(planrc)
 
-
-      DEALLOCATE ( vc)
-      DEALLOCATE ( rv)
-      DEALLOCATE ( ka)
-      DEALLOCATE ( ka2)
+      DEALLOCATE ( vc )
+      DEALLOCATE ( rv )
+      DEALLOCATE ( kx,ky,kz )
+      DEALLOCATE ( kk2 )
 
       CALL MPI_FINALIZE(ierr)
 
       END PROGRAM PSPEC3D
-
 
 !*****************************************************************
       SUBROUTINE pspectrum(a,fnout)
@@ -183,9 +195,9 @@
       USE filefmt
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1)                     :: Ek
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
-      CHARACTER(len=*), INTENT(IN)                           :: fnout
+      DOUBLE PRECISION, DIMENSION(nx/2+1)                      :: Ek
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
+      CHARACTER(len=*), INTENT(IN)                             :: fnout
 !
 ! Computes the energy and/or helicity spectra
       CALL pspectrumc(a,Ek)
@@ -201,7 +213,6 @@
 !
       RETURN
       END SUBROUTINE pspectrum
-
 
 !*****************************************************************
       SUBROUTINE pspectrumc(a,Ektot)
@@ -221,11 +232,11 @@
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1) :: Ek
-      DOUBLE PRECISION, INTENT(OUT), DIMENSION(n/2+1) :: Ektot
+      DOUBLE PRECISION, DIMENSION(nx/2+1)              :: Ek
+      DOUBLE PRECISION, INTENT(OUT), DIMENSION(nx/2+1) :: Ektot
       DOUBLE PRECISION    :: tmq
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)             :: c1
       REAL(KIND=GP)       :: tmp
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -234,16 +245,16 @@
 ! Computes the kinetic energy spectrum
 !
       tmp = 1.0_GP/real(n,kind=GP)**6
-       DO i = 1,n/2+1
+       DO i = 1,nx/2+1
           Ek   (i) = 0.0D0
           Ektot(i) = 0.0D0
        END DO
        IF (ista.eq.1) THEN
 !$omp parallel do private (k,kmn,tmq)
-          DO j = 1,n
-             DO k = 1,n
-                kmn = int(sqrt(ka2(k,j,1))+.501)
-                IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+          DO j = 1,ny
+             DO k = 1,nz
+                kmn = int(sqrt(kk2(k,j,1))+.501)
+                IF ((kmn.gt.0).and.(kmn.le.nx/2+1)) THEN
                    tmq = (abs(a(k,j,1))**2 )*tmp
 !$omp atomic
                    Ek(kmn) = Ek(kmn)+tmq
@@ -253,10 +264,10 @@
 !$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
           DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-             DO j = 1,n
-                DO k = 1,n
-                   kmn = int(sqrt(ka2(k,j,i))+.501)
-                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+             DO j = 1,ny
+                DO k = 1,nz
+                   kmn = int(sqrt(kk2(k,j,i))+.501)
+                   IF ((kmn.gt.0).and.(kmn.le.nx/2+1)) THEN
                       tmq = 2*(abs(a(k,j,i))**2 )*tmp
 !$omp atomic
                       Ek(kmn) = Ek(kmn)+tmq
@@ -268,10 +279,10 @@
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
           DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-             DO j = 1,n
-                DO k = 1,n
-                   kmn = int(sqrt(ka2(k,j,i))+.501)
-                   IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+             DO j = 1,ny
+                DO k = 1,nz
+                   kmn = int(sqrt(kk2(k,j,i))+.501)
+                   IF ((kmn.gt.0).and.(kmn.le.nx/2+1)) THEN
                       tmq = 2*(abs(a(k,j,i))**2)*tmp
 !$omp atomic
                       Ek(kmn) = Ek(kmn)+tmq

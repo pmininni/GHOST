@@ -34,8 +34,8 @@
       USE threads
       IMPLICIT NONE
 
-      REAL(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: a
-      REAL(KIND=GP), DIMENSION(n,n) :: buffer1,buffer2
+      REAL(KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: a
+      REAL(KIND=GP), DIMENSION(nx,ny) :: buffer1,buffer2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
       INTEGER, INTENT(IN)  :: dir
       INTEGER, INTENT(IN)  :: comm
@@ -59,20 +59,20 @@
          zrecv = ksta
       ENDIF
 !$omp parallel do private (i)
-      DO j = 1,n
-         DO i = 1,n
+      DO j = 1,ny
+         DO i = 1,nx
             buffer2(i,j) = a(i,j,zsend)
          END DO
       END DO
 
-      CALL MPI_IRECV(buffer1,n*n,GC_REAL,igetFrom,1,comm,ireq1,ierr)
-      CALL MPI_ISEND(buffer2,n*n,GC_REAL,isendTo,1,comm,ireq2,ierr)
+      CALL MPI_IRECV(buffer1,nx*ny,GC_REAL,igetFrom,1,comm,ireq1,ierr)
+      CALL MPI_ISEND(buffer2,nx*ny,GC_REAL,isendTo,1,comm,ireq2,ierr)
 
 !$omp parallel do if ((zrecv-dir-zsend)/dir.ge.nth) private (j,i)
       DO k = zsend,zrecv-dir,dir
 !$omp parallel do if ((zrecv-dir-zsend)/dir.ge.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,ny
+            DO i = 1,nx
                a(i,j,k) = a(i,j,k+dir)
             END DO
          END DO
@@ -82,8 +82,8 @@
       CALL MPI_WAIT(ireq2,istatus,ierr)
 
 !$omp parallel do private (i)
-      DO j = 1,n
-         DO i = 1,n
+      DO j = 1,ny
+         DO i = 1,nx
             a(i,j,zrecv) = buffer1(i,j)
          END DO
       END DO
@@ -107,9 +107,9 @@
       USE threads
       IMPLICIT NONE
 
-      REAL(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: a
+      REAL(KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: a
       INTEGER, INTENT(IN)                   :: dis
-      REAL(KIND=GP), DIMENSION(abs(dis),n,ksta:kend) :: buffer
+      REAL(KIND=GP), DIMENSION(abs(dis),ny,ksta:kend) :: buffer
       INTEGER :: d,s,inib,endb,alef,arig
       INTEGER :: i,j,k
 
@@ -117,11 +117,11 @@
       s = dis/d
       IF ( s.gt.0 ) THEN
          inib = 0
-         endb = N-d
+         endb = nx-d
          alef = 0
          arig = d
       ELSE
-         inib = N-d
+         inib = nx-d
          endb = 0
          alef = d
          arig = 0
@@ -130,7 +130,7 @@
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
+         DO j = 1,ny
             DO i = 1,d
                buffer(i,j,k) = a(i+inib,j,k)
             END DO
@@ -139,8 +139,8 @@
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,N-d,s
+         DO j = 1,ny
+            DO i = 1,nx-d,s
                a(i+alef,j,k) = a(i+arig,j,k)
             END DO
          END DO
@@ -148,7 +148,7 @@
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
+         DO j = 1,ny
             DO i = 1,d
                a(i+endb,j,k) = buffer(i,j,k)
             END DO
@@ -174,9 +174,9 @@
       USE threads
       IMPLICIT NONE
 
-      REAL(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: a
+      REAL(KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: a
       INTEGER, INTENT(IN)                   :: dis
-      REAL(KIND=GP), DIMENSION(n,abs(dis),ksta:kend) :: buffer
+      REAL(KIND=GP), DIMENSION(nx,abs(dis),ksta:kend) :: buffer
       INTEGER :: d,s,inib,endb,alef,arig
       INTEGER :: i,j,k
 
@@ -184,11 +184,11 @@
       s = dis/d
       IF ( s.gt.0 ) THEN
          inib = 0
-         endb = N-d
+         endb = ny-d
          alef = 0
          arig = d
       ELSE
-         inib = N-d
+         inib = ny-d
          endb = 0
          alef = d
          arig = 0
@@ -198,7 +198,7 @@
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,d
-            DO i = 1,n
+            DO i = 1,nx
                buffer(i,j,k) = a(i,j+inib,k)
             END DO
          END DO
@@ -206,8 +206,8 @@
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,N-d,s
-            DO i = 1,n
+         DO j = 1,ny-d,s
+            DO i = 1,nx
                a(i,j+alef,k) = a(i,j+arig,k)
             END DO
          END DO
@@ -216,7 +216,7 @@
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,d
-            DO i = 1,n
+            DO i = 1,nx
                a(i,j+endb,k) = buffer(i,j,k)
             END DO
          END DO

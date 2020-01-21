@@ -69,7 +69,7 @@
 !
 ! Verifies proper compilation of the tool
 
-      IF ( (nx.ne.ny).or.(nx.ne.nz).or.(ny.ne.nz) ) THEN
+      IF ( (nx.ne.ny).or.(ny.ne.nz) ) THEN
         IF (myrank.eq.0) &
            PRINT *,'This tool only works with cubic data in (2.pi)^3 domains'
         STOP
@@ -170,7 +170,8 @@
              FFTW_ESTIMATE)
          CALL fftp3d_create_plan(plancr,(/n,n,n/),FFTW_COMPLEX_TO_REAL, &
              FFTW_ESTIMATE)
-         ALLOCATE( kx(n), kk2(n,n,ista:iend) )
+         ALLOCATE( kx(n), ky(n), kz(n) )
+         ALLOCATE( kn2(n,n,ista:iend), kk2(n,n,ista:iend) )
          kmax = (real(n,kind=GP)/3.)**2
          tiny = 1e-5
          DO i = 1,n/2
@@ -186,6 +187,7 @@
                END DO
             END DO
          END DO
+	 kn2 = kk2
          IF (comp.eq.1) THEN
             CALL io_read(1,idir,'vy',ext,planio,v1)
             CALL fftp3d_real_to_complex(planrc,v1,C1,MPI_COMM_WORLD)

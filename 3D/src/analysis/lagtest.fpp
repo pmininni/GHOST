@@ -1,7 +1,8 @@
 !=================================================================
       program lagtest
 !=================================================================
-! Lagrangian particle test stub 
+! Lagrangian particle test stub. This tool ONLY works with cubic
+! data in (2.pi)^3 domains.
 !
 ! 2013 D. Rosenberg
 !      NCCS:ORNL
@@ -54,7 +55,7 @@
 !
 ! Verifies proper compilation of the tool
 
-      IF ( (nx.ne.ny).or.(nx.ne.nz).or.(ny.ne.nz) ) THEN
+      IF ( (nx.ne.ny).or.(ny.ne.nz) ) THEN
         IF (myrank.eq.0) &
            PRINT *,'This tool only works with cubic data in (2.pi)^3 domains'
         STOP

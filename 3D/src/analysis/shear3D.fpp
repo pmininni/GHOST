@@ -1,4 +1,3 @@
-
 #ifdef PROTH_SOL
 #define SCALAR_
 #endif
@@ -10,7 +9,6 @@
 #ifdef ROTBOUSS_SOL
 #define SCALAR_
 #endif
-
 
       PROGRAM SHEAR3D
 !=================================================================
@@ -30,13 +28,14 @@
 !  'Eigensystems for 3x3 Symmetric Matrices (Revisited)'
 !   David Eberly, Geometric Tools, LLC
 !   http://www.geometrictools.com
-!   (c) 1998-2012, May 2011 
+!   (c) 1998-2012, May 2011
 !
 ! If jpdf=1, jpoint and 1d pdfs of energy dissipation and 
 ! entrophy density, energy diss and lambda, energy diss and (relative?)
 ! helicity will be computed and written, as will a variety of other 
 ! 1d and joint PDFs.
 !
+! This tool ONLY works with cubic data in (2.pi)^3 domains.
 !
 ! 2013 D. Rosenberg
 !      ORNL/NCCS
@@ -92,12 +91,12 @@
 !
 ! Auxiliary variables
 
+      INTEGER :: n
       INTEGER :: i,ic,iir,ind,ir,isolve,istrain,it,j,jc,jjc,k
       INTEGER :: demean,dolog,ilamb,iobin,inorm,istat(1024),jpdf,nstat
       INTEGER :: irand,isheb,nbinx,nbiny,nbins(2),nin,seed
       INTEGER :: indt,tstep
 !$    INTEGER, EXTERNAL :: omp_get_max_threads
-
 
       TYPE(IOPLAN) :: planio
       CHARACTER(len=16)   :: suff
@@ -114,6 +113,15 @@
       NAMELIST / shear / irand,krmin,krmax,seed
       NAMELIST / shear / btrunc,ktmin,ktmax
       NAMELIST / shear / bvfreq,dt,omega,tstep
+
+!
+! Verifies proper compilation of the tool
+      IF ( (nx.ne.ny).or.(ny.ne.nz) ) THEN
+        IF (myrank.eq.0) &
+           PRINT *,'This tool only works with cubic data in (2.pi)^3 domains'
+        STOP
+      ENDIF
+      n = nx
 
 !
 ! Initializes the MPI and I/O libraries
@@ -239,8 +247,8 @@ if (myrank.eq.0) write(*,*)'main: broadcast done.'
 #if defined(SCALAR_)
       ALLOCATE( th(n,n,ista:iend) )
 #endif
-      ALLOCATE( ka(n) )
-      ALLOCATE( ka2(n,n,ista:iend) )
+      ALLOCATE( kx(n), ky(n), kz(n) )
+      ALLOCATE( kn2(n,n,ista:iend), kk2(n,n,ista:iend) )
       ALLOCATE( R1(n,n,ksta:kend) )
       ALLOCATE( R2(n,n,ksta:kend) )
       ALLOCATE( R3(n,n,ksta:kend) )
@@ -258,9 +266,9 @@ if (myrank.eq.0) write(*,*)'main: broadcast done.'
       ENDIF
 
 if (myrank.eq.0) write(*,*)'main: creating plans...'
-      CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
+      CALL fftp3d_create_plan(planrc,(/n,n,n/),FFTW_REAL_TO_COMPLEX, &
           FFTW_MEASURE)
-      CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
+      CALL fftp3d_create_plan(plancr,(/n,n,n/),FFTW_COMPLEX_TO_REAL, &
           FFTW_MEASURE)
 if (myrank.eq.0) write(*,*)'main: plans done.'
 !
@@ -285,21 +293,24 @@ if (myrank.eq.0) write(*,*)'main: d-extrema done.'
 ! number matrixes
 
       DO i = 1,n/2
-         ka(i) = REAL(i-1,KIND=GP)
-         ka(i+n/2) = REAL(i-n/2-1,KIND=GP)
+         kx(i) = real(i-1,kind=GP)
+         kx(i+n/2) = real(i-n/2-1,kind=GP)
       END DO
-if (myrank.eq.0) write(*,*)'main: ka done.'
+      ky = kx
+      kz = kx
+if (myrank.eq.0) write(*,*)'main: k-vector done.'
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,n
             DO k = 1,n
-               ka2(k,j,i) = ka(i)**2+ka(j)**2+ka(k)**2
+               kk2(k,j,i) = kx(i)**2+ky(j)**2+kz(k)**2
             END DO
          END DO
       END DO
-if (myrank.eq.0) write(*,*)'main: ka2 done.'
+      kn2 = kk2
+if (myrank.eq.0) write(*,*)'main: k^2 array done.'
 
       CALL parseind(stat,';', istat , 1024, nstat) 
 if (myrank.eq.0) write(*,*)'main: index parsing done: nstat=',nstat
@@ -354,7 +365,7 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,n
             DO k = 1,n
-              IF ((ka2(k,j,i).lt.ktmin2).or.(ka2(k,j,i).gt.ktmax2)) THEN
+              IF ((kk2(k,j,i).lt.ktmin2).or.(kk2(k,j,i).gt.ktmax2)) THEN
                 vx(k,j,i) = 0.0_GP
                 vy(k,j,i) = 0.0_GP
                 vz(k,j,i) = 0.0_GP
@@ -406,8 +417,9 @@ if (myrank.eq.0) write(*,*)'main: real 2 cmplex done.'
         IF ( ALLOCATED  (R4) ) DEALLOCATE  (R4); IF ( ALLOCATED  (R5) ) DEALLOCATE  (R5)
         IF ( ALLOCATED  (R6) ) DEALLOCATE  (R6); IF ( ALLOCATED (evx) ) DEALLOCATE (evx)
         IF ( ALLOCATED (evy) ) DEALLOCATE (evy); IF ( ALLOCATED (evz) ) DEALLOCATE (evz)
-        IF ( ALLOCATED  (ka) ) DEALLOCATE  (ka) 
-!!      IF ( ALLOCATED (ka2) ) DEALLOCATE (ka2)
+        IF ( ALLOCATED  (kx) ) DEALLOCATE  (kx) 
+        IF ( ALLOCATED  (ky) ) DEALLOCATE  (ky) 
+        IF ( ALLOCATED  (kz) ) DEALLOCATE  (kz) 
         STOP
       ENDIF
 
@@ -461,8 +473,8 @@ if (myrank.eq.0) write(*,*)'main: doing Eigen system...'
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
         DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-          DO j = 1,n
-            DO i = 1,n
+          DO j = 1,ny
+            DO i = 1,nx
 !$omp atomic
               sl = sl + lamb(i,j,k)
              ENDDO
@@ -561,12 +573,174 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
       IF ( ALLOCATED (evx) ) DEALLOCATE (evx)
       IF ( ALLOCATED (evy) ) DEALLOCATE (evy)
       IF ( ALLOCATED (evz) ) DEALLOCATE (evz)
-      IF ( ALLOCATED  (ka) ) DEALLOCATE  (ka)
-!!    IF ( ALLOCATED (ka2) ) DEALLOCATE (ka2)
+      IF ( ALLOCATED  (kx) ) DEALLOCATE  (kx)
+      IF ( ALLOCATED  (ky) ) DEALLOCATE  (ky)
+      IF ( ALLOCATED  (kz) ) DEALLOCATE  (kz)
+
+      CONTAINS
+      
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+      SUBROUTINE Shebalin(asheb,kin,vx,vy,vz,th)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Compute Shebalin angle measure of anisotrop.
+!
+! Parameters
+!     asheb : returned Shebalin angle measurement
+!     kin   : 
+!       == 0: do total energy; 
+!       == 1: do kinetic energy only; 
+!       == 2: do potential energy only; (done only if th is specified)
+!     vx,
+!     vy,
+!     vz    : complex velocities
+!     th    : optional complex potl temperature
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE gutils
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend)           :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend), OPTIONAL :: th
+      REAL   (KIND=GP), INTENT  (OUT)  :: asheb
+      REAL   (KIND=GP)                 :: lasheb
+      REAL   (KIND=GP)                 :: tmp
+      DOUBLE PRECISION                 :: kprp,kpar,tmq,lprp,lpar,gprp,gpar,la(2),ga(2)
+      INTEGER         , INTENT (IN)    :: kin
+      INTEGER                          :: i,j,k
+
+      tmq  = 1.0D0/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+
+      lpar = 0.0D0
+      lprp = 0.0D0
+      IF (kin.eq.0 .OR. kin.eq.1) THEN ! total or kinetic energy
+        IF (ista.eq.1) THEN
+!$omp parallel do private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+           DO j = 1,ny
+              DO k = 1,nz
+                kprp = kx(1)**2 + ky(j)**2
+                kpar = kz(k)**2
+                tmp  = ( abs(vx(k,j,1))**2+abs(vy(k,j,1))**2+          &
+                         abs(vz(k,j,1))**2 )*tmq
+                lprp  = lprp + tmp*kprp
+                lpar  = lpar + tmp*kpar
+              END DO
+           END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+           DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+              DO j = 1,ny
+                 DO k = 1,nz
+                    kprp = kx(i)**2 + ky(j)**2
+                    kpar = kz(k)**2
+                    tmp  = 2.0*( abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+       &
+                                 abs(vz(k,j,i))**2 )*tmq
+                    lprp  = lprp + tmp*kprp
+                    lpar  = lpar + tmp*kpar
+                 END DO
+              END DO
+           END DO
+        ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+           DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+              DO j = 1,ny
+                 DO k = 1,nz
+                    kprp = kx(i)**2 + ky(j)**2
+                    kpar = kz(k)**2
+                    tmp  = 2.0*( abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+       &
+                                 abs(vz(k,j,i))**2 )*tmq
+                    lprp  = lprp + tmp*kprp
+                    lpar  = lpar + tmp*kpar
+                 END DO
+              END DO
+           END DO
+        ENDIF
+      ENDIF
+
+      IF (kin.EQ.1) THEN ! kinetic energy only
+        la(1) = lprp
+        la(2) = lpar
+        CALL MPI_ALLREDUCE(la,ga,2,MPI_DOUBLE_PRECISION,MPI_SUM,   &
+                        MPI_COMM_WORLD,ierr)
+        asheb  = real(ga(1) / (ga(2) + tiny),kind=GP)
+        RETURN
+      ENDIF
+
+      IF (.NOT.PRESENT(th) ) THEN
+        WRITE(*,*) 'Shebalin: potential temperature not provided'
+        STOP
+      ENDIF
+
+      IF (kin.EQ.2) THEN ! if potential energy only
+        lprp = 0.0_GP
+        lpar = 0.0_GP
+      ENDIF
+
+      IF (ista.eq.1) THEN ! add in the potential component
+!$omp parallel do private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+         DO j = 1,ny
+            DO k = 1,nz
+              kprp = kx(1)**2 + ky(j)**2
+              kpar = kz(k)**2
+              tmp  = ( abs(th(k,j,1))**2 )*tmq
+              lprp  = lprp + tmp*kprp
+              lpar  = lpar + tmp*kpar
+            END DO
+         END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+         DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+            DO j = 1,ny
+               DO k = 1,nz
+                  kprp = kx(i)**2 + ky(j)**2
+                  kpar = kz(k)**2
+                  tmp  = 2.0*( abs(th(k,j,i))**2 )*tmq
+                  lprp  = lprp + tmp*kprp
+                  lpar  = lpar + tmp*kpar
+               END DO
+            END DO
+         END DO
+      ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
+            DO j = 1,ny
+               DO k = 1,nz
+                  kprp = kx(i)**2 + ky(j)**2
+                  kpar = kz(k)**2
+                  tmp  = 2.0*( abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+       &
+                           abs(vz(k,j,i))**2 )*tmq
+                  lprp  = lprp + tmp*kprp
+                  lpar  = lpar + tmp*kpar
+               END DO
+            END DO
+         END DO
+      ENDIF
+!
+! Computes the reduction between nodes, store in return variable
+      la(1) = lprp
+      la(2) = lpar
+      CALL MPI_ALLREDUCE(la,ga,2,MPI_DOUBLE_PRECISION,MPI_SUM,   &
+                        MPI_COMM_WORLD,ierr)
+      asheb  = real(ga(1) / (ga(2) + tiny),kind=GP)
+      
+      END SUBROUTINE Shebalin
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 
       END PROGRAM SHEAR3D
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
+
 
 
       SUBROUTINE Strain(vx,vy,vz,ir,jc,ktmin,ktmax,inorm,sij,ctmp)
@@ -592,13 +766,13 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(n,n,ista:iend) :: vx,vy,vz
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: ctmp,sij
-      REAL   (KIND=GP), INTENT   (IN)                           :: ktmin,ktmax
-      REAL   (KIND=GP)                                          :: ktmin2,ktmax2,tmp
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp,sij
+      REAL   (KIND=GP), INTENT   (IN)                             :: ktmin,ktmax
+      REAL   (KIND=GP)                                            :: ktmin2,ktmax2,tmp
 !
-      INTEGER         , INTENT   (IN)                           :: inorm,ir,jc
-      INTEGER                                                   :: i,j,k
+      INTEGER         , INTENT   (IN)                             :: inorm,ir,jc
+      INTEGER                                                     :: i,j,k
 
       IF ( ir.NE.1 .AND. ir.NE.2 .AND. ir.NE.3 &
       .AND.jc.NE.1 .AND. jc.NE.2 .AND. jc.NE.3 ) THEN
@@ -616,8 +790,8 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-              DO j = 1,n
-                DO k = 1,n
+              DO j = 1,ny
+                DO k = 1,nz
                   ctmp(k,j,i) = sij(k,j,i)
                 END DO
               END DO
@@ -636,8 +810,8 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-              DO j = 1,n
-                DO k = 1,n
+              DO j = 1,ny
+                DO k = 1,nz
                   ctmp(k,j,i) = sij(k,j,i)
                 END DO
               END DO
@@ -656,8 +830,8 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-              DO j = 1,n
-                DO k = 1,n
+              DO j = 1,ny
+                DO k = 1,nz
                   ctmp(k,j,i) = sij(k,j,i)
                 END DO
               END DO
@@ -668,36 +842,34 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-        DO j = 1,n
-          DO k = 1,n
+        DO j = 1,ny
+          DO k = 1,nz
             sij(k,j,i) = 0.50_GP*(sij(k,j,i)+ctmp(k,j,i)) 
           END DO
         END DO
       END DO
 
-
       ! truncate spherically:
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-        DO j = 1,n
-          DO k = 1,n
-            IF ((ka2(k,j,i).lt.ktmin2 ).or.(ka2(k,j,i).gt.ktmax2)) THEN
+        DO j = 1,ny
+          DO k = 1,nz
+            IF ((kk2(k,j,i).lt.ktmin2 ).or.(kk2(k,j,i).gt.ktmax2)) THEN
               sij(k,j,i) = 0.0_GP
             ENDIF
           END DO
         END DO
       END DO
 
-
       IF ( inorm.GT.0 ) THEN
         
-        tmp = 1.0_GP/REAL(n,KIND=GP)**3
+        tmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-          DO j = 1,n
-            DO k = 1,n
+          DO j = 1,ny
+            DO k = 1,nz
               sij(k,j,i) = sij(k,j,i)*tmp
             END DO
           END DO
@@ -729,16 +901,16 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !$    USE threads
       IMPLICIT NONE
 
-      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: S11,S12,S13,S22,S23
-      REAL   (KIND=GP), INTENT  (OUT), DIMENSION(n,n,ksta:kend) :: lamb
-      REAL   (KIND=GP)                                          :: sa,sb,sc,sd,se,sf
-      REAL   (KIND=GP)                                          :: a,b,c,d
-      REAL   (KIND=GP)                                          :: del0,del1,ll(3),lmax
-      COMPLEX(KIND=GP)                                          :: CC,u(3)
-      COMPLEX(KIND=GP)                                          :: D0,D1
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: S11,S12,S13,S22,S23
+      REAL   (KIND=GP), INTENT  (OUT), DIMENSION(nx,ny,ksta:kend) :: lamb
+      REAL   (KIND=GP)                                            :: sa,sb,sc,sd,se,sf
+      REAL   (KIND=GP)                                            :: a,b,c,d
+      REAL   (KIND=GP)                                            :: del0,del1,ll(3),lmax
+      COMPLEX(KIND=GP)                                            :: CC,u(3)
+      COMPLEX(KIND=GP)                                            :: D0,D1
 
 !
-      INTEGER                                                   :: i,j,k,l
+      INTEGER                                                     :: i,j,k,l
 
       u(1) = cmplx(1.0_GP , 0.0_GP)
       u(2) = cmplx(-0.5_GP, 0.5_GP*sqrt(3.0_GP))
@@ -746,8 +918,8 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i,l,sa,sb,sc,sd,se,sf,a,b,c,d,del0,del1,D0,D1,CC,lmax)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i,l,sa,sb,sc,sd,se,sf,a,b,c,d,del0,del1,D0,D1,CC,lmax)
-        DO j = 1,n
-          DO i = 1,n
+        DO j = 1,ny
+          DO i = 1,nx
             sa = S11(i,j,k); sb = S12(i,j,k); sc = S13(i,j,k); 
             sd = S22(i,j,k); se = S23(i,j,k); sf = -(sa + sd);
             a    = 1.0_GP
@@ -788,7 +960,7 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !-----------------------------------------------------------------
 !
 ! Computes the max |eigenvalue| field for strain rate tensor, whos
-! required components are specified. Also computes the compnents of
+! required components are specified. Also computes the components of
 ! the eigenvector corresponding to this max eigenvalue at each point.
 ! If at a point the strain rate tensor is not of rank 2, meaning 3
 ! distinct e-values, and 3 e-vectors, then return (0,0,0) for the 
@@ -809,20 +981,20 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
       USE threads
       IMPLICIT NONE
 
-      REAL   (KIND=GP), INTENT   (IN), DIMENSION(n,n,ksta:kend) :: S11,S12,S13,S22,S23
-      REAL   (KIND=GP), INTENT  (OUT), DIMENSION(n,n,ksta:kend) :: lamb,evx,evy,evz
-      REAL   (KIND=GP)                                          :: s   (3,3),m1  (3,3),m2  (3,3),m3  (3,3)
-      REAL   (KIND=GP)                                          :: eval(3)  ,evec(3)  ,row1(3)  ,row2(3)
-      REAL   (KIND=GP)                                          :: ev1 (3)  ,ev2 (3)
-      INTEGER                                                   :: i,j,k,l,m
-      INTEGER                                                   :: GetRank
-!$    INTEGER,EXTERNAL                                          :: omp_get_thread_num
+      REAL   (KIND=GP), INTENT   (IN), DIMENSION(nx,ny,ksta:kend) :: S11,S12,S13,S22,S23
+      REAL   (KIND=GP), INTENT  (OUT), DIMENSION(nx,ny,ksta:kend) :: lamb,evx,evy,evz
+      REAL   (KIND=GP)                         :: s   (3,3),m1  (3,3),m2  (3,3),m3  (3,3)
+      REAL   (KIND=GP)                         :: eval(3)  ,evec(3)  ,row1(3)  ,row2(3)
+      REAL   (KIND=GP)                         :: ev1 (3)  ,ev2 (3)
+      INTEGER                                  :: i,j,k,l,m
+      INTEGER                                  :: GetRank
+!$    INTEGER,EXTERNAL                         :: omp_get_thread_num
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i,s,m1,m2,m3,evec,eval,ev1,ev2,row1,row2)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i,s,m1,m2,m3,evec,eval,ev1,ev2,row1,row2)
-        DO j = 1,n
-          DO i = 1,n
+        DO j = 1,ny
+          DO i = 1,nx
             s(1,1)=S11(i,j,k); s(1,2)=S12(i,j,k); s(1,3)=S13(i,j,k)
             s(2,1)=s(1,2); s(2,2)=S22(i,j,k); s(2,3)=S23(i,j,k)
             s(3,1)=s(1,3); s(3,2)=s(2,3); s(3,3)=-(s(1,1)+s(2,2))
@@ -862,7 +1034,6 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
           ENDDO
         ENDDO
       ENDDO
-
 
       END SUBROUTINE EigenSolveMax
 !-----------------------------------------------------------------
@@ -907,6 +1078,7 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
       END SUBROUTINE GetComplement1
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
+
 
       RECURSIVE INTEGER FUNCTION GetRank(m)
 !-----------------------------------------------------------------
@@ -1036,6 +1208,7 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+
       RECURSIVE SUBROUTINE GetRoots(m,eval)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1097,8 +1270,8 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
       END SUBROUTINE GetRoots
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!
-!
+
+
       SUBROUTINE DoKPDF(S11,S12,S13,S22,S23,vx,vy,vz,th,lambda,bvfreq,ext, &
                             odir,nbins,dolog,ctmp,vtmp,rtmp,rtmp1,rtmp2,kin,planio,iobin)
 !-----------------------------------------------------------------
@@ -1146,10 +1319,11 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
       USE iompi
       IMPLICIT NONE
 
-      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(n,n,ksta:kend) :: lambda,rtmp,rtmp1,rtmp2,S11,S12,S13,S22,S23
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: lambda,rtmp,rtmp1,rtmp2
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: S11,S12,S13,S22,S23
       REAL   (KIND=GP), INTENT   (IN)                           :: bvfreq
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: ctmp,vtmp
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: vx,vy,vz,th
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp,vtmp
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz,th
       REAL   (KIND=GP)                                          :: fact,fmin(2),fmax(2),xnorm,xnormi,xnormn
       REAL   (KIND=GP)                                          :: ss11,ss12,ss13,ss22,ss23,ss33
       REAL   (KIND=GP)                                          :: sf11,sf12,sf13,sf22,sf23,sf33
@@ -1173,13 +1347,13 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
       TYPE(IOPLAN)    , INTENT(INOUT)                           :: planio
 
 
-      nin = n*n*(kend-ksta+1)
-      xnormn = 1.0_GP/ real(n,kind=GP)**3
+      nin = nx*ny*(kend-ksta+1)
+      xnormn = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-        DO j = 1,n
-          DO k = 1,n
+        DO j = 1,ny
+          DO k = 1,nz
             vx(k,j,i) = vx(k,j,i)*xnormn
             vy(k,j,i) = vy(k,j,i)*xnormn
             vz(k,j,i) = vz(k,j,i)*xnormn
@@ -1193,47 +1367,47 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-        DO j = 1,n
-          DO i = 1,n
+        DO j = 1,ny
+          DO i = 1,nx
             rtmp(i,j,k) =  -(S11(i,j,k)+S22(i,j,k)) 
           ENDDO
         ENDDO
       ENDDO
 
-      CALL skewflat(S11 ,nin,n,ss11,sf11,s2,s3,s4)
+      CALL skewflat(S11 ,nin,nx,ss11,sf11,s2,s3,s4)
 !if ( myrank.eq.0 ) write(*,*)' time=',ext,' s11_s2=',s2,' s11_s3=',s3,' s11_s4=',s4
-      CALL skewflat(S12 ,nin,n,ss12,sf12,s2,s3,s4)
+      CALL skewflat(S12 ,nin,nx,ss12,sf12,s2,s3,s4)
 !if ( myrank.eq.0 ) write(*,*)' time=',ext,' s12_s2=',s2,' s12_s3=',s3,' s12_s4=',s4
-      CALL skewflat(S13 ,nin,n,ss13,sf13,s2,s3,s4)
+      CALL skewflat(S13 ,nin,nx,ss13,sf13,s2,s3,s4)
 !if ( myrank.eq.0 ) write(*,*)' time=',ext,' s13_s2=',s2,' s13_s3=',s3,' s12_s4=',s4
-      CALL skewflat(S22 ,nin,n,ss22,sf22,s2,s3,s4)
+      CALL skewflat(S22 ,nin,nx,ss22,sf22,s2,s3,s4)
 !if ( myrank.eq.0 ) write(*,*)' time=',ext,' s22_s2=',s2,' s22_s3=',s3,' s22_s4=',s4
-      CALL skewflat(S23 ,nin,n,ss23,sf23,s2,s3,s4)
+      CALL skewflat(S23 ,nin,nx,ss23,sf23,s2,s3,s4)
 !if ( myrank.eq.0 ) write(*,*)' time=',ext,' s23_s2=',s2,' s23_s3=',s3,' s23_s4=',s4
-      CALL skewflat(rtmp,nin,n,ss33,sf33,s2,s3,s4)
+      CALL skewflat(rtmp,nin,nx,ss33,sf33,s2,s3,s4)
       ! Compute, write, 1d Sij pdfs:
    
       If ( ibits(kin,0,1).EQ.1 ) THEN
       fnout = trim(odir) // '/' // 's11pdf.' // ext // '.txt'
-      CALL dopdfr(S11 ,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(S11 ,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       fnout = trim(odir) // '/' // 's12pdf.' // ext // '.txt'
-      CALL dopdfr(S12 ,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(S12 ,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       fnout = trim(odir) // '/' // 's13pdf.' // ext // '.txt'
-      CALL dopdfr(S13 ,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(S13 ,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       fnout = trim(odir) // '/' // 's22pdf.' // ext // '.txt'
-      CALL dopdfr(S22 ,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(S22 ,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       fnout = trim(odir) // '/' // 's23pdf.' // ext // '.txt'
-      CALL dopdfr(S23 ,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(S23 ,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       fnout = trim(odir) // '/' // 's33pdf.' // ext // '.txt'
-      CALL dopdfr(rtmp,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(rtmp,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ENDIF
 
       ! Compute normalized energy dissipation field, store in ! S11:
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-        DO j = 1,n
-          DO i = 1,n
+        DO j = 1,ny
+          DO i = 1,nx
             S11(i,j,k) = 2.0_GP*( S11(i,j,k)*S11(i,j,k) &
                                  +S22(i,j,k)*S22(i,j,k) &
                                  +S22(i,j,k)*S11(i,j,k) &
@@ -1245,34 +1419,34 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
         ENDDO
       ENDDO
 
-      CALL skewflat(S11   ,nin,n,sdiss,fdiss,s2,s3,s4) ! dissipation
+      CALL skewflat(S11   ,nin,nx,sdiss,fdiss,s2,s3,s4) ! dissipation
 !write(*,*)'DoKPDF: diss: s2=',s2,' s3=',s3,' s4=',s4,' sdiss=',sdiss,' fdiss=',fdiss
-      CALL skewflat(lambda,nin,n,slamb,flamb,s2,s3,s4) ! lambda
+      CALL skewflat(lambda,nin,nx,slamb,flamb,s2,s3,s4) ! lambda
 !write(*,*)'DoKPDF: lamb: s2=',s2,' s3=',s3,' s4=',s4,' slamb=',slamb,' flamb=',flamb
 
       ! Compute joint PDF for energy diss and lambda (order 
       ! switched, so that lambda is on x-axis, and energy diss on y axis:
       If ( ibits(kin,1,1).EQ.1 ) THEN
       fnout = trim(odir) // '/' // 'jpdf_diss_lamb_nolog.' // ext // '.txt'
-      CALL dojpdfr(lambda,'lambda',S11,'diss',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,0])
+      CALL dojpdfr(lambda,'lambda',S11,'diss',nin,nx,fnout,nbins,[0,0],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_diss_lamb_log.' // ext // '.txt'
-      CALL dojpdfr(lambda,'lambda',S11,'diss',nin,n,fnout,nbins,[0,0],fmin,fmax,[1,1])
+      CALL dojpdfr(lambda,'lambda',S11,'diss',nin,nx,fnout,nbins,[0,0],fmin,fmax,[1,1])
       ENDIF
       If ( ibits(kin,0,1).EQ.1 ) THEN
       ! Do 1d and jooint pdfs for diss and lambda:
       fnout = trim(odir) // '/' // 'disspdf.' // ext // '.txt'
-      CALL dopdfr(S11   ,nin,n,fnout,nbins(1),0,fmin(2),fmax(2),0) 
+      CALL dopdfr(S11   ,nin,nx,fnout,nbins(1),0,fmin(2),fmax(2),0) 
       ! Compute, write, 1d lambda pdf:
       fnout = trim(odir) // '/' // 'lambpdf.' // ext // '.txt'
-      CALL dopdfr(lambda,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(lambda,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ENDIF
 
       ! Compute enstrophy density,helicity field, v^2; store in S22, S13, S12:
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-        DO j = 1,n
-          DO i = 1,n
+        DO j = 1,ny
+          DO i = 1,nx
             S22 (i,j,k) = 0.0_GP ! Enstrophy density: omega^2
             S12 (i,j,k) = 0.0_GP ! v^2
             S13 (i,j,k) = 0.0_GP ! v.omega
@@ -1288,23 +1462,23 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-        DO j = 1,n
-          DO i = 1,n
+        DO j = 1,ny
+          DO i = 1,nx
             S22 (i,j,k) = S22 (i,j,k) + S23   (i,j,k)**2         ! Enstrophy dens
             S13 (i,j,k) = S13 (i,j,k) + rtmp  (i,j,k)*S23(i,j,k) ! v.omega
             S12 (i,j,k) = S12 (i,j,k) + rtmp  (i,j,k)**2         ! v^2
           ENDDO
         ENDDO
       ENDDO
-      CALL skewflat(rtmp,nin,n,vs1,vf1,s2,s3,s4) ! v1 
-      CALL skewflat(S23 ,nin,n,ws1,wf1,s2,s3,s4) ! omega1 
+      CALL skewflat(rtmp,nin,nx,vs1,vf1,s2,s3,s4) ! v1 
+      CALL skewflat(S23 ,nin,nx,ws1,wf1,s2,s3,s4) ! omega1 
 
       ! Compute, write, 1d vx, \omega_i pdfs:
       If ( ibits(kin,0,1).EQ.1 ) THEN
       fnout = trim(odir) // '/' // 'v1pdf.' // ext // '.txt'
-      CALL dopdfr(rtmp,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(rtmp,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       fnout = trim(odir) // '/' // 'w1pdf.' // ext // '.txt'
-      CALL dopdfr(S23 ,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(S23 ,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ENDIF
 
       CALL rotor3(vz,vx,ctmp,2)
@@ -1314,22 +1488,22 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-        DO j = 1,n
-          DO i = 1,n
+        DO j = 1,ny
+          DO i = 1,nx
             S22 (i,j,k) = S22 (i,j,k) + S23   (i,j,k)**2         ! Enstrophy dens
             S13 (i,j,k) = S13 (i,j,k) + rtmp  (i,j,k)*S23(i,j,k) ! v.omega
             S12 (i,j,k) = S12 (i,j,k) + rtmp  (i,j,k)**2         ! v^2
           ENDDO
         ENDDO
       ENDDO
-      CALL skewflat(rtmp,nin,n,vs2,vf2,s2,s3,s4) ! v2 
-      CALL skewflat(S23 ,nin,n,ws2,wf2,s2,s3,s4) ! omega2 
+      CALL skewflat(rtmp,nin,nx,vs2,vf2,s2,s3,s4) ! v2 
+      CALL skewflat(S23 ,nin,nx,ws2,wf2,s2,s3,s4) ! omega2 
       ! Compute, write, 1d vy, \omega_y pdfs:
       If ( ibits(kin,0,1).EQ.1 ) THEN
       fnout = trim(odir) // '/' // 'v2pdf.' // ext // '.txt'
-      CALL dopdfr(rtmp,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(rtmp,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       fnout = trim(odir) // '/' // 'w2pdf.' // ext // '.txt'
-      CALL dopdfr(S23 ,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(S23 ,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ENDIF
 
       CALL rotor3(vx,vy,ctmp,3)
@@ -1339,32 +1513,32 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-        DO j = 1,n
-          DO i = 1,n
+        DO j = 1,ny
+          DO i = 1,nx
             S22 (i,j,k) = S22 (i,j,k) + S23   (i,j,k)**2         ! Enstrophy dens
             S13 (i,j,k) = S13 (i,j,k) + rtmp  (i,j,k)*S23(i,j,k) ! v.omega
             S12 (i,j,k) = S12 (i,j,k) + rtmp  (i,j,k)**2         ! v^2
           ENDDO
         ENDDO
       ENDDO
-      CALL skewflat(rtmp,nin,n,vs3,vf3,s2,s3,s4)       ! v3 
-      CALL skewflat(S23 ,nin,n,ws3,wf3,s2,s3,s4)       ! omega3 
-      CALL skewflat(S22 ,nin,n,senst,fenst,s2,s3,s4)   ! enstrophy density
+      CALL skewflat(rtmp,nin,nx,vs3,vf3,s2,s3,s4)       ! v3 
+      CALL skewflat(S23 ,nin,nx,ws3,wf3,s2,s3,s4)       ! omega3 
+      CALL skewflat(S22 ,nin,nx,senst,fenst,s2,s3,s4)   ! enstrophy density
 
       ! Compute, write, 1d v_z, \omega_z pdfs:
       If ( ibits(kin,0,1).EQ.1 ) THEN
       fnout = trim(odir) // '/' // 'v3pdf.' // ext // '.txt'
-      CALL dopdfr(rtmp,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(rtmp,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       fnout = trim(odir) // '/' // 'w3pdf.' // ext // '.txt'
-      CALL dopdfr(S23 ,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(S23 ,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ENDIF
 
 !     Compute relative helicity:
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-        DO j = 1,n
-          DO i = 1,n
+        DO j = 1,ny
+          DO i = 1,nx
             sr = sign(1.0,S13(i,j,k));
             xnorm = sqrt( S22(i,j,k)*S12(i,j,k) )
             xnormi = 0.0_GP
@@ -1376,7 +1550,7 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
           ENDDO
         ENDDO
       ENDDO
-      CALL skewflat(S13,nin,n,sheli,fheli,s2,s3,s4)    ! v.omega/rel. helicity
+      CALL skewflat(S13,nin,nx,sheli,fheli,s2,s3,s4)    ! v.omega/rel. helicity
 
 ! Stats for u_perp
 ! NOTE: S12 and S23 overwritten here:
@@ -1387,8 +1561,8 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-        DO j = 1,n
-          DO i = 1,n
+        DO j = 1,ny
+          DO i = 1,nx
             rtmp(i,j,k) =  sqrt(S12(i,j,k)**2 + S23(i,j,k)**2)
           ENDDO
         ENDDO
@@ -1401,12 +1575,12 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
       CALL fftp3d_complex_to_real(plancr,vtmp,rtmp1,MPI_COMM_WORLD)
       If ( ibits(kin,0,1).EQ.1 ) THEN
       fnout = trim(odir) // '/' // 'uppdf.' // ext // '.txt'
-      CALL dopdfr(rtmp ,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(rtmp ,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       fnout = trim(odir) // '/' // 'dupdzpdf.' // ext // '.txt'
-      CALL dopdfr(rtmp1,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(rtmp1,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ENDIF
-      CALL skewflat(rtmp ,nin,n, ups, upf,s2,s3,s4)       ! up
-      CALL skewflat(rtmp1,nin,n,dups,dupf,s2,s3,s4)       ! dup/dz
+      CALL skewflat(rtmp ,nin,nx, ups, upf,s2,s3,s4)       ! up
+      CALL skewflat(rtmp1,nin,nx,dups,dupf,s2,s3,s4)       ! dup/dz
 
       ! Print out skewness and flatness data:
       IF ( myrank.EQ.0 ) THEN
@@ -1424,41 +1598,41 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
       If ( ibits(kin,0,1).EQ.1 ) THEN
       ! Compute, write, 1d enstrophy density pdf:
       fnout = trim(odir) // '/' // 'enstpdf.' // ext // '.txt'
-      CALL dopdfr(S22,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(S22,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ! Compute, write, 1d relative helicity pdf:
       fnout = trim(odir) // '/' // 'helpdf.' // ext // '.txt'
-      CALL dopdfr(S13,nin,n,fnout ,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(S13,nin,nx,fnout ,nbins(1),0,fmin(1),fmax(1),0) 
       ENDIF
 
       ! Compute joint PDF for enstrophy and diss (order switched, 
       ! so that enstrophy is on x-axis, and energy diss on y axis:
       If ( ibits(kin,1,1).EQ.1 ) THEN
       fnout = trim(odir) // '/' // 'jpdf_diss_enst_nolog.' // ext // '.txt'
-      CALL dojpdfr(S22,'enst',S11,'diss',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,0])
+      CALL dojpdfr(S22,'enst',S11,'diss',nin,nx,fnout,nbins,[0,0],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_diss_enst_log.' // ext // '.txt'
-      CALL dojpdfr(S22,'enst',S11,'diss',nin,n,fnout,nbins,[0,0],fmin,fmax,[1,1])
+      CALL dojpdfr(S22,'enst',S11,'diss',nin,nx,fnout,nbins,[0,0],fmin,fmax,[1,1])
       ! Compute joint PDF for rel. helicity and diss :
       fnout = trim(odir) // '/' // 'jpdf_diss_hel_nolog.' // ext // '.txt'
-      CALL dojpdfr(S13,'rhel',S11,'diss',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,0])
+      CALL dojpdfr(S13,'rhel',S11,'diss',nin,nx,fnout,nbins,[0,0],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_diss_hel_log.' // ext // '.txt'
-      CALL dojpdfr(S13,'rhel',S11,'diss',nin,n,fnout,nbins,[0,1],fmin,fmax,[0,1])
+      CALL dojpdfr(S13,'rhel',S11,'diss',nin,nx,fnout,nbins,[0,1],fmin,fmax,[0,1])
       ! Compute joint PDF for rel. helicity and enstroph. density:
       fnout = trim(odir) // '/' // 'jpdf_enst_hel_nolog.' // ext // '.txt'
-      CALL dojpdfr(S13,'rhel',S22,'enst',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,0])
+      CALL dojpdfr(S13,'rhel',S22,'enst',nin,nx,fnout,nbins,[0,0],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_enst_hel_log.' // ext // '.txt'
-      CALL dojpdfr(S13,'rhel',S22,'enst',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,1])
+      CALL dojpdfr(S13,'rhel',S22,'enst',nin,nx,fnout,nbins,[0,0],fmin,fmax,[0,1])
       ! Compute joint PDF for rel. helicity and lambda:
       fnout = trim(odir) // '/' // 'jpdf_lamb_hel_nolog.' // ext // '.txt'
-      CALL dojpdfr(S13,'rhel',lambda,'lamb',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,0])
+      CALL dojpdfr(S13,'rhel',lambda,'lamb',nin,nx,fnout,nbins,[0,0],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_lamb_hel_log.' // ext // '.txt'
-      CALL dojpdfr(S13,'rhel',lambda,'lamb',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,1])
+      CALL dojpdfr(S13,'rhel',lambda,'lamb',nin,nx,fnout,nbins,[0,0],fmin,fmax,[0,1])
       fnout = trim(odir) // '/' // 'jpdf_enst_lamb_nolog.' // ext // '.txt'
-      CALL dojpdfr(lambda,'lambda',S22,'enst',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,0])
+      CALL dojpdfr(lambda,'lambda',S22,'enst',nin,nx,fnout,nbins,[0,0],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_enst_lamb_log.' // ext // '.txt'
-      CALL dojpdfr(lambda,'lambda',S22,'enst',nin,n,fnout,nbins,[0,0],fmin,fmax,[1,1])
+      CALL dojpdfr(lambda,'lambda',S22,'enst',nin,nx,fnout,nbins,[0,0],fmin,fmax,[1,1])
       ENDIF
 
-      nin = n*n*(kend-ksta+1)
+      nin = nx*ny*(kend-ksta+1)
 
 #if defined(SCALAR_)
 ! PDF for potl temperature:
@@ -1466,8 +1640,8 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-        DO j = 1,n
-          DO k = 1,n
+        DO j = 1,ny
+          DO k = 1,nz
             th(k,j,i) = th(k,j,i)*xnormn
           END DO
         END DO
@@ -1476,9 +1650,9 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
       CALL fftp3d_complex_to_real(plancr,ctmp,rtmp1,MPI_COMM_WORLD)
       If ( ibits(kin,0,1).EQ.1 ) THEN
       fnout = trim(odir) // '/' // 'thpdf.' // ext // '.txt'
-      CALL dopdfr(rtmp1,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(rtmp1,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ENDIF
-      CALL skewflat(rtmp1,nin,n,ths,thf,s2,s3,s4)       ! theta
+      CALL skewflat(rtmp1,nin,nx,ths,thf,s2,s3,s4)       ! theta
 
       ! Compute gradient Richardson no. and its pdf:
       CALL derivk3(vx, ctmp, 3)
@@ -1489,21 +1663,21 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
       CALL fftp3d_complex_to_real(plancr,ctmp,rtmp1,MPI_COMM_WORLD)
       If ( ibits(kin,0,1).EQ.1 ) THEN
       fnout = trim(odir) // '/' // 'dthdzpdf.' // ext // '.txt'
-      CALL dopdfr(rtmp1,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(rtmp1,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ENDIF
-      CALL skewflat(rtmp1,nin,n,dths,dthf,s2,s3,s4)       ! dtheta/dz
+      CALL skewflat(rtmp1,nin,nx,dths,dthf,s2,s3,s4)       ! dtheta/dz
       IF ( iobin.GT.0 ) THEN
         rtmp2 = rtmp1
         IF ( oswap.NE.0 ) THEN
-          CALL rarray_byte_swap(rtmp2, n*n*(kend-ksta+1))
+          CALL rarray_byte_swap(rtmp2, nx*ny*(kend-ksta+1))
         ENDIF
         CALL io_write(1,odir,'dthdz',ext,planio,rtmp2)
       ENDIF
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-        DO j = 1,n
-          DO i = 1,n
+        DO j = 1,ny
+          DO i = 1,nx
             rtmp(i,j,k) = S12(i,j,k)**2 + S23(i,j,k)**2
           ENDDO
         ENDDO
@@ -1511,15 +1685,15 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
       IF ( iobin.GT.0 ) THEN
         rtmp2 = rtmp
         IF ( oswap.NE.0 ) THEN
-          CALL rarray_byte_swap(rtmp2, n*n*(kend-ksta+1))
+          CALL rarray_byte_swap(rtmp2, nx*ny*(kend-ksta+1))
         ENDIF
         CALL io_write(1,odir,'vshw',ext,planio,rtmp2)  ! output (du_x/dz)^2 + (du_y/dz)^2
       ENDIF
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-        DO j = 1,n
-          DO i = 1,n
+        DO j = 1,ny
+          DO i = 1,nx
             den = S12(i,j,k)**2 + S23(i,j,k)**2
             rtmp(i,j,k) = bvfreq*(bvfreq-rtmp1(i,j,k)) / den
           ENDDO
@@ -1528,7 +1702,7 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
       IF ( iobin.GT.0 ) THEN
         rtmp2 = rtmp
         IF ( oswap.NE.0 ) THEN
-          CALL rarray_byte_swap(rtmp2, n*n*(kend-ksta+1))
+          CALL rarray_byte_swap(rtmp2, nx*ny*(kend-ksta+1))
         ENDIF
         CALL io_write(1,odir,'rig',ext,planio,rtmp2)  ! output Ri_g
       ENDIF
@@ -1536,32 +1710,32 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
       fmin(1) = -10.0;
       fmax(1) =  10.0;
       If ( ibits(kin,0,1).EQ.1 ) THEN
-      CALL dopdfr(rtmp,nin,n,'riipdf.'//ext//'.txt',nbins(1),1,fmin(1),fmax(1),0) 
+      CALL dopdfr(rtmp,nin,nx,'riipdf.'//ext//'.txt',nbins(1),1,fmin(1),fmax(1),0) 
       ENDIF
-      CALL skewflat(rtmp,nin,n,ris,rif,s2,s3,s4)       ! Ri
+      CALL skewflat(rtmp,nin,nx,ris,rif,s2,s3,s4)       ! Ri
       ! Compute joint PDF for Richardson no. and diss:
       If ( ibits(kin,1,1).EQ.1 ) THEN
       fnout = trim(odir) // '/' // 'jpdf_diss_ri_nolog.' // ext // '.txt'
-      CALL dojpdfr(rtmp,'Ri' ,S11 ,'diss',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,0])
+      CALL dojpdfr(rtmp,'Ri' ,S11 ,'diss',nin,nx,fnout,nbins,[1,0],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_diss_ri_log.' // ext // '.txt'
-      CALL dojpdfr(rtmp,'Ri' ,S11 ,'diss',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,1])
+      CALL dojpdfr(rtmp,'Ri' ,S11 ,'diss',nin,nx,fnout,nbins,[1,0],fmin,fmax,[0,1])
       fnout = trim(odir) // '/' // 'jpdf_enst_ri_nolog.' // ext // '.txt'
-      CALL dojpdfr(rtmp,'Ri' ,S22 ,'enst',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,0])
+      CALL dojpdfr(rtmp,'Ri' ,S22 ,'enst',nin,nx,fnout,nbins,[1,0],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_enst_ri_log.' // ext // '.txt'
-      CALL dojpdfr(rtmp,'Ri' ,S22 ,'enst',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,1])
+      CALL dojpdfr(rtmp,'Ri' ,S22 ,'enst',nin,nx,fnout,nbins,[1,0],fmin,fmax,[0,1])
       fnout = trim(odir) // '/' // 'jpdf_ri_hel.' // ext // '.txt'
-      CALL dojpdfr(S13,'rhel',rtmp,'Ri'  ,nin,n,fnout,nbins,[0,1],fmin,fmax,[0,0])
+      CALL dojpdfr(S13,'rhel',rtmp,'Ri'  ,nin,nx,fnout,nbins,[0,1],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_lamb_ri_nolog.' // ext // '.txt'
-      CALL dojpdfr(rtmp,'Ri',lambda,'lambda',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,0])
+      CALL dojpdfr(rtmp,'Ri',lambda,'lambda',nin,nx,fnout,nbins,[1,0],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_lamb_ri_log.' // ext // '.txt'
-      CALL dojpdfr(rtmp,'Ri',lambda,'lambda',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,1])
+      CALL dojpdfr(rtmp,'Ri',lambda,'lambda',nin,nx,fnout,nbins,[1,0],fmin,fmax,[0,1])
 
       CALL derivk3(th, ctmp, 3)
       CALL fftp3d_complex_to_real(plancr,ctmp,rtmp1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'jpdf_dtdz_ri_nolog.' // ext // '.txt'
-      CALL dojpdfr(rtmp,'Ri',rtmp1,'dtdz',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,0])
+      CALL dojpdfr(rtmp,'Ri',rtmp1,'dtdz',nin,nx,fnout,nbins,[1,0],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_dtdz_ri_log.' // ext // '.txt'
-      CALL dojpdfr(rtmp,'Ri',rtmp1,'dtdz',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,1])
+      CALL dojpdfr(rtmp,'Ri',rtmp1,'dtdz',nin,nx,fnout,nbins,[1,0],fmin,fmax,[0,1])
       ENDIF
 
 
@@ -1573,8 +1747,8 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-        DO j = 1,n
-          DO i = 1,n
+        DO j = 1,ny
+          DO i = 1,nx
             rtmp1(i,j,k) = S23(i,j,k)*rtmp1(i,j,k)
           ENDDO
         ENDDO
@@ -1582,24 +1756,24 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
       IF ( iobin.GT.0 ) THEN
         rtmp2 = rtmp
         IF ( oswap.NE.0 ) THEN
-          CALL rarray_byte_swap(rtmp2, n*n*(kend-ksta+1))
+          CALL rarray_byte_swap(rtmp2, nx*ny*(kend-ksta+1))
         ENDIF
         CALL io_write(1,odir,'wth',ext,planio,rtmp2)  ! output w\theta
       ENDIF
       If ( ibits(kin,0,1).EQ.1 ) THEN
       fnout = trim(odir) // '/' // 'wtpdf.' // ext // '.txt'
-      CALL dopdfr(rtmp1,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(rtmp1,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ENDIF
-      CALL skewflat(rtmp1,nin,n,wts,wtf,s2,s3,s4)       ! w theta
+      CALL skewflat(rtmp1,nin,nx,wts,wtf,s2,s3,s4)       ! w theta
       If ( ibits(kin,1,1).EQ.1 ) THEN
       fnout = trim(odir) // '/' // 'jpdf_wtheta_ri_nolog.' // ext // '.txt'
-      CALL dojpdfr(rtmp,'Ri' ,rtmp1 ,'wtheta',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,0])
+      CALL dojpdfr(rtmp,'Ri' ,rtmp1 ,'wtheta',nin,nx,fnout,nbins,[1,0],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_wtheta_ri_log.' // ext // '.txt'
-      CALL dojpdfr(rtmp,'Ri' ,rtmp1 ,'wtheta',nin,n,fnout,nbins,[1,0],fmin,fmax,[0,1])
+      CALL dojpdfr(rtmp,'Ri' ,rtmp1 ,'wtheta',nin,nx,fnout,nbins,[1,0],fmin,fmax,[0,1])
       ENDIF
 
       ! Need xnormn bec. advect3 multiplies by -1/N^6:
-      xnormn = -1.0*real(n,kind=GP)**6
+      xnormn = -1.0*(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       CALL advect3(vx,vy,vz,vx,ctmp)    ! v.Grad vx 
       ctmp = ctmp *xnorm
       CALL fftp3d_complex_to_real(plancr,ctmp,S11  ,MPI_COMM_WORLD)
@@ -1608,8 +1782,8 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-        DO j = 1,n
-          DO i = 1,n
+        DO j = 1,ny
+          DO i = 1,nx
             S11(i,j,k) = S11(i,j,k)*S23(i,j,k)  ! vx (v.Grad vx)
           ENDDO
         ENDDO
@@ -1623,8 +1797,8 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-        DO j = 1,n
-          DO i = 1,n
+        DO j = 1,ny
+          DO i = 1,nx
             S11(i,j,k) = S11(i,j,k) + S22(i,j,k)*S23(i,j,k)  ! += vy (v.Grad vy)
           ENDDO
         ENDDO
@@ -1638,22 +1812,22 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-        DO j = 1,n
-          DO i = 1,n
+        DO j = 1,ny
+          DO i = 1,nx
             S11(i,j,k) = S11(i,j,k) + S22(i,j,k)*S23(i,j,k)  ! += vz (v.Grad vz)
           ENDDO
         ENDDO
       ENDDO
       If ( ibits(kin,0,1).EQ.1 ) THEN
       fnout = trim(odir) // '/' // 'ktrpdf.' // ext // '.txt'
-      CALL dopdfr(S11,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(S11,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ENDIF
-      CALL skewflat(S11,nin,n,ktrs,ktrf,s2,s3,s4)       ! u.(u.Grad u)
+      CALL skewflat(S11,nin,nx,ktrs,ktrf,s2,s3,s4)       ! u.(u.Grad u)
       If ( ibits(kin,1,1).EQ.1 ) THEN
       fnout = trim(odir) // '/' // 'jpdf_wtheta_ktr_nolog.' // ext // '.txt'
-      CALL dojpdfr(S11,'ktrans' ,rtmp1 ,'wtheta',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,0])
+      CALL dojpdfr(S11,'ktrans' ,rtmp1 ,'wtheta',nin,nx,fnout,nbins,[0,0],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_wtheta_ktr_log.' // ext // '.txt'
-      CALL dojpdfr(S11,'ktrans' ,rtmp1 ,'wtheta',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,1])
+      CALL dojpdfr(S11,'ktrans' ,rtmp1 ,'wtheta',nin,nx,fnout,nbins,[0,0],fmin,fmax,[0,1])
       ENDIF
 
       CALL advect3(vx,vy,vz,th,ctmp)    ! v.Grad theta * -1/N^6
@@ -1664,22 +1838,22 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-        DO j = 1,n
-          DO i = 1,n
+        DO j = 1,ny
+          DO i = 1,nx
             S11(i,j,k) = S11(i,j,k)*S22(i,j,k) ! += theta (v.Grad theta)
           ENDDO
         ENDDO
       ENDDO
       If ( ibits(kin,0,1).EQ.1 ) THEN
       fnout = trim(odir) // '/' // 'ptrpdf.' // ext // '.txt'
-      CALL dopdfr(S11,nin,n,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(S11,nin,nx,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ENDIF
-      CALL skewflat(S11,nin,n,ptrs,ptrf,s2,s3,s4)       ! \theta.(u.Grad \theta)
+      CALL skewflat(S11,nin,nx,ptrs,ptrf,s2,s3,s4)       ! \theta.(u.Grad \theta)
       If ( ibits(kin,1,1).EQ.1 ) THEN
       fnout = trim(odir) // '/' // 'jpdf_wtheta_ptr_nolog.' // ext // '.txt'
-      CALL dojpdfr(S11,'ptrans' ,rtmp1 ,'wtheta',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,0])
+      CALL dojpdfr(S11,'ptrans' ,rtmp1 ,'wtheta',nin,nx,fnout,nbins,[0,0],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_wtheta_ptr_log.' // ext // '.txt'
-      CALL dojpdfr(S11,'ptrans' ,rtmp1 ,'wtheta',nin,n,fnout,nbins,[0,0],fmin,fmax,[0,1])
+      CALL dojpdfr(S11,'ptrans' ,rtmp1 ,'wtheta',nin,nx,fnout,nbins,[0,0],fmin,fmax,[0,1])
       ENDIF
 
       ! Print out skewness and flatness SCALAR data:
@@ -1697,9 +1871,10 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 #endif
 
       END SUBROUTINE DoKPDF
-!
-!
-!
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
       SUBROUTINE skewflat(fx,nin,n,skew,flat,s2,s3,s4)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1777,8 +1952,7 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-!
-!
+
       SUBROUTINE Randomize(fx,fy,fz,krmin,krmax,phase)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1806,11 +1980,11 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
       USE gutils
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend) :: fx,fy,fz
-      REAL   (KIND=GP), INTENT   (IN)                           :: krmin,krmax,phase
-      REAL   (KIND=GP)                                          :: krmin2,krmax2
-      COMPLEX(KIND=GP)                                          :: cdump,jdump
-      INTEGER                                                   :: i,j,k
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: fx,fy,fz
+      REAL   (KIND=GP), INTENT   (IN)                             :: krmin,krmax,phase
+      REAL   (KIND=GP)                                            :: krmin2,krmax2
+      COMPLEX(KIND=GP)                                            :: cdump,jdump
+      INTEGER                                                     :: i,j,k
 
       cdump = COS(phase)+im*SIN(phase)
       jdump = conjg(cdump)
@@ -1819,52 +1993,51 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
       krmax2 = krmax**2
       IF (ista.eq.1) THEN
 
-      DO j = 2,n/2+1
-        IF ( ka2(1,j,1).gt.krmin2 .and. ka2(1,j,1).lt.krmax2 ) THEN
-        fx    (1,j,1) = fx    (1,j,1)*cdump
-        fx(1,n-j+2,1) = fx(1,n-j+2,1)*jdump
-        fy    (1,j,1) = fy    (1,j,1)*cdump
-        fy(1,n-j+2,1) = fy(1,n-j+2,1)*jdump
-        fz    (1,j,1) = fz    (1,j,1)*cdump
-        fz(1,n-j+2,1) = fz(1,n-j+2,1)*jdump
+      DO j = 2,ny/2+1
+        IF ( kk2(1,j,1).gt.krmin2 .and. kk2(1,j,1).lt.krmax2 ) THEN
+        fx     (1,j,1) = fx     (1,j,1)*cdump
+        fx(1,ny-j+2,1) = fx(1,ny-j+2,1)*jdump
+        fy     (1,j,1) = fy     (1,j,1)*cdump
+        fy(1,ny-j+2,1) = fy(1,ny-j+2,1)*jdump
+        fz     (1,j,1) = fz     (1,j,1)*cdump
+        fz(1,ny-j+2,1) = fz(1,ny-j+2,1)*jdump
         ENDIF
       ENDDO
 
 !$omp parallel do
-      DO k = 2,n/2+1
-        IF ( ka2(k,1,1).gt.krmin2 .and. ka2(k,1,1).lt.krmax2 ) THEN
-        fx    (k,1,1) = fx    (k,1,1)*cdump
-        fx(n-k+2,1,1) = fx(n-k+2,1,1)*jdump
-        fy    (k,1,1) = fy    (k,1,1)*cdump
-        fy(n-k+2,1,1) = fy(n-k+2,1,1)*jdump
-        fz    (k,1,1) = fz    (k,1,1)*cdump
-        fz(n-k+2,1,1) = fz(n-k+2,1,1)*jdump
+      DO k = 2,nz/2+1
+        IF ( kk2(k,1,1).gt.krmin2 .and. kk2(k,1,1).lt.krmax2 ) THEN
+        fx     (k,1,1) = fx     (k,1,1)*cdump
+        fx(nz-k+2,1,1) = fx(nz-k+2,1,1)*jdump
+        fy     (k,1,1) = fy     (k,1,1)*cdump
+        fy(nz-k+2,1,1) = fy(nz-k+2,1,1)*jdump
+        fz     (k,1,1) = fz     (k,1,1)*cdump
+        fz(nz-k+2,1,1) = fz(nz-k+2,1,1)*jdump
         ENDIF
       END DO
 !$omp end parallel do
       
 !$omp parallel do private (k)
-      DO j = 2,n
-        DO k = 2,n/2+1
-          IF ( ka2(k,j,1).gt.krmin2 .and. ka2(k,j,1).lt.krmax2 ) THEN
-          fx        (k,j,1) = fx        (k,j,1)*cdump
-          fx(n-k+2,n-j+2,1) = fx(n-k+2,n-j+2,1)*jdump
-          fy        (k,j,1) = fy        (k,j,1)*cdump
-          fy(n-k+2,n-j+2,1) = fy(n-k+2,n-j+2,1)*jdump
-          fz        (k,j,1) = fz        (k,j,1)*cdump
-          fz(n-k+2,n-j+2,1) = fz(n-k+2,n-j+2,1)*jdump
+      DO j = 2,ny
+        DO k = 2,nz/2+1
+          IF ( kk2(k,j,1).gt.krmin2 .and. kk2(k,j,1).lt.krmax2 ) THEN
+          fx          (k,j,1) = fx          (k,j,1)*cdump
+          fx(nz-k+2,ny-j+2,1) = fx(nz-k+2,ny-j+2,1)*jdump
+          fy          (k,j,1) = fy          (k,j,1)*cdump
+          fy(nz-k+2,ny-j+2,1) = fy(nz-k+2,ny-j+2,1)*jdump
+          fz          (k,j,1) = fz          (k,j,1)*cdump
+          fz(nz-k+2,ny-j+2,1) = fz(nz-k+2,ny-j+2,1)*jdump
           ENDIF
         ENDDO
       ENDDO
 !$omp end parallel do
 
-
 !$omp parallel do if (iend-2.ge.nth) private (j,k)
       DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k)
-        DO j = 1,n
-          DO k = 1,n
-            IF ( ka2(k,j,i).gt.krmin2 .and. ka2(k,j,i).lt.krmax2 ) THEN
+        DO j = 1,ny
+          DO k = 1,nz
+            IF ( kk2(k,j,i).gt.krmin2 .and. kk2(k,j,i).lt.krmax2 ) THEN
             fx(k,j,i) = fx(k,j,i)*cdump
             fy(k,j,i) = fy(k,j,i)*cdump
             fz(k,j,i) = fz(k,j,i)*cdump
@@ -1877,9 +2050,9 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
     
       DO  i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,n
-           DO k = 1,n
-             IF ( ka2(k,j,i).gt.krmin2 .and. ka2(k,j,i).lt.krmax2 ) THEN
+         DO j = 1,ny
+           DO k = 1,nz
+             IF ( kk2(k,j,i).gt.krmin2 .and. kk2(k,j,i).lt.krmax2 ) THEN
              fx(k,j,i) = fx(k,j,i)*cdump
              fy(k,j,i) = fy(k,j,i)*cdump
              fz(k,j,i) = fz(k,j,i)*cdump
@@ -1890,164 +2063,5 @@ if (myrank.eq.0) write(*,*)'main: call DoKPDF ...'
        ENDIF
   
       END SUBROUTINE Randomize
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!
-!
-      SUBROUTINE Shebalin(asheb,kin,vx,vy,vz,th)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!
-! Compute Shebalin angle measure of anisotrop.
-!
-! Parameters
-!     asheb : returned Shebalin angle measurement
-!     kin   : 
-!       == 0: do total energy; 
-!       == 1: do kinetic energy only; 
-!       == 2: do potential energy only; (done only if th is specified)
-!     vx,
-!     vy,
-!     vz    : complex velocities
-!     th    : optional complex potl temperature
-!
-      USE fprecision
-      USE commtypes
-      USE kes
-      USE grid
-      USE mpivars
-      USE threads
-      USE fft
-      USE var
-      USE fftplans
-      USE gutils
-      IMPLICIT NONE
-
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend)           :: vx,vy,vz
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(n,n,ista:iend), OPTIONAL :: th
-      REAL   (KIND=GP), INTENT  (OUT)                           :: asheb
-      REAL   (KIND=GP)                                          :: lasheb
-      REAL   (KIND=GP)                                          :: tmp
-      DOUBLE PRECISION                                          :: kprp,kpar,tmq,lprp,lpar,gprp,gpar,la(2),ga(2)
-      INTEGER         , INTENT (IN)                             :: kin
-      INTEGER                                                   :: i,j,k
-
-      tmq  = 1.0D0/real(n,kind=GP)**6
-
-      lpar = 0.0D0
-      lprp = 0.0D0
-      IF (kin.eq.0 .OR. kin.eq.1) THEN ! total or kinetic energy
-        IF (ista.eq.1) THEN
-!$omp parallel do private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-           DO j = 1,n
-              DO k = 1,n
-                kprp = ka(1)**2 + ka(j)**2
-                kpar = ka(k)**2
-                tmp  = ( abs(vx(k,j,1))**2+abs(vy(k,j,1))**2+          &
-                         abs(vz(k,j,1))**2 )*tmq
-                lprp  = lprp + tmp*kprp
-                lpar  = lpar + tmp*kpar
-              END DO
-           END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-           DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-              DO j = 1,n
-                 DO k = 1,n
-                    kprp = ka(i)**2 + ka(j)**2
-                    kpar = ka(k)**2
-                    tmp  = 2.0*( abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+       &
-                                 abs(vz(k,j,i))**2 )*tmq
-                    lprp  = lprp + tmp*kprp
-                    lpar  = lpar + tmp*kpar
-                 END DO
-              END DO
-           END DO
-        ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-           DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-              DO j = 1,n
-                 DO k = 1,n
-                    kprp = ka(i)**2 + ka(j)**2
-                    kpar = ka(k)**2
-                    tmp  = 2.0*( abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+       &
-                                 abs(vz(k,j,i))**2 )*tmq
-                    lprp  = lprp + tmp*kprp
-                    lpar  = lpar + tmp*kpar
-                 END DO
-              END DO
-           END DO
-        ENDIF
-      ENDIF
-
-      IF (kin.EQ.1) THEN ! kinetic energy only
-        la(1) = lprp
-        la(2) = lpar
-        CALL MPI_ALLREDUCE(la,ga,2,MPI_DOUBLE_PRECISION,MPI_SUM,   &
-                        MPI_COMM_WORLD,ierr)
-        asheb  = real(ga(1) / (ga(2) + tiny(1.0_GP)),kind=GP)
-        RETURN
-      ENDIF
-
-      IF (.NOT.PRESENT(th) ) THEN
-        WRITE(*,*) 'Shebalin: potential temperature not provided'
-        STOP
-      ENDIF
-
-      IF (kin.EQ.2) THEN ! if potential energy only
-        lprp = 0.0_GP
-        lpar = 0.0_GP
-      ENDIF
-
-      IF (ista.eq.1) THEN ! add in the potential component
-!$omp parallel do private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-         DO j = 1,n
-            DO k = 1,n
-              kprp = ka(1)**2 + ka(j)**2
-              kpar = ka(k)**2
-              tmp  = ( abs(th(k,j,1))**2 )*tmq
-              lprp  = lprp + tmp*kprp
-              lpar  = lpar + tmp*kpar
-            END DO
-         END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-         DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-            DO j = 1,n
-               DO k = 1,n
-                  kprp = ka(i)**2 + ka(j)**2
-                  kpar = ka(k)**2
-                  tmp  = 2.0*( abs(th(k,j,i))**2 )*tmq
-                  lprp  = lprp + tmp*kprp
-                  lpar  = lpar + tmp*kpar
-               END DO
-            END DO
-         END DO
-      ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-            DO j = 1,n
-               DO k = 1,n
-                  kprp = ka(i)**2 + ka(j)**2
-                  kpar = ka(k)**2
-                  tmp  = 2.0*( abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+       &
-                           abs(vz(k,j,i))**2 )*tmq
-                  lprp  = lprp + tmp*kprp
-                  lpar  = lpar + tmp*kpar
-               END DO
-            END DO
-         END DO
-      ENDIF
-!
-! Computes the reduction between nodes, store in return variable
-      la(1) = lprp
-      la(2) = lpar
-      CALL MPI_ALLREDUCE(la,ga,2,MPI_DOUBLE_PRECISION,MPI_SUM,   &
-                        MPI_COMM_WORLD,ierr)
-      asheb  = real(ga(1) / (ga(2) + tiny(1.0_GP)),kind=GP)
-
-      END SUBROUTINE Shebalin
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
