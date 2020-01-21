@@ -1118,7 +1118,6 @@
 ! 'mspectrum.XXX.txt': k, Eb(k)
 ! 'khelicity.XXX.txt': k, Hv(k) (kinetic helicity spectrum)
 ! 'mhelicity.XXX.txt': k, Hb(k) (magnetic helicity spectrum)
-! 'mhelicity.XXX.txt': k, Hb(k) (magnetic helicity spectrum)
 ! 'ghelicity.XXX.txt': k, G(k)  (generalized helicity in Hall-MHD)
 !
 ! Parameters

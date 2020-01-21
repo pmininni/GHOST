@@ -40,18 +40,19 @@
       USE mpivars
       USE grid
       USE fft
+!$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: d,e,f
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: x,y,z
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r1,r2
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r3,r4
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r5,r6
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend) :: r7
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: x,y,z
+      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend) :: r1,r2
+      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend) :: r3,r4
+      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend) :: r5,r6
+      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend) :: r7
       REAL(KIND=GP), INTENT(IN) :: alpk,alpm
       REAL(KIND=GP)             :: tmp
-      INTEGER          :: i,j,k
+      INTEGER                   :: i,j,k
 
       CALL smooth3(a,b,c,x,y,z,alpk)
       CALL fftp3d_complex_to_real(plancr,x,r1,MPI_COMM_WORLD)
@@ -62,10 +63,12 @@
       CALL fftp3d_complex_to_real(plancr,y,r5,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,z,r6,MPI_COMM_WORLD)
 
-      tmp = 1./real(n,kind=GP)**6
+      tmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
                r7(i,j,k) = (r2(i,j,k)*r6(i,j,k)-r5(i,j,k)*r3(i,j,k))*tmp
                r3(i,j,k) = (r3(i,j,k)*r4(i,j,k)-r6(i,j,k)*r1(i,j,k))*tmp
                r1(i,j,k) = (r1(i,j,k)*r5(i,j,k)-r4(i,j,k)*r2(i,j,k))*tmp
@@ -102,46 +105,50 @@
       USE kes
       USE grid
       USE mpivars
+!$    USE threads
       IMPLICIT NONE
 
       DOUBLE PRECISION, INTENT(OUT) :: d
       DOUBLE PRECISION              :: dloc
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL(KIND=GP), INTENT(IN)    :: alp
-      INTEGER, INTENT(IN) :: kin
-      INTEGER             :: i,j,k
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP),             DIMENSION(nz,ny,ista:iend) :: c1,c2,c3
+      REAL(KIND=GP),    INTENT(IN)  :: alp
+      REAL(KIND=GP)                 :: tmp
+      INTEGER,          INTENT(IN)  :: kin
+      INTEGER                       :: i,j,k
 
       dloc = 0.
-
+      tmp = (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
 !
 ! Computes the kinetic energy
 !
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
-            DO j = 1,n
-               DO k = 1,n
+!$omp parallel do private (k) reduction(+:dloc)
+            DO j = 1,ny
+               DO k = 1,nz
                   dloc = dloc+(abs(a(k,j,1))**2+abs(b(k,j,1))**2+        &
-                         abs(c(k,j,1))**2)/((1.+alp**2*ka2(k,j,1))*      &
-                         real(n,kind=GP)**6)
+                         abs(c(k,j,1))**2)/((1.+alp**2*kk2(k,j,1))*tmp)
                END DO
             END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:dloc)
             DO i = 2,iend
-               DO j = 1,n
-                  DO k = 1,n
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:dloc)
+               DO j = 1,ny
+                  DO k = 1,nz
                      dloc = dloc+2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+   &
-                            abs(c(k,j,i))**2)/((1.+alp**2*ka2(k,j,i))*   &
-                            real(n,kind=GP)**6)
+                            abs(c(k,j,i))**2)/((1.+alp**2*kk2(k,j,i))*tmp)
                   END DO
                END DO
             END DO
           ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:dloc)
             DO i = ista,iend
-               DO j = 1,n
-                  DO k = 1,n
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:dloc)
+               DO j = 1,ny
+                  DO k = 1,nz
                      dloc = dloc+2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+   &
-                            abs(c(k,j,i))**2)/((1.+alp**2*ka2(k,j,i))*   &
-                            real(n,kind=GP)**6)
+                            abs(c(k,j,i))**2)/((1.+alp**2*kk2(k,j,i))*tmp)
                   END DO
                END DO
             END DO
@@ -154,29 +161,31 @@
          CALL rotor3(a,c,c2,2)
          CALL rotor3(a,b,c3,3)
          IF (ista.eq.1) THEN
-            DO j = 1,n
-               DO k = 1,n
+!$omp parallel do private (k) reduction(+:dloc)
+            DO j = 1,ny
+               DO k = 1,nz
                   dloc = dloc+(abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+      &
-                         abs(c3(k,j,1))**2)/((1.+alp**2*ka2(k,j,1))*     &
-                         real(n,kind=GP)**6)
+                         abs(c3(k,j,1))**2)/((1.+alp**2*kk2(k,j,1))*tmp)
                END DO
             END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:dloc)
             DO i = 2,iend
-               DO j = 1,n
-                  DO k = 1,n
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:dloc)
+               DO j = 1,ny
+                  DO k = 1,nz
                      dloc = dloc+2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
-                            abs(c3(k,j,i))**2)/((1.+alp**2*ka2(k,j,i))*  &
-                            real(n,kind=GP)**6)
+                            abs(c3(k,j,i))**2)/((1.+alp**2*kk2(k,j,i))*tmp)
                   END DO
                END DO
             END DO
          ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:dloc)
             DO i = ista,iend
-               DO j = 1,n
-                  DO k = 1,n
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:dloc)
+               DO j = 1,ny
+                  DO k = 1,nz
                      dloc = dloc+2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
-                            abs(c3(k,j,i))**2)/((1.+alp**2*ka2(k,j,i))*  &
-                            real(n,kind=GP)**6)
+                            abs(c3(k,j,i))**2)/((1.+alp**2*kk2(k,j,i))*tmp)
                   END DO
                END DO
             END DO
@@ -216,48 +225,53 @@
       USE kes
       USE grid
       USE mpivars
+!$    USE threads
       IMPLICIT NONE
 
       DOUBLE PRECISION, INTENT(OUT) :: g
       DOUBLE PRECISION              :: gloc
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
-      REAL(KIND=GP), INTENT(IN)    :: alp
-      INTEGER, INTENT(IN) :: kin
-      INTEGER             :: i,j,k
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
+      REAL(KIND=GP),    INTENT(IN)  :: alp
+      REAL(KIND=GP)                 :: tmp
+      INTEGER,          INTENT(IN)  :: kin
+      INTEGER                       :: i,j,k
 
       gloc = 0.
+      tmp = (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
 !
 ! Computes the averaged inner product between the fields
 !
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
-            DO j = 1,n
-               DO k = 1,n
+!$omp parallel do private (k) reduction(+:gloc)
+            DO j = 1,ny
+               DO k = 1,nz
                   gloc = gloc+real(a(k,j,1)*conjg(d(k,j,1))+                 &
                         b(k,j,1)*conjg(e(k,j,1))+c(k,j,1)*                   &
-                        conjg(f(k,j,1)))/((1.+alp**2*ka2(k,j,1))*            &
-                        real(n)**6)
+                        conjg(f(k,j,1)))/((1.+alp**2*kk2(k,j,1))*tmp)
                END DO
             END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:gloc)
             DO i = 2,iend
-               DO j = 1,n
-                  DO k = 1,n
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:gloc)
+               DO j = 1,ny
+                  DO k = 1,nz
                      gloc = gloc+2*real(a(k,j,i)*conjg(d(k,j,i))+            &
                            b(k,j,i)*conjg(e(k,j,i))+c(k,j,i)*                &
-                           conjg(f(k,j,i)))/((1.+alp**2*ka2(k,j,i))*         &
-                           real(n,kind=GP)**6)
+                           conjg(f(k,j,i)))/((1.+alp**2*kk2(k,j,i))*tmp)
                   END DO
                END DO
             END DO
          ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:gloc)
             DO i = ista,iend
-               DO j = 1,n
-                  DO k = 1,n
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:gloc)
+               DO j = 1,ny
+                  DO k = 1,nz
                      gloc = gloc+2*real(a(k,j,i)*conjg(d(k,j,i))+            &
                            b(k,j,i)*conjg(e(k,j,i))+c(k,j,i)*                &
-                           conjg(f(k,j,i)))/((1.+alp**2*ka2(k,j,i))*         &
-                           real(n,kind=GP)**6)
+                           conjg(f(k,j,i)))/((1.+alp**2*kk2(k,j,i))*tmp)
                   END DO
                END DO
             END DO
@@ -268,32 +282,34 @@
 !
       ELSE
          IF (ista.eq.1) THEN
-            DO j = 1,n
-               DO k = 1,n
-                  gloc = gloc+ka2(k,j,1)*real(a(k,j,1)*conjg(d(k,j,1))+      &
+!$omp parallel do private (k) reduction(+:gloc)
+            DO j = 1,ny
+               DO k = 1,nz
+                  gloc = gloc+kk2(k,j,1)*real(a(k,j,1)*conjg(d(k,j,1))+      &
                         b(k,j,1)*conjg(e(k,j,1))+c(k,j,1)*                   &
-                        conjg(f(k,j,1)))/((1.+alp**2*ka2(k,j,1))*            &
-                        real(n,kind=GP)**6)
+                        conjg(f(k,j,1)))/((1.+alp**2*kk2(k,j,1))*tmp)
                END DO
             END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:gloc)
             DO i = 2,iend
-               DO j = 1,n
-                  DO k = 1,n
-                     gloc = gloc+2*ka2(k,j,i)*real(a(k,j,i)*conjg(d(k,j,i))+ &
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:gloc)
+               DO j = 1,ny
+                  DO k = 1,nz
+                     gloc = gloc+2*kk2(k,j,i)*real(a(k,j,i)*conjg(d(k,j,i))+ &
                            b(k,j,i)*conjg(e(k,j,i))+c(k,j,i)*                &
-                           conjg(f(k,j,i)))/((1.+alp**2*ka2(k,j,i))*         &
-                           real(n,kind=GP)**6)
+                           conjg(f(k,j,i)))/((1.+alp**2*kk2(k,j,i))*tmp)
                   END DO
                END DO
             END DO
          ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:gloc)
             DO i = ista,iend
-               DO j = 1,n
-                  DO k = 1,n
-                     gloc = gloc+2*ka2(k,j,i)*real(a(k,j,i)*conjg(d(k,j,i))+ &
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:gloc)
+               DO j = 1,ny
+                  DO k = 1,nz
+                     gloc = gloc+2*kk2(k,j,i)*real(a(k,j,i)*conjg(d(k,j,i))+ &
                            b(k,j,i)*conjg(e(k,j,i))+c(k,j,i)*                &
-                           conjg(f(k,j,i)))/((1.+alp**2*ka2(k,j,i))*         &
-                           real(n)**6)
+                           conjg(f(k,j,i)))/((1.+alp**2*kk2(k,j,i))*tmp)
                   END DO
                END DO
             END DO
@@ -328,91 +344,109 @@
       USE kes
       USE grid
       USE mpivars
+!$    USE threads
       IMPLICIT NONE
 
       DOUBLE PRECISION, INTENT(OUT) :: d
       DOUBLE PRECISION              :: dloc
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1
-      REAL(KIND=GP), INTENT(IN)    :: alp
-      INTEGER             :: i,j,k
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP),             DIMENSION(nz,ny,ista:iend) :: c1
+      REAL(KIND=GP),    INTENT(IN)  :: alp
+      REAL(KIND=GP)                 :: tmp
+      INTEGER                       :: i,j,k
 
       dloc = 0.
+      tmp = (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
 
       CALL rotor3(b,c,c1,1)
       IF (ista.eq.1) THEN
-         DO j = 1,n
-            DO k = 1,n
+!$omp parallel do private (k) reduction(+:dloc)
+         DO j = 1,ny
+            DO k = 1,nz
                  dloc = dloc+real(a(k,j,1)*conjg(c1(k,j,1)))      &
-                        /((1.+alp**2*ka2(k,j,1))**2*real(n,kind=GP)**6)
+                        /((1.+alp**2*kk2(k,j,1))**2*tmp)
             END DO
          END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:dloc)
          DO i = 2,iend
-            DO j = 1,n
-               DO k = 1,n
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:dloc)
+            DO j = 1,ny
+               DO k = 1,nz
                   dloc = dloc+2*real(a(k,j,i)*conjg(c1(k,j,i)))   &
-                         /((1.+alp**2*ka2(k,j,i))**2*real(n,kind=GP)**6)
+                         /((1.+alp**2*kk2(k,j,i))**2*tmp)
                END DO
             END DO
          END DO
       ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:dloc)
          DO i = ista,iend
-            DO j = 1,n
-               DO k = 1,n
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:dloc)
+            DO j = 1,ny
+               DO k = 1,nz
                   dloc = dloc+2*real(a(k,j,i)*conjg(c1(k,j,i)))   &
-                         /((1.+alp**2*ka2(k,j,i))**2*real(n,kind=GP)**6)
+                         /((1.+alp**2*kk2(k,j,i))**2*tmp)
                END DO
             END DO
          END DO
       ENDIF
       CALL rotor3(a,c,c1,2)
       IF (ista.eq.1) THEN
-         DO j = 1,n
-            DO k = 1,n
+!$omp parallel do private (k) reduction(+:dloc)
+         DO j = 1,ny
+            DO k = 1,nz
                dloc = dloc+real(b(k,j,1)*conjg(c1(k,j,1)))        &
-                      /((1.+alp**2*ka2(k,j,1))**2*real(n,kind=GP)**6)
+                      /((1.+alp**2*kk2(k,j,1))**2*tmp)
             END DO
          END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:dloc)
          DO i = 2,iend
-            DO j = 1,n
-               DO k = 1,n
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:dloc)
+            DO j = 1,ny
+               DO k = 1,nz
                   dloc = dloc+2*real(b(k,j,i)*conjg(c1(k,j,i)))   &
-                         /((1.+alp**2*ka2(k,j,i))**2*real(n,kind=GP)**6)
+                         /((1.+alp**2*kk2(k,j,i))**2*tmp)
                END DO
             END DO
          END DO
       ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:dloc)
          DO i = ista,iend
-            DO j = 1,n
-               DO k = 1,n
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:dloc)
+            DO j = 1,ny
+               DO k = 1,nz
                   dloc = dloc+2*real(b(k,j,i)*conjg(c1(k,j,i)))   &
-                         /((1.+alp**2*ka2(k,j,i))**2*real(n,kind=GP)**6)
+                         /((1.+alp**2*kk2(k,j,i))**2*tmp)
                END DO
             END DO
          END DO
       ENDIF
       CALL rotor3(a,b,c1,3)
       IF (ista.eq.1) THEN
-         DO j = 1,n
-            DO k = 1,n
+!$omp parallel do private (k) reduction(+:dloc)
+         DO j = 1,ny
+            DO k = 1,nz
                dloc = dloc+real(c(k,j,1)*conjg(c1(k,j,1)))        &
-                      /((1.+alp**2*ka2(k,j,1))**2*real(n,kind=GP)**6)
+                      /((1.+alp**2*kk2(k,j,1))**2*tmp)
             END DO
          END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:dloc)
          DO i = 2,iend
-            DO j = 1,n
-               DO k = 1,n
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:dloc)
+            DO j = 1,ny
+               DO k = 1,nz
                   dloc = dloc+2*real(c(k,j,i)*conjg(c1(k,j,i)))   &
-                         /((1.+alp**2*ka2(k,j,i))**2*real(n,kind=GP)**6)
+                         /((1.+alp**2*kk2(k,j,i))**2*tmp)
                END DO
             END DO
          END DO
       ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:dloc)
          DO i = ista,iend
-            DO j = 1,n
-               DO k = 1,n
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:dloc)
+            DO j = 1,ny
+               DO k = 1,nz
                   dloc = dloc+2*real(c(k,j,i)*conjg(c1(k,j,i)))   &
-                         /((1.+alp**2*ka2(k,j,i))**2*real(n,kind=GP)**6)
+                         /((1.+alp**2*kk2(k,j,i))**2*tmp)
                END DO
             END DO
          END DO
@@ -431,6 +465,10 @@
 ! Consistency check for the conservation of energy 
 ! and helicity in the alpha-model Navier-Stokes 
 ! equations.
+!
+! Output files contain:
+! 'abalance.txt':  time, <v^2>, <omega^2>, inj. rate (all filtered)
+! 'ahelicity.txt': time, kinetic helicity (alpha-filtered)
 !
 ! Parameters
 !     a  : velocity field in the x-direction
@@ -453,9 +491,9 @@
 
       DOUBLE PRECISION :: eng,ens
       DOUBLE PRECISION :: pot,khe
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: d,e,f
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)             :: c1,c2,c3
       REAL(KIND=GP), INTENT(IN)    :: alp
       REAL(KIND=GP), INTENT(IN)    :: dt
       INTEGER, INTENT(IN) :: hel
@@ -501,6 +539,12 @@
 ! helicity power spectrum. The output 
 ! is written to a file by the first node.
 !
+! Output files contain:
+! 'kaspectrum.XXX.txt': k, Ev(k) ('a'-spectra are alpha-filtered)
+! 'maspectrum.XXX.txt': k, Eb(k)
+! 'kahelicity.XXX.txt': k, Hv(k) (kinetic helicity spectrum)
+! 'mahelicity.XXX.txt': k, Hb(k) (magnetic helicity spectrum)
+!
 ! Parameters
 !     a  : input matrix in the x-direction
 !     b  : input matrix in the y-direction
@@ -517,21 +561,23 @@
       USE kes
       USE grid
       USE mpivars
+      USE boxsize
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1)            :: Ek,Ektot
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL(KIND=GP), INTENT(IN)    :: alp
-      INTEGER, INTENT(IN) :: kin,hel
-      INTEGER             :: i,j,k
-      INTEGER             :: kmn
+      DOUBLE PRECISION,             DIMENSION(nmax/2+1)        :: Ek,Ektot
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP),             DIMENSION(nz,ny,ista:iend) :: c1,c2,c3
+      REAL(KIND=GP),    INTENT(IN) :: alp
+      REAL(KIND=GP)                :: tmp
+      INTEGER,          INTENT(IN) :: kin,hel
+      INTEGER                      :: i,j,k
+      INTEGER                      :: kmn
       CHARACTER(len=*), INTENT(IN) :: nmb
 
 !
 ! Sets Ek to zero
 !
-      DO i = 1,n/2+1
+      DO i = 1,nmax/2+1
          Ek(i) = 0.
       END DO
 !
@@ -545,42 +591,40 @@
 !
 ! Computes the kinetic energy spectrum
 !
+      tmp = (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
-            DO j = 1,n
-               DO k = 1,n
-                  kmn = int(sqrt(ka2(k,j,1))+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+            DO j = 1,ny
+               DO k = 1,nz
+                  kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
+                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      Ek(kmn) = Ek(kmn)+                               &
                        (abs(a(k,j,1))**2+abs(b(k,j,1))**2+            &
-                       abs(c(k,j,1))**2)/((1.+alp**2*ka2(k,j,1))*     &
-                       real(n,kind=GP)**6)
+                       abs(c(k,j,1))**2)/((1.+alp**2*kk2(k,j,1))*tmp)
                   ENDIF
                END DO
             END DO
             DO i = 2,iend
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(sqrt(ka2(k,j,i))+.501)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         Ek(kmn) = Ek(kmn)+                            &
                           2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+       &
-                          abs(c(k,j,i))**2)/((1.+alp**2*ka2(k,j,i))*  &
-                          real(n,kind=GP)**6)
+                          abs(c(k,j,i))**2)/((1.+alp**2*kk2(k,j,i))*tmp)
                      ENDIF
                   END DO
                END DO
             END DO
           ELSE
             DO i = ista,iend
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(sqrt(ka2(k,j,i))+.501)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         Ek(kmn) = Ek(kmn)+                            &
                           2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+       &
-                          abs(c(k,j,i))**2)/((1.+alp**2*ka2(k,j,i))*  &
-                          real(n,kind=GP)**6)
+                          abs(c(k,j,i))**2)/((1.+alp**2*kk2(k,j,i))*tmp)
                      ENDIF
                   END DO
                END DO
@@ -591,40 +635,37 @@
 !
       ELSE
          IF (ista.eq.1) THEN
-            DO j = 1,n
-               DO k = 1,n
-                  kmn = int(sqrt(ka2(k,j,1))+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+            DO j = 1,ny
+               DO k = 1,nz
+                  kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
+                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      Ek(kmn) = Ek(kmn)+                               &
                        (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+          &
-                       abs(c3(k,j,1))**2)/((1.+alp**2*ka2(k,j,1))*    &
-                       real(n,kind=GP)**6)
+                       abs(c3(k,j,1))**2)/((1.+alp**2*kk2(k,j,1))*tmp)
                   ENDIF
                END DO
             END DO
             DO i = 2,iend
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(sqrt(ka2(k,j,i))+.501)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         Ek(kmn) = Ek(kmn)+                            &
                           2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+     &
-                          abs(c3(k,j,i))**2)/((1.+alp**2*ka2(k,j,i))* &
-                          real(n,kind=GP)**6)
+                          abs(c3(k,j,i))**2)/((1.+alp**2*kk2(k,j,i))*tmp)
                      ENDIF
                   END DO
                END DO
             END DO
          ELSE
             DO i = ista,iend
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(sqrt(ka2(k,j,i))+.501)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         Ek(kmn) = Ek(kmn)+                            &
                           2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+     &
-                          abs(c3(k,j,i))**2)/((1.+alp**2*ka2(k,j,i))* &
-                          real(n,kind=GP)**6)
+                          abs(c3(k,j,i))**2)/((1.+alp**2*kk2(k,j,i))*tmp)
                      ENDIF
                   END DO
                END DO
@@ -635,7 +676,7 @@
 ! Computes the reduction between nodes
 ! and exports the result to a file
 !
-      CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0,  &
+      CALL MPI_REDUCE(Ek,Ektot,nmax/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0,  &
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          IF (kin.eq.1) THEN
@@ -643,55 +684,56 @@
          ELSE
             OPEN(1,file='maspectrum.' // nmb // '.txt')
          ENDIF
-         WRITE(1,20) Ektot
-   20    FORMAT( E23.15 ) 
+         DO i=1,nmax/2+1
+            WRITE(1,FMT='(E13.6,E23.15)') Dkk*i,Ektot(i)/Dkk
+         END DO
          CLOSE(1)
       ENDIF
 !
 ! Computes the helicity spectrum
 !
       IF (hel.eq.1) THEN
-         DO i = 1,n/2+1
+         DO i = 1,nmax/2+1
             Ek(i) = 0.
          END DO
          IF (ista.eq.1) THEN
-            DO j = 1,n
-               DO k = 1,n
-                  kmn = int(sqrt(ka2(k,j,1))+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+            DO j = 1,ny
+               DO k = 1,nz
+                  kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
+                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      Ek(kmn) = Ek(kmn)+                               &
                        (real(a(k,j,1)*conjg(c1(k,j,1)))+              &
                        real(b(k,j,1)*conjg(c2(k,j,1)))+               &
                        real(c(k,j,1)*conjg(c3(k,j,1))))/              &
-                       ((1.+alp**2*ka2(k,j,1))**2*real(n,kind=GP)**6)
+                       ((1.+alp**2*kk2(k,j,1))**2*tmp)
                   ENDIF
                END DO
             END DO
             DO i = 2,iend
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(sqrt(ka2(k,j,i))+.501)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         Ek(kmn) = Ek(kmn)+                            &
                           2*(real(a(k,j,i)*conjg(c1(k,j,i)))+         &
                           real(b(k,j,i)*conjg(c2(k,j,i)))+            &
                           real(c(k,j,i)*conjg(c3(k,j,i))))/           &
-                          ((1.+alp**2*ka2(k,j,i))**2*real(n,kind=GP)**6)
+                          ((1.+alp**2*kk2(k,j,i))**2*tmp)
                      ENDIF
                  END DO
                END DO
             END DO
          ELSE
             DO i = ista,iend
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(sqrt(ka2(k,j,i))+.501)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         Ek(kmn) = Ek(kmn)+                            &
                           2*(real(a(k,j,i)*conjg(c1(k,j,i)))+         &
                           real(b(k,j,i)*conjg(c2(k,j,i)))+            &
                           real(c(k,j,i)*conjg(c3(k,j,i))))/           &
-                          ((1.+alp**2*ka2(k,j,i))**2*real(n,kind=GP)**6)
+                          ((1.+alp**2*kk2(k,j,i))**2*tmp)
                      ENDIF
                   END DO
                END DO
@@ -701,7 +743,7 @@
 ! Computes the reduction between nodes
 ! and exports the result to a file
 !
-         CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM, &
+         CALL MPI_REDUCE(Ek,Ektot,nmax/2+1,MPI_DOUBLE_PRECISION,MPI_SUM, &
                          0,MPI_COMM_WORLD,ierr)
          IF (myrank.eq.0) THEN
             IF (kin.eq.1) THEN
@@ -709,8 +751,9 @@
             ELSE
                OPEN(1,file='mahelicity.' // nmb // '.txt')
             ENDIF
-            WRITE(1,30) Ektot
-   30       FORMAT( E23.15 )
+            DO i=1,nmax/2+1
+               WRITE(1,FMT='(E13.6,E23.15)') Dkk*i,Ektot(i)/Dkk
+            END DO
             CLOSE(1)
          ENDIF
       ENDIF
@@ -724,6 +767,12 @@
 !
 ! Consistency check for the conservation of the total
 ! energy and helicity in alpha-model MHD
+!
+! Output files contain:
+! 'abalance.txt':  time, <v^2>+<b^2>, <omega^2>, <j^2>
+! 'aenergy.txt':   time, <v^2>, <b^2>
+! 'ahelicity.txt': time, kinetic helicity, magnetic helicity
+! 'across.txt':    time, <v.b>, <a^2> (all 'a'-files are filtered)
 !
 ! Parameters
 !     a   : velocity field in the x-direction
@@ -750,14 +799,14 @@
       DOUBLE PRECISION :: engk,engm,eng,ens
       DOUBLE PRECISION :: helk,helm,cur
       DOUBLE PRECISION :: asq,crh
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend) :: ma,mb,mc
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend)             :: c1,c2,c3
-      REAL(KIND=GP), INTENT(IN)    :: dt
-      REAL(KIND=GP), INTENT(IN)    :: alpk,alpm
-      INTEGER, INTENT(IN) :: hel,crs
-      INTEGER             :: i,j,k
-      INTEGER, INTENT(IN) :: t
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: ma,mb,mc
+      COMPLEX(KIND=GP),             DIMENSION(nz,ny,ista:iend) :: c1,c2,c3
+      REAL(KIND=GP),    INTENT(IN)  :: dt
+      REAL(KIND=GP),    INTENT(IN)  :: alpk,alpm
+      INTEGER,          INTENT(IN)  :: hel,crs
+      INTEGER                       :: i,j,k
+      INTEGER,          INTENT(IN)  :: t
 
 !
 ! Computes the mean energy, enstrophy 
@@ -818,6 +867,11 @@
 ! space in 3D. The output is written to a file 
 ! by the first node.
 !
+! Output files contain:
+! 'aktransfer.XXX.txt': k, Tv(k) (alpha-kinetic energy transfer)
+! 'amtransfer.XXX.txt': k, Tb(k) (alpha-magnetic energy transfer)
+! 'ajtransfer.XXX.txt': k, Tj(k) (alpha-filtered Lorentz force work)
+!
 ! Parameters
 !     a  : field component in the x-direction
 !     b  : field component in the y-direction
@@ -836,66 +890,68 @@
       USE kes
       USE grid
       USE mpivars
+      USE boxsize
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(n/2+1)            :: Ek,Ektot
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend), INTENT(IN) :: a,b,c
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend), INTENT(IN) :: d,e,f
-      REAL(KIND=GP), INTENT(IN)    :: alp
+      DOUBLE PRECISION, DIMENSION(nmax/2+1)                    :: Ek,Ektot
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend), INTENT(IN) :: a,b,c
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend), INTENT(IN) :: d,e,f
+      REAL(KIND=GP),    INTENT(IN) :: alp
       REAL(KIND=GP)                :: tmp
-      INTEGER, INTENT(IN) :: kin
-      INTEGER             :: i,j,k
-      INTEGER             :: kmn
+      INTEGER,          INTENT(IN) :: kin
+      INTEGER                      :: i,j,k
+      INTEGER                      :: kmn
       CHARACTER(len=*), INTENT(IN) :: nmb
 
 !
 ! Sets Ek to zero
 !
-      DO i = 1,n/2+1
+      DO i = 1,nmax/2+1
          Ek(i) = 0.
       END DO
 !
 ! Computes the kinetic energy transfer
 !
+      tmp = (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF ((kin.eq.1).or.(kin.eq.2)) THEN
          IF (ista.eq.1) THEN
-            DO j = 1,n
-               DO k = 1,n
-                  kmn = int(sqrt(ka2(k,j,1))+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+            DO j = 1,ny
+               DO k = 1,nz
+                  kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
+                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      Ek(kmn) = Ek(kmn)+                             &
                        (real(a(k,j,1)*conjg(d(k,j,1)))+             &
                        real(b(k,j,1)*conjg(e(k,j,1)))+              &
                        real(c(k,j,1)*conjg(f(k,j,1))))/             &
-                       ((1.+alp**2*ka2(k,j,1))*real(n,kind=GP)**6)
+                       ((1.+alp**2*kk2(k,j,1))*tmp)
                   ENDIF
                END DO
             END DO
             DO i = 2,iend
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(sqrt(ka2(k,j,i))+.501)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         Ek(kmn) = Ek(kmn)+                          &
                           2*(real(a(k,j,i)*conjg(d(k,j,i)))+        &
                           real(b(k,j,i)*conjg(e(k,j,i)))+           &
                           real(c(k,j,i)*conjg(f(k,j,i))))/          &
-                          ((1.+alp**2*ka2(k,j,i))*real(n,kind=GP)**6)
+                          ((1.+alp**2*kk2(k,j,i))*tmp)
                      ENDIF
                  END DO
                END DO
             END DO
          ELSE
             DO i = ista,iend
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(sqrt(ka2(k,j,i))+.501)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         Ek(kmn) = Ek(kmn)+                          &
                           2*(real(a(k,j,i)*conjg(d(k,j,i)))+        &
                           real(b(k,j,i)*conjg(e(k,j,i)))+           &
                           real(c(k,j,i)*conjg(f(k,j,i))))/          &
-                          ((1.+alp**2*ka2(k,j,i))*real(n,kind=GP)**6)
+                          ((1.+alp**2*kk2(k,j,i))*tmp)
                      ENDIF
                   END DO
                END DO
@@ -905,13 +961,13 @@
 ! Computes the magnetic energy transfer
 !
       ELSE
-         tmp = 1./real(n,kind=GP)**6
+      tmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
          IF (ista.eq.1) THEN
-            DO j = 1,n
-               DO k = 1,n
-                  kmn = int(sqrt(ka2(k,j,1))+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                     Ek(kmn) = Ek(kmn)+ka2(k,j,1)*                  &
+            DO j = 1,ny
+               DO k = 1,nz
+                  kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
+                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                     Ek(kmn) = Ek(kmn)+kk2(k,j,1)*                  &
                        (real(a(k,j,1)*conjg(d(k,j,1)))+             &
                        real(b(k,j,1)*conjg(e(k,j,1)))+              &
                        real(c(k,j,1)*conjg(f(k,j,1))))*tmp
@@ -919,11 +975,11 @@
                END DO
             END DO
             DO i = 2,iend
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(sqrt(ka2(k,j,i))+.501)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                        Ek(kmn) = Ek(kmn)+2*ka2(k,j,i)*             &
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                        Ek(kmn) = Ek(kmn)+2*kk2(k,j,i)*             &
                           (real(a(k,j,i)*conjg(d(k,j,i)))+          &
                           real(b(k,j,i)*conjg(e(k,j,i)))+           &
                           real(c(k,j,i)*conjg(f(k,j,i))))*tmp
@@ -933,11 +989,11 @@
             END DO
          ELSE
             DO i = ista,iend
-               DO j = 1,n
-                  DO k = 1,n
-                     kmn = int(sqrt(ka2(k,j,i))+.501)
-                     IF ((kmn.gt.0).and.(kmn.le.n/2+1)) THEN
-                        Ek(kmn) = Ek(kmn)+2*ka2(k,j,i)*             &
+               DO j = 1,ny
+                  DO k = 1,nz
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                        Ek(kmn) = Ek(kmn)+2*kk2(k,j,i)*             &
                           (real(a(k,j,i)*conjg(d(k,j,i)))+          &
                           real(b(k,j,i)*conjg(e(k,j,i)))+           &
                           real(c(k,j,i)*conjg(f(k,j,i))))*tmp
@@ -951,7 +1007,7 @@
 ! Computes the reduction between nodes
 ! and exports the result to a file
 !
-      CALL MPI_REDUCE(Ek,Ektot,n/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+      CALL MPI_REDUCE(Ek,Ektot,nmax/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          IF (kin.eq.0) THEN
@@ -961,8 +1017,9 @@
          ELSE
             OPEN(1,file='ajtransfer.' // nmb // '.txt')
          ENDIF
-         WRITE(1,40) Ektot
-   40    FORMAT( E23.15 ) 
+         DO i=1,nmax/2+1
+            WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Ektot(i)/Dkk
+         END DO
          CLOSE(1)
       ENDIF
 

@@ -37,21 +37,23 @@
 !
       USE fprecision
       USE kes
+      USE commtypes
       USE mpivars
       USE grid
       USE fft
+!$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: d,e,f
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c1,c2,c3
-      COMPLEX(KIND=GP), DIMENSION(n,n,ista:iend) :: c4,c5,c6
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2,r3
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r4,r5,r6
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r7,r8,r9
-      REAL(KIND=GP), INTENT(IN) :: alp
-      REAL(KIND=GP)    :: tmp,rx,ry
-      INTEGER :: i,j,k
+      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: c1,c2,c3
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: c4,c5,c6
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r4,r5,r6
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r7,r8,r9
+      REAL(KIND=GP),    INTENT(IN) :: alp
+      REAL(KIND=GP)                :: tmp,rx,ry
+      INTEGER                      :: i,j,k
 
 ! v -> u: c_{1-3}
       CALL smooth3(a,b,c,c1,c2,c3,alp)
@@ -62,9 +64,11 @@
       CALL rotor3(c1,c2,c6,3)
 
 ! r_{1-3} = w_s * n^3
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
-         DO j = 1,n
-            DO k = 1,n
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
                d(k,j,i) = c4(k,j,i)
                e(k,j,i) = c5(k,j,i)
                f(k,j,i) = c6(k,j,i)
@@ -76,9 +80,11 @@
       CALL fftp3d_complex_to_real(plancr,f,r3,MPI_COMM_WORLD)
 
 ! r_{4-6} = u * n^3
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
-         DO j = 1,n
-            DO k = 1,n
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
                d(k,j,i) = c1(k,j,i)
                e(k,j,i) = c2(k,j,i)
                f(k,j,i) = c3(k,j,i)
@@ -90,10 +96,12 @@
       CALL fftp3d_complex_to_real(plancr,f,r6,MPI_COMM_WORLD)
 
 ! r_{7-9} = w_s x u
-      tmp = 1./real(n,kind=GP)**6
+      tmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
                r7(i,j,k) = (r2(i,j,k)*r6(i,j,k)-r5(i,j,k)*r3(i,j,k))*tmp
                r8(i,j,k) = (r3(i,j,k)*r4(i,j,k)-r6(i,j,k)*r1(i,j,k))*tmp
                r9(i,j,k) = (r1(i,j,k)*r5(i,j,k)-r4(i,j,k)*r2(i,j,k))*tmp
@@ -108,24 +116,30 @@
 
 ! d-f = w_s x u - .5 alpha^2 \nabla^2(w_s x u)
       tmp = 0.5 * alp**2
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
-         DO j = 1,n
-            DO k = 1,n
-               d(k,j,i) = (1+ka2(k,j,i)*tmp)*d(k,j,i)
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               d(k,j,i) = (1+kk2(k,j,i)*tmp)*d(k,j,i)
             END DO
          END DO
       END DO
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
-         DO j = 1,n
-            DO k = 1,n
-               e(k,j,i) = (1+ka2(k,j,i)*tmp)*e(k,j,i)
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               e(k,j,i) = (1+kk2(k,j,i)*tmp)*e(k,j,i)
             END DO
          END DO
       END DO
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
-         DO j = 1,n
-            DO k = 1,n
-               f(k,j,i) = (1+ka2(k,j,i)*tmp)*f(k,j,i)
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               f(k,j,i) = (1+kk2(k,j,i)*tmp)*f(k,j,i)
             END DO
          END DO
       END DO
@@ -142,10 +156,13 @@
       CALL fftp3d_complex_to_real(plancr,c6,r9,MPI_COMM_WORLD)
 
 ! r_{7-9} = - .5 \alpha^2 \nabla^2 w_s x u
-      tmp = (-0.5 * alp**2)/real(n,kind=GP)**6
+      tmp = (-0.5 * alp**2)/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
                rx = (r8(i,j,k)*r6(i,j,k)-r5(i,j,k)*r9(i,j,k))*tmp
                ry = (r9(i,j,k)*r4(i,j,k)-r6(i,j,k)*r7(i,j,k))*tmp
                r9(i,j,k) = (r7(i,j,k)*r5(i,j,k)-r4(i,j,k)*r8(i,j,k))*tmp
@@ -167,10 +184,13 @@
       CALL fftp3d_complex_to_real(plancr,c3,r6,MPI_COMM_WORLD)
 
 ! r_{x-z} = - .5 \alpha^2 \nabla^2 w_s x u- .5 \alpha^2 w_s x \nabla^2 u
-      tmp = (0.5 * alp**2)/real(n,kind=GP)**6
+      tmp = (0.5 * alp**2)/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
                r7(i,j,k)=r7(i,j,k)-(r2(i,j,k)*r6(i,j,k)-r5(i,j,k) &
                          *r3(i,j,k))*tmp
                r8(i,j,k)=r8(i,j,k)-(r3(i,j,k)*r4(i,j,k)-r6(i,j,k) &
@@ -188,23 +208,29 @@
 
 ! d-f = w_s x u - .5 \alpha^2 \nabla^2(w_s x u)
 ! - .5 \alpha^2 \nabla^2 w_s x u- .5 \alpha^2 w_s x \nabla^2 u
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
-         DO j = 1,n
-            DO k = 1,n
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
                d(k,j,i) = d(k,j,i) + c1(k,j,i)
             END DO
          END DO
       END DO
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
-         DO j = 1,n
-            DO k = 1,n
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
                e(k,j,i) = e(k,j,i) + c2(k,j,i)
             END DO
          END DO
       END DO
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
-         DO j = 1,n
-            DO k = 1,n
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
                f(k,j,i) = f(k,j,i) + c3(k,j,i)
             END DO
          END DO

@@ -41,15 +41,15 @@
       USE fft
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(n,n,ista:iend)  :: a,b,c
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(n,n,ista:iend) :: d,e,f
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r1,r2
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r3,r4
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r5,r6
-      REAL(KIND=GP), DIMENSION(n,n,ksta:kend)    :: r7
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: d,e,f
+      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)    :: r1,r2
+      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)    :: r3,r4
+      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)    :: r5,r6
+      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)    :: r7
       REAL(KIND=GP), INTENT(IN) :: alp
       REAL(KIND=GP)             :: tmp
-      INTEGER          :: i,j,k
+      INTEGER                   :: i,j,k
 
 !
 ! Computes curl(A)
@@ -70,10 +70,13 @@
 !
 ! Computes curl(A)xAs
 !
-      tmp = 1./real(n,kind=GP)**6
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
-         DO j = 1,n
-            DO i = 1,n
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
                r7(i,j,k) = (r2(i,j,k)*r6(i,j,k)-r5(i,j,k)*r3(i,j,k))*tmp
                r3(i,j,k) = (r3(i,j,k)*r4(i,j,k)-r6(i,j,k)*r1(i,j,k))*tmp
                r1(i,j,k) = (r1(i,j,k)*r5(i,j,k)-r4(i,j,k)*r2(i,j,k))*tmp
