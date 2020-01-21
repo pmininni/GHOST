@@ -189,7 +189,8 @@ trans triad: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS) \
 	$(MAKE) $@$(SOLVER)
 	$(MAKE) undo
 
-cancel: edit $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o $(OBJS)
+cancel: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS) $(IOLIB)/binary_io.o \
+           $(OBJS)
 	$(MAKE) $@$(SOLVER)
 	$(MAKE) undo
 
@@ -330,8 +331,8 @@ trans$(SOLVER) triad$(SOLVER):
 cancel$(SOLVER):
 	$(PREPROCESS) $(EXTRASDIR)/$(@:$(SOLVER)=3D).fpp -o $@.f90
 	$(COMPILE) $@.f90
-	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTP)/*.o $(IOLIB)/*.o $(OBJS) \
-           $@.o $(LDFLAGS) -o $(BIN)/$@
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(OBJS) \
+           $(GTIMER) $(GUTILS) $@.o $(LDFLAGS) -o $(BIN)/$@
 
 struc$(SOLVER):
 	$(PREPROCESS) $(EXTRASDIR)/$(@:$(SOLVER)=3D).fpp -o $@.f90

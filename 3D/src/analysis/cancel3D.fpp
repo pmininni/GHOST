@@ -4,7 +4,8 @@
 ! CANCEL3D code (part of the GHOST suite)
 !
 ! Numerically computes the cancellation exponent in 3D 
-! simulations with the GHOST code.
+! simulations with the GHOST code. This tool ONLY works
+! with cubic data in (2.pi)^3 domains.
 !
 ! NOTATION: index 'i' is 'x' 
 !           index 'j' is 'y'
@@ -15,7 +16,7 @@
 !      Facultad de Ciencias Exactas y Naturales.
 !      Universidad de Buenos Aires.
 !
-! 30 Nov 2011: Main program for all decompositions and solvers
+! 30 Nov 2011: Main program for all decompositions
 !=================================================================
 
 !
@@ -47,6 +48,7 @@
       REAL(KIND=GP)    :: tmp,mean,norm
       REAL(KIND=GP)    :: total_box,total_loc
 
+      INTEGER :: n
       INTEGER :: sini
       INTEGER :: cold
       INTEGER :: curl
@@ -64,6 +66,15 @@
 
       CHARACTER(len=100) :: odir,idir
 
+!
+! Verifies proper compilation of the tool
+
+      IF ( (nx.ne.ny).or.(nx.ne.nz).or.(ny.ne.nz) ) THEN
+        IF (myrank.eq.0) &
+           PRINT *,'This tool only works with cubic data in (2.pi)^3 domains'
+        STOP
+      ENDIF
+      n = nx
 !
 ! Initializes the MPI and I/O libraries
 
@@ -155,21 +166,23 @@
       ELSE IF ((curl.eq.1).and.(sini.eq.1)) THEN
          ALLOCATE( C1(n,n,ista:iend) )
          ALLOCATE( C2(n,n,ista:iend) )
-         CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
+         CALL fftp3d_create_plan(planrc,(/n,n,n/),FFTW_REAL_TO_COMPLEX, &
              FFTW_ESTIMATE)
-         CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
+         CALL fftp3d_create_plan(plancr,(/n,n,n/),FFTW_COMPLEX_TO_REAL, &
              FFTW_ESTIMATE)
-         ALLOCATE( ka(n), ka2(n,n,ista:iend) )
+         ALLOCATE( kx(n), kk2(n,n,ista:iend) )
          kmax = (real(n,kind=GP)/3.)**2
          tiny = 1e-5
          DO i = 1,n/2
-            ka(i) = real(i-1,kind=GP)
-            ka(i+n/2) = real(i-n/2-1,kind=GP)
+            kx(i) = real(i-1,kind=GP)
+            kx(i+n/2) = real(i-n/2-1,kind=GP)
          END DO
+	 ky = kx
+	 kz = kx
          DO i = ista,iend
             DO j = 1,n
                DO k = 1,n
-                  ka2(k,j,i) = ka(i)**2+ka(j)**2+ka(k)**2
+                  kk2(k,j,i) = kx(i)**2+ky(j)**2+kz(k)**2
                END DO
             END DO
          END DO
