@@ -1087,7 +1087,7 @@
       IF (myrank.eq.0) THEN
          OPEN(1,file='balance.txt',position='append')
          WRITE(1,10) (t-1)*dt,eng,ens,pot
-   10    FORMAT( E13.6,E25.18,E25.18,E26.18 )
+   10    FORMAT( E13.6,E26.18,E26.18,E26.18 )
          CLOSE(1)
          IF (hel.eq.1) THEN
             OPEN(1,file='helicity.txt',position='append')
