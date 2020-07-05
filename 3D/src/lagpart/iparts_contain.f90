@@ -132,7 +132,7 @@
 ! InerGPart SUBROUTINES
 !=================================================================
 
-  SUBROUTINE InerGPart_ctor(this,tau,grav,gamma)
+  SUBROUTINE InerGPart_ctor(this,tau,grav,gamma,nu,donldrag)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Explicit constructor for inertial particles. Should be called
@@ -143,16 +143,21 @@
 !    tau     : Stokes time
 !    grav    : gravity acceleration
 !    gamma   : mass ratio (= m_f/m_p)
+!    nu      : fluid viscosity
 !-----------------------------------------------------------------
     USE fprecision
 
     IMPLICIT NONE
     CLASS(InerGPart), INTENT(INOUT)     :: this
-    REAL(KIND=GP),INTENT(IN)            :: tau,grav,gamma
+    REAL(KIND=GP),INTENT(IN)            :: tau,grav,gamma,nu
+    INTEGER,      INTENT(IN)            :: donldrag
 
-    this%invtau_ = 1.0_GP/tau
-    this%grav_   = grav
-    this%gamma_  = gamma
+    this%tau_      = tau
+    this%invtau_   = 1.0_GP/tau
+    this%grav_     = grav
+    this%gamma_    = gamma
+    this%nu_       = nu
+    this%donldrag_ = donldrag
 
     ALLOCATE(this%pvx_     (this%maxparts_))
     ALLOCATE(this%pvy_     (this%maxparts_))
@@ -365,12 +370,20 @@
 !               where F is the drag force, V(X(t)) is the particle
 !               velocity, U(X(t)) is the Lagrangian velocity, G_z is
 !               the z-component of the corrected gravity acceleration  
-!               (= g*(1-gamma)/(1+gamma/2), with g>0), DU/dt is the
-!               fluid Lagrangian acceleration, and R=gamma/(1+gamma/2).
+!               (= g*(1-gamma)/(1+gamma/2), with g>0 and gamma=m_f/m_p,
+!               where m_f is the fluid mass and m_p the particle mass),
+!               DU/dt is the fluid Lagrangian acceleration, and
+!               R=gamma/(1+gamma/2).
 !               The drag force is:
 !
 !               F = 1/tau ( U(X(t)) - V(X(t)) )
 !
+!               or
+!
+!               F = (1 + 0.15 Re_p^0.687) /tau ( U(X(t)) - V(X(t)) )
+!
+!               if nonlinear drag is used (see Wang & Maxey 1993),
+!               where Re_p = (18 tau gamma/nu)^(1/2) |U - V|.
 !               This method is intended for light inertial particles.
 !               Note that the vx, vy, vz, will be overwritten here.
 !  ARGUMENTS  :
@@ -397,6 +410,7 @@
     REAL(KIND=GP),INTENT   (IN)                            :: dt,xk
     REAL(KIND=GP)                                          :: dtfact
     REAL(KIND=GP)                                          :: dtv
+    REAL(KIND=GP)                                          :: rep,cdrag
     REAL(KIND=GP)                                          :: tmparg
     REAL(KIND=GP), ALLOCATABLE, DIMENSION              (:) :: lid,gid
 
@@ -416,12 +430,25 @@
     ! Drag force plus mass ratio term
 
     tmparg = -1.5_GP*this%gamma_/(1.0_GP+0.5_GP*this%gamma_)
+    IF ( this%donldrag_.EQ.0 ) THEN ! Linear drag
 !$omp parallel do
     DO j = 1, this%nparts_
        this%dfx_(j) = this%dfx_(j)*tmparg+(this%lvx_(j)-this%pvx_(j))*this%invtau_
        this%dfy_(j) = this%dfy_(j)*tmparg+(this%lvy_(j)-this%pvy_(j))*this%invtau_
        this%dfz_(j) = this%dfz_(j)*tmparg+(this%lvz_(j)-this%pvz_(j))*this%invtau_
     ENDDO
+    ELSE ! Nonlinear drag
+    rep = sqrt(18.0_GP*this%tau_*this%gamma_/this%nu_)
+!$omp parallel do
+    DO j = 1, this%nparts_
+       cdrag = 1.0_GP + .15_GP*(rep*sqrt((this%lvx_(j)-this%pvx_(j))**2 + &
+                                         (this%lvy_(j)-this%pvy_(j))**2 + &
+                                         (this%lvz_(j)-this%pvz_(j))**2))**0.687
+       this%dfx_(j) = this%dfx_(j)*tmparg+(this%lvx_(j)-this%pvx_(j))*cdrag*this%invtau_
+       this%dfy_(j) = this%dfy_(j)*tmparg+(this%lvy_(j)-this%pvy_(j))*cdrag*this%invtau_
+       this%dfz_(j) = this%dfz_(j)*tmparg+(this%lvz_(j)-this%pvz_(j))*cdrag*this%invtau_
+    ENDDO       
+    ENDIF
 
     ! ... x:
     dtfact = dt*xk*this%invdel_(1)

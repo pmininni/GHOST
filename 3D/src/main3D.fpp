@@ -347,7 +347,7 @@
       TYPE (GPart) :: lagpart,lagfp
 #endif
 #if defined(INERPART_)
-      INTEGER               :: dolightp
+      INTEGER               :: dolightp, donldrag
       REAL(KIND=GP)         :: tau, grav, gamma
       TYPE (InerGPart)      :: lagpart
 #endif
@@ -458,7 +458,7 @@
       NAMELIST / plagpart / blgdofp,ilgfpfiletype,blgfpfilecoll,slgfpfile
 #endif
 #if defined(INERPART_)
-      NAMELIST / pinerpart / tau,grav,gamma,dolightp
+      NAMELIST / pinerpart / tau,grav,gamma,dolightp,donldrag
 #endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
       NAMELIST / ptestpart / gyrof,vtherm
@@ -1313,9 +1313,12 @@
 !     gamma    : Mass ratio (= m_f/m_p, f:fluid, p:particle)
 !     dolightp : = 0 do not compute mass ratio terms (heavy particles);
 !                = 1 compute mass ratio terms (light particles);
+!     donldrag : = 0 compute linear drag;
+!                = 1 compute non-linear drag (only for light particles);
 
       gamma    = 0.0_GP
       dolightp = 0
+      donldrag = 0
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=pinerpart)
@@ -1325,6 +1328,7 @@
       CALL MPI_BCAST(grav    ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(gamma   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(dolightp,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(donldrag,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #if defined(TESTPART_) && defined(MAGFIELD_)
@@ -1566,7 +1570,7 @@
         CALL lagpart%SetRandSeed(seed)
         CALL lagpart%SetSeedFile(trim(lgseedfile))
 #if defined(INERPART_)
-        CALL lagpart%InerGPart_ctor(tau,grav,gamma)
+        CALL lagpart%InerGPart_ctor(tau,grav,gamma,nu,donldrag)
 #endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
         CALL lagpart%TestGPart_ctor()
