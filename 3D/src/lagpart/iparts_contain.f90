@@ -247,15 +247,15 @@
     CLASS(InerGPart), INTENT(INOUT) :: this
     INTEGER                          :: j
 
-    ! Initialize solution, u: 
-    ! u* <-- u: 
+    ! Initialize solution, v (particle velocity): 
+    ! v* <-- v: 
  
     ! Cycle over JST loop to update state:
 !$omp parallel do
     DO j = 1, this%nparts_
-       this%ttmp0_(1,j) = this%pvx_(j)  ! ux_0
-       this%ttmp0_(2,j) = this%pvy_(j)  ! uy_0
-       this%ttmp0_(3,j) = this%pvz_(j)  ! uz_0
+       this%ttmp0_(1,j) = this%pvx_(j)  ! vx_0
+       this%ttmp0_(2,j) = this%pvy_(j)  ! vy_0
+       this%ttmp0_(3,j) = this%pvz_(j)  ! vz_0
     ENDDO
     
   END SUBROUTINE InerGPart_SetStepRKK
@@ -283,12 +283,12 @@
 !               Inertial particles in this method are heavy.
 !               Note that the vx, vy, vz, will be overwritten here.
 !  ARGUMENTS  :
-!    this    : 'this' class instance
-!    vz,vy,vz: compoments of velocity field, in real space, partially
-!              updated, possibly. These will be overwritten!
-!    dt      : integration timestep
-!    xk      : multiplicative RK time stage factor
-!    tmpX    : temp arrays the same size as vx, vy, vz
+!    this     : 'this' class instance
+!    vz,vy,vz : compoments of velocity field, in real space, partially
+!               updated, possibly. These will be overwritten!
+!    dt       : integration timestep
+!    xk       : multiplicative RK time stage factor
+!    tmpX     : temp arrays the same size as vx, vy, vz
 !-----------------------------------------------------------------
     USE grid
     USE fprecision
@@ -383,18 +383,19 @@
 !               F = (1 + 0.15 Re_p^0.687) /tau ( U(X(t)) - V(X(t)) )
 !
 !               if nonlinear drag is used (see Wang & Maxey 1993),
-!               where Re_p = (18 tau gamma/nu)^(1/2) |U - V|.
+!               where Re_p = (18 tau gamma/nu)^(1/2) |U - V|, and
+!               |U - V| = ((Ux-Vx)^2+(Uy-Vy)^2+(Uz-Vz)^2)^(1/2).
 !               This method is intended for light inertial particles.
 !               Note that the vx, vy, vz, will be overwritten here.
 !  ARGUMENTS  :
-!    this    : 'this' class instance
-!    vz,vy,vz: compoments of velocity field, in real space, partially
-!              updated, possibly. These will be overwritten!
-!    az,ay,az: compoments of Lagrangian acceleration, in real space,
-!              partially updated, possibly. These may be overwritten!
-!    dt      : integration timestep
-!    xk      : multiplicative RK time stage factor
-!    tmpX    : temp arrays the same size as vx, vy, vz
+!    this     : 'this' class instance
+!    vz,vy,vz : compoments of velocity field, in real space, partially
+!               updated, possibly. These will be overwritten!
+!    az,ay,az : compoments of Lagrangian acceleration, in real space,
+!               partially updated, possibly. These may be overwritten!
+!    dt       : integration timestep
+!    xk       : multiplicative RK time stage factor
+!    tmpX     : temp arrays the same size as vx, vy, vz
 !-----------------------------------------------------------------
     USE grid
     USE fprecision
@@ -417,7 +418,7 @@
     dtv    = dt*xk
     CALL GTStart(this%htimers_(GPTIME_STEP))
 
-    ! Find the Lagrangian velocity for F(U*,V*):
+    ! Find the Lagrangian velocity for F(U,V):
     CALL GPart_EulerToLag(this,this%lvx_,this%nparts_,vx,.true.,tmp1,tmp2)
     CALL GPart_EulerToLag(this,this%lvy_,this%nparts_,vy,.false.,tmp1,tmp2)
     CALL GPart_EulerToLag(this,this%lvz_,this%nparts_,vz,.false.,tmp1,tmp2)
@@ -429,7 +430,7 @@
 
     ! Drag force plus mass ratio term
 
-    tmparg = -1.5_GP*this%gamma_/(1.0_GP+0.5_GP*this%gamma_)
+    tmparg = 1.5_GP*this%gamma_/(1.0_GP+0.5_GP*this%gamma_)
     IF ( this%donldrag_.EQ.0 ) THEN ! Linear drag
 !$omp parallel do
     DO j = 1, this%nparts_
@@ -437,17 +438,16 @@
        this%dfy_(j) = this%dfy_(j)*tmparg+(this%lvy_(j)-this%pvy_(j))*this%invtau_
        this%dfz_(j) = this%dfz_(j)*tmparg+(this%lvz_(j)-this%pvz_(j))*this%invtau_
     ENDDO
-    ELSE ! Nonlinear drag
-    rep = sqrt(18.0_GP*this%tau_*this%gamma_/this%nu_)
+    ELSE IF ( this%donldrag_.EQ.0 ) THEN ! Nonlinear drag
+    rep = .15_GP*(18.0_GP*this%tau_*this%gamma_/this%nu_)**0.3435 ! 0.3435 = 0.687/2
 !$omp parallel do
     DO j = 1, this%nparts_
-       cdrag = 1.0_GP + .15_GP*(rep*sqrt((this%lvx_(j)-this%pvx_(j))**2 + &
-                                         (this%lvy_(j)-this%pvy_(j))**2 + &
-                                         (this%lvz_(j)-this%pvz_(j))**2))**0.687
+       cdrag = 1.0_GP + rep*((this%lvx_(j)-this%pvx_(j))**2 + &
+               (this%lvy_(j)-this%pvy_(j))**2 + (this%lvz_(j)-this%pvz_(j))**2)**0.3435
        this%dfx_(j) = this%dfx_(j)*tmparg+(this%lvx_(j)-this%pvx_(j))*cdrag*this%invtau_
        this%dfy_(j) = this%dfy_(j)*tmparg+(this%lvy_(j)-this%pvy_(j))*cdrag*this%invtau_
        this%dfz_(j) = this%dfz_(j)*tmparg+(this%lvz_(j)-this%pvz_(j))*cdrag*this%invtau_
-    ENDDO       
+    ENDDO
     ENDIF
 
     ! ... x:

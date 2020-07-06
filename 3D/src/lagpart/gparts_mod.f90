@@ -1669,8 +1669,8 @@ MODULE class_GPart
 
     INTEGER                                :: j
 
-    ! Initialize solution, u: 
-    ! u* <-- u: 
+    ! Initialize solution, x (position): 
+    ! x* <-- x: 
  
 !$omp parallel do
     DO j = 1, this%nparts_

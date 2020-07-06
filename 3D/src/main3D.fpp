@@ -2633,7 +2633,7 @@
          ELSE                       ! Light particles
             CALL gradre3(vx,vy,vz,C4,C5,C6)
             rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
-            rmq = 1.0_GP/dt
+            rmq = real(o,kind=GP)/dt
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)

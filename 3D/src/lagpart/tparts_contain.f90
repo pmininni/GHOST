@@ -134,8 +134,8 @@
 
     INTEGER                         :: j
 
-    ! Initialize solution, u: 
-    ! u* <-- u: 
+    ! Initialize solution, v (particle velocity): 
+    ! v* <-- v: 
  
     ! Cycle over JST loop to update state:
 !$omp parallel do
