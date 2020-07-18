@@ -176,5 +176,5 @@ gyrof = 1.0      ! Gyrofrequency
 vtherm = 1.0     ! Thermal velocity of test particles
 dii = 0.0        ! Ion inertial length scale (=Hall-MHD epsilon; dokinelv/p=1)
 dokinelv = 0     ! Compute u x B or u_e x B (0=u x B, 1=u_e x B)
-dokinelp = 0     ! Compute electron pressure (0=no, 1=yes)
+dokinelp = 0     ! Compute electron pressure (0=no, 1=yes if flow compressible)
 /
