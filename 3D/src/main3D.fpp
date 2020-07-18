@@ -352,7 +352,8 @@
       TYPE (InerGPart)      :: lagpart
 #endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
-      REAL(KIND=GP)         :: gyrof, vtherm
+      INTEGER               :: dokinelv, dokinelp
+      REAL(KIND=GP)         :: gyrof, vtherm, dii      
       TYPE (TestGPart)      :: lagpart
 #endif
 !$    INTEGER, EXTERNAL     :: omp_get_max_threads
@@ -461,7 +462,7 @@
       NAMELIST / pinerpart / tau,grav,gamma,dolightp,donldrag
 #endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
-      NAMELIST / ptestpart / gyrof,vtherm
+      NAMELIST / ptestpart / gyrof,vtherm,dii,dokinelv,dokinelp
 #endif
 
 !
@@ -1335,7 +1336,15 @@
 ! Reads parameters for runs with test particles
 !     gyrof    : Gyrofrequency
 !     vtherm   : Thermal velocity of the test particles
+!     dii      : Ion inertial length scale (=epsilon in Hall-MHD)
+!     dokinelv : = 0 Compute the uxB term in the Lorentz force
+!                = 1 Compute also electron velocity corrections (Hall-MHD)
+!     dokinelp : = 0 Compute Ohmic currents in the Lorentz force
+!                = 1 Compute also the electron pressure (ambipolar diff.)
 
+      dii = 0.0_GP
+      dokinelv = 0
+      dokinelv = 0
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=ptestpart)
@@ -1343,6 +1352,9 @@
       ENDIF
       CALL MPI_BCAST(gyrof    ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(vtherm   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dii      ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dokinelv,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dokinelp,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 #endif
 
 ! Before continuing, we verify that all parameters and compilation
@@ -2670,6 +2682,7 @@
 #endif
 
 #if defined(TESTPART_) && defined(MAGFIELD_)
+         rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -2681,31 +2694,78 @@
              END DO
            END DO
          END DO
-         CALL rotor3(C12,C13,C14,1)
-         CALL rotor3(C11,C13,C15,2)
-         CALL rotor3(C11,C12,C16,3)
+         CALL rotor3(C12,C13,C14,1) ! bx
+         CALL rotor3(C11,C13,C15,2) ! by
+         CALL rotor3(C11,C12,C16,3) ! bz
 #ifdef UNIFORMB_
-         IF (myrank.eq.0) THEN          ! b = b + B_0
+         IF (myrank.eq.0) THEN      ! b = b + B_0
             C14(1,1,1) = bx0
             C15(1,1,1) = by0
             C16(1,1,1) = bz0
          ENDIF
-#endif 
+#endif
          CALL fftp3d_complex_to_real(plancr,C14,Rb1,MPI_COMM_WORLD)
          CALL fftp3d_complex_to_real(plancr,C15,Rb2,MPI_COMM_WORLD)
          CALL fftp3d_complex_to_real(plancr,C16,Rb3,MPI_COMM_WORLD)
-         Rb1 = gyrof*Rb1
-         Rb2 = gyrof*Rb2
-         Rb3 = gyrof*Rb3
-         CALL laplak3(C11,C14)
-         CALL laplak3(C12,C15)
-         CALL laplak3(C13,C16)
+         Rb1 = gyrof*Rb1            ! gyrofreq*bx
+         Rb2 = gyrof*Rb2            ! gyrofreq*by
+         Rb3 = gyrof*Rb3            ! gyrofreq*bz
+         IF ( dokinelv.EQ.1 ) THEN  ! Compute electron velocity corrections
+           CALL laplak3(C11,C14)    ! -jx
+           CALL laplak3(C12,C15)    ! -jy
+           CALL laplak3(C13,C16)    ! -jz
+           CALL divide(th,C14,C15,C16) ! -j/rho
+           CALL fftp3d_complex_to_real(plancr,C14,Rj1,MPI_COMM_WORLD)
+           CALL fftp3d_complex_to_real(plancr,C15,Rj2,MPI_COMM_WORLD)
+           CALL fftp3d_complex_to_real(plancr,C16,Rj3,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+           DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+             DO j = 1,ny
+               DO i = 1,nx
+                 R1(i,j,k) = R1(i,j,k) + dii*Rj1(i,j,k) ! u - epsilon.j/rho
+                 R2(i,j,k) = R2(i,j,k) + dii*Rj2(i,j,k) ! u - epsilon.j/rho
+                 R3(i,j,k) = R3(i,j,k) + dii*Rj3(i,j,k) ! u - epsilon.j/rho
+               END DO
+             END DO
+           END DO
+	 ENDIF
+         CALL laplak3(C11,C14)      ! -jx (already normalized)
+         CALL laplak3(C12,C15)      ! -jy
+         CALL laplak3(C13,C16)      ! -jz
+         IF ( dokinelp.EQ.0 ) THEN  ! Compute only Ohmic current
+           rmq = -gyrof*mu
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+           DO i = ista,iend         ! gyrofreq*(j/Rm-.5*epsilon*grad(p)/rho)
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+             DO j = 1,ny
+               DO k = 1,nz
+                 C14(k,j,i) = rmq*C14(k,j,i) ! gyrofreq*j/Rm
+                 C15(k,j,i) = rmq*C15(k,j,i)
+                 C16(k,j,i) = rmq*C16(k,j,i)
+               END DO
+             END DO
+           END DO
+         ELSEIF ( dokinelp.EQ.1 ) THEN ! Electron pressure correction
+           CALL gradpstate(cp1,gam1,th,C11,C12,C13) ! grad(p_gas)
+           CALL divide(th,C11,C12,C13)              ! grad(p_gas)/rho     
+           rmq = -gyrof*mu
+           rms = .5_GP*gyrof*dii*rmp
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+           DO i = ista,iend         ! gyrofreq*(j/Rm-.5*epsilon*grad(p)/rho)
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+             DO j = 1,ny
+               DO k = 1,nz
+                 C14(k,j,i) = rmq*C14(k,j,i) - rms*C11(k,j,i)
+                 C15(k,j,i) = rmq*C15(k,j,i) - rms*C12(k,j,i)
+                 C16(k,j,i) = rmq*C16(k,j,i) - rms*C13(k,j,i)
+               END DO
+             END DO
+           END DO
+	 ENDIF
          CALL fftp3d_complex_to_real(plancr,C14,Rj1,MPI_COMM_WORLD)
          CALL fftp3d_complex_to_real(plancr,C15,Rj2,MPI_COMM_WORLD)
          CALL fftp3d_complex_to_real(plancr,C16,Rj3,MPI_COMM_WORLD)
-         Rj1 = gyrof*mu*Rj1
-         Rj2 = gyrof*mu*Rj2
-         Rj3 = gyrof*mu*Rj3
          CALL lagpart%StepTestp(R1,R2,R3,Rb1,Rb2,Rb3,Rj1,Rj2,Rj3,dt &
                                ,1.0_GP/real(o,kind=GP),R4,R5,R6)
 #endif

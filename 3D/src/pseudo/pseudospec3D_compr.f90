@@ -159,6 +159,68 @@
       END SUBROUTINE gradpress
 
 !*****************************************************************
+      SUBROUTINE gradpstate(cp1,gam1,d,e,f,g)
+!-----------------------------------------------------------------
+!
+! Computes the gradient of the pressure resulting only from
+! the equation of state of the gas = 0.5*cp1*rho^gam1, with
+! gam1 = gamma - 1
+!
+! Parameters
+!     d  : input matrix with density (in Fourier space)
+!     e  : output matrix with grad(press)_x (in Fourier space)
+!     f  : output matrix with grad(press)_y (in Fourier space)
+!     g  : output matrix with grad(press)_z (in Fourier space)
+!
+      USE fprecision
+      USE kes
+      USE grid
+      USE commtypes
+      USE mpivars
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: d
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: e,f,g
+      REAL(KIND=GP),    INTENT(IN)                 :: cp1, gam1
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: h
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r4
+      REAL(KIND=GP) :: tmp
+      INTEGER       :: i,j,k
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               h(k,j,i) = d(k,j,i)
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_complex_to_real(plancr,h,r4,MPI_COMM_WORLD)
+
+      tmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+!$omp parallel do if (iend-ista.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (iend-ista.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               r4(i,j,k) = .5_GP*cp1*(r4(i,j,k)*tmp)**gam1
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_real_to_complex(planrc,r4,h,MPI_COMM_WORLD)
+      CALL derivk3(h,e,1)
+      CALL derivk3(h,f,2)
+      CALL derivk3(h,g,3)
+
+      RETURN
+      END SUBROUTINE gradpstate
+
+!*****************************************************************
       SUBROUTINE divrhov(d,a,b,c,e)
 !-----------------------------------------------------------------
 !
