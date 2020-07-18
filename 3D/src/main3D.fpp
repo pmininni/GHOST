@@ -2714,7 +2714,9 @@
            CALL laplak3(C11,C14)    ! -jx
            CALL laplak3(C12,C15)    ! -jy
            CALL laplak3(C13,C16)    ! -jz
+#ifdef COMPRESSIBLE_
            CALL divide(th,C14,C15,C16) ! -j/rho
+#endif
            CALL fftp3d_complex_to_real(plancr,C14,Rj1,MPI_COMM_WORLD)
            CALL fftp3d_complex_to_real(plancr,C15,Rj2,MPI_COMM_WORLD)
            CALL fftp3d_complex_to_real(plancr,C16,Rj3,MPI_COMM_WORLD)
@@ -2746,6 +2748,7 @@
                END DO
              END DO
            END DO
+#ifdef COMPRESSIBLE_
          ELSEIF ( dokinelp.EQ.1 ) THEN ! Electron pressure correction
            CALL gradpstate(cp1,gam1,th,C11,C12,C13) ! grad(p_gas)
            CALL divide(th,C11,C12,C13)              ! grad(p_gas)/rho     
@@ -2762,6 +2765,7 @@
                END DO
              END DO
            END DO
+#endif
 	 ENDIF
          CALL fftp3d_complex_to_real(plancr,C14,Rj1,MPI_COMM_WORLD)
          CALL fftp3d_complex_to_real(plancr,C15,Rj2,MPI_COMM_WORLD)
