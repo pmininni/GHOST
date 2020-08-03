@@ -438,7 +438,7 @@
        this%dfy_(j) = this%dfy_(j)*tmparg+(this%lvy_(j)-this%pvy_(j))*this%invtau_
        this%dfz_(j) = this%dfz_(j)*tmparg+(this%lvz_(j)-this%pvz_(j))*this%invtau_
     ENDDO
-    ELSE IF ( this%donldrag_.EQ.0 ) THEN ! Nonlinear drag
+    ELSE IF ( this%donldrag_.EQ.1 ) THEN ! Nonlinear drag
     rep = .15_GP*(18.0_GP*this%tau_*this%gamma_/this%nu_)**0.3435 ! 0.3435 = 0.687/2
 !$omp parallel do
     DO j = 1, this%nparts_
