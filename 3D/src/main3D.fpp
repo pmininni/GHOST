@@ -1581,8 +1581,13 @@
              nstrip,dopacc,ilgwrtunit)
         CALL lagpart%SetRandSeed(seed)
         CALL lagpart%SetSeedFile(trim(lgseedfile))
-#if defined(INERPART_)
+#if defined(INERPART_) && !defined(ROTATION_)
         CALL lagpart%InerGPart_ctor(tau,grav,gamma,nu,donldrag)
+#endif
+#if defined(INERPART_) && defined(ROTATION_)
+        CALL lagpart%InerGPart_ctor(tau,grav,gamma,nu,donldrag, &
+	om=(/omegax,omegay,omegaz/),                            &
+	x0=(/(real(nx+1,kind=GP)/2),(real(ny+1,kind=GP)/2),(real(nz+1,kind=GP)/2)/))
 #endif
 #if defined(TESTPART_) && defined(MAGFIELD_)
         CALL lagpart%TestGPart_ctor()

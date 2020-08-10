@@ -27,7 +27,10 @@
         ! Member data:
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: dfx_,dfy_,dfz_
         REAL(KIND=GP)    :: tau_,invtau_,grav_,gamma_,nu_
-        INTEGER          :: donldrag_
+        REAL(KIND=GP)    :: omegax_,omegay_,omegaz_
+        REAL(KIND=GP)    :: px0_,py0_, pz0_
+        INTEGER          :: donldrag_,dorotatn_
+        
       CONTAINS
         ! Public methods:
         PROCEDURE,PUBLIC :: InerGPart_ctor

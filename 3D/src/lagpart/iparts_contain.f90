@@ -132,7 +132,7 @@
 ! InerGPart SUBROUTINES
 !=================================================================
 
-  SUBROUTINE InerGPart_ctor(this,tau,grav,gamma,nu,donldrag)
+  SUBROUTINE InerGPart_ctor(this,tau,grav,gamma,nu,donldrag,om,x0)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Explicit constructor for inertial particles. Should be called
@@ -150,6 +150,7 @@
     IMPLICIT NONE
     CLASS(InerGPart), INTENT(INOUT)     :: this
     REAL(KIND=GP),INTENT(IN)            :: tau,grav,gamma,nu
+    REAL(KIND=GP),INTENT(IN),OPTIONAL   :: om(3),x0(3)
     INTEGER,      INTENT(IN)            :: donldrag
 
     this%tau_      = tau
@@ -158,6 +159,17 @@
     this%gamma_    = gamma
     this%nu_       = nu
     this%donldrag_ = donldrag
+    IF (PRESENT(om)) THEN
+       this%dorotatn_ = 1
+       this%omegax_ = om(1)
+       this%omegay_ = om(2)
+       this%omegaz_ = om(3)
+       this%px0_ = x0(1)
+       this%py0_ = x0(2)
+       this%pz0_ = x0(3)
+    ELSE
+       this%dorotatn_ = 0
+    ENDIF       
 
     ALLOCATE(this%pvx_     (this%maxparts_))
     ALLOCATE(this%pvy_     (this%maxparts_))
@@ -280,7 +292,10 @@
 !
 !               F = 1/tau ( U(X(t)) - V(X(t)) )
 !
-!               Inertial particles in this method are heavy.
+!               Inertial particles in this method are pointwise and
+!               heavy. Any other forces, except for the Stokes drag,
+!               are neglected.
+!
 !               Note that the vx, vy, vz, will be overwritten here.
 !  ARGUMENTS  :
 !    this     : 'this' class instance
@@ -384,8 +399,20 @@
 !
 !               if nonlinear drag is used (see Wang & Maxey 1993),
 !               where Re_p = (18 tau gamma/nu)^(1/2) |U - V|, and
-!               |U - V| = ((Ux-Vx)^2+(Uy-Vy)^2+(Uz-Vz)^2)^(1/2).
-!               This method is intended for light inertial particles.
+!               |U - V| = [(Ux-Vx)^2+(Uy-Vy)^2+(Uz-Vz)^2]^(1/2).
+!               If rotation is enabled in the fluid solver, the equation
+!               for the velocity also includes the Coriolis force:
+!
+!               - 2 Omega x [V(X(t)) - 3/2 R U(X(t))]
+!
+!               and centrifugal force:
+!
+!               - (1 - 3/2 R) Omega x Omega x [X(t) - X0] 
+!
+!               where X0 is located in the center of the domain.    
+!               This method is intended for light inertial particles, or
+!               for inertial particles that include all terms in the
+!               Maxey-Riley equations to first order in the particle radius.
 !               Note that the vx, vy, vz, will be overwritten here.
 !  ARGUMENTS  :
 !    this     : 'this' class instance
@@ -447,6 +474,30 @@
        this%dfx_(j) = this%dfx_(j)*tmparg+(this%lvx_(j)-this%pvx_(j))*cdrag*this%invtau_
        this%dfy_(j) = this%dfy_(j)*tmparg+(this%lvy_(j)-this%pvy_(j))*cdrag*this%invtau_
        this%dfz_(j) = this%dfz_(j)*tmparg+(this%lvz_(j)-this%pvz_(j))*cdrag*this%invtau_
+    ENDDO
+    ENDIF
+
+    ! Rotation
+    IF ( this%dorotatn_.EQ.1 ) THEN
+    DO j = 1, this%nparts_
+       this%dfx_(j) = this%dfx_(j)-2.0_GP*(this%omegay_*(this%pvz_(j)-tmparg*this%lvz_(j))  - &
+                                           this%omegaz_*(this%pvy_(j)-tmparg*this%lvy_(j))) - &
+        (1.0_GP-tmparg)*(this%omegay_*(this%omegax_*this%delta_(2)*(this%py_(j)-this%py0_)  - &
+                                       this%omegay_*this%delta_(1)*(this%px_(j)-this%px0_)) - &
+                         this%omegaz_*(this%omegax_*this%delta_(3)*(this%pz_(j)-this%pz0_)  - &
+                                       this%omegaz_*this%delta_(1)*(this%px_(j)-this%px0_)))
+       this%dfy_(j) = this%dfy_(j)-2.0_GP*(this%omegax_*(this%pvz_(j)-tmparg*this%lvz_(j))  - &
+                                           this%omegaz_*(this%pvx_(j)-tmparg*this%lvx_(j))) - &
+        (1.0_GP-tmparg)*(this%omegax_*(this%omegay_*this%delta_(1)*(this%px_(j)-this%px0_)  - &
+                                       this%omegax_*this%delta_(2)*(this%py_(j)-this%py0_)) - &
+                         this%omegaz_*(this%omegay_*this%delta_(3)*(this%pz_(j)-this%pz0_)  - &
+                                       this%omegaz_*this%delta_(2)*(this%py_(j)-this%py0_)))
+       this%dfz_(j) = this%dfz_(j)-2.0_GP*(this%omegay_*(this%pvx_(j)-tmparg*this%lvx_(j))  - &
+                                           this%omegax_*(this%pvy_(j)-tmparg*this%lvy_(j))) - &
+        (1.0_GP-tmparg)*(this%omegay_*(this%omegaz_*this%delta_(2)*(this%py_(j)-this%py0_)  - &
+                                       this%omegay_*this%delta_(3)*(this%pz_(j)-this%pz0_)) - &
+                         this%omegax_*(this%omegaz_*this%delta_(1)*(this%px_(j)-this%px0_)  - &
+                                       this%omegax_*this%delta_(3)*(this%pz_(j)-this%pz0_)))
     ENDDO
     ENDIF
 
