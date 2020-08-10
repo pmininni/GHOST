@@ -484,20 +484,20 @@
                                            this%omegaz_*(this%pvy_(j)-tmparg*this%lvy_(j))) - &
         (1.0_GP-tmparg)*(this%omegay_*(this%omegax_*this%delta_(2)*(this%py_(j)-this%py0_)  - &
                                        this%omegay_*this%delta_(1)*(this%px_(j)-this%px0_)) - &
-                         this%omegaz_*(this%omegax_*this%delta_(3)*(this%pz_(j)-this%pz0_)  - &
-                                       this%omegaz_*this%delta_(1)*(this%px_(j)-this%px0_)))
-       this%dfy_(j) = this%dfy_(j)-2.0_GP*(this%omegax_*(this%pvz_(j)-tmparg*this%lvz_(j))  - &
-                                           this%omegaz_*(this%pvx_(j)-tmparg*this%lvx_(j))) - &
-        (1.0_GP-tmparg)*(this%omegax_*(this%omegay_*this%delta_(1)*(this%px_(j)-this%px0_)  - &
-                                       this%omegax_*this%delta_(2)*(this%py_(j)-this%py0_)) - &
-                         this%omegaz_*(this%omegay_*this%delta_(3)*(this%pz_(j)-this%pz0_)  - &
-                                       this%omegaz_*this%delta_(2)*(this%py_(j)-this%py0_)))
-       this%dfz_(j) = this%dfz_(j)-2.0_GP*(this%omegay_*(this%pvx_(j)-tmparg*this%lvx_(j))  - &
-                                           this%omegax_*(this%pvy_(j)-tmparg*this%lvy_(j))) - &
-        (1.0_GP-tmparg)*(this%omegay_*(this%omegaz_*this%delta_(2)*(this%py_(j)-this%py0_)  - &
-                                       this%omegay_*this%delta_(3)*(this%pz_(j)-this%pz0_)) - &
-                         this%omegax_*(this%omegaz_*this%delta_(1)*(this%px_(j)-this%px0_)  - &
+                         this%omegaz_*(this%omegaz_*this%delta_(1)*(this%px_(j)-this%px0_)  - &
                                        this%omegax_*this%delta_(3)*(this%pz_(j)-this%pz0_)))
+       this%dfy_(j) = this%dfy_(j)-2.0_GP*(this%omegaz_*(this%pvx_(j)-tmparg*this%lvx_(j))  - &
+                                           this%omegax_*(this%pvz_(j)-tmparg*this%lvz_(j))) - &
+        (1.0_GP-tmparg)*(this%omegaz_*(this%omegay_*this%delta_(3)*(this%pz_(j)-this%pz0_)  - &
+                                       this%omegaz_*this%delta_(2)*(this%py_(j)-this%py0_)) - &
+                         this%omegax_*(this%omegax_*this%delta_(2)*(this%py_(j)-this%py0_)  - &
+                                       this%omegay_*this%delta_(1)*(this%px_(j)-this%px0_)))
+       this%dfz_(j) = this%dfz_(j)-2.0_GP*(this%omegax_*(this%pvy_(j)-tmparg*this%lvy_(j))  - &
+                                           this%omegay_*(this%pvx_(j)-tmparg*this%lvx_(j))) - &
+        (1.0_GP-tmparg)*(this%omegax_*(this%omegaz_*this%delta_(1)*(this%px_(j)-this%px0_)  - &
+                                       this%omegax_*this%delta_(3)*(this%pz_(j)-this%pz0_)) - &
+                         this%omegay_*(this%omegay_*this%delta_(3)*(this%pz_(j)-this%pz0_)  - &
+                                       this%omegaz_*this%delta_(2)*(this%py_(j)-this%py0_)))
     ENDDO
     ENDIF
 
