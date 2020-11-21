@@ -156,6 +156,8 @@ ROTBOUMHDB_OBJS= $(BOUSS_OBJS) pseudospec3D_mhd.o
 MPROTBOUSS_OBJS= $(MPROTH_OBJS) pseudospec3D_bouss.o
 GPE_OBJS       = $(PHD_OBJS) pseudospec3D_mhd.o pseudospec3D_gpe.o
 ARGL_OBJS      = $(GPE_OBJS) pseudospec3D_newt.o
+RGPE_OBJS      = $(GPE_OBJS)
+RARGL_OBJS     = $(GPE_OBJS)
 ALPHA_OBJS     = module_lles.o pseudospec3D_filt.o
 CAHD_OBJS      = $(HD_OBJS) $(ALPHA_OBJS) pseudospec3D_lles.o \
 	         pseudospec3D_cahd.o
@@ -254,7 +256,7 @@ clean:  undo
 dist:
 	rm -f $(BIN)/*HD* $(BIN)/*MHD* $(BIN)/*ROT* $(BIN)/*BOUSS* \
               $(BIN)/*GPE* $(BIN)/*ARGL* $(BIN)/boots $(BIN)/trunc \
-              $(BIN)/vt $(BIN)/shear $(BIN)/wv $(BIN)/wt $(BIN)/README.* \
+              $(BIN)/vt $(BIN)/shear $(BIN)/wv $(BIN)/wt $(BIN)/README_* \
               *HD* *MHD* *ROT* *BOUSS* \
               *GPE* *ARGL* boots trunc vt shear wv
 	$(MAKE) clean
