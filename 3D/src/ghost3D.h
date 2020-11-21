@@ -217,6 +217,24 @@
 #define INCLUDEFNAME_ 'argl_
 #endif
 
+#ifdef RGPE_SOL
+#define DNS_
+#define WAVEFUNCTION_
+#define ROTATION_
+#define TRAP_
+#define INCLUDEFNAME_ 'rgpe_
+#endif
+
+#ifdef RARGL_SOL
+#define DNS_
+#define ADVECT_
+#define QFORCE_
+#define WAVEFUNCTION_
+#define ROTATION_
+#define TRAP_
+#define INCLUDEFNAME_ 'rargl_
+#endif
+
 #ifdef LAHD_SOL
 #define ALPHAV_
 #define VELOC_
