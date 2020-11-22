@@ -1647,6 +1647,9 @@
       timef = fstep
       INCLUDE 'initialfq.f90'           ! quantum thermal forcing
 #endif
+#ifdef TRAP_
+      INCLUDE 'potentialq.f90'          ! quantum trapping potential
+#endif
 
 ! If stat=0 we start a new run.
 ! Generates initial conditions for the fields and particles.
