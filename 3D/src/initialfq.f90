@@ -1,8 +1,8 @@
 ! Thermal forcing for quantum solvers.
 ! This file contains the expression used for the external
 ! thermal forcing. You can use temporary real arrays
-! R1-R3 of size (1:n,1:n,ksta:kend) and temporary complex
-! arrays C1-C8 of size (n,n,ista:iend) to do intermediate
+! R1-R3 of size (1:nx,1:ny,ksta:kend) and temporary complex
+! arrays C1-C8 of size (nz,ny,ista:iend) to do intermediate
 ! computations. The variable kttherm can be used to control 
 ! parameters of the forcing. At the end, the three 
 ! components of the forcing in spectral space should be 
