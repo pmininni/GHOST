@@ -119,6 +119,7 @@ cspeed = 2.00    ! speed of sound
 lambda = 0.10    ! correlation length
 rho0 = 1.00      ! density at infinity
 kttherm = 2.e-4  ! K.Tthermalization (ARGL solver)
+V0 = 0.00        ! Amplitude of trapping potential (RARGL and RGPE solvers)
 cflow = 0        ! =1 if generating counterflow (ARGL solver)
 cflow_newt = 0   ! =1 if mean flow is needed for Newton method (ARGL)
 dt_newt = 1.00   ! time step (preconditioner) for Newton method (ARGL)
