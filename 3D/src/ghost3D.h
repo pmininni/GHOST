@@ -220,8 +220,8 @@
 #ifdef RGPE_SOL
 #define DNS_
 #define WAVEFUNCTION_
-#define ROTATION_
 #define TRAP_
+#define ROTATION_
 #define INCLUDEFNAME_ 'rgpe_
 #endif
 
@@ -230,8 +230,8 @@
 #define ADVECT_
 #define QFORCE_
 #define WAVEFUNCTION_
-#define ROTATION_
 #define TRAP_
+#define ROTATION_
 #define INCLUDEFNAME_ 'rargl_
 #endif
 

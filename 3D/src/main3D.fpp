@@ -40,6 +40,8 @@
 !           MPROTBOUSS_SOL builds the BOUSS eq, rotating, multi-scalar
 !           GPE_SOL        builds the Gross-Pitaevskii Equation solver
 !           ARGL_SOL       builds the Advective Real Ginzburg Landau
+!           RGPE_SOL       builds the rotating GPE solver
+!           RARGL_SOL      builds the rotating ARGL solver
 !           LAHD_SOL       builds the Lagrangian-averaged HD solver
 !           CAHD_SOL       builds the Clark-alpha HD solver
 !           LHD_SOL        builds the Leray HD solver
@@ -156,6 +158,22 @@
 #ifdef VELOC_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M1,M2,M3
 #endif
+#ifdef MAGFIELD_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C9,C10,C11
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C12,C13,C14
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C15,C16,C17
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M4,M5,M6
+#endif
+#ifdef HALLTERM_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C18
+#endif
+#ifdef EDQNM_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C19
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: tepq,thpq,tve,tvh
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: Eold,Hold
+      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: Eext,Hext
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: Eden,Hden
+#endif
 #ifdef SCALAR_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C20
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M7
@@ -167,25 +185,14 @@
 #ifdef COMPR_AUX_ARR_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C25,C26,C27
 #endif
-#ifdef MAGFIELD_
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C9,C10,C11
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C12,C13,C14
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C15,C16,C17
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M4,M5,M6
+#ifdef TRAP_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C28,C29
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C30,C31
 #endif
-#ifdef HALLTERM_
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C18
-#endif
+
 #ifdef WAVEFUNCTION_
       DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: iold,qold,kold,cold
       DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: inew,qnew,knew,cnew
-#endif
-#ifdef EDQNM_
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C19
-      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: tepq,thpq,tve,tvh
-      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: Eold,Hold
-      DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: Eext,Hext
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: Eden,Hden
 #endif
 
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: R1,R2,R3
@@ -200,6 +207,10 @@
 #endif
 #ifdef ADVECT_
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: vsq
+#endif
+#ifdef TRAP_
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: Vtrap
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: Vlinx,Vliny
 #endif
 #ifdef PART_
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: R4,R5,R6
@@ -289,7 +300,7 @@
       REAL(KIND=GP)    :: omegax,omegay,omegaz
 #endif
 #ifdef WAVEFUNCTION_
-      REAL(KIND=GP)    :: cspeed,lambda,rho0,kttherm
+      REAL(KIND=GP)    :: cspeed,lambda,rho0,kttherm,V0
       REAL(KIND=GP)    :: zparam0,zparam1,zparam2,zparam3,zparam4
       REAL(KIND=GP)    :: zparam5,zparam6,zparam7,zparam8,zparam9
 #endif
@@ -531,28 +542,6 @@
       ALLOCATE( fy(nz,ny,ista:iend) )
       ALLOCATE( fz(nz,ny,ista:iend) )
 #endif
-#ifdef SCALAR_
-      ALLOCATE( C20(nz,ny,ista:iend) )
-      ALLOCATE( th (nz,ny,ista:iend) )
-      ALLOCATE( fs (nz,ny,ista:iend) )
-#endif
-#ifdef MULTISCALAR_
-      ALLOCATE( C21(nz,ny,ista:iend) )
-      ALLOCATE( C22(nz,ny,ista:iend) )
-      ALLOCATE( C23(nz,ny,ista:iend) )
-      ALLOCATE( C24(nz,ny,ista:iend) )
-      ALLOCATE( th1(nz,ny,ista:iend) )
-      ALLOCATE( th2(nz,ny,ista:iend) )
-      ALLOCATE( th3(nz,ny,ista:iend) )
-      ALLOCATE( fs1(nz,ny,ista:iend) )
-      ALLOCATE( fs2(nz,ny,ista:iend) )
-      ALLOCATE( fs3(nz,ny,ista:iend) )
-#endif
-#ifdef COMPR_AUX_ARR_
-      ALLOCATE( C25(nz,ny,ista:iend) )
-      ALLOCATE( C26(nz,ny,ista:iend) )
-      ALLOCATE( C27(nz,ny,ista:iend) )
-#endif
 #ifdef MAGFIELD_
       ALLOCATE( C9 (nz,ny,ista:iend), C10(nz,ny,ista:iend) )
       ALLOCATE( C11(nz,ny,ista:iend), C12(nz,ny,ista:iend) )
@@ -569,11 +558,39 @@
 #ifdef HALLTERM_
       ALLOCATE( C18(nz,ny,ista:iend) )
 #endif
+#ifdef EDQNM_
+      n = nx ! EDQNM solvers only work in cubic boxes
+      ALLOCATE( C19(nz,ny,ista:iend) )
+#endif
+#ifdef SCALAR_
+      ALLOCATE( C20(nz,ny,ista:iend) )
+      ALLOCATE( th (nz,ny,ista:iend) )
+      ALLOCATE( fs (nz,ny,ista:iend) )
+#endif
+#ifdef MULTISCALAR_
+      ALLOCATE( C21(nz,ny,ista:iend), C22(nz,ny,ista:iend) )
+      ALLOCATE( C23(nz,ny,ista:iend), C24(nz,ny,ista:iend) )
+      ALLOCATE( th1(nz,ny,ista:iend) )
+      ALLOCATE( th2(nz,ny,ista:iend) )
+      ALLOCATE( th3(nz,ny,ista:iend) )
+      ALLOCATE( fs1(nz,ny,ista:iend) )
+      ALLOCATE( fs2(nz,ny,ista:iend) )
+      ALLOCATE( fs3(nz,ny,ista:iend) )
+#endif
+#ifdef COMPR_AUX_ARR_
+      ALLOCATE( C25(nz,ny,ista:iend) )
+      ALLOCATE( C26(nz,ny,ista:iend) )
+      ALLOCATE( C27(nz,ny,ista:iend) )
+#endif
+#ifdef TRAP_
+      ALLOCATE( C28(nz,ny,ista:iend), C29(nz,ny,ista:iend) )
+      ALLOCATE( C30(nz,ny,ista:iend), C31(nz,ny,ista:iend) )
+#endif
 #ifdef WAVEFUNCTION_
-      ALLOCATE ( zre(nz,ny,ista:iend), zim(nz,ny,ista:iend) )
+      ALLOCATE( zre(nz,ny,ista:iend), zim(nz,ny,ista:iend) )
 #endif
 #ifdef QFORCE_
-      ALLOCATE ( fre(nz,ny,ista:iend), fim(nz,ny,ista:iend) )
+      ALLOCATE( fre(nz,ny,ista:iend), fim(nz,ny,ista:iend) )
 #endif
 
       ALLOCATE( kx(nx), ky(ny), kz(nz) )
@@ -597,6 +614,10 @@
 #ifdef ADVECT_
       ALLOCATE( vsq(nx,ny,ksta:kend) )
 #endif
+#ifdef TRAP_
+      ALLOCATE( Vtrap(nx,ny,ksta:kend) )
+      ALLOCATE( Vlinx(nx,ny,ksta:kend), Vliny(nx,ny,ksta:kend) )
+#endif
 #ifdef PART_
       ALLOCATE( R4(nx,ny,ksta:kend) )
       ALLOCATE( R5(nx,ny,ksta:kend) )
@@ -615,8 +636,6 @@
       ALLOCATE( Rj3(nx,ny,ksta:kend) )
 #endif
 #ifdef EDQNM_
-      n = nx ! EDQNM solvers only work in cubic boxes
-      ALLOCATE( C19(nz,ny,ista:iend) )
       ALLOCATE( Eden(nz,ny,ista:iend) )
       ALLOCATE( Hden(nz,ny,ista:iend) )
       ALLOCATE( tepq(n/2+1) )
@@ -1133,6 +1152,7 @@
 !     lambda : coherence length
 !     rho0   : density at infinity
 !     kttherm: KT with T=thermalization temperature (for ARGL)
+!     V0     : potential amplitude (for solvers with trapping potentials)
 !     cflow  : =1 if generating counterflow (ARGL)
 !     cflow_newt   : =1 if mean flow is needed for Newton method (ARGL)
 !     dt_newt      : time step (preconditioner) for Newton method (ARGL)
@@ -1145,6 +1165,7 @@
 
       rho0 = 1.0_GP        !Default value
       kttherm = 0.0_GP     !Default value
+      V0 = 0.0_GP          !Default value
       cflow = 0            !Default value
       cflow_newt = 0       !Default value
       dt_newt = dt         !Default value
@@ -1167,6 +1188,7 @@
       CALL MPI_BCAST(beta,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(omegag,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(kttherm,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(V0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(cflow,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(cflow_newt,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(dt_newt,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
