@@ -84,9 +84,9 @@
            IF (kn2(k,j,i).le.kmax) THEN
               rmp = 1.0_GP/(1.0_GP+alpha*kk2(k,j,i)*dt)
               zre(k,j,i) = (zre(k,j,i) + dt*(beta*C3(k,j,i) - C6(k,j,i) &
-                          + fre(k,j,i) + C30(k,j,i) - C28(k,j,i))*rmp
+                          + fre(k,j,i) + C30(k,j,i) - C28(k,j,i)))*rmp
               zim(k,j,i) = (zim(k,j,i) + dt*(beta*C4(k,j,i) + C5(k,j,i) &
-                          + fim(k,j,i) - C29(k,j,i) - C31(k,j,i))*rmp
+                          + fim(k,j,i) - C29(k,j,i) - C31(k,j,i)))*rmp
            ELSE
               zre(k,j,i) = 0.0_GP
               zim(k,j,i) = 0.0_GP

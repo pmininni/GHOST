@@ -448,7 +448,7 @@
       NAMELIST / boussinesq / bvfreq,xmom,xtemp
 #endif
 #ifdef WAVEFUNCTION_
-      NAMELIST / wavefunction / cspeed,lambda,rho0,kttherm
+      NAMELIST / wavefunction / cspeed,lambda,rho0,kttherm,V0
       NAMELIST / wavefunction / cflow,iter_max_newt,iter_max_bicg
       NAMELIST / wavefunction / cflow_newt,dt_newt,tol_newt,tolbicg_rel
       NAMELIST / wavefunction / zparam0,zparam1,zparam2,zparam3,zparam4 
