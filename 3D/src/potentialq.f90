@@ -6,15 +6,15 @@
 ! is Lz = -i hbar (x d/dy - y d/dx). You can use temporary real arrays
 ! R1-R3 of size (1:nx,1:ny,ksta:kend) and temporary complex arrays
 ! C1-C8 of size (nz,ny,ista:iend) to do intermediate computations. At
-! the end of the computation, the potential in real space should be
-! stored in Vtrap, and the linear ramps in x and y in Vlinx and Vliny,
-! all of size (1:nx,1:ny,ksta:kend). The parameter V0 = m.w0^2/(2.hbar),
-! where w0 is the trapping frequency, can be used to control the
-! amplitude of the potential. This results in a characteristic
-! lengthscale for the trap of a0 = sqrt(hbar/(m.w0)) =
-! (cspeed.lambda/(V0.sqrt(2)))^(1/4). The linear ramps should also be
-! multiplied by the rotation rate if solvers in a rotating frame (RGPE
-! and RARGL) are used.
+! the end of the computation, the potential divided by beta in real
+! space should be stored in Vtrap, and the linear ramps in x and y in
+! Vlinx and Vliny, all of size (1:nx,1:ny,ksta:kend), and not normalized
+! (i.e., of order nx*ny*nz). The parameter V0 = m.w0^2/(2.hbar), where
+! w0 is the trapping frequency, can be used to control the amplitude of
+! the potential. This results in a characteristic lengthscale for the
+! trap of a0 = sqrt(hbar/(m.w0)) = (cspeed.lambda/(V0.sqrt(2)))^(1/4).
+! The linear ramps should also be multiplied by the rotation rate if
+! solvers in a rotating frame (RGPE and RARGL) are used.
 
 ! Harmonic cylindrical trap in x and y, V = V0 (x^2 + y^2), and linear
 ! functions of the x and y coordinates multiplied by omegaz:
@@ -27,9 +27,9 @@
             rmt = pi*(2*real(j-1,kind=GP)/real(ny,kind=GP)-1.0_GP)
             DO i = 1,nx
                rms = pi*(2*real(i-1,kind=GP)/real(nx,kind=GP)-1.0_GP)
-               Vlinx(i,j,k) = rms              ! x
-               Vliny(i,j,k) = rmt              ! y
-               Vtrap(i,j,k) = rms**2 + rmt**2  ! x^2 + y^2
+               Vlinx(i,j,k) = rms              ! omegaz.x
+               Vliny(i,j,k) = rmt              ! omegaz.y
+               Vtrap(i,j,k) = rms**2 + rmt**2  ! V0.(x^2 + y^2)
             END DO
          END DO
       END DO
@@ -70,18 +70,17 @@
 
       rmp = Vlinx(nx/2+nx/4,ny/2,ksta) - Vlinx(nx/2-nx/4,ny/2,ksta)
       rmq = Vliny(nx/2,ny/2+ny/4,ksta) - Vliny(nx/2,ny/2-ny/4,ksta)
-      rmp = omegaz*pi*Lx/rmp ! omegaz/slope_x
-      rmq = omegaz*pi*Ly/rmq ! omegaz/slope_y
-      rms =     Vtrap(nx/2-3,ny/2,ksta)/90 -  3*Vtrap(nx/2-2,ny/2,ksta)/20  &
-            + 3*Vtrap(nx/2-1,ny/2,ksta)/2  - 49*Vtrap(nx/2  ,ny/2,ksta)/18  &
-            + 3*Vtrap(nx/2+1,ny/2,ksta)/2  -  3*Vtrap(nx/2+2,ny/2,ksta)/20  &
-            +   Vtrap(nx/2+3,ny/2,ksta)/90
-      rmt =     Vtrap(nx/2,ny/2-3,ksta)/90 -  3*Vtrap(nx/2,ny/2-2,ksta)/20  &
-            + 3*Vtrap(nx/2,ny/2-1,ksta)/2  - 49*Vtrap(nx/2,ny/2  ,ksta)/18  &
-            + 3*Vtrap(nx/2,ny/2+1,ksta)/2  -  3*Vtrap(nx/2,ny/2+2,ksta)/20  &
-            +   Vtrap(nx/2,ny/2+3,ksta)/90
-      rms = 4*V0*(2*pi)**2/(rms*(real(nx,kind=GP)/Lx)**2  &
-                          + rmt*(real(ny,kind=GP)/Lx)**2) ! 2 V0 / second_der
+      rmp = real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)* &
+            omegaz*pi*Lx/rmp ! unnormalized omegaz/slope_x
+      rmq = real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)* &
+            omegaz*pi*Ly/rmq ! unnormalized omegaz/slope_y
+      rms = Vtrap(nx/2-nx/4-1,ny/2,ksta) - Vtrap(nx/2-nx/4,ny/2,ksta) &
+          - Vtrap(nx/2+nx/4-1,ny/2,ksta) + Vtrap(nx/2+nx/4,ny/2,ksta)
+      rmt = Vtrap(nx/2,ny/2-ny/4-1,ksta) - Vtrap(nx/2,ny/2-ny/4,ksta) &
+          - Vtrap(nx/2,ny/2+ny/4-1,ksta) + Vtrap(nx/2,ny/2+ny/4,ksta)
+      rms = real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)* &
+            8*V0*pi**2/((rms*real(nx,kind=GP)/Lx**2 +           &
+            rmt*real(ny,kind=GP)/Ly**2)*beta) ! 2V0/(second_deriv*beta)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
@@ -94,6 +93,20 @@
          END DO
       END DO
 
-      CALL io_write(1,odir,'Vlinx','init',planio,Vlinx)
-      CALL io_write(1,odir,'Vliny','init',planio,Vliny)
-      CALL io_write(1,odir,'Vtrap','init',planio,Vtrap)
+! We write the normalized potentials and linear ramps to a file
+      rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+      rmq = beta  /(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               R1(i,j,k) = Vlinx(i,j,k)*rmp
+               R2(i,j,k) = Vliny(i,j,k)*rmp
+               R3(i,j,k) = Vtrap(i,j,k)*rmq
+            END DO
+         END DO
+      END DO
+      CALL io_write(1,odir,'Vlinx','init',planio,R1)
+      CALL io_write(1,odir,'Vliny','init',planio,R2)
+      CALL io_write(1,odir,'Vtrap','init',planio,R3)

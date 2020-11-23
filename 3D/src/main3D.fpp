@@ -187,7 +187,7 @@
 #endif
 #ifdef TRAP_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C28,C29
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C30,C31
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C30
 #endif
 
 #ifdef WAVEFUNCTION_
@@ -584,7 +584,7 @@
 #endif
 #ifdef TRAP_
       ALLOCATE( C28(nz,ny,ista:iend), C29(nz,ny,ista:iend) )
-      ALLOCATE( C30(nz,ny,ista:iend), C31(nz,ny,ista:iend) )
+      ALLOCATE( C30(nz,ny,ista:iend) )
 #endif
 #ifdef WAVEFUNCTION_
       ALLOCATE( zre(nz,ny,ista:iend), zim(nz,ny,ista:iend) )

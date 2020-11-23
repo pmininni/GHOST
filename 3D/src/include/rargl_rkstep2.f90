@@ -20,15 +20,14 @@
         IF (o.eq.1) THEN ! Only iterate once (first order)
 
         CALL squareabs(zre,zim,R1,1)
-        rmq = real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)* &
-              omegag/beta
+        rmq = real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)*omegag/beta
         IF (cflow.eq.0) THEN ! If not doing counterflow we have the |v^2| term
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
            DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
               DO j = 1,ny
                  DO i = 1,nx
-                    R1(i,j,k) = rmq-R1(i,j,k)-vsq(i,j,k)
+                    R1(i,j,k) = rmq - R1(i,j,k) - Vtrap(i,j,k) - vsq(i,j,k)
                  END DO
               END DO
            END DO
@@ -38,9 +37,9 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
               DO j = 1,ny
                  DO i = 1,nx
-                    R1(i,j,k) = rmq-R1(i,j,k)
+                    R1(i,j,k) = rmq - R1(i,j,k) - Vtrap(i,j,k)
                  END DO
-              END DO
+               END DO
            END DO
         ENDIF
         CALL nonlgpe(R1,zre,C3)
@@ -73,8 +72,6 @@
               END DO
            END DO
         END DO
-        CALL nonlgpe(Vtrap,zre,C28)   ! Vtrap.zre
-        CALL nonlgpe(Vtrap,zim,C31)   ! Vtrap.zim
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend
@@ -84,9 +81,9 @@
            IF (kn2(k,j,i).le.kmax) THEN
               rmp = 1.0_GP/(1.0_GP+alpha*kk2(k,j,i)*dt)
               zre(k,j,i) = (zre(k,j,i) + dt*(beta*C3(k,j,i) - C6(k,j,i) &
-                          + fre(k,j,i) + C30(k,j,i) - C28(k,j,i)))*rmp
+                          + fre(k,j,i) + C30(k,j,i)))*rmp
               zim(k,j,i) = (zim(k,j,i) + dt*(beta*C4(k,j,i) + C5(k,j,i) &
-                          + fim(k,j,i) - C29(k,j,i) - C31(k,j,i)))*rmp
+                          + fim(k,j,i) - C29(k,j,i)))*rmp
            ELSE
               zre(k,j,i) = 0.0_GP
               zim(k,j,i) = 0.0_GP
