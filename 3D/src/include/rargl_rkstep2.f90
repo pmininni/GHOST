@@ -112,8 +112,8 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
               DO j = 1,ny
                  DO k = 1,nz
-                     C7(j,j,i) = vx(k,j,i) - C7(k,j,i) ! vx' = vx - omegaz.y
-                     C8(j,j,i) = vx(k,j,i) + C8(k,j,i) ! vy' = vy + omegaz.x
+                     C1(k,j,i) = vx(k,j,i) - C8(k,j,i) ! vx' = vx - omegaz.y
+                     C2(k,j,i) = vy(k,j,i) + C7(k,j,i) ! vy' = vy + omegaz.x
                  END DO
               END DO
            END DO
@@ -138,16 +138,14 @@
                  END DO
               END DO
            ENDIF
-           CALL newton(zre,zim,0,dt_newt,C7,C8,vz,R2,R1,C3,C4,C5,C6)
+           CALL newton(zre,zim,0,dt_newt,C1,C2,vz,R2,R1,C3,C4,C5,C6)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
               DO j = 1,ny
                  DO k = 1,nz
-                     C3(k,j,i) = zre(k,j,i)/(real(nx,kind=GP)* & 
-                                 real(ny,kind=GP)*real(nz,kind=GP))
-                     C4(k,j,i) = zim(k,j,i)/(real(nx,kind=GP)* &
-                                 real(ny,kind=GP)*real(nz,kind=GP))
+                     C3(k,j,i) = zre(k,j,i)*rmp
+                     C4(k,j,i) = zim(k,j,i)*rmp
                  END DO
               END DO
            END DO

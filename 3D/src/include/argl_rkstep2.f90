@@ -62,15 +62,14 @@
         IF ((t.eq.step).and.(iter_max_newt.gt.0)) THEN ! Do Newton at the end
            n_dim_1d = 4*(iend-ista+1)*ny*nz
            CALL newton(zre,zim,cflow_newt,dt_newt,vx,vy,vz,vsq,R1,C3,C4,C5,C6)
+           rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
            DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
               DO j = 1,ny
                  DO k = 1,nz
-                     C3(k,j,i) = zre(k,j,i)/(real(nx,kind=GP)* & 
-                                 real(ny,kind=GP)*real(nz,kind=GP))
-                     C4(k,j,i) = zim(k,j,i)/(real(nx,kind=GP)* &
-                                 real(ny,kind=GP)*real(nz,kind=GP))
+                     C3(k,j,i) = zre(k,j,i)*rmp
+                     C4(k,j,i) = zim(k,j,i)*rmp
                  END DO
               END DO
            END DO

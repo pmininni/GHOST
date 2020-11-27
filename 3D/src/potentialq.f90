@@ -16,8 +16,8 @@
 ! The linear ramps should also be multiplied by the rotation rate if
 ! solvers in a rotating frame (RGPE and RARGL) are used.
 
-! Harmonic cylindrical trap in x and y, V = V0 (x^2 + y^2), and linear
-! functions of the x and y coordinates multiplied by omegaz:
+! Harmonic cylindrical (cigar) trap in x and y, V = V0 (x^2 + y^2), and
+! linear functions of the x and y coordinates multiplied by omegaz:
 
 ! We compute the linear functions and the parabola
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
