@@ -92,6 +92,83 @@
         END DO
         END DO
 
+        IF ((t.eq.step).and.(iter_max_newt.gt.0)) THEN ! Do Newton at the end
+           n_dim_1d = 4*(iend-ista+1)*ny*nz
+           rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+           !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+           DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+              DO j = 1,ny
+                 DO i = 1,nx
+                    R1(i,j,k) = Vlinx(i,j,k)*rmp ! Normalized omegaz.x
+                    R2(i,j,k) = Vliny(i,j,k)*rmp ! Normalized omegaz.y
+                END DO
+              END DO
+           END DO
+           CALL fftp3d_real_to_complex(planrc,R1,C7,MPI_COMM_WORLD)
+           CALL fftp3d_real_to_complex(planrc,R2,C8,MPI_COMM_WORLD)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+           DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+              DO j = 1,ny
+                 DO k = 1,nz
+                     C7(j,j,i) = vx(k,j,i) - C7(k,j,i) ! vx' = vx - omegaz.y
+                     C8(j,j,i) = vx(k,j,i) + C8(k,j,i) ! vy' = vy + omegaz.x
+                 END DO
+              END DO
+           END DO
+           IF (cflow_newt.eq.0) THEN ! If not doing counterflow we have |v^2|
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+              DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+                 DO j = 1,ny
+                    DO i = 1,nx
+                       R2(i,j,k) = Vtrap(i,j,k) + vsq(i,j,k) ! |v^2| + Vtrap
+                    END DO
+                 END DO
+              END DO
+           ELSE
+     !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+              DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+                 DO j = 1,ny
+                    DO i = 1,nx
+                       R2(i,j,k) = Vtrap(i,j,k)              ! vsq' = Vtrap
+                    END DO
+                 END DO
+              END DO
+           ENDIF
+           CALL newton(zre,zim,0,dt_newt,C7,C8,vz,R2,R1,C3,C4,C5,C6)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+           DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+              DO j = 1,ny
+                 DO k = 1,nz
+                     C3(k,j,i) = zre(k,j,i)/(real(nx,kind=GP)* & 
+                                 real(ny,kind=GP)*real(nz,kind=GP))
+                     C4(k,j,i) = zim(k,j,i)/(real(nx,kind=GP)* &
+                                 real(ny,kind=GP)*real(nz,kind=GP))
+                 END DO
+              END DO
+           END DO
+           CALL fftp3d_complex_to_real(plancr,C3,R1,MPI_COMM_WORLD)
+           CALL fftp3d_complex_to_real(plancr,C4,R2,MPI_COMM_WORLD)
+           CALL io_write(1,odir,'phi_re','NWT',planio,R1) ! Writes output
+           CALL io_write(1,odir,'phi_im','NWT',planio,R2) ! in 'NWT' files
+           IF (outs.ge.1) THEN
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+              DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+                 DO j = 1,ny
+                    DO i = 1,nx
+                       R1(i,j,k) = R1(i,j,k)**2+R2(i,j,k)**2
+                    END DO
+                 END DO
+              END DO
+              CALL io_write(1,odir,'rho','NWT',planio,R1)
+           ENDIF
+        ENDIF
+        
         ! Renormalization for finite temperature runs
         IF (kttherm.gt.0) THEN
            ! Computes the mass

@@ -8,12 +8,12 @@
 ! end, the real and imaginary parts of the wavefunction in 
 ! spectral space should be stored in the arrays zre and zim.
 
-! Real gaussian wavefunction for solvers with trapping potential.
-! Use this initial condition together with "initiav.f90_null".
+! Real gaussian wavefunction for solvers with a cigar trapping
+! potential. Use this initial condition together with "initiav.f90_null".
 
       zim = 0.0_GP
       rmp = .5_GP*sqrt(V0/alpha)
-      rmq = (sqrt(V0/alpha)/pi)**(3./4)
+      rmq = sqrt(rho0)*(sqrt(V0/alpha)/pi)**(3./4)
 !$omp parallel do if (kend-ksta.ge.nth) private (i,j)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)

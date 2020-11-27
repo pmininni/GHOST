@@ -67,9 +67,9 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
               DO j = 1,ny
                  DO k = 1,nz
-                     C3(j,j,i) = zre(k,j,i)/(real(nx,kind=GP)* & 
+                     C3(k,j,i) = zre(k,j,i)/(real(nx,kind=GP)* & 
                                  real(ny,kind=GP)*real(nz,kind=GP))
-                     C4(j,j,i) = zim(k,j,i)/(real(nx,kind=GP)* &
+                     C4(k,j,i) = zim(k,j,i)/(real(nx,kind=GP)* &
                                  real(ny,kind=GP)*real(nz,kind=GP))
                  END DO
               END DO
