@@ -2940,6 +2940,20 @@
 #ifdef ADVECT_
       DEALLOCATE( vsq )
 #endif
+#ifdef MAGFIELD_
+      DEALLOCATE( ax,ay,az,mx,my,mz )
+      DEALLOCATE( C9,C10,C11,C12,C13,C14,C15,C16,C17 )
+      IF (mean.eq.1) DEALLOCATE( M4,M5,M6 )
+      IF (rand.eq.2) DEALLOCATE( mxold, myold, mzold )
+      IF (rand.eq.2) DEALLOCATE( mxnew, mynew, mznew )
+#endif
+#ifdef HALLTERM_
+      DEALLOCATE( C18 )
+#endif
+#ifdef EDQNM_
+      DEALLOCATE( C19 )
+      DEALLOCATE( tepq,thpq,tve,tvh,Eext,Hext )
+#endif
 #ifdef SCALAR_
       DEALLOCATE( th,fs )
       DEALLOCATE( C20 )
@@ -2953,25 +2967,15 @@
 #ifdef COMPR_AUX_ARR_
       DEALLOCATE( C25,C26,C27 )
 #endif
-#ifdef MAGFIELD_
-      DEALLOCATE( ax,ay,az,mx,my,mz )
-      DEALLOCATE( C9,C10,C11,C12,C13,C14,C15,C16,C17 )
-      IF (mean.eq.1) DEALLOCATE( M4,M5,M6 )
-      IF (rand.eq.2) DEALLOCATE( mxold, myold, mzold )
-      IF (rand.eq.2) DEALLOCATE( mxnew, mynew, mznew )
-#endif
-#ifdef HALLTERM_
-      DEALLOCATE( C18 )
-#endif
 #ifdef WAVEFUNCTION_
-      DEALLOCATE( zre, zim )
+      DEALLOCATE( zre,zim )
 #endif
 #ifdef QFORCE_
-      DEALLOCATE( fre, fim )
+      DEALLOCATE( fre,fim )
 #endif
-#ifdef EDQNM_
-      DEALLOCATE( C19 )
-      DEALLOCATE( tepq,thpq,tve,tvh,Eext,Hext )
+#ifdef TRAP_
+      DEALLOCATE( C28,C29,C30 )
+      DEALLOCATE( Vtrap,Vlinx,Vliny )
 #endif
 #ifdef PART_
       DEALLOCATE( R4,R5,R6 )
