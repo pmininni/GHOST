@@ -1150,7 +1150,7 @@
 ! 'parameter.inp'
 !     cspeed : speed of sound
 !     lambda : coherence length
-!     rho0   : density at infinity
+!     rho0   : density at infinity (or at the zero of the potential)
 !     kttherm: KT with T=thermalization temperature (for ARGL)
 !     V0     : potential amplitude (for solvers with trapping potentials)
 !     cflow  : =1 if generating counterflow (ARGL)
