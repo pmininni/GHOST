@@ -492,11 +492,11 @@
       INTEGER, INTENT(OUT) :: inewtype
 
       INTEGER :: ilen,jlen
-      INTEGER :: isize,idist
-      INTEGER :: itemp,itemp2
+      INTEGER :: ilb,isize,idist
+      INTEGER :: itemp
       INTEGER :: ierr
 
-      CALL MPI_TYPE_EXTENT(ioldtype,isize,ierr)
+      CALL MPI_TYPE_GET_EXTENT(ioldtype,ilb,isize,ierr)
       ilen = iend-ista+1
       jlen = jend-jsta+1
       CALL MPI_TYPE_VECTOR(jlen,ilen,imax-imin+1,ioldtype,itemp,ierr)
