@@ -444,8 +444,8 @@
       INTEGER, INTENT(IN)  :: ioldtype
       INTEGER, INTENT(OUT) :: inewtype
 
+      INTEGER(KIND=MPI_ADDRESS_KIND) :: ilb,isize,idist
       INTEGER :: ilen,jlen,klen
-      INTEGER :: ilb,isize,idist
       INTEGER :: itemp,itemp2
       INTEGER :: ierr
 
