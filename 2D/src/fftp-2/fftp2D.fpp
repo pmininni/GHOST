@@ -364,8 +364,8 @@
       INTEGER, INTENT(IN)  :: ioldtype
       INTEGER, INTENT(OUT) :: inewtype
 
+      INTEGER(KIND=MPI_ADDRESS_KIND) :: ilb,isize,idist
       INTEGER :: ilen,jlen
-      INTEGER :: ilb,isize,idist
       INTEGER :: itemp
       INTEGER :: ierr
 
@@ -373,13 +373,8 @@
       ilen = iend-ista+1
       jlen = jend-jsta+1
       CALL MPI_TYPE_VECTOR(jlen,ilen,imax-imin+1,ioldtype,itemp,ierr)
-      iblock(1) = 1
-      iblock(2) = 1
-      idisp(1) = 0
-      idisp(2) = ((imax-imin+1)*(jsta-jmin)+(ista-imin))*isize
-      itype(1) = MPI_LB
-      itype(2) = itemp
-      CALL MPI_TYPE_STRUCT(2,iblock,idisp,itype,inewtype,ierr)
+      idist = ((imax-imin+1)*(jsta-jmin)+(ista-imin))*isize
+      CALL MPI_TYPE_CREATE_STRUCT(1,1,idist,itemp,inewtype,ierr)
       CALL MPI_TYPE_FREE(itemp,ierr)
       CALL MPI_TYPE_COMMIT(inewtype,ierr)
 
