@@ -1670,6 +1670,7 @@
 !
 ! Computes the kz=0 slice
 !
+      uk1 = 0.0_GP
 !$omp parallel do private (j)
       DO i = ista,iend
          DO j = 1,ny
@@ -1679,6 +1680,7 @@
 !
 ! Computes the ky=0 slice
 !
+      uk2 = 0.0_GP
 !$omp parallel do private (k)
       DO i = ista,iend
          DO k = 1,nz
