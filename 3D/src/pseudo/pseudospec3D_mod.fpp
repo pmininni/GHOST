@@ -230,7 +230,7 @@
 
        iseed     = mod(iseed+myrank,abs(huge(0)-iseed)-1)
        CALL random_seed(size=k)
-       ALLOCATE (iseed1(k), source = iseed*[(j, j=0, k)])
+       ALLOCATE (iseed1(k), source = iseed*[(j, j=0, k-1)])
        CALL random_seed(put=iseed1)
        DEALLOCATE(iseed1)
 
