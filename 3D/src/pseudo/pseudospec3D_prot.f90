@@ -164,26 +164,73 @@
 !     isc: index to specify which scalar the spectrum 
 !          represents; modifies output file name
 !
-      USE fprecision
-      USE commtypes
       USE kes
       USE grid
       USE mpivars
       USE filefmt
       USE boxsize
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ektot,Eptot
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
+      INTEGER,          INTENT(IN) :: isc
+      INTEGER                      :: j
+      CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=1)             :: si
+
+!
+! Computes the energy and/or helicity spectra
+!
+      CALL specscpec(a,Ektot,Eptot)
+!
+! Exports the energy spectra to a file
+!
+      IF (myrank.eq.0) THEN
+         IF ( isc.gt.0 ) THEN
+           WRITE(si,'(i1.1)') isc
+           OPEN(1,file='s' // si // 'specperp.' // nmb // '.txt')
+         ELSE
+           OPEN(1,file='sspecperp.' // nmb // '.txt')
+         ENDIF
+         DO j = 1,nmaxperp/2+1
+            WRITE(1,FMT='(E23.15,E23.15,E23.15)') Dkk*(j-1), &
+                                 Ektot(j)/Dkk, Eptot(j)/Dkk
+         END DO
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE specscpe
+
+!*****************************************************************
+      SUBROUTINE specscpec(a,Ektot,Eptot)
+!-----------------------------------------------------------------
+!
+! Computes the reduced perpendicular power spectrum of a scalar
+! quantity, and the spectrum of 2D modes with kz=0, and returns
+! them. 
+!
+! Parameters   
+!     a    : input matrix with the passive scalar
+!     Ektot: output energy spectrum
+!     Eptot: output energy spectrum of modes with kz=0
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE boxsize
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ek,Ektot
-      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ekp,Eptot
+      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: a
+      DOUBLE PRECISION, INTENT(OUT), DIMENSION(nmaxperp/2+1) :: Ektot,Eptot
+      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1)              :: Ek,Ekp
       DOUBLE PRECISION :: tmq
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
       REAL(KIND=GP)    :: tmp
-      INTEGER,          INTENT(IN)                           :: isc
       INTEGER          :: i,j,k
       INTEGER          :: kmn
-      CHARACTER(len=*), INTENT(IN) :: nmb
-      CHARACTER(len=1)             :: si
 
 !
 ! Sets Ek to zero
@@ -262,22 +309,9 @@
                       MPI_SUM,0,MPI_COMM_WORLD,ierr)
       CALL MPI_REDUCE(Ekp,Eptot,nmaxperp/2+1,MPI_DOUBLE_PRECISION, &
                       MPI_SUM,0,MPI_COMM_WORLD,ierr)
-      IF (myrank.eq.0) THEN
-         IF ( isc.gt.0 ) THEN
-           WRITE(si,'(i1.1)') isc
-           OPEN(1,file='s' // si // 'specperp.' // nmb // '.txt')
-         ELSE
-           OPEN(1,file='sspecperp.' // nmb // '.txt')
-         ENDIF
-         DO j = 1,nmaxperp/2+1
-            WRITE(1,FMT='(E23.15,E23.15,E23.15)') Dkk*(j-1), &
-                                 Ektot(j)/Dkk, Eptot(j)/Dkk
-         END DO
-         CLOSE(1)
-      ENDIF
-!
+
       RETURN
-      END SUBROUTINE specscpe
+      END SUBROUTINE specscpec
 
 !*****************************************************************
       SUBROUTINE sctpara(a,b,nmb,isc)

@@ -4,6 +4,7 @@
             CALL gperealspec(zre,zim,ext)
             CALL gpehelspec(zre,zim,ext)
             CALL gpemomtspec(zre,zim,ext)
+            CALL gperealspecperp(zre,zim,ext)
 
 ! Uncomment the following lines to compute spatio-temporal spectra
 !           CALL write_fourier(zre,'zre',ext,odir)

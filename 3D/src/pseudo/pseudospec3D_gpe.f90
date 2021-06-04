@@ -25,7 +25,8 @@
 !-----------------------------------------------------------------
 !
 ! Pointwise squared absolute value of a complex wavefunction Z.
-! Note the output is not normalized (i.e., not divided by N^3).
+! Note that when dealiased, the output is not normalized (i.e., 
+! not divided by N^3).
 !
 ! Parameters
 !     a : real part of the wavefunction in Fourier space
