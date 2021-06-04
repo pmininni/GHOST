@@ -2780,8 +2780,7 @@
            END DO
 #ifdef COMPRESSIBLE_
          ELSEIF ( dokinelp.EQ.1 ) THEN ! Electron pressure correction
-           CALL gradpstate(cp1,gam1,th,C11,C12,C13) ! grad(p_gas)
-           CALL divide(th,C11,C12,C13)              ! grad(p_gas)/rho     
+           CALL gradpstate(cp1,gam1,th,C11,C12,C13) ! grad(p_gas)/rho
            rmq = -gyrof*mu
            rms = .5_GP*gyrof*dii*rmp
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
