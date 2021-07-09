@@ -1399,8 +1399,8 @@
 #ifdef EDQNM_
       kmax = (real(n,kind=GP)/2.0_GP-0.5_GP)**2
 #endif
-      tiny  = min(1e-5_GP,.1_GP/real(nmax,kind=GP))
-      tinyf = min(1e-15_GP,.1_GP/real(nmax,kind=GP))
+      tiny  = min(1e-5_GP ,.1_GP/(real(nmax,kind=GP)**2))
+      tinyf = min(1e-15_GP,.1_GP/(real(nmax,kind=GP)**2))
 
 ! Builds arrays with the wavenumbers and the 
 ! square wavenumbers. At the end, kx, ky, and kz
