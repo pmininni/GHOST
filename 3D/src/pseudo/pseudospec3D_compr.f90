@@ -433,10 +433,10 @@
 
       loc_ekin = 0.0D0
       loc_eint = 0.0D0
-      tmp = 1.0_GP/ &
+      tmp  = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**3
       tmp1 = 1.0_GP/ &
-            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
       gam0 = gam1 + 1.0_GP
 !$omp parallel do if (iend-ista.ge.nth) private (j,i) reduction(+:loc_ekin,loc_eint)
       DO k = ksta,kend
