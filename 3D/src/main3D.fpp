@@ -299,6 +299,12 @@
 #ifdef ROTATION_
       REAL(KIND=GP)    :: omegax,omegay,omegaz
 #endif
+#ifdef NUDGING_
+      INTEGER          :: ndgfilesloaded=0
+      REAL(KIND=GP)    :: ndgamp
+      CHARACTER(len=6) :: ndgext
+      CHARACTER(len=8) :: ndgfmtext='(i6.6)'
+#endif
 #ifdef WAVEFUNCTION_
       REAL(KIND=GP)    :: cspeed,lambda,rho0,kttherm,V0
       REAL(KIND=GP)    :: zparam0,zparam1,zparam2,zparam3,zparam4
@@ -462,6 +468,9 @@
 #endif
 #ifdef EDQNM_
       NAMELIST / edqnmles / kolmo,heli
+#endif
+#ifdef NUDGING_
+      NAMELIST / nudging / ndgamp
 #endif
 #ifdef PART_
       NAMELIST / plagpart / lgmult,maxparts,ilginittype,ilgintrptype
@@ -1142,6 +1151,20 @@
       CALL MPI_BCAST(omegax,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(omegay,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(omegaz,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+#endif
+
+#ifdef NUDGING_
+! Reads parameters for runs with nudging from the 
+! namelist 'nudging' on the external file 'parameter.inp'
+!     ndgamp: amplitude of the nudging term
+
+      ndgamp = 0.0_GP
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
+         READ(1,NML=nudging)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(ndgamp,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #ifdef WAVEFUNCTION_
@@ -2132,6 +2155,16 @@
 ! should be chosen to generate a forcing with random
 ! phases ('initialfv.f90_patterson' is recommended).
                INCLUDE 'initialfv.f90'
+#ifdef NUDGING_ 
+               ! Check that the appropiate initialfv is being used
+               IF (ndgfilesloaded.eq.0) THEN
+               IF (myrank.eq.0) THEN
+                  PRINT *,'MAIN: Nudging solver must use the correct'
+                  PRINT *,'forcing, please use initialfv.f90_nudging'
+               ENDIF
+               STOP
+               ENDIF
+#endif
 ! Copies the new forcing to arrays for the target forcing
                DO i = ista,iend
                   DO j = 1,ny

@@ -113,6 +113,11 @@ nu2   = 1.e-3    ! second viscosity
 amach = 1.0      ! alfvenic Mach number
 /
 
+! Parameters for runs with nudging
+&nudging
+ndgamp = 1.0      ! amplitude of the nudging term
+/
+
 ! Parameters for the wavefunction (GPE, RGPE, ARGL, and RARGL solvers)
 &wavefunction
 cspeed = 2.00    ! speed of sound

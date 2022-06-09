@@ -277,6 +277,13 @@
 #define INCLUDEFNAME_ 'edqnmroth_
 #endif
 
+#ifdef NDGHD_SOL
+#define DNS_
+#define VELOC_
+#define NUDGING_
+#define INCLUDEFNAME_ 'ndghd_
+#endif
+
 ! Particles subclasses
 
 #ifdef DEF_GHOST_LAGP

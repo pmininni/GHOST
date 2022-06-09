@@ -154,6 +154,7 @@ MPBOUSS_OBJS   = $(BOUSS_OBJS)
 ROTBOUSS_OBJS  = $(BOUSS_OBJS)
 ROTBOUMHDB_OBJS= $(BOUSS_OBJS) pseudospec3D_mhd.o
 MPROTBOUSS_OBJS= $(MPROTH_OBJS) pseudospec3D_bouss.o
+NDGHD_OBJS      = $(HD_OBJS)
 GPE_OBJS       = $(PHD_OBJS) pseudospec3D_mhd.o pseudospec3D_gpe.o
 ARGL_OBJS      = $(GPE_OBJS) pseudospec3D_newt.o
 RGPE_OBJS      = $(GPE_OBJS) pseudospec3D_rot.o pseudospec3D_prot.o \
