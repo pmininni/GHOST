@@ -3,15 +3,15 @@
 #****************************************************************************
 
 # Spatial resolution (grid points in X,Y,Z)
-NX       = 256
-NY       = 256
-NZ       = 256
+NX       = 32
+NY       = 32
+NZ       = 32
 
 # ORD:     number of iterations in the Runge-Kutta method
 ORD      = 2
 
 # SOLVER:  (read the file SOLVERS for a list of options)
-SOLVER   = HD
+SOLVER   = NDGHD
 
 # PRECISION: (SINGLE or DOUBLE)
 PRECISION= SINGLE

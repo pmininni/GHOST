@@ -301,6 +301,7 @@
 #endif
 #ifdef NUDGING_
       INTEGER          :: ndgfilesloaded=0
+      INTEGER          :: ndginitialcall=1
       REAL(KIND=GP)    :: ndgamp
       CHARACTER(len=6) :: ndgext
       CHARACTER(len=8) :: ndgfmtext='(i6.6)'

@@ -15,13 +15,17 @@
 !     fstep : interpolation time (invoked in main when using rand=2)
 
       ! Get next field
-      WRITE(ndgext, ndgfmtext) (t-1)+fstep
-      CALL io_read(1,idir,'ndgx',ndgext,planio,R1)
-      CALL io_read(1,idir,'ndgy',ndgext,planio,R2)
-      CALL io_read(1,idir,'ndgz',ndgext,planio,R3)
-      CALL fftp3d_real_to_complex(planrc,R1,fxold,MPI_COMM_WORLD)
-      CALL fftp3d_real_to_complex(planrc,R2,fyold,MPI_COMM_WORLD)
-      CALL fftp3d_real_to_complex(planrc,R3,fzold,MPI_COMM_WORLD)
+      IF (ndginitialcall.eq.1) THEN
+         ndginitialcall = 0
+      ELSE
+         WRITE(ndgext, ndgfmtext) (t-1)+fstep
+         CALL io_read(1,idir,'ndgx',ndgext,planio,R1)
+         CALL io_read(1,idir,'ndgy',ndgext,planio,R2)
+         CALL io_read(1,idir,'ndgz',ndgext,planio,R3)
+         CALL fftp3d_real_to_complex(planrc,R1,fxold,MPI_COMM_WORLD)
+         CALL fftp3d_real_to_complex(planrc,R2,fyold,MPI_COMM_WORLD)
+         CALL fftp3d_real_to_complex(planrc,R3,fzold,MPI_COMM_WORLD)
+      ENDIF
 
       ! Change flag
       ndgfilesloaded = 1
