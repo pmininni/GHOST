@@ -189,6 +189,9 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C28,C29
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C30
 #endif
+#ifdef NUDGING_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C31,C32,C33
+#endif
 
 #ifdef WAVEFUNCTION_
       DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: iold,qold,kold,cold
@@ -302,6 +305,7 @@
 #ifdef NUDGING_
       INTEGER          :: ndgfilesloaded=0
       INTEGER          :: ndginitialcall=1
+      INTEGER          :: ndgstep
       REAL(KIND=GP)    :: ndgamp
       CHARACTER(len=6) :: ndgext
       CHARACTER(len=8) :: ndgfmtext='(i6.6)'
@@ -472,6 +476,7 @@
 #endif
 #ifdef NUDGING_
       NAMELIST / nudging / ndgamp
+      NAMELIST / nudging / ndgstep
 #endif
 #ifdef PART_
       NAMELIST / plagpart / lgmult,maxparts,ilginittype,ilgintrptype
@@ -595,6 +600,10 @@
 #ifdef TRAP_
       ALLOCATE( C28(nz,ny,ista:iend), C29(nz,ny,ista:iend) )
       ALLOCATE( C30(nz,ny,ista:iend) )
+#endif
+#ifdef NUDGING_
+      ALLOCATE( C31(nz,ny,ista:iend), C32(nz,ny,ista:iend) )
+      ALLOCATE( C33(nz,ny,ista:iend) )
 #endif
 #ifdef WAVEFUNCTION_
       ALLOCATE( zre(nz,ny,ista:iend), zim(nz,ny,ista:iend) )
@@ -1158,14 +1167,19 @@
 ! Reads parameters for runs with nudging from the 
 ! namelist 'nudging' on the external file 'parameter.inp'
 !     ndgamp: amplitude of the nudging term
+!     ndgstep: number of steps between nudging fields (overrides fstep)
 
-      ndgamp = 0.0_GP
+      ndgamp  = 0.0_GP
+      ndgstep = 1
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=nudging)
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(ndgamp,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ndgstep,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      ! Override fstep
+      fstep = ndgstep
 #endif
 
 #ifdef WAVEFUNCTION_
@@ -3009,6 +3023,9 @@
 #ifdef TRAP_
       DEALLOCATE( C28,C29,C30 )
       DEALLOCATE( Vtrap,Vlinx,Vliny )
+#endif
+#ifdef NUDGING_
+      DEALLOCATE( C31,C32,C33 )
 #endif
 #ifdef PART_
       DEALLOCATE( R4,R5,R6 )

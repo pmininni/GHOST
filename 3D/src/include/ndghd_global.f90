@@ -7,3 +7,10 @@
                WRITE(1,FMT='(E13.6,E13.6)') (t-1)*dt,rmp
                CLOSE(1)
             ENDIF
+
+            CALL energy(fx,fy,fz,tmq,1)
+            IF (myrank.eq.0) THEN
+               OPEN(1,file='nudging.txt',position='append')
+               WRITE(1,FMT='(E13.6,E26.18)') (t-1)*dt,tmq
+               CLOSE(1)
+            ENDIF

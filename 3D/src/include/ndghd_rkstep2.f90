@@ -4,6 +4,9 @@
          CALL nonlhd3(C4,C5,C6,C7,1)
          CALL nonlhd3(C4,C5,C6,C8,2)
          CALL nonlhd3(C4,C5,C6,C4,3)
+         CALL ndg_term(vx,fx,C31,ndgamp,kdn,kup)
+         CALL ndg_term(vy,fy,C32,ndgamp,kdn,kup)
+         CALL ndg_term(vz,fz,C33,ndgamp,kdn,kup)
          CALL laplak3(vx,vx)
          CALL laplak3(vy,vy)
          CALL laplak3(vz,vz)
@@ -16,19 +19,12 @@
          DO j = 1,ny
          DO k = 1,nz
             IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
-               ! Apply nudging only in forcing region
-               IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,k).ge.kdn**2)) THEN
-                  vx(k,j,i) = C1(k,j,i)+dt*(nu*vx(k,j,i)+C7(k,j,i) &
-                 +ndgamp*(vx(k,j,i)-fx(k,j,i)))*rmp
-                  vy(k,j,i) = C2(k,j,i)+dt*(nu*vy(k,j,i)+C8(k,j,i) &
-                 +ndgamp*(vx(k,j,i)-fy(k,j,i)))*rmp
-                  vz(k,j,i) = C3(k,j,i)+dt*(nu*vz(k,j,i)+C4(k,j,i) &
-                 +ndgamp*(vx(k,j,i)-fz(k,j,i)))*rmp
-               ELSE
-                  vx(k,j,i) = C1(k,j,i)+dt*(nu*vx(k,j,i)+C7(k,j,i))*rmp
-                  vy(k,j,i) = C2(k,j,i)+dt*(nu*vy(k,j,i)+C8(k,j,i))*rmp
-                  vz(k,j,i) = C3(k,j,i)+dt*(nu*vz(k,j,i)+C4(k,j,i))*rmp
-               ENDIF
+               vx(k,j,i) = C1(k,j,i)+dt*(nu*vx(k,j,i)+C7(k,j,i) &
+              +C31(k,j,i))*rmp
+               vy(k,j,i) = C2(k,j,i)+dt*(nu*vy(k,j,i)+C8(k,j,i) &
+              +C32(k,j,i))*rmp
+               vz(k,j,i) = C3(k,j,i)+dt*(nu*vz(k,j,i)+C4(k,j,i) &
+              +C33(k,j,i))*rmp
             ELSE
                vx(k,j,i) = 0.0_GP
                vy(k,j,i) = 0.0_GP
