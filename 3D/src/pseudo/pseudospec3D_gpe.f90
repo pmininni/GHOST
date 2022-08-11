@@ -156,19 +156,24 @@
       SUBROUTINE gpecheck(a,b,t,dt)
 !-----------------------------------------------------------------
 !
-! Computes the mass, the kinetic plus quantum energy Ekq, and 
-! the quartic term in the energy:
+! Computes the mass, the kinetic plus quantum energy Ekq, the 
+! potential energy, and the quartic term in the energy:
 !    Ekq    = 2.alpha^2.|grad(z)|^2
 !    Equart = alpha.beta.|z|^4
 ! The potential energy then is
 !    Epot = Equart-2*alpha.omegag.mass+alpha.omegag^2/beta
 ! This quantity should be zero in the condensate. The total 
-! energy is simply
-!    E = Ekq+Epot
+! energy is simply:
+!    E = Ekq + Epot
+! The energy from the Hamiltonian is:
+!    H = Ekq + Equart
+! and the free energy can be computed as H - mu.N where
+!    mu.N/V = 2.alpha.omegag.mass = c^2 mass
+! where mass is the mass density.
 ! The results are written to a file by the first node.
 !
 ! Output files contain:
-! 'balance.txt': time, mass, kinetic+quantum energy, quartic energy
+! 'balance.txt': time, mass, kinetic+quantum en., potential en., quartic en.
 !   [Ekq = 2.alpha^2.|grad(z)|^2, Equart = alpha.beta.|z|^4, and the      ]
 !   [pot. energy is Epot = Equart-2*alpha.omegag.mass+alpha.omegag^2/beta.]
 !   [Note this output replaces all 'balance.txt' files in quantum solvers.]
@@ -224,17 +229,17 @@
       CALL MPI_REDUCE(tmp,tmq,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
-         tmq = alpha*(beta*tmq/ &
-          (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**3 - &
-          2*omegag*mass + omegag**2/beta)
+         tmq = alpha*beta*tmq/ &
+          (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**3
+         tmp = tmq + alpha*(omegag**2/beta - 2*omegag*mass)
       ENDIF
 !
 ! Creates a external file to store the results
 !
       IF (myrank.eq.0) THEN
          OPEN(1,file='balance.txt',position='append')
-         WRITE(1,10) (t-1)*dt,mass,ekq,tmq
-   10    FORMAT( E13.6,E22.14,E22.14,E22.14 )
+         WRITE(1,10) (t-1)*dt,mass,ekq,tmp,tmq
+   10    FORMAT( E13.6,E22.14,E22.14,E22.14,E22.14 )
          CLOSE(1)
       ENDIF
 
