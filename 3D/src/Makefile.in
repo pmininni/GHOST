@@ -117,6 +117,8 @@ INTEL_OMP     = -fopenmp
 TARGET_INTEL  = 
 #
 # GFortran compiler (GNU)
+# CGG >=10.X with some MPI libraries may require using
+# "FC_GNU = gfortran -w -fallow-argument-mismatch".
 CPP_GNU       = cpp -traditional-cpp
 FC_GNU        = gfortran
 CC_GNU        = gcc
