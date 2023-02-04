@@ -202,6 +202,8 @@
 !$      hdev = omp_get_initial_device()
 !$      tdev = MODULO(myrank,ndev) + 1
 #endif
+      END SUBROUTINE init_offload
+
   END MODULE offloading
 !=================================================================
 
