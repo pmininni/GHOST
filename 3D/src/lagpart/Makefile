@@ -18,4 +18,5 @@ edit:
 	regridutils.fpp -o regridutils.f90
 
 clean:
-	rm -f *.o *.d *.s *.int *.inf *.mod work.pc* ifc* regridutils.f90
+	rm -f *.o *.d *.s *.int *.inf *.mod *.modmic work.pc* ifc* \
+        regridutils.f90

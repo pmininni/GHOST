@@ -47,10 +47,38 @@
   MODULE threads
 !
 ! nth: number of threads used in OpenMP loops and FFTs
+!$    USE omp_lib
       INTEGER :: nth
       SAVE
 
   END MODULE threads
+!=================================================================
+
+  MODULE offloading
+!
+! Module with variables for offloading to GPUs using OpenMP. GHOST
+! assumes the number of MPI jobs in each node is equal to the
+! number of GPUs available in the node. The user must ensure this
+! condition is fulfilled.
+!$    USE threads
+      INTEGER                            :: numdev
+      INTEGER                            :: hostdev,targetdev
+      LOGICAL                            :: offload
+      SAVE
+    CONTAINS
+      SUBROUTINE init_offload(myrank,ndev,hdev,tdev)
+      ! Binds each MPI job to only one GPU target device
+        INTEGER, INTENT(IN)    :: myrank
+        INTEGER, INTENT(INOUT) :: ndev,hdev,tdev
+        ndev = 0
+        hdev = 0
+        tdev = 0
+#if defined(DO_HYBRIDoffl)
+!$      ndev = omp_get_num_devices()
+!$      hdev = omp_get_initial_device()
+!$      tdev = MODULO(myrank,ndev) + 1
+#endif
+  END MODULE offloading
 !=================================================================
 
   MODULE mpivars

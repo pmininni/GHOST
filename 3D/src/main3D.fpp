@@ -90,6 +90,7 @@
       USE order
       USE random
       USE threads
+      USE offloading
       USE boxsize
       USE gtimer
       USE fftplans
@@ -231,7 +232,6 @@
       COMPLEX(KIND=GP) :: cdumr,jdumr
       DOUBLE PRECISION :: tmp,tmq,tmr
       DOUBLE PRECISION :: eps,epm
-!$    DOUBLE PRECISION, EXTERNAL :: omp_get_wtime
 
       REAL(KIND=GP)    :: dt,nu,mu
       REAL(KIND=GP)    :: kup,kdn
@@ -367,7 +367,6 @@
       REAL(KIND=GP)         :: gyrof, vtherm, dii      
       TYPE (TestGPart)      :: lagpart
 #endif
-!$    INTEGER, EXTERNAL     :: omp_get_max_threads
 
 #if defined(DEF_GHOST_CUDA_)
       TYPE(cudaDevicePropG) :: devprop
@@ -483,6 +482,15 @@
       CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
+
+! Initialization of offloading to GPUs using OpenMP (this is independent
+! of CUDA initialization in systems with NVIDIA GPUs). GHOST
+! assumes the number of MPI jobs in each node is equal to the
+! number of GPUs available in the node. The user must ensure this
+! condition is fulfilled.
+#if defined(DO_HYBRIDoffl)
+      CALL init_offload(myrank,numdev,hostdev,targetdev)
+#endif
 
 ! NOTE: On systems with a single GPU per node (e.g., Titan)
 !       we remove the following block. But on systems with 
