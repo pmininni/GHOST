@@ -27,13 +27,14 @@ ARBSIZE  = no
 IOLIB    = mpiio
 
 # Parallelization model:
-# P_HYBRID=yes  # OpenMP-MPI hybridization
 # P_HYBRID=no   # MPI-based parallelization only
+# P_HYBRID=yes  # OpenMP-MPI hybridization
+# P_HYBRID=offl # OpenMP-MPI with offloading to GPUs
 P_HYBRID = no
 
 # Parallelization model for accelerators:
 # P_CUDA=yes    # CUDA-MPI (or CUDA-OpenMP-MPI) hybridization
-# P_CUDA=no     # MPI- or hybrid- parallelization only
+# P_CUDA=no     # MPI, hybrid or offloading parallelization without CUDA
 P_CUDA   = no
 
 # Lagrangian particles:
@@ -46,18 +47,21 @@ PARTICLES = no
 # FFTP:
 # fftp-2   builds FFTP-2 (links with FFTW 2.x)
 # fftp-3   builds FFTP-3 (links with FFTW 3.x)
-# FFTWxDIR contains the path to the FFTW libraries. Only the path to the 
-# version of FFTW that is used is needed, the other can be left empty.
+# fftp-mkl builds FFTP-MKL (links with Intel MKL)
+# FFTWxDIR contains the path to the FFT libraries. Only the path to the
+# version of the FFT that is used is needed, the others can be left empty.
 FFTP     = fftp-3
 FFTW2DIR = /opt/ohpc/pub/libs/gnu7/fftw/2.1.5
 FFTW3DIR = /opt/ohpc/pub/libs/gnu7/fftw/3.3.7
+MKLDIR   = /opt/ohpc/pub/compiler/intel/mkl
 
 # IKIND    4 in 32 bits machines, 8 in 64 bits machines
-# CSIZE    8 if L1 cache is <= 64 kb, 16 if L1 cache is 128 kb
 # NSTRIP   controls strip mining (often set to 1)
+# CSIZE    CPUs: 8 if L1 cache is <= 64 kb, 16 if L1 cache is 128 kb
+#          When offloading to GPUs use smaller values, e.g., CSIZE=4
 IKIND    = 8
-CSIZE    = 32
 NSTRIP   = 1
+CSIZE    = 32
 
 # When UNDER is equal to 1 you can use the variable APPEND 
 # to add extra characters at the end of external functions.
@@ -65,9 +69,9 @@ UNDER    = 0
 APPEND   = _
 
 # Fortran compiler and MPI distribution (see below)
-CUCOMPILER = NVIDIA
 COMPILER   = GNU
 MPI        = OPEN
+CUCOMPILER = NVIDIA
 
 #****************************************************************************
 # Compiler and MPI library dependent section
@@ -81,6 +85,7 @@ FFLAGS_PGI    = -fastsse -Minline -Minfo=loop,inline -Mneginfo -g77libs
 FPSPEC_PGI    = -fastsse -Minline -Minfo=loop,inline -Mneginfo -g77libs
 CFLAGS_PGI    = -fastsse -Minline
 PGI_OMP       = -mp
+PGI_OFFL      =
 TARGET_PGI    =
 #
 # XLF compiler
@@ -94,6 +99,7 @@ FPSPEC_XLF    = -q64 -O5 -qenablevmx -qhot=simd -qipa=malloc16 -qvecnvol \
 CFLAGS_XLF    = -q64 -O5 -qenablevmx -qhot=simd -qipa=malloc16 -qvecnvol \
   -qalign -Q -bdatapsize:64K -bstackpsize:64K
 XLF_OMP       = -qsmp=omp 
+XLF_OFFL      =
 TARGET_XLF    = -qarch=auto -qtune=auto -qcache=auto
 #
 # ABSOFT compiler
@@ -104,17 +110,19 @@ FFLAGS_ABSOFT = -O -YEXT_SFX=__ -YEXT_NAMES=LCS
 FPSPEC_ABSOFT = -O -YEXT_SFX=__ -YEXT_NAMES=LCS
 CFLAGS_ABSOFT = -O 
 ABSOFT_OMP    = 
+PGI_OFFL      =
 TARGET_ABSOFT =
 #
 # INTEL compiler (use UNDER=1 with gcc compiler <4.x)
 CPP_INTEL     = /usr/bin/cpp -traditional-cpp
-FC_INTEL      = /share/apps/intel/bin/ifort
-CC_INTEL      = /share/apps/intel/bin/icc
-FFLAGS_INTEL  = -O3 -no-prec-div -fp-model fast=2 -align
-FPSPEC_INTEL  = -O3 -no-prec-div -fp-model fast=2 -align
-CFLAGS_INTEL  = -O3 -no-prec-div -fp-model fast=2 -align
-INTEL_OMP     = -fopenmp
-TARGET_INTEL  = 
+FC_INTEL      = ifort
+CC_INTEL      = icc
+FFLAGS_INTEL  = -O3 -no-prec-div -fp-model fast=2 -align -heap-arrays
+FPSPEC_INTEL  = -O3 -no-prec-div -fp-model fast=2 -align -heap-arrays
+CFLAGS_INTEL  = -O3 -no-prec-div -fp-model fast=2 -align -heap-arrays
+INTEL_OMP     = -fopenmp 
+INTEL_OFFL    = -fiopenmp -fopenmp-targets=spir64
+TARGET_INTEL  =
 #
 # GFortran compiler (GNU)
 # CGG >=10.X with some MPI libraries may require using
@@ -126,6 +134,7 @@ FFLAGS_GNU    = -O3 -funroll-loops
 FPSPEC_GNU    = -O3 -funroll-loops
 CFLAGS_GNU    = -O3
 GNU_OMP       = -fopenmp
+GNU_OFFL      =
 TARGET_GNU    = -mtune=native -mfpmath=both
 #
 # G95 compiler (G95)
@@ -136,6 +145,7 @@ FFLAGS_G95    = -O4 -w
 FPSPEC_G95    = -O4 -w
 CFLAGS_G95    = -O4 -w
 G95_OMP       = 
+G95_OFFL      =
 TARGET_G95    = -msse
 
 #****************************************************************************
@@ -173,9 +183,20 @@ MPILD_MPICH   = -lmpich -lmpichf90 -lfmpich -lpthread -lrt -lmpich \
 # OPENMPI (OPEN)
 MPIINC_OPEN = -I/opt/ohpc/pub/mpi/openmpi3-gnu7/3.0.0/include
 MPILIB_OPEN = -L/opt/ohpc/pub/mpi/openmpi3-gnu7/3.0.0/lib
-MPILD_OPEN = -pthread -lmpi_usempif08 -lmpi_usempi_ignore_tkr \
+MPILD_OPEN  = -pthread -lmpi_usempif08 -lmpi_usempi_ignore_tkr \
   -lmpi_mpifh -lmpi -Wl,--enable-new-dtags -Wl,-rpath \
   -Wl,/opt/ohpc/pub/mpi/openmpi3-gnu7/3.0.0/lib
+#
+# INTEL MPI (INTEL)
+MPIINC_INTEL = -I/opt/ohpc/pub/compiler/intel/mpi/2021.6.0/include/gfortran/7.1.0 \
+  -I/opt/ohpc/pub/compiler/intel/mpi/2021.6.0/include
+MPILIB_INTEL = -L/opt/ohpc/pub/compiler/intel/mpi/2021.6.0/lib/release \
+  -L/opt/ohpc/pub/compiler/intel/mpi/2021.6.0/lib
+MPILD_INTEL  = -Xlinker --enable-new-dtags -Xlinker -rpath \
+  -Xlinker "/opt/ohpc/pub/compiler/intel/mpi/2021.6.0/lib/release" \
+  -Xlinker -rpath -Xlinker "/opt/ohpc/pub/compiler/intel/mpi/2021.6.0/lib" \
+  -lmpifort -lmpi -lrt -lpthread -Wl,-z,now -Wl,-z,relro -Wl,-z,noexecstack \
+  -Xlinker --enable-new-dtags -ldl
 #
 # MPICH-GM (GM)
 MPIINC_GM     = -I/usr/local/mpich-gm-62/include

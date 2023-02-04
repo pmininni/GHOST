@@ -24,9 +24,10 @@ MPILDFLAGS  = $(MPILD_$(MPI))
 ARBSIZEDEFyes = -DDEF_ARBSIZE_
 ARBSIZEDEFno  =
 
-# OpenMP-MPI hybdridization
-DO_HYBRIDyes = $($(COMPILER)_OMP)
-DO_HYBRIDno  =
+# OpenMP-MPI hybdridization and GPU offloading
+DO_HYBRIDno   =
+DO_HYBRIDyes  = $($(COMPILER)_OMP)
+DO_HYBRIDoffl = $($(COMPILER)_OFFL)
 
 # CUDA FFT & RT library variables:
 CUCC         = $(CUCC_$(CUCOMPILER))
@@ -55,6 +56,14 @@ LAGPOBJSiner = $(LAGPOBJSyes)
 LAGPOBJStest = $(LAGPOBJSyes)
 LAGPOBJSno   = 
 
+CUDA_GHOSTno =
+CUDA_GHOSTyes= -DDEF_GHOST_CUDA_ -DG_PPN_=$(PPN) $(CUBIND_NVIDIA)
+CUDA_OBJSno  =
+CUDA_OBJSyes = $(CONTRIB)/nvidia/setaffinity_for_nvidia.o
+GDEF         = $(IODEF$(IOLIB)) $(CUDA_GHOST$(P_CUDA)) \
+            $(LAGPDEF$(PARTICLES)) $(ARBSIZEDEF$(ARBSIZE))
+CONTRIBOBJS  = $(CUDA_OBJS$(P_CUDA))
+
 # IO library variables:
 IODEFvdcpio  = -DDEF_VDCPIO_
 IODEFmpiioa  = 
@@ -68,8 +77,8 @@ IOINCvdcpio  = -I$(IOLIBDIR)/include
 IOINCmpiio   = 
 IOINCposixio = 
 
-IOINCDIR     =  $(IOINC$(IOLIB))
-IOLIBFLG     =  $(IOLDIR$(IOLIB))
+IOINCDIR     = $(IOINC$(IOLIB))
+IOLIBFLG     = $(IOLDIR$(IOLIB))
 
 # FFTW library variables:
 FFTW2SINGLE = s
@@ -89,18 +98,22 @@ FFTWLDFLAGS = $($(FFTP:fftp-%=FFTW%)FLAGS) $(DO_HYBRID$(P_HYBRID))
 FFTWINC     = -I$(FFTWDIR)/include
 FFTWLIBDIR  = -L$(FFTWDIR)/lib
 
-CUDA_GHOSTno   =
-CUDA_GHOSTyes  = -DDEF_GHOST_CUDA_ -DG_PPN_=$(PPN) $(CUBIND_NVIDIA)
-CUDA_OBJSno    =
-CUDA_OBJSyes   = $(CONTRIB)/nvidia/setaffinity_for_nvidia.o
-
-GDEF           = $(IODEF$(IOLIB)) $(CUDA_GHOST$(P_CUDA)) \
-                 $(LAGPDEF$(PARTICLES)) $(ARBSIZEDEF$(ARBSIZE))
-CONTRIBOBJS    = $(CUDA_OBJS$(P_CUDA))
+# MKL library variables:
+FFTMKLDIR     = $(MKLDIR)
+FFTMKLINC     = -I$(MKLDIR)/include
+FFTMKLLIBDIR  = -L$(MKLDIR)/lib/intel64
+FFTMKLLDno    =
+FFTMKLLDyes   =
+FFTMKLLDoffl  = -lmkl_sycl
+FFTMKLLDFLAGS = -lmkl_intel_lp64 -lmkl_core -lmkl_sequential \
+$(FFTMKLLD$(P_HYBRID))
 
 # FFT Target variables derived from above FFT library quantities:
-FFTTYPEno   = W
+FFTTYPE3    = W
+FFTTYPE2    = W
+FFTTYPEmkl  = MKL
 FFTTYPEyes  = CU
+FFTTYPEno   = $(FFTTYPE$(FFTP:fftp-%=%))
 FFTPDIRno   = $(FFTP)
 FFTPDIRyes  = fftp-cu
 FFTTYPE     = $(FFTTYPE$(P_CUDA))
@@ -175,8 +188,8 @@ TRAN_OBJS      = pseudospec3D_trn.o
 STRU_OBJS      = pseudospec3D_shf.o
 OBJS           = $($(SOLVER)_OBJS) 
 OBJSDIR        = pseudo
-SUBDIRS        = posix mpiio fftp-2 fftp-3 fftp-cu utils $(CONTRIB)/nvidia \
-	         $(LAGP)
+SUBDIRS        = posix mpiio fftp-2 fftp-3 fftp-cu fftp-mkl utils \
+             $(CONTRIB)/nvidia $(LAGP)
 EXTRASDIR      = analysis
 GTIMER         = $(UTILS)/gtimer_mod.o
 GUTILS         = $(UTILS)/gutils_mod.o 
@@ -248,7 +261,7 @@ wv:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS)  $(IOLIB)/binary_io.o \
 	$(MAKE) undo
 
 clean:  undo
-	rm -f *.o *.d *.s *.int *.inf *.mod work.pc* ifc*
+	rm -f *.o *.d *.s *.int *.inf *.mod *.modmic work.pc* ifc*
 	rm -f $(OBJSDIR)/pseudospec3D_mod.f90
 	for dir in $(SUBDIRS); do \
             cd $$dir && $(MAKE) clean && cd .. ; \

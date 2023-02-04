@@ -8,27 +8,27 @@ provided (check the makefile and the comments in 'main3D.fpp' for the
 current list of supported solvers). A pseudo-spectral method is used 
 to compute spatial derivatives, while a Runge-Kutta method of 
 adjustable order is used to evolve the system in the time domain. To 
-compile, you need the FFTW library installed on your system and some 
-flavor of MPI. Note that only serial transforms in the FFTW package 
-are used, since the MPI version of FFTW implements blocking 
-communications. Instead, a non-blocking parallel FFT (FFTP) based on 
-FFTW is used.
+compile, you need the FFTW library installed on your system (or
+Intel MKL, or cuFFT if using NVIDIA GPUs) and some flavor of MPI.
+Note that only serial transforms in the FFT packages are used, since
+many MPI versions of FFT libraries implement blocking communications.
+Instead, a non-blocking parallel FFT (FFTP) based on FFTW/MKL/cuFFT is
+used.
 
 1. Installing FFTW
 ==================
 
-The default version of FFTW for the GHOST code is 3.3.5 (versions 3.x 
-previous to 3.3.5 also work). The parallel FFT based on FFTW 3.x is
-in the directory 'fftp-3'. The API of FFTW 2.x is incompatible with
-that of FFTW 3.x, and as a result also incompatible with fftp-3. 
-To use FFTW 2.x, use the parallel library in the directory 'fftp-2' 
-instead. Note that FFTW 3.x is faster, although how fast depends 
-strongly on the alignment of arrays, and on whether the hardware 
-supports SIMD instructions. For this to work, FFTW 3.x should be 
-compiled with some form of SSE/SSE2/AVX/3dNow!/Altivec support (see
-the FFTW documentation), and a Fortran compiler that aligns arrays 
-properly should be used to compile GHOST. The parallel library for 
-FFTW 3.x uses more memory, so if you are running on a low-memory 
+The default compiling options in GHOST assume FFTW 3.x). The parallel
+FFT based on FFTW 3.x is in the directory 'fftp-3'. The API of FFTW
+2.x is incompatible with that of FFTW 3.x, and as a result also
+incompatible with fftp-3. To use FFTW 2.x, use the parallel library
+in the directory 'fftp-2' instead. Note that FFTW 3.x is faster,
+although how fast depends strongly on the alignment of arrays, and
+on whether the hardware supports SIMD instructions. For this to work,
+FFTW 3.x should be compiled with some form of SSE/SSE2/AVX/3dNow!/Altivec
+support (see the FFTW documentation), and a Fortran compiler that aligns
+arrays properly should be used to compile GHOST. The parallel library
+for FFTW 3.x uses more memory, so if you are running on a low-memory 
 environment use FFTW 2.x instead.
 
 To compile FFTW 2.x, 'cd' to the directory containing the source and 
@@ -76,10 +76,19 @@ like this:
 env CC=pgcc CFLAGS='-fastsse' F77=pgf90 ./configure
 -------------------------------------------------------------------
 
-2. Compiling the code
+2. Using other FFTs
+===================
+
+Intel MKL and cuFFT can be used instead of FFTW. To use Intel MKL, set
+'FFTP = fftp-mkl' in Makefile.in, and the path to the library. This
+option also allows for experimental offloading of the FFTs into GPUs.
+To use cuFFT, which also offloads FFTs into GPUs, see the instructions
+below.
+
+3. Compiling the code
 =====================
 
-2.1. Setting code options:
+3.1. Setting code options:
 
 The linear resolution is set before compilation in the file 
 Makefile.in. The lines 
@@ -146,7 +155,7 @@ the module 'iovar' in the file 'posix/binary_mod.f90' (I am sorry
 for releasing these hacks, but they can be useful if long 
 integrations are done, or when thousands of processors are used).
 
-2.2 Compiling the code:
+3.2 Compiling the code:
 
 Initial conditions for the fields and the external forcings are 
 defined in the files 'initial*.f90'. Examples of these files can 
@@ -204,14 +213,14 @@ for data analysis after the runs are finished (these are:
 supports the SOLVER, PRECISION, IOLIB, and FFTP variables; see the 
 file 'SOLVERS' and the makefile for more details).
 
-2.3 Parallelization models
+3.3 Parallelization models
 
 By default, GHOST uses 1D domain decomposition with pure MPI 
 parallelization. This behavior can be changed with two settings 
 in the Makefile.in file, or equivalently with two variables that 
 can be passed to make at compile time.
 
-2.3.1 Hybrid parallelization
+3.3.1 Hybrid parallelization
 
 The code provides support for OpenMP-MPI hybridization, for use in
 supercomputers with multi-core processors and for simulations using 
@@ -242,7 +251,7 @@ binding are crucial. How to set processor affinity and binding is
 platform dependent; check the platform documentation where you are 
 running for more information.
 
-2.3.2 CUDA support
+3.3.2 CUDA support
 
 GHOST has experimental support for GPU-based computation of FFTs 
 using CUDA. To use this option, the NVIDIA CUDA Toolkit (the CUDA 
@@ -265,7 +274,7 @@ How to set affinity between CPUs and GPUs is platform dependent;
 check the platform documentation where you are running for more 
 information.
 
-2.4 About the solvers:
+3.4 About the solvers:
 
 The main program 'main3D.fpp' includes files for the different 
 solvers at compile time from the directory 'include'. The files 
@@ -279,7 +288,7 @@ spectrum : contains routines to compute spectra
 rkstep1  : first step of Runge-Kutta
 rkstep2  : second step of Runge-Kutta (contains the equations)
 
-3. Running the code
+4. Running the code
 ===================
 
 The codes can be executed using mpirun or the correspondent vendor 
@@ -287,7 +296,7 @@ equivalent. The first node then reads the parameters for the run
 from the input file, and passes the values to the rest of the 
 nodes. 
 
-3.1. Input file:
+4.1. Input file:
 
 The input file for all the solvers is named 'parameter.txt'. The 
 file is separated into several 'lists', which have the following 
@@ -451,7 +460,7 @@ wave functions, etc. Some solvers may also need extra lists, e.g.,
 'uniformb', 'rotation', or 'hallparam'. See the file
 'examples/parameter.txt' and main3D.fpp for more details.
 
-3.2. Output files:
+4.2. Output files:
 
 When the code is not running in benchmark mode, it writes several 
 files with global quantities, spectra, and components of the fields.
@@ -505,7 +514,7 @@ Python, IDL, Matlab, and VAPOR, can be found in the directory
 'ghost/contrib'. These examples also include some explanantions
 on the contents in the output files.
 
-4. References:
+5. References:
 
 The pseudospectral method with MPI parallelization is described 
 in: D.O. Gomez, P.D. Mininni, and P. Dmitruk; Phys. Scripta T116, 
@@ -515,9 +524,12 @@ The hybrid parallelization scheme is described in: P.D. Mininni,
 D.L. Rosenberg, R. Reddy, and A. Pouquet, Parallel Computing 37(6), 
 316 (2011).
 
-We ask users to cite these two papers when referencing GHOST. The 
-following papers should be used as references for each specific 
-solver:
+The GPU implementation is described in: D. Rosenberg, P.D. Mininni,
+R. Reddy and A. Pouquet, Atmospheres 11, 178 (2020).
+
+We ask users to cite at least the second paper when referencing
+GHOST. If GPUs are used, please cite the third paper. The following
+papers can also be used for examples of usage of some of the solvers:
 
 HD solver: P.D. Mininni, A. Alexakis, and A. Pouquet, Phys. Rev. 
 E 77, 036306 (2008).
