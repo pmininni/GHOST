@@ -48,7 +48,7 @@ PARTICLES = no
 # fftp-2   builds FFTP-2 (links with FFTW 2.x)
 # fftp-3   builds FFTP-3 (links with FFTW 3.x)
 # fftp-mkl builds FFTP-MKL (links with Intel MKL)
-# FFTWxDIR contains the path to the FFT libraries. Only the path to the
+# FFTxDIR contains the path to the FFT libraries. Only the path to the
 # version of the FFT that is used is needed, the others can be left empty.
 FFTP     = fftp-3
 FFTW2DIR = /opt/ohpc/pub/libs/gnu7/fftw/2.1.5
