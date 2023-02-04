@@ -53,7 +53,7 @@ PARTICLES = no
 FFTP     = fftp-3
 FFTW2DIR = /opt/ohpc/pub/libs/gnu7/fftw/2.1.5
 FFTW3DIR = /opt/ohpc/pub/libs/gnu7/fftw/3.3.7
-MKLDIR   = /opt/ohpc/pub/compiler/intel/mkl
+MKLDIR   = /opt/ohpc/pub/compiler/intel/mkl/2022.1.0
 
 # IKIND    4 in 32 bits machines, 8 in 64 bits machines
 # NSTRIP   controls strip mining (often set to 1)
@@ -113,8 +113,8 @@ ABSOFT_OMP    =
 PGI_OFFL      =
 TARGET_ABSOFT =
 #
-# INTEL compiler (use UNDER=1 with gcc compiler <4.x)
-CPP_INTEL     = /usr/bin/cpp -traditional-cpp
+# INTEL compiler (use UNDER=1 with gcc compiler <4.x, use ifx when offloading)
+CPP_INTEL     = /usr/bin/cpp -traditional-cpp -nostdinc
 FC_INTEL      = ifort
 CC_INTEL      = icc
 FFLAGS_INTEL  = -O3 -no-prec-div -fp-model fast=2 -align -heap-arrays
@@ -188,13 +188,13 @@ MPILD_OPEN  = -pthread -lmpi_usempif08 -lmpi_usempi_ignore_tkr \
   -Wl,/opt/ohpc/pub/mpi/openmpi3-gnu7/3.0.0/lib
 #
 # INTEL MPI (INTEL)
-MPIINC_INTEL = -I/opt/ohpc/pub/compiler/intel/mpi/2021.6.0/include/gfortran/7.1.0 \
-  -I/opt/ohpc/pub/compiler/intel/mpi/2021.6.0/include
+MPIINC_INTEL = -I/opt/ohpc/pub/compiler/intel/mpi/2021.6.0/include \
+  -I/opt/ohpc/pub/compiler/intel/mpi/2021.6.0/include/gfortran/7.1.0
 MPILIB_INTEL = -L/opt/ohpc/pub/compiler/intel/mpi/2021.6.0/lib/release \
   -L/opt/ohpc/pub/compiler/intel/mpi/2021.6.0/lib
 MPILD_INTEL  = -Xlinker --enable-new-dtags -Xlinker -rpath \
-  -Xlinker "/opt/ohpc/pub/compiler/intel/mpi/2021.6.0/lib/release" \
-  -Xlinker -rpath -Xlinker "/opt/ohpc/pub/compiler/intel/mpi/2021.6.0/lib" \
+  -Xlinker /opt/ohpc/pub/compiler/intel/mpi/2021.6.0/lib/release \
+  -Xlinker -rpath -Xlinker /opt/ohpc/pub/compiler/intel/mpi/2021.6.0/lib \
   -lmpifort -lmpi -lrt -lpthread -Wl,-z,now -Wl,-z,relro -Wl,-z,noexecstack \
   -Xlinker --enable-new-dtags -ldl
 #

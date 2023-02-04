@@ -1,5 +1,5 @@
 #****************************************************************************
-# Makefile for compiling codes and linking with MPI, FFTP and FFTW libraries
+# Makefile for compiling codes and linking with MPI, FFTP and FFT libraries
 # Pablo Daniel Mininni - 10/04/2003
 #****************************************************************************
 
@@ -106,7 +106,7 @@ FFTMKLLDno    =
 FFTMKLLDyes   =
 FFTMKLLDoffl  = -lmkl_sycl
 FFTMKLLDFLAGS = -lmkl_intel_lp64 -lmkl_core -lmkl_sequential \
-$(FFTMKLLD$(P_HYBRID))
+                $(FFTMKLLD$(P_HYBRID))
 
 # FFT Target variables derived from above FFT library quantities:
 FFTTYPE3    = W
@@ -189,7 +189,7 @@ STRU_OBJS      = pseudospec3D_shf.o
 OBJS           = $($(SOLVER)_OBJS) 
 OBJSDIR        = pseudo
 SUBDIRS        = posix mpiio fftp-2 fftp-3 fftp-cu fftp-mkl utils \
-             $(CONTRIB)/nvidia $(LAGP)
+                 $(CONTRIB)/nvidia $(LAGP)
 EXTRASDIR      = analysis
 GTIMER         = $(UTILS)/gtimer_mod.o
 GUTILS         = $(UTILS)/gutils_mod.o 
