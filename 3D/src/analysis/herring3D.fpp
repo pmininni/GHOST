@@ -2100,7 +2100,7 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call compute_dissp...'
 #ifdef SCALAR_
 if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call compute_PV...'
       ! ... PV :
-      CALL compute_PV(vx,vy,vz,th,bvfreq,f,inorm,ctmp,R1,R2,R6,pv) ! R3 = curlv . Grad th
+      CALL compute_PV(vx,vy,vz,th,bvfreq,f,inorm,ctmp,R1,R2,R6,pv) 
 
       ! ... gradient Richardson :
 if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call compute_Rig...'
@@ -2151,7 +2151,7 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
 
 #endif
 
-      ! Compute statistics for curl v _z:
+      ! Compute statistics for omega_z:
       CALL rotor3(vy,vz,ctmp,3)
       CALL fftp3d_complex_to_real(plancr,ctmp,R1,MPI_COMM_WORLD)
       n = n + 1; sfld(n) = 'z-curl v' 
@@ -2161,14 +2161,14 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
         fnout = trim(odir) // '/' // 'omzpdf.' // ext // '.txt'
         CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ENDIF
-      If ( ibits(kin,1,1).EQ.1 ) THEN ! joint pdfs for curl v:
+      If ( ibits(kin,1,1).EQ.1 ) THEN ! joint pdfs for omegaz:
         fnout = trim(odir) // '/' // 'jpdf_omz_dissv.' // ext // '.txt'
-        CALL dojpdfr(R1,'vz',dissv,'dissv',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+        CALL dojpdfr(R1,'omz',dissv,'dissv',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
 #ifdef SCALAR_
         fnout = trim(odir) // '/' // 'jpdf_omz_Ri.' // ext // '.txt'
-        CALL dojpdfr(R1,'vz',Ri,'Ri',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+        CALL dojpdfr(R1,'omz',Ri,'Ri',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
         fnout = trim(odir) // '/' // 'jpdf_omz_PV.' // ext // '.txt'
-        CALL dojpdfr(R1,'vz',pv,'PV',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+        CALL dojpdfr(R1,'omz',pv,'PV',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
 #endif
       ENDIF
 
@@ -2243,7 +2243,7 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
       ENDIF
 
 #ifdef SCALAR_
-      ! Compute statistics for buoyancy flux: N \theta v_z:
+      ! Compute statistics for buoyancy flux: N theta v_z:
       ctmp = th;
       CALL fftp3d_complex_to_real(plancr,ctmp,R1,MPI_COMM_WORLD)
       ctmp = vz;
@@ -3209,9 +3209,9 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       ENDDO
 
       CALL derivk3(th, ctmp1, 3)  ! z-deriv
-      CALL fftp3d_complex_to_real(plancr,ctmp1,R1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,ctmp1,R1,MPI_COMM_WORLD) ! dtheta/dz
       CALL rotor3(vy,vz,ctmp1,3)
-      CALL fftp3d_complex_to_real(plancr,ctmp1,R2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,ctmp1,R2,MPI_COMM_WORLD) ! omega_z
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
