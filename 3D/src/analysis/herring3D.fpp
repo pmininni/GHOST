@@ -2349,6 +2349,15 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
       ENDIF
 #endif
 
+      ! Compute statistics for gradient Ri:
+      n = n + 1; sfld(n) = 'Rig' 
+if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
+      CALL skewflat(Ri,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      If ( ibits(kin,0,1).EQ.1 ) THEN
+        fnout = trim(odir) // '/' // 'Rigpdf.' // ext // '.txt'
+        CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      ENDIF
+
       ! Create format for statistical data:
       WRITE(rowfmt,'(A, I4, A)') '(I4,',n,'(2X,E14.6))'
       WRITE(hdrfmt,'(A, I4, A)') '(A,',n,'(2X,A))'
@@ -2368,7 +2377,7 @@ enddo
         fnout = trim(odir) // '/' // 'kavg.txt'
         OPEN(2,file=trim(fnout),position='append')
         if ( .NOT. bexist ) THEN
-        WRITE(2,hdrfmt,advance='yes') 'itime', (sfld(j), j=1,n)
+        WRITE(2,hdrfmt,advance='yes') '#itime', (sfld(j), j=1,n)
         ENDIF
         WRITE(2,rowfmt,advance='no') indtime, (av(j), j=1,n)
         CLOSE(2)
@@ -2376,7 +2385,7 @@ enddo
         fnout = trim(odir) // '/' // 'skew.txt'
         OPEN(2,file=trim(fnout),position='append')
         if ( .NOT. bexist ) THEN
-        WRITE(2,hdrfmt,advance='yes') 'itime', (sfld(j), j=1,n)
+        WRITE(2,hdrfmt,advance='yes') '#itime', (sfld(j), j=1,n)
         ENDIF
         WRITE(2,rowfmt,advance='no') indtime, (sk(j), j=1,n)
         CLOSE(2)
@@ -2384,7 +2393,7 @@ enddo
         fnout = trim(odir) // '/' // 'flat.txt'
         OPEN(2,file=trim(fnout),position='append')
         if ( .NOT. bexist ) THEN
-        WRITE(2,hdrfmt,advance='yes') 'itime', (sfld(j), j=1,n)
+        WRITE(2,hdrfmt,advance='yes') '#itime', (sfld(j), j=1,n)
         ENDIF
         WRITE(2,rowfmt,advance='no') indtime, (ku(j), j=1,n)
         CLOSE(2)
@@ -2392,7 +2401,7 @@ enddo
         fnout = trim(odir) // '/' // 'glop.txt'
         OPEN(2,file=trim(fnout),position='append')
         if ( .NOT. bexist ) THEN
-        WRITE(2,hdrfmt,advance='yes') 'itime', (sfld(j), j=1,n)
+        WRITE(2,hdrfmt,advance='yes') '#itime', (sfld(j), j=1,n)
         ENDIF
         WRITE(2,rowfmt,advance='no') indtime, (g5(j), j=1,n)
         CLOSE(2)
@@ -2400,7 +2409,7 @@ enddo
         fnout = trim(odir) // '/' // 'whoa.txt'
         OPEN(2,file=trim(fnout),position='append')
         if ( .NOT. bexist ) THEN
-        WRITE(2,hdrfmt,advance='yes') 'itime', (sfld(j), j=1,n)
+        WRITE(2,hdrfmt,advance='yes') '#itime', (sfld(j), j=1,n)
         ENDIF
         WRITE(2,rowfmt,advance='no') indtime, (w6(j), j=1,n)
         CLOSE(2)
@@ -2448,7 +2457,6 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: done.'
       CALL MPI_ALLREDUCE(nz, gnz, 1, MPI_INTEGER, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
 
-write(*,*)'skewflat....................gn=', gnz
       xnorm = 1.0_GP / (dble(nx)*dble(ny)*dble(gnz))
       ds2 = 0.0D0
 !$omp parallel do default(shared) private(j) reduction(+:s2)
