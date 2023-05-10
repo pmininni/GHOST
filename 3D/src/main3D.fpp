@@ -4,13 +4,13 @@
 ! GHOST code: Geophysical High Order Suite for Turbulence
 !
 ! Numerically integrates several fluid dynamics equations
-! in 2 and 3 dimensions with periodic boundary conditions 
-! and external forcing. A pseudo-spectral method is used to 
-! compute spatial derivatives, while an adjustable order 
-! Runge-Kutta method is used to evolve the system in the time 
-! domain. To compile, you need the FFTW library installed on 
+! in 2 and 3 dimensions with periodic boundary conditions
+! and external forcing. A pseudo-spectral method is used to
+! compute spatial derivatives, while an adjustable order
+! Runge-Kutta method is used to evolve the system in the time
+! domain. To compile, you need the FFTW library installed on
 ! your system. The parallel FFT is in the FFTP subroutines
-! and uses the FFTPLANS and MPIVARS modules (see the file 
+! and uses the FFTPLANS and MPIVARS modules (see the file
 ! 'fftp_mod.f90' for details).
 !
 ! Notation: index 'i' is 'x'
@@ -50,7 +50,7 @@
 !           EDQNMROTH_SOL  builds the EDQNM ROTH solver
 !
 ! 2003 Pablo D. Mininni.
-!      Department of Physics, 
+!      Department of Physics,
 !      Facultad de Ciencias Exactas y Naturales.
 !      Universidad de Buenos Aires.
 !      e-mail: mininni@df.uba.ar
@@ -324,7 +324,7 @@
       INTEGER :: ihcpu1,ihcpu2
       INTEGER :: ihomp1,ihomp2
       INTEGER :: ihwtm1,ihwtm2
-#if defined(SCALAR_) || defined(MULTISCALAR_) 
+#if defined(SCALAR_) || defined(MULTISCALAR_)
       INTEGER :: injt,injtm
       INTEGER :: creset
 #endif
@@ -404,18 +404,18 @@
       NAMELIST / mscalar / cc10,ss10,cc20,ss20,cc30,ss30
       NAMELIST / mscalar / skdn,skup
       NAMELIST / mscalar / kappa1,kappa2,kappa3
-      NAMELIST / mscalar / c1param0,c1param1,c1param2,c1param3,c1param4 
-      NAMELIST / mscalar / c1param5,c1param6,c1param7,c1param8,c1param9 
-      NAMELIST / mscalar / s1param0,s1param1,s1param2,s1param3,s1param4 
-      NAMELIST / mscalar / s1param5,s1param6,s1param7,s1param8,s1param9 
-      NAMELIST / mscalar / c2param0,c2param1,c2param2,c2param3,c2param4 
-      NAMELIST / mscalar / c2param5,c2param6,c2param7,c2param8,c2param9 
-      NAMELIST / mscalar / s2param0,s2param1,s2param2,s2param3,s2param4 
-      NAMELIST / mscalar / s2param5,s2param6,s2param7,s2param8,s2param9 
-      NAMELIST / mscalar / c3param0,c3param1,c3param2,c3param3,c3param4 
-      NAMELIST / mscalar / c3param5,c3param6,c3param7,c3param8,c3param9 
-      NAMELIST / mscalar / s3param0,s3param1,s3param2,s3param3,s3param4 
-      NAMELIST / mscalar / s3param5,s3param6,s3param7,s3param8,s3param9 
+      NAMELIST / mscalar / c1param0,c1param1,c1param2,c1param3,c1param4
+      NAMELIST / mscalar / c1param5,c1param6,c1param7,c1param8,c1param9
+      NAMELIST / mscalar / s1param0,s1param1,s1param2,s1param3,s1param4
+      NAMELIST / mscalar / s1param5,s1param6,s1param7,s1param8,s1param9
+      NAMELIST / mscalar / c2param0,c2param1,c2param2,c2param3,c2param4
+      NAMELIST / mscalar / c2param5,c2param6,c2param7,c2param8,c2param9
+      NAMELIST / mscalar / s2param0,s2param1,s2param2,s2param3,s2param4
+      NAMELIST / mscalar / s2param5,s2param6,s2param7,s2param8,s2param9
+      NAMELIST / mscalar / c3param0,c3param1,c3param2,c3param3,c3param4
+      NAMELIST / mscalar / c3param5,c3param6,c3param7,c3param8,c3param9
+      NAMELIST / mscalar / s3param0,s3param1,s3param2,s3param3,s3param4
+      NAMELIST / mscalar / s3param5,s3param6,s3param7,s3param8,s3param9
 #endif
 #if defined(SCALAR_) || defined(MULTISCALAR_)
       NAMELIST / inject / injt,injtm,creset
@@ -450,8 +450,8 @@
       NAMELIST / wavefunction / cspeed,lambda,rho0,kttherm,V0
       NAMELIST / wavefunction / cflow,iter_max_newt,iter_max_bicg
       NAMELIST / wavefunction / cflow_newt,dt_newt,tol_newt,tolbicg_rel
-      NAMELIST / wavefunction / zparam0,zparam1,zparam2,zparam3,zparam4 
-      NAMELIST / wavefunction / zparam5,zparam6,zparam7,zparam8,zparam9 
+      NAMELIST / wavefunction / zparam0,zparam1,zparam2,zparam3,zparam4
+      NAMELIST / wavefunction / zparam5,zparam6,zparam7,zparam8,zparam9
 #endif
 #ifdef ALPHAV_
       NAMELIST / alphav / alpk
@@ -636,10 +636,10 @@
       ALLOCATE( Rv2(nx,ny,ksta:kend) )
 #endif
 #if defined (TESTPART_) && defined(MAGFIELD_)
-      ALLOCATE( Rb1(nx,ny,ksta:kend) )        
+      ALLOCATE( Rb1(nx,ny,ksta:kend) )
       ALLOCATE( Rb2(nx,ny,ksta:kend) )
       ALLOCATE( Rb3(nx,ny,ksta:kend) )
-      ALLOCATE( Rj1(nx,ny,ksta:kend) )        
+      ALLOCATE( Rj1(nx,ny,ksta:kend) )
       ALLOCATE( Rj2(nx,ny,ksta:kend) )
       ALLOCATE( Rj3(nx,ny,ksta:kend) )
 #endif
@@ -659,7 +659,7 @@
 !
 ! The following lines read the file 'parameter.inp'
 
-! Reads general configuration flags from the namelist 
+! Reads general configuration flags from the namelist
 ! 'status' on the external file 'parameter.inp'
 !     idir : directory for unformatted input
 !     odir : directory for unformatted output
@@ -694,9 +694,9 @@
       CALL MPI_BCAST(trans,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iswap,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
-! Reads parameters that will be used to control the 
-! time integration from the namelist 'parameter' on 
-! the external file 'parameter.inp' 
+! Reads parameters that will be used to control the
+! time integration from the namelist 'parameter' on
+! the external file 'parameter.inp'
 !     dt   : time step size
 !     step : total number of time steps to compute
 !     tstep: number of steps between binary output
@@ -738,7 +738,7 @@
       Dkz = 1.0_GP
       Dkk = 0.0_GP
 #ifdef DEF_ARBSIZE_
-! Reads parameters to set the box size 
+! Reads parameters to set the box size
 !     Lx  : Length in x (in units of 2.pi, =1 gives a side of length 2.pi)
 !     Ly  : Length in y
 !     Lz  : Length in z
@@ -761,14 +761,14 @@
       IF (Dkk.lt.1e-5) Dkk = min(Dkx,Dky,Dkz)
 
 #if defined(VELOC_) || defined(ADVECT_)
-! Reads parameters for the velocity field from the 
-! namelist 'velocity' on the external file 'parameter.inp' 
+! Reads parameters for the velocity field from the
+! namelist 'velocity' on the external file 'parameter.inp'
 !     f0   : amplitude of the mechanical forcing
 !     u0   : amplitude of the initial velocity field
 !     kdn  : minimum wave number in v/mechanical forcing
 !     kup  : maximum wave number in v/mechanical forcing
 !     nu   : kinematic viscosity
-!     fparam0-9 : ten real numbers to control properties of 
+!     fparam0-9 : ten real numbers to control properties of
 !            the mechanical forcing
 !     vparam0-9 : ten real numbers to control properties of
 !            the initial conditions for the velocity field
@@ -806,11 +806,11 @@
 #endif
 
 #ifdef BOUSSINESQ_
-! Reads parameters specifically for Boussinesq solver from the 
+! Reads parameters specifically for Boussinesq solver from the
 ! namelist 'boussinesq' on the external file 'parameter.inp'
 !     bvfreq: Brunt-Vaisala frequency (positive definite)
 !     xmom  : multiplies bouyancy term in momentum equation
-!     xtemp : multiplies temperature-current term in 
+!     xtemp : multiplies temperature-current term in
 !             temperature/density equation
       xmom  = 1.0
       xtemp = 1.0
@@ -827,12 +827,12 @@
 #endif
 
 #ifdef SCALAR_
-! Reads general configuration flags for runs with 
-! a passive/active scalar from the namelist 'inject' 
+! Reads general configuration flags for runs with
+! a passive/active scalar from the namelist 'inject'
 ! on the external file 'parameter.inp'
 !     injt : = 0 when stat=0 generates initial v and th (SCALAR_)
 !            = 1 when stat.ne.0 imports v and generates th (SCALAR_)
-!     creset: = 0: don't reset counters; 1 = reset counters 
+!     creset: = 0: don't reset counters; 1 = reset counters
 
       injt   = 0
       creset = 1
@@ -844,14 +844,14 @@
       CALL MPI_BCAST(injt  ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(creset,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
-! Reads parameters for the passive/active scalar from the 
+! Reads parameters for the passive/active scalar from the
 ! namelist 'scalar' on the external file 'parameter.inp'
 !     s0   : amplitude of the passive scalar source
 !     c0   : amplitude of the initial concentration
 !     skdn : minimum wave number in concentration/source
 !     skup : maximum wave number in concentration/source
 !     kappa: diffusivity
-!     sparam0-9 : ten real numbers to control properties of 
+!     sparam0-9 : ten real numbers to control properties of
 !            the source
 !     cparam0-9 : ten real numbers to control properties of
 !            the initial concentration
@@ -889,12 +889,12 @@
 #endif
 
 #ifdef MULTISCALAR_
-! Reads general configuration flags for runs with 
-! a passive/active scalar from the namelist 'inject' 
+! Reads general configuration flags for runs with
+! a passive/active scalar from the namelist 'inject'
 ! on the external file 'parameter.inp'
 !     injtm : = 0 when stat=0 generates initial v,th (SCALAR_), th[1-3]
 !             = 1 when stat.ne.0 imports v,th and generates th[1-3]
-!     creset: = 0: don't reset counters; 1 = reset counters 
+!     creset: = 0: don't reset counters; 1 = reset counters
 
       injtm  = 0
       creset = 1
@@ -907,7 +907,7 @@
       CALL MPI_BCAST(injtm ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(creset,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
-! Reads parameters for the passive/active scalar from the 
+! Reads parameters for the passive/active scalar from the
 ! namelist 'mscalar' on the external file 'parameter.inp'
 !     si0   : amplitude of the passive scalar source i
 !     ci0   : amplitude of the initial concentration i
@@ -916,7 +916,7 @@
 !     kappa1: diffusivity for scalars 1
 !     kappa2: diffusivity for scalars 2
 !     kappa3: diffusivity for scalars 3
-!     sparam0-9 : ten real numbers to control properties of 
+!     sparam0-9 : ten real numbers to control properties of
 !            the source
 !     cparam0-9 : ten real numbers to control properties of
 !            the initial concentration
@@ -1000,8 +1000,8 @@
 #endif
 
 #ifdef COMPRESSIBLE_
-! Reads parameters for the compressible runs from the 
-! namelist 'compressible' on the external file 'parameter.inp' 
+! Reads parameters for the compressible runs from the
+! namelist 'compressible' on the external file 'parameter.inp'
 !     smach : sound Mach number
 !     gam1  : gamma parameter for polytropic eq. of state
 !     nu2   : second viscosity for divergence (velocity) term
@@ -1020,8 +1020,8 @@
 #endif
 
 #ifdef CMHD_
-! Reads parameters for the compressible MHD runs from the 
-! namelist 'cmhdb' on the external file 'parameter.inp' 
+! Reads parameters for the compressible MHD runs from the
+! namelist 'cmhdb' on the external file 'parameter.inp'
 !     amach : Alfvenic Mach number
 
       IF (myrank.eq.0) THEN
@@ -1034,11 +1034,11 @@
 #endif
 
 #ifdef MAGFIELD_
-! Reads general configuration flags for runs with 
-! magnetic fields from the namelist 'dynamo' on 
+! Reads general configuration flags for runs with
+! magnetic fields from the namelist 'dynamo' on
 ! the external file 'parameter.inp'
 !     dyna : = 0 when stat=0 generates initial v and B (MAGFIELD_)
-!            = 1 when stat.ne.0 imports v and generates B (MAGFIELD_) 
+!            = 1 when stat.ne.0 imports v and generates B (MAGFIELD_)
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
@@ -1047,8 +1047,8 @@
       ENDIF
       CALL MPI_BCAST(dyna,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
-! Reads parameters for the magnetic field from the 
-! namelist 'magfield' on the external file 'parameter.inp' 
+! Reads parameters for the magnetic field from the
+! namelist 'magfield' on the external file 'parameter.inp'
 !     m0   : amplitude of the electromotive forcing
 !     a0   : amplitude of the initial vector potential
 !     mkdn : minimum wave number in B/electromotive forcing
@@ -1056,7 +1056,7 @@
 !     mu   : magnetic diffusivity
 !     corr : = 0 no correlation between the random phases
 !            = 1 correlation in the random phases generator
-!     mparam0-9 : ten real numbers to control properties of 
+!     mparam0-9 : ten real numbers to control properties of
 !            the electromotive forcing
 !     aparam0-9 : ten real numbers to control properties of
 !            the initial conditions for the magnetic field
@@ -1095,9 +1095,9 @@
 #endif
 
 #ifdef UNIFORMB_
-! Reads parameters for runs with a uniform magnetic 
-! field from the namelist 'uniformb' on the external 
-! file 'parameter.inp' 
+! Reads parameters for runs with a uniform magnetic
+! field from the namelist 'uniformb' on the external
+! file 'parameter.inp'
 !     bx0: uniform magnetic field in x
 !     by0: uniform magnetic field in y
 !     bz0: uniform magnetic field in z
@@ -1116,9 +1116,9 @@
 #endif
 
 #ifdef HALLTERM_
-! Reads parameters for runs with the Hall effect 
-! from the namelist 'hallparam' on the external 
-! file 'parameter.inp' 
+! Reads parameters for runs with the Hall effect
+! from the namelist 'hallparam' on the external
+! file 'parameter.inp'
 !     ep  : amplitude of the Hall effect
 !     gspe: = 0 skips generalized helicity spectrum computation
 !           = 1 computes the spectrum of generalized helicity
@@ -1133,7 +1133,7 @@
 #endif
 
 #ifdef ROTATION_
-! Reads parameters for runs with rotation from the 
+! Reads parameters for runs with rotation from the
 ! namelist 'rotation' on the external file 'parameter.inp'
 !     omegax: amplitude of the uniform rotation along x
 !     omegay: amplitude of the uniform rotation along y
@@ -1153,8 +1153,8 @@
 #endif
 
 #ifdef WAVEFUNCTION_
-! Reads parameters specifically for the GPE and ARGL solvers 
-! from the namelist 'wavefunction' on the external file 
+! Reads parameters specifically for the GPE and ARGL solvers
+! from the namelist 'wavefunction' on the external file
 ! 'parameter.inp'
 !     cspeed : speed of sound
 !     lambda : coherence length
@@ -1168,7 +1168,7 @@
 !     iter_max_bicg: max number of iterations for biconjugate gradient (ARGL)
 !     tol_newt     : tolerance for the Newton method (ARGL)
 !     tolbicg_rel  : relarive tolerance for biconjugate gradient (ARGL)
-!     zparam0-9    : ten real numbers to control properties of 
+!     zparam0-9    : ten real numbers to control properties of
 !              the wavefunction
 
       rho0 = 1.0_GP        !Default value
@@ -1217,7 +1217,7 @@
 #endif
 
 #ifdef ALPHAV_
-! Reads the value of alpha for the velocity field 
+! Reads the value of alpha for the velocity field
 ! in runs using Lagrangian averaged subgrid models
 !     alpk: filter length for the velocity field
 
@@ -1230,7 +1230,7 @@
 #endif
 
 #ifdef ALPHAB_
-! Reads the value of alpha for the magnetic field 
+! Reads the value of alpha for the magnetic field
 ! in runs using Lagrangian averaged subgrid models
 !     alpm: filter length for the magnetic field
 
@@ -1243,8 +1243,8 @@
 #endif
 
 #ifdef EDQNM_
-! Reads the value of the Kolmogorov constant and a 
-! flag for the helicity LES in runs using EDQNM-based 
+! Reads the value of the Kolmogorov constant and a
+! flag for the helicity LES in runs using EDQNM-based
 ! LES models
 !     kolmo: Kolmogorov constant
 !     heli:  = 0 helicity not taken into account
@@ -1264,10 +1264,10 @@
 #ifdef PART_
 ! Reads parameters for runs with particles
 !     maxparts    : Maximum number of particles
-!     injtp       : = 0 when stat=0 generates initial v and part seeds 
-!                   = 1 when stat.ne.0 imports v and generates initial 
-!                     part seeds. If injtp=0 when stat.ne.0, then the 
-!                     particle restart file is read that corresp. to 
+!     injtp       : = 0 when stat=0 generates initial v and part seeds
+!                   = 1 when stat.ne.0 imports v and generates initial
+!                     part seeds. If injtp=0 when stat.ne.0, then the
+!                     particle restart file is read that corresp. to
 !                     stat.
 !     cresetp     : = 0 don't reset counters when injtp=1;
 !                   = 1: _do_ reset counters when injtp=1.
@@ -1281,7 +1281,7 @@
 !     ilgwrtunit  : Units for part position write: 0=box units; 1=grid units
 !     lgseedfile  : Name of seed file if ilginittype=GPINIT_USERLOC
 !     ilgcoll     : 1=binary collective I/O; 0=task 0 binary (posix) I/O
-!     dolag       : 1=run with particles; 0=don't 
+!     dolag       : 1=run with particles; 0=don't
 !     dopacc      : 1=compute acceleration internally; 0=don't
 !     XlgfpX      : Parameters for 'fixed point' particles (test of
 !                   frozen-in, only for LAGPART)
@@ -1333,7 +1333,7 @@
       IF ( mod(tstep,lgmult).NE.0 ) THEN
         WRITE(*,*)'main: lgmult must divide tstep evenly'
         STOP
-      ENDIF  
+      ENDIF
       pstep = tstep/lgmult
 #endif
 
@@ -1410,7 +1410,7 @@
       tiny  = min(1e-5_GP ,.1_GP/(real(nmax,kind=GP)**2))
       tinyf = min(1e-15_GP,.1_GP/(real(nmax,kind=GP)**2))
 
-! Builds arrays with the wavenumbers and the 
+! Builds arrays with the wavenumbers and the
 ! square wavenumbers. At the end, kx, ky, and kz
 ! have wavenumbers with dimensions, kk2 has the
 ! squared wavenumbers with dimensions, and kn2 has
@@ -2061,8 +2061,8 @@
 
 !
 ! Time integration scheme starts here.
-! Does ord iterations of Runge-Kutta. If 
-! we are doing a benchmark, we measure 
+! Does ord iterations of Runge-Kutta. If
+! we are doing a benchmark, we measure
 ! cputime before starting.
 
       IF (bench.eq.1) THEN
@@ -2086,7 +2086,7 @@
  RK : DO t = ini,step
 
 ! Updates the external forcing. Every 'fsteps'
-! the phase or amplitude is changed according 
+! the phase or amplitude is changed according
 ! to the value of 'rand'.
  TF :    IF (timef.eq.fstep) THEN
             timef = 0
@@ -2133,9 +2133,9 @@
                DO i = ista,iend
                   DO j = 1,ny
                      DO k = 1,nz
-                        fxold(k,j,i) = fx(k,j,i) 
-                        fyold(k,j,i) = fy(k,j,i) 
-                        fzold(k,j,i) = fz(k,j,i) 
+                        fxold(k,j,i) = fx(k,j,i)
+                        fyold(k,j,i) = fy(k,j,i)
+                        fzold(k,j,i) = fz(k,j,i)
                      END DO
                   END DO
                END DO
@@ -2147,9 +2147,9 @@
                DO i = ista,iend
                   DO j = 1,ny
                      DO k = 1,nz
-                        fxnew(k,j,i) = fx(k,j,i) 
-                        fynew(k,j,i) = fy(k,j,i) 
-                        fznew(k,j,i) = fz(k,j,i) 
+                        fxnew(k,j,i) = fx(k,j,i)
+                        fynew(k,j,i) = fy(k,j,i)
+                        fznew(k,j,i) = fz(k,j,i)
                      END DO
                   END DO
                END DO
@@ -2160,9 +2160,9 @@
                DO i = ista,iend
                   DO j = 1,ny
                      DO k = 1,nz
-                        mxold(k,j,i) = mx(k,j,i) 
-                        myold(k,j,i) = my(k,j,i) 
-                        mzold(k,j,i) = mz(k,j,i) 
+                        mxold(k,j,i) = mx(k,j,i)
+                        myold(k,j,i) = my(k,j,i)
+                        mzold(k,j,i) = mz(k,j,i)
                      END DO
                   END DO
                END DO
@@ -2174,9 +2174,9 @@
                DO i = ista,iend
                   DO j = 1,ny
                      DO k = 1,nz
-                        mxnew(k,j,i) = mx(k,j,i) 
-                        mynew(k,j,i) = my(k,j,i) 
-                        mznew(k,j,i) = mz(k,j,i) 
+                        mxnew(k,j,i) = mx(k,j,i)
+                        mynew(k,j,i) = my(k,j,i)
+                        mznew(k,j,i) = mz(k,j,i)
                      END DO
                   END DO
                END DO
@@ -2216,7 +2216,7 @@
 #endif
          END IF
 
-! Every 'tstep' steps, stores the fields 
+! Every 'tstep' steps, stores the fields
 ! in binary files
 
          IF ((timet.eq.tstep).and.(bench.eq.0)) THEN
@@ -2878,7 +2878,7 @@
 	               ' fft=', ffttime/(step-ini+1),    &
 		       ' transp=',tratime/(step-ini+1),  &
 		       ' comm=',comtime/(step-ini+1),    &
-		       ' mem=',0.0, ' ttot=',tottime/(step-ini+1) 
+		       ' mem=',0.0, ' ttot=',tottime/(step-ini+1)
 #endif
             IF (bench.eq.2) THEN
                WRITE(1,*) 'FFTW: Create_plan = ',      &
@@ -2889,7 +2889,12 @@
             CLOSE(1)
 #if defined(PART_)
             IF ( dolag.GT.0 ) THEN
+              inquire( file='gpbenchmark.txt', exist=bbenchexist )
               OPEN(1,file='gpbenchmark.txt',position='append')
+              IF (.NOT. bbenchexist) THEN
+                 WRITE(1,*) &
+  '# nx ny nz nparts rbal nsteps nth TRK TCOMM TSPL TTRANS TDEX TINT TUPD'
+              ENDIF
               WRITE(1,*) nx,ny,nz,maxparts,rbal/(step-ini+1),            &
                            (step-ini+1),nprocs,nth,                      &
                            lagpart%GetTime   (GPTIME_STEP)/(step-ini+1), &
