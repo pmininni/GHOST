@@ -1425,6 +1425,9 @@
          ky(j) = real(j-1,kind=GP)
          ky(j+ny/2) = real(j-ny/2-1,kind=GP)
       END DO
+      IF (ny.eq.1) THEN
+         ky(1) = 0.0_GP
+      ENDIF
       DO k = 1,nz/2
          kz(k) = real(k-1,kind=GP)
          kz(k+nz/2) = real(k-nz/2-1,kind=GP)
