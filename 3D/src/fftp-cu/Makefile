@@ -22,5 +22,5 @@ edit:
 	$(CPP) -DG$(PRECISION)_PRECISION fftp3D.fpp -o fftp3D.f90
 
 clean:
-	rm -f *.o *.d *.s *.int *.inf *.mod work.pc* ifc*
+	rm -f *.o *.d *.s *.int *.inf *.mod *.modmic work.pc* ifc*
 	rm -f fprecision_mod.f90 fftp_mod.f90 fftp3D.f90
