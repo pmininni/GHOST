@@ -50,7 +50,8 @@ LAGPDEFiner  = -DDEF_GHOST_INERP
 LAGPDEFtest  = -DDEF_GHOST_TESTP
 LAGPDEFno    = 
 LAGPOBJSyes  = $(LAGP)/gpdbrec_mod.o $(LAGP)/gpartcomm_mod.o \
-	           $(LAGP)/gpsplineint_mod.o  $(LAGP)/gparts_mod.o
+	       $(LAGP)/gpicsplineint_mod.o                   \
+	       $(LAGP)/gpsplineint_mod.o  $(LAGP)/gparts_mod.o
 LAGPOBJSlag  = $(LAGPOBJSyes)
 LAGPOBJSiner = $(LAGPOBJSyes)
 LAGPOBJStest = $(LAGPOBJSyes)
@@ -376,6 +377,9 @@ $(LAGP)/gpartcomm_mod.o:
 
 $(LAGP)/gpsplineint_mod.o:
 	cd $(LAGP) && $(MAKE) COMPILE='$(SPECOMP)' gpsplineint_mod.o
+
+$(LAGP)/gpicsplineint_mod.o:
+	cd $(LAGP) && $(MAKE) COMPILE='$(SPECOMP)' gpicsplineint_mod.o
 
 $(LAGP)/gparts_mod.o:
 	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' gparts_mod.o
