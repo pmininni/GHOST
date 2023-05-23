@@ -81,7 +81,21 @@
 #if defined(DO_HYBRIDoffl)
 !$      ndev = omp_get_num_devices()
 !$      hdev = omp_get_initial_device()
-!$      tdev = MODULO(myrank,ndev) + 1
+!$      IF (ndev.eq.0) THEN
+!$         PRINT *, "No devices found in the computing node"
+!$         STOP
+!$      ELSE
+!$        tdev = MODULO(myrank,ndev)
+!$        IF (ndev.ne.hdev) THEN
+!$          PRINT *, "The IDs of the host and target devices do not  &
+!$                    conform with the GHOST standard. Please check  &
+!$                    that the computing nodes have accelerators, or &
+!$                    check whether the numbering of devices in this &
+!$                    system goes from 0 to num_devices-1, with the  &
+!$                    host device ID equal to the number of devices."
+!$          STOP
+!$        ENDIF
+!$      ENDIF
 #endif
       END SUBROUTINE init_offload
 

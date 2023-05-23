@@ -30,7 +30,7 @@ IOLIB    = mpiio
 # P_HYBRID=no   # MPI-based parallelization only
 # P_HYBRID=yes  # OpenMP-MPI hybridization
 # P_HYBRID=offl # OpenMP-MPI with offloading to GPUs
-P_HYBRID = no
+P_HYBRID = yes
 
 # Parallelization model for accelerators:
 # P_CUDA=yes    # CUDA-MPI (or CUDA-OpenMP-MPI) hybridization
@@ -42,7 +42,7 @@ P_CUDA   = no
 # PARTICLES = lag (=yes) # Build Lag. particles
 # PARTICLES = iner       # Build Inertial particles
 # PARTICLES = test       # Build Test particles (only with magnetic fields)
-PARTICLES = no
+PARTICLES = yes
 
 # FFTP:
 # fftp-2   builds FFTP-2 (links with FFTW 2.x)
@@ -52,7 +52,7 @@ PARTICLES = no
 # version of the FFT that is used is needed, the others can be left empty.
 FFTP     = fftp-3
 FFTW2DIR = /opt/ohpc/pub/libs/gnu7/fftw/2.1.5
-FFTW3DIR = /opt/ohpc/pub/libs/gnu7/fftw/3.3.7
+FFTW3DIR = /opt/fftw-3.3.9
 MKLDIR   = /opt/ohpc/pub/compiler/intel/mkl/2022.1.0
 
 # IKIND    4 in 32 bits machines, 8 in 64 bits machines
@@ -128,7 +128,7 @@ TARGET_INTEL  =
 # CGG >=10.X with some MPI libraries may require using
 # "FC_GNU = gfortran -w -fallow-argument-mismatch".
 CPP_GNU       = cpp -traditional-cpp
-FC_GNU        = gfortran
+FC_GNU        = gfortran -w -fallow-argument-mismatch
 CC_GNU        = gcc
 FFLAGS_GNU    = -O3 -funroll-loops
 FPSPEC_GNU    = -O3 -funroll-loops
@@ -181,11 +181,10 @@ MPILD_MPICH   = -lmpich -lmpichf90 -lfmpich -lpthread -lrt -lmpich \
   -lpthread -lrt -luuid
 #
 # OPENMPI (OPEN)
-MPIINC_OPEN = -I/opt/ohpc/pub/mpi/openmpi3-gnu7/3.0.0/include
-MPILIB_OPEN = -L/opt/ohpc/pub/mpi/openmpi3-gnu7/3.0.0/lib
-MPILD_OPEN  = -pthread -lmpi_usempif08 -lmpi_usempi_ignore_tkr \
-  -lmpi_mpifh -lmpi -Wl,--enable-new-dtags -Wl,-rpath \
-  -Wl,/opt/ohpc/pub/mpi/openmpi3-gnu7/3.0.0/lib
+MPIINC_OPEN = -I/opt/openmpi-4.1.0/include
+MPILIB_OPEN = -L/opt/openmpi-4.1.0/lib
+MPILD_OPEN  = -Wl,-flat_namespace -Wl,-commons,use_dylibs -lmpi_usempif08 \
+  -lmpi_usempi_ignore_tkr -lmpi_mpifh -lmpi
 #
 # INTEL MPI (INTEL)
 MPIINC_INTEL = -I/opt/ohpc/pub/compiler/intel/mpi/2021.6.0/include \

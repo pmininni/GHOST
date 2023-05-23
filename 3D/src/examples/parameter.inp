@@ -123,9 +123,9 @@ V0 = 0.00        ! Amplitude of trapping potential (RARGL and RGPE solvers)
 cflow = 0        ! =1 if generating counterflow (ARGL and RARGL solver)
 cflow_newt = 0   ! =1 if mean flow is needed for Newton method (ARGL/RARGL)
 dt_newt = 1.00   ! time step (preconditioner) for Newton method (ARGL/RARGL)
-iter_max_newt = 0 ! max number of iterations in Newton (ARGL, if 0 no Newton)
+iter_max_newt = 0   ! max number of iterations in Newton (ARGL, if 0 no Newton)
 iter_max_bicg = 200 ! max number of iterations for BicGStab (ARGL/RARGL)
-tol_newt = 1.e-6 ! tolerance for the Newton method (ARGL/RARGL)
+tol_newt = 1.e-6    ! tolerance for the Newton method (ARGL/RARGL)
 tolbicg_rel = 1.e-4 ! relative tolerance for biconjugate gradient stab (ARGL)
 zparam0 = 0.01   ! cparam0-9 can be used to control the wavefunction
 /
