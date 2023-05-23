@@ -18,7 +18,7 @@ N  = 1000000 # Number of particles
 dim = 3      # Spatial dimensions
 iun = 0      # 0 if data is in grid units (ilgwrtunit = 0), 1 otherwise 
 
-# Checks for files
+# Looks for files
 files = sorted(glob.glob(path+'/xlg.*.lag'))
 ind   = 0
 
@@ -34,6 +34,9 @@ def StepFile() -> None:
     nmb = files[ind].lstrip(path+'/xlg.').rstrip('.lag')
     vel = np.fromfile(path+'/vlg.'+nmb+'.lag',dtype=np.float32)
     vel = vel[2:].reshape((N,dim))
+    # We add two particles to set the domain size in VAPOR
+    pos = np.append(pos, [[0 ,0 ,0 ],[LX,LY,LZ]], axis = 0)
+    vel = np.append(vel, [[0 ,0 ,0 ],[0 ,0 ,0 ]], axis = 0)
     ind = ind+1
 
 # Wraps an array in an additional dimension
