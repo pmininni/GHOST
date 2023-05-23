@@ -71,6 +71,9 @@ MODULE class_GPartComm
         GENERIC  ,PUBLIC :: Concat            => ConcatPDB,ConcatV
       END TYPE GPartComm
 
+      INCLUDE "gfieldcomm_dtype.f90"
+      INCLUDE "gfieldcomm_private.f90"
+
       PRIVATE :: GPartComm_Init
       PRIVATE :: GPartComm_SlabDataExchangeMF, GPartComm_SlabDataExchangeSF
       PRIVATE :: GPartComm_LocalDataExchMF   , GPartComm_LocalDataExchSF
@@ -2116,5 +2119,7 @@ MODULE class_GPartComm
   END SUBROUTINE GPartComm_Copy2Ext
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
+
+  INCLUDE "gfieldcomm_contain.f90"
 
 END MODULE class_GPartComm
