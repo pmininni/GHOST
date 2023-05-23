@@ -14,6 +14,7 @@ MODULE class_GPart
       USE gtimer
       USE class_GPartComm
       USE class_GPSplineInt
+      USE class_GPICSplineInt
 
       IMPLICIT NONE
       INCLUDE 'mpif.h' 
@@ -109,6 +110,7 @@ MODULE class_GPart
 
       INCLUDE 'iparts_dtype.f90'
       INCLUDE 'tparts_dtype.f90'
+      INCLUDE 'gpic_dtype.f90'
 
       PRIVATE :: GPart_Init               , GPart_StepRKK     
       PRIVATE :: GPart_SetStepRKK         , GPart_EndStageRKK
@@ -129,6 +131,7 @@ MODULE class_GPart
 
       INCLUDE 'iparts_private.f90'
       INCLUDE 'tparts_private.f90'
+      INCLUDE 'gpic_private.f90'
 
 ! Methods:
   CONTAINS
@@ -2750,5 +2753,6 @@ MODULE class_GPart
 
   INCLUDE 'iparts_contain.f90'
   INCLUDE 'tparts_contain.f90'
+  INCLUDE 'gpic_contain.f90'
   
 END MODULE class_GPart
