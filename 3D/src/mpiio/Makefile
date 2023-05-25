@@ -11,4 +11,4 @@ $(OBJS):
 	$(COMPILE) $(@:.o=.f90)
 
 clean:
-	rm -f *.o *.d *.s *.int *.inf *.mod work.pc* ifc*
+	rm -f *.o *.d *.s *.int *.inf *.mod *.modmic work.pc* ifc*

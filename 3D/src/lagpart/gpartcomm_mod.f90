@@ -1,12 +1,12 @@
 !=================================================================
-! GHOST GPartComm particles communication class. It handles 
-!       two types of exchanges: the particles, and the 
+! GHOST GPartComm particles communication class. It handles
+!       two types of exchanges: the particles, and the
 !       velocity data used to update the particle positions,
-!       (the 'ghost' zone data) and separate interfaces are 
-!       provided for each. The velocity data can be exchanged 
+!       (the 'ghost' zone data) and separate interfaces are
+!       provided for each. The velocity data can be exchanged
 !       for _any_ other field variable as well, although the
 !       'multi-field' interfaces may not be appropriate for it.
-!       
+!
 ! 2013 D. Rosenberg
 !      ORNL: NCCS
 !
@@ -15,9 +15,9 @@
 MODULE class_GPartComm
       USE fprecision
       USE commtypes
-      USE gtimer 
+      USE gtimer
       IMPLICIT NONE
-      
+
       INTEGER,PARAMETER,PUBLIC                       :: GPNULL=-1          ! particle NULL value
       INTEGER,PARAMETER,PUBLIC                       :: GPCOMM_INTRFC_SF=0 ! single-field interface
       INTEGER,PARAMETER,PUBLIC                       :: GPCOMM_INTRFC_MF=1 ! multi-field interface
@@ -29,24 +29,24 @@ MODULE class_GPartComm
         INTEGER                                      :: intrfc_   ! if >=1 use multi-field interface
         INTEGER                                      :: maxparts_  ,nbuff_     ,nd_(3)   ,nzghost_
         INTEGER                                      :: nbsnd_     ,ntsnd_     ,nbrcv_   ,ntrcv_
-        INTEGER                                      :: nprocs_    ,myrank_    ,comm_    
+        INTEGER                                      :: nprocs_    ,myrank_    ,comm_
         INTEGER                                      :: csize_     ,nstrip_
-        INTEGER                                      :: ntop_      ,nbot_      ,ierr_    
+        INTEGER                                      :: ntop_      ,nbot_      ,ierr_
         INTEGER                                      :: iextperp_  ,ksta_      ,kend_    ,nth_
         INTEGER                                      :: hcomm_
         LOGICAL                                      :: btransinit_
-        INTEGER, ALLOCATABLE, DIMENSION(:,:)         :: ibsnd_     ,itsnd_     
-        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibrcv_     ,itrcv_     ,nbbrcv_   ,ntbrcv_
-        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibsh_      ,itsh_      ,ibrh_    ,itrh_ 
-        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: igsh_      ,igrh_  
-        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: itypekp_    ,itypeip_    ,itypea_
+        INTEGER, ALLOCATABLE, DIMENSION(:,:)         :: ibsnd_     ,itsnd_
+        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibrcv_     ,itrcv_     ,nbbrcv_  ,ntbrcv_
+        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibsh_      ,itsh_      ,ibrh_    ,itrh_
+        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: igsh_      ,igrh_
+        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: itypekp_   ,itypeip_   ,itypea_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibsndnz_   ,itsndnz_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: itop_      ,ibot_
         INTEGER, ALLOCATABLE, DIMENSION(:,:)         :: ibsnddst_  ,itsnddst_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibrcvnz_   ,itrcvnz_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibsndp_    ,ibrcvp_    ,itsndp_  ,itrcvp_
         INTEGER, DIMENSION (MPI_STATUS_SIZE)         :: istatus_
-        REAL(KIND=GP), ALLOCATABLE, DIMENSION  (:)   :: sbbuff_    ,stbuff_    
+        REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:)   :: sbbuff_    ,stbuff_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:)   :: rbbuff_    ,rtbuff_
       CONTAINS
         ! Public methods:
@@ -71,15 +71,15 @@ MODULE class_GPartComm
         GENERIC  ,PUBLIC :: Concat            => ConcatPDB,ConcatV
       END TYPE GPartComm
 
-      PRIVATE :: GPartComm_Init              
+      PRIVATE :: GPartComm_Init
       PRIVATE :: GPartComm_SlabDataExchangeMF, GPartComm_SlabDataExchangeSF
       PRIVATE :: GPartComm_LocalDataExchMF   , GPartComm_LocalDataExchSF
-      PRIVATE :: GPartComm_PartExchangePDB   , GPartComm_PartExchangeV 
+      PRIVATE :: GPartComm_PartExchangePDB   , GPartComm_PartExchangeV
       PRIVATE :: GPartComm_Transpose         , GPartComm_GetNumGhost
       PRIVATE :: GPartComm_PackMF            , GPartComm_UnpackMF
       PRIVATE :: GPartComm_PackSF            , GPartComm_UnpackSF
       PRIVATE :: GPartComm_PPackPDB          , GPartComm_PUnpackPDB
-      PRIVATE :: GPartComm_PPackV            , GPartComm_PUnpackV 
+      PRIVATE :: GPartComm_PPackV            , GPartComm_PUnpackV
       PRIVATE :: GPartComm_SetCacheParam
 
 ! Methods:
@@ -91,13 +91,13 @@ MODULE class_GPartComm
 !  Main explicit constructor
 !  ARGUMENTS:
 !    this    : 'this' class instance
-!    intrface: which interface (MF (>=1) or SF (0) is expected. MF uses more 
+!    intrface: which interface (MF (>=1) or SF (0) is expected. MF uses more
 !              memory, but should be faster.
-!    nparts  : no. particles allowed on grid. 
-!    nd(3)   : x- ,y- , and z- (global) dimensions of data 
-!    nzghost : 'z' : no. slices of each slab required to 
-!              build 'ghost' zones.  If there are fewer slices on 
-!              adjacent tasks, method will go 'adjacent' tasks to find 
+!    nparts  : no. particles allowed on grid.
+!    nd(3)   : x- ,y- , and z- (global) dimensions of data
+!    nzghost : 'z' : no. slices of each slab required to
+!              build 'ghost' zones.  If there are fewer slices on
+!              adjacent tasks, method will go 'adjacent' tasks to find
 !              the information to fill ghost zones.
 !    comm    : MPI communicator
 !    hcomm   : externally-managed comm-timer handle; must be non-null on entry
@@ -182,7 +182,7 @@ MODULE class_GPartComm
     IF ( ALLOCATED   (this%rtbuff_) ) DEALLOCATE  (this%rtbuff_)
     IF ( ALLOCATED     (this%itop_) ) DEALLOCATE    (this%itop_)
     IF ( ALLOCATED     (this%ibot_) ) DEALLOCATE    (this%ibot_)
-  
+
     IF ( ALLOCATED   (this%ibrcvp_) ) DEALLOCATE  (this%ibrcvp_)
     IF ( ALLOCATED   (this%ibsndp_) ) DEALLOCATE  (this%ibsndp_)
     IF ( ALLOCATED   (this%itrcvp_) ) DEALLOCATE  (this%itrcvp_)
@@ -232,7 +232,7 @@ MODULE class_GPartComm
 
     ! Compute the no. sendto and recv from tasks there are:
 
-    ! If there aren't enough 'slices' with nearest neighbors to 
+    ! If there aren't enough 'slices' with nearest neighbors to
     ! fill ghost zones, go to next furthest tasks, etc., to fill:
     this%nbsnd_ = 0
     this%ntsnd_ = 0
@@ -241,10 +241,10 @@ MODULE class_GPartComm
     n2p = this%nd_(3)/this%nprocs_
     nt  = (this%nzghost_+n2p-1)/n2p  ! max no. tasks needed for ghost zones
 
-    CALL GPartComm_DoDealloc(this) 
- 
-    ALLOCATE(this%sbbuff_ (this%nbuff_))
-    ALLOCATE(this%stbuff_ (this%nbuff_))
+    CALL GPartComm_DoDealloc(this)
+
+    ALLOCATE(this%sbbuff_ (this%nbuff_,nt))
+    ALLOCATE(this%stbuff_ (this%nbuff_,nt))
     ALLOCATE(this%rbbuff_ (this%nbuff_,nt))
     ALLOCATE(this%rtbuff_ (this%nbuff_,nt))
     ALLOCATE(this%ibot_(this%maxparts_))
@@ -291,9 +291,9 @@ MODULE class_GPartComm
     this%nbsnd_   = 0
 
     this%itrcvnz_ = 0
-    this%itsndnz_ = 0 
+    this%itsndnz_ = 0
     this%ibrcvnz_ = 0
-    this%ibsndnz_ = 0 
+    this%ibsndnz_ = 0
 
     ALLOCATE(jfwd (nt))
     ALLOCATE(kfend(nt))
@@ -306,7 +306,7 @@ MODULE class_GPartComm
       CALL range(1,this%nd_(3),this%nprocs_,jfwd(jf),kfsta(jf),kfend(jf))
       nzf (jf) = kfend(jf)-kfsta(jf)+1
     ENDDO
-    
+
     ! Send to myrank + 1 at top:
     this%itsndp_(1) = jfwd(1)
     DO k = 1, min(kend-ksta+1, this%nzghost_)
@@ -329,7 +329,7 @@ MODULE class_GPartComm
           this%itsndp_(this%ntsnd_) = jfwd(jf)   ! top task to send to
           DO k = 1, min(kend-ksta+1, kf)
             this%itsnd_   (this%ntsnd_,k) = kend-ksta+2-k ! local z-index to be sent to top
-            this%itsnddst_(this%ntsnd_,k) = this%nzghost_-kf-k+1 ! local destination z-index 
+            this%itsnddst_(this%ntsnd_,k) = this%nzghost_-kf-k+1 ! local destination z-index
             this%itsndnz_ (this%ntsnd_  ) = this%itsndnz_(this%ntsnd_) + 1 ! gives position in top recv buffer
           ENDDO
         ENDIF
@@ -351,7 +351,7 @@ MODULE class_GPartComm
       this%ntrcv_ = this%ntrcv_ + 1 ! no. procs to recv from at top
     ENDDO
     IF ( jf.NE.this%nzghost_ ) THEN
-       WRITE(*,*) 'GPartComm_Init: top neighbor data incompatible with interpolation order' 
+       WRITE(*,*) 'GPartComm_Init: top neighbor data incompatible with interpolation order'
        WRITE(*,*) 'GPartComm_Init: nghost=',this%nzghost_, ' nt=',jf
        STOP
     ENDIF
@@ -385,7 +385,7 @@ MODULE class_GPartComm
           this%ibsndp_(this%nbsnd_) = jfwd(jf)   ! bottom task to send to
           DO k = 1, min(kend-ksta+1, kf)
             this%ibsnd_   (this%nbsnd_,k) = k ! local z-index to be sent to bottom
-            this%ibsnddst_(this%nbsnd_,k) = this%nzghost_+nzf(jf)+kf+k ! local destination z-index 
+            this%ibsnddst_(this%nbsnd_,k) = this%nzghost_+nzf(jf)+kf+k ! local destination z-index
             this%ibsndnz_ (this%nbsnd_  ) = this%ibsndnz_(this%nbsnd_) + 1 ! gives position in bottom recv buffer
           ENDDO
         ENDIF
@@ -407,7 +407,7 @@ MODULE class_GPartComm
       this%nbrcv_ = this%nbrcv_ + 1 ! no. procs to recv from at bottom
     ENDDO
     IF ( jf.NE.this%nzghost_ ) THEN
-       WRITE(*,*) 'GPartComm_Init: bottom neighbor data incompatible with interpolation order' 
+       WRITE(*,*) 'GPartComm_Init: bottom neighbor data incompatible with interpolation order'
        WRITE(*,*) 'GPartComm_Init: nghost=',this%nzghost_, ' nb=',jf
        STOP
     ENDIF
@@ -466,7 +466,7 @@ MODULE class_GPartComm
 !                        this%iextperp_=1 in contructor.
 !    vx,vy,vz          : Eulerian velocity components on regular grid. Must
 !                        be of size nd_ set in constructor
-!    
+!
 !-----------------------------------------------------------------
     USE mpivars
 
@@ -509,7 +509,7 @@ MODULE class_GPartComm
         ENDDO
       ENDDO
     ENDDO
-   
+
   END SUBROUTINE GPartComm_LocalDataExchMF
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -527,7 +527,7 @@ MODULE class_GPartComm
 !                        grid (that used to hold ghost zones)
 !    vx,vy,vz          : Eulerian velocity components on regular grid. Must
 !                        be of size nd_ set in constructor
-!    
+!
 !-----------------------------------------------------------------
     IMPLICIT NONE
     CLASS(GPartComm),INTENT(INOUT)                      :: this
@@ -553,7 +553,7 @@ MODULE class_GPartComm
     DO j=1,this%nbrcv_  ! from bottom task:
       itask = this%ibrcvp_(j)
       CALL MPI_IRECV(this%rbbuff_(:,j),this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%ibrh_(j),this%ierr_) 
+                     1,this%comm_,this%ibrh_(j),this%ierr_)
     ENDDO
     CALL GTAcc(this%hcomm_)
 
@@ -561,7 +561,7 @@ MODULE class_GPartComm
     DO j=1,this%ntrcv_  ! from top task:
       itask = this%itrcvp_(j)
       CALL MPI_IRECV(this%rtbuff_(:,j),this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%itrh_(j),this%ierr_) 
+                     1,this%comm_,this%itrh_(j),this%ierr_)
     ENDDO
     CALL GTAcc(this%hcomm_)
 
@@ -569,10 +569,10 @@ MODULE class_GPartComm
     ! send data:
     DO j=1,this%nbsnd_  ! to bottom task:
       itask = this%ibsndp_(j)
-      CALL GPartComm_PackMF(this,this%sbbuff_,vx,vy,vz,j,'b')
+      CALL GPartComm_PackMF(this,this%sbbuff_(:,j),vx,vy,vz,j,'b')
       CALL GTStart(this%hcomm_)
-      CALL MPI_ISEND(this%sbbuff_,this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%ibsh_(j),this%ierr_)  
+      CALL MPI_ISEND(this%sbbuff_(:,j),this%nbuff_,GC_REAL,itask, &
+                     1,this%comm_,this%ibsh_(j),this%ierr_)
       CALL GTAcc(this%hcomm_)
     ENDDO
     DO j=1,this%ntsnd_  ! to top task:
@@ -580,7 +580,7 @@ MODULE class_GPartComm
       CALL GPartComm_PackMF(this,this%stbuff_,vx,vy,vz,j,'t')
       CALL GTStart(this%hcomm_)
       CALL MPI_ISEND(this%stbuff_,this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%itsh_(j),this%ierr_) 
+                     1,this%comm_,this%itsh_(j),this%ierr_)
       CALL GTAcc(this%hcomm_)
 
     ENDDO
@@ -620,11 +620,11 @@ MODULE class_GPartComm
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
 !    buff    : packed buffer (returned)
-!    vx,vy,vz: Eulerian velocity component on regular grid 
+!    vx,vy,vz: Eulerian velocity component on regular grid
 !              in phys. space (IN)
 !    isnd    : which send this is
 !    sdir    : 't' for top, 'b' for bottom
-!    
+!
 !-----------------------------------------------------------------
     IMPLICIT NONE
 
@@ -651,11 +651,11 @@ MODULE class_GPartComm
     !  ...header
       nt = 1
       buff(1)  = this%ibsndnz_(isnd)       ! no. z-indices included
-      DO j = 1, this%ibsndnz_(isnd) 
+      DO j = 1, this%ibsndnz_(isnd)
         nt       = nt + 1
         buff(nt) = this%ibsnddst_(isnd,j) ! z-index in extended grid
       ENDDO
-      
+
     !  ...data
       DO m = 1,this%ibsndnz_(isnd)
         k = this%ibsnd_(isnd,m)
@@ -668,7 +668,7 @@ MODULE class_GPartComm
           ENDDO
         ENDDO
       ENDDO
-    
+
       DO m = 1, this%ibsndnz_(isnd)
         k = this%ibsnd_(isnd,m)
         km = k-1
@@ -715,7 +715,7 @@ MODULE class_GPartComm
           ENDDO
         ENDDO
       ENDDO
-    
+
       DO m = 1,this%itsndnz_(isnd)
         k = this%itsnd_(isnd,m)
         km = k-1
@@ -727,7 +727,7 @@ MODULE class_GPartComm
           ENDDO
         ENDDO
       ENDDO
-    
+
       DO m = 1,this%itsndnz_(isnd)
         k = this%itsnd_(isnd,m)
         km = k-1
@@ -739,9 +739,9 @@ MODULE class_GPartComm
           ENDDO
         ENDDO
       ENDDO
-    
+
     ENDIF
-    
+
   END SUBROUTINE GPartComm_PackMF
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -756,11 +756,11 @@ MODULE class_GPartComm
 !               'b' designation required for unpacking.
 !  ARGUMENTS  :
 !    this        : 'this' class instance (IN)
-!    buff        : packed buffer (input) from which to store into 
+!    buff        : packed buffer (input) from which to store into
 !                  extended grid quantities.
 !    vxe,vye,vze : Eulerian velocity component on extended grid
 !                  in phys. space (IN)
-!    
+!
 !-----------------------------------------------------------------
     USE mpivars
     IMPLICIT NONE
@@ -828,7 +828,7 @@ MODULE class_GPartComm
 !                        are imposed; lateral periodicity is not handled here.
 !    vx,vy,vz          : Eulerian velocity components on regular grid. Must
 !                        be of size nd_ set in constructor
-!    
+!
 !-----------------------------------------------------------------
     USE mpivars
 
@@ -862,7 +862,7 @@ MODULE class_GPartComm
         ENDDO
       ENDDO
     ENDDO
-   
+
   END SUBROUTINE GPartComm_LocalDataExchSF
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -880,7 +880,7 @@ MODULE class_GPartComm
 !                grid (that used to hold ghost zones in z)
 !    v         : Eulerian velocity components on regular grid. Must
 !                be of size nd_ set in constructor
-!    
+!
 !-----------------------------------------------------------------
     IMPLICIT NONE
     CLASS(GPartComm),INTENT(INOUT)                      :: this
@@ -905,7 +905,7 @@ MODULE class_GPartComm
     DO j=1,this%nbrcv_  ! from bottom task:
       itask = this%ibrcvp_(j)
       CALL MPI_IRECV(this%rbbuff_(:,j),this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%ibrh_(j),this%ierr_) 
+                     1,this%comm_,this%ibrh_(j),this%ierr_)
     ENDDO
     CALL GTAcc(this%hcomm_)
 
@@ -913,10 +913,10 @@ MODULE class_GPartComm
     ! send data:
     DO j=1,this%nbsnd_  ! to bottom task:
       itask = this%ibsndp_(j)
-      CALL GPartComm_PackSF(this,this%sbbuff_,v,j,'b')
+      CALL GPartComm_PackSF(this,this%sbbuff_(:,j),v,j,'b')
       CALL GTStart(this%hcomm_)
-      CALL MPI_ISEND(this%sbbuff_,this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%ibsh_(j),this%ierr_)  
+      CALL MPI_ISEND(this%sbbuff_(:,j),this%nbuff_,GC_REAL,itask, &
+                     1,this%comm_,this%ibsh_(j),this%ierr_)
       CALL GTAcc(this%hcomm_)
     ENDDO
 !
@@ -925,17 +925,17 @@ MODULE class_GPartComm
     DO j=1,this%ntrcv_  ! from top task:
       itask = this%itrcvp_(j)
       CALL MPI_IRECV(this%rtbuff_(:,j),this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%itrh_(j),this%ierr_) 
+                     1,this%comm_,this%itrh_(j),this%ierr_)
     ENDDO
     CALL GTAcc(this%hcomm_)
 
 
     DO j=1,this%ntsnd_  ! to top task:
       itask = this%itsndp_(j)
-      CALL GPartComm_PackSF(this,this%stbuff_,v,j,'t')
+      CALL GPartComm_PackSF(this,this%stbuff_(:,j),v,j,'t')
       CALL GTStart(this%hcomm_)
-      CALL MPI_ISEND(this%stbuff_,this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%itsh_(j),this%ierr_) 
+      CALL MPI_ISEND(this%stbuff_(:,j),this%nbuff_,GC_REAL,itask, &
+                     1,this%comm_,this%itsh_(j),this%ierr_)
       CALL GTAcc(this%hcomm_)
     ENDDO
 
@@ -959,7 +959,7 @@ MODULE class_GPartComm
 
     ! Unpack received data:
     DO j=1,this%nbrcv_
-       CALL GPartComm_UnpackSF(this,vext,this%rbbuff_(:,j),this%nbuff_,'b',this%ierr_)
+      CALL GPartComm_UnpackSF(this,vext,this%rbbuff_(:,j),this%nbuff_,'b',this%ierr_)
     ENDDO
     DO j=1,this%ntrcv_
       CALL GPartComm_UnpackSF(this,vext,this%rtbuff_(:,j),this%nbuff_,'t',this%ierr_)
@@ -977,11 +977,11 @@ MODULE class_GPartComm
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
 !    buff    : packed buffer (returned)
-!    v       : Eulerian velocity component on regular grid 
+!    v       : Eulerian velocity component on regular grid
 !              in phys. space (IN)
 !    isnd    : which send this is
 !    sdir    : 't' for top, 'b' for bottom
-!    
+!
 !-----------------------------------------------------------------
     IMPLICIT NONE
 
@@ -1008,11 +1008,11 @@ MODULE class_GPartComm
     !  ...header
       nt = 1
       buff(1)  = this%ibsndnz_(isnd)      ! no. z-indices included
-      DO j = 1, this%ibsndnz_(isnd) 
+      DO j = 1, this%ibsndnz_(isnd)
         nt       = nt + 1
         buff(nt) = this%ibsnddst_(isnd,j) ! z-index in extended grid
       ENDDO
-      
+
     !  ...data
       DO m = 1,this%ibsndnz_(isnd)
         k = this%ibsnd_(isnd,m)
@@ -1025,7 +1025,7 @@ MODULE class_GPartComm
           ENDDO
         ENDDO
       ENDDO
-    
+
     ELSE !  Pack for send to rank at top:
 
       ! ...header
@@ -1048,9 +1048,9 @@ MODULE class_GPartComm
           ENDDO
         ENDDO
       ENDDO
-    
+
     ENDIF
-    
+
   END SUBROUTINE GPartComm_PackSF
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1067,12 +1067,12 @@ MODULE class_GPartComm
 !    this        : 'this' class instance (IN)
 !    vext        : Eulerian velocity component on extended grid
 !                  in phys. space (IN)
-!    buff        : packed buffer (input) from which to store into 
+!    buff        : packed buffer (input) from which to store into
 !                  extended grid quantities.
 !    nbuff       : maximum buff size
 !    sb          : optional buffer name ,'t' or 'b'.
 !    ierr        : err flag: 0 if success; else 1
-!    
+!
 !-----------------------------------------------------------------
     IMPLICIT NONE
 
@@ -1126,7 +1126,7 @@ MODULE class_GPartComm
 !               Note: For this call to work, the particle positions
 !               must _not_ be periodized on entry. In the same way,
 !               zmin/zmax must also _not_ be periodized.
-!  
+!
 !               This routine is intended to be called at each stage of
 !               an explicit time integration where the particle positions
 !               cannot change more than a single zone in x, y, or z
@@ -1300,7 +1300,7 @@ MODULE class_GPartComm
       DO WHILE ( j.LE.nparts .AND. id(j).EQ.GPNULL )
         j = j + 1
       ENDDO
-      IF ( j.LE.nparts .AND. j.NE.i ) THEN         
+      IF ( j.LE.nparts .AND. j.NE.i ) THEN
         id(i) = id(j); id(j) = GPNULL
         px(i) = px(j)
         py(i) = py(j)
@@ -1321,7 +1321,7 @@ MODULE class_GPartComm
 !  DESCRIPTION: Unpacks recv buffer with particles. Partlcles
 !               will be added directly to the existing particle list.
 !               Uses V interface.
-!               
+!
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
 !    id      : part. ids
@@ -1348,7 +1348,7 @@ MODULE class_GPartComm
       px(nparts) =      buff(nb+2)
       py(nparts) =      buff(nb+3)
       pz(nparts) =      buff(nb+4)
-      nb = nb+4 
+      nb = nb+4
     ENDDO
 
   END SUBROUTINE GPartComm_PUnpackV
@@ -1364,7 +1364,7 @@ MODULE class_GPartComm
 !               Note: For this call to work, the particle positions
 !               must be periodized on entry. In the same way,
 !               zmin/zmax must also be periodized.
-!  
+!
 !               This routine is intended to be called at each stage of
 !               an explicit time integration where the particle positions
 !               cannot change more than a single zone in x, y, or z
@@ -1560,7 +1560,7 @@ MODULE class_GPartComm
       DO WHILE ( j.LE.nparts .AND. pdb(j)%id.EQ.GPNULL )
         j = j + 1
       ENDDO
-      IF ( j.LE.nparts .AND. j.NE.i ) THEN         
+      IF ( j.LE.nparts .AND. j.NE.i ) THEN
         pdb(i)%id = pdb(j)%id; pdb(j)%id = GPNULL
         pdb(i)%x = pdb(j)%x
         pdb(i)%y = pdb(j)%y
@@ -1581,7 +1581,7 @@ MODULE class_GPartComm
 !  DESCRIPTION: Unpacks recv buffer with particles. Partlcles
 !               will be added directly to the existing particle list.
 !               Uses PDB interface.
-!               
+!
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
 !    pdb     : part. d.b.
@@ -1607,7 +1607,7 @@ MODULE class_GPartComm
       pdb(nparts)%x =      buff(nb+2)
       pdb(nparts)%y =      buff(nb+3)
       pdb(nparts)%z =      buff(nb+4)
-      nb = nb+4 
+      nb = nb+4
     ENDDO
 
   END SUBROUTINE GPartComm_PUnpackPDB
@@ -1621,15 +1621,15 @@ MODULE class_GPartComm
 !  DESCRIPTION: Does global transpose to take a x-y complete field,
 !               infield, to a yz-complete field, outfield. Handles
 !               2D and 3D fields.
-!               
+!
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
-!    ofield  : output field, yz-complete 
-!    od      : local dimensions of ofield. 
+!    ofield  : output field, yz-complete
+!    od      : local dimensions of ofield.
 !    ifield  : input field that is xy complete
-!    id      : local dimensions of ifield. 
+!    id      : local dimensions of ifield.
 !    rank    : rank of field (how many 'od, id' array elements)
-!    tmp     : real field of size required to hold field 
+!    tmp     : real field of size required to hold field
 !              transpose locally (i.e., of size ofield)
 !-----------------------------------------------------------------
     IMPLICIT NONE
@@ -1653,7 +1653,7 @@ MODULE class_GPartComm
       IF ( rank.EQ.3 ) THEN
         CALL GPartComm_InitTrans3D(this)
       ENDIF
-    ENDIF 
+    ENDIF
 
     ! NOTE: rank is transpose problem rank; irank is MPI rank...
 
@@ -1705,7 +1705,7 @@ MODULE class_GPartComm
 !!!$omp parallel do if ((idims(3)-1)/this%csize_.lt.this%nth_) private (kk,i,j,k)
         DO jj = od(2,1),od(2,2),this%csize_
            DO kk = od(1,1),od(1,2),this%csize_
- 
+
               DO i = ii,min(od(3,2)-od(3,1)+1,ii+this%csize_-1)
                 DO j = jj,min(od(2,2)-od(2,1)+1,jj+this%csize_-1)
                   DO k = kk,min(od(1,2)-od(1,1)+1,kk+this%csize_-1)
@@ -1713,7 +1713,7 @@ MODULE class_GPartComm
                   END DO
                 END DO
               END DO
- 
+
            END DO
         END DO
      END DO
@@ -1769,7 +1769,7 @@ MODULE class_GPartComm
       IF ( rank.EQ.3 ) THEN
         CALL GPartComm_InitTrans3D(this)
       ENDIF
-    ENDIF 
+    ENDIF
 
     ! NOTE: rank is transpose problem rank; irank is MPI rank...
 
@@ -1780,7 +1780,7 @@ MODULE class_GPartComm
 !!!$omp parallel do if ((idims(3)-1)/this%csize_.lt.this%nth_) private (kk,i,j,k)
         DO jj = id(2,1),id(2,2),this%csize_
            DO kk = id(1,1),id(1,2),this%csize_
- 
+
               DO i = ii,min(id(3,2)-id(3,1)+1,ii+this%csize_-1)
                 DO j = jj,min(id(2,2)-id(2,1)+1,jj+this%csize_-1)
                   DO k = kk,min(id(1,2)-id(1,1)+1,kk+this%csize_-1)
@@ -1788,7 +1788,7 @@ MODULE class_GPartComm
                   END DO
                 END DO
               END DO
- 
+
            END DO
         END DO
      END DO
@@ -1849,7 +1849,7 @@ MODULE class_GPartComm
 !  DESCRIPTION: Initializes communcation quantities for 2D transpose.
 !               Derived from 2D/src/fftp-3/fftp2d.fpp:fftp2d_create_block
 !               and calls function from that module.
-!               
+!
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
 !-----------------------------------------------------------------
@@ -1860,7 +1860,7 @@ MODULE class_GPartComm
     INTEGER                                    :: jsta,jend
     INTEGER                                    :: irank,jrank
     INTEGER                                    :: itemp1,itemp2
-    
+
     write(*,*)'GPartComm_InitTrans2D: block2d not resolved'
     stop
 
@@ -1893,7 +1893,7 @@ MODULE class_GPartComm
 !  DESCRIPTION: Initializes communcation quantities for 3D transpose.
 !               Derived from 3D/src/fftp-3/fftp3d.fpp:fftp3d_create_block
 !               and calls function from that module.
-!               
+!
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
 !-----------------------------------------------------------------
@@ -1921,7 +1921,7 @@ MODULE class_GPartComm
        this%itypeip_(krank) = itemp2
     END DO
     this%btransinit_ = .TRUE.
-     
+
     RETURN
 
   END SUBROUTINE GPartComm_InitTrans3D
@@ -1933,7 +1933,7 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 !  METHOD     : GetNumGhost
 !  DESCRIPTION: Get no. ghost zones expected to be transferred.
-!               
+!
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
 !-----------------------------------------------------------------
@@ -1941,22 +1941,22 @@ MODULE class_GPartComm
 
     CLASS(GPartComm),INTENT(INOUT)             :: this
     INTEGER                                    :: nzghost_result
-    
+
     nzghost_result = this%nzghost_
-     
+
   END FUNCTION GPartComm_GetNumGhost
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-  SUBROUTINE GPartComm_VDBSynch(this,gvdb,ngvdb,id,lx,ly,lz,nl,ptmp) 
+  SUBROUTINE GPartComm_VDBSynch(this,gvdb,ngvdb,id,lx,ly,lz,nl,ptmp)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : VDBSynch
 !  DESCRIPTION: Synch up global VDB from local vector data
-!               
+!
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
-!    gvdb    : global VDB containing part. position records, returned. 
+!    gvdb    : global VDB containing part. position records, returned.
 !    ngvdb   : no. records in global VDB. Fixed on entry.
 !    id      : local part. ids
 !    lx,ly,lz: local part. d.b. vectors
@@ -1993,7 +1993,7 @@ MODULE class_GPartComm
       gvdb(1:3,j) = 0.0_GP
       ptmp(1:3,j) = 0.0_GP
     ENDDO
-    
+
     DO j = 1, nl
       i = id(j) + 1
       ptmp(1,i) = lx(j)
@@ -2009,15 +2009,15 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-  SUBROUTINE GPartComm_LagSynch(this,gs,ngs,id,ls,nl,ptmp) 
+  SUBROUTINE GPartComm_LagSynch(this,gs,ngs,id,ls,nl,ptmp)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : LagSynch
 !  DESCRIPTION: Synch up global Lagrangian scalar from local scalar data
-!               
+!
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
-!    gs      : global scalar containing 'synched' records, returned. 
+!    gs      : global scalar containing 'synched' records, returned.
 !    ngs     : no. records in global scalar. Fixed on entry.
 !    id      : local part. ids
 !    ls      : local scalar
@@ -2039,7 +2039,7 @@ MODULE class_GPartComm
       gs  (j) = 0.0_GP
       ptmp(j) = 0.0_GP
     ENDDO
-    
+
     DO j = 1, nl
       i = id(j) + 1
       ptmp(i) = ls(j)
@@ -2058,7 +2058,7 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 !  METHOD     : SetCacheParam
 !  DESCRIPTION: Set cache size and strip-mining size for transpose
-!               
+!
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
 !    csize   : cache-size
@@ -2081,7 +2081,7 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 !  METHOD     : Copy2Ext
 !  DESCRIPTION: Copy field from regular to extended grid
-!               
+!
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
 !    vext    : extended-grid field

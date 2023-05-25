@@ -241,11 +241,11 @@ MODULE class_GPart
     this%libnds_(1,1) = 1  ;
     this%libnds_(1,2) = nx ;
     this%lxbnds_(1,1) = 0.0_GP
-    this%lxbnds_(1,2) = real(nx-1,kind=GP)
+    this%lxbnds_(1,2) = real(nx,kind=GP)
     this%libnds_(2,1) = 1  ;
     this%libnds_(2,2) = ny ;
     this%lxbnds_(2,1) = 0.0_GP
-    this%lxbnds_(2,2) = real(ny-1,kind=GP)
+    this%lxbnds_(2,2) = real(ny,kind=GP)
     this%libnds_(3,1) = ksta ; 
     this%libnds_(3,2) = kend ; 
     this%lxbnds_(3,1) = real(ksta-1,kind=GP) - 0.50_GP
@@ -265,7 +265,7 @@ MODULE class_GPart
     this%tibnds_(3,2) = tend ; 
 
     DO j = 1,3
-      this%gext_ (j) = real(this%nd_(j)-1,kind=GP)
+      this%gext_ (j) = real(this%nd_(j),kind=GP)
     ENDDO
 
     ! Instantiate interp operation. Remember that a valid timer 
@@ -570,15 +570,15 @@ MODULE class_GPart
     DO j = 1, this%nparts_
        this%id_(j)    = ib + j - 1
        CALL prandom_number(r)
-       x1 = real(this%libnds_(1,1)-1,kind=GP); x2 = real(this%libnds_(1,2)-1,kind=GP);
-       c = r*(this%nd_(1)-1);
+       x1 = real(this%libnds_(1,1)-1,kind=GP); x2 = real(this%libnds_(1,2),kind=GP);
+       c = r*(this%nd_(1));
        this%px_(j) = min(max(c,x1),x2)
        CALL prandom_number(r)
-       x1 = real(this%libnds_(2,1)-1,kind=GP); x2 = real(this%libnds_(2,2)-1,kind=GP);
-       c = r*(this%nd_(2)-1);
+       x1 = real(this%libnds_(2,1)-1,kind=GP); x2 = real(this%libnds_(2,2),kind=GP);
+       c = r*(this%nd_(2));
        this%py_(j) = min(max(c,x1),x2)
        CALL prandom_number(r)
-       x1 = real(this%libnds_(3,1)-1,kind=GP); x2 = real(this%libnds_(3,2)-1,kind=GP);
+       x1 = real(this%libnds_(3,1)-1,kind=GP); x2 = real(this%libnds_(3,2),kind=GP);
        this%pz_(j) = min(max(x1+r*(x2-x1),x1),x2)
     ENDDO
     CALL MPI_ALLREDUCE(this%nparts_,nt,1,MPI_INTEGER,MPI_SUM,this%comm_,this%ierr_)

@@ -50,7 +50,7 @@ LAGPDEFiner  = -DDEF_GHOST_INERP
 LAGPDEFtest  = -DDEF_GHOST_TESTP
 LAGPDEFno    = 
 LAGPOBJSyes  = $(LAGP)/gpdbrec_mod.o $(LAGP)/gpartcomm_mod.o \
-	       $(LAGP)/gpsplineint_mod.o  $(LAGP)/gparts_mod.o
+	           $(LAGP)/gpsplineint_mod.o  $(LAGP)/gparts_mod.o
 LAGPOBJSlag  = $(LAGPOBJSyes)
 LAGPOBJSiner = $(LAGPOBJSyes)
 LAGPOBJStest = $(LAGPOBJSyes)
@@ -61,7 +61,7 @@ CUDA_GHOSTyes= -DDEF_GHOST_CUDA_ -DG_PPN_=$(PPN) $(CUBIND_NVIDIA)
 CUDA_OBJSno  =
 CUDA_OBJSyes = $(CONTRIB)/nvidia/setaffinity_for_nvidia.o
 GDEF         = $(IODEF$(IOLIB)) $(CUDA_GHOST$(P_CUDA)) \
-            $(LAGPDEF$(PARTICLES)) $(ARBSIZEDEF$(ARBSIZE))
+               $(LAGPDEF$(PARTICLES)) $(ARBSIZEDEF$(ARBSIZE))
 CONTRIBOBJS  = $(CUDA_OBJS$(P_CUDA))
 
 # IO library variables:
@@ -85,12 +85,14 @@ FFTW2SINGLE = s
 FFTW2DOUBLE = d
 FFTW2HYByes = -l$(FFTW2$(PRECISION))rfftw_threads \
 	      -l$(FFTW2$(PRECISION))fftw_threads
+FFTW2HYBoffl= $(FFTW2HYByes)
 FFTW2HYBno  =
 FFTW2FLAGS  = $(FFTW2HYB$(P_HYBRID)) -l$(FFTW2$(PRECISION))rfftw \
 	      -l$(FFTW2$(PRECISION))fftw -lm
 FFTW3SINGLE = f
 FFTW3DOUBLE =
 FFTW3HYByes = -lfftw3$(FFTW3$(PRECISION))_threads
+FFTW3HYBoffl= $(FFTW3HYByes)
 FFTW3HYBno  =
 FFTW3FLAGS  = $(FFTW3HYB$(P_HYBRID)) -lfftw3$(FFTW3$(PRECISION)) -lm 
 FFTWDIR     = $($(FFTP:fftp-%=FFTW%)DIR)
@@ -134,7 +136,8 @@ LDFLAGS     = $(MPILIB) $(FFTTLIBDIR) $(FFTTLIB) $(MPILDFLAGS) \
 INCLUDE     = $(MPIINC) $(FFTTINC) -I$(FFTPDIR) -I$(GHOME)/$(IOLIB) \
 	      -I$(GHOME)/utils -I$(GHOME)/include $(IOINCDIR) -I$(GHOME) \
 	      -I$(LAGP)
-CPPFLAGS    = -D$(SOLVER)_SOL $(CUDA_GHOST$(P_CUDA)) $(IODEF$(IOLIB))
+CPPFLAGS    = -D$(SOLVER)_SOL -DDO_HYBRID$(P_HYBRID) \
+              $(CUDA_GHOST$(P_CUDA)) $(IODEF$(IOLIB))
 PREPROCESS  = $(CPP) $(CPPFLAGS) $(GDEF)
 COMPILE     = $(FC) $(FFLAGS) $(DO_HYBRID$(P_HYBRID)) $(INCLUDE) \
 	      $(TARGET_ARCH) -c
@@ -284,6 +287,8 @@ edit:
 	cd $(UTILS) && $(MAKE) edit CPP='$(CPP)' IKIND='$(IKIND)' \
 	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)' \
 	   DO_HYBRID='DO_HYBRID$(P_HYBRID)' P_CUDA='$(P_CUDA)'
+	cd $(LAGP) && $(MAKE) edit CPP='$(CPP)' CSIZE='$(CSIZE)' \
+	   NSTRIP='$(NSTRIP)' DO_HYBRID='DO_HYBRID$(P_HYBRID)'
 	cd ../
 	echo "Output for this solver includes the following files:" >> \
 	   $(BIN)/README_output.txt

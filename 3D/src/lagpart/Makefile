@@ -14,9 +14,8 @@ $(OBJS):
 	$(COMPILE) $(@:.o=.f90)
 
 edit:
-	$(CPP) -DG$(PRECISION)_PRECISION $(CUDA_GHOST$(P_CUDA)) -I../fftp-3 \
-	regridutils.fpp -o regridutils.f90
+	$(CPP) -D$(DO_HYBRID) gpsplineint_mod.fpp -o gpsplineint_mod.f90
 
 clean:
 	rm -f *.o *.d *.s *.int *.inf *.mod *.modmic work.pc* ifc* \
-        regridutils.f90
+        gpsplineint_mod.f90
