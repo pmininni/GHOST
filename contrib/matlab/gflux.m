@@ -129,7 +129,7 @@ end
 
 favg = zeros(nmax,1);
 
-if nargin <= 6
+if nargin <= 8
   tstar = time(1);
   tfin  = time(end);
 end
@@ -169,8 +169,8 @@ end
 favg = favg ./ NT;
 
 % Get wavenumbers, if requested:
+Dkk = 1.0;
 if nargout >= 4
-  Dkk = 1.0;
   if ivers == 1
     Dkk = ktmp(2)-ktmp(1); % get (constant) shell width
   end
