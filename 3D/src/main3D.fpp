@@ -115,7 +115,7 @@
       USE cuda_bindings
       USE cutypes
 #endif
-#if defined(PART_)
+#if defined(PART_) || defined(PIC_)
       USE class_GPart
 #endif
 
@@ -138,6 +138,12 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: th1,th2,th3
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fs1,fs2,fs3
 #endif
+#ifdef CHARGPIC_
+      TYPE(ChargPIC)                                   :: picpart
+#endif
+#ifdef ELECFIELD_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: phi,rhoc
+#endif
 #ifdef MAGFIELD_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: ax,ay,az
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: mx,my,mz
@@ -158,6 +164,10 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C7,C8
 #ifdef VELOC_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M1,M2,M3
+#endif
+#ifdef CHARGPIC_
+      REAL(KIND=GP)   , ALLOCATABLE, DIMENSION (:,:,:) :: Re1,Re2,Re3
+      REAL(KIND=GP)   , ALLOCATABLE, DIMENSION (:,:,:) :: Rb1,Rb2,Rb3
 #endif
 #ifdef MAGFIELD_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C9,C10,C11
@@ -283,6 +293,16 @@
 #ifdef CMHD_
       REAL(KIND=GP)    :: amach, cp2
 #endif
+#ifdef ELECSTAT_
+      REAL(KIND=GP)    :: kde, kde2, epot
+#endif
+#ifdef PIC_
+      INTEGER          :: splord
+      REAL(KIND=GP)    :: ekin
+#endif
+#ifdef CHARGPIC_
+      REAL(KIND=GP)    :: vtherm
+#endif
 #ifdef MAGFIELD_
       REAL(KIND=GP)    :: mkup,mkdn
       REAL(KIND=GP)    :: m0,a0
@@ -335,7 +355,7 @@
 #ifdef WAVEFUNCTION_
       INTEGER :: cflow
 #endif
-#ifdef PART_
+#if defined(PART_) || defined(PIC_)
       REAL         :: rbal
       REAL(KIND=GP):: tbeta(3)
       INTEGER      :: maxparts
@@ -373,7 +393,7 @@
 #endif
       TYPE(IOPLAN)          :: planio
       CHARACTER(len=100)    :: odir,idir
-#ifdef PART_
+#if defined(PART_) || defined(PIC_)
       CHARACTER(len=1024)   :: lgseedfile,slgfpfile
 #endif
       LOGICAL               :: bbenchexist
@@ -426,6 +446,15 @@
 #ifdef CMHD_
       NAMELIST / cmhdb / amach
 #endif
+#ifdef PIC_
+      NAMELIST / pic / splord
+#endif
+#ifdef CHARGPIC_
+      NAMELIST / cpic / vtherm
+#endif
+#ifdef ELECSTAT_
+      NAMELIST / elecstat / kde
+#endif
 #ifdef MAGFIELD_
       NAMELIST / magfield / m0,a0,mkdn,mkup,mu,corr,mparam0,mparam1
       NAMELIST / magfield / mparam2,mparam3,mparam4,mparam5,mparam6
@@ -462,7 +491,7 @@
 #ifdef EDQNM_
       NAMELIST / edqnmles / kolmo,heli
 #endif
-#ifdef PART_
+#if defined(PART_) || defined(PIC_)
       NAMELIST / plagpart / lgmult,maxparts,ilginittype,ilgintrptype
       NAMELIST / plagpart / ilgexchtype,ilgouttype,ilgwrtunit,lgseedfile
       NAMELIST / plagpart / injtp,ilgcoll,cresetp,dolag,dopacc
@@ -549,6 +578,10 @@
       ALLOCATE( fx(nz,ny,ista:iend) )
       ALLOCATE( fy(nz,ny,ista:iend) )
       ALLOCATE( fz(nz,ny,ista:iend) )
+#endif
+#ifdef ELECFIELD_
+      ALLOCATE( phi(nz,ny,ista:iend))
+      ALLOCATE(rhoc(nz,ny,ista:iend))
 #endif
 #ifdef MAGFIELD_
       ALLOCATE( C9 (nz,ny,ista:iend), C10(nz,ny,ista:iend) )
@@ -642,6 +675,14 @@
       ALLOCATE( Rj1(nx,ny,ksta:kend) )
       ALLOCATE( Rj2(nx,ny,ksta:kend) )
       ALLOCATE( Rj3(nx,ny,ksta:kend) )
+#endif
+#if defined (CHARGPIC_)
+      ALLOCATE( Rb1(nx,ny,ksta:kend) )
+      ALLOCATE( Rb2(nx,ny,ksta:kend) )
+      ALLOCATE( Rb3(nx,ny,ksta:kend) )
+      ALLOCATE( Re1(nx,ny,ksta:kend) )
+      ALLOCATE( Re2(nx,ny,ksta:kend) )
+      ALLOCATE( Re3(nx,ny,ksta:kend) )
 #endif
 #ifdef EDQNM_
       ALLOCATE( Eden(nz,ny,ista:iend) )
@@ -1094,6 +1135,46 @@
       CALL MPI_BCAST(aparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
+#ifdef ELECSTAT_
+! namelist 'elecstat' on the external file 'parameter.inp'
+!     kde  : inverse debye lenght 
+
+      kde = 0.0_GP
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
+         READ(1,NML=elecstat)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(kde,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      kde2 = kde*kde
+#endif
+
+#ifdef PIC_
+! namelist 'pic' on the external file 'parameter.inp'
+!     splord  : spline order (0, 1, 2 or 3)
+
+      splord = 0
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
+         READ(1,NML=pic)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(splord,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+#endif
+
+#ifdef CHARGPIC_
+! namelist 'cpic' on the external file 'parameter.inp'
+!     vtherm  : initial thermal velocity of particles
+
+      vtherm = 0.0_GP
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
+         READ(1,NML=cpic)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(vtherm,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+#endif
+
 #ifdef UNIFORMB_
 ! Reads parameters for runs with a uniform magnetic
 ! field from the namelist 'uniformb' on the external
@@ -1261,7 +1342,7 @@
       CALL MPI_BCAST(heli,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 #endif
 
-#ifdef PART_
+#if defined(PART_) || defined(PIC_)
 ! Reads parameters for runs with particles
 !     maxparts    : Maximum number of particles
 !     injtp       : = 0 when stat=0 generates initial v and part seeds
@@ -1605,6 +1686,17 @@
       ENDIF
 #endif
 
+#ifdef PIC_
+      CALL picpart%GPart_ctor(MPI_COMM_WORLD,maxparts,ilginittype, &
+           ilgintrptype,splord,ilgexchtype,ilgouttype,ilgcoll,csize,&
+           nstrip,dopacc,ilgwrtunit)
+      CALL picpart%SetRandSeed(seed)
+      CALL picpart%SetSeedFile(trim(lgseedfile))
+#endif
+#ifdef CHARGPIC_
+      CALL picpart%ChargPIC_ctor(splord,csize,nstrip)
+#endif
+
 #ifdef PART_
       rmp   = 0.5/dt
       tbeta = (/-rmp, 0.0, rmp/)
@@ -1688,6 +1780,23 @@
 #endif
 #ifdef WAVEFUNCTION_
       INCLUDE 'initialz.f90'            ! initial wave function
+#endif
+#ifdef PIC_
+      CALL picpart%Init()
+#endif
+#ifdef CHARGPIC_
+      CALL picpart%InitVel(vtherm)
+#endif
+#ifdef ELECSTAT_
+      CALL picpart%GetDensity(R1)
+      CALL fftp3d_real_to_complex(planrc,R1,rhoc,MPI_COMM_WORLD)
+      IF ( myrank.EQ.0 ) THEN
+         rhoc(1,1,1) = 0.0_GP
+      ENDIF
+      CALL poisson_elecstat(rhoc,kde2,phi)
+      Rb1 = bx0
+      Rb2 = by0
+      Rb3 = bz0
 #endif
 #ifdef PART_
       IF ( dolag.GT.0 ) THEN

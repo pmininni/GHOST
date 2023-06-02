@@ -277,6 +277,15 @@
 #define INCLUDEFNAME_ 'edqnmroth_
 #endif
 
+#ifdef EHPIC_SOL
+#define DNS_
+#define ELECFIELD_
+#define ELECSTAT_
+#define UNIFORMB_
+#define CHARGPIC_
+#define INCLUDEFNAME_ 'ehpic_
+#endif
+
 ! Particles subclasses
 
 #ifdef DEF_GHOST_LAGP
@@ -294,6 +303,10 @@
 #define PART_ 
 #define VPART_
 #define TESTPART_ 
+#endif
+
+#ifdef DEF_GHOST_PICP
+#define PIC_
 #endif
 
 ! Do not edit below this line!
