@@ -102,7 +102,110 @@
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-  SUBROUTINE GPIC_StepRKK(this, vx, vy, vz, dt, xk, tmp1, tmp2, tmp3)
+  SUBROUTINE GPIC_EndStageRKK(this,vx,vy,vz,xk)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : EndStageRKK
+!  DESCRIPTION: Called at the end of all RK-like stages to
+!               complete Lagrangian particle update.
+
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    vz,vy,vz: compoments of velocity field, in real space, partially
+!              updated, possibly. These will be overwritten!
+!    xk      : multiplicative RK time stage factor
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+    USE grid
+
+    IMPLICIT NONE
+    CLASS(GPIC)  ,INTENT(INOUT)                            :: this
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: vx,vy,vz
+    REAL(KIND=GP),INTENT   (IN)                            :: xk
+    INTEGER                                                :: j,ng
+
+    ! u(t+dt) = u*: done already
+
+    ! If using nearest-neighbor interface, do particle exchange
+    ! between nearest-neighbor tasks BEFORE z-PERIODIZING particle coordinates:
+    IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
+      CALL GTStart(this%htimers_(GPTIME_COMM))
+      CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_, &
+           this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2))
+      CALL GTAcc(this%htimers_(GPTIME_COMM))
+    ENDIF
+
+    ! Enforce periodicity in x, y, & z:
+    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,7)
+
+    ! If using VDB interface, do synch-up, and get local work:
+    IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
+
+      IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
+        IF ( this%myrank_.eq.0 ) THEN
+          WRITE(*,*) 'GPIC_EndStageRKK: Inconsistent particle count'
+        ENDIF
+      ENDIF
+      ! Synch up VDB, if necessary:
+      CALL GTStart(this%htimers_(GPTIME_COMM))
+      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+                     this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+                     this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
+                     this%nparts_,this%ptmp1_)
+      CALL GTAcc(this%htimers_(GPTIME_COMM))
+
+      ! If using VDB, get local particles to work on:
+      ! GPart_GetLocalWrk_aux also synchronizes auxiliary RK arrays,
+      ! and is needed if the call is done in the middle of a RK step.
+      CALL GPart_GetLocalWrk_aux(this,this%id_,this%px_,this%py_,this%pz_,&
+                       this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
+                       this%nparts_,this%vdb_,this%gptmp0_,this%maxparts_)
+      CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
+                         MPI_SUM,this%comm_,this%ierr_)
+
+      IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_) THEN
+        WRITE(*,*)'GPIC_EndStageRKK: inconsistent d.b.: expected: ', &
+                 this%maxparts_, '; found: ',ng
+        CALL GPART_ascii_write_lag(this,1,'.','xlgerr','000',0.0_GP, &
+                                   this%maxparts_,this%vdb_)
+        STOP
+      ENDIF
+
+    ENDIF
+
+    IF ( this%intacc_.EQ.0 ) RETURN
+
+    ! If doing internal acceleration, synch up past time levels:
+    CALL GPart_synch_acc(this)
+
+    ! Set t^n+1 velocity based on most recent Lag.particle positions:
+    ! NOTE: vx, vy, vz are overwirtten on exit:
+    CALL GPIC_EulerToLag(this,this%lvx_,this%nparts_,vx,.true. )
+    CALL GPIC_EulerToLag(this,this%lvy_,this%nparts_,vy,.false.)
+    CALL GPIC_EulerToLag(this,this%lvz_,this%nparts_,vz,.false.)
+
+!$omp parallel do
+    DO j = 1, this%nparts_
+      this%vk2_(1,j) = this%lvx_(j)
+      this%vk2_(2,j) = this%lvy_(j)
+      this%vk2_(3,j) = this%lvz_(j)
+    ENDDO
+
+    ! set particle ids owned by task at lag times:
+    this%idm_ = 0
+    this%npartsm_ = this%nparts_
+    this%idm_(1:this%nparts_) = this%id_(1:this%nparts_)
+
+    RETURN
+
+  END SUBROUTINE GPIC_EndStageRKK
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE GPIC_StepRKK(this, vx, vy, vz, dt, xk)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : StepRKK
@@ -130,7 +233,6 @@
     CLASS(GPIC)  ,INTENT(INOUT)                            :: this
     INTEGER                                                :: i,j
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: vx,vy,vz
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: tmp1,tmp2,tmp3
     REAL(KIND=GP),INTENT   (IN)                            :: dt,xk
     REAL(KIND=GP)                                          :: dtfact
     REAL(KIND=GP),ALLOCATABLE  ,DIMENSION              (:) :: lid,gid
@@ -139,8 +241,7 @@
 
     ! Find F(u*):
     ! ... x:
-    CALL GPart_R3toR3(this,tmp3,vx) ! Want vx intact to use later
-    CALL GPIC_EulerToLag(this,this%lvx_,this%nparts_,tmp3,.true.)
+    CALL GPIC_EulerToLag(this,this%lvx_,this%nparts_,vx,.true.)
     ! ux* <-- ux + dt * F(U*)*xk:
     dtfact = dt*xk*this%invdel_(1)
   !$omp parallel do
@@ -152,8 +253,7 @@
     ! ... y:
     ! Exchange bdy data for velocities, so that we
     ! can perform local interpolations:
-    CALL GPart_R3toR3(this,tmp3,vy) ! Want vy intact to use later
-    CALL GPIC_EulerToLag(this,this%lvy_,this%nparts_,tmp3,.false.)
+    CALL GPIC_EulerToLag(this,this%lvy_,this%nparts_,vy,.false.)
     ! uy* <-- uy + dt * F(U*)*xk:
     dtfact = dt*xk*this%invdel_(2)
   !$omp parallel do
@@ -164,8 +264,7 @@
     ! ... z:
     ! Exchange bdy data for velocities, so that we
     ! can perform local interpolations:
-    CALL GPart_R3toR3(this,tmp3,vz) ! Want vz intact to use later
-    CALL GPIC_EulerToLag(this,this%lvz_,this%nparts_,tmp3,.false.)
+    CALL GPIC_EulerToLag(this,this%lvz_,this%nparts_,vz,.false.)
     ! uz* <-- uz + dt * F(U*)*xk:
     dtfact = dt*xk*this%invdel_(3)
   !$omp parallel do
@@ -200,7 +299,7 @@
   !   DEALLOCATE(lid,gid)
 
   ! At this point, the vx, vy, vz should be intact:
-    CALL GPart_EndStageRKK(this,vx,vy,vz,xk,tmp1,tmp2)
+    CALL GPIC_EndStageRKK(this,vx,vy,vz,xk)
 
   END SUBROUTINE GPIC_StepRKK
 !-----------------------------------------------------------------
@@ -587,7 +686,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-  SUBROUTINE ChargPIC_StepRKK(this, Ex, Ey, Ez, Bx, By, Bz, dt, xk, tmp1, tmp2)
+  SUBROUTINE ChargPIC_StepRKK(this, Ex, Ey, Ez, Bx, By, Bz, dt, xk)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : Step_chargedpic
@@ -607,7 +706,6 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 !    Bz,By,Bz: compoments of magnetic field in real space
 !    dt      : integration timestep
 !    xk      : multiplicative RK time stage factor
-!    tmpX    : temp arrays the same size as Ex, Ey, Ez
 !-----------------------------------------------------------------
     USE grid
     USE fprecision
@@ -619,7 +717,6 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     INTEGER                                                :: i,j
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: Bx,By,Bz
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: Ex,Ey,Ez
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: tmp1,tmp2
     REAL(KIND=GP),INTENT   (IN)                            :: dt,xk
     REAL(KIND=GP)                                          :: dtfact
     REAL(KIND=GP)                                          :: dtv
@@ -692,13 +789,13 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 !   endif
 !   DEALLOCATE(lid,gid)
 
-    CALL ChargPIC_EndStageRKK(this,Ex,Ey,Ez,xk,tmp1,tmp2)
+    CALL ChargPIC_EndStageRKK(this,Ex,Ey,Ez,xk)
 
   END SUBROUTINE ChargPIC_StepRKK
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-  SUBROUTINE ChargPIC_EndStageRKK(this,vx,vy,vz,xk,tmp1,tmp2)
+  SUBROUTINE ChargPIC_EndStageRKK(this,vx,vy,vz,xk)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : EndStageRKK
@@ -710,7 +807,6 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 !    Ez,Ey,Ez: compoments of velocity field, in real space, partially
 !              updated, possibly. These will be overwritten!
 !    xk      : multiplicative RK time stage factor
-!    tmpX    : temp arrays the same size as vx, vy, vz
 !-----------------------------------------------------------------
     USE fprecision
     USE commtypes
@@ -720,7 +816,6 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     IMPLICIT NONE
     CLASS(ChargPIC)    ,INTENT(INOUT)                      :: this
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: vx,vy,vz
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: tmp1,tmp2
     REAL(KIND=GP),INTENT   (IN)                            :: xk
     INTEGER                                                :: j,ng
 
@@ -844,7 +939,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 !-----------------------------------------------------------------
 
 
-  SUBROUTINE ChargPIC_GetTemperature(this,jx,jy,jz)
+  SUBROUTINE ChargPIC_GetTemperature(this,T)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : GetTemperature
@@ -858,7 +953,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     USE mpivars
 
     IMPLICIT NONE
-    CLASS(VGPIC)  ,INTENT(INOUT)                           :: this
+    CLASS(ChargPIC),INTENT(INOUT)                          :: this
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: T
     INTEGER                                                :: lag
 

@@ -17,7 +17,7 @@
       CONTAINS
         ! Public methods:
         PROCEDURE,PUBLIC :: GPIC_ctor
-        PROCEDURE,PUBLIC :: Step              => GPIC_StepRKK
+        PROCEDURE,PUBLIC :: GPICStep          => GPIC_StepRKK
         PROCEDURE,PUBLIC :: GetDensity        => GPIC_GetDensity
       END TYPE GPIC
 
@@ -44,6 +44,6 @@
         PROCEDURE,PUBLIC :: InitVel           => ChargPIC_InitVel
         PROCEDURE,PUBLIC :: SetStepVel        => ChargPIC_SetStepRKK
         PROCEDURE,PUBLIC :: StepChargedPIC    => ChargPIC_StepRKK
-        PROCEDURE,PUBLIC :: EndStage          => ChargPIC_EndStageRKK
+        PROCEDURE,PUBLIC :: EndStageChargedPIC=> ChargPIC_EndStageRKK
         PROCEDURE,PUBLIC :: GetTemperature    => ChargPIC_GetTemperature
       END TYPE ChargPIC
