@@ -842,3 +842,35 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
   END SUBROUTINE ChargPIC_InitVel
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
+
+
+  SUBROUTINE ChargPIC_GetTemperature(this,jx,jy,jz)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : GetTemperature
+!  DESCRIPTION: Deposits particle temperature into grid.
+!
+!  ARGUMENTS  :
+!    this     : 'this' class instance
+!    T        : Eulerian field containing particle temperature (OUT)
+!-----------------------------------------------------------------
+    USE grid
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(VGPIC)  ,INTENT(INOUT)                           :: this
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: T
+    INTEGER                                                :: lag
+
+    DO lag=1,this%nparts_
+      this%prop_(lag) = this%icv_*(this%pvx_(lag)**2+this%pvy_(lag)**2 &
+                                  +this%pvz_(lag)**2)
+    END DO
+
+    CALL GPIC_LagToEuler(this,this%prop_,this%nparts_,T,.true.)
+
+    RETURN
+
+  END SUBROUTINE ChargPIC_GetTemperature
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
