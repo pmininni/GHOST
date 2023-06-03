@@ -447,10 +447,10 @@
       NAMELIST / cmhdb / amach
 #endif
 #ifdef PIC_
-      NAMELIST / pic / splord
+      NAMELIST / ppic / splord
 #endif
 #ifdef CHARGPIC_
-      NAMELIST / cpic / vtherm
+      NAMELIST / pchargpic / initemp
 #endif
 #ifdef ELECSTAT_
       NAMELIST / elecstat / kde
@@ -1150,7 +1150,7 @@
 #endif
 
 #ifdef PIC_
-! namelist 'pic' on the external file 'parameter.inp'
+! namelist 'ppic' on the external file 'parameter.inp'
 !     splord  : spline order (0, 1, 2 or 3)
 
       splord = 0
@@ -1163,16 +1163,16 @@
 #endif
 
 #ifdef CHARGPIC_
-! namelist 'cpic' on the external file 'parameter.inp'
-!     vtherm  : initial thermal velocity of particles
+! namelist 'pchargpic' on the external file 'parameter.inp'
+!     initemp  : initial particle temperature
 
-      vtherm = 0.0_GP
+      initemp = 0.0_GP
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
-         READ(1,NML=cpic)
+         READ(1,NML=pchargpic)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(vtherm,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(initemp,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #ifdef UNIFORMB_
@@ -1785,7 +1785,7 @@
       CALL picpart%Init()
 #endif
 #ifdef CHARGPIC_
-      CALL picpart%InitVel(vtherm)
+      CALL picpart%InitVel(initemp)
 #endif
 #ifdef ELECSTAT_
       CALL picpart%GetDensity(R1)
