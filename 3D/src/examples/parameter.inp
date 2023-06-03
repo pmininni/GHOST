@@ -180,17 +180,18 @@ dokinelv = 0     ! Compute u x B or u_e x B (0=u x B, 1=u_e x B)
 dokinelp = 0     ! Compute electron pressure (0=no, 1=yes if flow compressible)
 /
 
-! Parameter for particle-in-cell (PIC)
+! Parameters for particle-in-cell (PIC)
 &ppic
 splord = 3       ! Spline order (0, 1, 2 or 3)
+picdiv = 1       ! Divisor for pic particle output
 /
 
-! Parameter for charged PIC
+! Parameters for charged PIC
 &pchargpic
 initemp = 1.0    ! Initial particle temperature
 /
 
-! Parameter for electrostatic solver
+! Parameters for electrostatic solver
 &elecstat
 kde = 100.0      ! Inverse debye length
 /

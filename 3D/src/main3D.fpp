@@ -297,11 +297,10 @@
       REAL(KIND=GP)    :: kde, kde2, epot
 #endif
 #ifdef PIC_
-      INTEGER          :: splord
-      REAL(KIND=GP)    :: ekin
+      INTEGER          :: splord, picdiv
 #endif
 #ifdef CHARGPIC_
-      REAL(KIND=GP)    :: vtherm
+      REAL(KIND=GP)    :: initemp, ekin
 #endif
 #ifdef MAGFIELD_
       REAL(KIND=GP)    :: mkup,mkdn
@@ -447,7 +446,7 @@
       NAMELIST / cmhdb / amach
 #endif
 #ifdef PIC_
-      NAMELIST / ppic / splord
+      NAMELIST / ppic / splord, picdiv
 #endif
 #ifdef CHARGPIC_
       NAMELIST / pchargpic / initemp
@@ -1152,14 +1151,17 @@
 #ifdef PIC_
 ! namelist 'ppic' on the external file 'parameter.inp'
 !     splord  : spline order (0, 1, 2 or 3)
+!     picdiv  : divisor for pic particle output
 
       splord = 0
+      picdiv = 1
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
-         READ(1,NML=pic)
+         READ(1,NML=ppic)
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(splord,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(picdiv,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #ifdef CHARGPIC_
@@ -1983,6 +1985,13 @@
       ENDIF INJM
 #endif
 
+#ifdef PIC_
+          CALL picpart%io_read (1,idir,'xpic',ext)
+#ifdef CHARGPIC_
+          CALL picpart%io_readv(1,idir,'vpic',ext)
+#endif
+#endif
+
 #ifdef MAGFIELD_
       IF (rand.eq.2) THEN
          CALL io_read(1,idir,'mxnew',ext,planio,R1)
@@ -2488,6 +2497,42 @@
                CALL fftp3d_complex_to_real(plancr,C3,R1,MPI_COMM_WORLD)
                CALL io_write(1,odir,'mean_th3',ext,planio,R1)
             ENDIF
+#endif
+#ifdef ELECFIELD_
+            rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+               DO j = 1,ny
+                  DO k = 1,nz
+                     C4(k,j,i) = phi(k,j,i)*rmp
+                     C5(k,j,i) = rhoc(k,j,i)*rmp
+                  END DO
+               END DO
+            END DO
+            IF (outs.ge.1) THEN
+               CALL derivk3(C4,C1,1)
+               CALL derivk3(C4,C2,2)
+               CALL derivk3(C4,C3,3)
+               CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+               CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+               CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+               CALL io_write(1,odir,'Ex',ext,planio,R1)
+               CALL io_write(1,odir,'Ey',ext,planio,R2)
+               CALL io_write(1,odir,'Ez',ext,planio,R3)
+            END IF
+            CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
+            CALL io_write(1,odir,'ph',ext,planio,R1)
+            CALL fftp3d_complex_to_real(plancr,C5,R1,MPI_COMM_WORLD)
+            CALL io_write(1,odir,'rh',ext,planio,R1)           
+#endif
+#ifdef PIC_
+            IF (MODULO(tind,picdiv).eq.0) THEN
+               CALL picpart%io_write_pdb (1,odir,'xpic',ext,(t-1)*dt)
+#ifdef CHARGPIC_
+               CALL picpart%io_write_pdbv(1,odir,'vpic',ext,(t-1)*dt)
+#endif
+            END IF
 #endif
 #ifdef MAGFIELD_
             rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
