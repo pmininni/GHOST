@@ -294,7 +294,8 @@
       REAL(KIND=GP)    :: amach, cp2
 #endif
 #ifdef ELECSTAT_
-      REAL(KIND=GP)    :: kde, kde2, epot
+      REAL(KIND=GP)    :: kde, kde2, dp
+      INTEGER          :: kp
 #endif
 #ifdef PIC_
       INTEGER          :: splord, picdiv
@@ -452,7 +453,7 @@
       NAMELIST / pchargpic / initemp
 #endif
 #ifdef ELECSTAT_
-      NAMELIST / elecstat / kde
+      NAMELIST / elecstat / kde,kp,dp
 #endif
 #ifdef MAGFIELD_
       NAMELIST / magfield / m0,a0,mkdn,mkup,mu,corr,mparam0,mparam1
@@ -1137,14 +1138,21 @@
 #ifdef ELECSTAT_
 ! namelist 'elecstat' on the external file 'parameter.inp'
 !     kde  : inverse debye lenght 
+!     dp   : perturbation amplitude (in box units)
+!     kp   : perturbation wavenumber
 
       kde = 0.0_GP
+      dp  = 0.0_GP
+      kp  = 0
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=elecstat)
          CLOSE(1)
       ENDIF
+      dp = nx*dp/Lx
       CALL MPI_BCAST(kde,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dp ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kp ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       kde2 = kde*kde
 #endif
 
@@ -1790,6 +1798,7 @@
       CALL picpart%InitVel(initemp)
 #endif
 #ifdef ELECSTAT_
+      CALL picpart%PerturbPositions(dp,kp)
       CALL picpart%GetDensity(R1)
       CALL fftp3d_real_to_complex(planrc,R1,rhoc,MPI_COMM_WORLD)
       IF ( myrank.EQ.0 ) THEN

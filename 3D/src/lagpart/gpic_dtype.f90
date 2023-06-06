@@ -19,6 +19,7 @@
         PROCEDURE,PUBLIC :: GPIC_ctor
         PROCEDURE,PUBLIC :: GPICStep          => GPIC_StepRKK
         PROCEDURE,PUBLIC :: GetDensity        => GPIC_GetDensity
+        PROCEDURE,PUBLIC :: PerturbPositions  => GPIC_PerturbPositions
       END TYPE GPIC
 
   TYPE, PUBLIC, EXTENDS ( GPIC ) :: VGPIC

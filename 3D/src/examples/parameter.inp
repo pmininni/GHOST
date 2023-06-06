@@ -194,4 +194,6 @@ initemp = 1.0    ! Initial particle temperature
 ! Parameters for electrostatic solver
 &elecstat
 kde = 100.0      ! Inverse debye length
+dp = 0.1         ! Perturbation amplitude (in box units)
+kp = 3           ! Perturbation wavenumber
 /

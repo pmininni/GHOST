@@ -102,6 +102,38 @@
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+  SUBROUTINE GPIC_PerturbPositions(this,d,k)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : PerturbPositions
+!  DESCRIPTION: Add small perturbation to particle positions in
+!               the x-direction  dx = d*cos(k*x)
+
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    vz,vy,vz: compoments of velocity field, in real space, partially
+!              updated, possibly. These will be overwritten!
+!    xk      : multiplicative RK time stage factor
+!-----------------------------------------------------------------
+    USE grid
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPIC)  ,INTENT(INOUT)                            :: this
+    REAL(KIND=GP),INTENT(IN)                               :: d
+    INTEGER      ,INTENT(IN)                               :: k
+    INTEGER                                                :: lag
+    
+    DO lag=1,this%nparts_
+      this%px_(lag) = this%px_(lag) + d*COS(k*this%px_(lag))
+    END DO
+
+    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,7)
+
+    RETURN
+
+  END SUBROUTINE
+
   SUBROUTINE GPIC_EndStageRKK(this,vx,vy,vz,xk)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
