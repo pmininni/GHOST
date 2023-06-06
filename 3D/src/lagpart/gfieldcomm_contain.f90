@@ -88,11 +88,11 @@
       this%ibretnz_ (this%nbret_  ) = this%ibretnz_(this%nbret_) + 1
       k = k + 1
     ENDDO
-    PRINT *, this%myrank_, this%nbret_, this%ibretp_(1:this%nbret_), &
-    this%ibretnz_(1:this%nbret_), this%ibret_(1:this%nbret_,1), this%ibretdst_(1:this%nbret_,1)
-    PRINT *, this%myrank_, this%ntsnd_, this%itsndp_(1:this%ntsnd_), &
-    this%itsndnz_(1:this%ntsnd_),this%itsnd_(1:this%ntsnd_,1), this%itsnddst_(1:this%ntsnd_,1)
-    PRINT *, this%myrank_, this%nbrcv_, this%ibrcvp_(1:this%nbrcv_), this%ibrcvnz_(1:this%nbrcv_)
+!    PRINT *, this%myrank_, this%nbret_, this%ibretp_(1:this%nbret_), &
+!    this%ibretnz_(1:this%nbret_), this%ibret_(1:this%nbret_,1), this%ibretdst_(1:this%nbret_,1)
+!    PRINT *, this%myrank_, this%ntsnd_, this%itsndp_(1:this%ntsnd_), &
+!    this%itsndnz_(1:this%ntsnd_),this%itsnd_(1:this%ntsnd_,1), this%itsnddst_(1:this%ntsnd_,1)
+!    PRINT *, this%myrank_, this%nbrcv_, this%ibrcvp_(1:this%nbrcv_), this%ibrcvnz_(1:this%nbrcv_)
 
     DEALLOCATE(jfwd,kfend,kfsta,nzf)
 
@@ -173,7 +173,7 @@
     ! return data:
     DO j=1,this%nbret_  ! to bottom task:
       itask = this%ibretp_(j)
-      PRINT *, 'Sending', j, this%myrank_, itask
+!      PRINT *, 'Sending', j, this%myrank_, itask
       CALL GFieldComm_PackSF(this,this%sbbuff_(:,j),vext,j,'b')
       CALL GTStart(this%hcomm_)
       CALL MPI_ISEND(this%sbbuff_,this%nbuff_,GC_REAL,itask, &
