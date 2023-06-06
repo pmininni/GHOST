@@ -1,7 +1,7 @@
          CALL derivk3(phi,C1,1)
          CALL derivk3(phi,C2,2)
          CALL derivk3(phi,C3,3)
-         rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+         rmp = -1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.ge.nth) private (k)

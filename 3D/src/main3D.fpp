@@ -3061,6 +3061,26 @@
               CLOSE(1)
             ENDIF
 #endif
+#if defined(PIC_)
+            IF ( dolag.GT.0 ) THEN
+              inquire( file='gpicbenchmark.txt', exist=bbenchexist )
+              OPEN(1,file='gpicbenchmark.txt',position='append')
+              IF (.NOT. bbenchexist) THEN
+                 WRITE(1,*) &
+  '# nx ny nz nparts rbal nsteps nth TRK TCOMM TSPL TTRANS TDEX TINT TUPD'
+              ENDIF
+              WRITE(1,*) nx,ny,nz,maxparts,rbal/(step-ini+1),            &
+                           (step-ini+1),nprocs,nth,                      &
+                           picpart%GetTime   (GPTIME_STEP)/(step-ini+1), &
+                           picpart%GetTime   (GPTIME_COMM)/(step-ini+1), &
+                           picpart%GetTime (GPTIME_SPLINE)/(step-ini+1), &
+                           picpart%GetTime (GPTIME_TRANSP)/(step-ini+1), &
+                           picpart%GetTime (GPTIME_DATAEX)/(step-ini+1), &
+                           picpart%GetTime (GPTIME_INTERP)/(step-ini+1), &
+                           picpart%GetTime(GPTIME_PUPDATE)/(step-ini+1)
+              CLOSE(1)
+            ENDIF
+#endif
          ENDIF
       ENDIF
 
