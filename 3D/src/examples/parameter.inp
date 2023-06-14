@@ -188,7 +188,7 @@ picdiv = 1       ! Divisor for pic particle output
 
 ! Parameters for charged PIC
 &pchargpic
-initemp = 1.0    ! Initial particle temperature
+vthi = 1.0       ! Initial particle temperature
 /
 
 ! Parameters for electrostatic solver
@@ -196,4 +196,5 @@ initemp = 1.0    ! Initial particle temperature
 kde = 100.0      ! Inverse debye length
 dp = 0.1         ! Perturbation amplitude (in box units)
 kp = 3           ! Perturbation wavenumber
+drp = 2          ! Perturbation direction (0=x,1=y,2=z)
 /

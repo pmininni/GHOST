@@ -102,7 +102,7 @@
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-  SUBROUTINE GPIC_PerturbPositions(this,d,k)
+  SUBROUTINE GPIC_PerturbPositions(this,d,k,drp)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : PerturbPositions
@@ -115,24 +115,94 @@
 !              updated, possibly. These will be overwritten!
 !    xk      : multiplicative RK time stage factor
 !-----------------------------------------------------------------
+    USE var
     USE grid
+    USE boxsize
     USE mpivars
 
     IMPLICIT NONE
     CLASS(GPIC)  ,INTENT(INOUT)                            :: this
     REAL(KIND=GP),INTENT(IN)                               :: d
-    INTEGER      ,INTENT(IN)                               :: k
-    INTEGER                                                :: lag
-    
-    DO lag=1,this%nparts_
-      this%px_(lag) = this%px_(lag) + d*COS(k*this%px_(lag))
-    END DO
+    INTEGER      ,INTENT(IN)                               :: k,drp
+    INTEGER                                                :: lag,ng
+    REAL(KIND=GP)                                          :: kk,dd
+   
+    IF (drp.EQ.0) THEN
+      dd = REAL(nx,kind=GP)*d/(2*pi*Lx)
+      kk = 2*pi*k/REAL(nx,kind=GP)
+      DO lag=1,this%nparts_
+        PRINT *, this%px_(lag), d*COS(kk*this%px_(lag))
+        this%px_(lag) = this%px_(lag) + dd*COS(kk*this%px_(lag))
+      END DO
+    ELSE IF (drp.EQ.1) THEN
+      dd = REAL(ny,kind=GP)*d/(2*pi*Ly)
+      kk = 2*pi*k/REAL(ny,kind=GP)
+      DO lag=1,this%nparts_
+        this%py_(lag) = this%py_(lag) + dd*COS(kk*this%py_(lag))
+      END DO
+    ELSE IF (drp.EQ.2) THEN
+      dd = REAL(nz,kind=GP)*d/(2*pi*Lz)
+      kk = 2*pi*k/REAL(nz,kind=GP)
+      DO lag=1,this%nparts_
+        this%pz_(lag) = this%pz_(lag) + dd*COS(kk*this%pz_(lag))
+      END DO
+    END IF
 
+!    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,7)
+
+    ! If using nearest-neighbor interface, do particle exchange
+    ! between nearest-neighbor tasks BEFORE z-PERIODIZING particle coordinates:
+    IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
+      CALL GTStart(this%htimers_(GPTIME_COMM))
+      CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_, &
+           this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2))
+      CALL GTAcc(this%htimers_(GPTIME_COMM))
+    ENDIF
+
+    ! Enforce periodicity in x, y, & z:
     CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,7)
+
+    ! If using VDB interface, do synch-up, and get local work:
+    IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
+
+      IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
+        IF ( this%myrank_.eq.0 ) THEN
+          WRITE(*,*) 'GPIC_EndStageRKK: Inconsistent particle count'
+        ENDIF
+      ENDIF
+      ! Synch up VDB, if necessary:
+      CALL GTStart(this%htimers_(GPTIME_COMM))
+      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+                     this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+                     this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
+                     this%nparts_,this%ptmp1_)
+      CALL GTAcc(this%htimers_(GPTIME_COMM))
+
+      ! If using VDB, get local particles to work on:
+      ! GPart_GetLocalWrk_aux also synchronizes auxiliary RK arrays,
+      ! and is needed if the call is done in the middle of a RK step.
+      CALL GPart_GetLocalWrk_aux(this,this%id_,this%px_,this%py_,this%pz_,&
+                       this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
+                       this%nparts_,this%vdb_,this%gptmp0_,this%maxparts_)
+      CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
+                         MPI_SUM,this%comm_,this%ierr_)
+
+      IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_) THEN
+        WRITE(*,*)'GPIC_EndStageRKK: inconsistent d.b.: expected: ', &
+                 this%maxparts_, '; found: ',ng
+        CALL GPART_ascii_write_lag(this,1,'.','xlgerr','000',0.0_GP, &
+                                   this%maxparts_,this%vdb_)
+        STOP
+      ENDIF
+
+    ENDIF
+
+    IF ( this%intacc_.EQ.0 ) RETURN
 
     RETURN
 
-  END SUBROUTINE
+  END SUBROUTINE GPIC_PerturbPositions
 
   SUBROUTINE GPIC_EndStageRKK(this,vx,vy,vz,xk)
 !-----------------------------------------------------------------

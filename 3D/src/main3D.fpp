@@ -295,13 +295,13 @@
 #endif
 #ifdef ELECSTAT_
       REAL(KIND=GP)    :: kde, kde2, dp
-      INTEGER          :: kp
+      INTEGER          :: kp,drp
 #endif
 #ifdef PIC_
       INTEGER          :: splord, picdiv
 #endif
 #ifdef CHARGPIC_
-      REAL(KIND=GP)    :: initemp, ekin
+      REAL(KIND=GP)    :: vthi, ekin
 #endif
 #ifdef MAGFIELD_
       REAL(KIND=GP)    :: mkup,mkdn
@@ -450,10 +450,10 @@
       NAMELIST / ppic / splord, picdiv
 #endif
 #ifdef CHARGPIC_
-      NAMELIST / pchargpic / initemp
+      NAMELIST / pchargpic / vthi
 #endif
 #ifdef ELECSTAT_
-      NAMELIST / elecstat / kde,kp,dp
+      NAMELIST / elecstat / kde,kp,dp,drp
 #endif
 #ifdef MAGFIELD_
       NAMELIST / magfield / m0,a0,mkdn,mkup,mu,corr,mparam0,mparam1
@@ -1137,22 +1137,25 @@
 
 #ifdef ELECSTAT_
 ! namelist 'elecstat' on the external file 'parameter.inp'
-!     kde  : inverse debye lenght 
+!     kde  : inverse debye length
 !     dp   : perturbation amplitude (in box units)
 !     kp   : perturbation wavenumber
+!     drp  : perturbation direction (0=x,1=y,2=z)
 
       kde = 0.0_GP
       dp  = 0.0_GP
       kp  = 0
+      drp = 0
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=elecstat)
          CLOSE(1)
       ENDIF
-      dp = nx*dp/Lx
+!      dp = REAL(nx,kind=GP)*dp/(2*pi*Lx)
       CALL MPI_BCAST(kde,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(dp ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(kp ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kp ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(drp,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       kde2 = kde*kde
 #endif
 
@@ -1174,15 +1177,15 @@
 
 #ifdef CHARGPIC_
 ! namelist 'pchargpic' on the external file 'parameter.inp'
-!     initemp  : initial particle temperature
+!     vthi  : initial particle temperature
 
-      initemp = 0.0_GP
+      vthi = 0.0_GP
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=pchargpic)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(initemp,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(vthi,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #ifdef UNIFORMB_
@@ -1795,15 +1798,12 @@
       CALL picpart%Init()
 #endif
 #ifdef CHARGPIC_
-      CALL picpart%InitVel(initemp)
+      CALL picpart%InitVel(vthi)
 #endif
 #ifdef ELECSTAT_
-      CALL picpart%PerturbPositions(dp,kp)
+      CALL picpart%PerturbPositions(dp,kp,drp)
       CALL picpart%GetDensity(R1)
       CALL fftp3d_real_to_complex(planrc,R1,rhoc,MPI_COMM_WORLD)
-      IF ( myrank.EQ.0 ) THEN
-         rhoc(1,1,1) = 0.0_GP
-      ENDIF
       CALL poisson_elecstat(rhoc,kde2,phi)
       Rb1 = bx0
       Rb2 = by0
