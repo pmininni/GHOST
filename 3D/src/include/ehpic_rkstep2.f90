@@ -22,8 +22,5 @@
 
          CALL picpart%GetDensity(R1)
          CALL fftp3d_real_to_complex(planrc,R1,rhoc,MPI_COMM_WORLD)
-         IF ( myrank.EQ.0 ) THEN
-            rhoc(1,1,1) = 0.0_GP
-         ENDIF
 
          CALL poisson_elecstat(rhoc,kde2,phi)
