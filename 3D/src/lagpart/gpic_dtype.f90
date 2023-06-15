@@ -17,6 +17,7 @@
       CONTAINS
         ! Public methods:
         PROCEDURE,PUBLIC :: GPIC_ctor
+        PROCEDURE,PUBLIC :: Init              => GPIC_Init
         PROCEDURE,PUBLIC :: GPICStep          => GPIC_StepRKK
         PROCEDURE,PUBLIC :: GetDensity        => GPIC_GetDensity
         PROCEDURE,PUBLIC :: PerturbPositions  => GPIC_PerturbPositions

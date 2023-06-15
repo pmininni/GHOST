@@ -78,49 +78,97 @@
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-
-  SUBROUTINE GPIC_ctor2(this,intorder,csize,nstrip)
+  SUBROUTINE GPIC_Init(this)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!  Explicit constructor for particle-in-cell. Should be called
-!  after calling GPart_ctor.
-!
-!  ARGUMENTS:
+!  METHOD     : Init
+!  DESCRIPTION: Initializes particle locations before integration.
+!               Call after construction.
+!  ARGUMENTS  :
 !    this    : 'this' class instance
-!    intorder: for variable-order (e.g., Lagrange) interpolation,
-!              the order (1, 2, 3...). Sets the number of 'ghost' zones
-!              of data transferred between MPI tasks.
-!    csize   : cache size param for local transposes
-!    nstrip  : 'strip-mining' size for local transposes
 !-----------------------------------------------------------------
-    USE var
+    IMPLICIT NONE
+    CLASS(GPIC)   ,INTENT(INOUT)    :: this
+    INTEGER                         :: j
+
+    IF      ( this%inittype_ .EQ. GPINIT_RANDLOC ) THEN
+      CALL GPIC_InitRandSeed (this)
+    ELSE IF ( this%inittype_ .EQ. GPINIT_USERLOC ) THEN
+      CALL GPart_InitUserSeed (this)
+    ENDIF
+
+  END SUBROUTINE GPIC_Init
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+  SUBROUTINE GPIC_InitRandSeed(this)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : InitRandSeed
+!  DESCRIPTION: Initializes particle locations by dividing
+!               maxparts evenly among cells, and randomly
+!               selecting positions within each cell.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!-----------------------------------------------------------------
+    USE random
     USE grid
-    USE boxsize
-    USE commtypes
+    USE mpivars
 
     IMPLICIT NONE
-    CLASS(GPIC)      ,INTENT(INOUT)     :: this
-    INTEGER          ,INTENT   (IN)     :: intorder,csize,nstrip
+    CLASS(GPIC)   ,INTENT(INOUT)      :: this
+    REAL(KIND=GP)                     :: r
+    INTEGER                           :: ppc,ib,lag,i,j,k,l
 
-    this%intorder_ = intorder
-!    this%icv_      = real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)  &
-!                     *Dkx*Dky*Dkz/(2*pi)**3
-    this%icv_      = real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)  &
-                     /this%maxparts_
+    ppc = this%maxparts_/(nx*ny*nz)
+    this%nparts_ = nx*ny*(kend - ksta + 1)*ppc
+    ib = nx*ny*(ksta-1)*ppc
+    lag = 1
+    DO i = 1,nx
+      DO j = 1,ny
+        DO k = ksta,kend
+          DO l = 1,ppc
+            this%id_(lag) = lag + ib
+            CALL prandom_number(r)
+            this%px_(lag) = i - 1.0_GP  + r
+            CALL prandom_number(r)
+            this%py_(lag) = j - 1.0_GP  + r
+            CALL prandom_number(r)
+            this%pz_(lag) = k - 1.50_GP + r
+            lag = lag + 1
+          END DO
+        END DO
+      END DO
+    END DO
 
-    CALL this%gfcomm_%GPartComm_ctor(GPCOMM_INTRFC_SF,this%maxparts_,    &
-         this%nd_,this%intorder_/2+1,this%comm_,this%htimers_(GPTIME_COMM))
-    CALL this%gfcomm_%SetCacheParam(csize,nstrip)
-    CALL this%gfcomm_%Init()
-    CALL this%gfcomm_%GFieldComm_ctor()
+    PRINT *, myrank, this%nparts_, lag, ib
 
-    CALL this%picspl_%GPICSplineInt_ctor(3,this%nd_,this%libnds_,this%lxbnds_, &
-         this%tibnds_,this%intorder_,this%intorder_/2+1,this%maxparts_,        &
-         this%gfcomm_,this%htimers_(GPTIME_DATAEX),this%htimers_(GPTIME_TRANSP))
+    CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+                          this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+    CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+                          this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+    CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
+                           this%nparts_,this%vdb_,this%maxparts_)
 
-    ALLOCATE ( this%prop_(this%maxparts_) )
+    IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to box units
+       this%ptmp0_(1,:) = this%vdb_(1,:)*this%delta_(1)
+       this%ptmp0_(2,:) = this%vdb_(2,:)*this%delta_(2)
+       this%ptmp0_(3,:) = this%vdb_(3,:)*this%delta_(3)
+       CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,&
+            this%maxparts_,this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
+    ELSE
+       CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,&
+            this%maxparts_,this%vdb_(1,:),this%vdb_(2,:),this%vdb_(3,:))
+    ENDIF
 
-  END SUBROUTINE GPIC_ctor2
+    PRINT *, myrank, this%maxparts_, this%nparts_
+    IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
+      IF ( this%myrank_.eq.0 ) THEN
+        WRITE(*,*) 'GPIC_InitRandSeed: Invalid particle after GetLocalWrk call'
+        STOP
+      ENDIF
+    ENDIF
+
+  END SUBROUTINE GPIC_InitRandSeed
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
