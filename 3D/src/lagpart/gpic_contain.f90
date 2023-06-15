@@ -2,7 +2,84 @@
 ! GPIC SUBROUTINES
 !=================================================================
 
-  SUBROUTINE GPIC_ctor(this,intorder,csize,nstrip)
+  SUBROUTINE GPIC_ctor(this,comm,ppc,inittype,iinterp,intorder,iexchtyp, &
+                        iouttyp,bcoll,csize,nstrip,intacc,wrtunit)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  Explicit constructor for particle-in-cell. Should be called
+!  after calling GPart_ctor.
+!
+!  ARGUMENTS:
+!    this    : 'this' class instance
+!    comm    : MPI communicator
+!    ppc     : number of particle per cell
+!    inittype: GPINIT-typed quantity to give the type of particle
+!              initialization
+!    iinterp : GPINTRP-type quantity providing the interpolation
+!    intorder: for variable-order (e.g., Lagrange) interpolation,
+!              the order (1, 2, 3...). Sets the number of 'ghost' zones
+!              of data transferred between MPI tasks.
+!              scheme
+!    iexchtyp: format for exchanging particle data: GPEXCHTYPE_NN=nearest
+!    neighbor,
+!              suggesting that data is passed between neighboring
+!              tasks only; GPEXCHTYPE_VDB form suggests that all tasks retain a
+!              copy
+!              of the 'master' particle d.b., so that passing between
+!              neighbors is not necessary. But the VDB form does require
+!              a global reduction, and may be more expensive.
+!    iouttup : output type: 0==binary, 1=ASCII
+!    bcoll   : if doing binary I/O, do collective (==1); or not (==0)
+!    csize   : cache size param for local transposes
+!    nstrip  : 'strip-mining' size for local transposes
+!    intacc  : compute acceleration internally to class (==1); or not (==0).
+!    Storage
+!              allocated only if intacc==1.
+!    wrtunit : (optional) write particle positions in box units (==1) (i.e.,
+!              x,y,z in [0,2.pi]), or in grid units (==0) (x,y,z in [0,N]).
+!-----------------------------------------------------------------
+    USE var
+    USE grid
+    USE boxsize
+    USE commtypes
+
+    IMPLICIT NONE
+    CLASS(GPIC)      ,INTENT(INOUT)     :: this
+    INTEGER          ,INTENT   (IN)     :: bcoll,comm,ppc
+    INTEGER          ,INTENT   (IN)     :: csize,nstrip,intacc
+    INTEGER, OPTIONAL,INTENT   (IN)     :: wrtunit
+    INTEGER                             :: disp(3),lens(3),types(3),szreal
+    INTEGER          ,INTENT   (IN)     :: iexchtyp,iinterp,inittype
+    INTEGER          ,INTENT   (IN)     :: intorder,iouttyp
+    INTEGER                             :: maxparts
+
+!    this%icv_      = real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)  &
+!                     *Dkx*Dky*Dkz/(2*pi)**3
+!    this%icv_      = real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)maxparts
+    this%icv_      = 1.0_GP/real(ppc,kind=GP)
+    maxparts       = ppc*nx*ny*nz
+
+    CALL this%GPart_ctor(comm,maxparts,inittype,iinterp,3,iexchtyp, &
+                        iouttyp,bcoll,csize,nstrip,intacc,wrtunit)
+    this%intorder_ = intorder
+    CALL this%gfcomm_%GPartComm_ctor(GPCOMM_INTRFC_SF,maxparts,    &
+         this%nd_,this%intorder_/2+1,this%comm_,this%htimers_(GPTIME_COMM))
+    CALL this%gfcomm_%SetCacheParam(csize,nstrip)
+    CALL this%gfcomm_%Init()
+    CALL this%gfcomm_%GFieldComm_ctor()
+
+    CALL this%picspl_%GPICSplineInt_ctor(3,this%nd_,this%libnds_,this%lxbnds_, &
+         this%tibnds_,this%intorder_,this%intorder_/2+1,this%maxparts_,        &
+         this%gfcomm_,this%htimers_(GPTIME_DATAEX),this%htimers_(GPTIME_TRANSP))
+
+    ALLOCATE ( this%prop_(this%maxparts_) )
+
+  END SUBROUTINE GPIC_ctor
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+  SUBROUTINE GPIC_ctor2(this,intorder,csize,nstrip)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Explicit constructor for particle-in-cell. Should be called
@@ -43,7 +120,7 @@
 
     ALLOCATE ( this%prop_(this%maxparts_) )
 
-  END SUBROUTINE GPIC_ctor
+  END SUBROUTINE GPIC_ctor2
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -688,7 +765,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 ! ChargPIC SUBROUTINES
 !=================================================================
 
-  SUBROUTINE ChargPIC_ctor(this,intorder,csize,nstrip)
+  SUBROUTINE ChargPIC_ctor(this)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Explicit constructor for test particles. Should be called
@@ -704,9 +781,6 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 
     IMPLICIT NONE
     CLASS(ChargPIC)   , INTENT(INOUT)   :: this
-    INTEGER           , INTENT   (IN)   :: intorder,csize,nstrip
-
-    CALL this%GPIC_ctor(intorder,csize,nstrip)
 
     ALLOCATE(this%pvx_     (this%maxparts_))
     ALLOCATE(this%pvy_     (this%maxparts_))

@@ -298,7 +298,7 @@
       INTEGER          :: kp,drp
 #endif
 #ifdef PIC_
-      INTEGER          :: splord, picdiv
+      INTEGER          :: splord, picdiv, partpcell
 #endif
 #ifdef CHARGPIC_
       REAL(KIND=GP)    :: vthi, ekin
@@ -447,7 +447,7 @@
       NAMELIST / cmhdb / amach
 #endif
 #ifdef PIC_
-      NAMELIST / ppic / splord, picdiv
+      NAMELIST / ppic / splord, picdiv, partpcell
 #endif
 #ifdef CHARGPIC_
       NAMELIST / pchargpic / vthi
@@ -1161,11 +1161,13 @@
 
 #ifdef PIC_
 ! namelist 'ppic' on the external file 'parameter.inp'
-!     splord  : spline order (0, 1, 2 or 3)
-!     picdiv  : divisor for pic particle output
+!     splord   : spline order (0, 1, 2 or 3)
+!     picdiv   : divisor for pic particle output
+!     partpcell: number of particles per cell
 
-      splord = 0
-      picdiv = 1
+      splord    = 0
+      picdiv    = 1
+      partpcell = 1
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=ppic)
@@ -1173,6 +1175,7 @@
       ENDIF
       CALL MPI_BCAST(splord,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(picdiv,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(partpcell,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #ifdef CHARGPIC_
@@ -1700,14 +1703,14 @@
 #endif
 
 #ifdef PIC_
-      CALL picpart%GPart_ctor(MPI_COMM_WORLD,maxparts,ilginittype, &
+      CALL picpart%GPIC_ctor(MPI_COMM_WORLD,partpcell,ilginittype, &
            ilgintrptype,splord,ilgexchtype,ilgouttype,ilgcoll,csize,&
            nstrip,dopacc,ilgwrtunit)
       CALL picpart%SetRandSeed(seed)
       CALL picpart%SetSeedFile(trim(lgseedfile))
 #endif
 #ifdef CHARGPIC_
-      CALL picpart%ChargPIC_ctor(splord,csize,nstrip)
+      CALL picpart%ChargPIC_ctor()
 #endif
 
 #ifdef PART_

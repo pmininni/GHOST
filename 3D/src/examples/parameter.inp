@@ -184,11 +184,12 @@ dokinelp = 0     ! Compute electron pressure (0=no, 1=yes if flow compressible)
 &ppic
 splord = 3       ! Spline order (0, 1, 2 or 3)
 picdiv = 1       ! Divisor for pic particle output
+partpcell = 1024 ! Number of particles per cell
 /
 
 ! Parameters for charged PIC
 &pchargpic
-vthi = 1.0       ! Initial particle temperature
+vthi = 1.0       ! Initial ion temperature
 /
 
 ! Parameters for electrostatic solver
