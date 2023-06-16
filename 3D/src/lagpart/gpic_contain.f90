@@ -93,6 +93,8 @@
 
     IF      ( this%inittype_ .EQ. GPINIT_RANDLOC ) THEN
       CALL GPIC_InitRandSeed (this)
+    ELSE IF ( this%inittype_ .EQ. GPINIT_LATTICE ) THEN
+      CALL GPIC_InitLattice (this)    
     ELSE IF ( this%inittype_ .EQ. GPINIT_USERLOC ) THEN
       CALL GPart_InitUserSeed (this)
     ENDIF
@@ -100,6 +102,89 @@
   END SUBROUTINE GPIC_Init
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
+
+  SUBROUTINE GPIC_InitLattice(this)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : InitRandSeed
+!  DESCRIPTION: Initializes particle locations by dividing
+!               maxparts evenly among cells, and randomly
+!               selecting positions within each cell.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!-----------------------------------------------------------------
+    USE grid
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPIC)   ,INTENT(INOUT)      :: this
+    REAL(KIND=GP)                     :: del
+    INTEGER                           :: ppc,pps,ib,lag
+    INTEGER                           :: i,j,k,ii,jj,kk
+
+    ppc = this%maxparts_/(nx*ny*nz)
+    pps = ppc**(1.0/3.0)
+    IF (pps*pps*pps .NE. ppc) THEN
+      IF ( this%myrank_.eq.0 ) THEN
+        WRITE(*,*) 'GPIC_InitLattice: Number of particles per cell &
+                                      must be perfect cube'
+        STOP
+      ENDIF
+    END IF
+    this%nparts_ = nx*ny*(kend - ksta + 1)*ppc
+    ib = nx*ny*(ksta-1)*ppc
+    lag = 1
+    del = 1.0_GP/pps
+    DO i = 1,nx
+      DO j = 1,ny
+        DO k = ksta,kend
+          DO ii = 1,pps
+            DO jj = 1,pps
+              DO kk = 1,pps
+                this%id_(lag) = lag + ib
+                this%px_(lag) = (i-1.00_GP) + (ii-0.50_GP)*del
+                this%py_(lag) = (j-1.00_GP) + (jj-0.50_GP)*del
+                this%pz_(lag) = (k-1.50_GP) + (kk-0.50_GP)*del
+                lag = lag + 1
+              END DO
+            END DO
+          END DO
+        END DO
+      END DO
+    END DO
+
+    PRINT *, myrank, this%nparts_, lag, ib
+
+    CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+                          this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+    CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+                          this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+    CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
+                           this%nparts_,this%vdb_,this%maxparts_)
+
+    IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to box units
+       this%ptmp0_(1,:) = this%vdb_(1,:)*this%delta_(1)
+       this%ptmp0_(2,:) = this%vdb_(2,:)*this%delta_(2)
+       this%ptmp0_(3,:) = this%vdb_(3,:)*this%delta_(3)
+       CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,&
+            this%maxparts_,this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
+    ELSE
+       CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,&
+            this%maxparts_,this%vdb_(1,:),this%vdb_(2,:),this%vdb_(3,:))
+    ENDIF
+
+    PRINT *, myrank, this%maxparts_, this%nparts_
+    IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
+      IF ( this%myrank_.eq.0 ) THEN
+        WRITE(*,*) 'GPIC_InitLattice: Invalid particle after GetLocalWrk call'
+        STOP
+      ENDIF
+    ENDIF
+
+  END SUBROUTINE GPIC_InitLattice
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
   SUBROUTINE GPIC_InitRandSeed(this)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
