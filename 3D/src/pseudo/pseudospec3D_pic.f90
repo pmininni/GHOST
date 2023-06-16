@@ -39,7 +39,8 @@
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: rhoc
       REAL(KIND=GP)   , INTENT (IN)                             :: kde2
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: phi
-      IF (ista.eq.1) THEN
+
+      IF (myrank.eq.0) THEN
          phi(1,1,1) = 0.0_GP
          DO k = 2,nz
             phi(k,1,1) = rhoc(k,1,1)/(kk2(k,1,1)+kde2)
