@@ -198,3 +198,41 @@
       RETURN
 
       END SUBROUTINE meanvalueproduct
+
+!*****************************************************************
+      SUBROUTINE dealias(a)
+!-----------------------------------------------------------------
+!
+! Applies 2/3 rule to dealias field a in Fourier space
+!
+! Parameters
+!   a  : field in Fourier space
+!
+
+      USE fprecision
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP),INTENT(INOUT),DIMENSION(nz,ny,ista:iend):: a
+      INTEGER                                                  :: i,j,k
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.ge.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               IF (kn2(k,j,i).GT.kmax) THEN
+                  a(k,j,i) = 0.0_GP
+               END IF
+            END DO
+         END DO
+      END DO
+ 
+      RETURN
+      END SUBROUTINE dealias
+
+

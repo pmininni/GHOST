@@ -22,5 +22,6 @@
 
          CALL picpart%GetDensity(R1)
          CALL fftp3d_real_to_complex(planrc,R1,rhoc,MPI_COMM_WORLD)
+         CALL dealias(rhoc)
 
          CALL poisson_elecstat(rhoc,kde2,phi)

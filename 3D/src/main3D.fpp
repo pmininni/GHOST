@@ -1518,6 +1518,9 @@
          kx(i) = real(i-1,kind=GP)
          kx(i+nx/2) = real(i-nx/2-1,kind=GP)
       END DO
+      IF (nx.eq.1) THEN
+         kx(1) = 0.0_GP
+      END IF
       DO j = 1,ny/2
          ky(j) = real(j-1,kind=GP)
          ky(j+ny/2) = real(j-ny/2-1,kind=GP)
@@ -1807,6 +1810,7 @@
       CALL picpart%PerturbPositions(dp,kp,drp)
       CALL picpart%GetDensity(R1)
       CALL fftp3d_real_to_complex(planrc,R1,rhoc,MPI_COMM_WORLD)
+      CALL dealias(rhoc)
       CALL poisson_elecstat(rhoc,kde2,phi)
       Rb1 = bx0
       Rb2 = by0
