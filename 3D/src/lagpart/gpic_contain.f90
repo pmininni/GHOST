@@ -132,7 +132,7 @@
       ENDIF
     END IF
     this%nparts_ = nx*ny*(kend - ksta + 1)*ppc
-    ib = nx*ny*(ksta-1)*ppc
+    ib = nx*ny*(ksta-1)*ppc - 1
     lag = 1
     del = 1.0_GP/pps
     DO i = 1,nx
@@ -142,9 +142,9 @@
             DO jj = 1,pps
               DO kk = 1,pps
                 this%id_(lag) = lag + ib
-                this%px_(lag) = (i-1.00_GP) + (ii-0.50_GP)*del
-                this%py_(lag) = (j-1.00_GP) + (jj-0.50_GP)*del
-                this%pz_(lag) = (k-1.50_GP) + (kk-0.50_GP)*del
+                this%px_(lag) = (i-1.0_GP) + (ii-0.50_GP)*del
+                this%py_(lag) = (j-1.0_GP) + (jj-0.50_GP)*del
+                this%pz_(lag) = (k-1.0_GP) + (kk-0.50_GP)*del
                 lag = lag + 1
               END DO
             END DO
@@ -152,8 +152,6 @@
         END DO
       END DO
     END DO
-
-    PRINT *, myrank, this%nparts_, lag, ib
 
     CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
@@ -173,7 +171,6 @@
             this%maxparts_,this%vdb_(1,:),this%vdb_(2,:),this%vdb_(3,:))
     ENDIF
 
-    PRINT *, myrank, this%maxparts_, this%nparts_
     IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
       IF ( this%myrank_.eq.0 ) THEN
         WRITE(*,*) 'GPIC_InitLattice: Invalid particle after GetLocalWrk call'
@@ -206,7 +203,7 @@
 
     ppc = this%maxparts_/(nx*ny*nz)
     this%nparts_ = nx*ny*(kend - ksta + 1)*ppc
-    ib = nx*ny*(ksta-1)*ppc
+    ib = nx*ny*(ksta-1)*ppc - 1
     lag = 1
     DO i = 1,nx
       DO j = 1,ny
@@ -218,14 +215,12 @@
             CALL prandom_number(r)
             this%py_(lag) = j - 1.0_GP  + r
             CALL prandom_number(r)
-            this%pz_(lag) = k - 1.50_GP + r
+            this%pz_(lag) = k - 1.0_GP + r
             lag = lag + 1
           END DO
         END DO
       END DO
     END DO
-
-    PRINT *, myrank, this%nparts_, lag, ib
 
     CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
@@ -245,7 +240,6 @@
             this%maxparts_,this%vdb_(1,:),this%vdb_(2,:),this%vdb_(3,:))
     ENDIF
 
-    PRINT *, myrank, this%maxparts_, this%nparts_
     IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
       IF ( this%myrank_.eq.0 ) THEN
         WRITE(*,*) 'GPIC_InitRandSeed: Invalid particle after GetLocalWrk call'
@@ -334,27 +328,38 @@
     CLASS(GPIC)  ,INTENT(INOUT)                            :: this
     REAL(KIND=GP),INTENT(IN)                               :: d
     INTEGER      ,INTENT(IN)                               :: k,drp
-    INTEGER                                                :: lag,ng
-    REAL(KIND=GP)                                          :: kk,dd
+    INTEGER                                                :: lag,ng,s
+    REAL(KIND=GP)                                          :: kk,dd,y
    
     IF (drp.EQ.0) THEN
       dd = REAL(nx,kind=GP)*d/(2*pi*Lx)
       kk = 2*pi*k/REAL(nx,kind=GP)
       DO lag=1,this%nparts_
-        PRINT *, this%px_(lag), d*COS(kk*this%px_(lag))
-        this%px_(lag) = this%px_(lag) + dd*COS(kk*this%px_(lag))
+        y = this%px_(lag)
+        DO s=1,5
+          y = (this%px_(lag) + y*d*COS(kk*y) - (d/kk)*SIN(kk*y))/(1 + d*COS(kk*y))
+        END DO 
+        this%px_(lag) = y
       END DO
     ELSE IF (drp.EQ.1) THEN
       dd = REAL(ny,kind=GP)*d/(2*pi*Ly)
       kk = 2*pi*k/REAL(ny,kind=GP)
       DO lag=1,this%nparts_
-        this%py_(lag) = this%py_(lag) + dd*COS(kk*this%py_(lag))
+        y = this%py_(lag)
+        DO s=1,5
+          y = (this%py_(lag) + y*d*COS(kk*y) - (d/kk)*SIN(kk*y))/(1 + d*COS(kk*y))
+        END DO 
+        this%py_(lag) = y
       END DO
     ELSE IF (drp.EQ.2) THEN
       dd = REAL(nz,kind=GP)*d/(2*pi*Lz)
       kk = 2*pi*k/REAL(nz,kind=GP)
       DO lag=1,this%nparts_
-        this%pz_(lag) = this%pz_(lag) + dd*COS(kk*this%pz_(lag))
+        y = this%pz_(lag)
+        DO s=1,5
+          y = (this%pz_(lag) + y*d*COS(kk*y) - (d/kk)*SIN(kk*y))/(1 + d*COS(kk*y))
+        END DO 
+        this%pz_(lag) = y
       END DO
     END IF
 
