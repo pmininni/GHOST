@@ -425,7 +425,7 @@
     INTEGER                                             :: nx,nxy,ny,nz
     INTEGER      ,INTENT   (IN)                         :: method
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)            :: v
-    REAL(KIND=GP),INTENT    (IN),DIMENSION(*)            :: vext
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(*)            :: vext
 
     ngz  = this%nzghost_
     ngp  = ngz * this%iextperp_

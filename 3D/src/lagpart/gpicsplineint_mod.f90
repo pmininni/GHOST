@@ -38,6 +38,7 @@ MODULE class_GPICSplineInt
         PRIVATE
         ! Member data:
         REAL(KIND=GP),ALLOCATABLE,DIMENSION(:,:,:)   :: esplfld_
+        DOUBLE PRECISION,ALLOCATABLE,DIMENSION(:,:,:):: esplflddp_
         REAL(KIND=GP),ALLOCATABLE,DIMENSION  (:,:)   :: esplfld2_
         REAL(KIND=GP),ALLOCATABLE,DIMENSION    (:)   :: xrk_,yrk_,zrk_
         REAL(KIND=GP)                                :: dxi_(3),xbnds_(3,2)
@@ -416,12 +417,12 @@ SUBROUTINE GPICSplineInt_Deposit3D(this,prop,np,proj)
   REAL(KIND=GP)                                :: zz(4),zzz,zzm
   REAL(KIND=GP)                                :: two,three,four,six,sixth,eighth
 !
-  this%esplfld_ = 0
+  this%esplflddp_ = 0
 
   IF (this%splord_.eq.0) THEN
     DO lag=1, np
-      this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(1,lag)) =  &
-      this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(1,lag)) + prop(lag)
+      this%esplflddp_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(1,lag)) =  &
+      this%esplflddp_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(1,lag)) + prop(lag)
     ENDDO
   ELSE IF (this%splord_.eq.1) THEN
     DO lag=1, np
@@ -434,8 +435,8 @@ SUBROUTINE GPICSplineInt_Deposit3D(this,prop,np,proj)
       DO i=1,2
         DO j=1,2
           DO k=1,2
-            this%esplfld_(this%ilg_(i,lag),this%jlg_(j,lag),this%klg_(k,lag)) = &
-              this%esplfld_(this%ilg_(i,lag),this%jlg_(j,lag),this%klg_(k,lag)) &
+            this%esplflddp_(this%ilg_(i,lag),this%jlg_(j,lag),this%klg_(k,lag)) = &
+              this%esplflddp_(this%ilg_(i,lag),this%jlg_(j,lag),this%klg_(k,lag)) &
                           + prop(lag)*xx(i)*yy(j)*zz(k)
           ENDDO
         ENDDO
@@ -462,8 +463,8 @@ SUBROUTINE GPICSplineInt_Deposit3D(this,prop,np,proj)
       DO i=1,3
         DO j=1,3
           DO k=1,3
-            this%esplfld_(this%ilg_(i,lag),this%jlg_(j,lag),this%klg_(k,lag)) = &
-              this%esplfld_(this%ilg_(i,lag),this%jlg_(j,lag),this%klg_(k,lag)) &
+            this%esplflddp_(this%ilg_(i,lag),this%jlg_(j,lag),this%klg_(k,lag)) = &
+              this%esplflddp_(this%ilg_(i,lag),this%jlg_(j,lag),this%klg_(k,lag)) &
                           + prop(lag)*xx(i)*yy(j)*zz(k)
           ENDDO
         ENDDO
@@ -498,14 +499,16 @@ SUBROUTINE GPICSplineInt_Deposit3D(this,prop,np,proj)
       DO i=1,4
         DO j=1,4
           DO k=1,4
-            this%esplfld_(this%ilg_(i,lag),this%jlg_(j,lag),this%klg_(k,lag)) = &
-              this%esplfld_(this%ilg_(i,lag),this%jlg_(j,lag),this%klg_(k,lag)) &
+            this%esplflddp_(this%ilg_(i,lag),this%jlg_(j,lag),this%klg_(k,lag)) = &
+              this%esplflddp_(this%ilg_(i,lag),this%jlg_(j,lag),this%klg_(k,lag)) &
                           + prop(lag)*xx(i)*yy(j)*zz(k)
           ENDDO
         ENDDO
       ENDDO
     ENDDO
   ENDIF
+
+  this%esplfld_ = this%esplflddp_
 
 !  proj = 0
   CALL GTStart(this%hdataex_)
@@ -710,6 +713,7 @@ END SUBROUTINE GPICSplineInt_Deposit3D
       ALLOCATE( this%esplfld2_(this%ldims_(1),(this%ldims_(2)+2*nzg)) )
     ELSE IF ( this%rank_ .EQ. 3 ) THEN
       ALLOCATE(this%esplfld_(this%ldims_(1),this%ldims_(2),(this%ldims_(3)+2*nzg)) )
+      ALLOCATE(this%esplflddp_(this%ldims_(1),this%ldims_(2),(this%ldims_(3)+2*nzg)) )
     ENDIF
 
     ALLOCATE(this%ilg_(this%splord_+1,this%maxint_))
@@ -795,9 +799,6 @@ END SUBROUTINE GPICSplineInt_Deposit3D
     CALL GTStart(this%hdataex_)
     CALL this%gfcomm_%SlabDataExchangeSF(this%esplfld_,field)
     CALL GTAcc(this%hdataex_)
-
-    !PRINT *, myrank, field(1)
-    !PRINT *, myrank, this%esplfld_(1,1,:)
 
    RETURN
 
