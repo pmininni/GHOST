@@ -282,7 +282,7 @@
 #define ELECFIELD_
 #define ELECSTAT_
 #define UNIFORMB_
-#define CHARGPIC_
+#define HYBPIC_
 #define INCLUDEFNAME_ 'ehpic_
 #endif
 

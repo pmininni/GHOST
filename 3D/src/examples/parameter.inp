@@ -192,9 +192,14 @@ partpcell = 1024 ! Number of particles per cell
 vthi = 1.0       ! Initial ion temperature
 /
 
+! Parameters for hybrid-PIC solvers
+&phybrid
+kde = 100.0      ! Inverse debye length
+gammae = 1.0     ! Barotropic exponent for fluid electrons
+/
+
 ! Parameters for electrostatic solver
 &elecstat
-kde = 100.0      ! Inverse debye length
 dp = 0.1         ! Perturbation amplitude (in box units)
 kp = 3           ! Perturbation wavenumber
 drp = 2          ! Perturbation direction (0=x,1=y,2=z)

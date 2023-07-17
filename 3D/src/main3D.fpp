@@ -138,7 +138,7 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: th1,th2,th3
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fs1,fs2,fs3
 #endif
-#ifdef CHARGPIC_
+#ifdef HYBPIC_
       TYPE(ChargPIC)                                   :: picpart
 #endif
 #ifdef ELECFIELD_
@@ -165,7 +165,7 @@
 #ifdef VELOC_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M1,M2,M3
 #endif
-#ifdef CHARGPIC_
+#ifdef HYBPIC_
       REAL(KIND=GP)   , ALLOCATABLE, DIMENSION (:,:,:) :: Re1,Re2,Re3
       REAL(KIND=GP)   , ALLOCATABLE, DIMENSION (:,:,:) :: Rb1,Rb2,Rb3
 #endif
@@ -294,14 +294,14 @@
       REAL(KIND=GP)    :: amach, cp2
 #endif
 #ifdef ELECSTAT_
-      REAL(KIND=GP)    :: kde, kde2, dp
+      REAL(KIND=GP)    :: dp
       INTEGER          :: kp,drp
 #endif
 #ifdef PIC_
       INTEGER          :: splord, picdiv, partpcell
 #endif
-#ifdef CHARGPIC_
-      REAL(KIND=GP)    :: vthi, ekin
+#ifdef HYBPIC_
+      REAL(KIND=GP)    :: vthi,ekin,kde,kde2,gammae
 #endif
 #ifdef MAGFIELD_
       REAL(KIND=GP)    :: mkup,mkdn
@@ -449,11 +449,11 @@
 #ifdef PIC_
       NAMELIST / ppic / splord, picdiv, partpcell
 #endif
-#ifdef CHARGPIC_
-      NAMELIST / pchargpic / vthi
+#ifdef HYBPIC_
+      NAMELIST / phybrid / vthi,kde,gammae
 #endif
 #ifdef ELECSTAT_
-      NAMELIST / elecstat / kde,kp,dp,drp
+      NAMELIST / elecstat / kp,dp,drp
 #endif
 #ifdef MAGFIELD_
       NAMELIST / magfield / m0,a0,mkdn,mkup,mu,corr,mparam0,mparam1
@@ -676,7 +676,7 @@
       ALLOCATE( Rj2(nx,ny,ksta:kend) )
       ALLOCATE( Rj3(nx,ny,ksta:kend) )
 #endif
-#if defined (CHARGPIC_)
+#if defined (HYBPIC_)
       ALLOCATE( Rb1(nx,ny,ksta:kend) )
       ALLOCATE( Rb2(nx,ny,ksta:kend) )
       ALLOCATE( Rb3(nx,ny,ksta:kend) )
@@ -1137,7 +1137,6 @@
 
 #ifdef ELECSTAT_
 ! namelist 'elecstat' on the external file 'parameter.inp'
-!     kde  : inverse debye length
 !     dp   : perturbation amplitude (in box units)
 !     kp   : perturbation wavenumber
 !     drp  : perturbation direction (0=x,1=y,2=z)
@@ -1152,10 +1151,28 @@
          CLOSE(1)
       ENDIF
 !      dp = REAL(nx,kind=GP)*dp/(2*pi*Lx)
-      CALL MPI_BCAST(kde,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(dp ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(kp ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(drp,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+#endif
+#ifdef HYBPIC_
+! namelist 'elecstat' on the external file 'parameter.inp'
+!     vthi  : initial particle temperature
+!     kde   : inverse debye length
+!     gammae: barotropic exponent for fluid electrons
+
+      vthi   = 0.0_GP
+      kde    = 0.0_GP
+      gammae = 0.0_GP
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
+         READ(1,NML=phybrid)
+         CLOSE(1)
+      ENDIF
+!      dp = REAL(nx,kind=GP)*dp/(2*pi*Lx)
+      CALL MPI_BCAST(kde ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(vthi,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(gammae,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       kde2 = kde*kde
 #endif
 
@@ -1176,19 +1193,6 @@
       CALL MPI_BCAST(splord,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(picdiv,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(partpcell,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-#endif
-
-#ifdef CHARGPIC_
-! namelist 'pchargpic' on the external file 'parameter.inp'
-!     vthi  : initial particle temperature
-
-      vthi = 0.0_GP
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
-         READ(1,NML=pchargpic)
-         CLOSE(1)
-      ENDIF
-      CALL MPI_BCAST(vthi,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #ifdef UNIFORMB_
@@ -1712,7 +1716,7 @@
       CALL picpart%SetRandSeed(seed)
       CALL picpart%SetSeedFile(trim(lgseedfile))
 #endif
-#ifdef CHARGPIC_
+#ifdef HYBPIC_
       CALL picpart%ChargPIC_ctor()
 #endif
 
@@ -1803,7 +1807,7 @@
 #ifdef PIC_
       CALL picpart%Init()
 #endif
-#ifdef CHARGPIC_
+#ifdef HYBPIC_
       CALL picpart%InitVel(vthi)
 #endif
 #ifdef ELECSTAT_
@@ -2003,7 +2007,7 @@
 
 #ifdef PIC_
           CALL picpart%io_read (1,idir,'xpic',ext)
-#ifdef CHARGPIC_
+#ifdef HYBPIC_
           CALL picpart%io_readv(1,idir,'vpic',ext)
 #endif
 #endif
@@ -2545,7 +2549,7 @@
 #ifdef PIC_
             IF (MODULO(tind,picdiv).eq.0) THEN
                CALL picpart%io_write_pdb (1,odir,'xpic',ext,(t-1)*dt)
-#ifdef CHARGPIC_
+#ifdef HYBPIC_
                CALL picpart%io_write_pdbv(1,odir,'vpic',ext,(t-1)*dt)
 #endif
             END IF
