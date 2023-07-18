@@ -301,7 +301,7 @@
       INTEGER          :: splord, picdiv, partpcell
 #endif
 #ifdef HYBPIC_
-      REAL(KIND=GP)    :: vthi,ekin,kde,kde2,gammae
+      REAL(KIND=GP)    :: vthi,ekin,kde,kde2,gammae,gam1,cp1
 #endif
 #ifdef MAGFIELD_
       REAL(KIND=GP)    :: mkup,mkdn
@@ -1154,6 +1154,8 @@
       CALL MPI_BCAST(vthi,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(gammae,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       kde2 = kde*kde
+      gam1 = gammae-1.0_GP
+      cp1  = gammae/(gam1*kde2)
 #endif
 
 #ifdef ELECSTAT_
