@@ -107,7 +107,7 @@
       INTEGER             :: i,j,k
       REAL(KIND=GP)       :: rmp
 
-      CALL meanvalueproduct(rho,phi,ep)
+      CALL product(rho,phi,ep)
       
       rmp = 1/(real(nx,KIND=GP)*real(ny,KIND=GP)*real(nz,KIND=GP))
       ekloc = 0.0D0
@@ -135,69 +135,6 @@
 
       RETURN
       END SUBROUTINE ehpiccheck
-
-!*****************************************************************
-      SUBROUTINE meanvalueproduct(a, b, c)
-!-----------------------------------------------------------------
-!
-! Calculates mean value of the product of a and b in
-! real space <a*b>
-!
-! Parameters
-!     a,b: input matrices for calculation
-!     c  : output value of <a*b>
-!
-      USE fprecision
-      USE commtypes
-      USE grid
-      USE mpivars
-!$    USE threads
-      IMPLICIT NONE
-
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a, b
-      DOUBLE PRECISION, INTENT(OUT)                            :: c
-      DOUBLE PRECISION    :: cloc
-      INTEGER             :: i,j,k
-      REAL(KIND=GP)       :: tmp
-
-      cloc = 0.0D0
-      tmp = 1.0_GP/ &
-            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
-
-      IF (ista.eq.1) THEN
-!$omp parallel do private (k) reduction(+:dloc)
-         DO j = 1,ny
-            DO k = 1,nz
-                 cloc = cloc+real(a(k,j,1)*conjg(b(k,j,1)))*tmp
-            END DO
-         END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:dloc)
-         DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:dloc)
-            DO j = 1,ny
-               DO k = 1,nz
-                  cloc = cloc+2*real(a(k,j,i)*conjg(b(k,j,i)))*tmp
-               END DO
-            END DO
-         END DO
-      ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:dloc)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:dloc)
-            DO j = 1,ny
-               DO k = 1,nz
-                  cloc = cloc+2*real(a(k,j,i)*conjg(b(k,j,i)))*tmp
-               END DO
-            END DO
-         END DO
-      ENDIF
-
-      CALL MPI_REDUCE(cloc,c,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
-                      MPI_COMM_WORLD,ierr)
-      
-      RETURN
-
-      END SUBROUTINE meanvalueproduct
 
 !*****************************************************************
       SUBROUTINE dealias(a)
