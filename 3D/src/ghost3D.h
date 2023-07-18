@@ -286,6 +286,14 @@
 #define INCLUDEFNAME_ 'ehpic_
 #endif
 
+#ifdef HPIC_SOL
+#define DNS_
+#define MAGFIELD_
+#define UNIFORMB_
+#define HYBPIC_
+#define INCLUDEFNAME_ 'hpic_
+#endif
+
 ! Particles subclasses
 
 #ifdef DEF_GHOST_LAGP

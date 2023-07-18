@@ -192,8 +192,9 @@ EDQNMROTH_OBJS = $(ROTH_OBJS) $(EDQNM_OBJS)
 EDQNMBUSS_OBJS = $(BOUSS_OBJS) $(EDQNM_OBJS)
 TRAN_OBJS      = pseudospec3D_trn.o
 STRU_OBJS      = pseudospec3D_shf.o
-EHPIC_OBJS     = $(HD_OBJS) pseudospec3D_pic.o \
+EHPIC_OBJS     = $(PHD_OBJS) pseudospec3D_pic.o \
                  pseudospec3D_prot.o
+HPIC_OBJS      = $(EHPIC_OBJS) pseudospec3D_compr.o pseudospec3D_mhd.o
 OBJS           = $($(SOLVER)_OBJS) 
 OBJSDIR        = pseudo
 SUBDIRS        = posix mpiio fftp-2 fftp-3 fftp-cu fftp-mkl utils \
