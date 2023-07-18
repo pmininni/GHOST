@@ -1135,26 +1135,6 @@
       CALL MPI_BCAST(aparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
-#ifdef ELECSTAT_
-! namelist 'elecstat' on the external file 'parameter.inp'
-!     dp   : perturbation amplitude (in box units)
-!     kp   : perturbation wavenumber
-!     drp  : perturbation direction (0=x,1=y,2=z)
-
-      kde = 0.0_GP
-      dp  = 0.0_GP
-      kp  = 0
-      drp = 0
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
-         READ(1,NML=elecstat)
-         CLOSE(1)
-      ENDIF
-!      dp = REAL(nx,kind=GP)*dp/(2*pi*Lx)
-      CALL MPI_BCAST(dp ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(kp ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(drp,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-#endif
 #ifdef HYBPIC_
 ! namelist 'elecstat' on the external file 'parameter.inp'
 !     vthi  : initial particle temperature
@@ -1174,6 +1154,30 @@
       CALL MPI_BCAST(vthi,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(gammae,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       kde2 = kde*kde
+#endif
+
+#ifdef ELECSTAT_
+      IF (gammae.NE.1) THEN
+         PRINT *, 'EHPIC solver supports only gammae=1.'
+      END IF
+! namelist 'elecstat' on the external file 'parameter.inp'
+!     dp   : perturbation amplitude (in box units)
+!     kp   : perturbation wavenumber
+!     drp  : perturbation direction (0=x,1=y,2=z)
+
+      kde = 0.0_GP
+      dp  = 0.0_GP
+      kp  = 0
+      drp = 0
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
+         READ(1,NML=elecstat)
+         CLOSE(1)
+      ENDIF
+!      dp = REAL(nx,kind=GP)*dp/(2*pi*Lx)
+      CALL MPI_BCAST(dp ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kp ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(drp,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #ifdef PIC_
@@ -2786,6 +2790,10 @@
 ! Runge-Kutta step 1
 ! Copies the fields into auxiliary arrays
 
+#ifdef HYBPIC_
+         CALL picpart%SetStep()
+         CALL picpart%SetStepVel()
+#endif
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
