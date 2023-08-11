@@ -139,7 +139,9 @@
                        plan%ccarr,nt*nt*(iend-ista+1),1,nt,     &
                        plan%ccarr,nt*nt*(iend-ista+1),1,nt,fftdir,flags)
 #endif
-      plan%n = nt
+      plan%nx = nt
+      plan%ny = nt
+      plan%nz = nt
       ALLOCATE( plan%itype1(0:nprocs-1) )
       ALLOCATE( plan%itype2(0:nprocs-1) )
       CALL fftp3d_create_trblock(n,nt,nprocs,myrank,plan%itype1, &
