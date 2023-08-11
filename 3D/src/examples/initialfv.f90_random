@@ -17,83 +17,83 @@
          C1(1,1,1) = 0.
          C2(1,1,1) = 0.
          C3(1,1,1) = 0.
-         DO j = 2,n/2+1
+         DO j = 2,ny/2+1
 
-            IF ((ka2(1,j,1).le.kup**2).and.(ka2(1,j,1).ge.kdn**2)) THEN
-               dump = 1./sqrt(ka2(1,j,1))
+            IF ((kk2(1,j,1).le.kup**2).and.(kk2(1,j,1).ge.kdn**2)) THEN
+               dump = 1./sqrt(kk2(1,j,1))
                phase = 2*pi*randu(seed)
                C1(1,j,1) = (COS(phase)+im*SIN(phase))*dump
-               C1(1,n-j+2,1) = conjg(C1(1,j,1))
+               C1(1,ny-j+2,1) = conjg(C1(1,j,1))
                phase = 2*pi*randu(seed)
                C2(1,j,1) = (COS(phase)+im*SIN(phase))*dump
-               C2(1,n-j+2,1) = conjg(C2(1,j,1))
+               C2(1,ny-j+2,1) = conjg(C2(1,j,1))
                phase = 2*pi*randu(seed)
                C3(1,j,1) = (COS(phase)+im*SIN(phase))*dump
-               C3(1,n-j+2,1) = conjg(C3(1,j,1))
+               C3(1,ny-j+2,1) = conjg(C3(1,j,1))
             ELSE
                C1(1,j,1) = 0.
-               C1(1,n-j+2,1) = 0.
+               C1(1,ny-j+2,1) = 0.
                C2(1,j,1) = 0.
-               C2(1,n-j+2,1) = 0.
+               C2(1,ny-j+2,1) = 0.
                C3(1,j,1) = 0.
-               C3(1,n-j+2,1) = 0.
+               C3(1,ny-j+2,1) = 0.
             ENDIF
 
          END DO
-         DO k = 2,n/2+1
+         DO k = 2,nz/2+1
 
-            IF ((ka2(k,1,1).le.kup**2).and.(ka2(k,1,1).ge.kdn**2)) THEN
-               dump = 1./sqrt(ka2(k,1,1))
+            IF ((kk2(k,1,1).le.kup**2).and.(kk2(k,1,1).ge.kdn**2)) THEN
+               dump = 1./sqrt(kk2(k,1,1))
                phase = 2*pi*randu(seed)
                C1(k,1,1) = (COS(phase)+im*SIN(phase))*dump
-               C1(n-k+2,1,1) = conjg(C1(k,1,1))
+               C1(nz-k+2,1,1) = conjg(C1(k,1,1))
                phase = 2*pi*randu(seed)
                C2(k,1,1) = (COS(phase)+im*SIN(phase))*dump
-               C2(n-k+2,1,1) = conjg(C2(k,1,1))
+               C2(nz-k+2,1,1) = conjg(C2(k,1,1))
                phase = 2*pi*randu(seed)
                C3(k,1,1) = (COS(phase)+im*SIN(phase))*dump
-               C3(n-k+2,1,1) = conjg(C3(k,1,1))
+               C3(nz-k+2,1,1) = conjg(C3(k,1,1))
             ELSE
                C1(k,1,1) = 0.
-               C1(n-k+2,1,1) = 0.
+               C1(nz-k+2,1,1) = 0.
                C2(k,1,1) = 0.
-               C2(n-k+2,1,1) = 0.
+               C2(nz-k+2,1,1) = 0.
                C3(k,1,1) = 0.
-               C3(n-k+2,1,1) = 0.
+               C3(nz-k+2,1,1) = 0.
             ENDIF
 
          END DO
-         DO j = 2,n
-            DO k = 2,n/2+1
+         DO j = 2,ny
+            DO k = 2,nz/2+1
      
-            IF ((ka2(k,j,1).le.kup**2).and.(ka2(k,j,1).ge.kdn**2)) THEN
-               dump = 1./sqrt(ka2(k,j,1))
+            IF ((kk2(k,j,1).le.kup**2).and.(kk2(k,j,1).ge.kdn**2)) THEN
+               dump = 1./sqrt(kk2(k,j,1))
                phase = 2*pi*randu(seed)
                C1(k,j,1) = (COS(phase)+im*SIN(phase))*dump
-               C1(n-k+2,n-j+2,1) = conjg(C1(k,j,1))
+               C1(nz-k+2,ny-j+2,1) = conjg(C1(k,j,1))
                phase = 2*pi*randu(seed)
                C2(k,j,1) = (COS(phase)+im*SIN(phase))*dump
-               C2(n-k+2,n-j+2,1) = conjg(C2(k,j,1))
+               C2(nz-k+2,ny-j+2,1) = conjg(C2(k,j,1))
                phase = 2*pi*randu(seed)
                C3(k,j,1) = (COS(phase)+im*SIN(phase))*dump
-               C3(n-k+2,n-j+2,1) = conjg(C3(k,j,1))
+               C3(nz-k+2,ny-j+2,1) = conjg(C3(k,j,1))
             ELSE
                C1(k,j,1) = 0.
-               C1(n-k+2,n-j+2,1) = 0.
+               C1(nz-k+2,ny-j+2,1) = 0.
                C2(k,j,1) = 0.
-               C2(n-k+2,n-j+2,1) = 0.
+               C2(nz-k+2,ny-j+2,1) = 0.
                C3(k,j,1) = 0.
-               C3(n-k+2,n-j+2,1) = 0.
+               C3(nz-k+2,ny-j+2,1) = 0.
             ENDIF
 
             END DO
          END DO
          DO i = 2,iend
-            DO j = 1,n
-               DO k = 1,n
+            DO j = 1,ny
+               DO k = 1,nz
 
-               IF ((ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
-                  dump = 1./sqrt(ka2(k,j,i))
+               IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+                  dump = 1./sqrt(kk2(k,j,i))
                   phase = 2*pi*randu(seed)
                   C1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
                   phase = 2*pi*randu(seed)
@@ -111,11 +111,11 @@
          END DO
       ELSE
          DO i = ista,iend
-            DO j = 1,n
-               DO k = 1,n
+            DO j = 1,ny
+               DO k = 1,nz
 
-               IF ((ka2(k,j,i).le.kup**2).and.(ka2(k,j,i).ge.kdn**2)) THEN
-                  dump = 1./sqrt(ka2(k,j,i))
+               IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+                  dump = 1./sqrt(kk2(k,j,i))
                   phase = 2*pi*randu(seed)
                   C1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
                   phase = 2*pi*randu(seed)
