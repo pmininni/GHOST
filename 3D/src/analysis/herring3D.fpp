@@ -407,7 +407,7 @@
 #endif
       NAMELIST / shear / iswap,jpdf
       NAMELIST / shear / dolog,oswap,idir,odir,sstat
-      NAMELIST / shear / btrunc,ktmin,ktmax
+      NAMELIST / shear / btrunc,ktmin,ktmax,nbinx,nbiny
 
 !
 ! Initialization
@@ -1496,6 +1496,7 @@ if (myrank.eq.0) write(*,*)'main: Do fftr2c... '
 !if ( myrank.eq.0 ) write(*,*) 'main: vz=',vz(16,1:16,iend)
 if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
         omega(1) = omegax; omega(2) = omegay; omega(3) = omegaz;
+        nbins(1) = nbinx ; nbins(2) = nbiny;
         CALL DoHPDF(vx,vy,vz,th,bvfreq,omega,nu,kappa,istat(it), &
                     odir,jpdf,nbins,dolog,planio,C1,C2,R1,R2,R3,R4,&
                     R5,R6,R7,R8,R9,R10)
@@ -2054,7 +2055,7 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
       ktmin  = 0.0
       ktmax  = 0.0
 
-
+    
       WRITE(ext, fmtext) indtime
 
       omegax = omega(1)
@@ -2070,6 +2071,8 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: entering... ext=', trim(ext)
 
 if ( myrank.eq.0 ) write(*,*) 'DoHPDF: normalize input data...'
       nin = nx*ny*(kend-ksta+1)
+
+      av = 0.0; sk = 0.0; ku = 0.0; g5 = 0.0; w6 = 0.0;
 
       n = 0
 
@@ -2096,7 +2099,7 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call compute_dissp...'
         ENDDO
       ENDDO
 
-      ! Compute S33 for flatness/skewness:
+      ! Compute for flatness/skewness:
 #ifdef SCALAR_
 if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call compute_PV...'
       ! ... PV :
@@ -2131,14 +2134,6 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
         fnout = trim(odir) // '/' // 'pvpdf.' // ext // '.txt'
         CALL dopdfr(pv,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ENDIF
-
-!     n = n + 1; sfld(n) = 'Ri' 
-!if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
-!     CALL skewflat(Ri,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
-!     If ( ibits(kin,0,1).EQ.1 ) THEN
-!       fnout = trim(odir) // '/' // 'Rigpdf.' // ext // '.txt'
-!       CALL dopdfr(Ri,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
-!     ENDIF
 
       If ( ibits(kin,1,1).EQ.1 ) THEN ! joint pdfs for pv:
         fnout = trim(odir) // '/' // 'jpdf_pv_dissv_log00.' // ext // '.txt'
@@ -2352,23 +2347,38 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
       ! Compute statistics for gradient Ri:
       n = n + 1; sfld(n) = 'Rig' 
 if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
-      CALL skewflat(Ri,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      fmin(1) = -10.0; fmax(1) = 10.0;
+      CALL skewflatb(Ri,nx,ny,knz,1,fmin(1),fmax(1),av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+if ( abs(av(n)) .gt. fmax(1) ) then
+  write(*,*) 'DoHPDF: BAD ', sfld(n), ' avg=', av(n)
+  stop
+endif
       If ( ibits(kin,0,1).EQ.1 ) THEN
         fnout = trim(odir) // '/' // 'Rigpdf.' // ext // '.txt'
-        CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+        CALL dopdfr(Ri,nx,ny,knz,fnout,nbins(1),1,fmin(1),fmax(1),0) 
+      ENDIF
+
+      ! Compute statistics for Ri = N tau_shear: 
+      ! NOTE: Ri overwritten!
+      CALL compute_Rig(vx,vy,vz,th,bvfreq,f,2,ctmp,R1,R2,R3,Ri)
+
+      n = n + 1; sfld(n) = 'Ri' 
+if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
+      fmin(1) = -10.0; fmax(1) = 10.0;
+      CALL skewflatb(Ri,nx,ny,knz,1,fmin(1),fmax(1),av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+if ( abs(av(n)) .gt. fmax(1) ) then
+  write(*,*) 'DoHPDF: BAD ', sfld(n), ' avg=', av(n)
+  stop
+endif
+      If ( ibits(kin,0,1).EQ.1 ) THEN
+        fnout = trim(odir) // '/' // 'Ripdf.' // ext // '.txt'
+        CALL dopdfr(Ri,nx,ny,knz,fnout,nbins(1),1,fmin(1),fmax(1),0) 
       ENDIF
 
       ! Create format for statistical data:
       WRITE(rowfmt,'(A, I4, A)') '(I4,',n,'(2X,E14.6))'
       WRITE(hdrfmt,'(A, I4, A)') '(A,',n,'(2X,A))'
 
-#if 0
-write(*,*) 'DoHPDF: hdrfmt= ', trim(hdrfmt)
-do j=1,n
-write(*,*) '       .................j=',j, ' av=',av(j), ' sk=', sk(j), ' ku=', ku(j)
-enddo
-#endif
-      
 !if ( myrank.eq.0 ) write(*,*) 'DoHPDF: do file write: rowfmt', rowfmt, ' hdrfmt=',hdrfmt
       ! Print out high order statistics  data:
       IF ( myrank.EQ.0 ) THEN
@@ -2415,6 +2425,19 @@ enddo
         CLOSE(2)
       ENDIF
 
+#if 0
+write(*,*) 'DoHPDF: hdrfmt= ', trim(hdrfmt)
+if ( indtime .eq. 233 ) then
+  if ( myrank.eq.0 ) then
+    write(*,*) '                          n=', n
+    do j=1,n
+      write(*,*) '       .................j=',j, ' name=', sfld(j), ' av=',av(j), ' sk=', sk(j), ' ku=', ku(j)
+    enddo
+  endif
+  stop
+endif
+#endif
+      
 if ( myrank.eq.0 ) write(*,*) 'DoHPDF: done.'
 
       END SUBROUTINE DoHPDF
@@ -2521,6 +2544,143 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: done.'
       whoa = real( s6 / ( s2**3.0 + 1.0e-15 ), kind=GP )
 
       END SUBROUTINE skewflat
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+!
+      SUBROUTINE skewflatb(fx,nx,ny,nz,ifixdr,fmin,fmax,avg,skew,flat,glop,whoa,s2,s3,s4,s5,s6)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Computes skewnewss and flatness of input random variable
+! 
+!
+! Parameters
+!     fx    : input real random variable. Must already be normalized!
+!     nx,ny,
+!     nz    : local dimensions
+!     avg   : average
+!     skew  : skewness
+!     flat  : flatness/kurtosis
+!     glop  : Sum (x-<x>)^5/[Sum(x-<x>)^2]^5/2, 5th order moment ('glop')
+!     whoa  : Sum (x-<x>)^6/[Sum(x-<x>)^2]^3, 6th order moment ('whoa')
+!     s2-s6 : 2nd-6th order moments: sum( (x-<x>)^n ), where n=2-6.
+!-----------------------------------------------------------------
+      USE fprecision
+      USE commtypes
+      USE gutils
+      IMPLICIT NONE
+
+      REAL(KIND=GP), INTENT(INOUT), DIMENSION(*)   :: fx
+      REAL(KIND=GP), INTENT   (IN)                 :: fmin,fmax
+      REAL(KIND=GP), INTENT  (OUT)                 :: skew,flat,glop,whoa
+      REAL(KIND=GP), INTENT  (OUT)                 :: avg,s2,s3,s4,s5,s6
+      DOUBLE PRECISION                             :: davg,ds2,ds3,ds4,ds5,ds6
+      DOUBLE PRECISION                             :: dtot,ltot, gs(5),s(5),xnorm
+      DOUBLE PRECISION                             :: dkeep
+      INTEGER      , INTENT   (IN)                 :: ifixdr,nx,ny,nz
+      INTEGER                                      :: gnz,ierr,j
+
+      INTEGER  nin
+
+      nin = nx * ny * nz
+      IF ( .NOT. ALLOCATED(ikeep_) .OR. nin.GT.nikeep_ ) THEN
+        IF ( ALLOCATED(ikeep_ ) ) DEALLOCATE(ikeep_)
+        ALLOCATE(ikeep_(nin))
+      ENDIF
+      nikeep_ = nin
+
+
+      IF ( ifixdr .EQ. 0 ) THEN
+!$omp parallel do default(shared) private(j) reduction(+:s2)
+        DO j = 1, nin
+          ikeep_(j) = j
+        ENDDO
+      ELSE
+!$omp parallel do default(shared) private(j) reduction(+:s2)
+        nikeep_ = 0
+        DO j = 1, nin
+          IF ( fx(j) .GE. fmin .AND. fx(j) .LE. fmax ) THEN
+            nikeep_ = nikeep_ + 1
+            ikeep_(nikeep_) = j
+          ENDIF
+        ENDDO
+      ENDIF
+
+      ltot = dble(nikeep_)
+      CALL MPI_ALLREDUCE(ltot, dtot, 1, MPI_DOUBLE_PRECISION, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
+      
+      xnorm = 1.0D0 / dtot
+      ds2 = 0.0D0
+!$omp parallel do default(shared) private(j) reduction(+:s2)
+      DO j = 1, nikeep_
+        ds2 = ds2 + dble(fx(ikeep_(j)))
+      ENDDO
+!$omp end parallel do
+
+      CALL MPI_ALLREDUCE(ds2, davg, 1, MPI_DOUBLE_PRECISION, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
+dkeep = davg
+      davg = davg * xnorm
+      avg  = davg
+
+if ( davg .gt. fmax .or. davg .lt. fmin ) then
+       write(*,*)'skewflatb: fmin=',fmin, ' fmax=', fmax, ' nkeep=', nikeep_, ' nin=', nin, ' xnorm=', xnorm, ' davg=', davg, ' dkeep=', dkeep
+endif
+!      write(*,*)'skewflatb: nkeep=', nikeep_, ' nin=', nin,' davg=', davg
+
+      ds2 = 0.0D0
+!$omp parallel do default(shared) private(j) reduction(+:s2)
+      DO j = 1, nikeep_
+        ds2 = ds2 + (dble(fx(ikeep_(j)))-davg)**2
+      ENDDO
+!$omp end parallel do
+
+      ds3 = 0.0D0
+!$omp parallel do default(shared) private(j) reduction(+:s3)
+      DO j = 1, nikeep_
+        ds3 = ds3 + (dble(fx(ikeep_(j)))-davg)**3
+      ENDDO
+!$omp end parallel do
+
+      ds4 = 0.0D0
+!$omp parallel do default(shared) private(j) reduction(+:s4)
+      DO j = 1, nikeep_
+        ds4 = ds4 + (dble(fx(ikeep_(j)))-davg)**4
+      ENDDO
+!$omp end parallel do
+
+      ds5 = 0.0D0
+!$omp parallel do default(shared) private(j) reduction(+:s5)
+      DO j = 1, nikeep_
+        ds5 = ds5 + (dble(fx(ikeep_(j)))-davg)**5
+      ENDDO
+!$omp end parallel do
+
+      ds6 = 0.0D0
+!$omp parallel do default(shared) private(j) reduction(+:s6)
+      DO j = 1, nikeep_
+        ds6 = ds6 + (dble(fx(ikeep_(j)))-davg)**6
+      ENDDO
+!$omp end parallel do
+
+      s(1)=ds2; s(2)=ds3; s(3)=ds4; s(4) = ds5; s(5) = ds6
+      CALL MPI_ALLREDUCE(s, gs, 5, MPI_DOUBLE_PRECISION, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
+      if ( ierr.ne.MPI_SUCCESS ) then
+        write(*,*)'skewflat: final allreduce failed'
+        stop
+      endif
+      s2=gs(1)*xnorm; s3=gs(2)*xnorm; s4=gs(3)*xnorm; s5=gs(4)*xnorm; s6=gs(5)*xnorm
+!     s2=gs(1); s3=gs(2); s4=gs(3); s5=gs(4); s6=gs(5)
+
+      skew = real( s3 / ( s2**1.5 + 1.0e-15 ), kind=GP )
+      flat = real( s4 / ( s2**2.0 + 1.0e-15 ), kind=GP )
+      glop = real( s5 / ( s2**2.5 + 1.0e-15 ), kind=GP )
+      whoa = real( s6 / ( s2**3.0 + 1.0e-15 ), kind=GP )
+
+      END SUBROUTINE skewflatb
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -3204,7 +3364,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 
       CALL derivk3(th, ctmp1, 2)  ! y-deriv
       CALL fftp3d_complex_to_real(plancr,ctmp1,R1,MPI_COMM_WORLD)
-      CALL rotor3(vy,vz,ctmp1,2)
+      CALL rotor3(vz,vx,ctmp1,2)
       CALL fftp3d_complex_to_real(plancr,ctmp1,R2,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -3218,7 +3378,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 
       CALL derivk3(th, ctmp1, 3)  ! z-deriv
       CALL fftp3d_complex_to_real(plancr,ctmp1,R1,MPI_COMM_WORLD) ! dtheta/dz
-      CALL rotor3(vy,vz,ctmp1,3)
+      CALL rotor3(vx,vy,ctmp1,3)
       CALL fftp3d_complex_to_real(plancr,ctmp1,R2,MPI_COMM_WORLD) ! omega_z
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -3241,11 +3401,12 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !-----------------------------------------------------------------
 !
 ! Computes the real gradient Richardsond number field:
-!           Rig = N (N - d\theta/dz) / ( (dvx/dz)^2 + (dvy/dz)^2 ) (itype 1)
+!   type      Form
+!    1      Rig = N (N - d\theta/dz) / ( (dvx/dz)^2 + (dvy/dz)^2 ) (itype 1)
 !
-!           or
+!    2      Ri  = N / sqrt( (dvx/dz)^2 + (dvy/dz)^2 ) (itype 2) == N tau_shear
 !
-!           Rig = N*a (N*a - d\theta/dz) / ( (dvx/dz)^2 + (dvy/dz)^2 ) (itype 2)
+!    3      Rig = N*a (N*a - d\theta/dz) / ( (dvx/dz)^2 + (dvy/dz)^2 ) (itype 3)
 !          
 !           where
 ! 
@@ -3256,7 +3417,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !     vz,th: compled input field
 !     bvfreq: Brunt-Vaisalla frequency
 !     f    : 2x rotation rate in z
-!     itype: 1 or 2
+!     itype: 1, 2, 3
 !     ctmp*: complex temp array
 !     R1-R3: real temp arrays
 !     ri   : real Rig field, returned
@@ -3276,7 +3437,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       REAL   (KIND=GP), INTENT   (IN)                             :: bvfreq,f
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: R1,R2,R3
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: ri
-      REAL   (KIND=GP)                                            :: alpha, den
+      REAL   (KIND=GP)                                            :: alpha, den, xnormn
 !
       INTEGER         , INTENT   (IN)                             :: itype
       INTEGER                                                     :: i,j,k
@@ -3289,19 +3450,19 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL derivk3(th, ctmp1, 3)
       CALL fftp3d_complex_to_real(plancr,ctmp1,R3,MPI_COMM_WORLD)
 
-      alpha = bvfreq/sqrt(f**2 + bvfreq**2)
+      alpha  = bvfreq/sqrt(f**2 + bvfreq**2)
+      xnormn = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
+
       IF ( itype .EQ. 1 ) THEN
+        ! NOTE: no normalization required as vx, vy, vz, and theta were
+        ! normalized on read-in
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
         DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
           DO j = 1,ny
             DO i = 1,nx
               den = R1(i,j,k)**2 + R2(i,j,k)**2
-              IF ( den .LT. 1.0e-8 ) THEN
-                den = 0.0 
-              ELSE
-                den = 1.0 / den
-              ENDIF
+              den = 1.0 / (den + 1.0e-15)
               ri(i,j,k) = bvfreq*(bvfreq-R3(i,j,k)) * den
             ENDDO
           ENDDO
@@ -3312,12 +3473,20 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
           DO j = 1,ny
             DO i = 1,nx
-              den = R1(i,j,k)**2 + R2(i,j,k)**2
-              IF ( den .LT. 1.0e-8 ) THEN
-                den = 0.0 
-              ELSE
-                den = 1.0 / den
-              ENDIF
+              den = sqrt( R1(i,j,k)**2 + R2(i,j,k)**2 ) 
+              den = 1.0 / (den + 1.0e-15)
+              ri(i,j,k) = bvfreq * den
+            ENDDO
+          ENDDO
+        ENDDO
+      ELSE IF ( itype .EQ. 3 ) THEN
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+          DO j = 1,ny
+            DO i = 1,nx
+              den = R1(i,j,k)**2 + R2(i,j,k)**2 
+              den = 1.0 / (den + 1.0e-15)
               ri(i,j,k) = bvfreq*alpha*(bvfreq*alpha-R3(i,j,k)) * den
             ENDDO
           ENDDO
