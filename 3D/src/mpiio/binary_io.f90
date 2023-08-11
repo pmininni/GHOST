@@ -86,7 +86,7 @@
       IMPLICIT NONE
       
       TYPE(IOPLAN),INTENT  (IN)      :: plan
-      REAL(KIND=GP),INTENT(OUT) :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
+      REAL(KIND=GP),INTENT(OUT)      :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
       INTEGER, INTENT(IN)            :: unit
       INTEGER                        :: fh
       CHARACTER(len=100), INTENT(IN) :: dir
@@ -113,19 +113,35 @@
       ENDIF
       ENDIF
       CALL GTStop(ihopen)
-if (myrank.eq.0) write(*,*)' io_read: read open time:',GTGetTime(ihopen)
+!if (myrank.eq.0) write(*,*)' io_read: read open time:',GTGetTime(ihopen)
+!write(*,*)' rank=',myrank, ' io_read: disp=', disp, ' iotype=',plan%iotype
       CALL GTStart(ihread)
       CALL MPI_FILE_SET_VIEW(fh,disp,GC_REAL,plan%iotype,'native', &
           MPI_INFO_NULL,ioerr)
+      IF ( ioerr .NE. MPI_SUCCESS ) THEN
+        write(*,*)' io_read: Error setting view for file: ', trim(dir) // '/' // fname
+        stop
+      ENDIF
       CALL MPI_FILE_READ_ALL(fh,var, &
           plan%nx*plan%ny*(plan%kend-plan%ksta+1),GC_REAL,         &
           MPI_STATUS_IGNORE,ioerr)
+      IF ( ioerr .NE. MPI_SUCCESS ) THEN
+        write(*,*)' io_read: Error reading file: ', trim(dir) // '/' // fname
+        stop
+      ENDIF
       CALL MPI_FILE_CLOSE(fh,ioerr)
+      IF ( ioerr .NE. MPI_SUCCESS ) THEN
+        write(*,*)' io_read: Error closing file: ', trim(dir) // '/' // fname
+        stop
+      ENDIF
       CALL GTStop(ihread)
-if (myrank.eq.0) write(*,*)' io_read: read time:',GTGetTime(ihread)
+!if (myrank.eq.0) write(*,*)' io_read: read time:',GTGetTime(ihread)
       IF ( iswap.gt.0 ) THEN
+if ( myrank.eq.0 ) write(*,*) 'io_read: iswap=', iswap, ': Doing byte-swapping...'
+
         CALL rarray_byte_swap(var,plan%nx*plan%ny*(plan%kend-plan%ksta+1))
       ENDIF
+
 
       RETURN
       END SUBROUTINE io_read
