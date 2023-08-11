@@ -194,14 +194,17 @@ MODULE gutils
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
-! Parses string of integers that are ';' separated, and stores, and
+! Parses string of integers that are ';' separated, and stores 
 ! stores them in the integer array, specifying how many integers
 ! were found in the string. A test is made against the specified
 ! max number of integer indices, nmax, before attempting to add
 ! any more indices to this array.
 !
 ! Parameters
-!     sind : ';'-separated string of integers (IN)
+!     sind : ';'-separated string of strings (IN). Substrings can
+!            either be an integer (time index), or a string of
+!            the form 'n:m:p', which specifies a range of indices
+!            n-p, with skip of m.
 !     sep  : separator string (IN)
 !     ind  : integer array contining integers found in sind (IN)
 !     nmax : max size of 'ind' array (OUT)
@@ -211,25 +214,64 @@ MODULE gutils
       INTEGER, INTENT(IN)          :: nmax
       CHARACTER(len=*), INTENT(IN) :: sind, sep
 
-      INTEGER                      :: i
-      CHARACTER(len=1024)          :: sint
+      CHARACTER(len=len(sind))     :: tstr, pstr, qstr
+      INTEGER                      :: i, ib, ie, j1, j2, k
+      INTEGER                      :: idel, ibeg, iend, lstr
 
       ib = 1;
       ie = len(sind)
       nind = 0
       DO WHILE ( len(trim(sind(ib:ie))) .GT. 0 )
         i = index(sind(ib:ie),sep)
+        ! Get substring:
         IF ( i .eq. 0 ) THEN
-          sint = trim(adjustl(sind(ib:ie)))
+          tstr = trim(adjustl(sind(ib:ie)))
           ib = ie + 1
         ELSE
-          sint = trim(adjustl(sind(ib:(ib+i-2))))
+          tstr = trim(adjustl(sind(ib:(ib+i-2))))
           ib = ib + i
         ENDIF
-        nind = nind + 1
-        IF ( nind.GT.nmax ) RETURN
-        READ(sint,'(I10)') ind(nind)
+
+        ! Check for 'n:m:p' formatting:
+        j1 = index(tstr,":")
+        lstr = len(tstr)
+        IF ( j1 .eq. 0 ) THEN
+
+          IF ( nind.GE.nmax ) RETURN
+          read(tstr , *) ind(nind+1)! convert to integer index
+          nind = nind + 1
+
+        ELSE
+
+!i = index(strin(ib:ie),sep)
+          j2 = j1 + index(tstr(j1+1:lstr),":")
+          idel = 1
+
+          
+          pstr = trim(adjustl(tstr(1:(j1-1))))
+!write(*,*) '     parseind: pstr 1 =', pstr
+          read(pstr, *) ibeg
+          IF ( j2 .eq. j1 ) THEN ! no second ':'
+            pstr = trim(adjustl(tstr(j1+1:lstr)))
+!write(*,*) '     parseind: pstr 2 =', pstr
+            read(tstr(j1+1:lstr) , *) iend
+          ELSE
+            pstr = trim(adjustl(tstr(j1+1:j2-1)))
+            qstr = trim(adjustl(tstr(j2+1:lstr)))
+!write(*,*) '     parseind: pstr 2 =', pstr, ' qstr 2 =', qstr
+            read(pstr, *) idel
+            read(qstr, *) iend
+          ENDIF
+          DO k = ibeg, iend, idel 
+            IF ( nind.GE.nmax ) RETURN
+            ind(nind+1) = k
+            nind = nind + 1
+          ENDDO
+
+        ENDIF
+
       ENDDO
+      
       RETURN
 
       END SUBROUTINE parseind
@@ -241,7 +283,7 @@ MODULE gutils
 !-----------------------------------------------------------------
 !
 ! Parses string of names, separated by 'sep' delimiter, and
-! returns them in an array.
+! returns them in an array, astr.
 !
 ! Parameters
 !     strin: 'sep'-separated string of strings(IN)
@@ -254,23 +296,29 @@ MODULE gutils
       CHARACTER(len=*)      , INTENT (IN) :: strin,sep
       CHARACTER(len=astrlen), INTENT(OUT) :: astr(nmax)
       CHARACTER(len=astrlen)              :: tstr
-      INTEGER                             :: i, ib, ie
+      INTEGER                             :: i, ib, ie, idx
 
       ib = 1;
       ie = len(strin)
       nind = 0
       DO WHILE ( len(trim(strin(ib:ie))) .GT. 0 )
         i = index(strin(ib:ie),sep)
+        ! Get substring:
         IF ( i .eq. 0 ) THEN
-          astr(nind+1) = trim(adjustl(strin(ib:ie)))
+          tstr = trim(adjustl(strin(ib:ie)))
           ib = ie + 1
         ELSE
-          astr(nind+1) = trim(adjustl(strin(ib:(ib+i-2))))
+          tstr = trim(adjustl(strin(ib:(ib+i-2))))
           ib = ib + i
         ENDIF
-        nind = nind + 1
+
         IF ( nind.GE.nmax ) RETURN
+        astr(nind+1) = tstr
+        nind = nind + 1
+
       ENDDO
+      
+
       RETURN
 
       END SUBROUTINE parsestr
@@ -278,7 +326,7 @@ MODULE gutils
 !-----------------------------------------------------------------
 !
 !
-      SUBROUTINE dopdfr(Rin, nin, n, fname, nbins, ifixdr, fmin, fmax, dolog)
+      SUBROUTINE dopdfr(Rin, nx, ny, nz, fname, nbins, ifixdr, fmin, fmax, dolog)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -287,8 +335,8 @@ MODULE gutils
 !
 ! Parameters
 !     Rin   : real array (kind GP) of dimension nin
-!     nin   : integer size of array
-!     n     : full linear domain size
+!     nx,ny,
+!     nz    : local linear dimensions of Rin
 !     fname : full file name
 !     nbins : number of bins to use for PDF (>0)
 !     ifixdr: if > 0, will use fmin/fmax as bounds for dynamic
@@ -306,16 +354,17 @@ MODULE gutils
 
       REAL(KIND=GP), INTENT(IN), DIMENSION(*)    :: Rin
       REAL(KIND=GP), INTENT(INOUT)               :: fmin,fmax
-      INTEGER, INTENT(IN)                        :: nin,n,nbins,ifixdr,dolog
+      INTEGER, INTENT(IN)                        :: nx,ny,nz,nbins,ifixdr,dolog
       CHARACTER(len=*), INTENT(IN)               :: fname
 
       REAL(KIND=GP)                              :: del,gmin,gmax,tmin,tmax,test
       REAL(KIND=GP)                              :: fmin1,fmax1
       REAL(KIND=GP)                              :: gavg,sig,sumr,xnorm
       REAL                                       :: fbin,fkeep,gkeep
-      INTEGER                                    :: hwrite,i,ibin,nkeep
+      INTEGER                                    :: hwrite,i,ibin,nin,nkeep
       CHARACTER(len=1024)                        :: shead
 
+      nin = nx * ny * nz
       IF ( .NOT. ALLOCATED(ikeep_) .OR. nin.GT.nikeep_ ) THEN
         IF ( ALLOCATED(ikeep_ ) ) DEALLOCATE(ikeep_)
         ALLOCATE(ikeep_(nin))
@@ -484,7 +533,7 @@ MODULE gutils
 !-----------------------------------------------------------------
 !
 !
-      SUBROUTINE dojpdfr(R1, sR1, R2, sR2, nin, n, fname, nbins, ifixdr, fmin, fmax, dolog)
+      SUBROUTINE dojpdfr(R1, sR1, R2, sR2, nx, ny, nz, fname, nbins, ifixdr, fmin, fmax, dolog)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -494,8 +543,8 @@ MODULE gutils
 ! Parameters
 !     R1/R2  : real arrays (kind GP) of dimension nin
 !     sR1/sR2: descriptions of quantities R1 & R2; only 4 chars are used
-!     nin    : integer size of arrays R2/R2
-!     n      : full linear domain size
+!     nx, ny
+!     nz     : local linear dimensions of R1, R2, etc
 !     fname  : output interval id extension
 !     nbins  : 2D array giving number of bins to use for PDF (>0) 
 !              in each 'direction'. Must be the same for all MPI tasks on entry.
@@ -513,19 +562,21 @@ MODULE gutils
 !$    USE threads
       IMPLICIT NONE
 
-      REAL(KIND=GP)   , INTENT   (IN), DIMENSION(nin):: R1,R2
+      REAL(KIND=GP)   , INTENT   (IN), DIMENSION(*)  :: R1,R2
       REAL(KIND=GP)   , INTENT(INOUT)                :: fmin(2),fmax(2)
-      INTEGER         , INTENT   (IN)                :: nin,n,nbins(2),ifixdr(2),dolog(2)
+      INTEGER         , INTENT   (IN)                :: nx,ny,nz,nbins(2),ifixdr(2),dolog(2)
       CHARACTER(len=*), INTENT   (IN)                :: sR1,sR2,fname
 
       REAL(KIND=GP)                                  :: del (2),gmin(2),gmax(2),tmin(2),tmax(2),test(2)
       REAL(KIND=GP)                                  :: fmin1(2),fmax1(2)
       REAL(KIND=GP)                                  :: aa,gavg(2),sumr(2),sig(2),xnorm(2)
       REAL                                           :: fbin,fkeep,gkeep
-      INTEGER                                        :: hwrite,i,j,jx,jy,nkeep
+      INTEGER                                        :: hwrite,i,j,jx,jy,nin,nkeep
       CHARACTER(len=2048)                            :: shead
 
 !if ( myrank.eq. 0 ) write(*,*)'dojpdf: sR1=',sR1,' sR2=',sR2, ' nbins=',nbins, ' ifixdr=',ifixdr, ' dolog=',dolog
+
+      nin = nx * ny * nz
 
       IF ( .NOT. ALLOCATED(ikeep_) .OR. nin.GT.nikeep_ ) THEN
         IF ( ALLOCATED(ikeep_ ) )DEALLOCATE(ikeep_)
