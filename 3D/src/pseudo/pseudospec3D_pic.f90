@@ -76,6 +76,89 @@
       END SUBROUTINE poisson_elecstat
 
 !*****************************************************************
+      SUBROUTINE hpiccheck(Tem, ni, ax, ay, az, gamm, beta, t, dt)
+!-----------------------------------------------------------------
+!
+! Consistency check for the conservation of the total
+! energy of electrostatic hybrid-pic solver.
+!
+! Output files contain:
+! 'energy.txt':   time, <v^2>, <B^2>, <Pe*beta/(gamma-1)>
+!
+! Parameters
+!       Tem: kinetic energy (of particles) in real space
+!       ni : ion density in real space
+!  ax,ay,az: vector potential components in Fourier space
+!      gamm: barotropic exponent (fluid electrons)
+!      beta: electronic plasma beta
+!       t  : number of time steps made
+!       dt : time step
+!
+      USE fprecision
+      USE commtypes
+      USE grid
+      USE mpivars
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP),INTENT(IN),DIMENSION(nz,ny,ista:iend) :: ax,ay,az
+      REAL(KIND=GP)   ,INTENT(IN),DIMENSION(ksta:kend,ny,nz) :: Tem,ni
+      REAL(KIND=GP), INTENT(IN)    :: dt,gamm,beta
+      INTEGER      , INTENT(IN)    :: t
+      DOUBLE PRECISION    :: ek,ekloc,ei,eiloc,em
+      INTEGER             :: i,j,k
+      REAL(KIND=GP)       :: rmp,tmp
+
+      CALL energy(ax,ay,az,em,0) 
+      
+      rmp = 1/(real(nx,KIND=GP)*real(ny,KIND=GP)*real(nz,KIND=GP))
+      ekloc = 0.0D0
+      eiloc = 0.0D0
+      IF (gamm.EQ.1) THEN
+      DO k = ksta,kend
+!$omp parallel do if (kend-2.ge.nth) private (j,i) reduction(+:ekloc)
+         DO j = 1,ny
+!$omp parallel do if (kend-2.ge.nth) private (i) reduction(+:ekloc)
+            DO i = 1,nx
+               ekloc = ekloc + Tem(k,j,i)*rmp
+               eiloc = eiloc + ni(k,j,i)*LOG(ni(k,j,i))*rmp
+            ENDDO
+         ENDDO
+      ENDDO
+      tmp = beta
+      ELSE
+      DO k = ksta,kend
+!$omp parallel do if (kend-2.ge.nth) private (j,i) reduction(+:ekloc)
+         DO j = 1,ny
+!$omp parallel do if (kend-2.ge.nth) private (i) reduction(+:ekloc)
+            DO i = 1,nx
+               ekloc = ekloc + Tem(k,j,i)*rmp
+               eiloc = eiloc + (ni(k,j,i)**gamm)*rmp
+            ENDDO
+         ENDDO
+      ENDDO
+      tmp = beta/(gamm-1)
+      END IF
+
+      CALL MPI_REDUCE(ekloc,ek,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+                      MPI_COMM_WORLD,ierr)
+      CALL MPI_REDUCE(eiloc,ei,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+                      MPI_COMM_WORLD,ierr)
+!
+! Creates external files to store the results
+!
+      IF (myrank.eq.0) THEN
+         ei = ei*tmp
+         OPEN(1,file='energy.txt',position='append')
+         WRITE(1,10) (t-1)*dt,ek,em,ei
+   10    FORMAT( E13.6,E22.14,E22.14,E22.14,E22.14 )
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE hpiccheck
+
+!*****************************************************************
       SUBROUTINE ehpiccheck(Tem, rho, phi, t, dt)
 !-----------------------------------------------------------------
 !
@@ -99,8 +182,8 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: rho,phi
-      REAL(KIND=GP)   , INTENT(IN), DIMENSION(ksta:kend,ny,nz) :: Tem
+      COMPLEX(KIND=GP),INTENT(IN),DIMENSION(nz,ny,ista:iend) :: rho,phi
+      REAL(KIND=GP)   ,INTENT(IN),DIMENSION(ksta:kend,ny,nz) :: Tem
       REAL(KIND=GP), INTENT(IN)    :: dt
       INTEGER      , INTENT(IN)    :: t
       DOUBLE PRECISION    :: ek,ekloc,ep
@@ -171,5 +254,3 @@
  
       RETURN
       END SUBROUTINE dealias
-
-
