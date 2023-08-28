@@ -46,6 +46,8 @@
         PROCEDURE,PUBLIC :: InitVel           => ChargPIC_InitVel
         PROCEDURE,PUBLIC :: SetStepVel        => ChargPIC_SetStepRKK
         PROCEDURE,PUBLIC :: StepChargedPIC    => ChargPIC_StepRKK
+        PROCEDURE,PUBLIC :: StepChargedPICBor => ChargPIC_StepBoris
         PROCEDURE,PUBLIC :: EndStageChargedPIC=> ChargPIC_EndStageRKK
         PROCEDURE,PUBLIC :: GetTemperature    => ChargPIC_GetTemperature
+        PROCEDURE,PUBLIC :: InitRandom        => ChargPIC_InitRandom
       END TYPE ChargPIC

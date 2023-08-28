@@ -1000,6 +1000,113 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+  SUBROUTINE ChargPIC_StepBoris(this, Ex, Ey, Ez, Bx, By, Bz, dt, o)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Step_chargedpicBoris
+!  DESCRIPTION: Carries out one stage of explicit RK-like time
+!               integration step.  Intended for explicit step within
+!               an outer stepper method of the form:
+!
+!               X = X_0 + dt * V[X(t),t] * xk,
+!               V = V_0 + dt * F[V(X(t)),E(X(t)),B(X(t))] * xk,
+!
+!               where F is the electromagnetic force on the particle.
+!               Note that the vx, vy, vz, will be overwritten here.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    Ez,Ey,Ez: compoments of electric field, in real space, partially
+!              updated, possibly. These will be overwritten!
+!    Bz,By,Bz: compoments of magnetic field in real space
+!    dt      : integration timestep
+!    xk      : multiplicative RK time stage factor
+!-----------------------------------------------------------------
+    USE grid
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(ChargPIC)    ,INTENT(INOUT)                      :: this
+    INTEGER                                                :: i,j
+    INTEGER      ,INTENT   (IN)                            :: o
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: Bx,By,Bz
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: Ex,Ey,Ez
+    REAL(KIND=GP),INTENT   (IN)                            :: dt
+    REAL(KIND=GP)                                          :: dtv,dtvx,dtvy,dtvz
+    REAL(KIND=GP)                                          :: fact,inprod,b2
+    REAL(KIND=GP)                                          :: c1,c2,c3
+    REAL(KIND=GP), ALLOCATABLE, DIMENSION              (:) :: lid,gid
+
+    dtv  = dt*0.50_GP
+    dtvx = dtv*this%invdel_(1)
+    dtvy = dtv*this%invdel_(2)
+    dtvz = dtv*this%invdel_(3)
+    CALL GTStart(this%htimers_(GPTIME_STEP))
+
+    ! Find F(u*):
+    CALL GPIC_EulerToLag(this,this%lfx_,this%nparts_,Ex,.false.)
+    CALL GPIC_EulerToLag(this,this%lfy_,this%nparts_,Ey,.false.)
+    CALL GPIC_EulerToLag(this,this%lfz_,this%nparts_,Ez,.false.)
+    CALL GPIC_EulerToLag(this,this%lbx_,this%nparts_,Bx,.true. )
+    CALL GPIC_EulerToLag(this,this%lby_,this%nparts_,By,.false.)
+    CALL GPIC_EulerToLag(this,this%lbz_,this%nparts_,Bz,.false.)
+   IF (o.EQ.2) THEN
+       DO j = 1, this%nparts_
+          this%px_ (j) = this%px_(j) + dtvx*this%pvx_(j)
+          this%py_ (j) = this%py_(j) + dtvy*this%pvy_(j)
+          this%pz_ (j) = this%pz_(j) + dtvz*this%pvz_(j)
+       ENDDO
+    ENDIF
+!$omp parallel do
+    DO j = 1, this%nparts_
+       this%lbx_(j) = dtv*this%lbx_(j)
+       this%lby_(j) = dtv*this%lby_(j)
+       this%lbz_(j) = dtv*this%lbz_(j)
+
+       this%pvx_(j) = this%ttmp0_(1,j) + dt*this%lfx_(j) + &
+                      this%ttmp0_(2,j)*this%lbz_(j)-this%ttmp0_(3,j)*this%lby_(j)
+       this%pvy_(j) = this%ttmp0_(2,j) + dt*this%lfy_(j) + &
+                      this%ttmp0_(3,j)*this%lbx_(j)-this%ttmp0_(1,j)*this%lbz_(j)
+       this%pvz_(j) = this%ttmp0_(3,j) + dt*this%lfz_(j) + &
+                      this%ttmp0_(1,j)*this%lby_(j)-this%ttmp0_(2,j)*this%lbx_(j)
+
+       b2     = this%lbx_(j)*this%lbx_(j)+this%lby_(j)*this%lby_(j)+this%lbz_(j)*this%lbz_(j)
+       fact   = 1.0_GP/(1.0_GP + b2)
+       inprod = this%pvx_(j)*this%lbx_(j)+this%pvy_(j)*this%lby_(j)+this%pvz_(j)*this%lbz_(j)
+       c1 = this%pvy_(j)*this%lbz_(j)-this%pvz_(j)*this%lby_(j)
+       c2 = this%pvz_(j)*this%lbx_(j)-this%pvx_(j)*this%lbz_(j)
+       c3 = this%pvx_(j)*this%lby_(j)-this%pvy_(j)*this%lbx_(j)
+       this%pvx_(j) = this%pvx_(j) + fact*(inprod*this%lbx_(j) - this%pvx_(j)*b2 + c1)
+       this%pvy_(j) = this%pvy_(j) + fact*(inprod*this%lby_(j) - this%pvy_(j)*b2 + c2)
+       this%pvz_(j) = this%pvz_(j) + fact*(inprod*this%lbz_(j) - this%pvz_(j)*b2 + c3)
+    ENDDO
+    IF (o.EQ.1) THEN
+       DO j = 1, this%nparts_
+          this%px_ (j) = this%px_(j) + dtvx*this%pvx_(j)
+          this%py_ (j) = this%py_(j) + dtvy*this%pvy_(j)
+          this%pz_ (j) = this%pz_(j) + dtvz*this%pvz_(j)
+       ENDDO
+    ELSE IF (o.EQ.2) THEN
+!$omp parallel do
+       DO j = 1, this%nparts_
+          this%pvx_(j) = (this%pvx_(j) + this%ttmp0_(1,j))*0.50_GP
+          this%pvy_(j) = (this%pvy_(j) + this%ttmp0_(2,j))*0.50_GP
+          this%pvz_(j) = (this%pvz_(j) + this%ttmp0_(3,j))*0.50_GP
+       ENDDO
+    ENDIF
+ 
+    ! Enforce periodicity in x-y only:
+    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3)
+
+    CALL GTAcc(this%htimers_(GPTIME_STEP))
+
+    CALL ChargPIC_EndStageRKK(this,Ex,Ey,Ez,1.0_GP)
+
+  END SUBROUTINE ChargPIC_StepBoris
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
   SUBROUTINE ChargPIC_StepRKK(this, Ex, Ey, Ez, Bx, By, Bz, dt, xk)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1209,10 +1316,13 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 !    vtherm : thermal speed
 !-----------------------------------------------------------------
     USE random
+    USE mpivars
+    USE grid
 
     IMPLICIT NONE
     CLASS(ChargPIC)   , INTENT(INOUT) :: this
     REAL(KIND=GP),INTENT(IN)        :: vtherm
+    REAL(KIND=GP),DIMENSION(nx,ny,ksta:kend) :: rho,v1,v2,v3
     REAL(KIND=GP)                   :: low,twopi,u1,u2,gauss
     INTEGER                         :: j
 
@@ -1247,8 +1357,287 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
        this%pvz_(j) = vtherm*gauss
 
     END DO
+  
+!  CALL GPIC_GetDensity(this,rho)
+!  CALL VGPIC_GetFlux(this,v1,v2,v3)
+!  v1 = v1/rho
+!  v2 = v2/rho
+!  v3 = v3/rho
+!  CALL GPIC_EulerToLag(this,this%lvx_,this%nparts_,v1,.false.)
+!  CALL GPIC_EulerToLag(this,this%lvy_,this%nparts_,v2,.false.)
+!  CALL GPIC_EulerToLag(this,this%lvz_,this%nparts_,v3,.false.)
+!  DO j = 1,this%nparts_
+!     this%pvx_(j) = this%pvx_(j) - this%lvx_(j)
+!     this%pvy_(j) = this%pvy_(j) - this%lvy_(j)
+!     this%pvz_(j) = this%pvz_(j) - this%lvz_(j)
+!  END DO
 
   END SUBROUTINE ChargPIC_InitVel
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE ChargPIC_InitRandom(this,vth)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : InitFromFields
+!  DESCRIPTION: Initializes particle position in uniform lattice 
+!               and velocities with a Gaussian distribution 
+!               function, with thermal speed vth. Other
+!               parameters are initialized with GPart_Init.
+!  ARGUMENTS:
+!    this    : 'this' class instance
+!    vth     : particle thermal velocity
+!-----------------------------------------------------------------
+    USE mpivars
+    USE grid
+
+    IMPLICIT NONE
+    CLASS(ChargPIC),INTENT(INOUT)            :: this
+    REAL(KIND=GP),  INTENT(IN)               :: vth
+    REAL(KIND=GP)                            :: gauss,vr,del
+    DOUBLE PRECISION                         :: vmx,vmy,vmz
+    INTEGER                                  :: ppc,pps,ib,lag
+    INTEGER                                  :: i,j,k,ii,jj,kk
+
+    ppc = this%maxparts_/(nx*ny*nz)
+    pps = ppc**(1.0/3.0)
+    IF (pps*pps*pps .NE. ppc) THEN
+      IF ( this%myrank_.eq.0 ) THEN
+        WRITE(*,*) 'GPIC_InitLattice: Number of particles per cell &
+                                      must be perfect cube'
+        STOP
+      ENDIF
+    END IF
+    this%nparts_ = nx*ny*(kend - ksta + 1)*ppc
+    ib = nx*ny*(ksta-1)*ppc - 1
+    lag = 1
+    del = 1.0_GP/pps
+    DO i = 1,nx
+      DO j = 1,ny
+        DO k = ksta,kend
+          vmx = 0.0D0
+          vmy = 0.0D0
+          vmz = 0.0D0
+          DO ii = 1,pps
+            DO jj = 1,pps
+              DO kk = 1,pps
+                this%id_(lag) = lag + ib
+                this%px_(lag) = (i-1.50_GP) + (ii-0.50_GP)*del
+                this%py_(lag) = (j-1.50_GP) + (jj-0.50_GP)*del
+                this%pz_(lag) = (k-1.50_GP) + (kk-0.50_GP)*del
+                CALL random_gaussian(gauss)
+                vr = gauss*vth
+                this%pvx_(lag) = vr
+                vmx = vmx + vr 
+                CALL random_gaussian(gauss)
+                vr = gauss*vth
+                this%pvy_(lag) = vr
+                vmy = vmy + vr 
+                CALL random_gaussian(gauss)
+                vr = gauss*vth
+                this%pvz_(lag) = vr
+                vmz = vmz + vr 
+                lag = lag + 1
+              END DO
+            END DO
+          END DO
+          vmx = vmx/ppc
+          vmy = vmy/ppc
+          vmz = vmz/ppc
+          lag = lag - ppc
+          DO ii = 1,pps
+            DO jj = 1,pps
+              DO kk = 1,pps
+                this%pvx_(lag) = this%pvx_(lag) - vmx
+                this%pvy_(lag) = this%pvy_(lag) - vmy
+                this%pvz_(lag) = this%pvz_(lag) - vmz
+                lag = lag + 1
+              END DO
+            END DO
+          END DO
+        END DO
+      END DO
+    END DO
+
+    CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+                          this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+    CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+                          this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+    CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
+                           this%nparts_,this%vdb_,this%maxparts_)
+
+    IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to box units
+       this%ptmp0_(1,:) = this%vdb_(1,:)*this%delta_(1)
+       this%ptmp0_(2,:) = this%vdb_(2,:)*this%delta_(2)
+       this%ptmp0_(3,:) = this%vdb_(3,:)*this%delta_(3)
+       CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,&
+            this%maxparts_,this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
+    ELSE
+       CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,&
+            this%maxparts_,this%vdb_(1,:),this%vdb_(2,:),this%vdb_(3,:))
+    ENDIF
+
+    IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
+      IF ( this%myrank_.eq.0 ) THEN
+        WRITE(*,*) 'GPIC_InitLattice: Invalid particle after GetLocalWrk call'
+        STOP
+      ENDIF
+    ENDIF
+
+
+
+  END SUBROUTINE ChargPIC_InitRandom
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+
+  SUBROUTINE ChargPIC_InitFromFields(this,n,ux,uy,uz,T)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : InitFromFields
+!  DESCRIPTION: Initializes particle position in uniform lattice 
+!               and velocities with a Gaussian distribution 
+!               function, with given mean local values and thermal 
+!               speed given by local temperature. Other
+!               parameters are initialized with GPart_Init.
+!  ARGUMENTS:
+!    this    : 'this' class instance
+!    n       : particle density field to set each particle 
+!              weight (not implemented yet)
+!    ux,uy,uz: mean particle velocity field
+!    T       : particle temperature field
+!-----------------------------------------------------------------
+    USE mpivars
+    USE grid
+
+    IMPLICIT NONE
+    CLASS(ChargPIC)   , INTENT(INOUT)                   :: this
+    REAL(KIND=GP),INTENT(IN),DIMENSION(nx,ny,ksta:kend) :: n,ux,uy,uz,T
+    REAL(KIND=GP)                            :: gauss,vr,vth,del
+    DOUBLE PRECISION                         :: vmx,vmy,vmz
+    INTEGER                                  :: ppc,pps,ib,lag
+    INTEGER                                  :: i,j,k,ii,jj,kk
+
+    ppc = this%maxparts_/(nx*ny*nz)
+    pps = ppc**(1.0/3.0)
+    IF (pps*pps*pps .NE. ppc) THEN
+      IF ( this%myrank_.eq.0 ) THEN
+        WRITE(*,*) 'GPIC_InitLattice: Number of particles per cell &
+                                      must be perfect cube'
+        STOP
+      ENDIF
+    END IF
+    this%nparts_ = nx*ny*(kend - ksta + 1)*ppc
+    ib = nx*ny*(ksta-1)*ppc - 1
+    lag = 1
+    del = 1.0_GP/pps
+    DO i = 1,nx
+      DO j = 1,ny
+        DO k = ksta,kend
+          vmx = 0.0D0
+          vmy = 0.0D0
+          vmz = 0.0D0
+          vth = SQRT(2.0_GP*T(i,j,k))
+          DO ii = 1,pps
+            DO jj = 1,pps
+              DO kk = 1,pps
+                this%id_(lag) = lag + ib
+                this%px_(lag) = (i-1.50_GP) + (ii-0.50_GP)*del
+                this%py_(lag) = (j-1.50_GP) + (jj-0.50_GP)*del
+                this%pz_(lag) = (k-1.50_GP) + (kk-0.50_GP)*del
+                CALL random_gaussian(gauss)
+                vr = gauss*vth
+                this%pvx_(lag) = vr
+                vmx = vmx + vr 
+                CALL random_gaussian(gauss)
+                vr = gauss*vth
+                this%pvy_(lag) = vr
+                vmy = vmy + vr 
+                CALL random_gaussian(gauss)
+                vr = gauss*vth
+                this%pvz_(lag) = vr
+                vmz = vmz + vr 
+                lag = lag + 1
+              END DO
+            END DO
+          END DO
+          vmx = vmx/ppc - ux(i,j,k)
+          vmy = vmy/ppc - uy(i,j,k)
+          vmz = vmz/ppc - uz(i,j,k)
+          lag = lag - ppc
+          DO ii = 1,pps
+            DO jj = 1,pps
+              DO kk = 1,pps
+                this%pvx_(lag) = this%pvx_(lag) - vmx
+                this%pvy_(lag) = this%pvy_(lag) - vmy
+                this%pvz_(lag) = this%pvz_(lag) - vmz
+                lag = lag + 1
+              END DO
+            END DO
+          END DO
+        END DO
+      END DO
+    END DO
+
+    CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+                          this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+    CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+                          this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+    CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
+                           this%nparts_,this%vdb_,this%maxparts_)
+
+    IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to box units
+       this%ptmp0_(1,:) = this%vdb_(1,:)*this%delta_(1)
+       this%ptmp0_(2,:) = this%vdb_(2,:)*this%delta_(2)
+       this%ptmp0_(3,:) = this%vdb_(3,:)*this%delta_(3)
+       CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,&
+            this%maxparts_,this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
+    ELSE
+       CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,&
+            this%maxparts_,this%vdb_(1,:),this%vdb_(2,:),this%vdb_(3,:))
+    ENDIF
+
+    IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
+      IF ( this%myrank_.eq.0 ) THEN
+        WRITE(*,*) 'GPIC_InitLattice: Invalid particle after GetLocalWrk call'
+        STOP
+      ENDIF
+    ENDIF
+
+
+
+  END SUBROUTINE ChargPIC_InitFromFields
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  
+  SUBROUTINE random_gaussian(gauss)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : random_gaussian
+!  DESCRIPTION: Generates random number following gaussian 
+!               distribution.
+!  ARGUMENTS:
+!    gauss  : 
+!-----------------------------------------------------------------
+    USE random
+    USE var
+
+    IMPLICIT NONE
+    REAL(KIND=GP),INTENT(OUT)        :: gauss
+    REAL(KIND=GP)                    :: u1,u2,twopi,low
+
+    twopi = 2.0_GP*pi
+    low   = 1.0e-20_GP
+
+    CALL prandom_number(u1)
+    CALL prandom_number(u2)
+    u1 =  MAX( u1, low)
+    u2 =  twopi * u2
+    gauss =  sqrt( -2.0_GP * log( u1)) * CMPLX( cos(u2), sin(u2))
+
+  END SUBROUTINE random_gaussian
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
