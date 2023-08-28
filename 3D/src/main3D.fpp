@@ -138,7 +138,7 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: th1,th2,th3
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fs1,fs2,fs3
 #endif
-#ifdef HYBPIC_
+#ifdef CPIC_
       TYPE(ChargPIC)                                   :: picpart
 #endif
 #ifdef ELECFIELD_
@@ -165,7 +165,7 @@
 #ifdef VELOC_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M1,M2,M3
 #endif
-#ifdef HYBPIC_
+#ifdef CPIC_
       REAL(KIND=GP)   , ALLOCATABLE, DIMENSION (:,:,:) :: Re1,Re2,Re3
       REAL(KIND=GP)   , ALLOCATABLE, DIMENSION (:,:,:) :: Rb1,Rb2,Rb3
 #endif
@@ -294,14 +294,14 @@
       REAL(KIND=GP)    :: amach, cp2
 #endif
 #ifdef ELECSTAT_
-      REAL(KIND=GP)    :: dp
+      REAL(KIND=GP)    :: vthi,kde,kde2,dp
       INTEGER          :: kp,drp
 #endif
 #ifdef PIC_
       INTEGER          :: splord, picdiv, partpcell
 #endif
 #ifdef HYBPIC_
-      REAL(KIND=GP)    :: vthi,ekin,kde,kde2,gammae,gam1,cp1
+      REAL(KIND=GP)    :: vthi,ekin,dii,betae,gammae,gam1,cp1
 #endif
 #ifdef MAGFIELD_
       REAL(KIND=GP)    :: mkup,mkdn
@@ -450,10 +450,10 @@
       NAMELIST / ppic / splord, picdiv, partpcell
 #endif
 #ifdef HYBPIC_
-      NAMELIST / phybrid / vthi,kde,gammae
+      NAMELIST / phybrid / vthi,dii,betae,gammae
 #endif
 #ifdef ELECSTAT_
-      NAMELIST / elecstat / kp,dp,drp
+      NAMELIST / elecstat / vthi,kde,kp,dp,drp
 #endif
 #ifdef MAGFIELD_
       NAMELIST / magfield / m0,a0,mkdn,mkup,mu,corr,mparam0,mparam1
@@ -676,7 +676,7 @@
       ALLOCATE( Rj2(nx,ny,ksta:kend) )
       ALLOCATE( Rj3(nx,ny,ksta:kend) )
 #endif
-#if defined (HYBPIC_)
+#if defined (CPIC_)
       ALLOCATE( Rb1(nx,ny,ksta:kend) )
       ALLOCATE( Rb2(nx,ny,ksta:kend) )
       ALLOCATE( Rb3(nx,ny,ksta:kend) )
@@ -1137,49 +1137,53 @@
 
 #ifdef HYBPIC_
 ! namelist 'elecstat' on the external file 'parameter.inp'
-!     vthi  : initial particle temperature
-!     kde   : inverse debye length
+!     vthi  : initial ion thermal velocity
 !     gammae: barotropic exponent for fluid electrons
+!     betae : electronic plasma beta
+!     dii   : ion inertial length scale
 
       vthi   = 0.0_GP
-      kde    = 0.0_GP
       gammae = 0.0_GP
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=phybrid)
          CLOSE(1)
       ENDIF
-!      dp = REAL(nx,kind=GP)*dp/(2*pi*Lx)
-      CALL MPI_BCAST(kde ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vthi,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(vthi  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(gammae,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      kde2 = kde*kde
+      CALL MPI_BCAST(betae ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dii   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       gam1 = gammae-1.0_GP
-      cp1  = gammae/(gam1*kde2)
+      cp1 = dii*betae/2
+      IF (gammae.GT.1) THEN
+         cp1 = cp1*gammae/gam1
+      END IF
 #endif
 
 #ifdef ELECSTAT_
-      IF (gammae.NE.1) THEN
-         PRINT *, 'EHPIC solver supports only gammae=1.'
-      END IF
 ! namelist 'elecstat' on the external file 'parameter.inp'
+!     vthi : initial ion thermal velocity
+!     kde  : inverse debye length
 !     dp   : perturbation amplitude (in box units)
 !     kp   : perturbation wavenumber
 !     drp  : perturbation direction (0=x,1=y,2=z)
-
-      kde = 0.0_GP
-      dp  = 0.0_GP
-      kp  = 0
-      drp = 0
+      
+      vthi = 0.0_GP
+      kde  = 0.0_GP
+      dp   = 0.0_GP
+      kp   = 0
+      drp  = 0
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=elecstat)
          CLOSE(1)
       ENDIF
-!      dp = REAL(nx,kind=GP)*dp/(2*pi*Lx)
-      CALL MPI_BCAST(dp ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(kp ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(drp,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(vthi,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kde ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dp  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kp  ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(drp ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      kde2 = kde*kde
 #endif
 
 #ifdef PIC_
@@ -1557,6 +1561,7 @@
          DO j = 1,ny
             DO k = 1,nz
                kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
+               C17(k,j,i)= EXP(-3.0_GP*kn2(k,j,i)/kmax)*(1.0_GP-kn2(k,j,i)/kmax)**2
             END DO
          END DO
       END DO
@@ -1722,7 +1727,7 @@
       CALL picpart%SetRandSeed(seed)
       CALL picpart%SetSeedFile(trim(lgseedfile))
 #endif
-#ifdef HYBPIC_
+#ifdef CPIC_
       CALL picpart%ChargPIC_ctor()
 #endif
 
@@ -1811,10 +1816,11 @@
       INCLUDE 'initialz.f90'            ! initial wave function
 #endif
 #ifdef PIC_
-      CALL picpart%Init()
+!      CALL picpart%Init()
 #endif
-#ifdef HYBPIC_
-      CALL picpart%InitVel(vthi)
+#ifdef CPIC_
+!      CALL picpart%InitVel(vthi)
+      CALL picpart%InitRandom(vthi)
 #endif
 #ifdef ELECSTAT_
       CALL picpart%PerturbPositions(dp,kp,drp)
@@ -2013,7 +2019,7 @@
 
 #ifdef PIC_
           CALL picpart%io_read (1,idir,'xpic',ext)
-#ifdef HYBPIC_
+#ifdef CPIC_
           CALL picpart%io_readv(1,idir,'vpic',ext)
 #endif
 #endif
@@ -2552,10 +2558,22 @@
             CALL fftp3d_complex_to_real(plancr,C5,R1,MPI_COMM_WORLD)
             CALL io_write(1,odir,'rh',ext,planio,R1)           
 #endif
+#if defined(HYBPIC_)
+            IF (outs.ge.1) THEN
+               CALL picpart%GetDensity(R1)
+               CALL io_write(1,odir,'ni',ext,planio,R1)
+            END IF
+            IF (outs.ge.2) THEN
+               CALL picpart%GetFlux(Re1,Re2,Re3)
+               CALL io_write(1,odir,'jix',ext,planio,Re1)
+               CALL io_write(1,odir,'jiy',ext,planio,Re2)
+               CALL io_write(1,odir,'jiz',ext,planio,Re3)
+            END IF
+#endif
 #ifdef PIC_
             IF (MODULO(tind,picdiv).eq.0) THEN
                CALL picpart%io_write_pdb (1,odir,'xpic',ext,(t-1)*dt)
-#ifdef HYBPIC_
+#ifdef CPIC_
                CALL picpart%io_write_pdbv(1,odir,'vpic',ext,(t-1)*dt)
 #endif
             END IF
@@ -2792,7 +2810,7 @@
 ! Runge-Kutta step 1
 ! Copies the fields into auxiliary arrays
 
-#ifdef HYBPIC_
+#ifdef CPIC_
          CALL picpart%SetStep()
          CALL picpart%SetStepVel()
 #endif

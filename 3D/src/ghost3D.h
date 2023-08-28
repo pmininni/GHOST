@@ -279,18 +279,19 @@
 
 #ifdef EHPIC_SOL
 #define DNS_
-#define ELECFIELD_
 #define ELECSTAT_
+#define ELECFIELD_
 #define UNIFORMB_
-#define HYBPIC_
+#define CPIC_
 #define INCLUDEFNAME_ 'ehpic_
 #endif
 
 #ifdef HPIC_SOL
 #define DNS_
+#define HYBPIC_
 #define MAGFIELD_
 #define UNIFORMB_
-#define HYBPIC_
+#define CPIC_
 #define INCLUDEFNAME_ 'hpic_
 #endif
 
