@@ -51,7 +51,7 @@
     INTEGER                             :: disp(3),lens(3),types(3),szreal
     INTEGER          ,INTENT   (IN)     :: iexchtyp,iinterp,inittype
     INTEGER          ,INTENT   (IN)     :: intorder,iouttyp
-    INTEGER                             :: maxparts
+    INTEGER                             :: maxparts,i
 
 !    this%icv_      = real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)  &
 !                     *Dkx*Dky*Dkz/(2*pi)**3
@@ -72,7 +72,11 @@
          this%tibnds_,this%intorder_,this%intorder_/2+1,this%maxparts_,        &
          this%gfcomm_,this%htimers_(GPTIME_DATAEX),this%htimers_(GPTIME_TRANSP))
 
-    ALLOCATE ( this%prop_(this%maxparts_) )
+    ALLOCATE ( this%prop_  (this%maxparts_) )
+    ALLOCATE ( this%weight_(this%maxparts_) )
+    DO i = 1,maxparts
+      this%weight_(i) = this%icv_
+    END DO
 
   END SUBROUTINE GPIC_ctor
 !-----------------------------------------------------------------
@@ -270,7 +274,8 @@
     IMPLICIT NONE
     TYPE(GPIC)       ,INTENT(INOUT)     :: this
 
-    IF ( ALLOCATED ( this%prop_ ) ) DEALLOCATE ( this%prop_ )
+    IF ( ALLOCATED ( this%prop_   ) ) DEALLOCATE ( this%prop_   )
+    IF ( ALLOCATED ( this%weight_ ) ) DEALLOCATE ( this%weight_ )
 
   END SUBROUTINE GPIC_dtor
 !-----------------------------------------------------------------
@@ -295,7 +300,7 @@
     INTEGER                                                :: lag
 
     DO lag=1,this%nparts_
-      this%prop_(lag) = this%icv_
+      this%prop_(lag) = this%weight_(lag)
     END DO
 
     CALL GPIC_LagToEuler(this,this%prop_,this%nparts_,dens,.true.)
@@ -724,6 +729,290 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+  SUBROUTINE GPIC_io_read_wgt(this, iunit, dir, spref, nmb)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : io_read_wgt
+!  DESCRIPTION: Does read of test particle weights from file.
+!               This is the main entry point for both binary and
+!               ASCII reads.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    iunit   : unit number
+!    dir     : input directory
+!    spref   : filename prefix
+!    nmb     : time index
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPIC)     ,INTENT(INOUT)            :: this
+    REAL(KIND=GP)                             :: time
+    INTEGER,INTENT(IN)                        :: iunit
+    INTEGER                                   :: ng
+    CHARACTER(len=*),INTENT   (IN)            :: dir
+    CHARACTER(len=*),INTENT   (IN)            :: nmb
+    CHARACTER(len=*),INTENT   (IN)            :: spref
+
+    CALL GTStart(this%htimers_(GPTIME_GPREAD))
+    IF ( this%iouttype_ .EQ. 0 ) THEN        ! Binary files
+      IF ( this%bcollective_ .EQ. 1 ) THEN   ! collective binary
+        IF (len_trim(nmb).gt.0 ) THEN
+        CALL GPart_binary_read_pdb_co_scalar(this,iunit, &
+        trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
+        ELSE
+        CALL GPIC_binary_read_pdb_co_scalar(this,iunit, trim(spref),time,this%weight_)
+        ENDIF
+      ELSE                      ! master thread binary
+        IF (len_trim(nmb).gt.0 ) THEN
+        CALL GPIC_binary_read_pdb_t0_scalar(this,iunit,&
+             trim(dir) // '/' // trim(spref) // '.' // nmb //
+'.lag',time,this%ptmp0_)
+        ELSE
+        CALL GPIC_binary_read_pdb_t0_scalar(this,iunit, trim(spref),time,this%weight_)
+        ENDIF
+      ENDIF
+    ELSE                         ! ASCII files
+      IF (len_trim(nmb).gt.0 ) THEN
+      CALL GPIC_ascii_read_pdb_scalar(this,iunit,&
+           trim(dir) // '/' // trim(spref) // '.' // nmb // '.txt',time,this%weight_)
+      ELSE
+      CALL GPIC_ascii_read_pdb_scalar(this,iunit,trim(spref),time,this%weight_)
+      ENDIF
+    ENDIF
+    CALL GTAcc(this%htimers_(GPTIME_GPREAD))
+
+    ! Store in particle velocity arrays
+    CALL GPIC_CopyLocalWrkScalar(this,this%pvx_,this%pvy_,this%pvz_, &
+                                 this%vdb_,this%weight_,this%maxparts_)
+
+    CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
+                       MPI_SUM,this%comm_,this%ierr_)
+    IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_ ) THEN
+      WRITE(*,*)'GPIC_io_read_wgt: inconsistent d.b.: expected: ', &
+                 this%maxparts_, '; found: ',ng
+      STOP
+    ENDIF
+
+  END SUBROUTINE GPIC_io_read_scalar
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE GPIC_binary_read_pdb_co_scalar(this,iunit,sfile,time,pdb)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : binary_read_pdb_co_scalar
+!  DESCRIPTION: Does read of binary Lagrangian particle scalar data 
+!               from file, collectively.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    iunit   : unit number
+!    sfile   : fully resolved file name
+!    pdb     : part. weights
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPIC)  ,INTENT(INOUT)               :: this
+    REAL(KIND=GP)                             :: rvar,time
+    REAL(KIND=GP),INTENT(INOUT)               :: pdb(this%maxparts_)
+    INTEGER,INTENT(IN)                        :: iunit
+    INTEGER                                   :: fh,j,lc,nerr,szreal
+    INTEGER(kind=MPI_OFFSET_KIND)             :: offset
+    CHARACTER(len=*),INTENT   (IN)            :: sfile
+
+    CALL MPI_TYPE_SIZE(GC_REAL,szreal,this%ierr_)
+    CALL MPI_FILE_OPEN(this%comm_,trim(sfile),MPI_MODE_RDONLY,MPI_INFO_NULL,fh,this%ierr_)
+    IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
+      CALL MPI_ERROR_STRING(this%ierr_, this%serr_, nerr,ierr);
+      WRITE(*,*) 'GPart_binary_read_pdb_co: Error reading opening : ', trim(sfile),&
+                trim(this%serr_)
+      STOP
+    ENDIF
+
+    ! Must read part. data from correct spot in file:
+    offset = 0
+    CALL MPI_FILE_READ_AT_ALL(fh,offset,rvar,1,GC_REAL,this%istatus_,this%ierr_)
+!  no.parts
+    IF ( int(rvar).NE.this%maxparts_ ) THEN
+      WRITE(*,*) 'GPart_binary_read_pdb_co: Attempt to read incorrect number of particles: required:',&
+                  this%maxparts_,' no. read: ',int(rvar)
+      WRITE(*,*) 'GPart_binary_read_pdb_co: Error reading: ', trim(sfile)
+      STOP
+    ENDIF
+    offset = szreal
+    CALL MPI_FILE_READ_AT_ALL(fh,offset,rvar,1,GC_REAL,this%istatus_,this%ierr_) ! time
+    offset = 2*szreal
+    CALL MPI_FILE_READ_AT_ALL(fh,offset,pdb,this%maxparts_,GC_REAL,this%istatus_,this%ierr_)
+! PDB
+    CALL MPI_FILE_CLOSE(fh,this%ierr_)
+
+  END SUBROUTINE GPIC_binary_read_pdb_co_scalar
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+ SUBROUTINE GPIC_binary_read_pdb_t0_scalar(this,iunit,sfile,time,pdb)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : binary_read_pdb_t0
+!  DESCRIPTION: Does binary read of Lagrangian position d.b. from file
+!               only from MPI task 0, and broadcast to all other tasks.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    iunit   : unit number
+!    sfile   : fully resolved file name
+!    time    : real time
+!    pdb     : part. d.b. in (3,maxparts) array
+!
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPIC)  ,INTENT(INOUT)       :: this
+    REAL(KIND=GP),INTENT(INOUT)       :: time
+    REAL(KIND=GP),INTENT(INOUT)       :: pdb(this%maxparts_)
+    REAL(KIND=GP)                     :: fnt
+    INTEGER      ,INTENT   (IN)       :: iunit
+    INTEGER                           :: j
+    CHARACTER(len=*),INTENT(IN)       :: sfile
+
+    ! Read global VDB, with time header, indexed only
+    ! by time index: dir/spref.TTT.lag:
+    IF ( this%myrank_.EQ.0 ) THEN
+      OPEN(iunit,file=trim(sfile),status='old',access='stream', &
+           form='unformatted',iostat=this%ierr_)
+      IF ( this%ierr_.NE.0 ) THEN
+        WRITE(*,*)'GPart_binary_read_pdb_t0: could not open file for reading:',&
+        trim(sfile)
+        STOP
+      ENDIF
+
+      REWIND(iunit)
+      READ(iunit) fnt
+      READ(iunit) time
+      IF ( int(fnt).NE.this%maxparts_ ) THEN
+        WRITE(*,*)this%myrank_, &
+          ': GPart_binary_read_pdb_t0: particle inconsistency: no. required=',&
+          this%maxparts_,' no. found=',int(fnt), &
+          ' file=',trim(sfile)
+        STOP
+      ENDIF
+      READ(iunit) pdb
+      CLOSE(iunit)
+    ENDIF
+    CALL MPI_BCAST(pdb,this%maxparts_,GC_REAL,0,this%comm_,this%ierr_)
+    IF ( this%ierr_.NE.MPI_SUCCESS ) THEN
+        WRITE(*,*)this%myrank_, ': GPart_binary_read_pdb_t0: Broadcast failed: file=',&
+        trim(sfile)
+    ENDIF
+
+  END SUBROUTINE GPIC_binary_read_pdb_t0_scalar
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+ SUBROUTINE GPIC_ascii_read_pdb_scalar(this,iunit,sfile,time,pdb)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : ascii_read_pdb
+!  DESCRIPTION: Does ASCII read of Lagrangian position d.b. from file.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    iunit   : unit number
+!    sfile   : fully resolved file name
+!    time    : real time
+!    pdb     : part. d.b. in (4,maxparts) array
+!
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPIC)  ,INTENT(INOUT)       :: this
+    REAL(KIND=GP),INTENT(INOUT)       :: time
+    REAL(KIND=GP),INTENT(INOUT)       :: pdb(this%maxparts_)
+    INTEGER      ,INTENT   (IN)       :: iunit
+    INTEGER                           :: j,nt
+    CHARACTER(len=*),INTENT(IN)       :: sfile
+
+    ! Read global VDB, with time header, indexed only
+    ! by time index: dir/spref.TTT.txt:
+    IF ( this%myrank_.EQ.0 ) THEN
+      OPEN(iunit,file=trim(sfile),status='old',form='formatted',iostat=this%ierr_)
+      IF ( this%ierr_.NE.0 ) THEN
+        WRITE(*,*)'GPart_ascii_read_pdb: could not open file for reading: ',&
+        trim(sfile)
+        STOP
+      ENDIF
+      READ(iunit,*,iostat=this%ierr_) nt
+      READ(iunit,*,iostat=this%ierr_) time
+      IF ( nt.LT.this%maxparts_ ) THEN
+        WRITE(*,*)this%myrank_, &
+          ': GPart_ascii_read_pdb: particle inconsistency: no. required=',&
+          this%maxparts_,' no. found=',nt, &
+          ' file=',trim(sfile)
+        STOP
+      ENDIF
+      DO j = 1, this%maxparts_
+        READ(iunit,*,iostat=this%ierr_) pdb(j)
+  600   FORMAT(3(E23.15,1X))
+      ENDDO
+      CLOSE(iunit)
+    ENDIF
+    CALL MPI_BCAST(pdb,this%maxparts_,GC_REAL,0,this%comm_,this%ierr_)
+    IF ( this%ierr_.NE.MPI_SUCCESS ) THEN
+        WRITE(*,*)this%myrank_, ': GPart_ascii_read_pdb: Broadcast failed:
+file=',&
+        trim(sfile)
+    ENDIF
+
+  END SUBROUTINE GPIC_ascii_read_pdb_scalar
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE GPIC_CopyLocalWrkScalar(this,l,gvdb,vgvdb,ngvdb)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : GPart_CopyLocalWrk
+!  DESCRIPTION: Updates records of the VDB.
+!  ARGUMENTS  :
+!    this    : 'this' class instance (IN)
+!    l       : local part. d.b. vector
+!    gvdb    : global VDB containing part. position records. Location
+!              gives particle id.
+!    vgvdb   : global VDB containing part. property records (scalar)
+!    ngvdb   : no. records in global VDB
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+
+    IMPLICIT NONE
+    CLASS(GPIC)  ,INTENT(INOUT)                           :: this
+    INTEGER      ,INTENT   (IN)                           :: ngvdb
+    INTEGER                                               :: i,j,nll
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%maxparts_) :: lx,ly,lz
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(3,ngvdb)        :: gvdb
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(ngvdb)          :: vgvdb
+
+    nll = 0
+    DO j = 1, ngvdb
+      IF ( gvdb(3,j).GE.this%lxbnds_(3,1) .AND. gvdb(3,j).LT.this%lxbnds_(3,2) ) THEN 
+        nll = nll + 1
+        l (nll) = vgvdb(j)
+      ENDIF
+    ENDDO
+
+  END SUBROUTINE GPIC_CopyLocalWrkScalar
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
 
 !=================================================================
 ! VGPIC SUBROUTINES
@@ -845,7 +1134,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
                        MPI_SUM,this%comm_,this%ierr_)
     IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_ ) THEN
-      WRITE(*,*)'InerGPart_io_read_pdbv: inconsistent d.b.: expected: ', &
+      WRITE(*,*)'VGPIC_io_read_pdbv: inconsistent d.b.: expected: ', &
                  this%maxparts_, '; found: ',ng
       STOP
     ENDIF
@@ -875,20 +1164,20 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 
 ! x-coord
     DO lag=1,this%nparts_
-      this%prop_(lag) = this%icv_*this%pvx_(lag)
+      this%prop_(lag) = this%weight_(lag)*this%pvx_(lag)
     END DO
 
     CALL GPIC_LagToEuler(this,this%prop_,this%nparts_,jx,.true.)
 
 ! y-coord
     DO lag=1,this%nparts_
-      this%prop_(lag) = this%icv_*this%pvy_(lag)
+      this%prop_(lag) = this%weight_(lag)*this%pvy_(lag)
     END DO
     CALL GPIC_LagToEuler(this,this%prop_,this%nparts_,jy,.false.)
 
 ! z-coord
     DO lag=1,this%nparts_
-      this%prop_(lag) = this%icv_*this%pvz_(lag)
+      this%prop_(lag) = this%weight_(lag)*this%pvz_(lag)
     END DO
     CALL GPIC_LagToEuler(this,this%prop_,this%nparts_,jz,.false.)
 
@@ -1661,8 +1950,8 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     INTEGER                                                :: lag
 
     DO lag=1,this%nparts_
-      this%prop_(lag) = this%icv_*(this%pvx_(lag)**2+this%pvy_(lag)**2 &
-                                  +this%pvz_(lag)**2)
+      this%prop_(lag) = this%weight_(lag)*(this%pvx_(lag)**2&
+                        +this%pvy_(lag)**2+this%pvz_(lag)**2)
     END DO
 
     CALL GPIC_LagToEuler(this,this%prop_,this%nparts_,T,.true.)

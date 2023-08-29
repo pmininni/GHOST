@@ -12,7 +12,7 @@
         ! Member data:
         TYPE(GFieldComm)                             :: gfcomm_
         TYPE(GPICSplineInt)                          :: picspl_
-        REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: prop_
+        REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: prop_,weight_
         REAL(KIND=GP)                                :: icv_
       CONTAINS
         ! Public methods:
