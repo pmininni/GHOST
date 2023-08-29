@@ -114,4 +114,4 @@
 !         PRINT *,MAXVAL(Re1),MAXVAL(Re2),MAXVAL(Re3),MAXVAL(Rb1),MAXVAL(Rb2),MAXVAL(Rb3)
 
 !         CALL picpart%StepChargedPIC(Re1,Re2,Re3,Rb1,Rb2,Rb3,dt,rmp)
-         CALL picpart%StepChargedPIC_2(Re1,Re2,Re3,Rb1,Rb2,Rb3,dt,o)
+         CALL picpart%StepChargedPICBor(Re1,Re2,Re3,Rb1,Rb2,Rb3,dt,o)
