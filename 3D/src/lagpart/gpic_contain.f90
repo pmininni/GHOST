@@ -2,7 +2,7 @@
 ! GPIC SUBROUTINES
 !=================================================================
 
-  SUBROUTINE GPIC_ctor(this,comm,ppc,inittype,iinterp,intorder,iexchtyp, &
+  SUBROUTINE GPIC_ctor(this,comm,ppc,inittype,initprop,intorder,iexchtyp, &
                         iouttyp,bcoll,csize,nstrip,intacc,wrtunit)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -14,8 +14,9 @@
 !    comm    : MPI communicator
 !    ppc     : number of particle per cell
 !    inittype: GPINIT-typed quantity to give the type of particle
-!              initialization
-!    iinterp : GPINTRP-type quantity providing the interpolation
+!              position initialization
+!    initprop: GPINIT-typed quantity to give the type of particle
+!              properties (weight, velocity) initialization
 !    intorder: for variable-order (e.g., Lagrange) interpolation,
 !              the order (1, 2, 3...). Sets the number of 'ghost' zones
 !              of data transferred between MPI tasks.
@@ -49,7 +50,7 @@
     INTEGER          ,INTENT   (IN)     :: csize,nstrip,intacc
     INTEGER, OPTIONAL,INTENT   (IN)     :: wrtunit
     INTEGER                             :: disp(3),lens(3),types(3),szreal
-    INTEGER          ,INTENT   (IN)     :: iexchtyp,iinterp,inittype
+    INTEGER          ,INTENT   (IN)     :: iexchtyp,initprop,inittype
     INTEGER          ,INTENT   (IN)     :: intorder,iouttyp
     INTEGER                             :: maxparts,i
 
@@ -59,9 +60,10 @@
     this%icv_      = 1.0_GP/real(ppc,kind=GP)
     maxparts       = ppc*nx*ny*nz
 
-    CALL this%GPart_ctor(comm,maxparts,inittype,iinterp,3,iexchtyp, &
-                        iouttyp,bcoll,csize,nstrip,intacc,wrtunit)
+    CALL this%GPart_ctor(comm,maxparts,inittype,0,3,iexchtyp,iouttyp,&
+                         bcoll,csize,nstrip,intacc,wrtunit)
     this%intorder_ = intorder
+    this%initprop_ = initprop
     CALL this%gfcomm_%GPartComm_ctor(GPCOMM_INTRFC_SF,maxparts,    &
          this%nd_,this%intorder_/2+1,this%comm_,this%htimers_(GPTIME_COMM))
     CALL this%gfcomm_%SetCacheParam(csize,nstrip)
@@ -760,7 +762,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     IF ( this%iouttype_ .EQ. 0 ) THEN        ! Binary files
       IF ( this%bcollective_ .EQ. 1 ) THEN   ! collective binary
         IF (len_trim(nmb).gt.0 ) THEN
-        CALL GPart_binary_read_pdb_co_scalar(this,iunit, &
+        CALL GPIC_binary_read_pdb_co_scalar(this,iunit, &
         trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
         ELSE
         CALL GPIC_binary_read_pdb_co_scalar(this,iunit, trim(spref),time,this%weight_)
@@ -768,8 +770,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
       ELSE                      ! master thread binary
         IF (len_trim(nmb).gt.0 ) THEN
         CALL GPIC_binary_read_pdb_t0_scalar(this,iunit,&
-             trim(dir) // '/' // trim(spref) // '.' // nmb //
-'.lag',time,this%ptmp0_)
+             trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
         ELSE
         CALL GPIC_binary_read_pdb_t0_scalar(this,iunit, trim(spref),time,this%weight_)
         ENDIF
@@ -785,8 +786,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     CALL GTAcc(this%htimers_(GPTIME_GPREAD))
 
     ! Store in particle velocity arrays
-    CALL GPIC_CopyLocalWrkScalar(this,this%pvx_,this%pvy_,this%pvz_, &
-                                 this%vdb_,this%weight_,this%maxparts_)
+    CALL GPIC_CopyLocalWrkScalar(this,this%weight_,this%vdb_,this%weight_,this%maxparts_)
 
     CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
                        MPI_SUM,this%comm_,this%ierr_)
@@ -796,7 +796,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
       STOP
     ENDIF
 
-  END SUBROUTINE GPIC_io_read_scalar
+  END SUBROUTINE GPIC_io_read_wgt
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -829,7 +829,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     CALL MPI_FILE_OPEN(this%comm_,trim(sfile),MPI_MODE_RDONLY,MPI_INFO_NULL,fh,this%ierr_)
     IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
       CALL MPI_ERROR_STRING(this%ierr_, this%serr_, nerr,ierr);
-      WRITE(*,*) 'GPart_binary_read_pdb_co: Error reading opening : ', trim(sfile),&
+      WRITE(*,*) 'GPIC_binary_read_pdb_co: Error reading opening : ', trim(sfile),&
                 trim(this%serr_)
       STOP
     ENDIF
@@ -839,9 +839,9 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     CALL MPI_FILE_READ_AT_ALL(fh,offset,rvar,1,GC_REAL,this%istatus_,this%ierr_)
 !  no.parts
     IF ( int(rvar).NE.this%maxparts_ ) THEN
-      WRITE(*,*) 'GPart_binary_read_pdb_co: Attempt to read incorrect number of particles: required:',&
+      WRITE(*,*) 'GPIC_binary_read_pdb_co_scalar: Attempt to read incorrect number of particles: required:',&
                   this%maxparts_,' no. read: ',int(rvar)
-      WRITE(*,*) 'GPart_binary_read_pdb_co: Error reading: ', trim(sfile)
+      WRITE(*,*) 'GPIC_binary_read_pdb_co_scalar: Error reading: ', trim(sfile)
       STOP
     ENDIF
     offset = szreal
@@ -888,7 +888,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
       OPEN(iunit,file=trim(sfile),status='old',access='stream', &
            form='unformatted',iostat=this%ierr_)
       IF ( this%ierr_.NE.0 ) THEN
-        WRITE(*,*)'GPart_binary_read_pdb_t0: could not open file for reading:',&
+        WRITE(*,*)'GPIC_binary_read_pdb_t0_scalar: could not open file for reading:',&
         trim(sfile)
         STOP
       ENDIF
@@ -898,7 +898,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
       READ(iunit) time
       IF ( int(fnt).NE.this%maxparts_ ) THEN
         WRITE(*,*)this%myrank_, &
-          ': GPart_binary_read_pdb_t0: particle inconsistency: no. required=',&
+          ': GPIC_binary_read_pdb_t0_scalar: particle inconsistency: no. required=',&
           this%maxparts_,' no. found=',int(fnt), &
           ' file=',trim(sfile)
         STOP
@@ -908,7 +908,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     ENDIF
     CALL MPI_BCAST(pdb,this%maxparts_,GC_REAL,0,this%comm_,this%ierr_)
     IF ( this%ierr_.NE.MPI_SUCCESS ) THEN
-        WRITE(*,*)this%myrank_, ': GPart_binary_read_pdb_t0: Broadcast failed: file=',&
+        WRITE(*,*)this%myrank_, ': GPIC_binary_read_pdb_t0_scalar: Broadcast failed: file=',&
         trim(sfile)
     ENDIF
 
@@ -946,7 +946,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     IF ( this%myrank_.EQ.0 ) THEN
       OPEN(iunit,file=trim(sfile),status='old',form='formatted',iostat=this%ierr_)
       IF ( this%ierr_.NE.0 ) THEN
-        WRITE(*,*)'GPart_ascii_read_pdb: could not open file for reading: ',&
+        WRITE(*,*)'GPIC_ascii_read_pdb_scalar: could not open file for reading: ',&
         trim(sfile)
         STOP
       ENDIF
@@ -954,7 +954,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
       READ(iunit,*,iostat=this%ierr_) time
       IF ( nt.LT.this%maxparts_ ) THEN
         WRITE(*,*)this%myrank_, &
-          ': GPart_ascii_read_pdb: particle inconsistency: no. required=',&
+          ': GPIC_ascii_read_pdb_scalar: particle inconsistency: no. required=',&
           this%maxparts_,' no. found=',nt, &
           ' file=',trim(sfile)
         STOP
@@ -967,8 +967,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     ENDIF
     CALL MPI_BCAST(pdb,this%maxparts_,GC_REAL,0,this%comm_,this%ierr_)
     IF ( this%ierr_.NE.MPI_SUCCESS ) THEN
-        WRITE(*,*)this%myrank_, ': GPart_ascii_read_pdb: Broadcast failed:
-file=',&
+        WRITE(*,*)this%myrank_, ': GPIC_ascii_read_pdb_scalar: Broadcast failed:file=',&
         trim(sfile)
     ENDIF
 
@@ -979,7 +978,7 @@ file=',&
   SUBROUTINE GPIC_CopyLocalWrkScalar(this,l,gvdb,vgvdb,ngvdb)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!  METHOD     : GPart_CopyLocalWrk
+!  METHOD     : GPIC_CopyLocalWrkScalar
 !  DESCRIPTION: Updates records of the VDB.
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
@@ -996,7 +995,7 @@ file=',&
     CLASS(GPIC)  ,INTENT(INOUT)                           :: this
     INTEGER      ,INTENT   (IN)                           :: ngvdb
     INTEGER                                               :: i,j,nll
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%maxparts_) :: lx,ly,lz
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%maxparts_) :: l
     REAL(KIND=GP),INTENT   (IN),DIMENSION(3,ngvdb)        :: gvdb
     REAL(KIND=GP),INTENT   (IN),DIMENSION(ngvdb)          :: vgvdb
 
@@ -1609,7 +1608,7 @@ file=',&
     USE grid
 
     IMPLICIT NONE
-    CLASS(ChargPIC)   , INTENT(INOUT) :: this
+    CLASS(ChargPIC) , INTENT(INOUT) :: this
     REAL(KIND=GP),INTENT(IN)        :: vtherm
     REAL(KIND=GP),DIMENSION(nx,ny,ksta:kend) :: rho,v1,v2,v3
     REAL(KIND=GP)                   :: low,twopi,u1,u2,gauss

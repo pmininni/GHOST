@@ -183,8 +183,15 @@ dokinelp = 0     ! Compute electron pressure (0=no, 1=yes if flow compressible)
 ! Parameters for particle-in-cell (PIC)
 &ppic
 splord = 3       ! Spline order (0, 1, 2 or 3)
-picdiv = 1       ! Divisor for pic particle output
 partpcell = 1024 ! Number of particles per cell
+picdiv = 1       ! Divisor for pic particle output
+picinittype = 0  ! Initialization type for locations (0=random, 1=lattice, 2=user)
+picinitprop = 0  ! Initialization type for properties (0=uniform, 1=field, ignore if picinittype=2)
+picexchtype = 1  ! Boundary exchange type (0=nearest neighbor, 1=voxel db)
+picouttype = 0   ! Output type (0=binary, 1=ASCII)
+piccoll = 0      ! I/O method when using binary output (0=task 0, 1=collective)
+picwrtunit = 0   ! Write part. positions in box units (=1) or grid units (=0)
+picseedfile = 'user_seed_file.dat'
 /
 
 ! Parameters for hybrid-PIC solvers

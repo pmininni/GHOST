@@ -298,7 +298,11 @@
       INTEGER          :: kp,drp
 #endif
 #ifdef PIC_
-      INTEGER          :: splord, picdiv, partpcell
+      REAL         :: rbal
+      INTEGER      :: splord, picdiv, partpcell
+      INTEGER      :: picinittype,picinitprop
+      INTEGER      :: picexchtype,picouttype
+      INTEGER      :: picwrtunit,piccoll
 #endif
 #ifdef HYBPIC_
       REAL(KIND=GP)    :: vthi,ekin,dii,betae,gammae,gam1,cp1
@@ -355,7 +359,7 @@
 #ifdef WAVEFUNCTION_
       INTEGER :: cflow
 #endif
-#if defined(PART_) || defined(PIC_)
+#if defined(PART_)
       REAL         :: rbal
       REAL(KIND=GP):: tbeta(3)
       INTEGER      :: maxparts
@@ -393,8 +397,11 @@
 #endif
       TYPE(IOPLAN)          :: planio
       CHARACTER(len=100)    :: odir,idir
-#if defined(PART_) || defined(PIC_)
+#if defined(PART_)
       CHARACTER(len=1024)   :: lgseedfile,slgfpfile
+#endif
+#if defined(PIC_)
+      CHARACTER(len=1024)   :: picseedfile,spicfpfile
 #endif
       LOGICAL               :: bbenchexist
 
@@ -448,6 +455,8 @@
 #endif
 #ifdef PIC_
       NAMELIST / ppic / splord, picdiv, partpcell
+      NAMELIST / ppic / picinittype,picinitprop,picexchtype
+      NAMELIST / ppic / picouttype,picwrtunit,picseedfile,piccoll
 #endif
 #ifdef HYBPIC_
       NAMELIST / phybrid / vthi,dii,betae,gammae
@@ -491,7 +500,7 @@
 #ifdef EDQNM_
       NAMELIST / edqnmles / kolmo,heli
 #endif
-#if defined(PART_) || defined(PIC_)
+#if defined(PART_)
       NAMELIST / plagpart / lgmult,maxparts,ilginittype,ilgintrptype
       NAMELIST / plagpart / ilgexchtype,ilgouttype,ilgwrtunit,lgseedfile
       NAMELIST / plagpart / injtp,ilgcoll,cresetp,dolag,dopacc
@@ -1188,13 +1197,21 @@
 
 #ifdef PIC_
 ! namelist 'ppic' on the external file 'parameter.inp'
-!     splord   : spline order (0, 1, 2 or 3)
-!     picdiv   : divisor for pic particle output
-!     partpcell: number of particles per cell
+!     splord     : spline order (0, 1, 2 or 3)
+!     partpcell  : number of particles per cell
+!     picdiv     : divisor for pic particle output
+!     picinittype: initialization type for locations (0=random,1=lattice, 2=user)
+!     picinitprop: initialization type for properties (0=uniform,1=field, ignored if picinittype=2)
+!     picexchtype: boundary exchange type (0=nearest neighbor, 1=voxeldb)
+!     picouttype : output type (0=binary, 1=ASCII)
+!     piccoll    : I/O method when using binary output (0=task 0,1=collective)
+!     picwrtunit :   ! Write part. positions in box units (=1) or grid units(=0)
+!     picseedfile: filename for picinittype=2 case
 
       splord    = 0
       picdiv    = 1
       partpcell = 1
+      rbal      = 0.0
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=ppic)
@@ -1372,7 +1389,7 @@
       CALL MPI_BCAST(heli,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 #endif
 
-#if defined(PART_) || defined(PIC_)
+#if defined(PART_)
 ! Reads parameters for runs with particles
 !     maxparts    : Maximum number of particles
 !     injtp       : = 0 when stat=0 generates initial v and part seeds
@@ -1721,11 +1738,11 @@
 #endif
 
 #ifdef PIC_
-      CALL picpart%GPIC_ctor(MPI_COMM_WORLD,partpcell,ilginittype, &
-           ilgintrptype,splord,ilgexchtype,ilgouttype,ilgcoll,csize,&
-           nstrip,dopacc,ilgwrtunit)
+      CALL picpart%GPIC_ctor(MPI_COMM_WORLD,partpcell,picinittype, &
+           picinitprop,splord,picexchtype,picouttype,piccoll,csize,&
+           nstrip,0,picwrtunit)
       CALL picpart%SetRandSeed(seed)
-      CALL picpart%SetSeedFile(trim(lgseedfile))
+      CALL picpart%SetSeedFile(trim(picseedfile))
 #endif
 #ifdef CPIC_
       CALL picpart%ChargPIC_ctor()
@@ -3110,24 +3127,23 @@
             ENDIF
 #endif
 #if defined(PIC_)
-            IF ( dolag.GT.0 ) THEN
-              inquire( file='gpicbenchmark.txt', exist=bbenchexist )
-              OPEN(1,file='gpicbenchmark.txt',position='append')
-              IF (.NOT. bbenchexist) THEN
-                 WRITE(1,*) &
-  '# nx ny nz nparts rbal nsteps nth TRK TCOMM TSPL TTRANS TDEX TINT TUPD'
-              ENDIF
-              WRITE(1,*) nx,ny,nz,maxparts,rbal/(step-ini+1),            &
-                           (step-ini+1),nprocs,nth,                      &
-                           picpart%GetTime   (GPTIME_STEP)/(step-ini+1), &
-                           picpart%GetTime   (GPTIME_COMM)/(step-ini+1), &
-                           picpart%GetTime (GPTIME_SPLINE)/(step-ini+1), &
-                           picpart%GetTime (GPTIME_TRANSP)/(step-ini+1), &
-                           picpart%GetTime (GPTIME_DATAEX)/(step-ini+1), &
-                           picpart%GetTime (GPTIME_INTERP)/(step-ini+1), &
-                           picpart%GetTime(GPTIME_PUPDATE)/(step-ini+1)
-              CLOSE(1)
+            rbal = rbal + picpart%GetLoadBal()
+            inquire( file='gpicbenchmark.txt', exist=bbenchexist )
+            OPEN(1,file='gpicbenchmark.txt',position='append')
+            IF (.NOT. bbenchexist) THEN
+               WRITE(1,*) &
+ '# nx ny nz nparts rbal nsteps nth TRK TCOMM TSPL TTRANS TDEX TINT TUPD'
             ENDIF
+            WRITE(1,*) nx,ny,nz,partpcell*nx*ny*nz,rbal/(step-ini+1),  &
+                         (step-ini+1),nprocs,nth,                      &
+                         picpart%GetTime   (GPTIME_STEP)/(step-ini+1), &
+                         picpart%GetTime   (GPTIME_COMM)/(step-ini+1), &
+                         picpart%GetTime (GPTIME_SPLINE)/(step-ini+1), &
+                         picpart%GetTime (GPTIME_TRANSP)/(step-ini+1), &
+                         picpart%GetTime (GPTIME_DATAEX)/(step-ini+1), &
+                         picpart%GetTime (GPTIME_INTERP)/(step-ini+1), &
+                         picpart%GetTime(GPTIME_PUPDATE)/(step-ini+1)
+            CLOSE(1)
 #endif
          ENDIF
       ENDIF

@@ -14,6 +14,7 @@
         TYPE(GPICSplineInt)                          :: picspl_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: prop_,weight_
         REAL(KIND=GP)                                :: icv_
+        INTEGER                                      :: initprop_
       CONTAINS
         ! Public methods:
         PROCEDURE,PUBLIC :: GPIC_ctor
