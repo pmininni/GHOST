@@ -91,8 +91,10 @@
 !-----------------------------------------------------------------
 !
 ! Creates plans for the FFTW in each node.
-! NOTE: ista/iend & ksta/kend for the truncated grid must be set
+! NOTE: itsta/itend & ktsta/ktend for the truncated grid must be set
 !       outside of this call, since they are set in fftplans module.
+!       Method trrange can be used to compute these.
+!
 !       In principle, nprocs should be the _full_ MPI_COMM_WORLD.
 !
 ! Parameters
@@ -117,25 +119,25 @@
       INTEGER, INTENT(IN) :: flags
       TYPE(FFTPLAN), INTENT(OUT) :: plan
 
-      ALLOCATE ( plan%ccarr(nt(3),nt(2),ista:iend)    )
-      ALLOCATE ( plan%carr(nt(1)/2+1,nt(2),ksta:kend) )
-      ALLOCATE ( plan%rarr(nt(1),nt(2),ksta:kend)     )
+      ALLOCATE ( plan%ccarr(nt(3),nt(2),itsta:itend)    )
+      ALLOCATE ( plan%carr(nt(1)/2+1,nt(2),ktsta:ktend) )
+      ALLOCATE ( plan%rarr(nt(1),nt(2),ktsta:ktend)     )
 
 #if !defined(DEF_GHOST_CUDA_)
       IF ( fftdir.EQ.FFTW_REAL_TO_COMPLEX ) THEN
-      CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/nt(1),nt(2)/),kend-ksta+1,  &
-                       plan%rarr,(/nt(1),nt(2)*(kend-ksta+1)/),1,nt(1)*nt(2),     &
-                       plan%carr,(/nt(1)/2+1,nt(2)*(kend-ksta+1)/),1,             &
+      CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/nt(1),nt(2)/),ktend-ktsta+1,  &
+                       plan%rarr,(/nt(1),nt(2)*(ktend-ktsta+1)/),1,nt(1)*nt(2),     &
+                       plan%carr,(/nt(1)/2+1,nt(2)*(ktend-ktsta+1)/),1,             &
 		       (nt(1)/2+1)*nt(2),flags)
       ELSE
-      CALL GPMANGLE(plan_many_dft_c2r)(plan%planr,2,(/nt(1),nt(2)/),kend-ksta+1,  &
-                       plan%carr,(/nt(1)/2+1,nt(2)*(kend-ksta+1)/),1,             &
-		       (nt(1)/2+1)*nt(2),plan%rarr,(/nt(1),nt(2)*(kend-ksta+1)/), &
+      CALL GPMANGLE(plan_many_dft_c2r)(plan%planr,2,(/nt(1),nt(2)/),ktend-ktsta+1,  &
+                       plan%carr,(/nt(1)/2+1,nt(2)*(ktend-ktsta+1)/),1,             &
+		       (nt(1)/2+1)*nt(2),plan%rarr,(/nt(1),nt(2)*(ktend-ktsta+1)/), &
 		       1,nt(1)*nt(2),flags)
       ENDIF
-      CALL GPMANGLE(plan_many_dft)(plan%planc,1,nt(3),nt(2)*(iend-ista+1),        &
-                       plan%ccarr,(iend-ista+1)*nt(2)*nt(3),1,nt(3),              &
-                       plan%ccarr,(iend-ista+1)*nt(2)*nt(3),1,nt(3),fftdir,flags)
+      CALL GPMANGLE(plan_many_dft)(plan%planc,1,nt(3),nt(2)*(itend-itsta+1),        &
+                       plan%ccarr,(itend-itsta+1)*nt(2)*nt(3),1,nt(3),              &
+                       plan%ccarr,(itend-itsta+1)*nt(2)*nt(3),1,nt(3),fftdir,flags)
 #endif
       plan%nx = nt(1)
       plan%ny = nt(2)
@@ -147,3 +149,49 @@
       RETURN
       END SUBROUTINE fftp3d_create_trplan
 
+!*****************************************************************
+      SUBROUTINE create_trcomm(n, nt, oldcomm, newcomm, newgrp)
+!-----------------------------------------------------------------
+!
+! Create communicator for truncated grid operations.
+!
+! Parameters
+!     n      : the size of the dimensions of the (largest) input array [IN]
+!     nt     : the truncation size [IN]
+!     oldcomm: original communicator
+!     newcomm: new communicator
+!     newgrp : new comm group
+!-----------------------------------------------------------------
+
+      IMPLICIT NONE
+
+      INTEGER, INTENT(OUT) :: newcomm, newgrp
+      INTEGER, INTENT(IN)  :: n(3),nt(3), oldcomm
+     
+      INTEGER              :: ierr, grpworld
+      INTEGER              :: nmt, np, nprocs, ntprocs
+      INTEGER              :: iExclude(3,1), iInclude(3,1)
+
+      CALL MPI_COMM_SIZE(oldcomm, nprocs, ierr)
+      np      = nx / nprocs
+      ntprocs = nxt / np
+      nmt     = mod(nxt,np) 
+      IF ( nmt .GT. 0 ) ntprocs = ntprocs + 1
+      ntprocs = min(ntprocs, nprocs)
+
+      CALL MPI_COMM_GROUP(oldcomm, grpworld, ierr)
+      newcomm  = MPI_COMM_NULL
+      newgrp = MPI_GROUP_NULL
+      IF ( ntprocs .LT. nprocs ) THEN
+        iExclude(1,1) = ntprocs
+        iExclude(2,1) = nprocs-1
+        iExclude(3,1) = 1
+        CALL MPI_GROUP_RANGE_EXCL(grpworld, 1, iExclude, newgrp, ierr)   
+        CALL MPI_COMM_CREATE(MPI_COMM_WORLD, newgrp, newcomm, ierr)
+      ELSE IF ( ntprocs .EQ. nprocs ) THEN
+        CALL MPI_COMM_DUP(MPI_COMM_WORLD,newcomm,ierr)
+        CALL MPI_COMM_GROUP(MPI_COMM_WORLD,newgrp,ierr)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE create_trcomm
