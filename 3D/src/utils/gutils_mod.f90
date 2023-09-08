@@ -23,6 +23,90 @@ MODULE gutils
 ! Methods:
       CONTAINS
 
+      INTEGER FUNCTION trunc(Cin, n, nt, kmax, Ctr) 
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Truncates input spectral array, Cin, to maximum wave number, kmax,
+! and stores in reduced-size array Ctr.
+!
+! Parameters
+!     Cin : complex input array
+!     n   : full grid dimensions. NOTE: these must be
+!           consistent with (ista,jsta,ksta)-(iend,jend,kend)
+!     nt  : reduced grid dimensions. NOTE: these must be
+!           consistent with (itsta,jtsta,ktsta)-(itend,jtend,ktend)
+!           indices in mpivars module
+!     Ctr : truncated complex array on reduced grid
+!-----------------------------------------------------------------
+      USE grid
+      USE mpivars
+      USE kes
+
+      IMPLICIT NONE
+      INTEGER,INTENT(IN)                                    :: n(3), nt(3)
+      COMPLEX,INTENT(IN) ,DIMENSION(ista:iend,n(2),n(3))    :: Cin
+      REAL,INTENT(IN)                                       :: kmax
+      COMPLEX,INTENT(OUT),DIMENSION(itsta:itend,nt(2),nt(3)):: Ctr
+      INTEGER                                               :: i, j, k
+!
+! Truncate in Fourier space:
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,n(2)
+               DO k = 1,n(3)
+                  IF (  kn2(k,j,i).GT.kmax ) Cin(k,j,i) = 0.0
+               END DO
+            END DO
+         END DO
+!
+         fact = 1.0_GP / (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,n(2)
+               DO k = 1,n(3)
+                  Cin(k,j,i) = Cin(k,j,i)*fact
+               END DO
+            END DO
+         END DO
+!
+! Store in coeffs in reduced storage for inverse transform:
+         Ctr = 0.0
+         DO i = itsta,itend
+            DO j = 1,nt(2)
+               DO k = 1,nt(3)
+                  Ctr(k,j,i) = Cin(k,j,i)
+               END DO
+               DO k = nt(3)/2+1,nt(3)
+                  Ctr(k,j,i) = Cin(k-nt(3)+n(3),j,i)
+               END DO
+            END DO
+            DO j = nt(2)/2+1,nt(2)
+               DO k = 1,nt(3)/2
+                  Ctr(k,j,i) = Cin(k,j-nt(2)+n(2),i)
+               END DO
+               DO k = nt(3)/2+1,nt(3)
+                  Ctr(k,j,i) = Cin(k-nt(3)+n(3),j-nt(2)+n(2),i)
+               END DO
+            END DO
+         END DO
+!
+!!Compute inverse FT of truncated variable:
+!!
+!!       CALL trrange(1,nz    ,nzt    ,nprocs,myrank,ksta,kend)
+!!       CALL trrange(1,nx/2+1,nxt/2+1,nprocs,myrank,ista,iend)
+!!       IF ( myrank.eq.0 ) write(*,*)'main: complex_to_real...'
+!!       CALL fftp3d_complex_to_real(plancrt,Ctr,tr,MPI_COMM_WORLD)
+!!       IF ( myrank.eq.0 ) write(*,*)'main: complex_to_real done.'
+!!       CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
+!!       CALL range(1,nz,    nprocs,myrank,ksta,kend)
+
+      END FUNCTION trunc
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
       INTEGER FUNCTION imaxarrp(Iin, nin) 
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -855,6 +939,130 @@ MODULE gutils
       RETURN
 
       END SUBROUTINE rarray_props
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+      SUBROUTINE Strain(vx,vy,vz,ir,jc,inorm,ctmp,sij)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Computes the complex strain rate component 
+!
+! Parameters
+!     vi    : input velocities
+!     ir,jc : the row and col of sij
+!     inorm : normalize (1), or not (0)
+!     ctmp  : complex temp array
+!     sij   : complex tensor component, returned
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: sij
+      INTEGER         , INTENT   (IN)                             :: inorm,ir,jc
+!
+      REAL   (KIND=GP)                                            :: tmp
+      INTEGER                                                     :: i,j,k
+
+      IF ( ir.NE.1 .AND. ir.NE.2 .AND. ir.NE.3 &
+      .AND.jc.NE.1 .AND. jc.NE.2 .AND. jc.NE.3 ) THEN
+        WRITE(*,*)'Strain: invalid row/column specification: ', ir, jc
+        STOP
+      ENDIF
+
+
+      IF ( ir.EQ.1 ) THEN
+        CALL derivk3(vx, sij, jc)
+        SELECT CASE (jc)
+          CASE(1)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+              DO j = 1,ny
+                DO k = 1,nz
+                  ctmp(k,j,i) = sij(k,j,i)
+                END DO
+              END DO
+            END DO
+          CASE(2)
+            CALL derivk3(vy, ctmp, 1)
+          CASE(3)
+            CALL derivk3(vz, ctmp, 1)
+        END SELECT
+      ELSE IF ( ir.EQ.2 ) THEN
+        CALL derivk3(vy, sij, jc)
+        SELECT CASE (jc)
+          CASE(1)
+            CALL derivk3(vx, ctmp, 2)
+          CASE(2)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+              DO j = 1,ny
+                DO k = 1,nz
+                  ctmp(k,j,i) = sij(k,j,i)
+                END DO
+              END DO
+            END DO
+          CASE(3)
+            CALL derivk3(vz, ctmp, 2)
+        END SELECT
+      ELSE IF ( ir.EQ.3 ) THEN
+        CALL derivk3(vz, sij, jc)
+        SELECT CASE (jc)
+          CASE(1)
+            CALL derivk3(vx, ctmp, 3)
+          CASE(2)
+            CALL derivk3(vy, ctmp, 3)
+          CASE(3)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+              DO j = 1,ny
+                DO k = 1,nz
+                  ctmp(k,j,i) = sij(k,j,i)
+                END DO
+              END DO
+            END DO
+        END SELECT
+      ENDIF
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,ny
+          DO k = 1,nz
+            sij(k,j,i) = 0.50_GP*(sij(k,j,i)+ctmp(k,j,i)) 
+          END DO
+        END DO
+      END DO
+
+
+      IF ( inorm.GT.0 ) THEN
+        
+        tmp = 1.0_GP/REAL(nx*ny*nz,KIND=GP)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              sij(k,j,i) = sij(k,j,i)*tmp
+            END DO
+          END DO
+        END DO
+
+      ENDIF
+
+      END SUBROUTINE Strain
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
