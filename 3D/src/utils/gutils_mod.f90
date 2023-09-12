@@ -23,7 +23,7 @@ MODULE gutils
 ! Methods:
       CONTAINS
 
-      INTEGER FUNCTION trunc(Cin, n, nt, kmax, Ctr) 
+      SUBROUTINE trunc(Cin, n, nt, kmax, Ctr) 
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -103,7 +103,7 @@ MODULE gutils
 !!       CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
 !!       CALL range(1,nz,    nprocs,myrank,ksta,kend)
 
-      END FUNCTION trunc
+      END SUBROTINE trunc
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -1049,7 +1049,8 @@ MODULE gutils
 
       IF ( inorm.GT.0 ) THEN
         
-        tmp = 1.0_GP/REAL(nx*ny*nz,KIND=GP)
+        tmp = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -1065,5 +1066,198 @@ MODULE gutils
       END SUBROUTINE Strain
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
+
+      SUBROUTINE StrainMag(vx,vy,vz,inorm,ctmp1,ctmp2,smag)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Computes the complex strain rate magnitude:
+!    sqrt(s_ij s^ij)
+!
+! Parameters
+!     vi    : input velocities
+!     inorm : normalize (1), or not (0)
+!     ctmp  : complex temp array
+!     sij   : complex tensor component, returned
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp1,ctmp2
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: smag
+      INTEGER         , INTENT   (IN)                             :: inorm
+!
+      REAL   (KIND=GP)                                            :: tmp
+      INTEGER                                                     :: i,j,k
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,ny
+          DO k = 1,nz
+            smag(k,j,i) = 0.0_GP
+          END DO
+        END DO
+      END DO
+
+      DO ir = 1, 3
+        DO jc = 1, 3
+          CALL Strain(vx,vy,vz, ir, jc, 1, ctmp1, ctmp2 )   
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+              DO k = 1,nz
+                smag(k,j,i) = smag(k,j,i) + ctmp2(k,j,i)) 
+              END DO
+            END DO
+          END DO
+
+        ENDDO
+      ENDDO
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,ny
+          DO k = 1,nz
+            smag(k,j,i) = sqrt(smag(k,j,i))
+          END DO
+        END DO
+      END DO
+
+      END SUBROUTINE StrainMag
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+      SUBROUTINE StrainDiv(vx,vy,vz,ir,inorm,ctmp1,ctmp2,ds)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Computes the complex divergence of strain:
+!    Sum_j d(s_ij)dx^j
+! for component ir
+!
+! Parameters
+!     vi    : input velocities
+!     ir    : component
+!     inorm : normalize (1), or not (0)
+!     ctmp  : complex temp array
+!     ds    : complex tensor component, returned
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp1,ctmp2
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ds
+      INTEGER         , INTENT   (IN)                             :: inorm
+!
+      REAL   (KIND=GP)                                            :: tmp
+      INTEGER                                                     :: i,j,k
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,ny
+          DO k = 1,nz
+            ds(k,j,i) = 0.0_GP
+          END DO
+        END DO
+      END DO
+
+      DO jc = 1, 3
+          CALL Strain(vx,vy,vz, ir, jc, 1, ctmp2, ctmp1)   
+          CALL derivk3(ctmp1, ctmp2, jc)               
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+              DO k = 1,nz
+                ds(k,j,i) = ds(k,j,i) + ctmp2(k,j,i)
+              END DO
+            END DO
+          END DO
+
+      ENDDO
+
+
+      END SUBROUTINE StrainDiv
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+      SUBROUTINE div(vx,vy,vz,inorm,ctmp,divv)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Computes the complex divergence field for input vector field
+!
+! Parameters
+!     vi    : input velocities
+!     inorm : normalize (1), or not (0)
+!     ctmp  : complex temp array
+!     divv  : divergence field, returned
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT  (IN) , &
+                         TARGET      , DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp
+      COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(nz,ny,ista:iend) :: divv
+      INTEGER         , INTENT   (IN)                             :: inorm
+      COMPLEX(KIND=GP), POINTER      , DIMENSION(nz,ny,ista:iend) :: pv(3)
+!
+      REAL   (KIND=GP)                                            :: tmp
+      INTEGER                                                     :: i,j,k,m
+
+      pv(1) => vx
+      pv(2) => vy
+      pv(3) => vz
+      divv = 0.0;
+
+      tmp = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+      DO m = 1, 3
+        CALL derivk3(pv(k), ctmp, m)
+        
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              divv(k,j,i) = divv(k,j,i) +  ctmp(k,j,i)*tmp
+            END DO
+          END DO
+        END DO
+
+      ENDIF
+
+      END SUBROUTINE div
+
 
 END MODULE gutils
