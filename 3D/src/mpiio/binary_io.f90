@@ -58,6 +58,59 @@
       RETURN
       END SUBROUTINE io_init
 
+
+!*****************************************************************
+      SUBROUTINE io_init_comm(comm,n,ksta,kend,plan)
+!-----------------------------------------------------------------
+!
+! Initializes variables for MPI I/O. Creates plans and MPI 
+! derived data types for I/O of the distributed real arrays 
+! with the components of the fields. This interface accepts
+! communicator, comm, instead of assuming default communicator,
+! MPI_COMM_WORLD, is being used
+!
+! Parameters
+!     comm  : MPI communicator [IN]
+!     n     : the size of the dimensions of the input array [IN]
+!     ksta  : start value of the block in the third dimension [IN]
+!     kend  : end value of the block in the third dimension [IN]
+!     plan  : contains the I/O plan [OUT]
+!-----------------------------------------------------------------
+
+      USE commtypes
+      USE iovar
+      USE iompi
+      USE gtimer
+      IMPLICIT NONE
+
+      INTEGER, INTENT(IN)   :: comm,n(3)
+      INTEGER, INTENT(IN)   :: ksta,kend
+      INTEGER, DIMENSION(3) :: subsizes,starts
+      TYPE(IOPLAN), INTENT(OUT) :: plan
+
+      plan%nx = n(1)
+      plan%ny = n(2)
+      plan%nz = n(3)
+      plan%ksta = ksta
+      plan%kend = kend
+      plan%comm = comm
+
+      subsizes(1) = n(1)
+      subsizes(2) = n(2)
+      subsizes(3) = kend-ksta+1
+      starts(1) = 0
+      starts(2) = 0
+      starts(3) = ksta-1
+      CALL MPI_TYPE_CREATE_SUBARRAY(3,n,subsizes,starts, &
+           MPI_ORDER_FORTRAN,GC_REAL,plan%iotype,ioerr)
+      CALL MPI_TYPE_COMMIT(plan%iotype,ioerr)
+      CALL GTInitHandle(ihopen ,GT_CPUTIME)
+      CALL GTInitHandle(ihread ,GT_CPUTIME)
+      CALL GTInitHandle(ihwrite,GT_CPUTIME)
+
+      RETURN
+      END SUBROUTINE io_init_comm
+
 !*****************************************************************
       SUBROUTINE io_read(unit,dir,fname,nmb,plan,var)
 !-----------------------------------------------------------------
@@ -95,7 +148,7 @@
 
       CALL GTStart(ihopen)
       IF ( bmangle.EQ.1 ) THEN
-      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname // &
+      CALL MPI_FILE_OPEN(plan%comm,trim(dir) // '/' // fname // &
           '.' // nmb // '.out',MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
       IF ( ioerr.NE.MPI_SUCCESS ) THEN
          WRITE(*,*)': io_read: cannot open file for reading: ',      &
@@ -104,7 +157,7 @@
       ENDIF
       ELSE
 
-      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname  &
+      CALL MPI_FILE_OPEN(plan%comm, trim(dir) // '/' // fname  &
                         ,MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
       IF ( ioerr.NE.MPI_SUCCESS ) THEN
          WRITE(*,*)': io_read: cannot open file for reading: ',    &
@@ -113,7 +166,7 @@
       ENDIF
       ENDIF
       CALL GTStop(ihopen)
-if (myrank.eq.0) write(*,*)' io_read: read open time:',GTGetTime(ihopen)
+
       CALL GTStart(ihread)
       CALL MPI_FILE_SET_VIEW(fh,disp,GC_REAL,plan%iotype,'native', &
           MPI_INFO_NULL,ioerr)
@@ -122,7 +175,6 @@ if (myrank.eq.0) write(*,*)' io_read: read open time:',GTGetTime(ihopen)
           MPI_STATUS_IGNORE,ioerr)
       CALL MPI_FILE_CLOSE(fh,ioerr)
       CALL GTStop(ihread)
-if (myrank.eq.0) write(*,*)' io_read: read time:',GTGetTime(ihread)
       IF ( iswap.gt.0 ) THEN
         CALL rarray_byte_swap(var,plan%nx*plan%ny*(plan%kend-plan%ksta+1))
       ENDIF
@@ -166,11 +218,11 @@ if (myrank.eq.0) write(*,*)' io_read: read time:',GTGetTime(ihread)
 
       CALL GTStart(ihopen)
       IF ( bmangle.EQ.1 ) THEN
-      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname // &
+      CALL MPI_FILE_OPEN(plan%comm,trim(dir) // '/' // fname // &
           '.' // nmb // '.out',MPI_MODE_CREATE+MPI_MODE_WRONLY,      &
           MPI_INFO_NULL,fh,ioerr)
       ELSE
-      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,fname            &
+      CALL MPI_FILE_OPEN(plan%comm,fname            &
                         ,MPI_MODE_CREATE+MPI_MODE_WRONLY &
                         ,MPI_INFO_NULL,fh,ioerr)
       ENDIF
@@ -178,13 +230,11 @@ if (myrank.eq.0) write(*,*)' io_read: read time:',GTGetTime(ihread)
       CALL GTStart(ihwrite)
       CALL MPI_FILE_SET_VIEW(fh,disp,GC_REAL,plan%iotype,'native', &
           MPI_INFO_NULL,ioerr)
-if (myrank.eq.0) write(*,*)' io_write: write open time:',GTGetTime(ihopen)
       CALL MPI_FILE_WRITE_ALL(fh,var,                      &
           plan%nx*plan%ny*(plan%kend-plan%ksta+1),GC_REAL, &
           MPI_STATUS_IGNORE,ioerr)
       CALL MPI_FILE_CLOSE(fh,ioerr)
       CALL GTStop(ihwrite)
-if (myrank.eq.0) write(*,*)' io_write: write time:',GTGetTime(ihread)
 
       RETURN
       END SUBROUTINE io_write
@@ -268,11 +318,11 @@ if (myrank.eq.0) write(*,*)' io_write: write time:',GTGetTime(ihread)
       CHARACTER(len=*), INTENT(IN)   :: fname
 
       IF ( bmangle.EQ.1 ) THEN
-      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname //  &
+      CALL MPI_FILE_OPEN(plan%comm,trim(dir) // '/' // fname //  &
           '.' // nmb // '.out',MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
       ELSE
 
-      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname     &
+      CALL MPI_FILE_OPEN(plan%comm,trim(dir) // '/' // fname     &
                         ,MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
       ENDIF
       CALL MPI_FILE_SET_VIEW(fh,disp,GC_COMPLEX,plan%iotype,'native', &
@@ -316,11 +366,11 @@ if (myrank.eq.0) write(*,*)' io_write: write time:',GTGetTime(ihread)
       CHARACTER(len=*), INTENT(IN)   :: fname
 
       IF ( bmangle.EQ.1 ) THEN
-      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname //  &
+      CALL MPI_FILE_OPEN(plan%comm,trim(dir) // '/' // fname //  &
           '.' // nmb // '.out',MPI_MODE_CREATE+MPI_MODE_WRONLY,       &
           MPI_INFO_NULL,fh,ioerr)
       ELSE
-      CALL MPI_FILE_OPEN(MPI_COMM_WORLD,trim(dir) // '/' // fname     &
+      CALL MPI_FILE_OPEN(plan%comm,trim(dir) // '/' // fname     &
                         ,MPI_MODE_CREATE+MPI_MODE_WRONLY &
                         ,MPI_INFO_NULL,fh,ioerr)
       ENDIF
