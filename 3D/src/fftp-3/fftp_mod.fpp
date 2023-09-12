@@ -100,7 +100,11 @@
       INTEGER, SAVE :: ista,iend
       INTEGER, SAVE :: jsta,jend
       INTEGER, SAVE :: ksta,kend
+      INTEGER, SAVE :: itsta,itend ! truncated versions
+      INTEGER, SAVE :: jtsta,jtend
+      INTEGER, SAVE :: ktsta,ktend
       INTEGER, SAVE :: nprocs,myrank
+      INTEGER, SAVE :: ntprocs,mytrank
       INTEGER, SAVE :: provided
       INTEGER, SAVE :: ierr
 
