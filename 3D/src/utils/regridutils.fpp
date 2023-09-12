@@ -87,7 +87,7 @@
       END SUBROUTINE trrange
 
 !*****************************************************************
-      SUBROUTINE fftp3d_create_trplan(plan,n,nt,fftdir,flags)
+      SUBROUTINE fftp3d_create_trplan(plan,n,nt,fftdir,flags,nprocs)
 !-----------------------------------------------------------------
 !
 ! Creates plans for the FFTW in each node.
@@ -149,6 +149,7 @@
       RETURN
       END SUBROUTINE fftp3d_create_trplan
 
+
 !*****************************************************************
       SUBROUTINE create_trcomm(n, nt, oldcomm, newcomm, newgrp)
 !-----------------------------------------------------------------
@@ -173,9 +174,9 @@
       INTEGER              :: iExclude(3,1), iInclude(3,1)
 
       CALL MPI_COMM_SIZE(oldcomm, nprocs, ierr)
-      np      = nx / nprocs
-      ntprocs = nxt / np
-      nmt     = mod(nxt,np) 
+      np      = n(1) / nprocs
+      ntprocs = nt(1) / np
+      nmt     = mod(nt(1),np) 
       IF ( nmt .GT. 0 ) ntprocs = ntprocs + 1
       ntprocs = min(ntprocs, nprocs)
 
