@@ -48,6 +48,7 @@ MODULE gutils
       COMPLEX,INTENT(IN) ,DIMENSION(ista:iend,n(2),n(3))    :: Cin
       REAL,INTENT(IN)                                       :: kmax
       COMPLEX,INTENT(OUT),DIMENSION(itsta:itend,nt(2),nt(3)):: Ctr
+      REAL(kind=GP)                                         :: fact
       INTEGER                                               :: i, j, k
 !
 ! Truncate in Fourier space:
@@ -103,7 +104,7 @@ MODULE gutils
 !!       CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
 !!       CALL range(1,nz,    nprocs,myrank,ksta,kend)
 
-      END SUBROTINE trunc
+      END SUBROUTINE trunc
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -1117,7 +1118,7 @@ MODULE gutils
 !$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,ny
               DO k = 1,nz
-                smag(k,j,i) = smag(k,j,i) + ctmp2(k,j,i)) 
+                smag(k,j,i) = smag(k,j,i) + ctmp2(k,j,i) 
               END DO
             END DO
           END DO
@@ -1230,7 +1231,7 @@ MODULE gutils
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp
       COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(nz,ny,ista:iend) :: divv
       INTEGER         , INTENT   (IN)                             :: inorm
-      COMPLEX(KIND=GP), POINTER      , DIMENSION(nz,ny,ista:iend) :: pv(3)
+      COMPLEX(KIND=GP), POINTER      , DIMENSION(:,:,:)           :: pv(3)
 !
       REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,j,k,m
