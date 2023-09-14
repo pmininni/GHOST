@@ -330,7 +330,7 @@
       TYPE(cudaDevicePropG) :: devprop
 #endif
       TYPE(IOPLAN)          :: planio
-      CHARACTER(len=100)    :: odir,idir
+      CHARACTER(len=1024)   :: odir,idir
       LOGICAL               :: bbenchexist
 
       ! App data:
