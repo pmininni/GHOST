@@ -338,9 +338,9 @@
       REAL(KIND=GP)   , ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: RT1
       INTEGER             :: istat(4096), npkeep, nstat
       INTEGER             :: commtrunc, grouptrunc, n(3), nt(3)
-      CHARACTER(len=1024) :: fname, sparam
+      CHARACTER(len=1024) :: iidir, sparam
       CHARACTER(len=64)   :: ext1
-      CHARACTER(len=4096) :: sstat
+      CHARACTER(len=1024) :: sstat
       TYPE(IOPLAN)        :: planiot
       TYPE(FFTPLAN)       :: plancrt
       TYPE(TRUNCDAT)      :: trtraits
@@ -626,9 +626,9 @@
          READ(1,NML=regrid)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(idir  ,100 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(odir  ,100 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(sstat ,4096,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(idir  ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(odir  ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sstat ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nxt   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nyt   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
@@ -1531,18 +1531,22 @@
  LSTAT : DO t = 1, nstat
 
 !       Read binary data
+      WRITE(ext, fmtext) istat(t)
 #ifdef VELOC_
-        CALL io_read(1,idir//'outs','vx',ext,planio,R1)
-        CALL io_read(1,idir//'outs','vy',ext,planio,R2)
-        CALL io_read(1,idir//'outs','vz',ext,planio,R3)
+        iidir = trim(idir) // '/outs'
+        write(*,*) ' ext=', ext, ' iidir=', trim(iidir)
+        CALL io_read(1,iidir,'vx',ext,planio,R1)
+        CALL io_read(1,iidir,'vy',ext,planio,R2)
+        CALL io_read(1,iidir,'vz',ext,planio,R3)
         CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
         CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
         CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
 #endif
 #ifdef BOUSSINESQ_
-        CALL io_read(1,idir//'outs','th',ext,planio,R3)
+        CALL io_read(1,iidir,'th',ext,planio,R3)
         CALL fftp3d_real_to_complex(planrc,R1,th,MPI_COMM_WORLD)
 #endif
+        write(*,*) ' data loaded: index=', ext
 
 #if defined(BOUSSINESQ_)
         CALL bouss_lescomp(trtraits,istat(t),vx,vy,vz,th)
@@ -1579,6 +1583,7 @@
         CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
         CALL io_write(1,odir,'dthdt_T',ext,planiot,RT1)
 #endif
+        write(*,*) ' done: index=', ext
       
       END DO LSTAT
 
@@ -1598,7 +1603,6 @@
       CALL GTFree(ihomp2)
       CALL GTFree(ihwtm2)
 
-      CALL MPI_FINALIZE(ierr)
       CALL fftp3d_destroy_plan(plancr)
       CALL fftp3d_destroy_plan(planrc)
 
@@ -1608,6 +1612,8 @@
       IF ( grouptrunc .NE. MPI_GROUP_NULL ) THEN
         CALL MPI_GROUP_FREE(grouptrunc, ierr)
       ENDIF
+
+      CALL MPI_FINALIZE(ierr)
 
       DEALLOCATE( R1,R2,R3 )
 
@@ -1709,7 +1715,6 @@
 !
       INTEGER                                                     :: i,j,k
       INTEGER                                                     :: n(3),nt(3)
-      CHARACTER(len=256)                                          :: fname
 
       WRITE(ext, fmtext) istat
       n (1) = nx ; n (2) = ny ; n (3) = nz
@@ -1726,7 +1731,6 @@
 
       CALL trunc(vy, n, nt, tr%ktrunc, tr%CT1)  ! vy
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,fname,ext,tr%planiot,tr%RT1)
       CALL io_write(1,tr%odir,'vy_T',ext,tr%planiot,tr%RT1)
 
       CALL trunc(vz, n, nt, tr%ktrunc, tr%CT1)  ! vz
