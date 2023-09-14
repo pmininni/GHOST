@@ -1169,7 +1169,7 @@ MODULE gutils
       tmp = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
       DO m = 1, 3
-        CALL derivk3(pv(k).pcomplex, ctmp, m)
+        CALL derivk3(pv(m).pcomplex, ctmp, m)
         
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend
