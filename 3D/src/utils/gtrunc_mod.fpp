@@ -23,7 +23,7 @@ MODULE gtrunc
          COMPLEX(KIND=GP), DIMENSION (:,:,:), POINTER :: CT1
          REAL   (KIND=GP), DIMENSION (:,:,:), POINTER :: R1,R2,R3
          REAL   (KIND=GP), DIMENSION (:,:,:), POINTER :: RT1
-         REAL(KIND=GP)   :: ktrunc
+         REAL(KIND=GP)   :: ktrunc = 1.0_GP / 9.0_GP
          CHARACTER(LEN=1024) &
                          :: odir
       END TYPE TRUNCDAT
