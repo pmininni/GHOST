@@ -14,7 +14,7 @@
          INTEGER       :: ksta,kend
          INTEGER       :: nx,ny,nz
          INTEGER       :: iotype
-         INTEGER, SAVE :: comm = MPI_COMM_WORLD
+         INTEGER       :: comm=MPI_COMM_WORLD
       END TYPE IOPLAN
       INTEGER :: iswap=0
       INTEGER :: oswap=0
