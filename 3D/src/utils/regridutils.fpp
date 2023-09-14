@@ -18,12 +18,12 @@
 !     itype1 : contains a derived data type for sending [OUT]
 !     itype2 : contains a derived data type for receiving [OUT]
 !-----------------------------------------------------------------
-
       USE commtypes
+
       IMPLICIT NONE
 
-      INTEGER, INTENT(OUT), DIMENSION(0:nprocs-1) :: itype1,itype2
       INTEGER, INTENT(IN) :: n(3),nt(3),nprocs
+      INTEGER, INTENT(OUT), DIMENSION(0:nprocs-1) :: itype1,itype2
       INTEGER, INTENT(IN) :: myrank
 
       INTEGER :: ista,iend
@@ -87,7 +87,7 @@
       END SUBROUTINE trrange
 
 !*****************************************************************
-      SUBROUTINE fftp3d_create_trplan(plan,n,nt,fftdir,flags,nprocs)
+      SUBROUTINE fftp3d_create_trplan(plan,n,nt,fftdir,flags)
 !-----------------------------------------------------------------
 !
 ! Creates plans for the FFTW in each node.
@@ -95,7 +95,6 @@
 !       outside of this call, since they are set in fftplans module.
 !       Method trrange can be used to compute these.
 !
-!       In principle, nprocs should be the _full_ MPI_COMM_WORLD.
 !
 ! Parameters
 !     plan   : contains the parallel 3D plan [OUT]
@@ -119,6 +118,7 @@
       INTEGER, INTENT(IN) :: flags
       TYPE(FFTPLAN), INTENT(OUT) :: plan
 
+
       ALLOCATE ( plan%ccarr(nt(3),nt(2),itsta:itend)    )
       ALLOCATE ( plan%carr(nt(1)/2+1,nt(2),ktsta:ktend) )
       ALLOCATE ( plan%rarr(nt(1),nt(2),ktsta:ktend)     )
@@ -139,6 +139,10 @@
                        plan%ccarr,(itend-itsta+1)*nt(2)*nt(3),1,nt(3),              &
                        plan%ccarr,(itend-itsta+1)*nt(2)*nt(3),1,nt(3),fftdir,flags)
 #endif
+
+      ! NOTE: In principle, mpivars::nprocs should be 
+      !       the _full_ MPI_COMM_WORLD.
+      
       plan%nx = nt(1)
       plan%ny = nt(2)
       plan%nz = nt(3)
@@ -163,6 +167,7 @@
 !     newcomm: new communicator
 !     newgrp : new comm group
 !-----------------------------------------------------------------
+      USE commtypes
 
       IMPLICIT NONE
 
