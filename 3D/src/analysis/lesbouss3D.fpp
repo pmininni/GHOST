@@ -1532,15 +1532,15 @@
 
 !       Read binary data
 #ifdef VELOC_
-        CALL io_read(1,idir,'vx',ext,planio,R1)
-        CALL io_read(1,idir,'vy',ext,planio,R2)
-        CALL io_read(1,idir,'vz',ext,planio,R3)
+        CALL io_read(1,idir//'outs','vx',ext,planio,R1)
+        CALL io_read(1,idir//'outs','vy',ext,planio,R2)
+        CALL io_read(1,idir//'outs','vz',ext,planio,R3)
         CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
         CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
         CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
 #endif
 #ifdef BOUSSINESQ_
-        CALL io_read(1,idir,'th',ext,planio,R3)
+        CALL io_read(1,idir//'outs','th',ext,planio,R3)
         CALL fftp3d_real_to_complex(planrc,R1,th,MPI_COMM_WORLD)
 #endif
 
