@@ -13,9 +13,12 @@
   MODULE grid
 !
 ! n: number of points in the spatial grid
-      INTEGER :: nx = NX_
-      INTEGER :: ny = NY_
-      INTEGER :: nz = NZ_
+      INTEGER :: nx  = NX_
+      INTEGER :: ny  = NY_
+      INTEGER :: nz  = NZ_
+      INTEGER :: nxt = 0
+      INTEGER :: nyt = 0
+      INTEGER :: nzt = 0
       SAVE
 
   END MODULE grid
