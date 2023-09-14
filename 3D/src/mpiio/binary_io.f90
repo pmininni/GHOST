@@ -205,7 +205,7 @@
       USE iompi
       USE gtimer
       USE mpivars
-      USE gutils
+!     USE gutils
       IMPLICIT NONE
 
       TYPE(IOPLAN), INTENT(IN)       :: plan
