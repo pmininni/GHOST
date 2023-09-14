@@ -336,7 +336,6 @@
       ! App data:
       COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: CT1
       REAL(KIND=GP)   , ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: RT1
-      REAL(KIND=GP)       :: ktrunc
       INTEGER             :: istat(4096), npkeep, nstat
       INTEGER             :: commtrunc, grouptrunc, n(3), nt(3)
       CHARACTER(len=1024) :: fname, sparam
@@ -614,7 +613,6 @@
 !     nxt    : truncated linear size in x direction
 !     nyt    : truncated linear size in y direction
 !     nzt    : truncated linear size in z direction
-!     ktrunc : truncation wave number
       idir   = '.'
       odir   = '.'
       sstat  = ''
@@ -622,7 +620,6 @@
       nxt    = 0
       nyt    = 0
       nzt    = 0
-      ktrunc = 16
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='lesml.inp',status='unknown')
@@ -636,7 +633,6 @@
       CALL MPI_BCAST(nxt   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nyt   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nzt   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(ktrunc,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
 
 
       ! Check input quantities:
@@ -1285,8 +1281,8 @@
          rms = 1.0_GP/real(nz,kind=GP)**2
       ELSE
          rmp = 1.0_GP
-	 rmq = 1.0_GP
-	 rms = 1.0_GP
+	     rmq = 1.0_GP
+	     rms = 1.0_GP
       ENDIF
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
@@ -1335,11 +1331,11 @@
       CALL parseind(sstat,';', istat , 4096, nstat)
 
       ! Plans for truncated grid:
-      CALL trrange(1,nz    ,nzt    ,nprocs,myrank,ktsta,ktend)
-      CALL trrange(1,nz/2+1,nzt/2+1,nprocs,myrank,itsta,itend)
-      CALL fftp3d_create_trplan(plancrt,(/nx,ny,nz/),(/nxt,nyt,nzt/),FFTW_COMPLEX_TO_REAL,FFTW_ESTIMATE)
       n (1) = nx ; n (2) = ny ; n (3) = nz
       nt(1) = nxt; nt(2) = nyt; nt(3) = nzt
+      CALL trrange(1,nz    ,nzt    ,nprocs,myrank,ktsta,ktend)
+      CALL trrange(1,nz/2+1,nzt/2+1,nprocs,myrank,itsta,itend)
+      CALL fftp3d_create_trplan(plancrt,n,nt,FFTW_COMPLEX_TO_REAL,FFTW_ESTIMATE)
 
 #if 0
       ! Reset indices:
@@ -1348,7 +1344,7 @@
 #endif
 
       ! Get new communicator, props  for truncated grid: 
-      CALL create_trcomm((/nx,ny,nz/), (/nxt,nyt,nzt/), MPI_COMM_WORLD, commtrunc, grouptrunc)
+      CALL create_trcomm(n, nt, MPI_COMM_WORLD, commtrunc, grouptrunc)
       CALL MPI_COMM_SIZE(commtrunc, ntprocs, ierr)
       CALL MPI_COMM_RANK(commtrunc, mytrank, ierr)
       IF ( myrank .LT. ntprocs ) THEN
@@ -1518,7 +1514,7 @@
       trtraits%planiot   = planiot
       trtraits%plancrt   = plancrt
       trtraits%commtrunc = commtrunc
-      trtraits%ktrunc    = ktrunc
+      trtraits%ktrunc    = kmax
       trtraits%odir      = odir
       trtraits%C1        => C1;
       trtraits%C2        => C2;
@@ -1548,7 +1544,7 @@
         CALL fftp3d_real_to_complex(planrc,R1,th,MPI_COMM_WORLD)
 #endif
 
-#ifdef BOUSSINESQ_
+#if defined(BOUSSINESQ_)
         CALL bouss_lescomp(trtraits,istat(t),vx,vy,vz,th)
 #endif
         ! Compute time derivative estimate at this time step:
@@ -1570,16 +1566,16 @@
             ENDDO
           ENDDO
         ENDDO
-        CALL trunc(C1, n, nt, ktrunc, CT1) 
+        CALL trunc(C1, n, nt, kmax, CT1) 
         CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
         CALL io_write(1,odir,'dvxdt_T',ext,planiot,RT1)
-        CALL trunc(C2, n, nt, ktrunc, CT1) 
+        CALL trunc(C2, n, nt, kmax, CT1) 
         CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
         CALL io_write(1,odir,'dvydt_T',ext,planiot,RT1)
-        CALL trunc(C3, n, nt, ktrunc, CT1) 
+        CALL trunc(C3, n, nt, kmax, CT1) 
         CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
         CALL io_write(1,odir,'dvzdt_T',ext,planiot,RT1)
-        CALL trunc(C20, n, nt, ktrunc, CT1) 
+        CALL trunc(C20, n, nt, kmax, CT1) 
         CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
         CALL io_write(1,odir,'dthdt_T',ext,planiot,RT1)
 #endif
