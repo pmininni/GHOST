@@ -8,6 +8,8 @@
 !=================================================================
 MODULE gutils
 !
+      USE fprecision
+!
 ! Utils data, if any:
 !
 ! ...
@@ -18,6 +20,12 @@ MODULE gutils
       REAL   , DIMENSION  (:), ALLOCATABLE   :: gpdf2_
       INTEGER, DIMENSION  (:), ALLOCATABLE   :: ikeep_
       INTEGER  :: nbins_=2500,nbins2_(2)=(/2500,2500/),nikeep_=0
+!
+      TYPE PARRAY
+         COMPLEX(KIND=GP), DIMENSION (:,:,:), POINTER :: pcomplex
+         REAL   (KIND=GP), DIMENSION (:,:,:), POINTER :: preal
+      END TYPE PARRAY
+
 !
 !
 ! Methods:
@@ -44,12 +52,12 @@ MODULE gutils
       USE kes
 
       IMPLICIT NONE
-      INTEGER,INTENT(IN)                                    :: n(3), nt(3)
-      COMPLEX,INTENT(IN) ,DIMENSION(ista:iend,n(2),n(3))    :: Cin
-      REAL,INTENT(IN)                                       :: kmax
-      COMPLEX,INTENT(OUT),DIMENSION(itsta:itend,nt(2),nt(3)):: Ctr
-      REAL(kind=GP)                                         :: fact
-      INTEGER                                               :: i, j, k
+      INTEGER,INTENT   (IN)                                   :: n(3), nt(3)
+      COMPLEX,INTENT(INOUT) ,DIMENSION(ista:iend,n(2),n(3))   :: Cin
+      REAL,INTENT      (IN)                                   :: kmax
+      COMPLEX,INTENT  (OUT),DIMENSION(itsta:itend,nt(2),nt(3)):: Ctr
+      REAL(kind=GP)                                           :: fact
+      INTEGER                                                 :: i, j, k
 !
 ! Truncate in Fourier space:
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -57,6 +65,7 @@ MODULE gutils
 !$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,n(2)
                DO k = 1,n(3)
+
                   IF (  kn2(k,j,i).GT.kmax ) Cin(k,j,i) = 0.0
                END DO
             END DO
@@ -1098,6 +1107,7 @@ MODULE gutils
 !
       REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,j,k
+      INTEGER                                                     :: ir,jc
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
@@ -1168,10 +1178,11 @@ MODULE gutils
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp1,ctmp2
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ds
-      INTEGER         , INTENT   (IN)                             :: inorm
+      INTEGER         , INTENT   (IN)                             :: inorm, ir
 !
       REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,j,k
+      INTEGER                                                     :: jc
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
@@ -1231,20 +1242,19 @@ MODULE gutils
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp
       COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(nz,ny,ista:iend) :: divv
       INTEGER         , INTENT   (IN)                             :: inorm
-      COMPLEX(KIND=GP), POINTER      , DIMENSION(:,:,:)           :: pv(3)
-!
+      TYPE(PARRAY)                                                :: pv(3)
       REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,j,k,m
 
-      pv(1) => vx
-      pv(2) => vy
-      pv(3) => vz
+      pv(1).pcomplex => vx
+      pv(2).pcomplex => vy
+      pv(3).pcomplex => vz
       divv = 0.0;
 
       tmp = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
       DO m = 1, 3
-        CALL derivk3(pv(k), ctmp, m)
+        CALL derivk3(pv(k).pcomplex, ctmp, m)
         
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend
@@ -1256,7 +1266,7 @@ MODULE gutils
           END DO
         END DO
 
-      ENDIF
+      END DO
 
       END SUBROUTINE div
 
