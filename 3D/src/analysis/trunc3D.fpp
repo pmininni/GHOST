@@ -66,10 +66,10 @@
 !
 ! Auxiliary variables
 
-      INTEGER :: fftdir,flags,nfiles,nmt,np,npt,nxt,nyt,nzt,ntprocs,npkeep
-      INTEGER :: i,ib,ie,ind,itsta,itend,j,k,ktsta,ktend
+      INTEGER :: fftdir,flags,nfiles,nmt,np,npt,npkeep
+      INTEGER :: i,ib,ie,ind,j,k
       INTEGER :: istak,iendk,kstak,kendk
-      INTEGER :: mykrank,mytrank
+      INTEGER :: mykrank
 
       INTEGER :: commtrunc, fh, groupworld, grouptrunc, iExclude(3,1), iInclude(3,1)
 
