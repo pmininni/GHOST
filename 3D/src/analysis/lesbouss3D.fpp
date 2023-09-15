@@ -1322,22 +1322,22 @@
 #if !defined(DEF_GHOST_CUDA_)
 !$    CALL fftp3d_init_threads(ierr)
 #endif
-      CALL fftp3d_create_plan(planrc,(/nx,ny,nz/),FFTW_REAL_TO_COMPLEX, &
+      n (1) = nx ; n (2) = ny ; n (3) = nz
+      nt(1) = nxt; nt(2) = nyt; nt(3) = nzt
+      CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
                              FFTW_ESTIMATE)
-      CALL fftp3d_create_plan(plancr,(/nx,ny,nz/),FFTW_COMPLEX_TO_REAL, &
+      CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
                              FFTW_ESTIMATE)
 
       ! Parse input index set, store in istat:
       CALL parseind(sstat,';', istat , 4096, nstat)
 
       ! Plans for truncated grid:
-      n (1) = nx ; n (2) = ny ; n (3) = nz
-      nt(1) = nxt; nt(2) = nyt; nt(3) = nzt
       CALL trrange(1,nz    ,nzt    ,nprocs,myrank,ktsta,ktend)
       CALL trrange(1,nz/2+1,nzt/2+1,nprocs,myrank,itsta,itend)
-      CALL fftp3d_create_trplan(plancrt,n,nt,FFTW_COMPLEX_TO_REAL,FFTW_ESTIMATE)
+      CALL fftp3d_create_trplan(plancrt,n,nt,FFTW_COMPLEX_TO_REAL,FFTW_MEASURE)
 
-#if 0
+#if 1
       ! Reset indices:
       CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
       CALL range(1,nz    ,nprocs,myrank,ksta,kend)
@@ -1351,6 +1351,8 @@
 !       npkeep = nprocs; nprocs = ntprocs
         CALL io_init_comm(commtrunc,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
 !       nprocs = npkeep
+      ELSE
+        CALL io_init(myrank,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
       ENDIF
 
        
@@ -1509,8 +1511,8 @@
 #endif
   
       ! Set trtraits structure, and allocate trunc arrays
-      ALLOCATE( CT1(nz,ny,itsta:itend))
-      ALLOCATE( RT1(nx,ny,ktsta:ktend))
+      ALLOCATE( CT1(nzt,nyt,itsta:itend))
+      ALLOCATE( RT1(nxt,nyt,ktsta:ktend))
       trtraits%planiot   = planiot
       trtraits%plancrt   = plancrt
       trtraits%commtrunc = commtrunc
@@ -1570,16 +1572,16 @@
             ENDDO
           ENDDO
         ENDDO
-        CALL trunc(C1, n, nt, kmax, CT1) 
+        CALL trunc(C1, n, nt, kmax, 1, C4, CT1) 
         CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
         CALL io_write(1,odir,'dvxdt_T',ext,planiot,RT1)
-        CALL trunc(C2, n, nt, kmax, CT1) 
+        CALL trunc(C2, n, nt, kmax, 1, C4, CT1) 
         CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
         CALL io_write(1,odir,'dvydt_T',ext,planiot,RT1)
-        CALL trunc(C3, n, nt, kmax, CT1) 
+        CALL trunc(C3, n, nt, kmax, 1, C4, CT1) 
         CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
         CALL io_write(1,odir,'dvzdt_T',ext,planiot,RT1)
-        CALL trunc(C20, n, nt, kmax, CT1) 
+        CALL trunc(C20, n, nt, kmax, 1, C4, CT1) 
         CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
         CALL io_write(1,odir,'dthdt_T',ext,planiot,RT1)
 #endif
@@ -1721,95 +1723,95 @@
       nt(1) = nxt; nt(2) = nyt; nt(3) = nzt
 
       ! Truncate input vars, put to disk:
-      CALL trunc(th, n, nt, tr%ktrunc, tr%CT1)  ! th
+      CALL trunc(th, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1)  ! th
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'th_T',ext,tr%planiot,tr%RT1)
 
-      CALL trunc(vx, n, nt, tr%ktrunc, tr%CT1)  ! vx
+      CALL trunc(vx, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1)  ! vx
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'vx_T',ext,tr%planiot,tr%RT1)
 
-      CALL trunc(vy, n, nt, tr%ktrunc, tr%CT1)  ! vy
+      CALL trunc(vy, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1)  ! vy
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'vy_T',ext,tr%planiot,tr%RT1)
 
-      CALL trunc(vz, n, nt, tr%ktrunc, tr%CT1)  ! vz
+      CALL trunc(vz, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1)  ! vz
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'vz_T',ext,tr%planiot,tr%RT1)
 
       CALL Strain(vx,vy,vz, 1, 1, 1, tr%C2, tr%C1)   ! S11
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'S11_T',ext,tr%planiot,tr%RT1)
 
       CALL Strain(vx,vy,vz, 1, 2, 1, tr%C2, tr%C1)   ! S12
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'S12_T',ext,tr%planiot,tr%RT1)
 
       CALL Strain(vx,vy,vz, 1, 3, 1, tr%C2, tr%C1)   ! S13
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'S13_T',ext,tr%planiot,tr%RT1)
 
       CALL Strain(vx,vy,vz, 2, 2, 1, tr%C2, tr%C1)   ! S22
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'S22_T',ext,tr%planiot,tr%RT1)
 
       CALL Strain(vx,vy,vz, 2, 3, 1, tr%C2, tr%C1)   ! S23
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'S23_T',ext,tr%planiot,tr%RT1)
 
       CALL Strain(vx,vy,vz, 3, 3, 1, tr%C2, tr%C1)   ! S33
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'S33_T',ext,tr%planiot,tr%RT1)
 
       CALL derivk3(th, tr%C1, 1)                     ! dth/dx
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'dthdx_T',ext,tr%planiot,tr%RT1)
 
       CALL derivk3(th, tr%C1, 2)                     ! dth/dy
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'dthdy_T',ext,tr%planiot,tr%RT1)
 
       CALL derivk3(th, tr%C1, 3)                     ! dth/dz
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'dthdz_T',ext,tr%planiot,tr%RT1)
 
       CALL StrainMag(vx,vy,vz, 1, tr%C1, tr%C2, tr%C3)  ! S = sqrt(S^ij S^ij)
       CALL derivk3(tr%C3, tr%C1, 1)                     ! dS/dx
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'dSdx_T',ext,tr%planiot,tr%RT1)
 
       CALL derivk3(tr%C3, tr%C1, 2)                     ! dS/dy
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'dSdy_T',ext,tr%planiot,tr%RT1)
 
       CALL derivk3(tr%C3, tr%C1, 3)                     ! dS/dx
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'dSdz_T',ext,tr%planiot,tr%RT1)
 
       CALL StrainDiv(vx,vy,vz, 1, 1,tr%C3,tr%C2,tr%C1)  ! Sum_j dS1j/dx^j
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'divSx_T',ext,tr%planiot,tr%RT1)
 
       CALL StrainDiv(vx,vy,vz, 2, 1,tr%C3,tr%C2,tr%C1)  ! Sum_j dS2j/dx^j
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'divSy_T',ext,tr%planiot,tr%RT1)
 
       CALL StrainDiv(vx,vy,vz, 3, 1,tr%C3,tr%C2,tr%C1)  ! Sum_j dS3j/dx^j
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'divSz_T',ext,tr%planiot,tr%RT1)
 
@@ -1817,7 +1819,7 @@
       CALL derivk3(th, tr%C2, 2)                        ! dth/dy
       CALL derivk3(th, tr%C3, 3)                        ! dth/dz
       CALL div(tr%C1, tr%C2, tr%C3, 1, tr%C4, tr%C5)    ! div ( Grad th )
-      CALL trunc(tr%C5, n, nt, tr%ktrunc, tr%CT1) 
+      CALL trunc(tr%C5, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'Lapth_T',ext,tr%planiot,tr%RT1)
 
