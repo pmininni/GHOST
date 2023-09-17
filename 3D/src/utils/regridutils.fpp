@@ -87,7 +87,7 @@
       END SUBROUTINE trrange
 
 !*****************************************************************
-      SUBROUTINE fftp3d_create_trplan(plan,n,nt,fftdir,flags)
+      SUBROUTINE fftp3d_create_trplan_comm(plan,n,nt,fftdir,flags,comm)
 !-----------------------------------------------------------------
 !
 ! Creates plans for the FFTW in each node.
@@ -106,6 +106,7 @@
 !     flags  : flags for the FFTW [IN]
 !              FFTW_MEASURE (optimal but slower) or 
 !              FFTW_ESTIMATE (sub-optimal but faster)
+!     comm   : MPI communicator
 !-----------------------------------------------------------------
 
       USE mpivars
@@ -116,42 +117,52 @@
       INTEGER, INTENT(IN) :: n(3), nt(3)
       INTEGER, INTENT(IN) :: fftdir
       INTEGER, INTENT(IN) :: flags
+      INTEGER, INTENT(IN) :: comm
       TYPE(FFTPLAN), INTENT(OUT) :: plan
 
+      plan%comm = comm
+      plan%nx   = nt(1)
+      plan%ny   = nt(2)
+      plan%nz   = nt(3)
+      plan%ksta = ktsta
+      plan%kend = ktend
+      plan%ista = itsta
+      plan%iend = itend
 
-      ALLOCATE ( plan%ccarr(nt(3),nt(2),itsta:itend)    )
-      ALLOCATE ( plan%carr(nt(1)/2+1,nt(2),ktsta:ktend) )
-      ALLOCATE ( plan%rarr(nt(1),nt(2),ktsta:ktend)     )
+      ALLOCATE ( plan%ccarr(nt(3),nt(2),plan%ista:plan%iend)    )
+      ALLOCATE ( plan%carr(nt(1)/2+1,nt(2),plan%ksta:plan%kend) )
+      ALLOCATE ( plan%rarr(nt(1),nt(2),plan%ksta:plan%kend)     )
+
+      CALL MPI_COMM_SIZE(plan%comm,plan%nprocs,ierr)
+      CALL MPI_COMM_RANK(plan%comm,plan%myrank,ierr)
+
 
 #if !defined(DEF_GHOST_CUDA_)
       IF ( fftdir.EQ.FFTW_REAL_TO_COMPLEX ) THEN
-      CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/nt(1),nt(2)/),ktend-ktsta+1,  &
-                       plan%rarr,(/nt(1),nt(2)*(ktend-ktsta+1)/),1,nt(1)*nt(2),     &
-                       plan%carr,(/nt(1)/2+1,nt(2)*(ktend-ktsta+1)/),1,             &
+      CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/nt(1),nt(2)/),plan%kend-plan%ksta+1,  &
+                       plan%rarr,(/nt(1),nt(2)*(plan%kend-plan%ksta+1)/),1,nt(1)*nt(2),     &
+                       plan%carr,(/nt(1)/2+1,nt(2)*(plan%kend-plan%ksta+1)/),1,             &
 		       (nt(1)/2+1)*nt(2),flags)
       ELSE
-      CALL GPMANGLE(plan_many_dft_c2r)(plan%planr,2,(/nt(1),nt(2)/),ktend-ktsta+1,  &
-                       plan%carr,(/nt(1)/2+1,nt(2)*(ktend-ktsta+1)/),1,             &
-		       (nt(1)/2+1)*nt(2),plan%rarr,(/nt(1),nt(2)*(ktend-ktsta+1)/), &
+      CALL GPMANGLE(plan_many_dft_c2r)(plan%planr,2,(/nt(1),nt(2)/),plan%kend-plan%ksta+1,  &
+                       plan%carr,(/nt(1)/2+1,nt(2)*(plan%kend-plan%ksta+1)/),1,             &
+		       (nt(1)/2+1)*nt(2),plan%rarr,(/nt(1),nt(2)*(plan%kend-plan%ksta+1)/), &
 		       1,nt(1)*nt(2),flags)
       ENDIF
-      CALL GPMANGLE(plan_many_dft)(plan%planc,1,nt(3),nt(2)*(itend-itsta+1),        &
-                       plan%ccarr,(itend-itsta+1)*nt(2)*nt(3),1,nt(3),              &
-                       plan%ccarr,(itend-itsta+1)*nt(2)*nt(3),1,nt(3),fftdir,flags)
+      CALL GPMANGLE(plan_many_dft)(plan%planc,1,nt(3),nt(2)*(plan%iend-plan%ista+1),        &
+                       plan%ccarr,(plan%iend-plan%ista+1)*nt(2)*nt(3),1,nt(3),              &
+                       plan%ccarr,(plan%iend-plan%ista+1)*nt(2)*nt(3),1,nt(3),fftdir,flags)
 #endif
 
       ! NOTE: In principle, mpivars::nprocs should be 
       !       the _full_ MPI_COMM_WORLD.
       
-      plan%nx = nt(1)
-      plan%ny = nt(2)
-      plan%nz = nt(3)
-      ALLOCATE( plan%itype1(0:nprocs-1) )
-      ALLOCATE( plan%itype2(0:nprocs-1) )
-      CALL fftp3d_create_trblock(n,nt,nprocs,myrank,plan%itype1,plan%itype2)
+      ALLOCATE( plan%itype1(0:plan%nprocs-1) )
+      ALLOCATE( plan%itype2(0:plan%nprocs-1) )
+      CALL fftp3d_create_trblock(n,nt,plan%nprocs,plan%myrank,plan%itype1,plan%itype2)
 
       RETURN
-      END SUBROUTINE fftp3d_create_trplan
+      END SUBROUTINE fftp3d_create_trplan_comm
 
 
 !*****************************************************************
