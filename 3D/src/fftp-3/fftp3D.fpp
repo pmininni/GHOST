@@ -158,6 +158,7 @@
       INTEGER, INTENT(IN) :: n(3)
       INTEGER, INTENT(IN) :: fftdir
       INTEGER, INTENT(IN) :: flags
+      INTEGER, INTENT(IN) :: comm
       TYPE(FFTPLAN), INTENT(OUT) :: plan
 
 
