@@ -105,9 +105,13 @@
                          plan%ccarr,(iend-ista+1)*n(2)*n(3),1,n(3),      &
                          plan%ccarr,(iend-ista+1)*n(2)*n(3),1,n(3),      &
                          fftdir,flags)
-      plan%nx = n(1)
-      plan%ny = n(2)
-      plan%nz = n(3)
+      plan%nx   = n(1)
+      plan%ny   = n(2)
+      plan%nz   = n(3)
+      plan%ksta = ksta
+      plan%kend = kend
+      plan%ista = ista
+      plan%iend = iend
       ALLOCATE( plan%itype1(0:nprocs-1) )
       ALLOCATE( plan%itype2(0:nprocs-1) )
       CALL fftp3d_create_block(n,nprocs,myrank,plan%itype1, &
@@ -121,6 +125,89 @@
 
       RETURN
       END SUBROUTINE fftp3d_create_plan
+
+
+!*****************************************************************
+      SUBROUTINE fftp3d_create_plan_comm(plan,n,fftdir,flags,comm)
+!-----------------------------------------------------------------
+!
+! Creates plans for the FFTW in each node. Uses communicator
+! to create fully encapsulated plan (with rank and nprocs).
+!
+! Parameters
+!     plan   : contains the parallel 3D plan [OUT]
+!     n      : the size of the dimensions of the input array [IN]
+!     fftdir : the direction of the Fourier transform [IN]
+!              FFTW_FORWARD or FFTW_REAL_TO_COMPLEX (-1)
+!              FFTW_BACKWARD or FFTW_COMPLEX_TO_REAL (+1)
+!     flags  : flags for the FFTW [IN]
+!              FFTW_ESTIMATE (sub-optimal but faster)
+!              FFTW_MEASURE (optimal but slower to create plans)
+!              FFTW_PATIENT AND FFTW_EXHAUSTIVE are also available
+!              for extra performance, but may take a long time to
+!              create plans (specially when using OpenMP)
+!     comm   : MPI communicator
+!-----------------------------------------------------------------
+
+      USE mpivars
+      USE fftplans
+!$    USE threads
+      USE gtimer
+      IMPLICIT NONE
+
+      INTEGER, INTENT(IN) :: n(3)
+      INTEGER, INTENT(IN) :: fftdir
+      INTEGER, INTENT(IN) :: flags
+      TYPE(FFTPLAN), INTENT(OUT) :: plan
+
+
+      plan%comm = comm
+      plan%nx   = n(1)
+      plan%ny   = n(2)
+      plan%nz   = n(3)
+      plan%ksta = ksta
+      plan%kend = kend
+      plan%ista = ista
+      plan%iend = iend
+
+      ALLOCATE ( plan%ccarr(n(3),n(2),plan%ista:plan%iend)    )
+      ALLOCATE ( plan%carr(n(1)/2+1,n(2),plan%ksta:plan%kend) )
+      ALLOCATE ( plan%rarr(n(1),n(2),plan%ksta:plan%kend)     )
+!$    CALL GPMANGLE(plan_with_nthreads)(nth)
+
+      CALL MPI_COMM_SIZE(plan%comm,plan%nprocs,ierr)
+      CALL MPI_COMM_RANK(plan%comm,plan%myrank,ierr)
+
+      IF (fftdir.eq.FFTW_REAL_TO_COMPLEX) THEN
+      CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/n(1),n(2)/),    &
+                         plan%kend-plan%ksta+1,plan%rarr,                       &
+                         (/n(1),n(2)*(plan%kend-plan%ksta+1)/),1,n(1)*n(2),     &
+                         plan%carr,(/n(1)/2+1,n(2)*(plan%kend-plan%ksta+1)/),1, &
+                         (n(1)/2+1)*n(2),flags)
+      ELSE
+      CALL GPMANGLE(plan_many_dft_c2r)(plan%planr,2,(/n(1),n(2)/),    &
+                         plan%kend-plan%ksta+1,plan%carr,                       &
+                         (/n(1)/2+1,n(2)*(plan%kend-plan%ksta+1)/),1,           &
+                         (n(1)/2+1)*n(2),plan%rarr,                   &
+                         (/n(1),n(2)*(plan%kend-plan%ksta+1)/),1,n(1)*n(2),flags)
+      ENDIF
+      CALL GPMANGLE(plan_many_dft)(plan%planc,1,n(3),n(2)*(plan%iend-plan%ista+1), &
+                         plan%ccarr,(plan%iend-plan%ista+1)*n(2)*n(3),1,n(3),      &
+                         plan%ccarr,(plan%iend-plan%ista+1)*n(2)*n(3),1,n(3),      &
+                         fftdir,flags)
+      ALLOCATE( plan%itype1(0:plan%nprocs-1) )
+      ALLOCATE( plan%itype2(0:plan%nprocs-1) )
+      CALL fftp3d_create_block(n,plan%nprocs,plan%myrank,plan%itype1, &
+                              plan%itype2)
+
+      CALL GTInitHandle(hcom,GT_WTIME)
+      CALL GTInitHandle(hfft,GT_WTIME)
+      CALL GTInitHandle(htra,GT_WTIME)
+      CALL GTInitHandle(htot,GT_WTIME)
+
+
+      RETURN
+      END SUBROUTINE fftp3d_create_plan_comm
 
 !*****************************************************************
       SUBROUTINE fftp3d_destroy_plan(plan)
@@ -212,7 +299,11 @@
 !     plan : the 3D plan created with fftp3d_create_plan [IN]
 !     in   : real input array [IN]
 !     out  : complex output array [OUT]
-!     comm : the MPI communicator (handle) [IN]
+!     comm : the MPI communicator (handle) [IN]. No longer used:
+!            the plan%comm is used now instead. NOTE: If we aren't
+!            going to remove this argument in all calls, then
+!            we might want to make it OPTIONAL, even though it
+!            will no longer be used.
 !-----------------------------------------------------------------
 
       USE commtypes
@@ -225,11 +316,11 @@
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
 
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(plan%nz,plan%ny,ista:iend) :: out 
-      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%ny,plan%nz)          :: c1
-      REAL(KIND=GP), INTENT(IN), DIMENSION(plan%nx,plan%ny,ksta:kend) :: in
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(plan%nz,plan%ny,plan%ista:plan%iend) :: out 
+      COMPLEX(KIND=GP), DIMENSION(plan%ista:plan%iend,plan%ny,plan%nz)              :: c1
+      REAL(KIND=GP), INTENT(IN), DIMENSION(plan%nx,plan%ny,plan%ksta:plan%kend)     :: in
 
-      INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
+      INTEGER, DIMENSION(0:plan%nprocs-1) :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
       INTEGER, INTENT(IN)                 :: comm
       INTEGER :: i,j,k
@@ -253,20 +344,20 @@
 ! strip mining when nstrip>1 (rreddy@psc.edu)
 !
       CALL GTStart(hcom)
-      do iproc = 0, nprocs-1, nstrip
+      do iproc = 0, plan%nprocs-1, nstrip
          do istrip=0, nstrip-1
             irank = iproc + istrip
 
-            isendTo = myrank + irank
-            if ( isendTo .ge. nprocs ) isendTo = isendTo - nprocs
+            isendTo = plan%myrank + irank
+            if ( isendTo .ge. plan%nprocs ) isendTo = isendTo - plan%nprocs
 
-            igetFrom = myrank - irank
-            if ( igetFrom .lt. 0 ) igetFrom = igetFrom + nprocs
+            igetFrom = plan%myrank - irank
+            if ( igetFrom .lt. 0 ) igetFrom = igetFrom + plan%nprocs
             CALL MPI_IRECV(c1,1,plan%itype2(igetFrom),igetFrom,      & 
-                          1,comm,ireq2(irank),ierr)
+                          1,plan%comm,ireq2(irank),ierr)
 
             CALL MPI_ISEND(plan%carr,1,plan%itype1(isendTo),isendTo, &
-                          1,comm,ireq1(irank),ierr)
+                          1,plan%comm,ireq1(irank),ierr)
          enddo
 
          do istrip=0, nstrip-1
@@ -280,12 +371,12 @@
 ! Cache friendly transposition
 !
       CALL GTStart(htra)
-!$omp parallel do if ((iend-ista)/csize.ge.nth) private (jj,kk,i,j,k)
-      DO ii = ista,iend,csize
-!$omp parallel do if ((iend-ista)/csize.lt.nth) private (kk,i,j,k)
+!$omp parallel do if ((plan%iend-plan%ista)/csize.ge.nth) private (jj,kk,i,j,k)
+      DO ii = plan%ista,plan%iend,csize
+!$omp parallel do if ((plan%iend-plan%ista)/csize.lt.nth) private (kk,i,j,k)
          DO jj = 1,plan%ny,csize
             DO kk = 1,plan%nz,csize
-               DO i = ii,min(iend,ii+csize-1)
+               DO i = ii,min(plan%iend,ii+csize-1)
                DO j = jj,min(plan%ny,jj+csize-1)
                DO k = kk,min(plan%nz,kk+csize-1)
                   out(k,j,i) = c1(i,j,k)
@@ -328,7 +419,8 @@
 !     plan : the 3D plan created with fftp3d_create_plan [IN]
 !     in   : complex input array [IN]
 !     out  : real output array [OUT]
-!     comm : the MPI communicator (handle) [IN]
+!     comm : the MPI communicator (handle) [IN]. No longer used:
+!            the plan%comm is used now instead.
 !-----------------------------------------------------------------
 
       USE fprecision
@@ -341,9 +433,9 @@
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(plan%nz,plan%ny,ista:iend) :: in 
-      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%ny,plan%nz)           :: c1
-      REAL(KIND=GP), INTENT(OUT), DIMENSION(plan%nx,plan%ny,ksta:kend) :: out
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(plan%nz,plan%ny,plan%ista:plan%iend) :: in 
+      COMPLEX(KIND=GP), DIMENSION(plan%ista:plan%iend,plan%ny,plan%nz)           :: c1
+      REAL(KIND=GP), INTENT(OUT), DIMENSION(plan%nx,plan%ny,plan%ksta:plan%kend) :: out
 
       DOUBLE PRECISION                    :: t0, t1
 
@@ -369,12 +461,12 @@
 ! Cache friendly transposition
 !
       CALL GTStart(htra)
-!$omp parallel do if ((iend-ista)/csize.ge.nth) private (jj,kk,i,j,k)
-      DO ii = ista,iend,csize
-!$omp parallel do if ((iend-ista)/csize.lt.nth) private (kk,i,j,k)
+!$omp parallel do if ((plan%iend-plan%ista)/csize.ge.nth) private (jj,kk,i,j,k)
+      DO ii = plan%ista,plan%iend,csize
+!$omp parallel do if ((plan%iend-plan%ista)/csize.lt.nth) private (kk,i,j,k)
          DO jj = 1,plan%ny,csize
             DO kk = 1,plan%nz,csize
-               DO i = ii,min(iend,ii+csize-1)
+               DO i = ii,min(plan%iend,ii+csize-1)
                DO j = jj,min(plan%ny,jj+csize-1)
                DO k = kk,min(plan%nz,kk+csize-1)
                   c1(i,j,k) = in(k,j,i)
@@ -390,19 +482,19 @@
 ! strip mining when nstrip>1 (rreddy@psc.edu)
 !
       CALL GTStart(hcom)
-      do iproc = 0, nprocs-1, nstrip
+      do iproc = 0, plan%nprocs-1, nstrip
          do istrip=0, nstrip-1
             irank = iproc + istrip
 
-            isendTo = myrank + irank
-            if ( isendTo .ge. nprocs ) isendTo = isendTo - nprocs
+            isendTo = plan%myrank + irank
+            if ( isendTo .ge. plan%nprocs ) isendTo = isendTo - plan%nprocs
 
-            igetFrom = myrank - irank
-            if ( igetFrom .lt. 0 ) igetFrom = igetFrom + nprocs
+            igetFrom = plan%myrank - irank
+            if ( igetFrom .lt. 0 ) igetFrom = igetFrom + plan%nprocs
             CALL MPI_IRECV(plan%carr,1,plan%itype1(igetFrom),igetFrom, & 
-                          1,comm,ireq2(irank),ierr)
+                          1,plan%comm,ireq2(irank),ierr)
             CALL MPI_ISEND(c1,1,plan%itype2(isendTo),isendTo, &
-                          1,comm,ireq1(irank),ierr)
+                          1,plan%comm,ireq1(irank),ierr)
          enddo
 
          do istrip=0, nstrip-1

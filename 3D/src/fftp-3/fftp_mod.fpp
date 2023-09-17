@@ -37,6 +37,8 @@
          REAL(KIND=GP), DIMENSION (:,:,:), POINTER    :: rarr
          INTEGER(kind=ikind) :: planr,planc
          INTEGER :: nx,ny,nz
+         INTEGER :: ista,iend,ksta,kend
+         INTEGER :: comm,myrank,nprocs
          INTEGER, DIMENSION (:), POINTER :: itype1, itype2
       END TYPE FFTPLAN
       SAVE
