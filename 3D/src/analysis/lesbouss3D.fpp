@@ -1335,7 +1335,7 @@
       ! Plans for truncated grid:
       CALL trrange(1,nz    ,nzt    ,nprocs,myrank,ktsta,ktend)
       CALL trrange(1,nz/2+1,nzt/2+1,nprocs,myrank,itsta,itend)
-      CALL fftp3d_create_trplan(plancrt,n,nt,FFTW_COMPLEX_TO_REAL,FFTW_MEASURE)
+      CALL fftp3d_create_trplan_comm(plancrt,n,nt,FFTW_COMPLEX_TO_REAL,FFTW_MEASURE,MPI_COMM_wORLD)
 
 #if 1
       ! Reset indices:
