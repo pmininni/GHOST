@@ -303,14 +303,14 @@
       INTEGER :: outs,mean
       INTEGER :: seed,rand
       INTEGER :: anis
-      INTEGER :: mult
+      INTEGER :: mult=1
       INTEGER :: t,o
       INTEGER :: i,j,k
       INTEGER :: ki,kj,kk
       INTEGER :: pind,tind,sind
       INTEGER :: timet,timec
       INTEGER :: times,timef
-      INTEGER :: timep,pstep,lgmult
+      INTEGER :: timep,pstep,lgmult=1
       INTEGER :: ihcpu1,ihcpu2
       INTEGER :: ihomp1,ihomp2
       INTEGER :: ihwtm1,ihwtm2
@@ -491,7 +491,7 @@
 
      CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
      CALL range(1,nz,nprocs,myrank,ksta,kend)
-     CALL io_init(myrank,(/nx,ny,nz/),ksta,kend,planio)
+     CALL io_init_comm(MPI_COMM_WORLD,(/nx,ny,nz/),ksta,kend,planio)
 
 !
 ! Allocates memory for distributed blocks
@@ -697,6 +697,8 @@
       CALL MPI_BCAST(fstep,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(rand,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(seed,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+
+      write(*,*) 'main: sparam=', sparam, '  dt_0=', dt
 
       Lx  = 1.0_GP
       Ly  = 1.0_GP
@@ -1324,10 +1326,10 @@
 #endif
       n (1) = nx ; n (2) = ny ; n (3) = nz
       nt(1) = nxt; nt(2) = nyt; nt(3) = nzt
-      CALL fftp3d_create_plan(planrc,n,FFTW_REAL_TO_COMPLEX, &
-                             FFTW_ESTIMATE)
-      CALL fftp3d_create_plan(plancr,n,FFTW_COMPLEX_TO_REAL, &
-                             FFTW_ESTIMATE)
+      CALL fftp3d_create_plan_comm(planrc,n,FFTW_REAL_TO_COMPLEX, &
+                             FFTW_ESTIMATE, MPI_COMM_WORLD)
+      CALL fftp3d_create_plan_comm(plancr,n,FFTW_COMPLEX_TO_REAL, &
+                             FFTW_ESTIMATE, MPI_COMM_WORLD)
 
       ! Parse input index set, store in istat:
       CALL parseind(sstat,';', istat , 4096, nstat)
@@ -1345,13 +1347,7 @@
       CALL create_trcomm(n, nt, MPI_COMM_WORLD, commtrunc, grouptrunc)
       CALL MPI_COMM_SIZE(commtrunc, ntprocs, ierr)
       CALL MPI_COMM_RANK(commtrunc, mytrank, ierr)
-      IF ( myrank .LT. ntprocs ) THEN
-!       npkeep = nprocs; nprocs = ntprocs
-        CALL io_init_comm(commtrunc,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
-!       nprocs = npkeep
-      ELSE
-        CALL io_init(myrank,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
-      ENDIF
+      CALL io_init_comm(commtrunc,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
 
        
 ! Now that we have nmax we can allocate some temporary
@@ -1543,7 +1539,7 @@
         CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
 #endif
 #ifdef BOUSSINESQ_
-        CALL io_read(1,iidir,'th',ext,planio,R3)
+        CALL io_read(1,iidir,'th',ext,planio,R1)
         CALL fftp3d_real_to_complex(planrc,R1,th,MPI_COMM_WORLD)
 #endif
         write(*,*) ' data loaded: index=', ext
@@ -1558,6 +1554,11 @@
         END DO 
 
 #ifdef BOUSSINESQ_
+    write(*,*)'main: dt: ', dt
+    write(*,*)'main: vx: ', vx(10,1:10,10)
+    write(*,*)'main: C1: ', C1(10,1:10,10)
+    write(*,*)'main: vy: ', vy(10,1:10,10)
+    write(*,*)'main: C2: ', C2(10,1:10,10)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
