@@ -83,38 +83,49 @@
       INTEGER, INTENT(IN) :: flags
       TYPE(FFTPLAN), INTENT(OUT) :: plan
 
-      ALLOCATE ( plan%ccarr(n(3),n(2),ista:iend)    )
-      ALLOCATE ( plan%carr(n(1)/2+1,n(2),ksta:kend) )
-      ALLOCATE ( plan%rarr(n(1),n(2),ksta:kend)     )
+
+      ! NOTE: plan%comm is *NOT* initialized here!
+      plan%nprocs = nprocs ! set in mpivars
+      plan%myrank = myrank ! set in mpivars
+      plan%nx     = n(1)
+      plan%ny     = n(2)
+      plan%nz     = n(3)
+      plan%ksta   = ksta
+      plan%kend   = kend
+      plan%ista   = ista
+      plan%iend   = iend
+
+      CALL MPI_COMM_SIZE(plan%comm,plan%nprocs,ierr)
+      CALL MPI_COMM_RANK(plan%comm,plan%myrank,ierr)
+
+      ALLOCATE ( plan%ccarr(n(3),n(2),plan%ista:plan%iend)    )
+      ALLOCATE ( plan%carr(n(1)/2+1,n(2),plan%ksta:plan%kend) )
+      ALLOCATE ( plan%rarr(n(1),n(2),plan%ksta:plan%kend)     )
 !$    CALL GPMANGLE(plan_with_nthreads)(nth)
+
 
       IF (fftdir.eq.FFTW_REAL_TO_COMPLEX) THEN
       CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/n(1),n(2)/),    &
-                         kend-ksta+1,plan%rarr,                       &
-                         (/n(1),n(2)*(kend-ksta+1)/),1,n(1)*n(2),     &
-                         plan%carr,(/n(1)/2+1,n(2)*(kend-ksta+1)/),1, &
+                         plan%kend-plan%ksta+1,plan%rarr,                       &
+                         (/n(1),n(2)*(plan%kend-plan%ksta+1)/),1,n(1)*n(2),     &
+                         plan%carr,(/n(1)/2+1,n(2)*(plan%kend-plan%ksta+1)/),1, &
                          (n(1)/2+1)*n(2),flags)
       ELSE
       CALL GPMANGLE(plan_many_dft_c2r)(plan%planr,2,(/n(1),n(2)/),    &
-                         kend-ksta+1,plan%carr,                       &
-                         (/n(1)/2+1,n(2)*(kend-ksta+1)/),1,           &
+                         plan%kend-plan%ksta+1,plan%carr,                       &
+                         (/n(1)/2+1,n(2)*(plan%kend-plan%ksta+1)/),1,           &
                          (n(1)/2+1)*n(2),plan%rarr,                   &
-                         (/n(1),n(2)*(kend-ksta+1)/),1,n(1)*n(2),flags)
+                         (/n(1),n(2)*(plan%kend-plan%ksta+1)/),1,n(1)*n(2),flags)
       ENDIF
-      CALL GPMANGLE(plan_many_dft)(plan%planc,1,n(3),n(2)*(iend-ista+1), &
-                         plan%ccarr,(iend-ista+1)*n(2)*n(3),1,n(3),      &
-                         plan%ccarr,(iend-ista+1)*n(2)*n(3),1,n(3),      &
+      CALL GPMANGLE(plan_many_dft)(plan%planc,1,n(3),n(2)*(plan%iend-plan%ista+1), &
+                         plan%ccarr,(plan%iend-plan%ista+1)*n(2)*n(3),1,n(3),      &
+                         plan%ccarr,(plan%iend-plan%ista+1)*n(2)*n(3),1,n(3),      &
                          fftdir,flags)
-      plan%nx   = n(1)
-      plan%ny   = n(2)
-      plan%nz   = n(3)
-      plan%ksta = ksta
-      plan%kend = kend
-      plan%ista = ista
-      plan%iend = iend
-      ALLOCATE( plan%itype1(0:nprocs-1) )
-      ALLOCATE( plan%itype2(0:nprocs-1) )
-      CALL fftp3d_create_block(n,nprocs,myrank,plan%itype1, &
+
+      ALLOCATE( plan%itype1(0:plan%nprocs-1) )
+      ALLOCATE( plan%itype2(0:plan%nprocs-1) )
+
+      CALL fftp3d_create_block(n,plan%nprocs,plan%myrank,plan%itype1, &
                               plan%itype2)
 
       CALL GTInitHandle(hcom,GT_WTIME)
@@ -171,13 +182,14 @@
       plan%ista = ista
       plan%iend = iend
 
+      CALL MPI_COMM_SIZE(plan%comm,plan%nprocs,ierr)
+      CALL MPI_COMM_RANK(plan%comm,plan%myrank,ierr)
+
       ALLOCATE ( plan%ccarr(n(3),n(2),plan%ista:plan%iend)    )
       ALLOCATE ( plan%carr(n(1)/2+1,n(2),plan%ksta:plan%kend) )
       ALLOCATE ( plan%rarr(n(1),n(2),plan%ksta:plan%kend)     )
 !$    CALL GPMANGLE(plan_with_nthreads)(nth)
 
-      CALL MPI_COMM_SIZE(plan%comm,plan%nprocs,ierr)
-      CALL MPI_COMM_RANK(plan%comm,plan%myrank,ierr)
 
       IF (fftdir.eq.FFTW_REAL_TO_COMPLEX) THEN
       CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/n(1),n(2)/),    &
@@ -196,8 +208,10 @@
                          plan%ccarr,(plan%iend-plan%ista+1)*n(2)*n(3),1,n(3),      &
                          plan%ccarr,(plan%iend-plan%ista+1)*n(2)*n(3),1,n(3),      &
                          fftdir,flags)
+
       ALLOCATE( plan%itype1(0:plan%nprocs-1) )
       ALLOCATE( plan%itype2(0:plan%nprocs-1) )
+
       CALL fftp3d_create_block(n,plan%nprocs,plan%myrank,plan%itype1, &
                               plan%itype2)
 
