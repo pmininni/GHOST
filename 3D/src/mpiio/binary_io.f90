@@ -97,10 +97,10 @@
 
       subsizes(1) = n(1)
       subsizes(2) = n(2)
-      subsizes(3) = kend-ksta+1
+      subsizes(3) = plan%kend-plan%ksta+1
       starts(1) = 0
       starts(2) = 0
-      starts(3) = ksta-1
+      starts(3) = plan%ksta-1
       CALL MPI_TYPE_CREATE_SUBARRAY(3,n,subsizes,starts, &
            MPI_ORDER_FORTRAN,GC_REAL,plan%iotype,ioerr)
       CALL MPI_TYPE_COMMIT(plan%iotype,ioerr)
