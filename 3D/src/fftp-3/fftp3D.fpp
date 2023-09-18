@@ -440,7 +440,7 @@
 
       DOUBLE PRECISION                    :: t0, t1
 
-      INTEGER, DIMENSION(0:nprocs-1)      :: ireq1,ireq2
+      INTEGER, DIMENSION(0:plan%nprocs-1) :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
       INTEGER, INTENT(IN)                 :: comm
       INTEGER :: i,j,k
