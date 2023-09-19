@@ -237,9 +237,16 @@ boots:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) \
 	   $(GTIMER) $(GUTILS) $(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
-#lesbouss: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) \
-	   $(GUTILS) $(GIO)
 lesbouss: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o  \
+      $(OBJS) $(GUTILS) $(GIO) $(GREGRID)
+	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
+	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
+	$(COMPILE) $@.f90 -o $@.o
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o  \
+	   $(GTIMER) $(GUTILS) $(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
+	$(MAKE) undo
+
+sgsbouss: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o  \
       $(OBJS) $(GUTILS) $(GIO) $(GREGRID)
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
 	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
