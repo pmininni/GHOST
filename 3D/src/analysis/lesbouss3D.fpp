@@ -1,17 +1,23 @@
 !=================================================================
       PROGRAM MAIN3D
 !=================================================================
-! GHOST code: Geophysical High Order Suite for Turbulence
+! LESBOUSS3D: computes a variety of quantities from 
+! GHOST data that are placed on a spectrally-truncated
+! (LES) grid. These quantities are based on different
+! SGS closure models, and are used to traing a ML 
+! model for the optimized closures. This should be
+! build at the full grid resolution.
 !
-! Numerically integrates several fluid dynamics equations
-! in 2 and 3 dimensions with periodic boundary conditions
-! and external forcing. A pseudo-spectral method is used to
-! compute spatial derivatives, while an adjustable order
-! Runge-Kutta method is used to evolve the system in the time
-! domain. To compile, you need the FFTW library installed on
-! your system. The parallel FFT is in the FFTP subroutines
-! and uses the FFTPLANS and MPIVARS modules (see the file
-! 'fftp_mod.f90' for details).
+! This utility will read GHOST binary data at full
+! resolution, and compute a variety of differential 
+! and the primitive variables on a truncated grid,
+! and output them. These quantities, together, form
+! the training data for computing an optimized SGS
+! model. Currently, the form of the SGS model is
+! based on a Smagorinsky closure, and applies only
+! to the (rotating) Boussinesq equations (but this 
+! can be easily modified to accommodate any other
+! equation set).
 !
 ! Notation: index 'i' is 'x'
 !           index 'j' is 'y'
@@ -1338,6 +1344,10 @@
       CALL trrange(1,nz    ,nzt    ,nprocs,myrank,ktsta,ktend)
       CALL trrange(1,nz/2+1,nzt/2+1,nprocs,myrank,itsta,itend)
       CALL fftp3d_create_trplan_comm(plancrt,n,nt,FFTW_COMPLEX_TO_REAL,FFTW_MEASURE,MPI_COMM_wORLD)
+      trtraits%ktrunc  =  1.0_GP/9.0_GP
+#ifndef DEF_ARBSIZE_
+      IF (anis.eq.0)  trtraits%ktrunc = tr%ktrunc*real(nxt,kind=GP)**2
+#endif
 
       ! Reset indices:
       CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
@@ -1510,7 +1520,7 @@
       trtraits%planiot   = planiot
       trtraits%plancrt   = plancrt
       trtraits%commtrunc = commtrunc
-      trtraits%ktrunc    = kmax
+      ! NOTE: trtraits%ktrunc set above
       trtraits%odir      = odir
       trtraits%C1        => C1;
       trtraits%C2        => C2;
@@ -1571,16 +1581,16 @@
             ENDDO
           ENDDO
         ENDDO
-        CALL trunc(C1, n, nt, kmax, 1, C4, CT1) 
+        CALL trunc(C1, n, nt, trtraits%ktrunc, 1, C4, CT1) 
         CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
         CALL io_write(1,odir,'dvxdt_T',ext,planiot,RT1)
-        CALL trunc(C2, n, nt, kmax, 1, C4, CT1) 
+        CALL trunc(C2, n, nt, trtraits%ktrunc, 1, C4, CT1) 
         CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
         CALL io_write(1,odir,'dvydt_T',ext,planiot,RT1)
-        CALL trunc(C3, n, nt, kmax, 1, C4, CT1) 
+        CALL trunc(C3, n, nt, trtraits%ktrunc, 1, C4, CT1) 
         CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
         CALL io_write(1,odir,'dvzdt_T',ext,planiot,RT1)
-        CALL trunc(C20, n, nt, kmax, 1, C4, CT1) 
+        CALL trunc(C20, n, nt, trtraits%ktrunc, 1, C4, CT1) 
         CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
         CALL io_write(1,odir,'dthdt_T',ext,planiot,RT1)
 #endif
@@ -1617,8 +1627,10 @@
       CALL MPI_FINALIZE(ierr)
 
       DEALLOCATE( R1,R2,R3 )
+      DEALLOCATE( RT1 )
 
       DEALLOCATE( C1,C2,C3,C4,C5,C6,C7,C8 )
+      DEALLOCATE( CT1 )
       DEALLOCATE( kx,ky,kz )
       IF (anis.eq.1) THEN
          DEALLOCATE( kk2 )
