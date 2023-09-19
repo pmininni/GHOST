@@ -344,7 +344,7 @@
       CHARACTER(len=64)   :: ext1
       CHARACTER(len=1024) :: sstat
       TYPE(IOPLAN)        :: planiot
-      TYPE(FFTPLAN)       :: plancrt
+      TYPE(FFTPLAN)       :: planrct
 
       commtrunc  = MPI_COMM_NULL
       grouptrunc = MPI_GROUP_NULL
@@ -1342,7 +1342,7 @@
       ! Plans for truncated grid:
       CALL trrange(1,nzt   ,nz    ,nprocs,myrank,ktsta,ktend)
       CALL trrange(1,nzt/2+1,nz/2+1,nprocs,myrank,itsta,itend)
-      CALL fftp3d_create_trplan_comm(plancrt,nt,n,FFTW_COMPLEX_TO_REAL,FFTW_MEASURE,MPI_COMM_wORLD)
+      CALL fftp3d_create_trplan_comm(planrct,nt,n,FFTW_COMPLEX_TO_REAL,FFTW_MEASURE,MPI_COMM_wORLD)
 
       ! Reset indices:
       CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
