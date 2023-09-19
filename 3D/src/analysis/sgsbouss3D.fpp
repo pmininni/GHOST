@@ -607,7 +607,7 @@
       ALLOCATE( Hext(3*(n/2+1)) )
 #endif
 
-! Reads from the external app file 'lesml.inp' the 
+! Reads from the external app file 'sgsml.inp' the 
 ! parameters that will be used to compute the transfer
 !     idir   : directory for unformatted input (field components)
 !     odir   : directory for unformatted output (truncated data)
@@ -625,7 +625,7 @@
       nzt    = 0
 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='lesml.inp',status='unknown')
+         OPEN(1,file='sgsml.inp',status='unknown')
          READ(1,NML=regrid)
          CLOSE(1)
       ENDIF
@@ -639,19 +639,19 @@
 
 
       ! Check input quantities:
-      IF ( nxt .GT. nx .OR. nxt .LT. 1 ) THEN
+      IF ( nxt .LT. nx .OR. nxt .LT. 1 ) THEN
         IF ( myrank .eq. 0) &
           PRINT*, 'MAIN: truncation specification incorrect; input nxt must be less than Nx'
         CALL MPI_Finalize(ierr)
         STOP
       ENDIF
-      IF ( nyt .GT. ny .OR. nyt .LT. 1 ) THEN
+      IF ( nyt .LT. ny .OR. nyt .LT. 1 ) THEN
         IF ( myrank .eq. 0) &
           PRINT*, 'MAIN: truncation specification incorrect; input nyt must be less than Ny'
         CALL MPI_Finalize(ierr)
         STOP
       ENDIF
-      IF ( nzt .GT. nz .OR. nzt .LT. 1 ) THEN
+      IF ( nzt .LT. nz .OR. nzt .LT. 1 ) THEN
         IF ( myrank .eq. 0) &
           PRINT*, 'MAIN: truncation specification incorrect; input nzt must be less than Nz'
         CALL MPI_Finalize(ierr)
@@ -1339,21 +1339,22 @@
 
       ! NOTE: nt refers to full grid here, and n is 'truncated' grid:
 
-      ! Plans for truncated grid:
-      CALL trrange(1,nzt   ,nz    ,nprocs,myrank,ktsta,ktend)
-      CALL trrange(1,nzt/2+1,nz/2+1,nprocs,myrank,itsta,itend)
-      CALL fftp3d_create_trplan_comm(planrct,nt,n,FFTW_COMPLEX_TO_REAL,FFTW_MEASURE,MPI_COMM_wORLD)
+      ! Plans for 'truncated' grid. Remember, nt > n here:
+!     CALL trrange(1,nzt    ,nz    ,nprocs,myrank,ktsta,ktend)
+!     CALL trrange(1,nzt/2+1,nz/2+1,nprocs,myrank,itsta,itend)
+      ktsta = ksta; ktend = kend;
+      itsta = ista; itend = iend;
+      CALL fftp3d_create_trplan_comm(planrct,nt,n,FFTW_REAL_TO_COMPLEX,FFTW_MEASURE,MPI_COMM_WORLD)
 
       ! Reset indices:
       CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
       CALL range(1,nz    ,nprocs,myrank,ksta,kend)
 
       ! Get new communicator, props  for truncated grid: 
-!     CALL create_trcomm(nt, n, MPI_COMM_WORLD, commtrunc, grouptrunc)
-      commtrunc = MPI_COMM_WORLD
-      CALL MPI_COMM_SIZE(commtrunc, ntprocs, ierr)
-      CALL MPI_COMM_RANK(commtrunc, mytrank, ierr)
-      CALL io_init_comm(commtrunc,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
+!!    CALL create_trcomm(nt, n, MPI_COMM_WORLD, commtrunc, grouptrunc)
+      CALL MPI_COMM_SIZE(MPI_COMM_WORLD, ntprocs, ierr)
+      CALL MPI_COMM_RANK(MPI_COMM_WORLD, mytrank, ierr)
+      CALL io_init_comm(MPI_COMM_WORLD,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
 
        
 ! Now that we have nmax we can allocate some temporary
@@ -1523,22 +1524,29 @@
 #ifdef VELOC_
         iidir = trim(idir) // '/outs'
         write(*,*) ' ext=', ext, ' iidir=', trim(iidir)
+     write(*,*) 'main: input vx ...'
         CALL io_read(1,iidir,'vx',ext,planiot,RT1)
-        CALL fftp3d_real_to_complex(planrct,RT1,CT1,MPI_COMM_WORLD)
-        CALL trunc(CT1, nt, n, kmax, 1, CT2, vx)
+     write(*,*) 'main: vxR=', RT1(1:10,10,10)
+        CALL fftp3d_real_to_complex(planrct,RT1,vx,MPI_COMM_WORLD)
+     write(*,*) 'main: vxC=', CT1(1:10,10,10)
+!       CALL trunc(CT1, nt, n, kmax, 1, CT2, vx)
+!    write(*,*) 'main: vxT =', vx(1:10,10,10)
 
+     write(*,*) 'main: input vy ...'
         CALL io_read(1,iidir,'vy',ext,planiot,RT1)
-        CALL fftp3d_real_to_complex(planrct,RT1,CT1,MPI_COMM_WORLD)
-        CALL trunc(CT1, nt, n, kmax, 1, CT2, vy)
+        CALL fftp3d_real_to_complex(planrct,RT1,vy,MPI_COMM_WORLD)
+!       CALL trunc(CT1, nt, n, kmax, 1, CT2, vy)
 
+     write(*,*) 'main: input vz ...'
         CALL io_read(1,iidir,'vz',ext,planiot,RT1)
-        CALL fftp3d_real_to_complex(planrct,RT1,CT1,MPI_COMM_WORLD)
-        CALL trunc(CT1, nt, n, kmax, 1, CT2, vz)
+        CALL fftp3d_real_to_complex(planrct,RT1,vz,MPI_COMM_WORLD)
+!       CALL trunc(CT1, nt, n, kmax, 1, CT2, vz)
 #endif
 #ifdef BOUSSINESQ_
+     write(*,*) 'main: input th ...'
         CALL io_read(1,iidir,'th',ext,planiot,RT1)
-        CALL fftp3d_real_to_complex(planrct,RT1,CT1,MPI_COMM_WORLD)
-        CALL trunc(CT1, nt, n, kmax, 1, CT2, th)
+        CALL fftp3d_real_to_complex(planrct,RT1,th,MPI_COMM_WORLD)
+!       CALL trunc(CT1, nt, n, kmax, 1, CT2, th)
 #endif
         write(*,*) ' data loaded: index=', ext
 
@@ -1549,11 +1557,8 @@
         END DO 
 
 #ifdef BOUSSINESQ_
-    write(*,*)'main: dt: ', dt
-    write(*,*)'main: vx: ', vx(10,1:10,10)
-    write(*,*)'main: C1: ', C1(10,1:10,10)
-    write(*,*)'main: vy: ', vy(10,1:10,10)
-    write(*,*)'main: C2: ', C2(10,1:10,10)
+        rmp = 1.0_GP/ &
+              (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 	! Compute RHS of dq/dt = RHS for each primitive.
         ! These compute the RHS of the filtered spatial
         ! operators acting on the filitered state:
@@ -1562,10 +1567,10 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
             DO k = 1,nz
-              C1 (k,j,i) = ( vx(k,j,i) - C1 (k,j,i) )/dt
-              C2 (k,j,i) = ( vy(k,j,i) - C2 (k,j,i) )/dt
-              C3 (k,j,i) = ( vz(k,j,i) - C3 (k,j,i) )/dt
-              C20(k,j,i) = ( th(k,j,i) - C20(k,j,i) )/dt
+              C1 (k,j,i) = rmp * ( vx(k,j,i) - C1 (k,j,i) )/dt
+              C2 (k,j,i) = rmp * ( vy(k,j,i) - C2 (k,j,i) )/dt
+              C3 (k,j,i) = rmp * ( vz(k,j,i) - C3 (k,j,i) )/dt
+              C20(k,j,i) = rmp * ( th(k,j,i) - C20(k,j,i) )/dt
             ENDDO
           ENDDO
         ENDDO

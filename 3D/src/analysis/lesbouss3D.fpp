@@ -1346,7 +1346,7 @@
       CALL fftp3d_create_trplan_comm(plancrt,n,nt,FFTW_COMPLEX_TO_REAL,FFTW_MEASURE,MPI_COMM_wORLD)
       trtraits%ktrunc  =  1.0_GP/9.0_GP
 #ifndef DEF_ARBSIZE_
-      IF (anis.eq.0)  trtraits%ktrunc = tr%ktrunc*real(nxt,kind=GP)**2
+      IF (anis.eq.0)  trtraits%ktrunc = trtraits%ktrunc*real(nxt,kind=GP)**2
 #endif
 
       ! Reset indices:
@@ -1564,11 +1564,6 @@
         END DO 
 
 #ifdef BOUSSINESQ_
-    write(*,*)'main: dt: ', dt
-    write(*,*)'main: vx: ', vx(10,1:10,10)
-    write(*,*)'main: C1: ', C1(10,1:10,10)
-    write(*,*)'main: vy: ', vy(10,1:10,10)
-    write(*,*)'main: C2: ', C2(10,1:10,10)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
