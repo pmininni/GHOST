@@ -338,8 +338,9 @@
       ! App data:
       COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: CT1, CT2
       REAL(KIND=GP)   , ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: RT1
-      INTEGER             :: istat(4096), npkeep, nstat
+      INTEGER             :: ind(2), indt(2), istat(4096), npkeep, nstat
       INTEGER             :: commtrunc, grouptrunc, n(3), nt(3)
+      INTEGER             :: iista, iiend, kksta, kkend
       CHARACTER(len=1024) :: iidir, sparam
       CHARACTER(len=64)   :: ext1
       CHARACTER(len=1024) :: sstat
@@ -1340,15 +1341,18 @@
       ! NOTE: nt refers to full grid here, and n is 'truncated' grid:
 
       ! Plans for 'truncated' grid. Remember, nt > n here:
-!     CALL trrange(1,nzt    ,nz    ,nprocs,myrank,ktsta,ktend)
-!     CALL trrange(1,nzt/2+1,nz/2+1,nprocs,myrank,itsta,itend)
-      ktsta = ksta; ktend = kend;
-      itsta = ista; itend = iend;
-      CALL fftp3d_create_trplan_comm(planrct,nt,n,FFTW_REAL_TO_COMPLEX,FFTW_MEASURE,MPI_COMM_WORLD)
+      CALL range(1,nxt/2+1,nprocs,myrank,itsta,itend)
+      CALL range(1,nzt,nprocs,myrank,ktsta,ktend)
+      ksta = ktsta; kend = ktend;
+      ista = itsta; iend = itend
+      n(1) = nxt; n(2) = nyt; n(3) = nzt
+      CALL fftp3d_create_plan_comm(planrct,n,FFTW_REAL_TO_COMPLEX, &
+                             FFTW_ESTIMATE, MPI_COMM_WORLD)
 
       ! Reset indices:
       CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
       CALL range(1,nz    ,nprocs,myrank,ksta,kend)
+      n (1) = nx ; n (2) = ny ; n (3) = nz
 
       ! Get new communicator, props  for truncated grid: 
 !!    CALL create_trcomm(nt, n, MPI_COMM_WORLD, commtrunc, grouptrunc)
@@ -1516,6 +1520,9 @@
       ALLOCATE( CT2(nzt,nyt,itsta:itend)) ! full res
       ALLOCATE( RT1(nxt,nyt,ktsta:ktend)) ! full res
 
+      ind (1) = ista ; ind (2) = iend
+      indt(1) = itsta; indt(2) = itend
+
 ! Cycle over all input times, and do analysis:
  LSTAT : DO t = 1, nstat
 
@@ -1526,27 +1533,24 @@
         write(*,*) ' ext=', ext, ' iidir=', trim(iidir)
      write(*,*) 'main: input vx ...'
         CALL io_read(1,iidir,'vx',ext,planiot,RT1)
-     write(*,*) 'main: vxR=', RT1(1:10,10,10)
-        CALL fftp3d_real_to_complex(planrct,RT1,vx,MPI_COMM_WORLD)
-     write(*,*) 'main: vxC=', CT1(1:10,10,10)
-!       CALL trunc(CT1, nt, n, kmax, 1, CT2, vx)
-!    write(*,*) 'main: vxT =', vx(1:10,10,10)
+        CALL fftp3d_real_to_complex(planrct,RT1,CT1,MPI_COMM_WORLD)
+        CALL trunc_dd(CT1, nt, indt, n, ind,  kmax, 1, CT2, vx)
 
      write(*,*) 'main: input vy ...'
         CALL io_read(1,iidir,'vy',ext,planiot,RT1)
-        CALL fftp3d_real_to_complex(planrct,RT1,vy,MPI_COMM_WORLD)
-!       CALL trunc(CT1, nt, n, kmax, 1, CT2, vy)
+        CALL fftp3d_real_to_complex(planrct,RT1,CT1,MPI_COMM_WORLD)
+        CALL trunc_dd(CT1, nt, indt, n, ind,  kmax, 1, CT2, vy)
 
      write(*,*) 'main: input vz ...'
         CALL io_read(1,iidir,'vz',ext,planiot,RT1)
-        CALL fftp3d_real_to_complex(planrct,RT1,vz,MPI_COMM_WORLD)
-!       CALL trunc(CT1, nt, n, kmax, 1, CT2, vz)
+        CALL fftp3d_real_to_complex(planrct,RT1,CT1,MPI_COMM_WORLD)
+        CALL trunc_dd(CT1, nt, indt, n, ind,  kmax, 1, CT2, vz)
 #endif
 #ifdef BOUSSINESQ_
      write(*,*) 'main: input th ...'
         CALL io_read(1,iidir,'th',ext,planiot,RT1)
-        CALL fftp3d_real_to_complex(planrct,RT1,th,MPI_COMM_WORLD)
-!       CALL trunc(CT1, nt, n, kmax, 1, CT2, th)
+        CALL fftp3d_real_to_complex(planrct,RT1,CT1,MPI_COMM_WORLD)
+        CALL trunc_dd(CT1, nt, indt, n, ind,  kmax, 1, CT2, th)
 #endif
         write(*,*) ' data loaded: index=', ext
 
