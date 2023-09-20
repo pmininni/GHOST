@@ -148,15 +148,15 @@ MODULE gtrunc
       USE kes
 
       IMPLICIT NONE
-      INTEGER,INTENT   (IN)                                      :: inorm, ind(2), indt(2)
-      INTEGER,INTENT   (IN)                                      :: n(3), nt(3)
-      COMPLEX,INTENT   (IN) ,DIMENSION(n(3),n(2),ind(1):ind(2))  :: Cin
-      COMPLEX,INTENT(INOUT) ,DIMENSION(n(3),n(2),ind(1):ind(2))  :: Ctmp
-      REAL,INTENT      (IN)                                      :: kmax
-      COMPLEX,INTENT  (OUT),DIMENSION(nt(3),nt(2),indt(1):indt(2):: Ctr
+      INTEGER,INTENT   (IN)                                       :: inorm, ind(2), indt(2)
+      INTEGER,INTENT   (IN)                                       :: n(3), nt(3)
+      COMPLEX,INTENT   (IN) ,DIMENSION(n(3),n(2),ind(1):ind(2))   :: Cin
+      COMPLEX,INTENT(INOUT) ,DIMENSION(n(3),n(2),ind(1):ind(2))   :: Ctmp
+      REAL,INTENT      (IN)                                       :: kmax
+      COMPLEX,INTENT  (OUT),DIMENSION(nt(3),nt(2),indt(1):indt(2)):: Ctr
 
-      REAL(kind=GP)                                              :: fact
-      INTEGER                                                    :: i, j, k
+      REAL(kind=GP)                                               :: fact
+      INTEGER                                                     :: i, j, k
 !
 ! Truncate in Fourier space:
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
