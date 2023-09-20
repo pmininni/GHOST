@@ -493,9 +493,11 @@
 #endif
 #endif
 
+
      CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
      CALL range(1,nz,nprocs,myrank,ksta,kend)
      CALL io_init_comm(MPI_COMM_WORLD,(/nx,ny,nz/),ksta,kend,planio)
+     write(*,*) 'main_0: ista, iend=', ista, iend, ' ksta, kend=', ksta, kend
 
 !
 ! Allocates memory for distributed blocks
@@ -1535,25 +1537,26 @@
         CALL io_read(1,iidir,'vx',ext,planiot,RT1)
         CALL fftp3d_real_to_complex(planrct,RT1,CT1,MPI_COMM_WORLD)
         CALL trunc_dd(CT1, nt, indt, n, ind,  kmax, 1, CT2, vx)
- write(*,*) ' vx_trunc=', vx(1:10,10,10)
+!write(*,*) ' vx_trunc=', CT1(1:8,8,8)
 
      write(*,*) 'main: input vy ...'
         CALL io_read(1,iidir,'vy',ext,planiot,RT1)
         CALL fftp3d_real_to_complex(planrct,RT1,CT1,MPI_COMM_WORLD)
         CALL trunc_dd(CT1, nt, indt, n, ind,  kmax, 1, CT2, vy)
- write(*,*) ' vy_trunc=', vy(1:10,10,10)
+!write(*,*) ' vy_trunc=', CT1(1:8,8,8)
 
      write(*,*) 'main: input vz ...'
         CALL io_read(1,iidir,'vz',ext,planiot,RT1)
         CALL fftp3d_real_to_complex(planrct,RT1,CT1,MPI_COMM_WORLD)
         CALL trunc_dd(CT1, nt, indt, n, ind,  kmax, 1, CT2, vz)
- write(*,*) ' vz_trunc=', vz(1:10,10,10)
+!write(*,*) ' vz_trunc=', CT1(1:8,8,8)
 #endif
 #ifdef BOUSSINESQ_
      write(*,*) 'main: input th ...'
         CALL io_read(1,iidir,'th',ext,planiot,RT1)
         CALL fftp3d_real_to_complex(planrct,RT1,CT1,MPI_COMM_WORLD)
         CALL trunc_dd(CT1, nt, indt, n, ind,  kmax, 1, CT2, th)
+!write(*,*) ' th_trunc=', CT1(1:8,8,8)
 #endif
         write(*,*) ' data loaded: index=', ext
 
@@ -1582,17 +1585,18 @@
             ENDDO
           ENDDO
         ENDDO
+     write(*,*) 'main_1: ista, iend=', ista, iend, ' ksta, kend=', ksta, kend
         CALL fftp3d_complex_to_real(plancr,C1 ,R1,MPI_COMM_WORLD)
- write(*,*) ' rhs_vx=',R1(1:10,10,10)
+!write(*,*) ' rhs_vx=',R1(1:8,8,8)
         CALL io_write(1,odir,'rhsvx_T',ext,planio,R1)
         CALL fftp3d_complex_to_real(plancr,C2 ,R1,MPI_COMM_WORLD)
- write(*,*) ' rhs_vy=',R1(1:10,10,10)
+!write(*,*) ' rhs_vy=',R1(1:8,8,8)
         CALL io_write(1,odir,'rhsvy_T',ext,planio,R1)
         CALL fftp3d_complex_to_real(plancr,C3 ,R1,MPI_COMM_WORLD)
- write(*,*) ' rhs_vz=',R1(1:10,10,10)
+!write(*,*) ' rhs_vz=',R1(1:8,8,8)
         CALL io_write(1,odir,'rhsvz_T',ext,planio,R1)
         CALL fftp3d_complex_to_real(plancr,C20,R1,MPI_COMM_WORLD)
- write(*,*) ' rhs_th=',R1(1:10,10,10)
+!write(*,*) ' rhs_th=',R1(1:8,8,8)
         CALL io_write(1,odir,'rhsth_T',ext,planio,R1)
 #endif
         write(*,*) ' done: index=', ext
