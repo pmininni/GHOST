@@ -248,14 +248,8 @@ MODULE class_GPart
     this%lxbnds_(2,2) = real(ny,kind=GP)
     this%libnds_(3,1) = ksta ; 
     this%libnds_(3,2) = kend ; 
-    this%lxbnds_(3,1) = real(ksta-1,kind=GP) - 0.50_GP
-    this%lxbnds_(3,2) = real(kend-1,kind=GP) + 0.50_GP !- 1.0_GP*epsilon(1.0_GP)
-    IF ( this%myrank_ .EQ. 0 ) THEN
-      this%lxbnds_(3,1) = -1.0_GP
-    ENDIF
-    IF ( this%myrank_ .EQ. this%nprocs_-1 ) THEN
-      this%lxbnds_(3,2) = real(kend,kind=GP) 
-    ENDIF
+    this%lxbnds_(3,1) = real(ksta-1,kind=GP)
+    this%lxbnds_(3,2) = real(kend-1,kind=GP) + 1.0_GP
     CALL range(1,nx,nprocs,myrank,tsta,tend) !Bounds of transposed real array
     this%tibnds_(1,1) = 1  ;
     this%tibnds_(1,2) = nz ;
@@ -587,22 +581,30 @@ MODULE class_GPart
       this%maxparts_,' total created: ',nt
       STOP
     ENDIF
-    CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+    IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
+      CALL GTStart(this%htimers_(GPTIME_COMM))
+      CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_, &
+           this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_UNIQ)
+      CALL GTAcc(this%htimers_(GPTIME_COMM))
+    ENDIF
+    IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
+       CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-    CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+       CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-    CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,this%nparts_, &
-                           this%vdb_,this%maxparts_)
-
-    IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to box units
-       this%ptmp0_(1,:) = this%vdb_(1,:)*this%delta_(1)
-       this%ptmp0_(2,:) = this%vdb_(2,:)*this%delta_(2)
-       this%ptmp0_(3,:) = this%vdb_(3,:)*this%delta_(3)
-       CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,this%maxparts_, &
+       CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,this%nparts_, &
+                          this%vdb_,this%maxparts_)
+    
+       IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to box units
+          this%ptmp0_(1,:) = this%vdb_(1,:)*this%delta_(1)
+          this%ptmp0_(2,:) = this%vdb_(2,:)*this%delta_(2)
+          this%ptmp0_(3,:) = this%vdb_(3,:)*this%delta_(3)
+          CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,this%maxparts_, &
                                this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
-    ELSE
-       CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,this%maxparts_, &
+       ELSE
+          CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,this%maxparts_, &
                                this%vdb_(1,:),this%vdb_(2,:),this%vdb_(3,:))
+       ENDIF
     ENDIF
 
     IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
@@ -685,8 +687,11 @@ MODULE class_GPart
       this%maxparts_,' total read: ',nt,' file:',this%seedfile_
       STOP
     ENDIF
-    CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+
+    IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
+      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+    END IF
 
   END SUBROUTINE GPart_InitUserSeed
 !-----------------------------------------------------------------
@@ -1753,16 +1758,22 @@ MODULE class_GPart
     ! between nearest-neighbor tasks BEFORE z-PERIODIZING particle coordinates:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
       CALL GTStart(this%htimers_(GPTIME_COMM))
-      CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_, &
-           this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2))
+      CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_,  &
+           this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_INIT)
+      CALL this%gpcomm_%PartExchangeV(this%id_,this%ptmp0_(1,:),            &
+           this%ptmp0_(2,:),this%ptmp0_(3,:),this%nparts_,this%lxbnds_(3,1),&
+           this%lxbnds_(3,2),GPEXCH_END)
       CALL GTAcc(this%htimers_(GPTIME_COMM))
+      ! Enforce periodicity in x & y:
+      CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3)
+      ! Enforce periodicity in z and gptmp0(3):
+      CALL GPart_MakePeriodicZ(this,this%pz_,this%ptmp0_(3,:),this%nparts_)
     ENDIF
-
-    ! Enforce periodicity in x, y, & z:
-    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,7)
 
     ! If using VDB interface, do synch-up, and get local work:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
+      ! Enforce periodicity in x, y, & z:
+      CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,7)
 
       IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
         IF ( this%myrank_.eq.0 ) THEN
@@ -2097,6 +2108,43 @@ MODULE class_GPart
     ENDIF
 
   END SUBROUTINE GPart_MakePeriodicP
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE GPart_MakePeriodicZ(this,pz,tpz,npdb)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : MakePeriodicP
+!  DESCRIPTION: Enforces periodic b.c.'s on particles in pdb
+!  ARGUMENTS  :
+!    this    : 'this' class instance (IN)
+!    pz      : particle z loc. d.b.
+!    tpz     : particle z stored loc. d.b.
+!    npdb    : no. particles in pdb
+!    
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPart) ,INTENT(INOUT)                      :: this
+    INTEGER,INTENT(IN)                               :: npdb
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)         :: pz,tpz
+    INTEGER                                          :: j
+
+!$omp parallel do 
+    DO j = 1,npdb
+       IF (pz(j).LT.0) THEN
+          pz(j)  =  pz(j) + this%gext_(3)
+          tpz(j) = tpz(j) + this%gext_(3)
+       ELSE IF (pz(j).GE.this%gext_(3)) THEN
+          pz(j)  =  pz(j) - this%gext_(3)
+          tpz(j) = tpz(j) - this%gext_(3)
+       ENDIF
+    ENDDO
+
+  END SUBROUTINE GPart_MakePeriodicZ
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
