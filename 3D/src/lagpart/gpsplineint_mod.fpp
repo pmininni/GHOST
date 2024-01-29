@@ -1055,10 +1055,14 @@ MODULE class_GPSplineInt
       this%dxi_(j) = 1.0_GP  !real(this%ldims_(j)-1,kind=GP)/ ( this%xbnds_(j,2) - this%xbnds_(j,1) )
     ENDDO
 
+    IF (this%nd_(1).GT.2) THEN
     CALL GPSplineInt_MatInvQ(this,this%nd_(1),this%ax_,this%bx_,this%cx_,&
     this%px_,this%gamx_,this%betx_,this%xxx_,this%zetax_)
+    END IF
+    IF (this%nd_(2).GT.2) THEN
     CALL GPSplineInt_MatInvQ(this,this%nd_(2),this%ay_,this%by_,this%cy_,&
     this%py_,this%gamy_,this%bety_,this%xxy_,this%zetay_)
+    END IF
     IF ( this%rank_ .GT. 2 ) THEN
     CALL GPSplineInt_MatInvQ(this,this%nd_(3),this%az_,this%bz_,this%cz_,&
     this%pz_,this%gamz_,this%betz_,this%xxz_,this%zetaz_)

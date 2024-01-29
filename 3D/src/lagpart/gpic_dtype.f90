@@ -14,14 +14,15 @@
         TYPE(GPICSplineInt)                          :: picspl_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: prop_,weight_
         REAL(KIND=GP)                                :: icv_
-        INTEGER                                      :: initprop_
       CONTAINS
         ! Public methods:
         PROCEDURE,PUBLIC :: GPIC_ctor
         PROCEDURE,PUBLIC :: Init              => GPIC_Init
         PROCEDURE,PUBLIC :: GPICStep          => GPIC_StepRKK
         PROCEDURE,PUBLIC :: GetDensity        => GPIC_GetDensity
-        PROCEDURE,PUBLIC :: PerturbPositions  => GPIC_PerturbPositions
+        PROCEDURE,PUBLIC :: io_write_wgt      => GPIC_io_write_wgt
+        PROCEDURE,PUBLIC :: io_read_wgt       => GPIC_io_read_wgt
+        PROCEDURE,PUBLIC :: InitUserSeed      => GPIC_InitUserSeed
       END TYPE GPIC
 
   TYPE, PUBLIC, EXTENDS ( GPIC ) :: VGPIC
@@ -34,6 +35,7 @@
         PROCEDURE,PUBLIC :: io_write_pdbv     => VGPIC_io_write_pdbv
         PROCEDURE,PUBLIC :: io_readv          => VGPIC_io_read_pdbv
         PROCEDURE,PUBLIC :: GetFlux           => VGPIC_GetFlux
+        PROCEDURE,PUBLIC :: InitUserSeed      => VGPIC_InitUserSeed
       END TYPE VGPIC
   
   TYPE, PUBLIC, EXTENDS ( VGPIC ) :: ChargPIC
@@ -50,5 +52,5 @@
         PROCEDURE,PUBLIC :: StepChargedPICBor => ChargPIC_StepBoris
         PROCEDURE,PUBLIC :: EndStageChargedPIC=> ChargPIC_EndStageRKK
         PROCEDURE,PUBLIC :: GetTemperature    => ChargPIC_GetTemperature
-        PROCEDURE,PUBLIC :: InitRandom        => ChargPIC_InitRandom
+        PROCEDURE,PUBLIC :: InitFromFields    => ChargPIC_InitFromFields
       END TYPE ChargPIC

@@ -209,15 +209,12 @@ MODULE class_GPICSplineInt
     REAL(KIND=GP)                             :: zz1,zz2,zz3,zz4
     REAL(KIND=GP)                             :: two,three,four,six,sixth,eighth
 !
-    nx = this%ldims_(1)
-    ny = this%ldims_(2)
-    nz = this%ldims_(3)
-    nxy = nx*ny
     IF (this%splord_.eq.0) THEN
       DO lag=1, np
         fp(lag) = this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(1,lag))
       ENDDO
     ELSE IF (this%splord_.eq.1) THEN
+!$omp parallel do private(xx,xxm,yy,yym,zz,zzm)
       DO lag=1, np
         xx  = this%xrk_(lag)
         xxm = 1.0_GP - xx
@@ -226,18 +223,27 @@ MODULE class_GPICSplineInt
         zz  = this%zrk_(lag)
         zzm = 1.0_GP - zz
         fp(lag) =  &
-          this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(1,lag))*xxm*yym*zzm &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx *yym*zzm &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(1,lag))*xxm*yy *zzm &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx *yy *zzm &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(2,lag))*xxm*yym*zz  &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx *yym*zz  &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(2,lag))*xxm*yy *zz  &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx *yy *zz
+        ((this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(1,lag))*xxm         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx)*yym*zzm &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(1,lag))*xxm         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx)*yy)*zzm &
+      + ((this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(2,lag))*xxm         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx)*yym     &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(2,lag))*xxm         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx)*yy)*zz
+!          this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(1,lag))*xxm*yym*zzm &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx *yym*zzm &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(1,lag))*xxm*yy *zzm &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx *yy *zzm &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(2,lag))*xxm*yym*zz  &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx *yym*zz  &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(2,lag))*xxm*yy *zz  &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx *yy *zz
       ENDDO
     ELSE IF (this%splord_.eq.2) THEN
       two    = 2.0_GP
       eighth = 1.0_GP/8.0_GP
+!$omp parallel do private(xx,xx1,xx2,xx3,yy,yy1,yy2,yy3,zz,zz1,zz2,zz3)
       DO lag=1, np
         xx  = this%xrk_(lag)
         xx1 = eighth*(1-two*xx)*(1-two*xx)
@@ -252,41 +258,71 @@ MODULE class_GPICSplineInt
         zz3 = eighth*(1+two*zz)*(1+two*zz)
         zz2 = 1.0_GP - zz1 - zz3
         fp(lag) =  &
-          this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx1*yy1*zz1 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx2*yy1*zz1 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx3*yy1*zz1 &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx1*yy2*zz1 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx2*yy2*zz1 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx3*yy2*zz1 &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx1*yy3*zz1 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx2*yy3*zz1 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx3*yy3*zz1 &
+        ((this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx3)*yy1    &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx3)*yy2    &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx3)*yy3)*zz1 &
   ! k = 2
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx1*yy1*zz2 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx2*yy1*zz2 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx3*yy1*zz2 &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx1*yy2*zz2 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx2*yy2*zz2 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx3*yy2*zz2 &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx1*yy3*zz2 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx2*yy3*zz2 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx3*yy3*zz2 &
+      + ((this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx3)*yy1    &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx3)*yy2    &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx3)*yy3)*zz2 &
   ! k = 3
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx1*yy1*zz3 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx2*yy1*zz3 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx3*yy1*zz3 &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx1*yy2*zz3 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx2*yy2*zz3 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx3*yy2*zz3 &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx1*yy3*zz3 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx2*yy3*zz3 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx3*yy3*zz3
+      + ((this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx3)*yy1    &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx3)*yy2    &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx3)*yy3)*zz3
+!          this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx1*yy1*zz1 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx2*yy1*zz1 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx3*yy1*zz1 &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx1*yy2*zz1 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx2*yy2*zz1 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx3*yy2*zz1 &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx1*yy3*zz1 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx2*yy3*zz1 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx3*yy3*zz1 &
+!  ! k = 2
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx1*yy1*zz2 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx2*yy1*zz2 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx3*yy1*zz2 &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx1*yy2*zz2 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx2*yy2*zz2 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx3*yy2*zz2 &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx1*yy3*zz2 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx2*yy3*zz2 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx3*yy3*zz2 &
+!  ! k = 3
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx1*yy1*zz3 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx2*yy1*zz3 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx3*yy1*zz3 &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx1*yy2*zz3 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx2*yy2*zz3 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx3*yy2*zz3 &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx1*yy3*zz3 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx2*yy3*zz3 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx3*yy3*zz3
       ENDDO
     ELSE IF (this%splord_.eq.3) THEN
       sixth  = 1.0_GP/6.0_GP
       six    = 6.0_GP
       four   = 4.0_GP
       three  = 3.0_GP
+!$omp parallel do private(xx,xxm,xx1,xx2,xx3,xx4,yy,yym,yy1,yy2,yy3,yy4,zz,zzm,zz1,zz2,zz3,zz4)
       DO lag=1,np
         xx = this%xrk_(lag)
         xxm = (1.0_GP-xx)
@@ -312,73 +348,141 @@ MODULE class_GPICSplineInt
   !write(*,*)'part=',lag,' yy1=',yy1,' yy2=',yy2,' yy3=',yy3,' ty4=',yy4
   !write(*,*)'part=',lag,' zz1=',zz1,' zz2=',zz2,' zz3=',zz3,' zz4=',zz4
         fp(lag) =  &
-          this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx1*yy1*zz1 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx2*yy1*zz1 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx3*yy1*zz1 &
-        + this%esplfld_(this%ilg_(4,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx4*yy1*zz1 &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx1*yy2*zz1 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx2*yy2*zz1 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx3*yy2*zz1 &
-        + this%esplfld_(this%ilg_(4,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx4*yy2*zz1 &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx1*yy3*zz1 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx2*yy3*zz1 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx3*yy3*zz1 &
-        + this%esplfld_(this%ilg_(4,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx4*yy3*zz1 &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(4,lag),this%klg_(1,lag))*xx1*yy4*zz1 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(4,lag),this%klg_(1,lag))*xx2*yy4*zz1 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(4,lag),this%klg_(1,lag))*xx3*yy4*zz1 &
-        + this%esplfld_(this%ilg_(4,lag),this%jlg_(4,lag),this%klg_(1,lag))*xx4*yy4*zz1 &
+        ((this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx3         &
+        + this%esplfld_(this%ilg_(4,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx4)*yy1    &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx3         &
+        + this%esplfld_(this%ilg_(4,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx4)*yy2    &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx3         &
+        + this%esplfld_(this%ilg_(4,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx4)*yy3    &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(4,lag),this%klg_(1,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(4,lag),this%klg_(1,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(4,lag),this%klg_(1,lag))*xx3         &
+        + this%esplfld_(this%ilg_(4,lag),this%jlg_(4,lag),this%klg_(1,lag))*xx4)*yy4)*zz1 &
   !  k = 2
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx1*yy1*zz2 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx2*yy1*zz2 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx3*yy1*zz2 &
-        + this%esplfld_(this%ilg_(4,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx4*yy1*zz2 &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx1*yy2*zz2 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx2*yy2*zz2 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx3*yy2*zz2 &
-        + this%esplfld_(this%ilg_(4,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx4*yy2*zz2 &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx1*yy3*zz2 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx2*yy3*zz2 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx3*yy3*zz2 &
-        + this%esplfld_(this%ilg_(4,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx4*yy3*zz2 &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(4,lag),this%klg_(2,lag))*xx1*yy4*zz2 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(4,lag),this%klg_(2,lag))*xx2*yy4*zz2 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(4,lag),this%klg_(2,lag))*xx3*yy4*zz2 &
-        + this%esplfld_(this%ilg_(4,lag),this%jlg_(4,lag),this%klg_(2,lag))*xx4*yy4*zz2 &
+      + ((this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx3         &
+        + this%esplfld_(this%ilg_(4,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx4)*yy1    &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx3         &
+        + this%esplfld_(this%ilg_(4,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx4)*yy2    &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx3         &
+        + this%esplfld_(this%ilg_(4,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx4)*yy3    &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(4,lag),this%klg_(2,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(4,lag),this%klg_(2,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(4,lag),this%klg_(2,lag))*xx3         &
+        + this%esplfld_(this%ilg_(4,lag),this%jlg_(4,lag),this%klg_(2,lag))*xx4)*yy4)*zz2 &
   !  k = 3
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx1*yy1*zz3 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx2*yy1*zz3 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx3*yy1*zz3 &
-        + this%esplfld_(this%ilg_(4,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx4*yy1*zz3 &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx1*yy2*zz3 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx2*yy2*zz3 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx3*yy2*zz3 &
-        + this%esplfld_(this%ilg_(4,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx4*yy2*zz3 &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx1*yy3*zz3 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx2*yy3*zz3 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx3*yy3*zz3 &
-        + this%esplfld_(this%ilg_(4,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx4*yy3*zz3 &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(4,lag),this%klg_(3,lag))*xx1*yy4*zz3 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(4,lag),this%klg_(3,lag))*xx2*yy4*zz3 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(4,lag),this%klg_(3,lag))*xx3*yy4*zz3 &
-        + this%esplfld_(this%ilg_(4,lag),this%jlg_(4,lag),this%klg_(3,lag))*xx4*yy4*zz3 &
+      + ((this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx3         &
+        + this%esplfld_(this%ilg_(4,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx4)*yy1    &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx3         &
+        + this%esplfld_(this%ilg_(4,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx4)*yy2    &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx3         &
+        + this%esplfld_(this%ilg_(4,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx4)*yy3    &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(4,lag),this%klg_(3,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(4,lag),this%klg_(3,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(4,lag),this%klg_(3,lag))*xx3         &
+        + this%esplfld_(this%ilg_(4,lag),this%jlg_(4,lag),this%klg_(3,lag))*xx4)*yy4)*zz3 &
   !  k = 4
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(4,lag))*xx1*yy1*zz4 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(4,lag))*xx2*yy1*zz4 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(4,lag))*xx3*yy1*zz4 &
-        + this%esplfld_(this%ilg_(4,lag),this%jlg_(1,lag),this%klg_(4,lag))*xx4*yy1*zz4 &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(4,lag))*xx1*yy2*zz4 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(4,lag))*xx2*yy2*zz4 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(4,lag))*xx3*yy2*zz4 &
-        + this%esplfld_(this%ilg_(4,lag),this%jlg_(2,lag),this%klg_(4,lag))*xx4*yy2*zz4 &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(4,lag))*xx1*yy3*zz4 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(4,lag))*xx2*yy3*zz4 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(4,lag))*xx3*yy3*zz4 &
-        + this%esplfld_(this%ilg_(4,lag),this%jlg_(3,lag),this%klg_(4,lag))*xx4*yy3*zz4 &
-        + this%esplfld_(this%ilg_(1,lag),this%jlg_(4,lag),this%klg_(4,lag))*xx1*yy4*zz4 &
-        + this%esplfld_(this%ilg_(2,lag),this%jlg_(4,lag),this%klg_(4,lag))*xx2*yy4*zz4 &
-        + this%esplfld_(this%ilg_(3,lag),this%jlg_(4,lag),this%klg_(4,lag))*xx3*yy4*zz4 &
-        + this%esplfld_(this%ilg_(4,lag),this%jlg_(4,lag),this%klg_(4,lag))*xx4*yy4*zz4
+      + ((this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(4,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(4,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(4,lag))*xx3         &
+        + this%esplfld_(this%ilg_(4,lag),this%jlg_(1,lag),this%klg_(4,lag))*xx4)*yy1    &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(4,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(4,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(4,lag))*xx3         &
+        + this%esplfld_(this%ilg_(4,lag),this%jlg_(2,lag),this%klg_(4,lag))*xx4)*yy2    &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(4,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(4,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(4,lag))*xx3         &
+        + this%esplfld_(this%ilg_(4,lag),this%jlg_(3,lag),this%klg_(4,lag))*xx4)*yy3    &
+        +(this%esplfld_(this%ilg_(1,lag),this%jlg_(4,lag),this%klg_(4,lag))*xx1         &
+        + this%esplfld_(this%ilg_(2,lag),this%jlg_(4,lag),this%klg_(4,lag))*xx2         &
+        + this%esplfld_(this%ilg_(3,lag),this%jlg_(4,lag),this%klg_(4,lag))*xx3         &
+        + this%esplfld_(this%ilg_(4,lag),this%jlg_(4,lag),this%klg_(4,lag))*xx4)*yy4)*zz4
+!
+!          this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx1*yy1*zz1 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx2*yy1*zz1 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx3*yy1*zz1 &
+!        + this%esplfld_(this%ilg_(4,lag),this%jlg_(1,lag),this%klg_(1,lag))*xx4*yy1*zz1 &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx1*yy2*zz1 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx2*yy2*zz1 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx3*yy2*zz1 &
+!        + this%esplfld_(this%ilg_(4,lag),this%jlg_(2,lag),this%klg_(1,lag))*xx4*yy2*zz1 &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx1*yy3*zz1 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx2*yy3*zz1 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx3*yy3*zz1 &
+!        + this%esplfld_(this%ilg_(4,lag),this%jlg_(3,lag),this%klg_(1,lag))*xx4*yy3*zz1 &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(4,lag),this%klg_(1,lag))*xx1*yy4*zz1 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(4,lag),this%klg_(1,lag))*xx2*yy4*zz1 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(4,lag),this%klg_(1,lag))*xx3*yy4*zz1 &
+!        + this%esplfld_(this%ilg_(4,lag),this%jlg_(4,lag),this%klg_(1,lag))*xx4*yy4*zz1 &
+!  !  k = 2
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx1*yy1*zz2 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx2*yy1*zz2 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx3*yy1*zz2 &
+!        + this%esplfld_(this%ilg_(4,lag),this%jlg_(1,lag),this%klg_(2,lag))*xx4*yy1*zz2 &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx1*yy2*zz2 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx2*yy2*zz2 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx3*yy2*zz2 &
+!        + this%esplfld_(this%ilg_(4,lag),this%jlg_(2,lag),this%klg_(2,lag))*xx4*yy2*zz2 &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx1*yy3*zz2 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx2*yy3*zz2 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx3*yy3*zz2 &
+!        + this%esplfld_(this%ilg_(4,lag),this%jlg_(3,lag),this%klg_(2,lag))*xx4*yy3*zz2 &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(4,lag),this%klg_(2,lag))*xx1*yy4*zz2 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(4,lag),this%klg_(2,lag))*xx2*yy4*zz2 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(4,lag),this%klg_(2,lag))*xx3*yy4*zz2 &
+!        + this%esplfld_(this%ilg_(4,lag),this%jlg_(4,lag),this%klg_(2,lag))*xx4*yy4*zz2 &
+!  !  k = 3
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx1*yy1*zz3 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx2*yy1*zz3 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx3*yy1*zz3 &
+!        + this%esplfld_(this%ilg_(4,lag),this%jlg_(1,lag),this%klg_(3,lag))*xx4*yy1*zz3 &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx1*yy2*zz3 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx2*yy2*zz3 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx3*yy2*zz3 &
+!        + this%esplfld_(this%ilg_(4,lag),this%jlg_(2,lag),this%klg_(3,lag))*xx4*yy2*zz3 &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx1*yy3*zz3 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx2*yy3*zz3 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx3*yy3*zz3 &
+!        + this%esplfld_(this%ilg_(4,lag),this%jlg_(3,lag),this%klg_(3,lag))*xx4*yy3*zz3 &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(4,lag),this%klg_(3,lag))*xx1*yy4*zz3 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(4,lag),this%klg_(3,lag))*xx2*yy4*zz3 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(4,lag),this%klg_(3,lag))*xx3*yy4*zz3 &
+!        + this%esplfld_(this%ilg_(4,lag),this%jlg_(4,lag),this%klg_(3,lag))*xx4*yy4*zz3 &
+!  !  k = 4
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(4,lag))*xx1*yy1*zz4 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(1,lag),this%klg_(4,lag))*xx2*yy1*zz4 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(1,lag),this%klg_(4,lag))*xx3*yy1*zz4 &
+!        + this%esplfld_(this%ilg_(4,lag),this%jlg_(1,lag),this%klg_(4,lag))*xx4*yy1*zz4 &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(2,lag),this%klg_(4,lag))*xx1*yy2*zz4 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(2,lag),this%klg_(4,lag))*xx2*yy2*zz4 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(2,lag),this%klg_(4,lag))*xx3*yy2*zz4 &
+!        + this%esplfld_(this%ilg_(4,lag),this%jlg_(2,lag),this%klg_(4,lag))*xx4*yy2*zz4 &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(3,lag),this%klg_(4,lag))*xx1*yy3*zz4 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(3,lag),this%klg_(4,lag))*xx2*yy3*zz4 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(3,lag),this%klg_(4,lag))*xx3*yy3*zz4 &
+!        + this%esplfld_(this%ilg_(4,lag),this%jlg_(3,lag),this%klg_(4,lag))*xx4*yy3*zz4 &
+!        + this%esplfld_(this%ilg_(1,lag),this%jlg_(4,lag),this%klg_(4,lag))*xx1*yy4*zz4 &
+!        + this%esplfld_(this%ilg_(2,lag),this%jlg_(4,lag),this%klg_(4,lag))*xx2*yy4*zz4 &
+!        + this%esplfld_(this%ilg_(3,lag),this%jlg_(4,lag),this%klg_(4,lag))*xx3*yy4*zz4 &
+!        + this%esplfld_(this%ilg_(4,lag),this%jlg_(4,lag),this%klg_(4,lag))*xx4*yy4*zz4
       ENDDO
     ENDIF
 
@@ -406,25 +510,41 @@ SUBROUTINE GPICSplineInt_Deposit3D(this,prop,np,proj)
 !               points. Must have dimensions set in constructor.
 !
 !-----------------------------------------------------------------
+!$ USE threads
   IMPLICIT NONE
   CLASS(GPICSplineInt)                         :: this
   INTEGER      ,INTENT   (IN)                  :: np
-  INTEGER                                      :: lag,i,j,k
+  INTEGER                                      :: lag,i,j,k,nx,ny,nz
   REAL(KIND=GP),INTENT   (IN),DIMENSION(np)    :: prop
   REAL(KIND=GP),INTENT(INOUT),DIMENSION(:,:,:) :: proj
   REAL(KIND=GP)                                :: xx(4),xxx,xxm
   REAL(KIND=GP)                                :: yy(4),yyy,yym
   REAL(KIND=GP)                                :: zz(4),zzz,zzm
   REAL(KIND=GP)                                :: two,three,four,six,sixth,eighth
-!
-  this%esplflddp_ = 0
+
+  nx = this%ldims_(1)
+  ny = this%ldims_(2)
+  nz = this%ldims_(3) + 2*this%gfcomm_%GetNumGhost()
+
+!$omp parallel do if((ny*nz).gt.nth) private(i) collapse(2)
+  DO k = 1,nz
+    DO j = 1,ny
+      DO i = 1,nx
+        this%esplflddp_(i,j,k) = 0.0D0
+      END DO
+    END DO
+  END DO
+
+!  this%esplflddp_ = 0.0D0
 
   IF (this%splord_.eq.0) THEN
+!$omp parallel do
     DO lag=1, np
       this%esplflddp_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(1,lag)) =  &
       this%esplflddp_(this%ilg_(1,lag),this%jlg_(1,lag),this%klg_(1,lag)) + prop(lag)
     ENDDO
   ELSE IF (this%splord_.eq.1) THEN
+!$omp parallel do private(xx,yy,zz)
     DO lag=1, np
       xx(2) = this%xrk_(lag)
       xx(1) = 1.0_GP - xx(2)
@@ -432,9 +552,9 @@ SUBROUTINE GPICSplineInt_Deposit3D(this,prop,np,proj)
       yy(1) = 1.0_GP - yy(2)
       zz(2) = this%zrk_(lag)
       zz(1) = 1.0_GP - zz(2)
-      DO i=1,2
+      DO k=1,2
         DO j=1,2
-          DO k=1,2
+          DO i=1,2
             this%esplflddp_(this%ilg_(i,lag),this%jlg_(j,lag),this%klg_(k,lag)) = &
               this%esplflddp_(this%ilg_(i,lag),this%jlg_(j,lag),this%klg_(k,lag)) &
                           + prop(lag)*xx(i)*yy(j)*zz(k)
@@ -445,6 +565,7 @@ SUBROUTINE GPICSplineInt_Deposit3D(this,prop,np,proj)
   ELSE IF (this%splord_ .EQ. 2) THEN
     two    = 2.0_GP
     eighth = 1.0_GP/8.0_GP
+!$omp parallel do private(xxx,xx,yyy,yy,zzz,zz)
     DO lag=1, np
       xxx   = this%xrk_(lag)
       xx(1) = eighth*(1-two*xxx)*(1-two*xxx)
@@ -460,9 +581,9 @@ SUBROUTINE GPICSplineInt_Deposit3D(this,prop,np,proj)
       zz(1) = eighth*(1-two*zzz)*(1-two*zzz)
       zz(3) = eighth*(1+two*zzz)*(1+two*zzz)
       zz(2) = 1.0_GP - zz(1) - zz(3)
-      DO i=1,3
+      DO k=1,3
         DO j=1,3
-          DO k=1,3
+          DO i=1,3
             this%esplflddp_(this%ilg_(i,lag),this%jlg_(j,lag),this%klg_(k,lag)) = &
               this%esplflddp_(this%ilg_(i,lag),this%jlg_(j,lag),this%klg_(k,lag)) &
                           + prop(lag)*xx(i)*yy(j)*zz(k)
@@ -475,6 +596,7 @@ SUBROUTINE GPICSplineInt_Deposit3D(this,prop,np,proj)
     six    = 6.0_GP
     four   = 4.0_GP
     three  = 3.0_GP
+!$omp parallel do private(xxx,xxm,xx,yyy,yym,yy,zzz,zzm,zz)
     DO lag=1,np
       xxx = this%xrk_(lag)
       xxm = (1.0_GP-xxx)
@@ -496,9 +618,9 @@ SUBROUTINE GPICSplineInt_Deposit3D(this,prop,np,proj)
       zz(2) = sixth*(four+zzz*zzz*(three*zzz-six))
       zz(3) = sixth*(four+zzm*zzm*(three*zzm-six))
       zz(4) = 1.0_GP - zz(1) - zz(2) - zz(3)
-      DO i=1,4
+      DO k=1,4
         DO j=1,4
-          DO k=1,4
+          DO i=1,4
             this%esplflddp_(this%ilg_(i,lag),this%jlg_(j,lag),this%klg_(k,lag)) = &
               this%esplflddp_(this%ilg_(i,lag),this%jlg_(j,lag),this%klg_(k,lag)) &
                           + prop(lag)*xx(i)*yy(j)*zz(k)
@@ -508,7 +630,16 @@ SUBROUTINE GPICSplineInt_Deposit3D(this,prop,np,proj)
     ENDDO
   ENDIF
 
-  this%esplfld_ = this%esplflddp_
+!$omp parallel do if((ny*nz).gt.nth) private(i) collapse(2)
+  DO k = 1,nz
+    DO j = 1,ny
+      DO i = 1,nx
+        this%esplfld_(i,j,k) = REAL(this%esplflddp_(i,j,k),kind=GP)
+      END DO
+    END DO
+  END DO
+
+!  this%esplfld_ = this%esplflddp_
 
 !  proj = 0
   CALL GTStart(this%hdataex_)
@@ -545,7 +676,7 @@ END SUBROUTINE GPICSplineInt_Deposit3D
     REAL(KIND=GP)                         :: half
     INTEGER      ,INTENT(IN)              :: np
     INTEGER                               :: j,kmax,kmin,nx,ny,nz
-    LOGICAL                               :: bok,btmp
+    LOGICAL                               :: btmp
 
     ! Compute interval-normalized positions and
     ! indices into control point array in x, y directions:
@@ -560,14 +691,10 @@ END SUBROUTINE GPICSplineInt_Deposit3D
     ! before computing local indices and spline coordinates....
     !
     ! First, do a check:
-    bok = .true.
-!!!$omp parallel do private(btmp)
+!$omp parallel do if(np.ge.NMIN_OMP) private(btmp)
     DO j = 1, np
       btmp = (zp(j).GE.this%xbnds_(3,1).AND.zp(j).LT.this%xbnds_(3,2))
-!!!$omp critical
-      bok = bok .AND. btmp
-!!!$omp end critical
-      IF ( .NOT. bok ) THEN
+      IF ( .NOT. btmp ) THEN
         WRITE(*,*) this%rank_, ' GPICSplineInt::PartUpdate3D: Invalid particle z-range'
         WRITE(*,*) this%rank_, ' GPICSplineInt::zbnd_0=',this%xbnds_(3,1),';  zbnd_1=',this%xbnds_(3,2), 'zp=',zp(j)
         STOP
@@ -576,7 +703,7 @@ END SUBROUTINE GPICSplineInt_Deposit3D
 
     IF (this%splord_.eq.0) THEN
       half = 1.0_GP/2.0_GP
-!$omp parallel do
+!$omp parallel do if(np.ge.NMIN_OMP)
       DO j = 1, np
         ! x-coord
         this%ilg_(1,j) = (xp(j)-this%xbnds_(1,1))*this%dxi_(1)
@@ -601,7 +728,7 @@ END SUBROUTINE GPICSplineInt_Deposit3D
         ENDIF
       ENDDO
     ELSE IF (this%splord_.eq.1) THEN
-!$omp parallel do
+!$omp parallel do if(np.ge.NMIN_OMP)
       DO j = 1, np
         ! x-coord
         this%ilg_(1,j) = (xp(j)-this%xbnds_(1,1))*this%dxi_(1)
@@ -622,7 +749,7 @@ END SUBROUTINE GPICSplineInt_Deposit3D
       ENDDO
     ELSE IF (this%splord_.eq.2) THEN
       half = 1.0_GP/2.0_GP
-!$omp parallel do
+!$omp parallel do if(np.ge.NMIN_OMP)
       DO j = 1, np
         ! x-coord
         this%ilg_(1,j) = (xp(j)-this%xbnds_(1,1))*this%dxi_(1)
@@ -657,7 +784,7 @@ END SUBROUTINE GPICSplineInt_Deposit3D
       ENDDO
     ELSE IF (this%splord_.eq.3) THEN
     ! x-coords:
-!$omp parallel do
+!$omp parallel do 
       DO j = 1, np
         this%ilg_(1,j) = (xp(j)-this%xbnds_(1,1))*this%dxi_(1)
         this%xrk_  (j) = (xp(j)-this%xbnds_(1,1))*this%dxi_(1) - real(this%ilg_(1,j),kind=GP)
@@ -667,7 +794,7 @@ END SUBROUTINE GPICSplineInt_Deposit3D
         this%ilg_(1,j) = modulo(nx+this%ilg_(2,j)-2,nx) + 1
       ENDDO
       ! y-coords:
-!$omp parallel do
+!$omp parallel do 
       DO j = 1, np
         this%jlg_(1,j) = (yp(j)-this%xbnds_(2,1))*this%dxi_(2)
         this%yrk_  (j) = (yp(j)-this%xbnds_(2,1))*this%dxi_(2) - real(this%jlg_(1,j),kind=GP)
@@ -789,12 +916,26 @@ END SUBROUTINE GPICSplineInt_Deposit3D
 !    field   : Field to be interpolated. Must have dimensions set in
 !              constructor.
 !-----------------------------------------------------------------
+!$  USE threads
+
     IMPLICIT NONE
     CLASS(GPICSplineInt)                              :: this
-    !REAL(KIND=GP),INTENT(INOUT),DIMENSION(:,:,:)      :: field
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%ntot_) :: field
+    INTEGER                                           :: i,j,k,nx,ny,nz
 
-    this%esplfld_ = 0
+    nx = this%ldims_(1)
+    ny = this%ldims_(2)
+    nz = this%ldims_(3) + 2*this%gfcomm_%GetNumGhost()
+!$omp parallel do if(ny*nz.gt.nth) private(i) collapse(2)
+    DO k = 1,nz
+      DO j = 1,ny
+        DO i = 1,nx
+          this%esplfld_(i,j,k) = 0.0_GP
+        END DO
+      END DO
+    END DO
+
+!    this%esplfld_ = 0
 
     CALL GTStart(this%hdataex_)
     CALL this%gfcomm_%SlabDataExchangeSF(this%esplfld_,field)

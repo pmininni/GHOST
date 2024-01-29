@@ -21,11 +21,11 @@ MODULE class_GPartComm
       INTEGER,PARAMETER,PUBLIC                       :: GPNULL=-1          ! particle NULL value
       INTEGER,PARAMETER,PUBLIC                       :: GPCOMM_INTRFC_SF=0 ! single-field interface
       INTEGER,PARAMETER,PUBLIC                       :: GPCOMM_INTRFC_MF=1 ! multi-field interface
-      INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_INIT = 0    ! starts particle exchange
-      INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_UPDT = 1    ! continues part. exchange
-      INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_END  = 2    ! finishes particle exchange
-      INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_UNIQ = 3    ! exchange only positions
-!$    INTEGER,PARAMETER,PUBLIC                       :: NMIN_OMP    = 10000! min. no. of op. for threading
+      INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_INIT = 0 
+      INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_UPDT = 1
+      INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_END  = 2
+      INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_UNIQ = 3
+!$    INTEGER,PARAMETER,PUBLIC                       :: NMIN_OMP    = 10000
 
       PRIVATE
       TYPE, PUBLIC :: GPartComm
@@ -72,10 +72,12 @@ MODULE class_GPartComm
         PROCEDURE,PUBLIC :: ConcatPDB         => GPartComm_ConcatPDB
         PROCEDURE,PUBLIC :: ConcatV           => GPartComm_ConcatV
         PROCEDURE,PUBLIC :: Copy2Ext          => GPartComm_Copy2Ext
+!       GENERIC  ,PUBLIC :: PartExchange      => PartExchangePDB,PartExchangeV
+!       GENERIC  ,PUBLIC :: SlabDataExchange  => SlabDataExchangeMF,SlabDataExchangeSF
         GENERIC  ,PUBLIC :: Concat            => ConcatPDB,ConcatV
       END TYPE GPartComm
 
-      INCLUDE 'gfieldcomm_dtype.f90'
+      INCLUDE "gfieldcomm_dtype.f90"
 
       PRIVATE :: GPartComm_Init
       PRIVATE :: GPartComm_SlabDataExchangeMF, GPartComm_SlabDataExchangeSF
@@ -87,9 +89,8 @@ MODULE class_GPartComm
       PRIVATE :: GPartComm_PPackPDB          , GPartComm_PUnpackPDB
       PRIVATE :: GPartComm_PPackV            , GPartComm_PUnpackV
       PRIVATE :: GPartComm_SetCacheParam
-      
-      INCLUDE 'gfieldcomm_private.f90'
 
+      INCLUDE "gfieldcomm_private.f90"
 ! Methods:
   CONTAINS
 
@@ -217,7 +218,7 @@ MODULE class_GPartComm
     IF ( ALLOCATED  (this%ibsndnz_) ) DEALLOCATE (this%ibsndnz_)
     IF ( ALLOCATED  (this%itsndnz_) ) DEALLOCATE (this%itsndnz_)
 
-    IF ( ALLOCATED  (this%oldid_)   ) DEALLOCATE   (this%oldid_)
+    IF ( ALLOCATED  (this%oldid_) ) DEALLOCATE (this%oldid_)
 
   END SUBROUTINE GPartComm_DoDealloc
 !-----------------------------------------------------------------
@@ -480,7 +481,6 @@ MODULE class_GPartComm
 !                        be of size nd_ set in constructor
 !
 !-----------------------------------------------------------------
-!$  USE threads
     USE mpivars
 
     IMPLICIT NONE
@@ -506,7 +506,6 @@ MODULE class_GPartComm
     CALL GPartComm_Copy2Ext(this,vzext,vz)
     DO k = 1, ngz  ! bottom extended zones
       km = k-1
-!$omp parallel do if(ny.ge.nth) private(jm,i)
       DO j=1,ny
         jm = j-1
         DO i=1,nx
@@ -844,7 +843,6 @@ MODULE class_GPartComm
 !                        be of size nd_ set in constructor
 !
 !-----------------------------------------------------------------
-!$  USE threads
     USE mpivars
 
     IMPLICIT NONE
@@ -866,7 +864,6 @@ MODULE class_GPartComm
 
     CALL GPartComm_Copy2Ext(this,vext,v)
     DO k = 1, ngz  ! extended zones
-!$omp parallel do if(ny.ge.nth) private(i)
       DO j=1,ny
         DO i=1,nx
           ! set top bcs:
@@ -999,7 +996,6 @@ MODULE class_GPartComm
 !    sdir    : 't' for top, 'b' for bottom
 !
 !-----------------------------------------------------------------
-!$  USE threads
     IMPLICIT NONE
 
     CLASS(GPartComm),INTENT(INOUT)          :: this
@@ -1034,15 +1030,14 @@ MODULE class_GPartComm
       DO m = 1,this%ibsndnz_(isnd)
         k = this%ibsnd_(isnd,m)
         km = k-1
-!$omp parallel do if(ny.ge.nth) private(jm,i)
         DO j = 1, ny
           jm = j-1
           DO i = 1, nx
-!            nt = nt + 1
-            buff(nt+jm*nx+i) = v(i+jm*nx+km*nxy)
+            nt = nt + 1
+            buff(nt) = v(i+jm*nx+km*nxy)
           ENDDO
         ENDDO
-        nt = nt + nxy
+!        nt = nt + nxy
       ENDDO
 
     ELSE !  Pack for send to rank at top:
@@ -1059,15 +1054,14 @@ MODULE class_GPartComm
       DO m = 1,this%itsndnz_(isnd)
         k = this%itsnd_(isnd,m)
         km = k-1
-!$omp parallel do if(ny.ge.nth) private(jm,i)
         DO j = 1, ny
           jm = j-1
           DO i = 1, nx
-!            nt = nt + 1
-            buff(nt+jm*nx+i) = v(i+jm*nx+km*nxy)
+            nt = nt + 1
+            buff(nt) = v(i+jm*nx+km*nxy)
           ENDDO
         ENDDO
-        nt = nt + nxy
+!        nt = nt + nxy
       ENDDO
 
     ENDIF
@@ -1095,8 +1089,6 @@ MODULE class_GPartComm
 !    ierr        : err flag: 0 if success; else 1
 !
 !-----------------------------------------------------------------
-!$  USE threads
-
     IMPLICIT NONE
 
     CLASS(GPartComm),INTENT(INOUT)          :: this
@@ -1124,16 +1116,15 @@ MODULE class_GPartComm
     DO m = 1, nz
       k   = int(buff(m+1))
       km  = k-1
-!      ixy = 1
-!$omp parallel do if(ny.ge.nth) private(jm,i,ixy,im,ir)
+      ixy = 1
       DO j = 1, ny
         jm = j-1
         DO i = 1, nx
-          ixy = jm*nx + i
+!          ixy = jm*nx + i
           im = i+ngp+(jm+ngp)*nex+km*nexy
           ir = nh+(m-1)*nxy+ixy
           vext(im) = buff(ir)
-!          ixy = ixy + 1
+          ixy = ixy + 1
         ENDDO
       ENDDO
     ENDDO
@@ -1168,7 +1159,6 @@ MODULE class_GPartComm
 !    zmin/max: min/max z-dimensions of current MPI task
 !    gext    : (3,2) real array containing global grid extents (start and
 !              stop boundaries in each direction).
-!    stg     : communicator stage (INIT, UPDT, END, UNIQ)
 !-----------------------------------------------------------------
     USE pdbtypes
     USE grid
@@ -1178,7 +1168,9 @@ MODULE class_GPartComm
     INTEGER      ,INTENT(INOUT)                  :: nparts
     INTEGER                                      :: j,ibrank,itrank,ng
     INTEGER      ,INTENT(INOUT),DIMENSION(this%maxparts_):: id
+!    INTEGER      ,INTENT(INOUT),DIMENSION(nparts):: id
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%maxparts_):: px,py,pz
+!    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nparts):: px,py,pz
     REAL(KIND=GP),INTENT   (IN)                  :: zmin,zmax
     INTEGER      ,INTENT   (IN), OPTIONAL        :: stg
     INTEGER                                      :: stage
@@ -1200,29 +1192,27 @@ MODULE class_GPartComm
     ! must be sent to the top and bottom tasks:
        this%nbot_ = 0
        this%ntop_ = 0
-!!$omp parallel do if(nparts.ge.NMIN_OMP)
        DO j = 1, nparts
           IF ( pz(j).LT.zmin ) THEN ! bottom
-!!$omp critical
              this%nbot_ = this%nbot_ + 1
              this%ibot_(this%nbot_) = j
-!!$omp end critical
-          ELSE IF ( pz(j).GE.zmax ) THEN ! top
-!!$omp critical
+          ENDIF
+          IF ( pz(j).GE.zmax ) THEN ! top
              this%ntop_ = this%ntop_ + 1
              this%itop_(this%ntop_) = j
-!!$omp end critical
           ENDIF
        ENDDO
     ENDIF
-
+    IF (this%myrank_.eq.0) THEN
+      PRINT *, this%ntop_
+      PRINT *, this%itop_(1:MIN(5,this%ntop_))
+      PRINT *, pz(this%itop_(1:MIN(5,this%ntop_)))
+    END IF
     IF ((stage.NE.GPEXCH_END).AND.(stage.NE.GPEXCH_UNIQ)) THEN
        ng = nparts
-!$omp parallel do if(ng.ge.NMIN_OMP)
        DO j = 1,ng
          this%oldid_(j) = id(j)
        END DO
-!      this%oldid_(1:ng) = id(1:ng)
     ENDIF
 
     ! Post receives:
@@ -1232,7 +1222,6 @@ MODULE class_GPartComm
     CALL MPI_IRECV(this%rtbuff_,this%nbuff_,GC_REAL,itrank, &
                    1,this%comm_,this%itrh_(1),this%ierr_)
     CALL GTAcc(this%hcomm_)
-
     !
     ! send data:
     CALL GPartComm_PPackV(this,this%sbbuff_,this%nbuff_,id,px,py,pz,nparts,this%ibot_,this%nbot_)
@@ -1246,7 +1235,6 @@ MODULE class_GPartComm
     CALL MPI_ISEND(this%stbuff_,4*this%ntop_+1,GC_REAL,itrank, &
                    1,this%comm_,this%itsh_(1),this%ierr_)
     CALL GTAcc(this%hcomm_)
-
 
     ! Concatenate partcle list to remove particles sent away:
     CALL GPartComm_ConcatV(this,id,px,py,pz,nparts,this%ibot_,&
@@ -1264,11 +1252,9 @@ MODULE class_GPartComm
     CALL GPartComm_PUnpackV(this,id,px,py,pz,nparts,this%rtbuff_,this%nbuff_)
 
     IF ((stage.NE.GPEXCH_END).AND.(stage.NE.GPEXCH_UNIQ)) THEN
-!$omp parallel do if(ng.ge.NMIN_OMP)
        DO j = 1,ng
-         id(j) = this%oldid_(j)
+         this%oldid_(j) = id(j)
        END DO
-!       id(1:ng) = this%oldid_(1:ng)
        nparts = ng
     ENDIF
 
@@ -1304,15 +1290,14 @@ MODULE class_GPartComm
     REAL(KIND=GP),INTENT   (IN),DIMENSION(*)   :: px,py,pz
 
     buff(1) = nind
-!    nb = 1
-!$omp parallel do if(nind.ge.NMIN_OMP) private(nb)
+    nb = 1
     DO j = 1, nind
-      nb = 4*j - 3
+!      nb = 4*j - 3
       buff(nb+1) = id(iind(j))
       buff(nb+2) = px(iind(j))
       buff(nb+3) = py(iind(j))
       buff(nb+4) = pz(iind(j))
-!      nb = nb + 4
+      nb = nb + 4
     ENDDO
 
   END SUBROUTINE GPartComm_PPackV
@@ -1347,8 +1332,7 @@ MODULE class_GPartComm
     INTEGER                                       :: i,j,ngood
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)      :: px,py,pz
 
-    IF ((nbind+ntind).EQ.0) RETURN ! Nothing to do if no particle left
-
+    IF ((nbind.EQ.0).AND.(ntind.EQ.0)) RETURN ! Avoid copy if no particles left
     DO j = 1, nbind
       id(ibind(j)) = GPNULL
     ENDDO
@@ -1391,29 +1375,29 @@ MODULE class_GPartComm
 !    buff    : buffer from which particle data is read
 !    nbuff   : buffer length
 !-----------------------------------------------------------------
+!$  USE threads
     IMPLICIT NONE
 
     CLASS(GPartComm),INTENT(INOUT)                :: this
     INTEGER      ,INTENT(INOUT)                   :: nparts
     INTEGER      ,INTENT   (IN)                   :: nbuff
-    INTEGER      ,INTENT(INOUT),DIMENSION(*) :: id
-    INTEGER                                       :: j,nb,nind
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*) :: px,py,pz
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*) :: buff
+    INTEGER      ,INTENT(INOUT),DIMENSION(*)      :: id
+    INTEGER                                       :: j,nb,nadd
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)      :: px,py,pz
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(*)      :: buff
 
-!    nb = 1
-     nind = int(buff(1))
-!$omp parallel do if(nind.ge.NMIN_OMP) private(nb)
-    DO j = 1,nind
-!      nparts = nparts + 1
-      nb = 4*j - 3
+    nb = 1
+    nadd = int(buff(1))
+    DO j = 1,nadd
+      nparts = nparts + 1
+!      nb = 4*j - 3
       id(nparts+j) = int(buff(nb+1))
       px(nparts+j) =     buff(nb+2)
       py(nparts+j) =     buff(nb+3)
       pz(nparts+j) =     buff(nb+4)
-!      nb = nb+4
+      nb = nb+4
     ENDDO
-    nparts = nparts + nind
+    nparts = nparts + nadd
 
   END SUBROUTINE GPartComm_PUnpackV
 !-----------------------------------------------------------------
@@ -2098,7 +2082,6 @@ MODULE class_GPartComm
     REAL(KIND=GP),INTENT   (IN),DIMENSION(*)        :: ls
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)        :: gs,ptmp
 
-
     DO j = 1, ngs
       gs  (j) = 0.0_GP
       ptmp(j) = 0.0_GP
@@ -2152,7 +2135,6 @@ MODULE class_GPartComm
 !    v       : regular-grid field
 !    ldims   : local dims of v
 !-----------------------------------------------------------------
-!$  USE threads
     IMPLICIT NONE
     CLASS(GPartComm),INTENT(INOUT)                      :: this
     INTEGER                                             :: i,j,jm,k,km,ngp,ngz,nex,nexy
@@ -2168,10 +2150,8 @@ MODULE class_GPartComm
     ny   = this%nd_(2)
     nxy  = nx*ny
 
-!$omp parallel do if(ny*(this%kend_-this%ksta_+1).GE.nth) collapse(2) private(jm,i)
-     DO km = 0,this%kend_-this%ksta_
-!    DO k = 1,this%kend_-this%ksta_+1
-!      km = k-1
+    DO k = 1,this%kend_-this%ksta_+1
+      km = k-1
       DO j=1,ny
         jm = j-1
         DO i=1,nx
@@ -2184,6 +2164,6 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-  INCLUDE 'gfieldcomm_contain.f90'
+   INCLUDE "gfieldcomm_contain.f90"
 
 END MODULE class_GPartComm

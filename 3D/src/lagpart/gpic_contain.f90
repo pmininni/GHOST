@@ -2,7 +2,7 @@
 ! GPIC SUBROUTINES
 !=================================================================
 
-  SUBROUTINE GPIC_ctor(this,comm,ppc,inittype,initprop,intorder,iexchtyp, &
+  SUBROUTINE GPIC_ctor(this,comm,ppc,inittype,intorder,iexchtyp, &
                         iouttyp,bcoll,csize,nstrip,intacc,wrtunit)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -15,8 +15,6 @@
 !    ppc     : number of particle per cell
 !    inittype: GPINIT-typed quantity to give the type of particle
 !              position initialization
-!    initprop: GPINIT-typed quantity to give the type of particle
-!              properties (weight, velocity) initialization
 !    intorder: for variable-order (e.g., Lagrange) interpolation,
 !              the order (1, 2, 3...). Sets the number of 'ghost' zones
 !              of data transferred between MPI tasks.
@@ -50,7 +48,7 @@
     INTEGER          ,INTENT   (IN)     :: csize,nstrip,intacc
     INTEGER, OPTIONAL,INTENT   (IN)     :: wrtunit
     INTEGER                             :: disp(3),lens(3),types(3),szreal
-    INTEGER          ,INTENT   (IN)     :: iexchtyp,initprop,inittype
+    INTEGER          ,INTENT   (IN)     :: iexchtyp,inittype
     INTEGER          ,INTENT   (IN)     :: intorder,iouttyp
     INTEGER                             :: maxparts,i
 
@@ -63,7 +61,6 @@
     CALL this%GPart_ctor(comm,maxparts,inittype,0,3,iexchtyp,iouttyp,&
                          bcoll,csize,nstrip,intacc,wrtunit)
     this%intorder_ = intorder
-    this%initprop_ = initprop
     CALL this%gfcomm_%GPartComm_ctor(GPCOMM_INTRFC_SF,maxparts,    &
          this%nd_,this%intorder_/2+1,this%comm_,this%htimers_(GPTIME_COMM))
     CALL this%gfcomm_%SetCacheParam(csize,nstrip)
@@ -76,9 +73,6 @@
 
     ALLOCATE ( this%prop_  (this%maxparts_) )
     ALLOCATE ( this%weight_(this%maxparts_) )
-    DO i = 1,maxparts
-      this%weight_(i) = this%icv_
-    END DO
 
   END SUBROUTINE GPIC_ctor
 !-----------------------------------------------------------------
@@ -99,20 +93,107 @@
 
     IF      ( this%inittype_ .EQ. GPINIT_RANDLOC ) THEN
       CALL GPIC_InitRandSeed (this)
-    ELSE IF ( this%inittype_ .EQ. GPINIT_LATTICE ) THEN
-      CALL GPIC_InitLattice (this)    
     ELSE IF ( this%inittype_ .EQ. GPINIT_USERLOC ) THEN
-      CALL GPart_InitUserSeed (this)
+      CALL GPIC_InitUserSeed (this)
     ENDIF
 
   END SUBROUTINE GPIC_Init
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+  SUBROUTINE GPIC_InitUserSeed(this)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : InitUserSeed
+!  DESCRIPTION: Initializes particle locations by letting user
+!               specify particle number and locations in
+!               file in member data seedfile_.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!-----------------------------------------------------------------
+    USE mpivars
+    USE fprecision
+    IMPLICIT NONE
+    CLASS(GPIC) ,INTENT(INOUT)        :: this
+
+    INTEGER                           :: navg,nl,nowned,nt,j
+    INTEGER,ALLOCATABLE,DIMENSION(:)  :: iproc,ilproc
+    REAL(KIND=GP)                     :: x,y,z,w
+    DOUBLE PRECISION                  :: wm
+
+    ! Note: each record (line) consists of x y z real positions
+    ! within [0,NX-1]x[0,NY-1]x[0,NZ-1] box or the equivalent
+    ! in box units depending on wrtunit_ class options.
+    OPEN(UNIT=5,FILE=trim(this%seedfile_),STATUS='OLD',ACTION='READ',&
+         IOSTAT=this%ierr_, IOMSG=this%serr_);
+    IF ( this%ierr_ .NE. 0 ) THEN
+      WRITE(*,*)'GPIC::InitUserSeed: file:',this%seedfile_,' err: ', trim(this%serr_) 
+      STOP
+    ENDIF
+    READ(5,*,IOSTAT=this%ierr_) nt
+    IF ( this%myrank_.eq.0 .AND. nt.NE.this%maxparts_ ) THEN
+      WRITE(*,*) 'GPIC_InitUserSeed: Inconsistent seed file: required no. part.=', &
+      this%maxparts_,' total listed: ',nt,' file:',this%seedfile_
+      STOP
+    ENDIF
+    READ(5,*,IOSTAT=this%ierr_) x
+
+    nt = 0     ! global part. record counter
+    nl = 0     ! local particle counter
+    wm = 0.0D0 ! mean particle weight
+    DO WHILE ( this%ierr_.EQ.0 )
+      READ(5,*,IOSTAT=this%ierr_) x, y, z, w
+      IF ( this%ierr_ .NE. 0 ) THEN
+!!      WRITE(*,*) 'GPIC::InitUserSeed: terminating read; nt=', nt, ' ierr=',this%ierr_
+        EXIT
+      ENDIF
+      wm = wm + w
+      IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to grid units
+        x = x*this%invdel_(1)
+        y = y*this%invdel_(2)
+        z = z*this%invdel_(3)
+      ENDIF
+      IF ( z.GE.this%lxbnds_(3,1) .AND. z.LT.this%lxbnds_(3,2) .AND. &
+           y.GE.this%lxbnds_(2,1) .AND. y.LT.this%lxbnds_(2,2) .AND. &
+           x.GE.this%lxbnds_(1,1) .AND. x.LT.this%lxbnds_(1,2) ) THEN
+        nl = nl + 1
+        this%id_(nl) = nt
+        this%px_(nl) = x
+        this%py_(nl) = y
+        this%pz_(nl) = z
+        this%weight_(nl) = w
+      ENDIF
+      nt = nt + 1
+    ENDDO
+    CLOSE(5)
+
+    this%nparts_ = nl;
+    CALL MPI_ALLREDUCE(nl,nt,1,MPI_INTEGER,MPI_SUM,this%comm_,this%ierr_)
+    wm = wm/nt
+    wm = wm*this%icv_
+    DO j = 1,nl  ! Reescale to unit density
+      this%weight_(j) = this%weight_(j)*wm
+    END DO
+    IF ( this%myrank_.eq.0 .AND. nt.NE.this%maxparts_ ) THEN
+      WRITE(*,*) 'GPIC_InitUserSeed: Inconsistent particle count: required no.=', &
+      this%maxparts_,' total read: ',nt,' file:',this%seedfile_
+      STOP
+    ENDIF
+
+    IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
+      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+                          this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+    END IF
+
+  END SUBROUTINE GPIC_InitUserSeed
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
   SUBROUTINE GPIC_InitLattice(this)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!  METHOD     : InitRandSeed
+!  METHOD     : InitLattice
 !  DESCRIPTION: Initializes particle locations by dividing
 !               maxparts evenly among cells, and randomly
 !               selecting positions within each cell.
@@ -158,6 +239,7 @@
         END DO
       END DO
     END DO
+    
 
     CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
@@ -313,119 +395,6 @@
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-  SUBROUTINE GPIC_PerturbPositions(this,d,k,drp)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : PerturbPositions
-!  DESCRIPTION: Add small perturbation to particle positions in
-!               the x-direction  dx = d*cos(k*x)
-
-!  ARGUMENTS  :
-!    this    : 'this' class instance
-!    vz,vy,vz: compoments of velocity field, in real space, partially
-!              updated, possibly. These will be overwritten!
-!    xk      : multiplicative RK time stage factor
-!-----------------------------------------------------------------
-    USE var
-    USE grid
-    USE boxsize
-    USE mpivars
-
-    IMPLICIT NONE
-    CLASS(GPIC)  ,INTENT(INOUT)                            :: this
-    REAL(KIND=GP),INTENT(IN)                               :: d
-    INTEGER      ,INTENT(IN)                               :: k,drp
-    INTEGER                                                :: lag,ng,s
-    REAL(KIND=GP)                                          :: kk,dd,y
-   
-    IF (drp.EQ.0) THEN
-      dd = REAL(nx,kind=GP)*d/(2*pi*Lx)
-      kk = 2*pi*k/REAL(nx,kind=GP)
-      DO lag=1,this%nparts_
-        y = this%px_(lag)
-        DO s=1,5
-          y = (this%px_(lag) + y*d*COS(kk*y) - (d/kk)*SIN(kk*y))/(1 + d*COS(kk*y))
-        END DO 
-        this%px_(lag) = y
-      END DO
-    ELSE IF (drp.EQ.1) THEN
-      dd = REAL(ny,kind=GP)*d/(2*pi*Ly)
-      kk = 2*pi*k/REAL(ny,kind=GP)
-      DO lag=1,this%nparts_
-        y = this%py_(lag)
-        DO s=1,5
-          y = (this%py_(lag) + y*d*COS(kk*y) - (d/kk)*SIN(kk*y))/(1 + d*COS(kk*y))
-        END DO 
-        this%py_(lag) = y
-      END DO
-    ELSE IF (drp.EQ.2) THEN
-      dd = REAL(nz,kind=GP)*d/(2*pi*Lz)
-      kk = 2*pi*k/REAL(nz,kind=GP)
-      DO lag=1,this%nparts_
-        y = this%pz_(lag)
-        DO s=1,5
-          y = (this%pz_(lag) + y*d*COS(kk*y) - (d/kk)*SIN(kk*y))/(1 + d*COS(kk*y))
-        END DO 
-        this%pz_(lag) = y
-      END DO
-    END IF
-
-!    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,7)
-
-    ! If using nearest-neighbor interface, do particle exchange
-    ! between nearest-neighbor tasks BEFORE z-PERIODIZING particle coordinates:
-    IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
-      CALL GTStart(this%htimers_(GPTIME_COMM))
-      CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_, &
-           this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2))
-      CALL GTAcc(this%htimers_(GPTIME_COMM))
-    ENDIF
-
-    ! Enforce periodicity in x, y, & z:
-    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,7)
-
-    ! If using VDB interface, do synch-up, and get local work:
-    IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
-
-      IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
-        IF ( this%myrank_.eq.0 ) THEN
-          WRITE(*,*) 'GPIC_EndStageRKK: Inconsistent particle count'
-        ENDIF
-      ENDIF
-      ! Synch up VDB, if necessary:
-      CALL GTStart(this%htimers_(GPTIME_COMM))
-      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
-                     this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
-                     this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
-                     this%nparts_,this%ptmp1_)
-      CALL GTAcc(this%htimers_(GPTIME_COMM))
-
-      ! If using VDB, get local particles to work on:
-      ! GPart_GetLocalWrk_aux also synchronizes auxiliary RK arrays,
-      ! and is needed if the call is done in the middle of a RK step.
-      CALL GPart_GetLocalWrk_aux(this,this%id_,this%px_,this%py_,this%pz_,&
-                       this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
-                       this%nparts_,this%vdb_,this%gptmp0_,this%maxparts_)
-      CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
-                         MPI_SUM,this%comm_,this%ierr_)
-
-      IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_) THEN
-        WRITE(*,*)'GPIC_EndStageRKK: inconsistent d.b.: expected: ', &
-                 this%maxparts_, '; found: ',ng
-        CALL GPART_ascii_write_lag(this,1,'.','xlgerr','000',0.0_GP, &
-                                   this%maxparts_,this%vdb_)
-        STOP
-      ENDIF
-
-    ENDIF
-
-    IF ( this%intacc_.EQ.0 ) RETURN
-
-    RETURN
-
-  END SUBROUTINE GPIC_PerturbPositions
-
   SUBROUTINE GPIC_EndStageRKK(this,vx,vy,vz,xk)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -455,17 +424,28 @@
     ! If using nearest-neighbor interface, do particle exchange
     ! between nearest-neighbor tasks BEFORE z-PERIODIZING particle coordinates:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
-      CALL GTStart(this%htimers_(GPTIME_COMM))
-      CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_, &
-           this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2))
-      CALL GTAcc(this%htimers_(GPTIME_COMM))
+      IF (this%nprocs_.GT.1) THEN
+        CALL GTStart(this%htimers_(GPTIME_COMM))
+        CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_,  &
+             this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_INIT)
+        CALL this%gpcomm_%PartExchangeV(this%id_,this%ptmp0_(1,:),            &
+             this%ptmp0_(2,:),this%ptmp0_(3,:),this%nparts_,this%lxbnds_(3,1),&
+             this%lxbnds_(3,2),GPEXCH_UPDT)
+        CALL this%gpcomm_%PartExchangeV(this%id_,this%weight_,this%prop_, &
+             this%prop_,this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), &
+             GPEXCH_END)
+        CALL GTAcc(this%htimers_(GPTIME_COMM))
+      END IF
+      ! Enforce periodicity in x and y:
+      CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3)
+      ! Enforce periodicity in z and ptmp0(3):
+      CALL GPart_MakePeriodicZ(this,this%pz_,this%ptmp0_(3,:),this%nparts_)
     ENDIF
-
-    ! Enforce periodicity in x, y, & z:
-    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,7)
 
     ! If using VDB interface, do synch-up, and get local work:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
+      ! Enforce periodicity in x, y, & z:
+      CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,7)
 
       IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
         IF ( this%myrank_.eq.0 ) THEN
@@ -487,6 +467,11 @@
       CALL GPart_GetLocalWrk_aux(this,this%id_,this%px_,this%py_,this%pz_,&
                        this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
                        this%nparts_,this%vdb_,this%gptmp0_,this%maxparts_)
+
+      CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+                          this%weight_,this%weight_,this%weight_,this%nparts_,this%ptmp1_)
+      CALL GPIC_CopyLocalWrkScalar(this,this%weight_,this%vdb_,this%ptmp0_(1,:),this%maxparts_)
+
       CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
                          MPI_SUM,this%comm_,this%ierr_)
 
@@ -670,11 +655,12 @@
       CALL this%picspl_%PartUpdate3D(this%px_,this%py_,this%pz_,this%nparts_)
       CALL GTAcc(this%htimers_(GPTIME_PUPDATE))
     ENDIF
-    CALL GTStart(this%htimers_(GPTIME_SPLINE))
-    CALL this%picspl_%CompSpline3D(evar)
-    CALL GTAcc(this%htimers_(GPTIME_SPLINE))
-
     CALL GTStart(this%htimers_(GPTIME_INTERP))
+!    CALL GTStart(this%htimers_(GPTIME_SPLINE))
+    CALL this%picspl_%CompSpline3D(evar)
+!    CALL GTAcc(this%htimers_(GPTIME_SPLINE))
+
+!    CALL GTStart(this%htimers_(GPTIME_INTERP))
     CALL this%picspl_%DoInterp3D(lag,nl)
     CALL GTAcc(this%htimers_(GPTIME_INTERP))
 
@@ -723,11 +709,66 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
       CALL GTAcc(this%htimers_(GPTIME_PUPDATE))
     ENDIF
 
-    CALL GTStart(this%htimers_(GPTIME_INTERP))
+    CALL GTStart(this%htimers_(GPTIME_SPLINE))
     CALL this%picspl_%DoDeposit3D(lag,nl,evar)
-    CALL GTAcc(this%htimers_(GPTIME_INTERP))
+    CALL GTAcc(this%htimers_(GPTIME_SPLINE))
 
   END SUBROUTINE GPIC_LagToEuler
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE GPIC_io_write_wgt(this, iunit, dir, spref, nmb, time)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : io_write_pdbv
+!  DESCRIPTION: Does write of particle velocity d.b. to file. 
+!               Position of the particle structure in file is the
+!               particle's id. Main entry point for both ASCII and
+!               binary writes.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    iunit   : unit number
+!    dir     : output directory
+!    spref   : filename prefix
+!    nmd     : time index
+!    time    : real time
+!    
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPIC)  ,INTENT(INOUT)       :: this
+    REAL(KIND=GP),INTENT   (IN)       :: time
+    REAL(KIND=GP)                     :: prec(3)
+    INTEGER,INTENT(IN)                :: iunit
+    INTEGER                           :: fh,j,nt
+    INTEGER(kind=MPI_OFFSET_KIND)     :: offset
+    CHARACTER(len=*),INTENT(IN)       :: dir
+    CHARACTER(len=*),INTENT(IN)       :: nmb
+    CHARACTER(len=*),INTENT(IN)       :: spref
+
+    CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+         this%weight_,this%weight_,this%weight_,this%nparts_,this%ptmp1_)
+
+    IF ( this%iouttype_ .EQ. 0 ) THEN
+      IF ( this%bcollective_.EQ. 1 ) THEN
+        ! pass in the current linear _local_ particle velocity arrays
+        CALL GPart_binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%nparts_, &
+             this%weight_)
+      ELSE
+        ! pass in the synched-up VDB (copied to ptmp0_):
+        CALL GPart_binary_write_lag_t0(this,iunit,dir,spref,nmb,time,this%maxparts_, &
+             this%ptmp0_(1,:))
+      ENDIF
+    ELSE
+      ! pass in the synched-up VDB (copied to ptmp0_):
+      CALL GPart_ascii_write_lag(this,iunit,dir,spref,nmb,time,this%maxparts_, &
+           this%ptmp0_(1,:))
+    ENDIF
+
+  END SUBROUTINE GPIC_io_write_wgt
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -765,28 +806,28 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
         CALL GPIC_binary_read_pdb_co_scalar(this,iunit, &
         trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
         ELSE
-        CALL GPIC_binary_read_pdb_co_scalar(this,iunit, trim(spref),time,this%weight_)
+        CALL GPIC_binary_read_pdb_co_scalar(this,iunit, trim(spref),time,this%ptmp1_(1,:))
         ENDIF
       ELSE                      ! master thread binary
         IF (len_trim(nmb).gt.0 ) THEN
         CALL GPIC_binary_read_pdb_t0_scalar(this,iunit,&
              trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
         ELSE
-        CALL GPIC_binary_read_pdb_t0_scalar(this,iunit, trim(spref),time,this%weight_)
+        CALL GPIC_binary_read_pdb_t0_scalar(this,iunit, trim(spref),time,this%ptmp1_(1,:))
         ENDIF
       ENDIF
     ELSE                         ! ASCII files
       IF (len_trim(nmb).gt.0 ) THEN
       CALL GPIC_ascii_read_pdb_scalar(this,iunit,&
-           trim(dir) // '/' // trim(spref) // '.' // nmb // '.txt',time,this%weight_)
+           trim(dir) // '/' // trim(spref) // '.' // nmb // '.txt',time,this%ptmp1_(1,:))
       ELSE
-      CALL GPIC_ascii_read_pdb_scalar(this,iunit,trim(spref),time,this%weight_)
+      CALL GPIC_ascii_read_pdb_scalar(this,iunit,trim(spref),time,this%ptmp1_(1,:))
       ENDIF
     ENDIF
     CALL GTAcc(this%htimers_(GPTIME_GPREAD))
 
     ! Store in particle velocity arrays
-    CALL GPIC_CopyLocalWrkScalar(this,this%weight_,this%vdb_,this%weight_,this%maxparts_)
+    CALL GPIC_CopyLocalWrkScalar(this,this%weight_,this%vdb_,this%ptmp1_(1,:),this%maxparts_)
 
     CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
                        MPI_SUM,this%comm_,this%ierr_)
@@ -1016,6 +1057,107 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 !=================================================================
 ! VGPIC SUBROUTINES
 !=================================================================
+
+   SUBROUTINE VGPIC_InitUserSeed(this)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : InitUserSeed
+!  DESCRIPTION: Initializes particle locations by letting user
+!               specify particle number and locations in
+!               file in member data seedfile_.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!-----------------------------------------------------------------
+    USE mpivars
+    USE fprecision
+    IMPLICIT NONE
+    CLASS(VGPIC) ,INTENT(INOUT)       :: this
+
+    INTEGER                           :: navg,nl,nowned,nt,j
+    INTEGER,ALLOCATABLE,DIMENSION(:)  :: iproc,ilproc
+    REAL(KIND=GP)                     :: x,y,z,w,vx,vy,vz
+    DOUBLE PRECISION                  :: wm
+
+    ! Note: each record (line) consists of x y z w vx vy vz
+    ! The x y z are real positions within 
+    ! [0,NX-1]x[0,NY-1]x[0,NZ-1] box or the equivalent
+    ! in box units depending on wrtunit_ class options.
+    ! The w is a real particle weight, which will be
+    ! reescaled to match unit mean particle density.
+    ! The vx vy vz are real velocities, using the same
+    ! units as the x y z positions
+    OPEN(UNIT=5,FILE=trim(this%seedfile_),STATUS='OLD',ACTION='READ',&
+         IOSTAT=this%ierr_, IOMSG=this%serr_);
+    IF ( this%ierr_ .NE. 0 ) THEN
+      WRITE(*,*)'VGPIC::InitUserSeed: file:',this%seedfile_,' err: ', trim(this%serr_) 
+      STOP
+    ENDIF
+    READ(5,*,IOSTAT=this%ierr_) nt
+    IF ( this%myrank_.eq.0 .AND. nt.NE.this%maxparts_ ) THEN
+      WRITE(*,*) 'VGPIC_InitUserSeed: Inconsistent seed file: required no. part.=', &
+      this%maxparts_,' total listed: ',nt,' file:',this%seedfile_
+      STOP
+    ENDIF
+    READ(5,*,IOSTAT=this%ierr_) x
+
+    nt = 0     ! global part. record counter
+    nl = 0     ! local particle counter
+    wm = 0.0D0 ! mean particle weight
+    DO WHILE ( this%ierr_.EQ.0 )
+      READ(5,*,IOSTAT=this%ierr_) x, y, z, w, vx, vy, vz
+      IF ( this%ierr_ .NE. 0 ) THEN
+      WRITE(*,*) 'VGPIC::InitUserSeed: terminating read; nt=', nt, ' ierr=',this%ierr_
+        EXIT
+      ENDIF
+      wm = wm + w
+      IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to grid units
+        x  =  x*this%invdel_(1)
+        y  =  y*this%invdel_(2)
+        z  =  z*this%invdel_(3)
+      ELSE
+        vx = vx*this%delta_(1)
+        vy = vy*this%delta_(2)
+        vz = vz*this%delta_(3)
+      ENDIF
+      IF ( z.GE.this%lxbnds_(3,1) .AND. z.LT.this%lxbnds_(3,2) .AND. &
+           y.GE.this%lxbnds_(2,1) .AND. y.LT.this%lxbnds_(2,2) .AND. &
+           x.GE.this%lxbnds_(1,1) .AND. x.LT.this%lxbnds_(1,2) ) THEN
+        nl = nl + 1
+        this%id_(nl)  = nt
+        this%px_(nl)  = x
+        this%py_(nl)  = y
+        this%pz_(nl)  = z
+        this%pvx_(nl) = vx
+        this%pvy_(nl) = vy
+        this%pvz_(nl) = vz
+        this%weight_(nl) = w
+      ENDIF
+      nt = nt + 1
+    ENDDO
+    CLOSE(5)
+
+    this%nparts_ = nl;
+    CALL MPI_ALLREDUCE(nl,nt,1,MPI_INTEGER,MPI_SUM,this%comm_,this%ierr_)
+    wm = wm/nt
+    wm = wm*this%icv_
+    DO j = 1,nl  ! Reescale to unit density
+      this%weight_(j) = this%weight_(j)*wm
+    END DO
+    IF ( this%myrank_.eq.0 .AND. nt.NE.this%maxparts_ ) THEN
+      WRITE(*,*) 'VGPIC_InitUserSeed: Inconsistent particle count: required no.=', &
+      this%maxparts_,' total read: ',nt,' file:',this%seedfile_
+      STOP
+    ENDIF
+
+    IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
+      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+                          this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
+    END IF
+
+  END SUBROUTINE VGPIC_InitUserSeed
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
 
   SUBROUTINE VGPIC_io_write_pdbv(this, iunit, dir, spref, nmb, time)
 !-----------------------------------------------------------------
@@ -1333,20 +1475,21 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     CALL GTStart(this%htimers_(GPTIME_STEP))
 
     ! Find F(u*):
-    CALL GPIC_EulerToLag(this,this%lfx_,this%nparts_,Ex,.false.)
+    CALL GPIC_EulerToLag(this,this%lfx_,this%nparts_,Ex,.true. )
     CALL GPIC_EulerToLag(this,this%lfy_,this%nparts_,Ey,.false.)
     CALL GPIC_EulerToLag(this,this%lfz_,this%nparts_,Ez,.false.)
-    CALL GPIC_EulerToLag(this,this%lbx_,this%nparts_,Bx,.true. )
+    CALL GPIC_EulerToLag(this,this%lbx_,this%nparts_,Bx,.false.)
     CALL GPIC_EulerToLag(this,this%lby_,this%nparts_,By,.false.)
     CALL GPIC_EulerToLag(this,this%lbz_,this%nparts_,Bz,.false.)
-   IF (o.EQ.2) THEN
+    IF (o.EQ.2) THEN
+!$omp parallel do if(this%nparts_.ge.NMIN_OMP)
        DO j = 1, this%nparts_
           this%px_ (j) = this%px_(j) + dtvx*this%pvx_(j)
           this%py_ (j) = this%py_(j) + dtvy*this%pvy_(j)
           this%pz_ (j) = this%pz_(j) + dtvz*this%pvz_(j)
        ENDDO
     ENDIF
-!$omp parallel do
+!$omp parallel do if(this%nparts_.ge.NMIN_OMP)
     DO j = 1, this%nparts_
        this%lbx_(j) = dtv*this%lbx_(j)
        this%lby_(j) = dtv*this%lby_(j)
@@ -1370,13 +1513,14 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
        this%pvz_(j) = this%pvz_(j) + fact*(inprod*this%lbz_(j) - this%pvz_(j)*b2 + c3)
     ENDDO
     IF (o.EQ.1) THEN
+!$omp parallel do if(this%nparts_.ge.NMIN_OMP)
        DO j = 1, this%nparts_
           this%px_ (j) = this%px_(j) + dtvx*this%pvx_(j)
           this%py_ (j) = this%py_(j) + dtvy*this%pvy_(j)
           this%pz_ (j) = this%pz_(j) + dtvz*this%pvz_(j)
        ENDDO
     ELSE IF (o.EQ.2) THEN
-!$omp parallel do
+!$omp parallel do if(this%nparts_.ge.NMIN_OMP)
        DO j = 1, this%nparts_
           this%pvx_(j) = (this%pvx_(j) + this%ttmp0_(1,j))*0.50_GP
           this%pvy_(j) = (this%pvy_(j) + this%ttmp0_(2,j))*0.50_GP
@@ -1385,7 +1529,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     ENDIF
  
     ! Enforce periodicity in x-y only:
-    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3)
+!    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3)
 
     CALL GTAcc(this%htimers_(GPTIME_STEP))
 
@@ -1534,17 +1678,34 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     ! between nearest-neighbor tasks BEFORE z-PERIODIZING particle coordinates.
     ! Note this interface has not been tested yet for test particles.
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
-      CALL GTStart(this%htimers_(GPTIME_COMM))
-      CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_, &
-           this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2))
-      CALL GTAcc(this%htimers_(GPTIME_COMM))
+      IF (this%nprocs_.GT.1) THEN
+        CALL GTStart(this%htimers_(GPTIME_COMM))
+        CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_,  &
+             this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_INIT)
+        CALL this%gpcomm_%PartExchangeV(this%id_,this%ptmp0_(1,:),            &
+             this%ptmp0_(2,:),this%ptmp0_(3,:),this%nparts_,this%lxbnds_(3,1),&
+             this%lxbnds_(3,2),GPEXCH_UPDT)
+        CALL this%gpcomm_%PartExchangeV(this%id_,this%ttmp0_(1,:),            &
+             this%ttmp0_(2,:),this%ttmp0_(3,:),this%nparts_,                  &
+             this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_UPDT)
+        CALL this%gpcomm_%PartExchangeV(this%id_,this%pvx_,this%pvy_,this%pvz_,&
+             this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_UPDT)
+        CALL this%gpcomm_%PartExchangeV(this%id_,this%weight_,this%prop_, &
+             this%prop_,this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), &
+             GPEXCH_END)
+        CALL GTAcc(this%htimers_(GPTIME_COMM))
+      END IF
+      ! Enforce periodicity in x and y:
+      CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3)
+      ! Enforce periodicity in z and ptmp0(3):
+      CALL GPart_MakePeriodicZ(this,this%pz_,this%ptmp0_(3,:),this%nparts_)
     ENDIF
-
-    ! Enforce periodicity in x, y, & z:
-    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,7)
 
     ! If using VDB interface, do synch-up, and get local work:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
+
+      ! Enforce periodicity in x, y, & z:
+      CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,7)
 
       IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
         IF ( this%myrank_.eq.0 ) THEN
@@ -1564,13 +1725,19 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
                      this%nparts_,this%ptmp1_)
       CALL GPart_CopyLocalWrk(this,this%ttmp0_(1,:),this%ttmp0_(2,:), &
                      this%ttmp0_(3,:),this%vdb_,this%gptmp0_,this%maxparts_)
+
+      CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+               this%weight_,this%weight_,this%weight_,this%nparts_,this%ptmp1_)
+      CALL GPIC_CopyLocalWrkScalar(this,this%weight_,this%vdb_,this%ptmp0_(1,:),this%maxparts_)
+ 
       CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                      this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
                      this%nparts_,this%ptmp1_)
       CALL GPart_GetLocalWrk_aux(this,this%id_,this%px_,this%py_,this%pz_,&
                        this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
                        this%nparts_,this%vdb_,this%gptmp0_,this%maxparts_)
-      CALL GTAcc(this%htimers_(GPTIME_COMM))
+ 
+     CALL GTAcc(this%htimers_(GPTIME_COMM))
 
       CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
                          MPI_SUM,this%comm_,this%ierr_)
@@ -1664,121 +1831,6 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-  SUBROUTINE ChargPIC_InitRandom(this,vth)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : InitFromFields
-!  DESCRIPTION: Initializes particle position in uniform lattice 
-!               and velocities with a Gaussian distribution 
-!               function, with thermal speed vth. Other
-!               parameters are initialized with GPart_Init.
-!  ARGUMENTS:
-!    this    : 'this' class instance
-!    vth     : particle thermal velocity
-!-----------------------------------------------------------------
-    USE mpivars
-    USE grid
-
-    IMPLICIT NONE
-    CLASS(ChargPIC),INTENT(INOUT)            :: this
-    REAL(KIND=GP),  INTENT(IN)               :: vth
-    REAL(KIND=GP)                            :: gauss,vr,del
-    DOUBLE PRECISION                         :: vmx,vmy,vmz
-    INTEGER                                  :: ppc,pps,ib,lag
-    INTEGER                                  :: i,j,k,ii,jj,kk
-
-    ppc = this%maxparts_/(nx*ny*nz)
-    pps = ppc**(1.0/3.0)
-    IF (pps*pps*pps .NE. ppc) THEN
-      IF ( this%myrank_.eq.0 ) THEN
-        WRITE(*,*) 'GPIC_InitLattice: Number of particles per cell &
-                                      must be perfect cube'
-        STOP
-      ENDIF
-    END IF
-    this%nparts_ = nx*ny*(kend - ksta + 1)*ppc
-    ib = nx*ny*(ksta-1)*ppc - 1
-    lag = 1
-    del = 1.0_GP/pps
-    DO i = 1,nx
-      DO j = 1,ny
-        DO k = ksta,kend
-          vmx = 0.0D0
-          vmy = 0.0D0
-          vmz = 0.0D0
-          DO ii = 1,pps
-            DO jj = 1,pps
-              DO kk = 1,pps
-                this%id_(lag) = lag + ib
-                this%px_(lag) = (i-1.50_GP) + (ii-0.50_GP)*del
-                this%py_(lag) = (j-1.50_GP) + (jj-0.50_GP)*del
-                this%pz_(lag) = (k-1.50_GP) + (kk-0.50_GP)*del
-                CALL random_gaussian(gauss)
-                vr = gauss*vth
-                this%pvx_(lag) = vr
-                vmx = vmx + vr 
-                CALL random_gaussian(gauss)
-                vr = gauss*vth
-                this%pvy_(lag) = vr
-                vmy = vmy + vr 
-                CALL random_gaussian(gauss)
-                vr = gauss*vth
-                this%pvz_(lag) = vr
-                vmz = vmz + vr 
-                lag = lag + 1
-              END DO
-            END DO
-          END DO
-          vmx = vmx/ppc
-          vmy = vmy/ppc
-          vmz = vmz/ppc
-          lag = lag - ppc
-          DO ii = 1,pps
-            DO jj = 1,pps
-              DO kk = 1,pps
-                this%pvx_(lag) = this%pvx_(lag) - vmx
-                this%pvy_(lag) = this%pvy_(lag) - vmy
-                this%pvz_(lag) = this%pvz_(lag) - vmz
-                lag = lag + 1
-              END DO
-            END DO
-          END DO
-        END DO
-      END DO
-    END DO
-
-    CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
-                          this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-    CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
-                          this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-    CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
-                           this%nparts_,this%vdb_,this%maxparts_)
-
-    IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to box units
-       this%ptmp0_(1,:) = this%vdb_(1,:)*this%delta_(1)
-       this%ptmp0_(2,:) = this%vdb_(2,:)*this%delta_(2)
-       this%ptmp0_(3,:) = this%vdb_(3,:)*this%delta_(3)
-       CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,&
-            this%maxparts_,this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
-    ELSE
-       CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,&
-            this%maxparts_,this%vdb_(1,:),this%vdb_(2,:),this%vdb_(3,:))
-    ENDIF
-
-    IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
-      IF ( this%myrank_.eq.0 ) THEN
-        WRITE(*,*) 'GPIC_InitLattice: Invalid particle after GetLocalWrk call'
-        STOP
-      ENDIF
-    ENDIF
-
-
-
-  END SUBROUTINE ChargPIC_InitRandom
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-
 
   SUBROUTINE ChargPIC_InitFromFields(this,n,ux,uy,uz,T)
 !-----------------------------------------------------------------
@@ -1802,7 +1854,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     IMPLICIT NONE
     CLASS(ChargPIC)   , INTENT(INOUT)                   :: this
     REAL(KIND=GP),INTENT(IN),DIMENSION(nx,ny,ksta:kend) :: n,ux,uy,uz,T
-    REAL(KIND=GP)                            :: gauss,vr,vth,del
+    REAL(KIND=GP)                            :: gauss,vr,vth,del,w
     DOUBLE PRECISION                         :: vmx,vmy,vmz
     INTEGER                                  :: ppc,pps,ib,lag
     INTEGER                                  :: i,j,k,ii,jj,kk
@@ -1826,14 +1878,16 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
           vmx = 0.0D0
           vmy = 0.0D0
           vmz = 0.0D0
-          vth = SQRT(2.0_GP*T(i,j,k))
+          vth = SQRT(T(i,j,k))
+          w   = n(i,j,k)*this%icv_
           DO ii = 1,pps
             DO jj = 1,pps
               DO kk = 1,pps
                 this%id_(lag) = lag + ib
-                this%px_(lag) = (i-1.50_GP) + (ii-0.50_GP)*del
-                this%py_(lag) = (j-1.50_GP) + (jj-0.50_GP)*del
-                this%pz_(lag) = (k-1.50_GP) + (kk-0.50_GP)*del
+                this%px_(lag) = (i-1.00_GP) + (ii-0.50_GP)*del
+                this%py_(lag) = (j-1.00_GP) + (jj-0.50_GP)*del
+                this%pz_(lag) = (k-1.00_GP) + (kk-0.50_GP)*del
+                this%weight_(lag) = w
                 CALL random_gaussian(gauss)
                 vr = gauss*vth
                 this%pvx_(lag) = vr
@@ -1868,30 +1922,41 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
       END DO
     END DO
 
-    CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+    IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
+       CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-    CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+       CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-    CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
+       CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
                            this%nparts_,this%vdb_,this%maxparts_)
 
-    IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to box units
-       this%ptmp0_(1,:) = this%vdb_(1,:)*this%delta_(1)
-       this%ptmp0_(2,:) = this%vdb_(2,:)*this%delta_(2)
-       this%ptmp0_(3,:) = this%vdb_(3,:)*this%delta_(3)
-       CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,&
-            this%maxparts_,this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
-    ELSE
-       CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,&
-            this%maxparts_,this%vdb_(1,:),this%vdb_(2,:),this%vdb_(3,:))
-    ENDIF
+       CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+                          this%pvx_,this%pvy_,this%pvz_,this%nparts_,this%ptmp1_)
+       CALL GPart_CopyLocalWrk(this,this%pvx_,this%pvy_,this%pvz_, &
+                            this%vdb_,this%ptmp0_,this%maxparts_)
 
-    IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
-      IF ( this%myrank_.eq.0 ) THEN
-        WRITE(*,*) 'GPIC_InitLattice: Invalid particle after GetLocalWrk call'
-        STOP
-      ENDIF
-    ENDIF
+       CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+                          this%weight_,this%weight_,this%weight_,this%nparts_,this%ptmp1_)
+       CALL GPIC_CopyLocalWrkScalar(this,this%weight_,this%vdb_,this%ptmp0_(1,:),this%maxparts_)
+
+       IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to box units
+          this%ptmp0_(1,:) = this%vdb_(1,:)*this%delta_(1)
+          this%ptmp0_(2,:) = this%vdb_(2,:)*this%delta_(2)
+          this%ptmp0_(3,:) = this%vdb_(3,:)*this%delta_(3)
+          CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,&
+               this%maxparts_,this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
+       ELSE
+          CALL GPart_ascii_write_lag(this,1,'.','xlgInitRndSeed','000',0.0_GP,&
+               this%maxparts_,this%vdb_(1,:),this%vdb_(2,:),this%vdb_(3,:))
+       ENDIF
+
+       IF ( .NOT.GPart_PartNumConsistent(this,this%nparts_) ) THEN
+         IF ( this%myrank_.eq.0 ) THEN
+           WRITE(*,*) 'GPIC_InitLattice: Invalid particle after GetLocalWrk call'
+           STOP
+         ENDIF
+       ENDIF
+    END IF
 
 
 

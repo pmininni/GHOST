@@ -246,6 +246,7 @@
 !    sdir    : 't' for top, 'b' for bottom
 !
 !-----------------------------------------------------------------
+!$  USE threads
     IMPLICIT NONE
 
     CLASS(GFieldComm),INTENT(INOUT)         :: this
@@ -280,13 +281,15 @@
       DO m = 1,this%ibretnz_(isnd)
         k = this%ibret_(isnd,m)
         km = k-1
-        DO j = 1, ny
+!$omp parallel do if(ny.ge.nth) private(jm,i)
+        DO j = 1,ny
           jm = j-1
-          DO i = 1, nx
-            nt = nt + 1
-            buff(nt) = vext(i+jm*nx+km*nxy)
+          DO i = 1,nx
+!            nt = nt + 1
+            buff(nt+jm*nx+i) = vext(i+jm*nx+km*nxy)
           ENDDO
         ENDDO
+        nt = nt + nxy
       ENDDO
 
     ELSE !  Pack for send to rank at top:
@@ -303,13 +306,15 @@
       DO m = 1,this%itretnz_(isnd)
         k = this%itret_(isnd,m)
         km = k-1
-        DO j = 1, ny
+!$omp parallel do if(ny.ge.nth) private(jm,i)
+        DO j = 1,ny
           jm = j-1
-          DO i = 1, nx
-            nt = nt + 1
-            buff(nt) = vext(i+jm*nx+km*nxy)
+          DO i = 1,nx
+!            nt = nt + 1
+            buff(nt+jm*nx+i) = vext(i+jm*nx+km*nxy)
           ENDDO
         ENDDO
+        nt = nt + nxy
       ENDDO
 
     ENDIF
@@ -340,6 +345,7 @@
 !    ierr        : err flag: 0 if success; else 1
 !
 !-----------------------------------------------------------------
+!$  USE threads
     IMPLICIT NONE
 
     CLASS(GFieldComm),INTENT(INOUT)         :: this
@@ -365,32 +371,36 @@
     nz = int(buff(1))
     nh = nz + 1 ! no. items in header
     IF ( method .EQ. UNPACK_REP ) THEN
-      DO m = 1, nz
+      DO m = 1,nz
         k   = int(buff(m+1))
         km  = k-1
-        ixy = 1
-        DO j = 1, ny
+!        ixy = 1
+!$omp parallel do if(ny.ge.nth) private(jm,i,ixy,im,ir)
+        DO j = 1,ny
           jm = j-1
-          DO i = 1, nx
+          DO i = 1,nx
+            ixy = jm*nx + i
             im = i+ngp+(jm+ngp)*nex+km*nexy
             ir = nh+(m-1)*nxy+ixy
             v(im) = buff(ir)
-            ixy = ixy + 1
+!            ixy = ixy + 1
           ENDDO
         ENDDO
       ENDDO
     ELSE IF ( method .EQ. UNPACK_SUM ) THEN
-      DO m = 1, nz
+      DO m = 1,nz
         k   = int(buff(m+1))
         km  = k-1
-        ixy = 1
-        DO j = 1, ny
+!        ixy = 1
+!$omp parallel do if(ny.ge.nth) private(jm,i,ixy,im,ir)
+        DO j = 1,ny
           jm = j-1
-          DO i = 1, nx
+          DO i = 1,nx
+            ixy = jm*nx + i
             im = i+ngp+(jm+ngp)*nex+km*nexy
             ir = nh+(m-1)*nxy+ixy
             v(im) = v(im) + buff(ir)
-            ixy = ixy + 1
+!            ixy = ixy + 1
           ENDDO
         ENDDO
       ENDDO
@@ -417,6 +427,7 @@
 !                         = UNPACK_SUM for sum
 !
 !-----------------------------------------------------------------
+!$  USE threads
     USE mpivars
 
     IMPLICIT NONE
@@ -439,9 +450,10 @@
 
     CALL GFieldComm_Copy2Reg(this,v,vext)
     IF ( method .EQ. UNPACK_REP ) THEN
-      DO k = 1, ngz  ! extended zones
-        DO j=1,ny
-          DO i=1,nx
+!$omp parallel do if(ngz*ny.ge.nth) collapse(2) private(i)
+      DO k = 1,ngz  ! extended zones
+        DO j = 1,ny
+          DO i = 1,nx
             ! set top bcs:
             v(i+(j-1)*nx+       (k-1)*nxy) = vext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy)
 
@@ -452,9 +464,10 @@
         ENDDO
       ENDDO
     ELSE IF ( method .EQ. UNPACK_SUM ) THEN
-      DO k = 1, ngz  ! extended zones
-        DO j=1,ny
-          DO i=1,nx
+!$omp parallel do if(ngz*ny.ge.nth) collapse(2) private(i)
+      DO k = 1,ngz  ! extended zones
+        DO j = 1,ny
+          DO i = 1,nx
             ! set top bcs:
             v(i+(j-1)*nx+(k-1)*nxy)        = &
                    v(i+(j-1)*nx+(k-1)*nxy) + vext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy)
@@ -920,6 +933,7 @@
 !    vext     : extended-grid field
 !    ldims    : local dims of v
 !-----------------------------------------------------------------
+!$  USE threads
     IMPLICIT NONE
     CLASS(GFieldComm),INTENT(INOUT)                     :: this
     INTEGER                                             :: i,j,jm,k,km,ngp,ngz,nex,nexy
@@ -934,9 +948,10 @@
     nx   = this%nd_(1)
     ny   = this%nd_(2)
     nxy  = nx*ny
-
-    DO k = 1,this%kend_-this%ksta_+1
-      km = k-1
+!$omp parallel do if(ny*(this%kend_-this%ksta_+1).GE.nth) collapse(2) private(jm,i)
+    DO km = 0,this%kend_-this%ksta_
+!    DO k = 1,this%kend_-this%ksta_+1
+!      km = k-1
       DO j=1,ny
         jm = j-1
         DO i=1,nx
