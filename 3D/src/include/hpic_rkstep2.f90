@@ -82,13 +82,18 @@
                C8(k,j,i) = C8(k,j,i) *tmp
                C9(k,j,i) = C9(k,j,i) *tmp
                C10(k,j,i)= C10(k,j,i)*tmp
-               C11(k,j,i)= (-C11(k,j,i) - mu*ax(k,j,i) - cp1*C14(k,j,i))*tmp
-               C12(k,j,i)= (-C12(k,j,i) - mu*ay(k,j,i) - cp1*C15(k,j,i))*tmp
-               C13(k,j,i)= (-C13(k,j,i) - mu*az(k,j,i) - cp1*C16(k,j,i))*tmp
-               ax(k,j,i) = C1(k,j,i) + dt*(mu*ax(k,j,i) + C4(k,j,i))*rmp
-               ay(k,j,i) = C2(k,j,i) + dt*(mu*ay(k,j,i) + C5(k,j,i))*rmp
-!               az(k,j,i) = C3(k,j,i) + dt*(mu*az(k,j,i) + C6(k,j,i))*rmp
-               az(k,j,i) = 0.0_GP
+               C11(k,j,i)= (-C11(k,j,i) - mu*ax(k,j,i) - cp1*C14(k,j,i)&
+                            - 0*mx(k,j,i))*tmp
+               C12(k,j,i)= (-C12(k,j,i) - mu*ay(k,j,i) - cp1*C15(k,j,i)&
+                            - 0*my(k,j,i))*tmp
+               C13(k,j,i)= (-C13(k,j,i) - mu*az(k,j,i) - cp1*C16(k,j,i)&
+                            - 0*mz(k,j,i))*tmp
+               ax(k,j,i) = C1(k,j,i) + dt*(mu*ax(k,j,i) +              &
+                                           C4(k,j,i) + mx(k,j,i))*rmp
+               ay(k,j,i) = C2(k,j,i) + dt*(mu*ay(k,j,i) +              &
+                                           C5(k,j,i) + my(k,j,i))*rmp
+               az(k,j,i) = C3(k,j,i) + dt*(mu*az(k,j,i) +              &
+                                           C6(k,j,i) + mz(k,j,i))*rmp
             ELSE
                C8(k,j,i) = 0.0_GP
                C9(k,j,i) = 0.0_GP

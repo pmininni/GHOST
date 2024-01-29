@@ -140,9 +140,11 @@
 #endif
 #ifdef CPIC_
       TYPE(ChargPIC)                                   :: picpart
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: rhoc,Temp
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: ux,uy,uz
 #endif
 #ifdef ELECFIELD_
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: phi,rhoc
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: phi
 #endif
 #ifdef MAGFIELD_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: ax,ay,az
@@ -294,18 +296,27 @@
       REAL(KIND=GP)    :: amach, cp2
 #endif
 #ifdef ELECSTAT_
-      REAL(KIND=GP)    :: vthi,kde,kde2,dp
-      INTEGER          :: kp,drp
+      REAL(KIND=GP)    :: kde,kde2
 #endif
 #ifdef PIC_
       REAL         :: rbal
       INTEGER      :: splord, picdiv, partpcell
-      INTEGER      :: picinittype,picinitprop
+      INTEGER      :: picinittype
       INTEGER      :: picexchtype,picouttype
       INTEGER      :: picwrtunit,piccoll
 #endif
+#ifdef CPIC_
+      REAL(KIND=GP)    :: r0,T0,delT
+      REAL(KIND=GP)    :: krd,kru,kud,kuu,ktd,ktu
+      REAL(KIND=GP)    :: rparam0,rparam1,rparam2,rparam3,rparam4
+      REAL(KIND=GP)    :: rparam5,rparam6,rparam7,rparam8,rparam9
+      REAL(KIND=GP)    :: uparam0,uparam1,uparam2,uparam3,uparam4
+      REAL(KIND=GP)    :: uparam5,uparam6,uparam7,uparam8,uparam9
+      REAL(KIND=GP)    :: tparam0,tparam1,tparam2,tparam3,tparam4
+      REAL(KIND=GP)    :: tparam5,tparam6,tparam7,tparam8,tparam9
+#endif
 #ifdef HYBPIC_
-      REAL(KIND=GP)    :: vthi,ekin,dii,betae,gammae,gam1,cp1
+      REAL(KIND=GP)    :: ekin,dii,betae,gammae,gam1,cp1
 #endif
 #ifdef MAGFIELD_
       REAL(KIND=GP)    :: mkup,mkdn
@@ -455,14 +466,26 @@
 #endif
 #ifdef PIC_
       NAMELIST / ppic / splord, picdiv, partpcell
-      NAMELIST / ppic / picinittype,picinitprop,picexchtype
+      NAMELIST / ppic / picinittype,picexchtype
       NAMELIST / ppic / picouttype,picwrtunit,picseedfile,piccoll
 #endif
+#ifdef CPIC_
+      NAMELIST / picinitflds / r0,u0,T0,delT
+      NAMELIST / picinitflds / krd,kru,kud,kuu,ktd,ktu
+      NAMELIST / picinitflds / rparam0,rparam1,rparam2,rparam3
+      NAMELIST / picinitflds / rparam4,rparam5,rparam6,rparam7
+      NAMELIST / picinitflds / rparam8,rparam9,uparam0,uparam1
+      NAMELIST / picinitflds / uparam2,uparam3,uparam4,uparam4
+      NAMELIST / picinitflds / uparam5,uparam6,uparam7,uparam8
+      NAMELIST / picinitflds / uparam9,tparam0,tparam1,tparam2
+      NAMELIST / picinitflds / tparam3,tparam4,tparam5,tparam6
+      NAMELIST / picinitflds / tparam7,tparam8,tparam9
+#endif
 #ifdef HYBPIC_
-      NAMELIST / phybrid / vthi,dii,betae,gammae
+      NAMELIST / phybrid / dii,betae,gammae
 #endif
 #ifdef ELECSTAT_
-      NAMELIST / elecstat / vthi,kde,kp,dp,drp
+      NAMELIST / elecstat / kde
 #endif
 #ifdef MAGFIELD_
       NAMELIST / magfield / m0,a0,mkdn,mkup,mu,corr,mparam0,mparam1
@@ -588,9 +611,15 @@
       ALLOCATE( fy(nz,ny,ista:iend) )
       ALLOCATE( fz(nz,ny,ista:iend) )
 #endif
+#ifdef CPIC_
+      ALLOCATE(rhoc(nz,ny,ista:iend))
+      ALLOCATE(  ux(nz,ny,ista:iend))
+      ALLOCATE(  uy(nz,ny,ista:iend))
+      ALLOCATE(  uz(nz,ny,ista:iend))
+      ALLOCATE(Temp(nz,ny,ista:iend))
+#endif
 #ifdef ELECFIELD_
       ALLOCATE( phi(nz,ny,ista:iend))
-      ALLOCATE(rhoc(nz,ny,ista:iend))
 #endif
 #ifdef MAGFIELD_
       ALLOCATE( C9 (nz,ny,ista:iend), C10(nz,ny,ista:iend) )
@@ -1145,20 +1174,18 @@
 #endif
 
 #ifdef HYBPIC_
-! namelist 'elecstat' on the external file 'parameter.inp'
-!     vthi  : initial ion thermal velocity
+! namelist 'phybrid' on the external file 'parameter.inp'
 !     gammae: barotropic exponent for fluid electrons
 !     betae : electronic plasma beta
 !     dii   : ion inertial length scale
 
-      vthi   = 0.0_GP
       gammae = 0.0_GP
+      dii    = 1.0_GP
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=phybrid)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(vthi  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(gammae,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(betae ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(dii   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
@@ -1171,27 +1198,15 @@
 
 #ifdef ELECSTAT_
 ! namelist 'elecstat' on the external file 'parameter.inp'
-!     vthi : initial ion thermal velocity
 !     kde  : inverse debye length
-!     dp   : perturbation amplitude (in box units)
-!     kp   : perturbation wavenumber
-!     drp  : perturbation direction (0=x,1=y,2=z)
       
-      vthi = 0.0_GP
       kde  = 0.0_GP
-      dp   = 0.0_GP
-      kp   = 0
-      drp  = 0
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=elecstat)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(vthi,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(kde ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(dp  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(kp  ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(drp ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       kde2 = kde*kde
 #endif
 
@@ -1201,7 +1216,6 @@
 !     partpcell  : number of particles per cell
 !     picdiv     : divisor for pic particle output
 !     picinittype: initialization type for locations (0=random,1=lattice, 2=user)
-!     picinitprop: initialization type for properties (0=uniform,1=field, ignored if picinittype=2)
 !     picexchtype: boundary exchange type (0=nearest neighbor, 1=voxeldb)
 !     picouttype : output type (0=binary, 1=ASCII)
 !     piccoll    : I/O method when using binary output (0=task 0,1=collective)
@@ -1212,14 +1226,89 @@
       picdiv    = 1
       partpcell = 1
       rbal      = 0.0
+      spicfpfile= 'xpicInitRndSeed.000.txt'
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=ppic)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(splord,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(picdiv,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(partpcell,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(splord,        1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(picdiv,        1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(partpcell,     1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(picinittype   ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(picexchtype   ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(picouttype    ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(picwrtunit    ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(piccoll       ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(spicfpfile ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(picseedfile,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+#endif
+
+#ifdef CPIC_
+! namelist 'picinitflds' on the external file 'parameter.inp'
+!     r0        : amplitude of the density fluctuations (mean density=1)
+!     krd       : minimum wavenumber for density fluctuations
+!     kru       : maximum wavenumber for density fluctuations
+!     rparam0   : rparam0-9 can be used to control the ion density
+!     rparam0-9 : ten real numbers to control properties of
+!                 the initial ion density fluctuations
+!     u0        : amplitude of the initial ion mean velocity field
+!     kud       : minimum wavenumber for ion mean velocity
+!     kuu       : maximum wavenumber for ion mean velocity
+!     uparam0-9 : ten real numbers to control properties of
+!                 the initial ion mean velocity fluctuations
+!     T0        : mean temperature of the ions
+!     delT      : amplitude of the temperature fluctuations
+!     ktd       : minimum wavenumber for temperature fluctuations
+!     ktu       : maximum wavenumber for temperature fluctuations
+!     tparam0-9 : ten real numbers to control properties of
+!                 the initial ion temperature fluctuations
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
+         READ(1,NML=picinitflds)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(r0  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(krd ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kru ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(u0  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kud ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kuu ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(T0  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(delT,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ktd ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ktu ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #ifdef UNIFORMB_
@@ -1578,7 +1667,7 @@
          DO j = 1,ny
             DO k = 1,nz
                kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
-               C17(k,j,i)= EXP(-3.0_GP*kn2(k,j,i)/kmax)*(1.0_GP-kn2(k,j,i)/kmax)**2
+!               C17(k,j,i)= EXP(-3.0_GP*kn2(k,j,i)/kmax)*(1.0_GP-kn2(k,j,i)/kmax)**2
             END DO
          END DO
       END DO
@@ -1739,8 +1828,8 @@
 
 #ifdef PIC_
       CALL picpart%GPIC_ctor(MPI_COMM_WORLD,partpcell,picinittype, &
-           picinitprop,splord,picexchtype,picouttype,piccoll,csize,&
-           nstrip,0,picwrtunit)
+                       splord,picexchtype,picouttype,piccoll,csize,&
+                       nstrip,0,picwrtunit)
       CALL picpart%SetRandSeed(seed)
       CALL picpart%SetSeedFile(trim(picseedfile))
 #endif
@@ -1820,6 +1909,14 @@
 #if defined(VELOC_) || defined (ADVECT_)
       INCLUDE 'initialv.f90'            ! initial velocity
 #endif
+#ifdef CPIC_
+      INCLUDE 'initialr.f90'            ! initial particle density
+      INCLUDE 'initialu.f90'            ! initial particle mean velocity
+      INCLUDE 'initialt.f90'            ! initial particle temperature
+      IF (myrank.EQ.0) THEN ! Fix mean ion density to 1
+        rhoc(1,1,1) = 1.0_GP
+      END IF
+#endif
 #ifdef SCALAR_
       INCLUDE 'initials.f90'            ! initial scalar density
 #endif
@@ -1832,15 +1929,22 @@
 #ifdef WAVEFUNCTION_
       INCLUDE 'initialz.f90'            ! initial wave function
 #endif
-#ifdef PIC_
-!      CALL picpart%Init()
-#endif
 #ifdef CPIC_
-!      CALL picpart%InitVel(vthi)
-      CALL picpart%InitRandom(vthi)
+      IF (picinittype.EQ.GPINIT_RANDLOC) THEN
+        CALL fftp3d_complex_to_real(plancr,rhoc,R1 ,MPI_COMM_WORLD)
+        CALL fftp3d_complex_to_real(plancr, ux ,Re1,MPI_COMM_WORLD)
+        CALL fftp3d_complex_to_real(plancr, uy ,Re2,MPI_COMM_WORLD)
+        CALL fftp3d_complex_to_real(plancr, uz ,Re3,MPI_COMM_WORLD)
+        CALL fftp3d_complex_to_real(plancr,Temp,R2 ,MPI_COMM_WORLD)
+        CALL picpart%InitFromFields(R1,Re1,Re2,Re3,R2)
+      ELSE IF (picinittype.EQ.GPINIT_USERLOC) THEN
+        CALL picpart%InitUserSeed()
+      END IF
+      IF (bench.ne.1) THEN
+        CALL picpart%io_write_wgt(1,odir,'wgt','init',0.0) 
+      END IF
 #endif
 #ifdef ELECSTAT_
-      CALL picpart%PerturbPositions(dp,kp,drp)
       CALL picpart%GetDensity(R1)
       CALL fftp3d_real_to_complex(planrc,R1,rhoc,MPI_COMM_WORLD)
       CALL dealias(rhoc)
@@ -2035,9 +2139,10 @@
 #endif
 
 #ifdef PIC_
-          CALL picpart%io_read (1,idir,'xpic',ext)
+          CALL picpart%io_read    (1,idir,'xpic',ext)
+          CALL picpart%io_read_wgt(1,idir,'wgt','init')
 #ifdef CPIC_
-          CALL picpart%io_readv(1,idir,'vpic',ext)
+          CALL picpart%io_readv   (1,idir,'vpic',ext)
 #endif
 #endif
 
@@ -2585,11 +2690,14 @@
                CALL io_write(1,odir,'jix',ext,planio,Re1)
                CALL io_write(1,odir,'jiy',ext,planio,Re2)
                CALL io_write(1,odir,'jiz',ext,planio,Re3)
+               CALL picpart%GetTemperature(R1)
+               CALL io_write(1,odir,'Ti',ext,planio,R1)
             END IF
 #endif
 #ifdef PIC_
             IF (MODULO(tind,picdiv).eq.0) THEN
                CALL picpart%io_write_pdb (1,odir,'xpic',ext,(t-1)*dt)
+!               CALL picpart%io_write_wgt (1,odir,'weights',ext,(t-1)*dt)
 #ifdef CPIC_
                CALL picpart%io_write_pdbv(1,odir,'vpic',ext,(t-1)*dt)
 #endif
@@ -3060,6 +3168,9 @@
           rbal = rbal + lagpart%GetLoadBal()
         ENDIF
 #endif
+#ifdef PIC_
+         rbal = rbal + picpart%GetLoadBal()
+#endif
          inquire( file='benchmark.txt', exist=bbenchexist )
          IF (myrank.eq.0) THEN
             OPEN(1,file='benchmark.txt',position='append')
@@ -3112,7 +3223,7 @@
               OPEN(1,file='gpbenchmark.txt',position='append')
               IF (.NOT. bbenchexist) THEN
                  WRITE(1,*) &
-  '# nx ny nz nparts rbal nsteps nth TRK TCOMM TSPL TTRANS TDEX TINT TUPD'
+  '# nx ny nz nparts rbal nsteps nprocs nth TRK TCOMM TSPL TTRANS TDEX TINT TUPD'
               ENDIF
               WRITE(1,*) nx,ny,nz,maxparts,rbal/(step-ini+1),            &
                            (step-ini+1),nprocs,nth,                      &
@@ -3127,12 +3238,11 @@
             ENDIF
 #endif
 #if defined(PIC_)
-            rbal = rbal + picpart%GetLoadBal()
             inquire( file='gpicbenchmark.txt', exist=bbenchexist )
             OPEN(1,file='gpicbenchmark.txt',position='append')
             IF (.NOT. bbenchexist) THEN
                WRITE(1,*) &
- '# nx ny nz nparts rbal nsteps nth TRK TCOMM TSPL TTRANS TDEX TINT TUPD'
+ '# nx ny nz nparts rbal nsteps nth TRK TCOMM TDEP TTRANS TDEX TINT TUPD'
             ENDIF
             WRITE(1,*) nx,ny,nz,partpcell*nx*ny*nz,rbal/(step-ini+1),  &
                          (step-ini+1),nprocs,nth,                      &
@@ -3192,6 +3302,16 @@
 #endif
 #ifdef ADVECT_
       DEALLOCATE( vsq )
+#endif
+#ifdef CPIC_
+      DEALLOCATE(rhoc)
+      DEALLOCATE( ux )
+      DEALLOCATE( uy )
+      DEALLOCATE( uz )
+      DEALLOCATE(Temp)
+#endif
+#ifdef ELECFIELD_
+      DEALLOCATE(phi)
 #endif
 #ifdef MAGFIELD_
       DEALLOCATE( ax,ay,az,mx,my,mz )

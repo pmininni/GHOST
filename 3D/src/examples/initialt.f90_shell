@@ -1,0 +1,21 @@
+! Initial condition for the particles' temperature.
+! This file contains the expression used for the initial 
+! particles' temperature field. You can use temporary real 
+! arrays R1-R3 of size (1:nx,1:ny,ksta:kend) and temporary 
+! complex arrays C1-C8 of size (1:nz,1:ny,ista:iend) to do 
+! intermediate computations. The variable T0 should control 
+! mean particle temperature, delT the amplitude temperature
+! fluctuations, and variables rparam0-9 can be used to control
+! the amplitudes of individual terms. At the end, the initial 
+! particle temperature in spectral space should be stored in 
+! the array Temp.
+
+! Uniform particle temperature
+!     T0  : particle temperature
+      IF (T0.LT.0) THEN
+         PRINT *, 'Mean particle temperature T0 must be positive'
+      END IF
+   
+      IF (myrank.EQ.0) THEN
+         Temp(1,1,1) = T0!*real(nx,KIND=GP)*real(ny,KIND=GP)*real(nz,KIND=GP)
+      END IF

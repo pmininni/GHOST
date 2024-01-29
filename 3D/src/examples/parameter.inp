@@ -185,8 +185,7 @@ dokinelp = 0     ! Compute electron pressure (0=no, 1=yes if flow compressible)
 splord = 3       ! Spline order (0, 1, 2 or 3)
 partpcell = 1024 ! Number of particles per cell
 picdiv = 1       ! Divisor for pic particle output
-picinittype = 0  ! Initialization type for locations (0=random, 1=lattice, 2=user)
-picinitprop = 0  ! Initialization type for properties (0=uniform, 1=field, ignore if picinittype=2)
+picinittype = 0  ! Initialization type for locations (0=fields, 1=user)
 picexchtype = 1  ! Boundary exchange type (0=nearest neighbor, 1=voxel db)
 picouttype = 0   ! Output type (0=binary, 1=ASCII)
 piccoll = 0      ! I/O method when using binary output (0=task 0, 1=collective)
@@ -194,9 +193,25 @@ picwrtunit = 0   ! Write part. positions in box units (=1) or grid units (=0)
 picseedfile = 'user_seed_file.dat'
 /
 
+! Parameters for PIC initialization from fields
+&picinitflds
+r0 = 1.0         ! amplitude of the density fluctuations (mean density=1)
+krd = 4.0        ! minimum wavenumber for density fluctuations
+kru = 4.0        ! maximum wavenumber for density fluctuations
+rparam0 = 2      ! rparam0-9 can be used to control the ion density
+u0 = 0.0         ! amplitude of the initial ion mean velocity field
+kud = 2.0        ! minimum wavenumber for ion mean velocity 
+kuu = 3.0        ! maximum wavenumber for ion mean velocity
+uparam0 = 0      ! uparam0-9 can be used to control the ion mean velocity
+T0 = 1.0         ! mean temperature of the ions
+delT = 0.0       ! amplitude of the temperature fluctuations
+ktd = 2.0        ! minimum wavenumber for temperature fluctuations
+ktu = 3.0        ! maximum wavenumber for temperature fluctuations
+tparam0 = 0      ! tparam0-9 can be used to control the ion temperature
+/
+
 ! Parameters for hybrid-PIC solvers
 &phybrid
-vthi = 1.0       ! Initial ion thermal velocity
 gammae = 1.0     ! Barotropic exponent for fluid electrons
 betae = 1.0      ! Electronic plasma beta
 dii = 0.1        ! Ion inertial length
@@ -204,9 +219,5 @@ dii = 0.1        ! Ion inertial length
 
 ! Parameters for electrostatic solver
 &elecstat
-vthi = 1.0       ! Initial ion thermal velocity
 kde = 100.0      ! Inverse debye length
-dp = 0.1         ! Perturbation amplitude (in box units)
-kp = 3           ! Perturbation wavenumber
-drp = 2          ! Perturbation direction (0=x,1=y,2=z)
 /
