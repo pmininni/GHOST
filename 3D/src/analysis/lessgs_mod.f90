@@ -13,8 +13,6 @@ MODULE class_GSGS
       IMPLICIT NONE
       INCLUDE 'mpif.h' 
 
-!     INTEGER,PARAMETER,PUBLIC                       :: GPINIT_RANDLOC =0
-!     INTEGER,PARAMETER,PUBLIC                       :: GPINIT_USERLOC =1
 
       PRIVATE
       TYPE, PUBLIC :: GSGS
