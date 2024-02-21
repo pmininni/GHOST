@@ -124,11 +124,14 @@
       USE cuda_bindings
       USE cutypes
 #endif
+      USE class_GSGS
+
       IMPLICIT NONE
 
 !
 ! Arrays for the fields and external forcings
 
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vxt,vyt,vzt,th
 #if defined(VELOC_) || defined(ADVECT_)
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz
 #endif
@@ -320,6 +323,8 @@
       INTEGER :: ihcpu1,ihcpu2
       INTEGER :: ihomp1,ihomp2
       INTEGER :: ihwtm1,ihwtm2
+      INTEGER :: arbsz
+
 #if defined(SCALAR_) || defined(MULTISCALAR_)
       INTEGER :: injt,injtm
       INTEGER :: creset
@@ -336,16 +341,19 @@
       TYPE(cudaDevicePropG) :: devprop
 #endif
       TYPE(IOPLAN)          :: planio
+      TYPE(GSGS)            :: sgs, sgstr
+
       CHARACTER(len=1024)   :: odir,idir
       LOGICAL               :: bbenchexist
 
       ! App data:
-      COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: CT1
-      REAL(KIND=GP)   , ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: RT1
+      COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: vxt,vyt,vzt,tht
+      COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: CT1,CT2,CT3,CT4
+      REAL(KIND=GP)   , ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: RT1,RT2,RT3
       INTEGER             :: istat(4096), npkeep, nstat
       INTEGER             :: commtrunc, grouptrunc, n(3), nt(3)
       CHARACTER(len=1024) :: iidir, sparam
-      CHARACTER(len=64)   :: ext1
+      CHARACTER(len=64)   :: ext1,sgsfile(3)
       CHARACTER(len=1024) :: sstat
       TYPE(IOPLAN)        :: planiot
       TYPE(FFTPLAN)       :: plancrt
@@ -571,8 +579,10 @@
       ALLOCATE( kn2(nz,ny,ista:iend) )
 #ifdef DEF_ARBSIZE_
       anis = 1
+      arbsz = 1
       ALLOCATE( kk2(nz,ny,ista:iend) )
 #else
+      arbsz = 0
       IF ((nx.ne.ny).or.(ny.ne.nz)) THEN
          anis = 1
          ALLOCATE( kk2(nz,ny,ista:iend) )
@@ -1515,8 +1525,17 @@
 #endif
   
       ! Set trtraits structure, and allocate trunc arrays
+      ALLOCATE( vxt(nzt,nyt,itsta:itend))
+      ALLOCATE( vyt(nzt,nyt,itsta:itend))
+      ALLOCATE( vzt(nzt,nyt,itsta:itend))
+      ALLOCATE( tht(nzt,nyt,itsta:itend))
       ALLOCATE( CT1(nzt,nyt,itsta:itend))
+      ALLOCATE( CT2(nzt,nyt,itsta:itend))
+      ALLOCATE( CT3(nzt,nyt,itsta:itend))
+      ALLOCATE( CT4(nzt,nyt,itsta:itend))
       ALLOCATE( RT1(nxt,nyt,ktsta:ktend))
+      ALLOCATE( RT2(nxt,nyt,ktsta:ktend))
+      ALLOCATE( RT3(nxt,nyt,ktsta:ktend))
       trtraits%planiot   = planiot
       trtraits%plancrt   = plancrt
       trtraits%commtrunc = commtrunc
@@ -1555,8 +1574,16 @@
         write(*,*) ' data loaded: index=', ext
 
 #if defined(BOUSSINESQ_)
-        CALL bouss_lescomp(trtraits,istat(t),vx,vy,vz,th)
+
+!       CALL bouss_lescomp(trtraits,istat(t),vx,vy,vz,th)
 #endif
+        CALL sgstr%GSGS_ctor(MPI_COMM_WORLD, (/nxt,nyt,nzt/), arbsz, (/Dkx,Dky,Dkz/) )
+        CALL sgs  %GSGS_ctor(MPI_COMM_WORLD, (/nx ,ny ,nz /), arbsz, (/Dkx,Dky,Dkz/) )
+        DO k = 1,3
+          write(sdsfile(k),"(A3,I1,A2)") "SGS", k,"_T"
+        ENDDO
+
+#if 0
         ! Compute time derivative estimate at this time step:
         INCLUDE RKSTEP1_
         DO o = ord,1,-1
@@ -1588,6 +1615,31 @@
         CALL trunc(C20, n, nt, trtraits%ktrunc, 1, C4, CT1) 
         CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
         CALL io_write(1,odir,'dthdt_T',ext,planiot,RT1)
+#endif
+#else
+        CALL trunc(vx, n, nt, trtraits%ktrunc, 1, C1, vxt) 
+        CALL trunc(vy, n, nt, trtraits%ktrunc, 1, C1, vyt) 
+        CALL trunc(vz, n, nt, trtraits%ktrunc, 1, C1, vzt) 
+
+        DO k = 1, 3
+          CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,k C4)
+          CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
+          CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
+
+          CALL sgstr%sgsv(vxt,vyt,vzt,C1T,C2T,C3T,k CT4)
+          CALL fftp3d_complex_to_real(plancrt,CT4,RT2,MPI_COMM_WORLD)
+          RT3 = RT2 - RT1 ! SGS field
+          CALL io_write(1,odir,sgsfile(k),ext,planiot,RT3)
+        ENDDO
+        CALL sgs  %sgsth(vx,vy,vz,th,C1,C4)
+        CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
+        CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
+
+        CALL sgstr%sgsth(vxt,vyt,vzt,tht,C1T,CT4)
+        CALL fftp3d_complex_to_real(plancrt,CT4,RT2,MPI_COMM_WORLD)
+        RT3 = RT2 - RT1 ! SGS field
+        CALL io_write(1,odir,"SGSth_T",ext,planiot,RT3)
+
 #endif
         write(*,*) ' done: index=', ext
       
