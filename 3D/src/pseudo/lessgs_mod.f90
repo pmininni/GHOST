@@ -9,6 +9,7 @@ MODULE class_GSGS
  !    USE kes
  !    USE mpivars
       USE fprecision
+      USE fftplans
 
       IMPLICIT NONE
       INCLUDE 'mpif.h' 
@@ -23,6 +24,7 @@ MODULE class_GSGS
         INTEGER                                      :: nx,ny,nz
         INTEGER                                      :: ierr_
         INTEGER                                      :: comm_
+        INTEGER                                      :: ista,iend,ksta,kend
         REAL(KIND=GP), POINTER    , DIMENSION(:,:,:) :: kk2
         REAL(KIND=GP), TARGET     , ALLOCATABLE, DIMENSION(:,:,:) :: kn2
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: kx,ky,kz
@@ -99,7 +101,7 @@ MODULE class_GSGS
     ALLOCATE( this%kx(this%nx), this%ky(this%ny), this%kz(this%nz) )
     ALLOCATE( this%kn2(this%nz,this%ny,this%ista:this%iend) )
 
-    if ( arbsz .EQ. 1 )
+    if ( arbsz .EQ. 1 ) THEN
       aniso = 1
       ALLOCATE( this%kk2(this%nz,this%ny,this%ista:this%iend) )
     ELSE
@@ -404,7 +406,7 @@ MODULE class_GSGS
 !-----------------------------------------------------------------
 
 !*****************************************************************
-      SUBROUTINE GSGS_gradre3(a,b,c,d,e,f)
+      SUBROUTINE GSGS_gradre3(this, a,b,c,d,e,f)
 !-----------------------------------------------------------------
 !
 ! Three-dimensional inner product A.grad(A) in 
