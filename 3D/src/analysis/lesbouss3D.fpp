@@ -124,14 +124,13 @@
       USE cuda_bindings
       USE cutypes
 #endif
-      USE class_GSGS
+      USE class_GSGS, ONLY: GSGS
 
       IMPLICIT NONE
 
 !
 ! Arrays for the fields and external forcings
 
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vxt,vyt,vzt,th
 #if defined(VELOC_) || defined(ADVECT_)
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz
 #endif
@@ -353,7 +352,7 @@
       INTEGER             :: istat(4096), npkeep, nstat
       INTEGER             :: commtrunc, grouptrunc, n(3), nt(3)
       CHARACTER(len=1024) :: iidir, sparam
-      CHARACTER(len=64)   :: ext1,sgsfile(3)
+      CHARACTER(len=64)   :: ext1,sfpref(3)
       CHARACTER(len=1024) :: sstat
       TYPE(IOPLAN)        :: planiot
       TYPE(FFTPLAN)       :: plancrt
@@ -1580,7 +1579,7 @@
         CALL sgstr%GSGS_ctor(MPI_COMM_WORLD, (/nxt,nyt,nzt/), arbsz, (/Dkx,Dky,Dkz/) )
         CALL sgs  %GSGS_ctor(MPI_COMM_WORLD, (/nx ,ny ,nz /), arbsz, (/Dkx,Dky,Dkz/) )
         DO k = 1,3
-          write(sdsfile(k),"(A3,I1,A2)") "SGS", k,"_T"
+          write(sfpref(k),"(A3,I1,A2)") "SGS", k,"_T"
         ENDDO
 
 #if 0
@@ -1622,20 +1621,20 @@
         CALL trunc(vz, n, nt, trtraits%ktrunc, 1, C1, vzt) 
 
         DO k = 1, 3
-          CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,k C4)
+          CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,k, C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
           CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
 
-          CALL sgstr%sgsv(vxt,vyt,vzt,C1T,C2T,C3T,k CT4)
+          CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,k, CT4)
           CALL fftp3d_complex_to_real(plancrt,CT4,RT2,MPI_COMM_WORLD)
           RT3 = RT2 - RT1 ! SGS field
-          CALL io_write(1,odir,sgsfile(k),ext,planiot,RT3)
+          CALL io_write(1,odir,sfpref(k),ext,planiot,RT3)
         ENDDO
         CALL sgs  %sgsth(vx,vy,vz,th,C1,C4)
         CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
         CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
 
-        CALL sgstr%sgsth(vxt,vyt,vzt,tht,C1T,CT4)
+        CALL sgstr%sgsth(vxt,vyt,vzt,tht,CT1,CT4)
         CALL fftp3d_complex_to_real(plancrt,CT4,RT2,MPI_COMM_WORLD)
         RT3 = RT2 - RT1 ! SGS field
         CALL io_write(1,odir,"SGSth_T",ext,planiot,RT3)
