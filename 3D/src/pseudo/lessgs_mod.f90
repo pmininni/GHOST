@@ -15,7 +15,7 @@ MODULE class_GSGS
       INCLUDE 'mpif.h' 
 
 
-      PRIVATE
+!     PRIVATE
       TYPE, PUBLIC :: GSGS
         PRIVATE
         ! Member data:
@@ -25,8 +25,8 @@ MODULE class_GSGS
         INTEGER                                      :: ierr_
         INTEGER                                      :: comm_
         INTEGER                                      :: ista,iend,ksta,kend
-        REAL(KIND=GP), POINTER    , DIMENSION(:,:,:) :: kk2
-        REAL(KIND=GP), TARGET     , ALLOCATABLE, DIMENSION(:,:,:) :: kn2
+        REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:,:) :: kk2
+!       REAL(KIND=GP), TARGET     , ALLOCATABLE, DIMENSION(:,:,:) :: kn2
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: kx,ky,kz
         TYPE(FFTPLAN)                                :: plancr, planrc
 
@@ -48,6 +48,7 @@ MODULE class_GSGS
       PRIVATE :: GSGS_derivk3             , GSGS_rotor3
       PRIVATE :: GSGS_gradre3             , GSGS_nonlhd3
       PRIVATE :: GSGS_prodre3             , GSGS_advect3
+      PRIVATE :: GSGS_Nuu                 , GSGS_Ntheta
 
 
 ! Methods:
@@ -74,8 +75,9 @@ MODULE class_GSGS
 
     IMPLICIT NONE
     CLASS(GSGS)      ,INTENT(INOUT)     :: this
-    INTEGER          ,INTENT   (IN)     :: ngrid(3)
+    INTEGER          ,INTENT   (IN)     :: comm
     INTEGER          ,INTENT   (IN)     :: arbsz
+    INTEGER          ,INTENT   (IN)     :: ngrid(3)
     INTEGER                             :: aniso,i,j,k,n(3)
     REAL(KIND=GP)    ,INTENT   (IN)     :: Dk(3)
     REAL(KIND=GP)                       :: rmp,rmq,rms
@@ -99,18 +101,15 @@ MODULE class_GSGS
 
 
     ALLOCATE( this%kx(this%nx), this%ky(this%ny), this%kz(this%nz) )
-    ALLOCATE( this%kn2(this%nz,this%ny,this%ista:this%iend) )
-
+!   ALLOCATE( this%kn2(this%nz,this%ny,this%ista:this%iend) )
+    ALLOCATE( this%kk2(this%nz,this%ny,this%ista:this%iend) )
     if ( arbsz .EQ. 1 ) THEN
       aniso = 1
-      ALLOCATE( this%kk2(this%nz,this%ny,this%ista:this%iend) )
     ELSE
       IF ((this%nx.ne.this%ny).or.(this%ny.ne.this%nz)) THEN
-          aniso = 1
-         ALLOCATE( this%kk2(this%nz,this%ny,this%ista:this%iend) )
+         aniso = 1
       ELSE
          aniso = 0
-         this%kk2 => this%kn2
       ENDIF
     ENDIF
 
@@ -144,7 +143,7 @@ MODULE class_GSGS
 !$omp parallel do if (this%iend-this%ista.lt.nth) private (k)
         DO j = 1,this%ny
            DO k = 1,this%nz
-              this%kn2(k,j,i) = rmp*this%kx(i)**2+rmq*this%ky(j)**2+rms*this%kz(k)**2
+              this%kk2(k,j,i) = rmp*this%kx(i)**2+rmq*this%ky(j)**2+rms*this%kz(k)**2
            END DO
         END DO
      END DO
@@ -184,7 +183,7 @@ MODULE class_GSGS
     INTEGER                                 :: j
 
     IF ( ALLOCATED    (this%kk2) ) DEALLOCATE   (this%kk2)
-    IF ( ALLOCATED    (this%kn2) ) DEALLOCATE   (this%kn2)
+!   IF ( ALLOCATED    (this%kn2) ) DEALLOCATE   (this%kn2)
     IF ( ALLOCATED    (this%kx)  ) DEALLOCATE   (this%kx)
     IF ( ALLOCATED    (this%ky)  ) DEALLOCATE   (this%ky)
     IF ( ALLOCATED    (this%kz)  ) DEALLOCATE   (this%kz)
@@ -210,14 +209,14 @@ MODULE class_GSGS
 !-----------------------------------------------------------------
 
     IMPLICIT NONE
-    TYPE(GSGS)   ,INTENT(INOUT)             :: this
+    class(GSGS)   ,INTENT(INOUT)             :: this
     INTEGER         , INTENT   (IN)         :: idir
     COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: vx,vy,vz
     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1,C2,C3
     COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: Nt
 
-     CALL this%prodre3(this, vx,vy,vz,C1,C2,C3)
-     CALL this%nonlhd3(this, C1,C2,C3,Nt,idir)
+     CALL this%prodre3(vx,vy,vz,C1,C2,C3)
+     CALL this%nonlhd3(C1,C2,C3,Nt,idir)
 
 
   END SUBROUTINE GSGS_Nuu
@@ -238,12 +237,12 @@ MODULE class_GSGS
 !-----------------------------------------------------------------
 
     IMPLICIT NONE
-    TYPE(GSGS)   ,INTENT(INOUT)             :: this
+    class(GSGS)   ,INTENT(INOUT)             :: this
     COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: vx,vy,vz,th
     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1
     COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: Nt
 
-     CALL this%advect3(this,vx,vy,vz,th,Nt)
+    CALL this%advect3(vx,vy,vz,th,Nt)
 
 
   END SUBROUTINE GSGS_Ntheta
@@ -272,7 +271,8 @@ MODULE class_GSGS
 
       CLASS(GSGS)   ,INTENT(INOUT)   :: this
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: a
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(this%nz,this%ny,this%ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: b
+      COMPLEX(KIND=GP) :: im = (0.0_GP,1.0_GP)
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
 
@@ -763,7 +763,7 @@ MODULE class_GSGS
       c1 = a
       CALL derivk3(d,c2,1)
       CALL fftp3d_complex_to_real(this%plancr,c1,r1,this%comm_)
-      CALL fftp3d_complex_to_real(this%plancr,c2,r2,this_comm_)
+      CALL fftp3d_complex_to_real(this%plancr,c2,r2,this%comm_)
 
 !$omp parallel do if (this%kend-this%ksta.ge.nth) private (j,i)
       DO k = this%ksta,this%kend
