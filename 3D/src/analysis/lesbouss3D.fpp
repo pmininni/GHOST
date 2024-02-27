@@ -355,7 +355,8 @@
       CHARACTER(len=64)   :: ext1,sfpref(3)
       CHARACTER(len=1024) :: sstat
       TYPE(IOPLAN)        :: planiot
-      TYPE(FFTPLAN)       :: plancrt
+      TYPE(FFTPLAN)       :: plancrt, planrct
+      TYPE(FFTPLAN)       :: plancrtt, planrctt
       TYPE(TRUNCDAT)      :: trtraits
 
 
@@ -1346,13 +1347,18 @@
       CALL fftp3d_create_plan_comm(plancr,n,FFTW_COMPLEX_TO_REAL, &
                              FFTW_ESTIMATE, MPI_COMM_WORLD)
 
+      CALL fftp3d_create_plan_comm(planrctt,nt,FFTW_REAL_TO_COMPLEX, &
+                             FFTW_ESTIMATE, MPI_COMM_WORLD)
+      CALL fftp3d_create_plan_comm(plancrtt,nt,FFTW_COMPLEX_TO_REAL, &
+                             FFTW_ESTIMATE, MPI_COMM_WORLD)
       ! Parse input index set, store in istat:
       CALL parseind(sstat,';', istat , 4096, nstat)
 
       ! Plans for truncated grid:
       CALL trrange(1,nz    ,nzt    ,nprocs,myrank,ktsta,ktend)
       CALL trrange(1,nz/2+1,nzt/2+1,nprocs,myrank,itsta,itend)
-      CALL fftp3d_create_trplan_comm(plancrt,n,nt,FFTW_COMPLEX_TO_REAL,FFTW_MEASURE,MPI_COMM_wORLD)
+      CALL fftp3d_create_trplan_comm(plancrt,n,nt,FFTW_COMPLEX_TO_REAL,FFTW_MEASURE,MPI_COMM_WORLD)
+      CALL fftp3d_create_trplan_comm(planrct,n,nt,FFTW_REAL_TO_COMPLEX,FFTW_MEASURE,MPI_COMM_wORLD)
       trtraits%ktrunc  =  1.0_GP/9.0_GP
 #ifndef DEF_ARBSIZE_
       IF (anis.eq.0)  trtraits%ktrunc = trtraits%ktrunc*real(nxt,kind=GP)**2
@@ -1551,6 +1557,14 @@
       trtraits%R3        => R3;
       trtraits%RT1       => RT1;
 
+       write(*,*)'instantiate sgstr...'
+      CALL sgstr%GSGS_ctor(commtrunc, (/nxt,nyt,nzt/), (/itsta,itend,ktsta,ktend/), arbsz, (/Dkx,Dky,Dkz/), plancrt, planrct )
+       write(*,*)'instantiate sgs  ...'
+      CALL sgs  %GSGS_ctor(MPI_COMM_WORLD, (/nx ,ny ,nz /), (/ista,iend,ksta,kend/), arbsz, (/Dkx,Dky,Dkz/), plancr, planrc )
+      DO k = 1,3
+        write(sfpref(k),"(A3,I1,A2)") "SGS", k,"_T"
+      ENDDO
+
 ! Cycle over all input times, and do analysis:
  LSTAT : DO t = 1, nstat
 
@@ -1576,11 +1590,6 @@
 
 !       CALL bouss_lescomp(trtraits,istat(t),vx,vy,vz,th)
 #endif
-        CALL sgstr%GSGS_ctor(MPI_COMM_WORLD, (/nxt,nyt,nzt/), arbsz, (/Dkx,Dky,Dkz/) )
-        CALL sgs  %GSGS_ctor(MPI_COMM_WORLD, (/nx ,ny ,nz /), arbsz, (/Dkx,Dky,Dkz/) )
-        DO k = 1,3
-          write(sfpref(k),"(A3,I1,A2)") "SGS", k,"_T"
-        ENDDO
 
 #if 0
         ! Compute time derivative estimate at this time step:
@@ -1616,25 +1625,35 @@
         CALL io_write(1,odir,'dthdt_T',ext,planiot,RT1)
 #endif
 #else
+         write(*,*)'truncate data ...'
         CALL trunc(vx, n, nt, trtraits%ktrunc, 1, C1, vxt) 
         CALL trunc(vy, n, nt, trtraits%ktrunc, 1, C1, vyt) 
         CALL trunc(vz, n, nt, trtraits%ktrunc, 1, C1, vzt) 
 
         DO k = 1, 3
+         write(*,*)' call sgsv(N) ', k, ' ...'
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,k, C4)
+         write(*,*)' call trunc, T(N) after sdsv', k, ' ...'
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
+         write(*,*)' call fftC2R T(N) : ', k, ' ...'
           CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
 
+         write(*,*)' call sgsv N(T) ', k, ' ...'
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,k, CT4)
+         write(*,*)' call fftC2R (v N(T)): ', k, ' ...'
           CALL fftp3d_complex_to_real(plancrt,CT4,RT2,MPI_COMM_WORLD)
           RT3 = RT2 - RT1 ! SGS field
-          CALL io_write(1,odir,sfpref(k),ext,planiot,RT3)
+         write(*,*)' write SGSv: ', k, ' ...'
+          CALL io_write(1,odir,trim(sfpref(k)),ext,planiot,RT3)
         ENDDO
+         write(*,*)' call sgsth(N) ', k, ' ...'
         CALL sgs  %sgsth(vx,vy,vz,th,C1,C4)
         CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
         CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
 
+         write(*,*)' call sgsth N(T) ', k, ' ...'
         CALL sgstr%sgsth(vxt,vyt,vzt,tht,CT1,CT4)
+         write(*,*)' call fftC2R (th N(T)): ', k, ' ...'
         CALL fftp3d_complex_to_real(plancrt,CT4,RT2,MPI_COMM_WORLD)
         RT3 = RT2 - RT1 ! SGS field
         CALL io_write(1,odir,"SGSth_T",ext,planiot,RT3)
