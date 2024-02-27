@@ -54,7 +54,7 @@ MODULE class_GSGS
 ! Methods:
   CONTAINS
 
-  SUBROUTINE GSGS_ctor(this, comm, ngrid, arbsz, Dk, plancr, planrc)
+  SUBROUTINE GSGS_ctor(this, comm, ngrid, bnds, arbsz, Dk, plancr, planrc)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Main explicit constructor
@@ -62,6 +62,7 @@ MODULE class_GSGS
 !    this    : 'this' class instance
 !    comm    : MPI communicator
 !    ngrid   : array of size 3 giving grid size
+!    bnds    : array of [ista, iend, ksta, kend]
 !    arbsz   : arbitrary size flag (0, 1)
 !    Dk      : array of size 3 giving Fourier shell widths
 !    plancr,
@@ -80,6 +81,7 @@ MODULE class_GSGS
     INTEGER          ,INTENT   (IN)     :: comm
     INTEGER          ,INTENT   (IN)     :: arbsz
     INTEGER          ,INTENT   (IN)     :: ngrid(3)
+    INTEGER          ,INTENT   (IN)     :: bnds(4)
     INTEGER                             :: aniso,i,j,k,n(3)
     REAL(KIND=GP)    ,INTENT   (IN)     :: Dk(3)
     REAL(KIND=GP)                       :: rmp,rmq,rms
@@ -93,10 +95,13 @@ MODULE class_GSGS
     this%nx = ngrid(1)
     this%ny = ngrid(2)
     this%nz = ngrid(3)
-    CALL range(1,this%nx/2+1,this%nprocs_,this%myrank_,this%ista,this%iend)
-    CALL range(1,this%nz,this%nprocs_,this%myrank_,this%ksta,this%kend)
+!   CALL range(1,this%nx/2+1,this%nprocs_,this%myrank_,this%ista,this%iend)
+!   CALL range(1,this%nz,this%nprocs_,this%myrank_,this%ksta,this%kend)
+    this%ista = bnds(1)
+    this%iend = bnds(2)
+    this%ksta = bnds(3)
+    this%kend = bnds(4)
 
-write(*,*) 'GSGS: ctor: nprocs=', this%nprocs_, ' myrank=', this%myrank_, ' nx=', this%nx , ' ny=', this%ny, ' nz=', this%nz
 
 !   n = ngrid
 !   CALL fftp3d_create_plan_comm(this%planrc,n,FFTW_REAL_TO_COMPLEX, &
@@ -104,12 +109,10 @@ write(*,*) 'GSGS: ctor: nprocs=', this%nprocs_, ' myrank=', this%myrank_, ' nx='
 !   CALL fftp3d_create_plan_comm(this%plancr,n,FFTW_COMPLEX_TO_REAL, &
 !                                FFTW_ESTIMATE, this%comm_)
 
-write(*,*) 'GSGS: ctor: assign plancr, planrc...'
     this%plancr => plancr
     this%planrc => planrc
 
 
-write(*,*) 'GSGS: ctor: build ki, kk2...'
     ALLOCATE( this%kx(this%nx), this%ky(this%ny), this%kz(this%nz) )
 !   ALLOCATE( this%kn2(this%nz,this%ny,this%ista:this%iend) )
     ALLOCATE( this%kk2(this%nz,this%ny,this%ista:this%iend) )
@@ -225,9 +228,7 @@ write(*,*) 'GSGS: ctor: build ki, kk2...'
     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1,C2,C3
     COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: Nt
 
-      write(*,*) 'GSGS_Nuu: call prodre3...'
      CALL this%prodre3(vx,vy,vz,C1,C2,C3)
-      write(*,*) 'GSGS_Nuu: call nonlhd3...'
      CALL this%nonlhd3(C1,C2,C3,Nt,idir)
 
 
@@ -570,16 +571,13 @@ write(*,*) 'GSGS: ctor: build ki, kk2...'
 !
 ! Computes curl(A)
 !
-      write(*,*) 'GSGS_Nuu: call rotor3...'
       CALL this%rotor3(b,c,d,1)
       CALL this%rotor3(a,c,e,2)
       CALL this%rotor3(a,b,f,3)
-      write(*,*) 'GSGS_Nuu: call fftp3d_C2R...'
       CALL fftp3d_complex_to_real(this%plancr,d,r1,this%comm_)
       CALL fftp3d_complex_to_real(this%plancr,e,r2,this%comm_)
       CALL fftp3d_complex_to_real(this%plancr,f,r3,this%comm_)
 
-      write(*,*) 'GSGS_Nuu: compute A...'
 !
 ! Computes A
 !
@@ -594,14 +592,12 @@ write(*,*) 'GSGS: ctor: build ki, kk2...'
             END DO
          END DO
       END DO
-      write(*,*) 'GSGS_Nuu: fftp3d_C2R...'
       CALL fftp3d_complex_to_real(this%plancr,d,r4,this%comm_)
       CALL fftp3d_complex_to_real(this%plancr,e,r5,this%comm_)
       CALL fftp3d_complex_to_real(this%plancr,f,r6,this%comm_)
 !
 ! Computes curl(A)xA
 !
-      write(*,*) 'GSGS_Nuu: compute curl(A)xA...'
       tmp = 1.0_GP/ &
             (real(this%nx,kind=GP)*real(this%ny,kind=GP)*real(this%nz,kind=GP))**2
 !$omp parallel do if (this%kend-this%ksta.ge.nth) private (j,i)
@@ -616,7 +612,6 @@ write(*,*) 'GSGS: ctor: build ki, kk2...'
          END DO
       END DO
 
-      write(*,*) 'GSGS_Nuu: compute fftp3d_R2C...'
       CALL fftp3d_real_to_complex(this%planrc,r7,d,this%comm_)
       CALL fftp3d_real_to_complex(this%planrc,r3,e,this%comm_)
       CALL fftp3d_real_to_complex(this%planrc,r1,f,this%comm_)
@@ -780,7 +775,7 @@ write(*,*) 'GSGS: ctor: build ki, kk2...'
 ! Computes (A_x.dx)B
 !
       c1 = a
-      CALL derivk3(d,c2,1)
+      CALL this%derivk3(d,c2,1)
       CALL fftp3d_complex_to_real(this%plancr,c1,r1,this%comm_)
       CALL fftp3d_complex_to_real(this%plancr,c2,r2,this%comm_)
 
@@ -797,7 +792,7 @@ write(*,*) 'GSGS: ctor: build ki, kk2...'
 ! Computes (A_y.dy)B
 !
       c1 = b
-      CALL derivk3(d,c2,2)
+      CALL this%derivk3(d,c2,2)
       CALL fftp3d_complex_to_real(this%plancr,c1,r1,this%comm_)
       CALL fftp3d_complex_to_real(this%plancr,c2,r2,this%comm_)
 
@@ -814,7 +809,7 @@ write(*,*) 'GSGS: ctor: build ki, kk2...'
 ! Computes (A_z.dz)B
 !
       c1 = c
-      CALL derivk3(d,c2,3)
+      CALL this%derivk3(d,c2,3)
       CALL fftp3d_complex_to_real(this%plancr,c1,r1,this%comm_)
       CALL fftp3d_complex_to_real(this%plancr,c2,r2,this%comm_)
 
