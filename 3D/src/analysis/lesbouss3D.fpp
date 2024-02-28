@@ -351,6 +351,7 @@
       REAL(KIND=GP)   , ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: RT1,RT2,RT3
       INTEGER             :: istat(4096), npkeep, nstat
       INTEGER             :: commtrunc, grouptrunc, n(3), nt(3)
+      LOGICAL             :: dolabels, dotraining
       CHARACTER(len=1024) :: iidir, sparam
       CHARACTER(len=64)   :: ext1,sfpref(3)
       CHARACTER(len=1024) :: sstat
@@ -446,7 +447,7 @@
 #endif
 
       ! App NAMELIST
-      NAMELIST / regrid / idir, odir, sstat, iswap, nxt, nyt, nzt
+      NAMELIST / regrid / idir, odir, sstat, iswap, nxt, nyt, nzt, dolabels, dotraining
 
 
 !
@@ -636,6 +637,8 @@
       nxt    = 0
       nyt    = 0
       nzt    = 0
+      dolabels  = .true.
+      dotraining= .true.
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='lesml.inp',status='unknown')
@@ -643,12 +646,15 @@
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(idir  ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(idir  ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(odir  ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sstat ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nxt   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nyt   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nzt   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dolabels  ,1   ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dotraining,1   ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
 
 
       ! Check input quantities:
@@ -1587,8 +1593,9 @@
         write(*,*) ' data loaded: index=', ext
 
 #if defined(BOUSSINESQ_)
-
-        CALL bouss_lescomp(trtraits,istat(t),vx,vy,vz,th)
+        IF ( dotraining ) THEN
+          CALL bouss_lescomp(trtraits,istat(t),vx,vy,vz,th)
+        ENDIF
 #endif
 
 #if 0
@@ -1625,6 +1632,7 @@
         CALL io_write(1,odir,'dthdt_T',ext,planiot,RT1)
 #endif
 #else
+        IF ( dolabels ) THEN
          write(*,*)'truncate data ...'
         CALL trunc(vx, n, nt, trtraits%ktrunc, 1, C1, vxt) 
         CALL trunc(vy, n, nt, trtraits%ktrunc, 1, C1, vyt) 
@@ -1657,6 +1665,7 @@
         CALL fftp3d_complex_to_real(plancrt,CT4,RT2,MPI_COMM_WORLD)
         RT3 = RT2 - RT1 ! SGS field
         CALL io_write(1,odir,"SGSth_T",ext,planiot,RT3)
+        ENDIF
 
 #endif
         write(*,*) ' done: index=', ext
@@ -1890,6 +1899,22 @@
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
       CALL io_write(1,tr%odir,'divSz_T',ext,tr%planiot,tr%RT1)
+
+      CALL rotor3(vy,vz,tr%C1,1)                        ! omega_x=(curl v)_x
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
+      CALL io_write(1,tr%odir,'omx_T',ext,tr%planiot,tr%RT1)
+
+      CALL rotor3(vz,vx,tr%C1,2)                        ! omega_y=(curl v)_y
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
+      CALL io_write(1,tr%odir,'omy_T',ext,tr%planiot,tr%RT1)
+
+      CALL rotor3(vx,vy,tr%C1,3)                        ! omega_z=(curl v)_z
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
+      CALL io_write(1,tr%odir,'omy_T',ext,tr%planiot,tr%RT1)
+
 
       CALL derivk3(th, tr%C1, 1)                        ! dth/dx
       CALL derivk3(th, tr%C2, 2)                        ! dth/dy
