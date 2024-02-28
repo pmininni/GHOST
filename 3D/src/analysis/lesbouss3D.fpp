@@ -1588,7 +1588,7 @@
 
 #if defined(BOUSSINESQ_)
 
-!       CALL bouss_lescomp(trtraits,istat(t),vx,vy,vz,th)
+        CALL bouss_lescomp(trtraits,istat(t),vx,vy,vz,th)
 #endif
 
 #if 0
