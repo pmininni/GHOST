@@ -347,11 +347,11 @@
 
       ! App data:
       COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: vxt,vyt,vzt,tht
-      COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: CT1,CT2,CT3,CT4
+      COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: CT1,CT2,CT3,CT4,CT5,CT6
       REAL(KIND=GP)   , ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: RT1,RT2,RT3
       INTEGER             :: istat(4096), npkeep, nstat
       INTEGER             :: commtrunc, grouptrunc, n(3), nt(3)
-      LOGICAL             :: dolabels, dotraining
+      LOGICAL             :: dolabels, doprojection, dotraining
       CHARACTER(len=1024) :: iidir, sparam
       CHARACTER(len=64)   :: ext1,sfpref(3)
       CHARACTER(len=1024) :: sstat
@@ -447,7 +447,7 @@
 #endif
 
       ! App NAMELIST
-      NAMELIST / regrid / idir, odir, sstat, iswap, nxt, nyt, nzt, dolabels, dotraining
+      NAMELIST / regrid / idir, odir, sstat, iswap, nxt, nyt, nzt, dolabels, doprojection, dotraining
 
 
 !
@@ -637,8 +637,9 @@
       nxt    = 0
       nyt    = 0
       nzt    = 0
-      dolabels  = .true.
-      dotraining= .true.
+      dolabels    = .true.
+      dotraining  = .true.
+      doprojection= .false.
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='lesml.inp',status='unknown')
@@ -653,8 +654,9 @@
       CALL MPI_BCAST(nxt   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nyt   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nzt   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(dolabels  ,1   ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(dotraining,1   ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dolabels    ,1   ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(doprojection,1   ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dotraining  ,1   ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
 
 
       ! Check input quantities:
@@ -1544,6 +1546,8 @@
       ALLOCATE( CT2(nzt,nyt,itsta:itend))
       ALLOCATE( CT3(nzt,nyt,itsta:itend))
       ALLOCATE( CT4(nzt,nyt,itsta:itend))
+      ALLOCATE( CT5(nzt,nyt,itsta:itend))
+      ALLOCATE( CT6(nzt,nyt,itsta:itend))
       ALLOCATE( RT1(nxt,nyt,ktsta:ktend))
       ALLOCATE( RT2(nxt,nyt,ktsta:ktend))
       ALLOCATE( RT3(nxt,nyt,ktsta:ktend))
@@ -1633,38 +1637,46 @@
 #endif
 #else
         IF ( dolabels ) THEN
-         write(*,*)'truncate data ...'
-        CALL trunc(vx, n, nt, trtraits%ktrunc, 1, C1, vxt) 
-        CALL trunc(vy, n, nt, trtraits%ktrunc, 1, C1, vyt) 
-        CALL trunc(vz, n, nt, trtraits%ktrunc, 1, C1, vzt) 
-
-        DO k = 1, 3
-         write(*,*)' call sgsv(N) ', k, ' ...'
-          CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,k, C4)
-         write(*,*)' call trunc, T(N) after sdsv', k, ' ...'
+          CALL trunc(vx, n, nt, trtraits%ktrunc, 1, C1, vxt) 
+          CALL trunc(vy, n, nt, trtraits%ktrunc, 1, C1, vyt) 
+          CALL trunc(vz, n, nt, trtraits%ktrunc, 1, C1, vzt) 
+          ! Momentum components:
+          CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,1, C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
-         write(*,*)' call fftC2R T(N) : ', k, ' ...'
-          CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
-
-         write(*,*)' call sgsv N(T) ', k, ' ...'
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,k, CT4)
-         write(*,*)' call fftC2R (v N(T)): ', k, ' ...'
-          CALL fftp3d_complex_to_real(plancrt,CT4,RT2,MPI_COMM_WORLD)
-          RT3 = RT2 - RT1 ! SGS field
-         write(*,*)' write SGSv: ', k, ' ...'
-          CALL io_write(1,odir,trim(sfpref(k)),ext,planiot,RT3)
-        ENDDO
-         write(*,*)' call sgsth(N) ', k, ' ...'
-        CALL sgs  %sgsth(vx,vy,vz,th,C1,C4)
-        CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
-        CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
-
-         write(*,*)' call sgsth N(T) ', k, ' ...'
-        CALL sgstr%sgsth(vxt,vyt,vzt,tht,CT1,CT4)
-         write(*,*)' call fftC2R (th N(T)): ', k, ' ...'
-        CALL fftp3d_complex_to_real(plancrt,CT4,RT2,MPI_COMM_WORLD)
-        RT3 = RT2 - RT1 ! SGS field
-        CALL io_write(1,odir,"SGSth_T",ext,planiot,RT3)
+          CT4 = CT4 - CT1
+          CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,2, C4)
+          CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
+          CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,k, CT5)
+          CT5 = CT5 - CT1
+          CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,3, C4)
+          CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
+          CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,k, CT6)
+          CT6 = CT6 - CT1
+          IF ( doprojection ) THEN
+            CALL sgstr%project3(CT4,CT5,CT6,CT1,CT2,CT3)
+          ELSE
+             CT1 = CT4
+             CT2 = CT5
+             CT3 = CT6
+          ENDIF
+          CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
+          CALL io_write(1,odir,trim(sfpref(1)),ext,planiot,RT1)
+           write(*,*) sfpref(1), ' written.'
+          CALL fftp3d_complex_to_real(plancrt,CT2,RT1,MPI_COMM_WORLD)
+          CALL io_write(1,odir,trim(sfpref(2)),ext,planiot,RT1)
+           write(*,*) sfpref(2), ' written.'
+          CALL fftp3d_complex_to_real(plancrt,CT3,RT1,MPI_COMM_WORLD)
+          CALL io_write(1,odir,trim(sfpref(3)),ext,planiot,RT1)
+           write(*,*) sfpref(3), ' written.'
+        ! Energy component:
+          CALL sgs  %sgsth(vx,vy,vz,th,C1,C4)
+          CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
+          CALL sgstr%sgsth(vxt,vyt,vzt,tht,CT2,CT3)
+          CT3 = CT3 - CT1
+          CALL fftp3d_complex_to_real(plancrt,CT4,RT1,MPI_COMM_WORLD)
+          CALL io_write(1,odir,"SGSth_T",ext,planiot,RT1)
+           write(*,*) 'SGSth_T', ' written.'
         ENDIF
 
 #endif
@@ -1704,7 +1716,7 @@
       DEALLOCATE( RT1 )
 
       DEALLOCATE( C1,C2,C3,C4,C5,C6,C7,C8 )
-      DEALLOCATE( CT1 )
+      DEALLOCATE( CT1,CT2,CT3,CT4,CT5,CT6 )
       DEALLOCATE( kx,ky,kz )
       IF (anis.eq.1) THEN
          DEALLOCATE( kk2 )

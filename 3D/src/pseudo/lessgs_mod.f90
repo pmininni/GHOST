@@ -43,12 +43,14 @@ MODULE class_GSGS
         PROCEDURE,PUBLIC :: nonlhd3           => GSGS_nonlhd3
         PROCEDURE,PUBLIC :: prodre3           => GSGS_prodre3
         PROCEDURE,PUBLIC :: advect3           => GSGS_advect3
+        PROCEDURE,PUBLIC :: project3          => GSGS_project3
       END TYPE GSGS
 
       PRIVATE :: GSGS_derivk3             , GSGS_rotor3
       PRIVATE :: GSGS_gradre3             , GSGS_nonlhd3
       PRIVATE :: GSGS_prodre3             , GSGS_advect3
       PRIVATE :: GSGS_Nuu                 , GSGS_Ntheta
+      PRIVATE :: GSGS_project3
 
 
 ! Methods:
@@ -832,6 +834,50 @@ MODULE class_GSGS
       END SUBROUTINE GSGS_advect3
 
 
+!*****************************************************************
+      SUBROUTINE GSGS_project3(this,a,b,c,d,e,f)
+!-----------------------------------------------------------------
+!
+! Project 3D vector field, (a,b,c) to incompressible space,
+! returning projected components into input vector
+!
+! Parameters
+!     a,b,c : input vector field
+!     d,e,f : output field
+!
+      USE fprecision
+      USE commtypes
+   !  USE mpivars
+   !  USE grid
+      USE fftplans
+!$    USE threads
+      IMPLICIT NONE
 
+      CLASS(GSGS)   ,INTENT(INOUT)   :: this
+      COMPLEX(KIND=GP), INTENT  (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT (OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: d,e,f
+      REAL(KIND=GP)    :: tmp
+      INTEGER :: i,j,k
+
+!$omp parallel do if (this%iend-this%ista.ge.nth) private (j,k)
+         DO i = this%ista,this%iend
+!$omp parallel do if (this%iend-this%ista.lt.nth) private (k)
+            DO j = 1,this%ny
+               DO k = 1,this%nz
+                     d(k,j,i) = (1.0 - this%kx(i)*this%kx(i)/this%kk2(k,j,i) ) * a(k,j,i) &
+                                     - this%kx(i)*this%ky(j)/this%kk2(k,j,i)   * b(k,j,i) &
+                                     - this%kx(i)*this%kz(k)/this%kk2(k,j,i)   * c(k,j,i)  
+                     e(k,j,i) =      - this%ky(j)*this%kx(i)/this%kk2(k,j,i)   * a(k,j,i) &
+                              + (1.0 - this%ky(j)*this%ky(j)/this%kk2(k,j,i) ) * b(k,j,i) &
+                                     - this%ky(j)*this%kz(k)/this%kk2(k,j,i)   * c(k,j,i)  
+                     f(k,j,i) =      - this%kz(k)*this%kx(i)/this%kk2(k,j,i)   * a(k,j,i) &
+                                     - this%kz(k)*this%ky(j)/this%kk2(k,j,i)   * b(k,j,i) &
+                              + (1.0 - this%kz(k)*this%kz(k)/this%kk2(k,j,i) ) * c(k,j,i) 
+              
+                  END DO
+               END DO
+            END DO
+
+      END SUBROUTINE GSGS_project3
   
 END MODULE class_GSGS
