@@ -1573,9 +1573,9 @@
       CALL sgs  %GSGS_ctor(MPI_COMM_WORLD, (/nx ,ny ,nz /), (/ista,iend,ksta,kend/), arbsz, (/Dkx,Dky,Dkz/), plancr, planrc )
       DO k = 1,3
         IF ( doprojection ) THEN
-          write(sfpref(k),"(A3,I1,A2)") "SGS", k,"_TP"
+          write(sfpref(k),"(A3,I1,A)") "SGS", k,"_TP"
         ELSE
-          write(sfpref(k),"(A3,I1,A2)") "SGS", k,"_T"
+          write(sfpref(k),"(A3,I1,A)") "SGS", k,"_T"
         ENDIF
       ENDDO
 
