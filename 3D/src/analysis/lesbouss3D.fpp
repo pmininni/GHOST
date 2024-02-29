@@ -1913,7 +1913,7 @@
       CALL rotor3(vx,vy,tr%C1,3)                        ! omega_z=(curl v)_z
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'omy_T',ext,tr%planiot,tr%RT1)
+      CALL io_write(1,tr%odir,'omz_T',ext,tr%planiot,tr%RT1)
 
 
       CALL derivk3(th, tr%C1, 1)                        ! dth/dx
