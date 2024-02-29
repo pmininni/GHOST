@@ -1572,7 +1572,11 @@
        write(*,*)'instantiate sgs  ...'
       CALL sgs  %GSGS_ctor(MPI_COMM_WORLD, (/nx ,ny ,nz /), (/ista,iend,ksta,kend/), arbsz, (/Dkx,Dky,Dkz/), plancr, planrc )
       DO k = 1,3
-        write(sfpref(k),"(A3,I1,A2)") "SGS", k,"_T"
+        IF ( doprojection ) THEN
+          write(sfpref(k),"(A3,I1,A2)") "SGS", k,"_TP"
+        ELSE
+          write(sfpref(k),"(A3,I1,A2)") "SGS", k,"_T"
+        ENDIF
       ENDDO
 
 ! Cycle over all input times, and do analysis:
