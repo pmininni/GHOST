@@ -847,9 +847,6 @@ MODULE class_GSGS
 !
       USE fprecision
       USE commtypes
-   !  USE mpivars
-   !  USE grid
-      USE fftplans
 !$    USE threads
       IMPLICIT NONE
 
@@ -859,24 +856,80 @@ MODULE class_GSGS
       REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
 
+        ! vx:
+        IF (this%ista.eq.1) THEN
+!$omp parallel do private (k)
+            DO j = 1,this%ny
+               DO k = 1,this%nz
+                  d(k,j,1) = a(k,j,1)
+               END DO
+            END DO
+!$omp parallel do if (this%iend-2.ge.nth) private (j,k)
+            DO i = 2,this%iend
+!$omp parallel do if (this%iend-2.lt.nth) private (k)
+               DO j = 1,this%ny
+                  DO k = 1,this%nz
+                     d(k,j,i) = (1.0 - this%kx(i)*this%kx(i)/this%kk2(k,j,i) ) * a(k,j,i) &
+                                     - this%kx(i)*this%ky(j)/this%kk2(k,j,i)   * b(k,j,i) &
+                                     - this%kx(i)*this%kz(k)/this%kk2(k,j,i)   * c(k,j,i)  
+                  END DO
+               END DO
+            END DO
+         ELSE
+!$omp parallel do if (this%iend-this%ista.ge.nth) private (j,k)
+            DO i = this%ista,this%iend
+!$omp parallel do if (this%iend-this%ista.lt.nth) private (k)
+               DO j = 1,this%ny
+                  DO k = 1,this%nz
+                     d(k,j,i) = (1.0 - this%kx(i)*this%kx(i)/this%kk2(k,j,i) ) * a(k,j,i) &
+                                     - this%kx(i)*this%ky(j)/this%kk2(k,j,i)   * b(k,j,i) &
+                                     - this%kx(i)*this%kz(k)/this%kk2(k,j,i)   * c(k,j,i)  
+                  END DO
+               END DO
+            END DO
+         ENDIF
+
+         ! vy:
+!$omp parallel do if (this%iend-this%ista.ge.nth) private (k)
+         DO i = this%ista,this%iend
+!$omp parallel do if (this%iend-this%ista.lt.nth)
+            DO k = 1,this%nz
+               g(k,1,i) = b(k,1,i)
+            END DO
+         END DO
+!$omp parallel do if (this%iend-this%ista.ge.nth) private (j,k)
+         DO i = this%ista,this%iend
+!$omp parallel do if (this%iend-this%ista.lt.nth) private (k)
+            DO j = 2,this%ny
+               DO k = 1,this%nz
+                  e(k,j,i) =      - this%ky(j)*this%kx(i)/this%kk2(k,j,i)   * a(k,j,i) &
+                           + (1.0 - this%ky(j)*this%ky(j)/this%kk2(k,j,i) ) * b(k,j,i) &
+                                  - this%ky(j)*this%kz(k)/this%kk2(k,j,i)   * c(k,j,i)  
+               END DO
+            END DO
+         END DO
+
+
+         ! vz:
+!$omp parallel do if (this%iend-this%ista.ge.nth) private (j)
+         DO i = this%ista,this%iend
+!$omp parallel do if (this%iend-this%ista.lt.nth)
+            DO j = 1,this%ny
+               f(1,j,i) = c(1,j,i)
+            END DO
+         END DO
 !$omp parallel do if (this%iend-this%ista.ge.nth) private (j,k)
          DO i = this%ista,this%iend
 !$omp parallel do if (this%iend-this%ista.lt.nth) private (k)
             DO j = 1,this%ny
-               DO k = 1,this%nz
-                     d(k,j,i) = (1.0 - this%kx(i)*this%kx(i)/this%kk2(k,j,i) ) * a(k,j,i) &
-                                     - this%kx(i)*this%ky(j)/this%kk2(k,j,i)   * b(k,j,i) &
-                                     - this%kx(i)*this%kz(k)/this%kk2(k,j,i)   * c(k,j,i)  
-                     e(k,j,i) =      - this%ky(j)*this%kx(i)/this%kk2(k,j,i)   * a(k,j,i) &
-                              + (1.0 - this%ky(j)*this%ky(j)/this%kk2(k,j,i) ) * b(k,j,i) &
-                                     - this%ky(j)*this%kz(k)/this%kk2(k,j,i)   * c(k,j,i)  
-                     f(k,j,i) =      - this%kz(k)*this%kx(i)/this%kk2(k,j,i)   * a(k,j,i) &
-                                     - this%kz(k)*this%ky(j)/this%kk2(k,j,i)   * b(k,j,i) &
-                              + (1.0 - this%kz(k)*this%kz(k)/this%kk2(k,j,i) ) * c(k,j,i) 
-              
-                  END DO
+               DO k = 2,this%nz
+                  f(k,j,i) =      - this%kz(k)*this%kx(i)/this%kk2(k,j,i)   * a(k,j,i) &
+                                  - this%kz(k)*this%ky(j)/this%kk2(k,j,i)   * b(k,j,i) &
+                           + (1.0 - this%kz(k)*this%kz(k)/this%kk2(k,j,i) ) * c(k,j,i) 
                END DO
             END DO
+         END DO
+
 
       END SUBROUTINE GSGS_project3
   
