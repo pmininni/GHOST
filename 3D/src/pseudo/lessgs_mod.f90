@@ -894,7 +894,7 @@ MODULE class_GSGS
          DO i = this%ista,this%iend
 !$omp parallel do if (this%iend-this%ista.lt.nth)
             DO k = 1,this%nz
-               g(k,1,i) = b(k,1,i)
+               e(k,1,i) = b(k,1,i)
             END DO
          END DO
 !$omp parallel do if (this%iend-this%ista.ge.nth) private (j,k)
