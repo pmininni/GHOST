@@ -1647,15 +1647,15 @@
           ! Momentum components:
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,1, C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
-          CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,k, CT4)
+          CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,1, CT4)
           CT4 = CT4 - CT1
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,2, C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
-          CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,k, CT5)
+          CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,2, CT5)
           CT5 = CT5 - CT1
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,3, C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
-          CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,k, CT6)
+          CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,3, CT6)
           CT6 = CT6 - CT1
           IF ( doprojection ) THEN
             CALL sgstr%project3(CT4,CT5,CT6,CT1,CT2,CT3)
