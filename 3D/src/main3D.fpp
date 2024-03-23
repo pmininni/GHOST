@@ -27,6 +27,7 @@
 !           HMHD_SOL       builds the Hall-MHD solver
 !           HMHDB_SOL      builds the HMHD solver with uniform B_0
 !           COMPRHD_SOL    builds the compressible HD solver
+!           COMPIHD_SOL    builds the compressible HD solver with int. energy
 !           CMHD_SOL       builds the compressible MHD solver
 !           CMHDB_SOL      builds the compressible MHD solver with B_0
 !           CHMHD_SOL      builds the compressible Hall-MHD solver
@@ -129,6 +130,9 @@
 #endif
 #ifdef VELOC_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fx,fy,fz
+#endif
+#ifdef DENSITY_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: rho
 #endif
 #ifdef SCALAR_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: th
@@ -569,6 +573,9 @@
 #ifdef EDQNM_
       n = nx ! EDQNM solvers only work in cubic boxes
       ALLOCATE( C19(nz,ny,ista:iend) )
+#endif
+#ifdef DENSITY_
+      ALLOCATE( rho(nz,ny,ista:iend) )
 #endif
 #ifdef SCALAR_
       ALLOCATE( C20(nz,ny,ista:iend) )
@@ -2968,6 +2975,9 @@
 #ifdef EDQNM_
       DEALLOCATE( C19 )
       DEALLOCATE( tepq,thpq,tve,tvh,Eext,Hext )
+#endif
+#ifdef DENSITY_
+      DEALLOCATE( rho )
 #endif
 #ifdef SCALAR_
       DEALLOCATE( th,fs )

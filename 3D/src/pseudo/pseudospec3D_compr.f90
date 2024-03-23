@@ -83,6 +83,85 @@
       END SUBROUTINE divide
 
 !*****************************************************************
+      SUBROUTINE gradpressi(gam1,e,a,b,c,dpx,dpy,dpz)
+!-----------------------------------------------------------------
+!
+! Computes the gradient of the total pressure assuming
+! ideal equation of state, based on a polytropic law, s.t.
+!    total pressure = p + 0.5 vel^2 
+! with 
+!    p = (gamma - 1) * e
+! where e is internal energy density.
+!
+! Parameters
+!     a  : input matrix with v_x (in Fourier space)
+!     b  : input matrix with v_y (in Fourier space)
+!     c  : input matrix with v_z (in Fourier space)
+!     e  : input matrix with int. energy density (in Fourier space)
+!     dpx: output matrix with grad(press)_x (in Fourier space)
+!     dpy: output matrix with grad(press)_y (in Fourier space)
+!     dpz: output matrix with grad(press)_z (in Fourier space)
+!
+      USE fprecision
+      USE kes
+      USE grid
+      USE commtypes
+      USE mpivars
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: a,b
+      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: c,e
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: dpx,dpy,dpz
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: t
+      REAL(KIND=GP),    INTENT(IN)                 :: gam1
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r3,r4
+      REAL(KIND=GP) :: tmp
+      INTEGER       :: i,j,k
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               t  (k,j,i) = e(k,j,i)
+               dpx(k,j,i) = a(k,j,i)
+               dpy(k,j,i) = b(k,j,i)
+               dpz(k,j,i) = c(k,j,i)
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_complex_to_real(plancr,t  ,r4,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,dpx,r1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,dpy,r2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,dpz,r3,MPI_COMM_WORLD)
+
+      tmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+!$omp parallel do if (iend-ista.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (iend-ista.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               r4(i,j,k) = 0.5_GP*( r1(i,j,k)*r1(i,j,k)*tmp*tmp   + &
+                                    r2(i,j,k)*r2(i,j,k)*tmp*tmp   + &
+                                    r3(i,j,k)*r3(i,j,k)*tmp*tmp ) + &
+                           gam1*r4(i,j,k)*tmp
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_real_to_complex(planrc,r4,t,MPI_COMM_WORLD)
+      CALL derivk3(t,dpx,1)
+      CALL derivk3(t,dpy,2)
+      CALL derivk3(t,dpz,3)
+
+      RETURN
+      END SUBROUTINE gradpressi
+
+!*****************************************************************
       SUBROUTINE gradpress(cp1,gam1,d,a,b,c,e,f,g)
 !-----------------------------------------------------------------
 !
@@ -219,6 +298,7 @@
 
       RETURN
       END SUBROUTINE gradpstate
+
 
 !*****************************************************************
       SUBROUTINE divrhov(d,a,b,c,e)
@@ -469,3 +549,89 @@
 
       RETURN
       END SUBROUTINE energycompr
+
+
+!*****************************************************************
+      SUBROUTINE pdVwork(gam1, p,a,b,c,pdV)
+!-----------------------------------------------------------------
+!
+! Computes p.Div v term
+!
+! Parameters
+!     gam1: gamma - 1 
+!     e   : input matrix with int. energy density (in Fourier space)
+!     a   : input matrix with v_x (in Fourier space)
+!     b   : input matrix with v_y (in Fourier space)
+!     c   : input matrix with v_z (in Fourier space) [A = (a,b,c)]
+!     pdV : time step
+!
+      USE fprecision
+      USE kes
+      USE grid
+      USE commtypes
+      USE mpivars
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: c
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: e
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: pdV
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: e,f,g,h
+      REAL(KIND=GP)   , INTENT (IN)                :: gam1
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r3,r4
+      REAL(KIND=GP)                 :: tmp, tmp1
+      INTEGER                       :: i,j,k
+
+      ! Take divergence terms:
+      CALL derivk3(a,e,1)
+      CALL derivk3(b,f,2)
+      CALL derivk3(a,g,3)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               h(k,j,i) = e(k,j,i)
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_complex_to_real(plancr,e,r1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,f,r2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,g,r3,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,h,r4,MPI_COMM_WORLD)
+
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+!$omp parallel do if (iend-ista.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (iend-ista.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               r1(i,j,k) = gam1*r4(i,j,k)*r1(i,j,k)*tmp
+               r2(i,j,k) = gam1*r4(i,j,k)*r2(i,j,k)*tmp
+               r3(i,j,k) = gam1*r4(i,j,k)*r3(i,j,k)*tmp
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_real_to_complex(planrc,r1,e,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,r2,f,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,r3,g,MPI_COMM_WORLD)
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               e(k,j,i) = e(k,j,i) + f(k,j,i) + g(k,j,i)
+            END DO
+         END DO
+      END DO
+
+      RETURN
+      END SUBROUTINE pdVwork

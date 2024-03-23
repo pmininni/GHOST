@@ -88,6 +88,17 @@
 #define INCLUDEFNAME_ 'comprhd_
 #endif
 
+#ifdef COMPIHD_SOL
+#define DNS_
+#define VELOC_
+#define DENSITY_
+#define SCALAR_
+#define MULTISCALAR_
+#define COMPRESSIBLE_
+#define COMPR_AUX_ARR_
+#define INCLUDEFNAME_ 'compihd_
+#endif
+
 #ifdef CMHD_SOL
 #define DNS_
 #define CMHD_
