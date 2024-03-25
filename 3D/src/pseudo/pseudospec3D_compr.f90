@@ -550,6 +550,112 @@
       RETURN
       END SUBROUTINE energycompr
 
+!*****************************************************************
+      SUBROUTINE massenergycompi(a,b,c,d,e,t,dt)
+!-----------------------------------------------------------------
+!
+! Computes and outputs the total mass and the kinetic and 
+! internal energy densities for compressible runs, for the 
+! system of PDEs in which the internal energy is evolved.
+!
+! Output file contains:
+! 'compi_massener.txt': time, mass, kinetic energy density, internal energy density
+!
+! Parameters
+!     a  : input matrix with v_x (in Fourier space)
+!     b  : input matrix with v_y (in Fourier space)
+!     c  : input matrix with v_z (in Fourier space) [A = (a,b,c)]
+!     d  : input matrix with density (in Fourier space)
+!     e  : input matrix with density (in Fourier space)
+!     t  : number of time steps made
+!     dt : time step
+!
+      USE fprecision
+      USE kes
+      USE grid
+      USE commtypes
+      USE mpivars
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: e
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: t1,t2,t3,t4,t5
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3,r4,r5
+      REAL(KIND=GP),    INTENT(IN)  :: dt
+      INTEGER,          INTENT(IN)  :: t
+      REAL(KIND=GP)                 :: tmp, tmp1, gam0
+      DOUBLE PRECISION              :: tot_ekin,tot_eint,tot_mass
+      DOUBLE PRECISION              :: vloc(3),vtot(3)
+      INTEGER                       :: i,j,k
+
+      tot_ekin = 0.0D0
+      tot_eint = 0.0D0
+      tot_mass = 0.0D0
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               t1(k,j,i) = a(k,j,i)
+               t2(k,j,i) = b(k,j,i)
+               t3(k,j,i) = c(k,j,i)
+               t4(k,j,i) = d(k,j,i)
+               t5(k,j,i) = e(k,j,i)
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_complex_to_real(plancr,t1,r1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t2,r2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t3,r3,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t4,r4,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t5,r5,MPI_COMM_WORLD)
+
+      vloc = 0.0D0
+      tmp  = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**3
+      tmp1 = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+!$omp parallel do if (iend-ista.ge.nth) private (j,i) reduction(+:loc_ekin,loc_eint)
+      DO k = ksta,kend
+!$omp parallel do if (iend-ista.lt.nth) private (i) reduction(+:loc_ekin,loc_eint)
+         DO j = 1,ny
+            DO i = 1,nx
+               vloc(1) = loc_ekin + r4(i,j,k) * (r1(i,j,k)*r1(i,j,k)   + &
+                                                 r2(i,j,k)*r2(i,j,k)   + &
+                                                 r3(i,j,k)*r3(i,j,k) ) * tmp
+               vloc(2) = loc_eint + (r5(i,j,k)*tmp1)
+               vloc(3) = loc_eint + (r4(i,j,k)*tmp1)
+            END DO
+         END DO
+      END DO
+
+      ! Compute averages:
+      vloc(1) = vloc(1)*tmp1
+      vloc(2) = vloc(2)*tmp1
+      vloc(3) = vloc(3)*tmp1
+
+      CALL MPI_REDUCE(vloc,vtot,3,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+                      MPI_COMM_WORLD,ierr)
+      tot_ekin = vtot(1)
+      tot_eint = vtot(2)
+      tot_mass = vtot(3)
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='compi_massenergy.txt',position='append')
+         WRITE(1,*) (t-1)*dt,tot_mass,tot_ekin,tot_eint
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE massenergycompi
+
 
 !*****************************************************************
       SUBROUTINE pdVwork(gam1, p,a,b,c,pdV)
