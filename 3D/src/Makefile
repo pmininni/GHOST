@@ -158,6 +158,7 @@ RMHDB_OBJS     = $(MHDB_OBJS)
 HMHD_OBJS      = $(MHD_OBJS)
 HMHDB_OBJS     = $(MHDB_OBJS)
 COMPRHD_OBJS   = $(PHD_OBJS) pseudospec3D_compr.o
+COMPIHD_OBJS   = $(PHD_OBJS) pseudospec3D_compr.o
 CMHD_OBJS      = $(COMPRHD_OBJS) pseudospec3D_mhd.o
 CMHDB_OBJS     = $(CMHD_OBJS) pseudospec3D_rot.o pseudospec3D_prot.o
 CHMHD_OBJS     = $(CMHD_OBJS)
