@@ -1,6 +1,6 @@
 ! Global quantities computed in compressible HD runs
 
-            CALL massenergycompi (vx,vy,vz,rho,e,t,dt)
+            CALL massenergycompi (vx,vy,vz,rho,th,t,dt)
             CALL hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,1)
             CALL maxabs(vx,vy,vz,rmp,0)
             IF (myrank.eq.0) THEN
