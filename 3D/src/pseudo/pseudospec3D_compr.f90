@@ -627,11 +627,11 @@
 !$omp parallel do if (iend-ista.lt.nth) private (i) reduction(+:loc_ekin,loc_eint)
          DO j = 1,ny
             DO i = 1,nx
-               vloc(1) = loc_ekin + r4(i,j,k) * (r1(i,j,k)*r1(i,j,k)   + &
-                                                 r2(i,j,k)*r2(i,j,k)   + &
-                                                 r3(i,j,k)*r3(i,j,k) ) * tmp
-               vloc(2) = loc_eint + (r5(i,j,k)*tmp1)
-               vloc(3) = loc_eint + (r4(i,j,k)*tmp1)
+               vloc(1) = vloc(1) + r4(i,j,k) * (r1(i,j,k)*r1(i,j,k)   + &
+                                                r2(i,j,k)*r2(i,j,k)   + &
+                                                r3(i,j,k)*r3(i,j,k) ) * tmp
+               vloc(2) = loc(2) + (r5(i,j,k)*tmp1)
+               vloc(3) = loc(3) + (r4(i,j,k)*tmp1)
             END DO
          END DO
       END DO
@@ -658,7 +658,7 @@
 
 
 !*****************************************************************
-      SUBROUTINE pdVwork(gam1, p,a,b,c,pdV)
+      SUBROUTINE pdVwork(gam1,e,a,b,c,pdV)
 !-----------------------------------------------------------------
 !
 ! Computes p.Div v term
@@ -685,31 +685,30 @@
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: c
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: e
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: pdV
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: e,f,g,h
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: t1,t2,t3,t4
       REAL(KIND=GP)   , INTENT (IN)                :: gam1
-      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2
-      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r3,r4
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3,r4
       REAL(KIND=GP)                 :: tmp, tmp1
       INTEGER                       :: i,j,k
 
       ! Take divergence terms:
-      CALL derivk3(a,e,1)
-      CALL derivk3(b,f,2)
-      CALL derivk3(a,g,3)
+      CALL derivk3(a,t1,1)
+      CALL derivk3(b,t2,2)
+      CALL derivk3(a,t3,3)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,ny
             DO k = 1,nz
-               h(k,j,i) = e(k,j,i)
+               t4(k,j,i) = e(k,j,i)
             END DO
          END DO
       END DO
 
-      CALL fftp3d_complex_to_real(plancr,e,r1,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,f,r2,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,g,r3,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,h,r4,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t1,r1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t2,r2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t3,r3,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t4,r4,MPI_COMM_WORLD)
 
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
@@ -725,16 +724,16 @@
          END DO
       END DO
 
-      CALL fftp3d_real_to_complex(planrc,r1,e,MPI_COMM_WORLD)
-      CALL fftp3d_real_to_complex(planrc,r2,f,MPI_COMM_WORLD)
-      CALL fftp3d_real_to_complex(planrc,r3,g,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,r1,t1,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,r2,t2,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,r3,t3,MPI_COMM_WORLD)
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,ny
             DO k = 1,nz
-               e(k,j,i) = e(k,j,i) + f(k,j,i) + g(k,j,i)
+               pdV(k,j,i) = t1(k,j,i) + t2(k,j,i) + t3(k,j,i)
             END DO
          END DO
       END DO
