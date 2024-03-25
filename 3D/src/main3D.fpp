@@ -282,6 +282,7 @@
       REAL(KIND=GP)    :: s3param5,s3param6,s3param7,s3param8,s3param9
 #endif
 #ifdef COMPRESSIBLE_
+      INTEGER          :: Stokeshyp
       REAL(KIND=GP)    :: smach, gam1, cp1, nu2
 #endif
 #ifdef CMHD_
@@ -425,7 +426,7 @@
       NAMELIST / inject / injt,injtm,creset
 #endif
 #ifdef COMPRESSIBLE_
-      NAMELIST / compressible / smach, gam1, nu2
+      NAMELIST / compressible / Stokeshyp, smach, gam1, nu2
 #endif
 #ifdef CMHD_
       NAMELIST / cmhdb / amach
@@ -1009,9 +1010,10 @@
 #ifdef COMPRESSIBLE_
 ! Reads parameters for the compressible runs from the
 ! namelist 'compressible' on the external file 'parameter.inp'
-!     smach : sound Mach number
-!     gam1  : gamma parameter for polytropic eq. of state
-!     nu2   : second viscosity for divergence (velocity) term
+!     smach    : sound Mach number
+!     gam1     : gamma parameter for polytropic eq. of state
+!     nu2      : second (bulk) viscosity for divergence (velocity) term
+!     Stokeshyp: if 1, then nu2 = -2/3 * nu; else set by user
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
@@ -1020,10 +1022,13 @@
       ENDIF
       CALL MPI_BCAST(smach,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(gam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(Stokeshyp,1,GC_INT,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nu2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       gam1 = gam1 - 1.0_GP
       cp1  = 2.0_GP / (gam1*smach*smach)
-      nu2  = nu2 + nu/3.0_GP
+      IF ( Stokeshyp .GE. 1 ) THEN
+        nu2  = -2.0_GP * nu / 3.0_GP
+      ENDIF
 #endif
 
 #ifdef CMHD_
