@@ -39,8 +39,7 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: a,b
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN),    DIMENSION(nz,ny,ista:iend) :: d
       COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: x
       REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2
