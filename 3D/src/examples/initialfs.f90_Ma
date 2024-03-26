@@ -21,9 +21,9 @@
 !     skdn    : minimum wave number; leverages kdn, via f
 !     skup    : maximum wave number; leverages kup, via f
 !
-      CALL fftp3d_real_to_complex(plancr,fx,R1,MPI_COMM_WORLD)
-      CALL fftp3d_real_to_complex(plancr,fy,R2,MPI_COMM_WORLD)
-      CALL fftp3d_real_to_complex(plancr,fz,R3,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,fx,R1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,fy,R2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,fz,R3,MPI_COMM_WORLD)
 
       DO k = ksta,kend
          DO j = 1,ny
