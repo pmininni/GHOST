@@ -489,6 +489,7 @@
 !
 ! Initialization
 
+
 ! Initializes the MPI and I/O libraries
       CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
@@ -604,16 +605,16 @@
       ALLOCATE( C26(nz,ny,ista:iend) )
       ALLOCATE( C27(nz,ny,ista:iend) )
 #endif
+#ifdef TRAP_
+      ALLOCATE( C28(nz,ny,ista:iend), C29(nz,ny,ista:iend) )
+      ALLOCATE( C30(nz,ny,ista:iend) )
+#endif
 #ifdef COMPI_AUX_ARR_
       ALLOCATE( C31(nz,ny,ista:iend) )
       ALLOCATE( C32(nz,ny,ista:iend) )
       ALLOCATE( C33(nz,ny,ista:iend) )
       ALLOCATE( C34(nz,ny,ista:iend) )
       ALLOCATE( C35(nz,ny,ista:iend) )
-#endif
-#ifdef TRAP_
-      ALLOCATE( C28(nz,ny,ista:iend), C29(nz,ny,ista:iend) )
-      ALLOCATE( C30(nz,ny,ista:iend) )
 #endif
 #ifdef WAVEFUNCTION_
       ALLOCATE( zre(nz,ny,ista:iend), zim(nz,ny,ista:iend) )
@@ -1875,6 +1876,39 @@
          timep = pstep
          ENDIF
       ENDIF INJ
+#endif
+
+#ifdef DENSITY_
+ INRHO: IF (injt.eq.0) THEN
+         CALL io_read(1,idir,'rho',ext,planio,R1)
+         CALL fftp3d_real_to_complex(planrc,R1,rho,MPI_COMM_WORLD)
+         IF (mean.eq.1) THEN
+            CALL io_read(1,idir,'mean_rho',ext,planio,R1)
+            CALL fftp3d_real_to_complex(planrc,R1,M11,MPI_COMM_WORLD)
+            dump = real(ini,kind=GP)/cstep
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+               DO j = 1,ny
+                  DO k = 1,nz
+                     M11(k,j,i) = dump*M11(k,j,i)
+                 END DO
+               END DO
+            END DO
+         ENDIF
+      ELSE
+         INCLUDE 'initialrho.f90'      ! initial concentration
+         IF (creset.ne.0) THEN
+         ini = 1                     ! resets all counters (the
+         sind = 0                    ! run starts at t=0)
+         tind = 0
+         pind = 0
+         timet = tstep
+         timec = cstep
+         times = sstep
+         timep = pstep
+         ENDIF
+      ENDIF INRHO
 #endif
 
 #ifdef MULTISCALAR_
