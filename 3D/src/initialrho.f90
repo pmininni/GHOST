@@ -25,7 +25,7 @@
          DO j = 1,ny
             DO i = 1,nx
 
-              R1(i,j,k) = 1.0_GP
+              R1(i,j,k) = rho0
 
             END DO
          END DO
