@@ -633,7 +633,7 @@
                          r3(i,j,k)*r3(i,j,k) 
                vsq     = v2 * tmp2
                csq     = gam1*(gam1+1.0_GP) * r5(i,j,k) / (r4(i,j,k)+tiny)
-               vloc(1) = vloc(1) + (r4(i,j,k) * vsq * tmp3)
+               vloc(1) = vloc(1) + (r4(i,j,k) * v2 * tmp3)
                vloc(2) = vloc(2) + (r5(i,j,k)*tmp1)
                vloc(3) = vloc(3) + (r4(i,j,k)*tmp1)
                vloc(4) = vloc(4) + vsq 
