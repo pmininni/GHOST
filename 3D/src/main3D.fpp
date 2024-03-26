@@ -187,6 +187,9 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C21,C22,C23,C24
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M8,M9,M10
 #endif
+#ifdef DENSITY_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M11
+#endif
 #ifdef COMPR_AUX_ARR_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C25,C26,C27
 #endif
@@ -1588,6 +1591,18 @@
             END DO
          END DO
 #endif
+#ifdef DENSITY_ 
+         ALLOCATE( M11(nz,ny,ista:iend) )
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+                  M11(k,j,i) = 0.0_GP
+               END DO
+            END DO
+         END DO
+#endif
 #ifdef MULTISCALAR_
          ALLOCATE( M8 (nz,ny,ista:iend) )
          ALLOCATE( M9 (nz,ny,ista:iend) )
@@ -2342,6 +2357,35 @@
                CALL io_write(1,odir,'mean_vz',ext,planio,R3)
             ENDIF
 #endif
+#ifdef DENSITY_
+            rmp = 1.0_GP/ &
+	          (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+               DO j = 1,ny
+                  DO k = 1,nz
+                     C1(k,j,i) = rho(k,j,i)*rmp
+                  END DO
+               END DO
+            END DO
+            CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+            CALL io_write(1,odir,'rho',ext,planio,R1)
+            IF (mean.eq.1) THEN
+               dump = real(cstep,kind=GP)/t
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+               DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+                  DO j = 1,ny
+                     DO k = 1,nz
+                        C1(k,j,i) = dump*M11(k,j,i)*rmp
+                     END DO
+                  END DO
+               END DO
+               CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+               CALL io_write(1,odir,'mean_rho',ext,planio,R1)
+            ENDIF
+#endif
 #ifdef SCALAR_
             rmp = 1.0_GP/ &
 	          (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
@@ -3002,6 +3046,7 @@
 #endif
 #ifdef DENSITY_
       DEALLOCATE( rho )
+      DEALLOCATE( M11 )
 #endif
 #ifdef SCALAR_
       DEALLOCATE( th,fs )
