@@ -1023,11 +1023,11 @@
          READ(1,NML=compressible)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(smach    ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(gam1     ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(Stokeshyp,1,GC_INT,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(nu2      ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(rho0     ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(smach    ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(gam1     ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(Stokeshyp,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(nu2      ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rho0     ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
       gam1 = gam1 - 1.0_GP
       cp1  = 2.0_GP / (gam1*smach*smach)
       nu2  = nu2 + nu/3.0
