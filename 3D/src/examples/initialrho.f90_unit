@@ -13,12 +13,6 @@
 !     kdn : minimum wave number (rounded to next integer)
 !     kup : maximum wave number (rounded to next integer)
 
-      IF ( abs(Lx-Ly).gt.tiny ) THEN
-        IF (myrank.eq.0) &
-           PRINT *,'TG initial conditions require at least Lx=Ly'
-        STOP
-      ENDIF
-
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
