@@ -113,7 +113,6 @@
       ENDIF
       ENDIF
       CALL GTStop(ihopen)
-if (myrank.eq.0) write(*,*)' io_read: read open time:',GTGetTime(ihopen)
       CALL GTStart(ihread)
       CALL MPI_FILE_SET_VIEW(fh,disp,GC_REAL,plan%iotype,'native', &
           MPI_INFO_NULL,ioerr)
@@ -122,7 +121,6 @@ if (myrank.eq.0) write(*,*)' io_read: read open time:',GTGetTime(ihopen)
           MPI_STATUS_IGNORE,ioerr)
       CALL MPI_FILE_CLOSE(fh,ioerr)
       CALL GTStop(ihread)
-if (myrank.eq.0) write(*,*)' io_read: read time:',GTGetTime(ihread)
       IF ( iswap.gt.0 ) THEN
         CALL rarray_byte_swap(var,plan%nx*plan%ny*(plan%kend-plan%ksta+1))
       ENDIF
@@ -178,13 +176,11 @@ if (myrank.eq.0) write(*,*)' io_read: read time:',GTGetTime(ihread)
       CALL GTStart(ihwrite)
       CALL MPI_FILE_SET_VIEW(fh,disp,GC_REAL,plan%iotype,'native', &
           MPI_INFO_NULL,ioerr)
-if (myrank.eq.0) write(*,*)' io_write: write open time:',GTGetTime(ihopen)
       CALL MPI_FILE_WRITE_ALL(fh,var,                      &
           plan%nx*plan%ny*(plan%kend-plan%ksta+1),GC_REAL, &
           MPI_STATUS_IGNORE,ioerr)
       CALL MPI_FILE_CLOSE(fh,ioerr)
       CALL GTStop(ihwrite)
-if (myrank.eq.0) write(*,*)' io_write: write time:',GTGetTime(ihread)
 
       RETURN
       END SUBROUTINE io_write
