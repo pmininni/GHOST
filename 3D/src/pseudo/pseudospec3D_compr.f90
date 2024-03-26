@@ -591,13 +591,10 @@
       INTEGER,          INTENT(IN)  :: t
       REAL(KIND=GP)                 :: csq, tmp1, tmp2, tmp3, vsq
       DOUBLE PRECISION              :: tot_ekin,tot_eint,tot_mass,tot_mach
-      DOUBLE PRECISION              :: vloc(4),vtot(4)
+      DOUBLE PRECISION              :: tiny,v2,vloc(5),vtot(5)
       INTEGER                       :: i,j,k
 
-      tot_ekin = 0.0D0
-      tot_eint = 0.0D0
-      tot_mass = 0.0D0
-      tot_mach = 0.0D0
+      tiny = 100.0*epsilon(tot_mach)
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
@@ -631,32 +628,33 @@
 !$omp parallel do if (iend-ista.lt.nth) private (i) reduction(+:loc_ekin,loc_eint)
          DO j = 1,ny
             DO i = 1,nx
-               vsq     = (r1(i,j,k)*r1(i,j,k)   + &
-                          r2(i,j,k)*r2(i,j,k)   + &
-                          r3(i,j,k)*r3(i,j,k) ) * tmp2
-               csq     = gam1*(gam1+1.0_GP) * r5(i,j,k) / r4(i,j,k)
-               vloc(1) = vloc(1) + r4(i,j,k) * (r1(i,j,k)*r1(i,j,k)   + &
-                                                r2(i,j,k)*r2(i,j,k)   + &
-                                                r3(i,j,k)*r3(i,j,k) ) * tmp3
+               v2      = r1(i,j,k)*r1(i,j,k)   + &
+                         r2(i,j,k)*r2(i,j,k)   + &
+                         r3(i,j,k)*r3(i,j,k) 
+               vsq     = v2 * tmp2
+               csq     = gam1*(gam1+1.0_GP) * r5(i,j,k) / (r4(i,j,k)+tiny)
+               vloc(1) = vloc(1) + (r4(i,j,k) * vsq * tmp3)
                vloc(2) = vloc(2) + (r5(i,j,k)*tmp1)
                vloc(3) = vloc(3) + (r4(i,j,k)*tmp1)
-               vloc(4) = vloc(3) + (vsq / csq)
+               vloc(4) = vloc(4) + vsq 
+               vloc(5) = vloc(5) + csq
             END DO
          END DO
       END DO
 
-      ! Compute averages:
+      ! Compute averages over grid:
       vloc(1) = vloc(1)*tmp1
       vloc(2) = vloc(2)*tmp1
       vloc(3) = vloc(3)*tmp1
       vloc(4) = vloc(4)*tmp1
+      vloc(5) = vloc(5)*tmp1
 
-      CALL MPI_REDUCE(vloc,vtot,4,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+      CALL MPI_REDUCE(vloc,vtot,5,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       tot_ekin = vtot(1)
       tot_eint = vtot(2)
       tot_mass = vtot(3)
-      tot_mach = vtot(4)
+      tot_mach = sqrt(vtot(4)/(vtot(5)+tiny))
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='compi_massenergy.txt',position='append')
