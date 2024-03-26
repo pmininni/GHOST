@@ -93,9 +93,8 @@
 #define VELOC_
 #define DENSITY_
 #define SCALAR_
-#define MULTISCALAR_
 #define COMPRESSIBLE_
-#define COMPR_AUX_ARR_
+#define COMPI_AUX_ARR_
 #define INCLUDEFNAME_ 'compihd_
 #endif
 

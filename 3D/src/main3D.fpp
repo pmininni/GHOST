@@ -194,6 +194,9 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C28,C29
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C30
 #endif
+#ifdef COMPI_AUX_ARR_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C31,C32,C33,C34,C35
+#endif
 
 #ifdef WAVEFUNCTION_
       DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: iold,qold,kold,cold
@@ -597,6 +600,13 @@
       ALLOCATE( C25(nz,ny,ista:iend) )
       ALLOCATE( C26(nz,ny,ista:iend) )
       ALLOCATE( C27(nz,ny,ista:iend) )
+#endif
+#ifdef COMPI_AUX_ARR_
+      ALLOCATE( C31(nz,ny,ista:iend) )
+      ALLOCATE( C32(nz,ny,ista:iend) )
+      ALLOCATE( C33(nz,ny,ista:iend) )
+      ALLOCATE( C34(nz,ny,ista:iend) )
+      ALLOCATE( C35(nz,ny,ista:iend) )
 #endif
 #ifdef TRAP_
       ALLOCATE( C28(nz,ny,ista:iend), C29(nz,ny,ista:iend) )
@@ -3005,6 +3015,9 @@
 #endif
 #ifdef COMPR_AUX_ARR_
       DEALLOCATE( C25,C26,C27 )
+#endif
+#ifdef COMPI_AUX_ARR_
+      DEALLOCATE( C31,C32,C33,C34,C35 )
 #endif
 #ifdef WAVEFUNCTION_
       DEALLOCATE( zre,zim )

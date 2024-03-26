@@ -7,4 +7,4 @@
          C2 (k,j,i) = vy(k,j,i)
          C3 (k,j,i) = vz(k,j,i)
          C20(k,j,i) = rho(k,j,i) ! mass
-         C21(k,j,i) = th(k,j,i)  ! energy
+         C35(k,j,i) = th(k,j,i)  ! energy
