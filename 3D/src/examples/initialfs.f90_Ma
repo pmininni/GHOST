@@ -35,5 +35,18 @@
       ENDDO
 
       CALL fftp3d_real_to_complex(planrc,R1,fs,MPI_COMM_WORLD)
-!     CALL normalize(fx,fy,fz,f0,1,MPI_COMM_WORLD)
+
+
+!!    CALL variance(fs,tmp,1)
+!!    CALL MPI_BCAST(tmp,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+!!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!!    DO i = ista,iend
+!!$omp parallel do if (iend-ista.lt.nth) private (k)
+!!       DO j = 1,ny
+!!          DO k = 1,nz
+!!             fs(k,j,i) = fs(k,j,i)*s0/sqrt(tmp)
+!!          END DO
+!!       END DO
+!!    END DO
+
 
