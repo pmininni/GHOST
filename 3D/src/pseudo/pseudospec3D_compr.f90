@@ -550,7 +550,7 @@
       END SUBROUTINE energycompr
 
 !*****************************************************************
-      SUBROUTINE massenergycompi(a,b,c,d,e,t,dt)
+      SUBROUTINE massenergycompi(gam1, a,b,c,d,e,t,dt)
 !-----------------------------------------------------------------
 !
 ! Computes and outputs the total mass and the kinetic and 
@@ -558,16 +558,18 @@
 ! system of PDEs in which the internal energy is evolved.
 !
 ! Output file contains:
-! 'compi_massener.txt': time, mass, kinetic energy density, internal energy density
+! 'compi_massener.txt': time, mass, kinetic energy density, internal
+! energy density, mean Mach number
 !
 ! Parameters
-!     a  : input matrix with v_x (in Fourier space)
-!     b  : input matrix with v_y (in Fourier space)
-!     c  : input matrix with v_z (in Fourier space) [A = (a,b,c)]
-!     d  : input matrix with density (in Fourier space)
-!     e  : input matrix with density (in Fourier space)
-!     t  : number of time steps made
-!     dt : time step
+!     gam1: gamma - 1
+!     a   : input matrix with v_x (in Fourier space)
+!     b   : input matrix with v_y (in Fourier space)
+!     c   : input matrix with v_z (in Fourier space) [A = (a,b,c)]
+!     d   : input matrix with density (in Fourier space)
+!     e   : input matrix with density (in Fourier space)
+!     t   : number of time steps made
+!     dt  : time step
 !
       USE fprecision
       USE kes
@@ -585,16 +587,17 @@
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: e
       COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: t1,t2,t3,t4,t5
       REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3,r4,r5
-      REAL(KIND=GP),    INTENT(IN)  :: dt
+      REAL(KIND=GP),    INTENT(IN)  :: gam1, dt
       INTEGER,          INTENT(IN)  :: t
-      REAL(KIND=GP)                 :: tmp, tmp1, gam0
-      DOUBLE PRECISION              :: tot_ekin,tot_eint,tot_mass
-      DOUBLE PRECISION              :: vloc(3),vtot(3)
+      REAL(KIND=GP)                 :: csq, tmp1, tmp2, tmp3, vsq
+      DOUBLE PRECISION              :: tot_ekin,tot_eint,tot_mass,tot_mach
+      DOUBLE PRECISION              :: vloc(4),vtot(4)
       INTEGER                       :: i,j,k
 
       tot_ekin = 0.0D0
       tot_eint = 0.0D0
       tot_mass = 0.0D0
+      tot_mach = 0.0D0
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
@@ -617,8 +620,10 @@
       CALL fftp3d_complex_to_real(plancr,t5,r5,MPI_COMM_WORLD)
 
       vloc = 0.0D0
-      tmp  = 1.0_GP/ &
-            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**3
+      tmp3  = 1.0_GP/ &
+              (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**3
+      tmp2  = 1.0_GP/ &
+              (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       tmp1 = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,i) reduction(+:loc_ekin,loc_eint)
@@ -626,11 +631,16 @@
 !$omp parallel do if (iend-ista.lt.nth) private (i) reduction(+:loc_ekin,loc_eint)
          DO j = 1,ny
             DO i = 1,nx
+               vsq     = (r1(i,j,k)*r1(i,j,k)   + &
+                          r2(i,j,k)*r2(i,j,k)   + &
+                          r3(i,j,k)*r3(i,j,k) ) * tmp2
+               csq     = gam1*(gam1+1.0_GP) * r5(i,j,k) / r4(i,j,k)
                vloc(1) = vloc(1) + r4(i,j,k) * (r1(i,j,k)*r1(i,j,k)   + &
                                                 r2(i,j,k)*r2(i,j,k)   + &
-                                                r3(i,j,k)*r3(i,j,k) ) * tmp
-               vloc(2) = loc(2) + (r5(i,j,k)*tmp1)
-               vloc(3) = loc(3) + (r4(i,j,k)*tmp1)
+                                                r3(i,j,k)*r3(i,j,k) ) * tmp3
+               vloc(2) = vloc(2) + (r5(i,j,k)*tmp1)
+               vloc(3) = vloc(3) + (r4(i,j,k)*tmp1)
+               vloc(4) = vloc(3) + (vsq / csq)
             END DO
          END DO
       END DO
@@ -639,16 +649,18 @@
       vloc(1) = vloc(1)*tmp1
       vloc(2) = vloc(2)*tmp1
       vloc(3) = vloc(3)*tmp1
+      vloc(4) = vloc(4)*tmp1
 
-      CALL MPI_REDUCE(vloc,vtot,3,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+      CALL MPI_REDUCE(vloc,vtot,4,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
       tot_ekin = vtot(1)
       tot_eint = vtot(2)
       tot_mass = vtot(3)
+      tot_mach = vtot(4)
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='compi_massenergy.txt',position='append')
-         WRITE(1,*) (t-1)*dt,tot_mass,tot_ekin,tot_eint
+         WRITE(1,*) (t-1)*dt,tot_mass,tot_ekin,tot_eint,tot_mach
          CLOSE(1)
       ENDIF
 
