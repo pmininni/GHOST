@@ -591,6 +591,7 @@
       INTEGER,          INTENT(IN)  :: t
       REAL(KIND=GP)                 :: csq, tmp1, tmp2, tmp3, vsq
       DOUBLE PRECISION              :: tot_ekin,tot_eint,tot_mass,tot_mach
+      DOUBLE PRECISION              :: tot_c,tot_v
       DOUBLE PRECISION              :: tiny,v2,vloc(5),vtot(5)
       INTEGER                       :: i,j,k
 
@@ -654,11 +655,14 @@
       tot_ekin = vtot(1)
       tot_eint = vtot(2)
       tot_mass = vtot(3)
-      tot_mach = sqrt(vtot(4)/(vtot(5)+tiny))
+      tot_v    = sqrt(vtot(4))
+      tot_c    = sqrt(vtot(5))
+      tot_mach = tot_v/(tot_c+tiny)
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='compi_massenergy.txt',position='append')
-         WRITE(1,*) (t-1)*dt,tot_mass,tot_ekin,tot_eint,tot_mach
+         WRITE(1,10) (t-1)*dt,tot_mass,tot_ekin,tot_eint,tot_v,tot_c,tot_mach
+   10    FORMAT( E13.6,E26.18,E26.18,E26.18,E26.18,E26.18,E26.18 )
          CLOSE(1)
       ENDIF
 
