@@ -144,9 +144,9 @@
 !$omp parallel do if (iend-ista.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               r4(i,j,k) = 0.5_GP*( r1(i,j,k)*r1(i,j,k)*tmp*tmp   + &
-                                    r2(i,j,k)*r2(i,j,k)*tmp*tmp   + &
-                                    r3(i,j,k)*r3(i,j,k)*tmp*tmp ) + &
+               r4(i,j,k) = 0.5_GP*( r1(i,j,k)*r1(i,j,k)           + &
+                                    r2(i,j,k)*r2(i,j,k)           + &
+                                    r3(i,j,k)*r3(i,j,k) )*tmp*tmp + &
                            gam1*r4(i,j,k)*tmp
             END DO
          END DO
