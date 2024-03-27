@@ -13,17 +13,31 @@
 !     kdn : minimum wave number (rounded to next integer)
 !     kup : maximum wave number (rounded to next integer)
 
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-      DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
+!!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!      DO k = ksta,kend
+!!$omp parallel do if (kend-ksta.lt.nth) private (i)
+!         DO j = 1,ny
+!            DO i = 1,nx
+!
+!              R1(i,j,k) = rho0
+!
+!            END DO
+!         END DO
+!      END DO
+!
+!      CALL fftp3d_real_to_complex(planrc,R1,rho,MPI_COMM_WORLD)
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,ny
-            DO i = 1,nx
-
-              R1(i,j,k) = rho0
-
+            DO k = 1,nz
+               rho(k,j,i) = 0.0_GP
             END DO
          END DO
       END DO
 
-      CALL fftp3d_real_to_complex(planrc,R1,rho,MPI_COMM_WORLD)
+      IF (myrank.eq.0) THEN         
+        rho(1,1,1) = rho0*real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)
+      ENDIF
 
