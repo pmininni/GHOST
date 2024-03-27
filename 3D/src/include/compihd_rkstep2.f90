@@ -1,11 +1,12 @@
 ! Step 2 of Runge-Kutta for the compressible HD equations
 ! Computes the nonlinear terms and evolves the equations in dt/o
 
-         CALL prodre3(vx,vy,vz,C4,C5,C6)          ! om x v
-         CALL gradpressi(gam1,th,vx,vy,vz,C31,C32,C33) ! Grad (p+0.5v^2) term
-         CALL vdiss(nu,nu2,vx,vy,vz)              ! viscous term
-         CALL divide(rho,vx,vy,vz)                ! divide viscous term by rho
+         CALL gradre3(vx,vy,vz,C4,C5,C6)          ! v.Grad v
+         CALL gradpressi(gam1,th,C31,C32,C33)     ! Grad p term
+
          CALL divide(rho,C31,C32,C33)             ! divide Grad(p_tot) by rho
+         CALL vdiss(nu,nu2,vx,vy,vz)              ! viscous term
+!        CALL divide(rho,vx,vy,vz)                ! divide viscous term by rho
 
          CALL divrhov(rho,vx,vy,vz,C7)            ! div(rho.v)
 
