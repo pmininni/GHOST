@@ -82,24 +82,20 @@
       END SUBROUTINE divide
 
 !*****************************************************************
-      SUBROUTINE gradpressi(gam1,e,a,b,c,dpx,dpy,dpz)
+      SUBROUTINE gradpressi(gam1,e,dpx,dpy,dpz)
 !-----------------------------------------------------------------
 !
-! Computes the gradient of the total pressure assuming
+! Computes the gradient of the thermo. pressure assuming
 ! ideal equation of state, based on a polytropic law, s.t.
-!    total pressure = p + 0.5 vel^2 
-! with 
 !    p = (gamma - 1) * e
 ! where e is internal energy density.
 !
 ! Parameters
-!     a  : input matrix with v_x (in Fourier space)
-!     b  : input matrix with v_y (in Fourier space)
-!     c  : input matrix with v_z (in Fourier space)
-!     e  : input matrix with int. energy density (in Fourier space)
-!     dpx: output matrix with grad(press)_x (in Fourier space)
-!     dpy: output matrix with grad(press)_y (in Fourier space)
-!     dpz: output matrix with grad(press)_z (in Fourier space)
+!     gam1: gamma - 1
+!     e   : input matrix with int. energy density (in Fourier space)
+!     dpx : output matrix with grad(press)_x (in Fourier space)
+!     dpy : output matrix with grad(press)_y (in Fourier space)
+!     dpz : output matrix with grad(press)_z (in Fourier space)
 !
       USE fprecision
       USE kes
@@ -110,14 +106,10 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: a,b
-      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: c,e
+      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: e
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: dpx,dpy,dpz
       COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: t
       REAL(KIND=GP),    INTENT(IN)                 :: gam1
-      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2
-      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r3,r4
-      REAL(KIND=GP) :: tmp
       INTEGER       :: i,j,k
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -125,34 +117,11 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,ny
             DO k = 1,nz
-               t  (k,j,i) = e(k,j,i)
-               dpx(k,j,i) = a(k,j,i)
-               dpy(k,j,i) = b(k,j,i)
-               dpz(k,j,i) = c(k,j,i)
+               t  (k,j,i) = gam1 * e(k,j,i)
             END DO
          END DO
       END DO
 
-      CALL fftp3d_complex_to_real(plancr,t  ,r4,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,dpx,r1,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,dpy,r2,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,dpz,r3,MPI_COMM_WORLD)
-
-      tmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
-!$omp parallel do if (iend-ista.ge.nth) private (j,i)
-      DO k = ksta,kend
-!$omp parallel do if (iend-ista.lt.nth) private (i)
-         DO j = 1,ny
-            DO i = 1,nx
-               r4(i,j,k) = 0.5_GP*( r1(i,j,k)*r1(i,j,k)           + &
-                                    r2(i,j,k)*r2(i,j,k)           + &
-                                    r3(i,j,k)*r3(i,j,k) )*tmp*tmp + &
-                           gam1*r4(i,j,k)*tmp
-            END DO
-         END DO
-      END DO
-
-      CALL fftp3d_real_to_complex(planrc,r4,t,MPI_COMM_WORLD)
       CALL derivk3(t,dpx,1)
       CALL derivk3(t,dpy,2)
       CALL derivk3(t,dpz,3)
