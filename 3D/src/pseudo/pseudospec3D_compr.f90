@@ -796,8 +796,8 @@
          DO j = 1,ny
             DO i = 1,nx
                r4(i,j,k) = r4(i,j,k) + 2.0* ( r1(i,j,k)*r1(i,j,k) &
-                                              r2(i,j,k)*r2(i,j,k) &
-                                              r3(i,j,k)*r3(i,j,k) )
+                                            + r2(i,j,k)*r2(i,j,k) &
+                                            + r3(i,j,k)*r3(i,j,k) )
             END DO
          END DO
       END DO
@@ -817,8 +817,8 @@
          DO j = 1,ny
             DO i = 1,nx
                r4(i,j,k) = r4(i,j,k) + 4.0* ( r1(i,j,k)*r1(i,j,k) &
-                                              r2(i,j,k)*r2(i,j,k) &
-                                              r3(i,j,k)*r3(i,j,k) )
+                                            + r2(i,j,k)*r2(i,j,k) &
+                                            + r3(i,j,k)*r3(i,j,k) )
             END DO
          END DO
       END DO
