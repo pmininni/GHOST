@@ -1048,10 +1048,12 @@
       CALL MPI_BCAST(rho0     ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
       gam1 = gam1 - 1.0_GP
       cp1  = 2.0_GP / (gam1*smach*smach)
-    ! nu2  = nu2 + nu/3.0
       IF ( Stokeshyp .GE. 1 ) THEN
         ! s.t. nu2 + 2 nu/d = 0 ; d == dimensionality
         nu2  = -2.0_GP * nu / 3.0_GP
+      ELSE IF (Stokeshyp .EQ. 0)  THEN
+        nu2  = nu2 + nu/3.0
+      ! IF < 0, then accept nu2 as set
       ENDIF
 #endif
 
