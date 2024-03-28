@@ -62,9 +62,9 @@
 
       CALL fftp3d_complex_to_real(plancr,x,r4,MPI_COMM_WORLD)
 
-!$omp parallel do if (iend-ista.ge.nth) private (j,i)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
-!$omp parallel do if (iend-ista.lt.nth) private (i)
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
                r1(i,j,k) = r1(i,j,k)/r4(i,j,k)
@@ -320,9 +320,9 @@
 
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
-!$omp parallel do if (iend-ista.ge.nth) private (j,i)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
-!$omp parallel do if (iend-ista.lt.nth) private (i)
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
                r1(i,j,k) = r4(i,j,k)*r1(i,j,k)*tmp
@@ -593,9 +593,9 @@
               (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       tmp1 = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
-!$omp parallel do if (iend-ista.ge.nth) private (j,i) reduction(+:loc_ekin,loc_eint)
+!$omp parallel do if (kend-ista.ge.nth) private (j,i) reduction(+vloc)
       DO k = ksta,kend
-!$omp parallel do if (iend-ista.lt.nth) private (i) reduction(+:loc_ekin,loc_eint)
+!$omp parallel do if (kend-ksta.lt.nth) private (i) reduction(+:vloc)
          DO j = 1,ny
             DO i = 1,nx
                v2      = r1(i,j,k)*r1(i,j,k)   + &
@@ -651,7 +651,7 @@
 !     a   : input matrix with v_x (in Fourier space)
 !     b   : input matrix with v_y (in Fourier space)
 !     c   : input matrix with v_z (in Fourier space) [A = (a,b,c)]
-!     pdV : time step
+!     pdV : result 
 !
       USE fprecision
       USE kes
@@ -670,7 +670,7 @@
       COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: t1,t2,t3,t4
       REAL(KIND=GP)   , INTENT (IN)                :: gam1
       REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3,r4
-      REAL(KIND=GP)                 :: tmp, tmp1
+      REAL(KIND=GP)                 :: tmp
       INTEGER                       :: i,j,k
 
       ! Take divergence terms:
@@ -694,9 +694,9 @@
 
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
-!$omp parallel do if (iend-ista.ge.nth) private (j,i)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
-!$omp parallel do if (iend-ista.lt.nth) private (i)
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
                r1(i,j,k) = gam1*r4(i,j,k)*r1(i,j,k)*tmp
