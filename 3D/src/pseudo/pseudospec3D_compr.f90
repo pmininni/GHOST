@@ -764,10 +764,10 @@
       REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3,r4
       REAL(KIND=GP)                 :: tmp
       INTEGER                       :: i,j,k
-      LOGICAL                       :: btrunc,bnorm
+      INTEGER                       :: btrunc,bnorm
 
-      btrunc = .FALSE.
-      bnorm  = .TRUE.
+      btrunc = 0
+      bnorm  = 0
       ! Find diagonal strain rate components with normalization:
       CALL Strain(a,b,c,1,1,btrunc,0,0,bnorm,t4,t1) ! S11
       CALL Strain(a,b,c,2,2,btrunc,0,0,bnorm,t4,t2) ! S22
@@ -797,7 +797,7 @@
             DO i = 1,nx
                r4(i,j,k) = r4(i,j,k) + 2.0* ( r1(i,j,k)*r1(i,j,k) &
                                             + r2(i,j,k)*r2(i,j,k) &
-                                            + r3(i,j,k)*r3(i,j,k) )
+                                            + r3(i,j,k)*r3(i,j,k) )*tmp
             END DO
          END DO
       END DO
@@ -818,7 +818,7 @@
             DO i = 1,nx
                r4(i,j,k) = r4(i,j,k) + 4.0* ( r1(i,j,k)*r1(i,j,k) &
                                             + r2(i,j,k)*r2(i,j,k) &
-                                            + r3(i,j,k)*r3(i,j,k) )
+                                            + r3(i,j,k)*r3(i,j,k) )*tmp
             END DO
          END DO
       END DO
