@@ -12,6 +12,7 @@
 
          CALL divrhov(th,vx,vy,vz,C8)             ! div(e.v)
          CALL pdVwork(gam1,th,vx,vy,vz,C34)       ! p.div(v) = (gamma-1) e.div(v)
+         CALL viscHeatRayleigh(vx,vy,vz,C36)      ! phi/mu, visc. heat
          CALL laplak3(th,th)                      ! laplacian(e)
         
          rmp = 1./real(o,kind=GP)
@@ -29,7 +30,7 @@
                vz (k,j,i) = C3(k,j,i)+dt*(vz(k,j,i)-C6(k,j,i)-C33(k,j,i) &
               +fz(k,j,i))*rmp
                rho(k,j,i) = C20(k,j,i)-dt*C7(k,j,i)*rmp
-               th (k,j,i) = C35(k,j,i)+dt*(kappa*th(k,j,i)-C8(k,j,i)-C34(k,j,i) &
+               th (k,j,i) = C35(k,j,i)+dt*(mu*C36(k,j,i)-C8(k,j,i)-C34(k,j,i) &
               +fs(k,j,i))*rmp
             ELSE IF (kn2(k,j,i).gt.kmax) THEN
                vx (k,j,i) = 0.0_GP
