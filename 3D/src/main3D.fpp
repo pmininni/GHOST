@@ -133,6 +133,7 @@
 #endif
 #ifdef DENSITY_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: rho
+      CHARACTER                                        :: srho           
 #endif
 #ifdef SCALAR_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: th
@@ -198,7 +199,8 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C30
 #endif
 #ifdef COMPI_AUX_ARR_
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C31,C32,C33,C34,C35
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C31,C32,C33
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C34,C35,C36
 #endif
 
 #ifdef WAVEFUNCTION_
@@ -584,6 +586,7 @@
 #endif
 #ifdef DENSITY_
       ALLOCATE( rho(nz,ny,ista:iend) )
+      srho = 'rhospect'
 #endif
 #ifdef SCALAR_
       ALLOCATE( C20(nz,ny,ista:iend) )
@@ -615,6 +618,7 @@
       ALLOCATE( C33(nz,ny,ista:iend) )
       ALLOCATE( C34(nz,ny,ista:iend) )
       ALLOCATE( C35(nz,ny,ista:iend) )
+      ALLOCATE( C36(nz,ny,ista:iend) )
 #endif
 #ifdef WAVEFUNCTION_
       ALLOCATE( zre(nz,ny,ista:iend), zim(nz,ny,ista:iend) )
@@ -1044,7 +1048,7 @@
       CALL MPI_BCAST(rho0     ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
       gam1 = gam1 - 1.0_GP
       cp1  = 2.0_GP / (gam1*smach*smach)
-      nu2  = nu2 + nu/3.0
+    ! nu2  = nu2 + nu/3.0
       IF ( Stokeshyp .GE. 1 ) THEN
         ! s.t. nu2 + 2 nu/d = 0 ; d == dimensionality
         nu2  = -2.0_GP * nu / 3.0_GP
@@ -3096,7 +3100,7 @@
       DEALLOCATE( C25,C26,C27 )
 #endif
 #ifdef COMPI_AUX_ARR_
-      DEALLOCATE( C31,C32,C33,C34,C35 )
+      DEALLOCATE( C31,C32,C33,C34,C35,C36 )
 #endif
 #ifdef WAVEFUNCTION_
       DEALLOCATE( zre,zim )
