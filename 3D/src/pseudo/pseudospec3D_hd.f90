@@ -2276,7 +2276,7 @@
 
       IF ( inorm.GT.0 ) THEN
         
-        tmp = 1.0_GP/REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP)
+        tmp = 1.0_GP/(REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
