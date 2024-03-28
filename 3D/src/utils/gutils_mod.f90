@@ -858,4 +858,153 @@ MODULE gutils
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+
+      SUBROUTINE Strain(vx,vy,vz,ir,jc,btrunc,ktmin,ktmax,inorm,ctmp,sij)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Computes the complex strain rate component 
+!
+! Parameters
+!     vi    : input velocities
+!     ir,jc : the row and col of sij
+!     btrunc: if truncating modes within [ktmin,ktmin], set to TRUE
+!     ktmin : truncaton min wavenumber for spherical truncation
+!     ktmax : truncaton max wavenumber for spherical truncation
+!     inorm : normalize (1), or not (0)
+!     ctmp  : complex temp array
+!     sij   : complex tensor component, returned
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: sij
+      REAL   (KIND=GP), INTENT   (IN)                             :: ktmin,ktmax
+      INTEGER         , INTENT   (IN)                             :: btrunc,inorm,ir,jc
+!
+      REAL   (KIND=GP)                                            :: ktmin2,ktmax2,tmp
+      INTEGER                                                     :: i,j,k
+
+      IF ( ir.NE.1 .AND. ir.NE.2 .AND. ir.NE.3 &
+      .AND.jc.NE.1 .AND. jc.NE.2 .AND. jc.NE.3 ) THEN
+        WRITE(*,*)'Strain: invalid row/column specification: ', ir, jc
+        STOP
+      ENDIF
+
+      ktmin2 = ktmin**2
+      ktmax2 = ktmax**2
+
+      IF ( ir.EQ.1 ) THEN
+        CALL derivk3(vx, sij, jc)
+        SELECT CASE (jc)
+          CASE(1)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+              DO j = 1,ny
+                DO k = 1,nz
+                  ctmp(k,j,i) = sij(k,j,i)
+                END DO
+              END DO
+            END DO
+          CASE(2)
+            CALL derivk3(vy, ctmp, 1)
+          CASE(3)
+            CALL derivk3(vz, ctmp, 1)
+        END SELECT
+      ELSE IF ( ir.EQ.2 ) THEN
+        CALL derivk3(vy, sij, jc)
+        SELECT CASE (jc)
+          CASE(1)
+            CALL derivk3(vx, ctmp, 2)
+          CASE(2)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+              DO j = 1,ny
+                DO k = 1,nz
+                  ctmp(k,j,i) = sij(k,j,i)
+                END DO
+              END DO
+            END DO
+          CASE(3)
+            CALL derivk3(vz, ctmp, 2)
+        END SELECT
+      ELSE IF ( ir.EQ.3 ) THEN
+        CALL derivk3(vz, sij, jc)
+        SELECT CASE (jc)
+          CASE(1)
+            CALL derivk3(vx, ctmp, 3)
+          CASE(2)
+            CALL derivk3(vy, ctmp, 3)
+          CASE(3)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+              DO j = 1,ny
+                DO k = 1,nz
+                  ctmp(k,j,i) = sij(k,j,i)
+                END DO
+              END DO
+            END DO
+        END SELECT
+      ENDIF
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,ny
+          DO k = 1,nz
+            sij(k,j,i) = 0.50_GP*(sij(k,j,i)+ctmp(k,j,i)) 
+          END DO
+        END DO
+      END DO
+
+
+      IF ( btrunc .GT. 0 ) THEN
+        ! truncate spherically:
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              IF ((kk2(k,j,i).lt.ktmin2 ).or.(kk2(k,j,i).gt.ktmax2)) THEN
+                sij(k,j,i) = 0.0_GP
+              ENDIF
+            END DO
+          END DO
+        END DO
+      ENDIF
+
+
+      IF ( inorm.GT.0 ) THEN
+        
+        tmp = 1.0_GP/REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              sij(k,j,i) = sij(k,j,i)*tmp
+            END DO
+          END DO
+        END DO
+
+      ENDIF
+
+      END SUBROUTINE Strain
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+
 END MODULE gutils
