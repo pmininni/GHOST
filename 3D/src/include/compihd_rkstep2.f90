@@ -33,6 +33,7 @@
               +fz(k,j,i))*rmp
                rho(k,j,i) = C20(k,j,i)-dt*C7(k,j,i)*rmp
                th (k,j,i) = C35(k,j,i)+dt*(nu*C36(k,j,i)-C8(k,j,i)-C34(k,j,i) &
+!              th (k,j,i) = C35(k,j,i)+dt*(nu*C36(k,j,i)-C8(k,j,i) &
               +fs(k,j,i))*rmp
             ELSE IF (kn2(k,j,i).gt.kmax) THEN
                vx (k,j,i) = 0.0_GP
