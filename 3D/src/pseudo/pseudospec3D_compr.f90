@@ -764,11 +764,14 @@
       REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3,r4
       REAL(KIND=GP)                 :: tmp
       INTEGER                       :: i,j,k
+      LOGICAL                       :: btrunc,bnorm
 
+      btrunc = .FALSE.
+      bnorm  = .TRUE.
       ! Find diagonal strain rate components with normalization:
-      CALL Strain(a,b,c,1,1,.FALSE.,0,0,.TRUE.,t4,t1) ! S11
-      CALL Strain(a,b,c,2,2,.FALSE.,0,0,.TRUE.,t4,t2) ! S22
-      CALL Strain(a,b,c,3,3,.FALSE.,0,0,.TRUE.,t4,t3) ! S33
+      CALL Strain(a,b,c,1,1,btrunc,0,0,bnorm,t4,t1) ! S11
+      CALL Strain(a,b,c,2,2,btrunc,0,0,bnorm,t4,t2) ! S22
+      CALL Strain(a,b,c,3,3,btrunc,0,0,bnorm,t4,t3) ! S33
 
       CALL fftp3d_complex_to_real(plancr,t1,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,t2,r2,MPI_COMM_WORLD)
@@ -776,23 +779,33 @@
 
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
-      r4 = 0.0_GP
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               r4(i,j,k) = r4(i,j,k) + 2.0*r1(i,j,k)*r1(i,j,k)
-               r4(i,j,k) = r4(i,j,k) + 2.0*r2(i,j,k)*r2(i,j,k)
-               r4(i,j,k) = r4(i,j,k) + 2.0*r3(i,j,k)*r3(i,j,k)
+               r4(i,j,k) = 0.0_GP
+            END DO
+         END DO
+      END DO
+
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               r4(i,j,k) = r4(i,j,k) + 2.0* ( r1(i,j,k)*r1(i,j,k) &
+                                              r2(i,j,k)*r2(i,j,k) &
+                                              r3(i,j,k)*r3(i,j,k) )
             END DO
          END DO
       END DO
 
       ! Find off-diagonal strain rate components with normalization:
-      CALL Strain(a,b,c,1,2,.FALSE.,0,0,.TRUE.,t4,t1) ! S12
-      CALL Strain(a,b,c,1,3,.FALSE.,0,0,.TRUE.,t4,t2) ! S13
-      CALL Strain(a,b,c,2,3,.FALSE.,0,0,.TRUE.,t4,t3) ! S23
+      CALL Strain(a,b,c,1,2,btrunc,0,0,bnorm,t4,t1) ! S12
+      CALL Strain(a,b,c,1,3,btrunc,0,0,bnorm,t4,t2) ! S13
+      CALL Strain(a,b,c,2,3,btrunc,0,0,bnorm,t4,t3) ! S23
 
       CALL fftp3d_complex_to_real(plancr,t1,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,t2,r2,MPI_COMM_WORLD)
@@ -803,9 +816,9 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               r4(i,j,k) = r4(i,j,k) + 4.0*r1(i,j,k)*r1(i,j,k)
-               r4(i,j,k) = r4(i,j,k) + 4.0*r2(i,j,k)*r2(i,j,k)
-               r4(i,j,k) = r4(i,j,k) + 4.0*r3(i,j,k)*r3(i,j,k)
+               r4(i,j,k) = r4(i,j,k) + 4.0* ( r1(i,j,k)*r1(i,j,k) &
+                                              r2(i,j,k)*r2(i,j,k) &
+                                              r3(i,j,k)*r3(i,j,k) )
             END DO
          END DO
       END DO
