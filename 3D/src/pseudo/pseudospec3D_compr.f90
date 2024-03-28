@@ -722,3 +722,96 @@
 
       RETURN
       END SUBROUTINE pdVwork
+
+!*****************************************************************
+      SUBROUTINE viscHeatRayleigh(a,b,c,phi)
+!-----------------------------------------------------------------
+!
+! Computes viscous heat term (Rayleigh form):
+!     phi = tau_ij dv^i/dx^j
+! where
+!     tau_ij = 2 mu S_ij - 2/3 mu Div v delta_ij
+! and
+!     S_ij   = 1/2 ( v^i,j + v^j,i ) is strain rate.
+! Then
+!     phi = mu (v^j,i + v^i,j) - 2/3 mu (Div v)^2.
+!
+! Actually, the kernel phi/mu is returned, and user
+! should multiply this term by mu 
+! 
+!
+!
+! Parameters
+!     a   : input matrix with v_x (in Fourier space)
+!     b   : input matrix with v_y (in Fourier space)
+!     c   : input matrix with v_z (in Fourier space) 
+!     phi : result 
+!
+      USE fprecision
+      USE kes
+      USE grid
+      USE commtypes
+      USE mpivars
+      USE fft
+      USE utils
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: c
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: phi
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: divv,t1,t2,t3,t4
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3,r4
+      REAL(KIND=GP)                 :: tmp
+      INTEGER                       :: i,j,k
+
+      ! Compute divergence terms:
+      CALL derivk3(a,t1  ,1)
+      CALL derivk3(b,t2  ,2)
+      CALL derivk3(a,divv,3)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               divv(k,j,i) = divv(k,j,i) + t1(k,j,i) + t2(k,j,i)
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_complex_to_real(plancr,t1,r1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t2,r2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t3,r3,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t4,r4,MPI_COMM_WORLD)
+
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               r1(i,j,k) = !gam1*r4(i,j,k)*r1(i,j,k)*tmp
+               r2(i,j,k) = !gam1*r4(i,j,k)*r2(i,j,k)*tmp
+               r3(i,j,k) = !gam1*r4(i,j,k)*r3(i,j,k)*tmp
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_real_to_complex(planrc,r1,t1,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,r2,t2,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,r3,t3,MPI_COMM_WORLD)
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+              ! pdV(k,j,i) = t1(k,j,i) + t2(k,j,i) + t3(k,j,i)
+            END DO
+         END DO
+      END DO
+
+      RETURN
+      END SUBROUTINE viscHeatRayleigh
