@@ -753,7 +753,6 @@
       USE commtypes
       USE mpivars
       USE fft
-      USE utils
 !$    USE threads
       IMPLICIT NONE
 
@@ -761,57 +760,84 @@
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: b
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: c
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: phi
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: divv,t1,t2,t3,t4
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: t1,t2,t3,t4
       REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3,r4
       REAL(KIND=GP)                 :: tmp
       INTEGER                       :: i,j,k
 
-      ! Compute divergence terms:
-      CALL derivk3(a,t1  ,1)
-      CALL derivk3(b,t2  ,2)
-      CALL derivk3(a,divv,3)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,ny
-            DO k = 1,nz
-               divv(k,j,i) = divv(k,j,i) + t1(k,j,i) + t2(k,j,i)
-            END DO
-         END DO
-      END DO
+      ! Find diagonal strain rate components with normalization:
+      CALL Strain(a,b,c,1,1,.FALSE.,0,0,.TRUE.,t4,t1) ! S11
+      CALL Strain(a,b,c,2,2,.FALSE.,0,0,.TRUE.,t4,t2) ! S22
+      CALL Strain(a,b,c,3,3,.FALSE.,0,0,.TRUE.,t4,t3) ! S33
 
       CALL fftp3d_complex_to_real(plancr,t1,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,t2,r2,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,t3,r3,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,t4,r4,MPI_COMM_WORLD)
 
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+      r4 = 0.0_GP
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               r1(i,j,k) = !gam1*r4(i,j,k)*r1(i,j,k)*tmp
-               r2(i,j,k) = !gam1*r4(i,j,k)*r2(i,j,k)*tmp
-               r3(i,j,k) = !gam1*r4(i,j,k)*r3(i,j,k)*tmp
+               r4(i,j,k) = r4(i,j,k) + 2.0*r1(i,j,k)*r1(i,j,k)
+               r4(i,j,k) = r4(i,j,k) + 2.0*r2(i,j,k)*r2(i,j,k)
+               r4(i,j,k) = r4(i,j,k) + 2.0*r3(i,j,k)*r3(i,j,k)
             END DO
          END DO
       END DO
 
-      CALL fftp3d_real_to_complex(planrc,r1,t1,MPI_COMM_WORLD)
-      CALL fftp3d_real_to_complex(planrc,r2,t2,MPI_COMM_WORLD)
-      CALL fftp3d_real_to_complex(planrc,r3,t3,MPI_COMM_WORLD)
+      ! Find off-diagonal strain rate components with normalization:
+      CALL Strain(a,b,c,1,2,.FALSE.,0,0,.TRUE.,t4,t1) ! S12
+      CALL Strain(a,b,c,1,3,.FALSE.,0,0,.TRUE.,t4,t2) ! S13
+      CALL Strain(a,b,c,2,3,.FALSE.,0,0,.TRUE.,t4,t3) ! S23
 
+      CALL fftp3d_complex_to_real(plancr,t1,r1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t2,r2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t3,r3,MPI_COMM_WORLD)
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               r4(i,j,k) = r4(i,j,k) + 4.0*r1(i,j,k)*r1(i,j,k)
+               r4(i,j,k) = r4(i,j,k) + 4.0*r2(i,j,k)*r2(i,j,k)
+               r4(i,j,k) = r4(i,j,k) + 4.0*r3(i,j,k)*r3(i,j,k)
+            END DO
+         END DO
+      END DO
+
+      ! Subtract dilitation term.
+      ! First, compute dilitation term:
+      CALL derivk3(a,t1,1)
+      CALL derivk3(b,t2,2)
+      CALL derivk3(a,t3,3)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,ny
             DO k = 1,nz
-              ! pdV(k,j,i) = t1(k,j,i) + t2(k,j,i) + t3(k,j,i)
+               t3(k,j,i) = t3(k,j,i) + t2(k,j,i) + t1(k,j,i)
             END DO
          END DO
       END DO
+     
+      CALL fftp3d_complex_to_real(plancr,t3,r3,MPI_COMM_WORLD)
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               r4(i,j,k) = r4(i,j,k) - (2.0_GP/3.0_GP)*r3(i,j,k)*r3(i,j,k)*tmp
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_real_to_complex(planrc,r4,phi,MPI_COMM_WORLD)
 
       RETURN
       END SUBROUTINE viscHeatRayleigh
