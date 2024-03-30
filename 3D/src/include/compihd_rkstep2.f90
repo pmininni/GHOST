@@ -7,7 +7,7 @@
 
          CALL divrhov(th,vx,vy,vz,C8)             ! div(e.v)
          CALL pdVwork(gam1,th,vx,vy,vz,C34)       ! p.div(v) = (gamma-1) e.div(v)
-         CALL viscHeatRayleigh(vx,vy,vz,C36)      ! phi/mu, visc. heat
+     !   CALL viscHeatRayleigh(vx,vy,vz,C36)      ! phi/mu, visc. heat
 
          CALL gradre3(vx,vy,vz,C4,C5,C6)          ! v.Grad v
          CALL gradpressi(gam1,th,C31,C32,C33)     ! Grad p term
@@ -15,7 +15,7 @@
          ! Note: th, vx,vy,vz overwritten, so make these calls last:
          CALL vdiss(nu,nu2,vx,vy,vz)              ! viscous term
          CALL divide(rho,vx,vy,vz)                ! divide viscous term by rho
-       !!CALL laplak3(th,th)                      ! laplacian(e)
+         CALL laplak3(th,th)                      ! laplacian(e)
         
          rmp = 1./real(o,kind=GP)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -32,21 +32,22 @@
                vz (k,j,i) = C3(k,j,i)+dt*(vz(k,j,i)-C6(k,j,i)-C33(k,j,i) &
               +fz(k,j,i))*rmp
                rho(k,j,i) = C20(k,j,i)-dt*C7(k,j,i)*rmp
-               th (k,j,i) = C35(k,j,i)+dt*(nu*C36(k,j,i)-C8(k,j,i)-C34(k,j,i) &
-!              th (k,j,i) = C35(k,j,i)+dt*(nu*C36(k,j,i)-C8(k,j,i) &
+!              th (k,j,i) = C35(k,j,i)+dt*(nu*C36(k,j,i)-C8(k,j,i)-C34(k,j,i) &
+               th (k,j,i) = C35(k,j,i)+dt*(kappa*th(k,j,i)-C8(k,j,i)-C34(k,j,i) &
               +fs(k,j,i))*rmp
-            ELSE IF (kn2(k,j,i).gt.kmax) THEN
+!           ELSE IF (kn2(k,j,i).gt.kmax) THEN
+            ELSE 
                vx (k,j,i) = 0.0_GP
                vy (k,j,i) = 0.0_GP
                vz (k,j,i) = 0.0_GP
                rho(k,j,i) = 0.0_GP
                th (k,j,i) = 0.0_GP
-            ELSE IF (kn2(k,j,i).lt.tiny) THEN
-               vx (k,j,i) = 0.0_GP
-               vy (k,j,i) = 0.0_GP
-               vz (k,j,i) = 0.0_GP
-               rho(k,j,i) = C20(k,j,i)
-               th (k,j,i) = C35(k,j,i)
+!           ELSE IF (kn2(k,j,i).lt.tiny) THEN
+!              vx (k,j,i) = 0.0_GP
+!              vy (k,j,i) = 0.0_GP
+!              vz (k,j,i) = 0.0_GP
+!              rho(k,j,i) = C20(k,j,i)
+!              th (k,j,i) = C35(k,j,i)
             ENDIF
 
          END DO
