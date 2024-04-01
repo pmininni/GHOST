@@ -676,7 +676,7 @@
       ! Take divergence terms:
       CALL derivk3(a,t1,1)
       CALL derivk3(b,t2,2)
-      CALL derivk3(a,t3,3)
+      CALL derivk3(c,t3,3)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
