@@ -48,7 +48,6 @@
       CONTAINS
         PROCEDURE,PUBLIC :: ChargPIC_ctor
         FINAL            :: ChargPIC_dtor
-        PROCEDURE,PUBLIC :: InitVel           => ChargPIC_InitVel
         PROCEDURE,PUBLIC :: SetStepVel        => ChargPIC_SetStepRKK
         PROCEDURE,PUBLIC :: StepChargedPIC    => ChargPIC_StepRKK
         PROCEDURE,PUBLIC :: StepChargedPICBor => ChargPIC_StepBoris

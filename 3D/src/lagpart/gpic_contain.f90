@@ -1925,79 +1925,6 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-  SUBROUTINE ChargPIC_InitVel(this,vtherm)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : InitVel
-!  DESCRIPTION: Initializes particle velocities with a Gaussian
-!               distribution function, with thermal speed vtherm.
-!               Other parameters are initialized with GPart_Init.
-!  ARGUMENTS:
-!    this   : 'this' class instance
-!    vtherm : thermal speed
-!-----------------------------------------------------------------
-    USE random
-    USE mpivars
-    USE grid
-
-    IMPLICIT NONE
-    CLASS(ChargPIC) , INTENT(INOUT) :: this
-    REAL(KIND=GP),INTENT(IN)        :: vtherm
-    REAL(KIND=GP),DIMENSION(nx,ny,ksta:kend) :: rho,v1,v2,v3
-    REAL(KIND=GP)                   :: low,twopi,u1,u2,gauss
-    INTEGER                         :: j
-
-    twopi = 8.0_GP*atan(1.0_GP)
-    low   = 1.0e-20_GP
-
-!$omp parallel do
-    DO j = 1, this%nparts_
-
-     CALL prandom_number(u1)
-     CALL prandom_number(u2)
-     u1 =  MAX( u1, low)
-     u2 =  twopi * u2
-     gauss =  sqrt( -2.0_GP * log( u1)) * CMPLX( cos(u2), sin(u2))
-
-       this%pvx_(j) = vtherm*gauss
-
-     CALL prandom_number(u1)
-     CALL prandom_number(u2)
-     u1 =  MAX( u1, low)
-     u2 =  twopi * u2
-     gauss =  sqrt( -2.0_GP * log( u1)) * CMPLX( cos(u2), sin(u2))
-
-       this%pvy_(j) = vtherm*gauss
-
-     CALL prandom_number(u1)
-     CALL prandom_number(u2)
-     u1 =  MAX( u1, low)
-     u2 =  twopi * u2
-     gauss =  sqrt( -2.0_GP * log( u1)) * CMPLX( cos(u2), sin(u2))
-
-       this%pvz_(j) = vtherm*gauss
-
-    END DO
-  
-!  CALL GPIC_GetDensity(this,rho)
-!  CALL VGPIC_GetFlux(this,v1,v2,v3)
-!  v1 = v1/rho
-!  v2 = v2/rho
-!  v3 = v3/rho
-!  CALL GPIC_EulerToLag(this,this%lvx_,this%nparts_,v1,.false.)
-!  CALL GPIC_EulerToLag(this,this%lvy_,this%nparts_,v2,.false.)
-!  CALL GPIC_EulerToLag(this,this%lvz_,this%nparts_,v3,.false.)
-!  DO j = 1,this%nparts_
-!     this%pvx_(j) = this%pvx_(j) - this%lvx_(j)
-!     this%pvy_(j) = this%pvy_(j) - this%lvy_(j)
-!     this%pvz_(j) = this%pvz_(j) - this%lvz_(j)
-!  END DO
-
-  END SUBROUTINE ChargPIC_InitVel
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-
   SUBROUTINE ChargPIC_InitFromFields(this,n,ux,uy,uz,T)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -2024,14 +1951,25 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     DOUBLE PRECISION                         :: vmx,vmy,vmz
     INTEGER                                  :: ppc,pps,ib,lag
     INTEGER                                  :: i,j,k,ii,jj,kk
+    INTEGER                                  :: ppx,ppy,ppz,d
+
+    d = 3 ! Dimension of the system
+    IF (nx.EQ.1) d = d - 1
+    IF (ny.EQ.1) d = d - 1
+    IF (nz.EQ.1) d = d - 1
+    IF (d.EQ.0) THEN
+      IF ( this%myrank_.eq.0 ) THEN
+        WRITE(*,*) 'GPIC_InitFromFields: Number of cells must be greater than 1'
+        STOP
+      ENDIF
+    END IF
 
     ppc = this%maxparts_/(nx*ny*nz)
-    pps = ppc**(1.0/3.0)
-    IF (this%myrank_.EQ.0) PRINT *, this%maxparts_, nx,ny,nz,ppc, pps
-    IF (pps*pps*pps .NE. ppc) THEN
+    pps = ppc**(1.0/d)
+    IF (pps**d .NE. ppc) THEN
       IF ( this%myrank_.eq.0 ) THEN
-        WRITE(*,*) 'GPIC_InitLattice: Number of particles per cell &
-                                      must be perfect cube'
+        WRITE(*,*) 'GPIC_InitFromFields: Number of particles per cell &
+                         must be perfect square (2D) or cube (3D)'
         STOP
       ENDIF
     END IF
@@ -2044,7 +1982,13 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     ib = nx*ny*(ksta-1)*ppc - 1
     lag = 1
     del = 1.0_GP/pps
-    DO i = 1,nx
+    ppx = pps
+    IF (nx.EQ.1) ppx = 1
+    ppy = pps
+    IF (ny.EQ.1) ppy = 1
+    ppz = pps
+    IF (nz.EQ.1) ppz = 1
+    DO i = 1,nz
       DO j = 1,ny
         DO k = ksta,kend
           vmx = 0.0D0
@@ -2052,9 +1996,9 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
           vmz = 0.0D0
           vth = SQRT(T(i,j,k))
           w   = n(i,j,k)*this%icv_
-          DO ii = 1,pps
-            DO jj = 1,pps
-              DO kk = 1,pps
+          DO ii = 1,ppx
+            DO jj = 1,ppy
+              DO kk = 1,ppz
                 this%id_(lag) = lag + ib
                 this%px_(lag) = (i-1.00_GP) + (ii-0.50_GP)*del
                 this%py_(lag) = (j-1.00_GP) + (jj-0.50_GP)*del
@@ -2080,9 +2024,9 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
           vmy = vmy/ppc - uy(i,j,k)
           vmz = vmz/ppc - uz(i,j,k)
           lag = lag - ppc
-          DO ii = 1,pps
-            DO jj = 1,pps
-              DO kk = 1,pps
+          DO ii = 1,ppx
+            DO jj = 1,ppy
+              DO kk = 1,ppz
                 this%pvx_(lag) = this%pvx_(lag) - vmx
                 this%pvy_(lag) = this%pvy_(lag) - vmy
                 this%pvz_(lag) = this%pvz_(lag) - vmz
