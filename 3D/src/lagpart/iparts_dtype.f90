@@ -40,4 +40,5 @@
         PROCEDURE,PUBLIC :: StepInerp         => InerGPart_StepRKK
         PROCEDURE,PUBLIC :: StepLitep         => InerGPart_lite_StepRKK
         PROCEDURE,PUBLIC :: EndStage          => InerGPart_EndStageRKK
+        PROCEDURE,PUBLIC :: ResizeArrays      => InerGPart_ResizeArrays
       END TYPE InerGPart

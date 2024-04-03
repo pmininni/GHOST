@@ -25,9 +25,15 @@ MODULE class_GPartComm
       INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_UPDT = 1    ! continues part. exchange
       INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_END  = 2    ! finishes particle exchange
       INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_UNIQ = 3    ! exchange only positions
-!$    INTEGER,PARAMETER,PUBLIC                       :: NMIN_OMP    = 10000! min. no. of op. for threading
+!$    INTEGER,PARAMETER,PUBLIC                       :: NMIN_OMP    = 10000! min. no. of op. for threadingi
+      INTEGER,PUBLIC                                 :: MPI_GPDataType=-1,MPI_GPDataPackType=-1
 
       PRIVATE
+      TYPE, BIND(C), PUBLIC :: GPData
+        INTEGER        :: idp_
+        REAL(KIND=GP)  :: rp_(3)
+      END TYPE GPData
+
       TYPE, PUBLIC :: GPartComm
         PRIVATE
         ! Member data:
@@ -54,6 +60,8 @@ MODULE class_GPartComm
         INTEGER, DIMENSION (MPI_STATUS_SIZE)         :: istatus_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:)   :: sbbuff_    ,stbuff_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:)   :: rbbuff_    ,rtbuff_
+        TYPE(GPData) , ALLOCATABLE, DIMENSION(:)     :: sbbuffp_   ,stbuffp_
+        TYPE(GPData) , ALLOCATABLE, DIMENSION(:)     :: rbbuffp_   ,rtbuffp_
       CONTAINS
         ! Public methods:
         PROCEDURE,PUBLIC :: GPartComm_ctor
@@ -63,17 +71,28 @@ MODULE class_GPartComm
         PROCEDURE,PUBLIC :: GTranspose        => GPartComm_Transpose
         PROCEDURE,PUBLIC :: GITranspose       => GPartComm_ITranspose
         PROCEDURE,PUBLIC :: VDBSynch          => GPartComm_VDBSynch
+        PROCEDURE,PUBLIC :: VDBSynch_t0       => GPartComm_VDBSynch_t0
         PROCEDURE,PUBLIC :: LagSynch          => GPartComm_LagSynch
+        PROCEDURE,PUBLIC :: LagSynch_t0       => GPartComm_LagSynch_t0
         PROCEDURE,PUBLIC :: SetCacheParam     => GPartComm_SetCacheParam
         PROCEDURE,PUBLIC :: PartExchangePDB   => GPartComm_PartExchangePDB
+        PROCEDURE,PUBLIC :: IdentifyTaskV     => GPartComm_IdentifyTaskV
+        PROCEDURE,PUBLIC :: PartScatterV      => GPartComm_PartScatterV
         PROCEDURE,PUBLIC :: PartExchangeV     => GPartComm_PartExchangeV
+        PROCEDURE,PUBLIC :: IdentifyExchV     => GPartComm_IdentifyExchV
         PROCEDURE,PUBLIC :: SlabDataExchangeMF=> GPartComm_SlabDataExchangeMF
         PROCEDURE,PUBLIC :: SlabDataExchangeSF=> GPartComm_SlabDataExchangeSF
         PROCEDURE,PUBLIC :: ConcatPDB         => GPartComm_ConcatPDB
         PROCEDURE,PUBLIC :: ConcatV           => GPartComm_ConcatV
         PROCEDURE,PUBLIC :: Copy2Ext          => GPartComm_Copy2Ext
         GENERIC  ,PUBLIC :: Concat            => ConcatPDB,ConcatV
+        PROCEDURE,PUBLIC :: ResizeArrays      => GPartComm_ResizeArrays
+
       END TYPE GPartComm
+
+      PUBLIC :: Resize_ArrayRank1,Resize_ArrayRank2
+      PUBLIC :: Resize_IntArray,Resize_IntArrayRank2
+      PUBLIC :: Resize_ArrayRank2Transposed
 
       INCLUDE 'gfieldcomm_dtype.f90'
 
@@ -145,9 +164,11 @@ MODULE class_GPartComm
     this%btransinit_ = .FALSE.
 
     IF ( this%intrfc_ .GE. 1 ) THEN
-      this%nbuff_  = MAX(maxparts*4,3*nd(1)*nd(2)*nzghost+nzghost+1) + 1
+!      this%nbuff_  = MAX(maxparts*4,3*nd(1)*nd(2)*nzghost+nzghost+1) + 1
+      this%nbuff_  = 3*nd(1)*nd(2)*nzghost+nzghost+2
     ELSE
-      this%nbuff_  = MAX(maxparts*4,  nd(1)*nd(2)*nzghost+nzghost+1) + 1
+!      this%nbuff_  = MAX(maxparts*4,  nd(1)*nd(2)*nzghost+nzghost+1) + 1
+      this%nbuff_  =   nd(1)*nd(2)*nzghost+nzghost+2
     ENDIF
 
     CALL GPartComm_Init(this)
@@ -188,6 +209,10 @@ MODULE class_GPartComm
     IF ( ALLOCATED   (this%stbuff_) ) DEALLOCATE  (this%stbuff_)
     IF ( ALLOCATED   (this%rbbuff_) ) DEALLOCATE  (this%rbbuff_)
     IF ( ALLOCATED   (this%rtbuff_) ) DEALLOCATE  (this%rtbuff_)
+    IF ( ALLOCATED  (this%sbbuffp_) ) DEALLOCATE (this%sbbuffp_)
+    IF ( ALLOCATED  (this%stbuffp_) ) DEALLOCATE (this%stbuffp_)
+    IF ( ALLOCATED  (this%rbbuffp_) ) DEALLOCATE (this%rbbuffp_)
+    IF ( ALLOCATED  (this%rtbuffp_) ) DEALLOCATE (this%rtbuffp_)
     IF ( ALLOCATED     (this%itop_) ) DEALLOCATE    (this%itop_)
     IF ( ALLOCATED     (this%ibot_) ) DEALLOCATE    (this%ibot_)
 
@@ -257,8 +282,14 @@ MODULE class_GPartComm
     ALLOCATE(this%stbuff_ (this%nbuff_,nt))
     ALLOCATE(this%rbbuff_ (this%nbuff_,nt))
     ALLOCATE(this%rtbuff_ (this%nbuff_,nt))
+    ALLOCATE(this%sbbuffp_(this%maxparts_))
+    ALLOCATE(this%stbuffp_(this%maxparts_))
+    ALLOCATE(this%rbbuffp_(this%maxparts_))
+    ALLOCATE(this%rtbuffp_(this%maxparts_))
+
     ALLOCATE(this%ibot_(this%maxparts_))
     ALLOCATE(this%itop_(this%maxparts_))
+    ALLOCATE(this%oldid_(this%maxparts_))
 
     ALLOCATE(this%ibrcvp_(nt))
     ALLOCATE(this%ibsndp_(nt))
@@ -285,8 +316,6 @@ MODULE class_GPartComm
     ALLOCATE(this%itypea_(0:this%nprocs_-1))
     ALLOCATE(this%ibsnddst_(nt,this%nzghost_+1))
     ALLOCATE(this%itsnddst_(nt,this%nzghost_+1))
-
-    ALLOCATE(this%oldid_(this%maxparts_))
 
     ! Initialize all task/neighbor  lists with GPNULL:
     this%ibrcv_   =GPNULL; this%itrcv_   =GPNULL; this%ibsnd_  =GPNULL; this%itsnd_ =GPNULL;
@@ -458,8 +487,44 @@ MODULE class_GPartComm
     ENDIF
 
     DEALLOCATE(jfwd,kfend,kfsta,nzF)
+   
+    CALL GPartComm_InitMPITypes()
 
   END SUBROUTINE GPartComm_Init
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE GPartComm_InitMPITypes()
+!-----------------------------------------------------------------
+!  METHOD     : InitMPITypes
+!  DESCRIPTION: Creates MPI type equivalent for GPData and its
+!               corresponding array version.
+!  ARGUMENTS  :
+!    this              : 'this' class instance (IN)
+!-----------------------------------------------------------------
+    TYPE(GPData)                   :: gpdat,gpdatarr(2)
+    INTEGER                        :: blocklen(2),types(2),ierr
+    INTEGER(KIND=MPI_ADDRESS_KIND) :: disp(2)
+
+    blocklen(1) = 1
+    blocklen(2) = 3
+    types(1) = MPI_INTEGER
+    types(2) = GC_REAL
+
+    CALL MPI_GET_ADDRESS(gpdat%idp_, disp(1), ierr)
+    CALL MPI_GET_ADDRESS(gpdat%rp_ , disp(2), ierr)
+    disp(2) = disp(2) - disp(1)
+    disp(1) = 0
+    CALL MPI_TYPE_CREATE_STRUCT(2,blocklen,disp,types,MPI_GPDataType,ierr) 
+    CALL MPI_TYPE_COMMIT(MPI_GPDataType, ierr)
+
+    CALL MPI_GET_ADDRESS(gpdatarr(1), disp(1), ierr) 
+    CALL MPI_GET_ADDRESS(gpdatarr(2), disp(2), ierr) 
+    CALL MPI_TYPE_CREATE_RESIZED(MPI_GPDataType,0,disp(2)-disp(1), &
+                                 MPI_GPDataPackType,ierr) 
+    CALL MPI_TYPE_COMMIT(MPI_GPDataPackType, ierr) 
+
+  END SUBROUTINE
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -903,7 +968,7 @@ MODULE class_GPartComm
     REAL(KIND=GP),INTENT   (IN),DIMENSION(*)            :: v
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)            :: vext
 
-    INTEGER                                             :: itask,j
+    INTEGER                                             :: itask,j,buffsize
 
     IF ( this%intrfc_ .GE. 1 ) THEN
       WRITE(*,*) 'GPartComm_SlabDataExchangeSF: MF interface expected'
@@ -913,6 +978,8 @@ MODULE class_GPartComm
       CALL GPartComm_LocalDataExchSF(this,vext,v)
       RETURN
     ENDIF
+
+    buffsize = this%nd_(1)*this%nd_(2)*this%nzghost_ + this%nzghost_ + 2
 
     CALL GPartComm_Copy2Ext(this,vext,v)
 
@@ -931,7 +998,7 @@ MODULE class_GPartComm
       itask = this%ibsndp_(j)
       CALL GPartComm_PackSF(this,this%sbbuff_(:,j),v,j,'b')
       CALL GTStart(this%hcomm_)
-      CALL MPI_ISEND(this%sbbuff_(:,j),this%nbuff_,GC_REAL,itask, &
+      CALL MPI_ISEND(this%sbbuff_(:,j),buffsize,GC_REAL,itask, &
                      1,this%comm_,this%ibsh_(j),this%ierr_)
       CALL GTAcc(this%hcomm_)
     ENDDO
@@ -950,7 +1017,7 @@ MODULE class_GPartComm
       itask = this%itsndp_(j)
       CALL GPartComm_PackSF(this,this%stbuff_(:,j),v,j,'t')
       CALL GTStart(this%hcomm_)
-      CALL MPI_ISEND(this%stbuff_(:,j),this%nbuff_,GC_REAL,itask, &
+      CALL MPI_ISEND(this%stbuff_(:,j),buffsize,GC_REAL,itask, &
                      1,this%comm_,this%itsh_(j),this%ierr_)
       CALL GTAcc(this%hcomm_)
     ENDDO
@@ -1142,12 +1209,307 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+  SUBROUTINE GPartComm_IdentifyTaskV(this,id,pz,nparts,task)
+!-----------------------------------------------------------------
+!  METHOD     : IdentifyTaskV
+!  DESCRIPTION: Identifies particle task owner for scatter. Uses V interface.
+!               Note: For this call to work, the particle positions
+!               _must_ be periodized on entry.
+!
+!               This routine is intended to be called  before PartScatterV.
+!
+!  ARGUMENTS  :
+!    this     : 'this' class instance (IN)
+!    id       : array of particle ids
+!    px,py,px : arrays containing x,y,z positions of particles
+!    nparts   : number of particles in pdb
+!    newnparts: number of particles in pdb after exchange
+!    zmin/max : min/max z-dimensions of current MPI task
+!    gext     : (3,2) real array containing global grid extents (start
+!               and stop boundaries in each direction).
+!-----------------------------------------------------------------
+    USE pdbtypes
+    USE grid
+    IMPLICIT NONE
+
+    CLASS(GPartComm),INTENT(INOUT)           :: this
+    INTEGER      ,INTENT(INOUT)              :: nparts
+    INTEGER                                  :: i,j,tsta,tend
+    INTEGER      ,INTENT(INOUT),DIMENSION(:) :: id,task
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:) :: pz
+    REAL(KIND=GP)                            :: zmaxs(this%nprocs_)
+    INTEGER                                  :: nps(this%nprocs_)
+
+    IF ( this%nprocs_ .EQ. 1 ) RETURN ! nothing to do
+    
+    IF (this%myrank_.EQ.0) THEN
+      ! Determine z-boundaries for each task
+      DO j = 1,this%nprocs_
+        nps(j) = 0
+        CALL range(1,nz,this%nprocs_,j-1,tsta,tend)
+        zmaxs(j) = REAL(tend,KIND=GP)
+      END DO
+
+      ! Determine corresponding task owner for each particle
+      DO i = 1,nparts
+        j = 1
+        DO WHILE (pz(i).GE.zmaxs(j))
+          j = j + 1
+        END DO
+        IF (j.GT.this%nprocs_) THEN
+          WRITE(*,*) 'GPartComm_IdentifyTaskV: particle outside of range z =', pz(i)
+        END IF
+        nps(j) = nps(j) + 1
+        task(i) = j - 1
+      END DO
+
+      ! Communicate number of particles to send
+      ! Build and send particle pack to each task
+      DO j = 2,this%nprocs_
+        CALL MPI_ISEND(nps(j),1,MPI_INTEGER,j-1,j-1,this%comm_,this%itsh_(1),this%ierr_)
+      END DO
+    ELSE
+      CALL MPI_IRECV(nparts,1,MPI_INTEGER,0,this%myrank_,this%comm_,this%itrh_(1),this%ierr_)
+      CALL MPI_WAIT(this%itrh_(1),this%istatus_,this%ierr_)
+    END IF
+
+    RETURN
+
+  END SUBROUTINE GPartComm_IdentifyTaskV
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE GPartComm_PartScatterV(this,id,px,py,pz,nparts,task)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : PartScatterV
+!  DESCRIPTION: Carries out particle scatter from task 0 to the rest.
+!               Uses V interface.
+!
+!  ARGUMENTS  :
+!    this    : 'this' class instance (IN)
+!    id      : array of particle ids
+!    px,py,px: arrays containing x,y,z positions of particles
+!    nparts  : total number of particles in pdb (=maxparts for task 0,
+!                                                =0 otherwise)
+!    task    : array containing particle owners (tasks)
+!-----------------------------------------------------------------
+    USE pdbtypes
+    USE grid
+    IMPLICIT NONE
+
+    CLASS(GPartComm),INTENT(INOUT)           :: this
+    INTEGER      ,INTENT(INOUT)              :: nparts
+    INTEGER                                  :: i,j,nsend,nparts0
+    INTEGER      ,INTENT(INOUT),DIMENSION(:) :: id
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:) :: px,py,pz
+    INTEGER      ,INTENT   (IN),DIMENSION(:) :: task
+
+    IF ( this%nprocs_ .EQ. 1 ) RETURN ! nothing to do
+
+    IF (this%myrank_.EQ.0) THEN
+      ! Build and send particle pack to each task
+      DO j = 2,this%nprocs_
+        nsend = 0
+        DO i = 1,this%maxparts_
+          IF (task(i).EQ.(j-1)) THEN
+            nsend = nsend + 1
+            this%itop_(nsend) = i
+          END IF
+        END DO
+        CALL GPartComm_PPackV2(this,this%stbuffp_,id,px,py,pz,this%itop_,nsend)
+        CALL MPI_ISEND(this%stbuffp_,nsend,MPI_GPDataPackType,j-1,j-1,this%comm_,this%itsh_(1),this%ierr_)
+        CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
+      END DO
+
+      ! Concatenate own particles
+      nparts0 = 0
+      DO i = 1,this%maxparts_
+        IF (task(i).EQ.0) THEN
+          nparts0 = nparts0 + 1
+          id(nparts0) = id(i)
+          px(nparts0) = px(i)
+          py(nparts0) = py(i)
+          pz(nparts0) = pz(i)
+        END IF
+      END DO
+      nparts = nparts0
+    ELSE
+      CALL MPI_IRECV(this%rtbuffp_,this%maxparts_,MPI_GPDataPackType,0,this%myrank_,this%comm_,this%itrh_(1),this%ierr_)
+      CALL MPI_WAIT(this%itrh_(1),this%istatus_,this%ierr_)
+      CALL GPartComm_PUnpackV2(this,id,px,py,pz,0,this%rtbuffp_,nparts)
+    END IF
+
+    RETURN
+ 
+  END SUBROUTINE GPartComm_PartScatterV
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE GPartComm_PPackV2(this,buff,id,px,py,pz,iind,nind)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : PPack
+!  DESCRIPTION: Packs send buffer with particles. Uses V interface.
+!  ARGUMENTS  :
+!    this    : 'this' class instance (IN)
+!    buff    : buffer into which to pack particles for sends
+!    id      : part. ids
+!    px,py,pz: part. locations
+!    iind    : pointers into pdb particle arrays for
+!              particles to pack
+!    nind    : no. particles to pack
+!-----------------------------------------------------------------
+    USE pdbtypes
+    IMPLICIT NONE
+
+    CLASS(GPartComm),INTENT(INOUT)             :: this
+    INTEGER      ,INTENT   (IN)                :: nind
+    INTEGER      ,INTENT   (IN),DIMENSION(:)   :: iind
+    INTEGER      ,INTENT   (IN),DIMENSION(:)   :: id
+    INTEGER                                    :: j
+    TYPE(GPData) ,INTENT(INOUT),DIMENSION(:)   :: buff
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(:)   :: px,py,pz
+
+!$omp parallel do if(nind.ge.NMIN_OMP) private(nb)
+    DO j = 1,nind
+      buff(j)%idp_   = id(iind(j))
+      buff(j)%rp_(1) = px(iind(j))
+      buff(j)%rp_(2) = py(iind(j))
+      buff(j)%rp_(3) = pz(iind(j))
+    ENDDO
+
+  END SUBROUTINE GPartComm_PPackV2
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE GPartComm_PUnpackV2(this,id,px,py,pz,nparts,buff,nbuff)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : PUnpackV
+!  DESCRIPTION: Unpacks recv buffer with particles. Partlcles
+!               will be added directly to the existing particle list.
+!               Uses V interface.
+!
+!  ARGUMENTS  :
+!    this    : 'this' class instance (IN)
+!    id      : part. ids
+!    px,py,pz: part. locations
+!    nparts  : new number of particles in pdb
+!              with new particles
+!    buff    : buffer from which particle data is read
+!    nbuff   : buffer length
+!-----------------------------------------------------------------
+    IMPLICIT NONE
+
+    CLASS(GPartComm),INTENT(INOUT)             :: this
+    INTEGER      ,INTENT   (IN)                :: nparts
+    INTEGER      ,INTENT   (IN)                :: nbuff
+    INTEGER      ,INTENT(INOUT),DIMENSION(:)   :: id
+    INTEGER                                    :: j
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:)   :: px,py,pz
+    TYPE(GPData) ,INTENT   (IN),DIMENSION(:)   :: buff
+
+!$omp parallel do if(nind.ge.NMIN_OMP) private(nb)
+    DO j = 1,nbuff
+      id(nparts+j) = buff(j)%idp_
+      px(nparts+j) = buff(j)%rp_(1)
+      py(nparts+j) = buff(j)%rp_(2)
+      pz(nparts+j) = buff(j)%rp_(3)
+    ENDDO
+
+  END SUBROUTINE GPartComm_PUnpackV2
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE GPartComm_IdentifyExchV(this,id,pz,nparts,newnparts,zmin,zmax)
+!-----------------------------------------------------------------
+!  METHOD     : IdentifyExchV
+!  DESCRIPTION: Identifies particle Ids for exchange. Uses V interface.
+!               Note: For this call to work, the particle positions
+!               must _not_ be periodized on entry. In the same way,
+!               zmin/zmax must also _not_ be periodized.
+!
+!               This routine is intended to be called at each stage of
+!               an explicit time integration where the particle positions
+!               cannot change more than a single zone in x, y, or z
+!               in a timestep, before PartExchangeV.
+!
+!               Note that here, a particle _only on_ zmax is considered
+!               to be outside the interval defined by zmin/zmax.
+!  ARGUMENTS  :
+!    this     : 'this' class instance (IN)
+!    id       : array of particle ids
+!    px,py,px : arrays containing x,y,z positions of particles
+!    nparts   : number of particles in pdb
+!    newnparts: number of particles in pdb after exchange
+!    zmin/max : min/max z-dimensions of current MPI task
+!    gext     : (3,2) real array containing global grid extents (start
+!               and stop boundaries in each direction).
+!-----------------------------------------------------------------
+    USE pdbtypes
+    USE grid
+    IMPLICIT NONE
+
+    CLASS(GPartComm),INTENT(INOUT)           :: this
+    INTEGER      ,INTENT(INOUT)              :: nparts,newnparts
+    INTEGER                                  :: j,ibrank,itrank
+    INTEGER                                  :: nrtop,nrbot
+    INTEGER      ,INTENT(INOUT),DIMENSION(:) :: id
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:) :: pz
+    REAL(KIND=GP),INTENT   (IN)              :: zmin,zmax
+
+    IF ( this%nprocs_ .EQ. 1 ) RETURN ! nothing to do
+
+    itrank = modulo(this%myrank_+1,this%nprocs_)
+    ibrank = this%myrank_-1
+    IF ( ibrank.LT.0 ) ibrank = this%nprocs_-1
+
+    ! Find pointers into particle lists for parts that
+    ! must be sent to the top and bottom tasks:
+    this%nbot_ = 0
+    this%ntop_ = 0
+    DO j = 1, nparts
+      IF ( pz(j).LT.zmin ) THEN ! bottom
+        this%nbot_ = this%nbot_ + 1
+        this%ibot_(this%nbot_) = j
+      ELSE IF ( pz(j).GE.zmax ) THEN ! top
+        this%ntop_ = this%ntop_ + 1
+        this%itop_(this%ntop_) = j
+      ENDIF
+    ENDDO
+
+    ! Post receives:
+    CALL GTStart(this%hcomm_)
+    CALL MPI_IRECV(nrbot,1,MPI_INTEGER,ibrank,1,this%comm_,this%ibrh_(1),this%ierr_)
+    CALL MPI_IRECV(nrtop,1,MPI_INTEGER,itrank,1,this%comm_,this%itrh_(1),this%ierr_)
+    CALL GTAcc(this%hcomm_)
+
+    ! send data:
+    CALL MPI_ISEND(this%nbot_,1,GC_REAL,ibrank,1,this%comm_,this%ibsh_(1),this%ierr_)
+    CALL MPI_ISEND(this%ntop_,1,GC_REAL,itrank,1,this%comm_,this%itsh_(1),this%ierr_)
+ 
+    CALL MPI_WAIT(this%ibrh_(1),this%istatus_,this%ierr_)
+    CALL MPI_WAIT(this%itrh_(1),this%istatus_,this%ierr_)
+    CALL MPI_WAIT(this%ibsh_(1),this%istatus_,this%ierr_)
+    CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
+    CALL GTAcc(this%hcomm_)
+
+    newnparts = nparts - (this%ntop_+this%nbot_) + (nrbot+nrtop)
+ 
+    RETURN
+
+  END SUBROUTINE GPartComm_IdentifyExchV
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
   SUBROUTINE GPartComm_PartExchangeV(this,id,px,py,pz,nparts,zmin,zmax,stg)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : PartExchangeV
 !  DESCRIPTION: Carries out particle exchange. Particles will
 !               be re-ordered after this call. Uses V interface.
+!               Must be called _after_ IdentifyExchV.
 !               Note: For this call to work, the particle positions
 !               must _not_ be periodized on entry. In the same way,
 !               zmin/zmax must also _not_ be periodized.
@@ -1157,9 +1519,6 @@ MODULE class_GPartComm
 !               cannot change more than a single zone in x, y, or z
 !               in a timestep.
 !
-!               Note that here, a particle _on_ either zmin or zmax
-!               is considered to be outside the interval defined
-!               by zmin/zmax.
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
 !    id      : array of particle ids
@@ -1174,14 +1533,14 @@ MODULE class_GPartComm
     USE grid
     IMPLICIT NONE
 
-    CLASS(GPartComm),INTENT(INOUT)               :: this
-    INTEGER      ,INTENT(INOUT)                  :: nparts
-    INTEGER                                      :: j,ibrank,itrank,ng
-    INTEGER      ,INTENT(INOUT),DIMENSION(this%maxparts_):: id
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%maxparts_):: px,py,pz
-    REAL(KIND=GP),INTENT   (IN)                  :: zmin,zmax
-    INTEGER      ,INTENT   (IN), OPTIONAL        :: stg
-    INTEGER                                      :: stage
+    CLASS(GPartComm),INTENT(INOUT)           :: this
+    INTEGER      ,INTENT(INOUT)              :: nparts
+    INTEGER                                  :: j,ibrank,itrank,ng,nrt,nrb
+    INTEGER      ,INTENT(INOUT),DIMENSION(:) :: id
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:) :: px,py,pz
+    REAL(KIND=GP),INTENT   (IN)              :: zmin,zmax
+    INTEGER      ,INTENT   (IN), OPTIONAL    :: stg
+    INTEGER                                  :: stage
 
     IF ( this%nprocs_ .EQ. 1 ) RETURN ! nothing to do
 
@@ -1194,27 +1553,6 @@ MODULE class_GPartComm
     ELSE
        stage = GPEXCH_UNIQ
     ENDIF
-   
-    IF ((stage.EQ.GPEXCH_INIT).OR.(stage.EQ.GPEXCH_UNIQ)) THEN
-    ! Find pointers into particle lists for parts that
-    ! must be sent to the top and bottom tasks:
-       this%nbot_ = 0
-       this%ntop_ = 0
-!!$omp parallel do if(nparts.ge.NMIN_OMP)
-       DO j = 1, nparts
-          IF ( pz(j).LT.zmin ) THEN ! bottom
-!!$omp critical
-             this%nbot_ = this%nbot_ + 1
-             this%ibot_(this%nbot_) = j
-!!$omp end critical
-          ELSE IF ( pz(j).GE.zmax ) THEN ! top
-!!$omp critical
-             this%ntop_ = this%ntop_ + 1
-             this%itop_(this%ntop_) = j
-!!$omp end critical
-          ENDIF
-       ENDDO
-    ENDIF
 
     IF ((stage.NE.GPEXCH_END).AND.(stage.NE.GPEXCH_UNIQ)) THEN
        ng = nparts
@@ -1222,53 +1560,65 @@ MODULE class_GPartComm
        DO j = 1,ng
          this%oldid_(j) = id(j)
        END DO
-!      this%oldid_(1:ng) = id(1:ng)
     ENDIF
 
     ! Post receives:
     CALL GTStart(this%hcomm_)
-    CALL MPI_IRECV(this%rbbuff_,this%nbuff_,GC_REAL,ibrank, &
-                   1,this%comm_,this%ibrh_(1),this%ierr_)
-    CALL MPI_IRECV(this%rtbuff_,this%nbuff_,GC_REAL,itrank, &
-                   1,this%comm_,this%itrh_(1),this%ierr_)
+!    CALL MPI_IRECV(this%rbbuff_(:,1),2*this%nbuff_,GC_REAL,ibrank, &
+!                   1,this%comm_,this%ibrh_(1),this%ierr_)
+!    CALL MPI_IRECV(this%rtbuff_(:,1),2*this%nbuff_,GC_REAL,itrank, &
+!                   1,this%comm_,this%itrh_(1),this%ierr_)
     CALL GTAcc(this%hcomm_)
 
     !
     ! send data:
-    CALL GPartComm_PPackV(this,this%sbbuff_,this%nbuff_,id,px,py,pz,nparts,this%ibot_,this%nbot_)
+!    CALL GPartComm_PPackV(this,this%sbbuff_(:,1),this%nbuff_,id,px,py,pz,nparts,this%ibot_,this%nbot_)
+    CALL GPartComm_PPackV2(this,this%sbbuffp_,id,px,py,pz,this%ibot_,this%nbot_)
     CALL GTStart(this%hcomm_)
-    CALL MPI_ISEND(this%sbbuff_,4*this%nbot_+1,GC_REAL,ibrank, &
+!    CALL MPI_ISEND(this%sbbuff_,4*this%nbot_+1,GC_REAL,ibrank, &
+!                   1,this%comm_,this%ibsh_(1),this%ierr_)
+    CALL MPI_ISEND(this%sbbuffp_,this%nbot_,MPI_GPDataPackType,ibrank, &
                    1,this%comm_,this%ibsh_(1),this%ierr_)
     CALL GTAcc(this%hcomm_)
 
-    CALL GPartComm_PPackV(this,this%stbuff_,this%nbuff_,id,px,py,pz,nparts,this%itop_,this%ntop_)
+!    CALL GPartComm_PPackV(this,this%stbuff_(:,1),this%nbuff_,id,px,py,pz,nparts,this%itop_,this%ntop_)
+    CALL GPartComm_PPackV2(this,this%stbuffp_,id,px,py,pz,this%itop_,this%ntop_)
     CALL GTStart(this%hcomm_)
-    CALL MPI_ISEND(this%stbuff_,4*this%ntop_+1,GC_REAL,itrank, &
+!    CALL MPI_ISEND(this%stbuff_,4*this%ntop_+1,GC_REAL,itrank, &
+!                   1,this%comm_,this%itsh_(1),this%ierr_)
+    CALL MPI_ISEND(this%stbuffp_,this%ntop_,MPI_GPDataPackType,itrank, &
                    1,this%comm_,this%itsh_(1),this%ierr_)
     CALL GTAcc(this%hcomm_)
 
-
     ! Concatenate partcle list to remove particles sent away:
-    CALL GPartComm_ConcatV(this,id,px,py,pz,nparts,this%ibot_,&
-                          this%nbot_,this%itop_,this%ntop_)
+    CALL GPartComm_ConcatV(this,id,px,py,pz,nparts,this%ibot_,this%nbot_,this%itop_,this%ntop_)
 
     CALL GTStart(this%hcomm_)
-    CALL MPI_WAIT(this%ibrh_(1),this%istatus_,this%ierr_)
-    CALL MPI_WAIT(this%itrh_(1),this%istatus_,this%ierr_)
+!    CALL MPI_WAIT(this%ibrh_(1),this%istatus_,this%ierr_)
+!    CALL MPI_WAIT(this%itrh_(1),this%istatus_,this%ierr_)
+    CALL MPI_RECV(this%rbbuffp_,this%maxparts_,MPI_GPDataPackType,ibrank, &
+                  1,this%comm_,this%ibrh_(1),this%ierr_)
+    CALL MPI_GET_COUNT(this%ibrh_,MPI_GPDataPackType,nrb)
+    CALL MPI_RECV(this%rtbuffp_,this%maxparts_,MPI_GPDataPackType,itrank, &
+                  1,this%comm_,this%itrh_(1),this%ierr_)
+    CALL MPI_GET_COUNT(this%itrh_,MPI_GPDataPackType,nrt)
     CALL MPI_WAIT(this%ibsh_(1),this%istatus_,this%ierr_)
     CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
     CALL GTAcc(this%hcomm_)
 
     ! Update particle list:
-    CALL GPartComm_PUnpackV(this,id,px,py,pz,nparts,this%rbbuff_,this%nbuff_)
-    CALL GPartComm_PUnpackV(this,id,px,py,pz,nparts,this%rtbuff_,this%nbuff_)
-
+!    CALL GPartComm_PUnpackV(this,id,px,py,pz,nparts,this%rbbuff_(:,1),this%nbuff_)
+!    CALL GPartComm_PUnpackV(this,id,px,py,pz,nparts,this%rtbuff_(:,1),this%nbuff_)
+    CALL GPartComm_PUnpackV2(this,id,px,py,pz,nparts,this%rbbuffp_,nrb)
+    nparts = nparts + nrb
+    CALL GPartComm_PUnpackV2(this,id,px,py,pz,nparts,this%rtbuffp_,nrt)
+    nparts = nparts + nrt
+    
     IF ((stage.NE.GPEXCH_END).AND.(stage.NE.GPEXCH_UNIQ)) THEN
 !$omp parallel do if(ng.ge.NMIN_OMP)
        DO j = 1,ng
          id(j) = this%oldid_(j)
        END DO
-!       id(1:ng) = this%oldid_(1:ng)
        nparts = ng
     ENDIF
 
@@ -1296,12 +1646,12 @@ MODULE class_GPartComm
     IMPLICIT NONE
 
     CLASS(GPartComm),INTENT(INOUT)             :: this
-    INTEGER      ,INTENT(INOUT)                :: nbuff,nparts,nind
-    INTEGER      ,INTENT(INOUT),DIMENSION(*)   :: iind
-    INTEGER      ,INTENT   (IN),DIMENSION(*)   :: id
+    INTEGER      ,INTENT   (IN)                :: nbuff,nparts,nind
+    INTEGER      ,INTENT   (IN),DIMENSION(:)   :: iind
+    INTEGER      ,INTENT   (IN),DIMENSION(:)   :: id
     INTEGER                                    :: j,nb
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)   :: buff
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*)   :: px,py,pz
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:)   :: buff
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(:)   :: px,py,pz
 
     buff(1) = nind
 !    nb = 1
@@ -1342,10 +1692,10 @@ MODULE class_GPartComm
     CLASS(GPartComm),INTENT(INOUT)                :: this
     INTEGER      ,INTENT(INOUT)                   :: nparts
     INTEGER      ,INTENT   (IN)                   :: nbind,ntind
-    INTEGER      ,INTENT   (IN),DIMENSION(*)      :: ibind,itind
-    INTEGER      ,INTENT(INOUT),DIMENSION(*)      :: id
+    INTEGER      ,INTENT   (IN),DIMENSION(:)      :: ibind,itind
+    INTEGER      ,INTENT(INOUT),DIMENSION(:)      :: id
     INTEGER                                       :: i,j,ngood
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)      :: px,py,pz
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:)      :: px,py,pz
 
     IF ((nbind+ntind).EQ.0) RETURN ! Nothing to do if no particle left
 
@@ -1396,10 +1746,10 @@ MODULE class_GPartComm
     CLASS(GPartComm),INTENT(INOUT)                :: this
     INTEGER      ,INTENT(INOUT)                   :: nparts
     INTEGER      ,INTENT   (IN)                   :: nbuff
-    INTEGER      ,INTENT(INOUT),DIMENSION(*) :: id
+    INTEGER      ,INTENT(INOUT),DIMENSION(:)      :: id
     INTEGER                                       :: j,nb,nind
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*) :: px,py,pz
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*) :: buff
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:)      :: px,py,pz
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(:)      :: buff
 
 !    nb = 1
      nind = int(buff(1))
@@ -2012,6 +2362,76 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+  SUBROUTINE GPartComm_VDBSynch_t0(this,gvdb,ngvdb,id,lx,ly,lz,nl)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : VDBSynch_t0
+!  DESCRIPTION: Synch up only task 0 VDB from local vector data
+!
+!  ARGUMENTS  :
+!    this    : 'this' class instance (IN)
+!    gvdb    : VDB containing part. position records, returned (task 0 only)
+!    ngvdb   : no. records in global VDB. Fixed on entry
+!    id      : local part. ids
+!    lx,ly,lz: local part. d.b. vectors
+!    nl      : no. parts. in local pdb
+!-----------------------------------------------------------------
+    IMPLICIT NONE
+
+    CLASS(GPartComm),INTENT(INOUT)                  :: this
+    INTEGER      ,INTENT   (IN),DIMENSION(:)        :: id
+    INTEGER      ,INTENT   (IN)                     :: nl
+    INTEGER      ,INTENT   (IN)                     :: ngvdb
+    INTEGER                                         :: t,i,j,m
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(:)        :: lx,ly,lz
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,ngvdb)  :: gvdb
+
+    IF (this%myrank_.NE.0) THEN
+!$omp parallel do
+      DO i = 1,nl
+        this%itop_(i) = i
+      END DO 
+!      CALL GPartComm_PPackV(this,this%stbuff_(:,1),this%nbuff_,id,lx,ly,lz,nl,this%itop_,nl)
+      CALL GPartComm_PPackV2(this,this%stbuffp_,id,lx,ly,lz,this%itop_,nl)
+      CALL GTStart(this%hcomm_)
+!      CALL MPI_ISEND(this%stbuff_(:,1),4*nl+1,GC_REAL,0,this%myrank_,this%comm_,this%itsh_(1),this%ierr_)
+      CALL MPI_ISEND(this%stbuffp_,nl,MPI_GPDataPackType,0,this%myrank_,this%comm_,this%itsh_(1),this%ierr_)
+      CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
+      CALL GTAcc(this%hcomm_)
+    ELSE
+!$omp parallel do
+      DO j = 1,nl
+        i = id(j) + 1
+        gvdb(1,i) = lx(j)
+        gvdb(2,i) = ly(j)
+        gvdb(3,i) = lz(j)
+      END DO
+    
+      DO t = 1,this%nprocs_-1
+        CALL GTStart(this%hcomm_)
+        CALL MPI_RECV(this%rbbuffp_,this%maxparts_,MPI_GPDataPackType,t, &
+                      t,this%comm_,this%ibrh_(1),this%ierr_)
+        CALL MPI_GET_COUNT(this%ibrh_,MPI_GPDataPackType,m)
+        CALL GTAcc(this%hcomm_)
+!        m = int(this%rbbuff_(1,1))
+!$omp parallel do
+        DO j = 1,m
+!          i = int(this%rbbuff_(4*j-2,1)) + 1
+!          gvdb(1,i) = this%rbbuff_(4*j-1,1)
+!          gvdb(2,i) = this%rbbuff_(4*j+0,1)
+!          gvdb(3,i) = this%rbbuff_(4*j+1,1)
+          i = this%rbbuffp_(j)%idp_ + 1
+          gvdb(1,i) = this%rbbuffp_(j)%rp_(1)
+          gvdb(2,i) = this%rbbuffp_(j)%rp_(2)
+          gvdb(3,i) = this%rbbuffp_(j)%rp_(3)
+        END DO
+      END DO
+    END IF
+
+ END SUBROUTINE GPartComm_VDBSynch_t0
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
   SUBROUTINE GPartComm_VDBSynch(this,gvdb,ngvdb,id,lx,ly,lz,nl,ptmp)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -2030,11 +2450,11 @@ MODULE class_GPartComm
     IMPLICIT NONE
 
     CLASS(GPartComm),INTENT(INOUT)                  :: this
-    INTEGER      ,INTENT   (IN),DIMENSION(*)        :: id
+    INTEGER      ,INTENT   (IN),DIMENSION(:)        :: id
     INTEGER      ,INTENT   (IN)                     :: nl
     INTEGER      ,INTENT   (IN)                     :: ngvdb
     INTEGER                                         :: i,j
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*)        :: lx,ly,lz
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(:)        :: lx,ly,lz
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,ngvdb)  :: gvdb,ptmp
 
 !   CALL GTStart(this%hcomm_)
@@ -2072,6 +2492,74 @@ MODULE class_GPartComm
  END SUBROUTINE GPartComm_VDBSynch
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
+
+  SUBROUTINE GPartComm_LagSynch_t0(this,gs,ngs,id,ls,nl)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : LagSynch
+!  DESCRIPTION: Synch up task 0 Lagrangian scalar from local scalar data
+!
+!  ARGUMENTS  :
+!    this    : 'this' class instance (IN)
+!    gs      : global scalar containing 'synched' records, returned (task 0 only).
+!    ngs     : no. records in global scalar. Fixed on entry.
+!    id      : local part. ids
+!    ls      : local scalar
+!    nl      : no. parts. in local Lag. scalar
+!-----------------------------------------------------------------
+    IMPLICIT NONE
+
+    CLASS(GPartComm),INTENT(INOUT)                  :: this
+    INTEGER      ,INTENT   (IN),DIMENSION(:)        :: id
+    INTEGER      ,INTENT   (IN)                     :: nl
+    INTEGER      ,INTENT   (IN)                     :: ngs
+    INTEGER                                         :: i,j,t,m
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(:)        :: ls
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:)        :: gs
+
+    IF (this%myrank_.NE.0) THEN
+      this%stbuff_(1,1) = REAL(nl,kind=GP)
+!$omp parallel do
+      DO i = 1,nl
+        this%stbuffp_(i)%idp_   = id(i)
+        this%stbuffp_(i)%rp_(1) = ls(i)
+!        this%stbuff_(2*i,1) = REAL(id(i),kind=GP)
+!        this%stbuff_(2*i+1,1) = ls(i)
+      END DO 
+      CALL GTStart(this%hcomm_)
+!      CALL MPI_ISEND(this%stbuff_,2*nl+1,GC_REAL,0,this%myrank_,this%comm_,this%ibsh_(1),this%ierr_)
+      CALL MPI_ISEND(this%stbuffp_,nl,MPI_GPDataPackType,0,this%myrank_,this%comm_,this%itsh_(1),this%ierr_)
+      CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
+      CALL GTAcc(this%hcomm_)
+    ELSE
+!$omp parallel do
+      DO j = 1,nl
+        i = id(j) + 1
+        gs(i) = ls(j)
+      END DO
+     
+      DO t = 1,this%nprocs_-1
+        CALL GTStart(this%hcomm_)
+        CALL MPI_RECV(this%rbbuffp_,this%maxparts_,GC_REAL,t, &
+                      t,this%comm_,this%ibrh_(1),this%ierr_)
+        CALL MPI_GET_COUNT(this%ibrh_,MPI_GPDataPackType,m)
+!        CALL MPI_WAIT(this%ibrh_(1),this%istatus_,this%ierr_)
+        CALL GTAcc(this%hcomm_)
+!        m = int(this%rbbuff_(1,1))
+!$omp parallel do
+        DO j = 1,m
+!          i = int(this%rbbuff_(2*j,1)) + 1
+!          gs(i) = this%rbbuff_(2*j+1,1)
+          i     = this%rbbuffp_(j)%idp_ + 1
+          gs(i) = this%rbbuffp_(j)%rp_(1)
+        END DO
+      END DO
+    END IF
+
+  END SUBROUTINE GPartComm_LagSynch_t0
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
 
   SUBROUTINE GPartComm_LagSynch(this,gs,ngs,id,ls,nl,ptmp)
 !-----------------------------------------------------------------
@@ -2181,6 +2669,273 @@ MODULE class_GPartComm
     ENDDO
 
   END SUBROUTINE GPartComm_Copy2Ext
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+ SUBROUTINE GPartComm_ResizeArrays(this,newmparts,onlyinc)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Resize_Arrays
+!  DESCRIPTION: Resize all arrays in the GPart class (including 
+!               subclases, i.e. communicator, spline)
+!  ARGUMENTS  :
+!    this     : 'this' class instance
+!    newmparts: new number of particles
+!    onlyinc  : if true, will only resize to increase array size
+!-----------------------------------------------------------------
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)  :: this
+    INTEGER         ,INTENT(IN)     :: newmparts
+    LOGICAL         ,INTENT(IN)     :: onlyinc
+    INTEGER                         :: n,nzg,nd(3),newbuff
+
+    nzg = this%nzghost_
+    nd  = this%nd_
+
+    this%maxparts_ = newmparts
+
+    n = SIZE(this%ibot_)
+    IF ((n.lt.newmparts).OR.((n.gt.newmparts).AND..NOT.onlyinc)) THEN
+      CALL Resize_IntArray(this%ibot_ ,newmparts,.true. )
+      CALL Resize_IntArray(this%itop_ ,newmparts,.true.)
+      CALL Resize_IntArray(this%oldid_,newmparts,.false.)
+      CALL Resize_DataPack(this%sbbuffp_,newmparts)
+      CALL Resize_DataPack(this%stbuffp_,newmparts)
+      CALL Resize_DataPack(this%rbbuffp_,newmparts)
+      CALL Resize_DataPack(this%rtbuffp_,newmparts)
+      this%maxparts_ = newmparts
+      IF ( this%intrfc_ .GE. 1 ) THEN
+!        newbuff = MAX(newmparts*4,3*nd(1)*nd(2)*nzg+nzg+1) + 1
+        newbuff = 3*nd(1)*nd(2)*nzg+nzg+2
+      ELSE
+!        newbuff = MAX(newmparts*4,  nd(1)*nd(2)*nzg+nzg+1) + 1
+        newbuff =   nd(1)*nd(2)*nzg+nzg+2
+      ENDIF
+      n = this%nbuff_
+      IF ((n.lt.newbuff).OR.((n.gt.newbuff).AND..NOT.onlyinc)) THEN
+        CALL Resize_ArrayRank2Transposed(this%sbbuff_,newbuff,.false.)
+        CALL Resize_ArrayRank2Transposed(this%stbuff_,newbuff,.false.)
+        CALL Resize_ArrayRank2Transposed(this%rbbuff_,newbuff,.false.)
+        CALL Resize_ArrayRank2Transposed(this%rtbuff_,newbuff,.false.)
+        this%nbuff_ = newbuff
+      ENDIF
+    ENDIF
+
+    RETURN
+  END SUBROUTINE GPartComm_ResizeArrays
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE Resize_DataPack(a,new_size)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Resize_DataPack
+!  DESCRIPTION: Resize input 1D GPData array to new size, without copying
+!  ARGUMENTS  :
+!    a       : array to be resized
+!    new_size: new size for array
+!-----------------------------------------------------------------
+!$  USE threads
+
+    IMPLICIT NONE
+    TYPE(GPData),INTENT(INOUT),ALLOCATABLE,DIMENSION(:) :: a
+    INTEGER,INTENT(IN)                                  :: new_size
+    TYPE(GPData)              ,ALLOCATABLE,DIMENSION(:) :: temp
+
+    ALLOCATE ( temp(new_size) )
+
+    CALL move_alloc(temp, a)
+
+    RETURN
+  END SUBROUTINE Resize_DataPack
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE Resize_IntArray(a,new_size,docpy)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Resize_ArrayRank1
+!  DESCRIPTION: Resize input 1D integer array to new size
+!  ARGUMENTS  :
+!    a       : array to be resized
+!    new_size: new size for array
+!    docpy   : if true, keeps previous data in resized array
+!-----------------------------------------------------------------
+!$  USE threads
+
+    IMPLICIT NONE
+    INTEGER,INTENT(INOUT),ALLOCATABLE,DIMENSION(:) :: a
+    INTEGER,INTENT(IN)                             :: new_size
+    LOGICAL,INTENT(IN)                             :: docpy
+    INTEGER              ,ALLOCATABLE,DIMENSION(:) :: temp
+    INTEGER                                        :: i,n
+
+    ALLOCATE ( temp(new_size) )
+    IF (docpy) THEN
+      n = SIZE(a)
+      n = MIN(n,new_size)
+!$omp parallel do if(n.gt.NMIN_OMP)
+      DO i = 1,n
+        temp(i) = a(i)
+      END DO
+    END IF
+
+    CALL move_alloc(temp, a)
+
+    RETURN
+  END SUBROUTINE Resize_IntArray
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE Resize_IntArrayRank2(a,new_size,docpy)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Resize_IntArrayRank2
+!  DESCRIPTION: Resize input integer 2D array to new size
+!  ARGUMENTS  :
+!    a       : array to be resized
+!    new_size: new size for array (second axis)
+!    docpy   : if true, keeps previous data in resized array
+!-----------------------------------------------------------------
+!$  USE threads
+
+    IMPLICIT NONE
+    INTEGER,INTENT(INOUT),ALLOCATABLE,DIMENSION(:,:) :: a
+    INTEGER      ,INTENT(IN)                         :: new_size
+    LOGICAL      ,INTENT(IN)                         :: docpy
+    INTEGER              ,ALLOCATABLE,DIMENSION(:,:) :: temp
+    INTEGER                                          :: i,n,shp(2)
+
+    shp = SHAPE(a)
+    ALLOCATE ( temp(shp(1),new_size) )
+
+    IF (docpy) THEN
+      n = shp(2)
+      n = MIN(n,new_size)
+!$omp parallel do if(n.gt.NMIN_OMP)
+      DO i = 1,n
+        temp(:,i) = a(:,i)
+      END DO
+    END IF
+
+    CALL move_alloc(temp, a)
+
+    RETURN
+  END SUBROUTINE Resize_IntArrayRank2
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE Resize_ArrayRank1(a,new_size,docpy)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Resize_ArrayRank1
+!  DESCRIPTION: Resize input 1D array to new size
+!  ARGUMENTS  :
+!    a       : array to be resized
+!    new_size: new size for array
+!    docpy   : if true, keeps previous data in resized array
+!-----------------------------------------------------------------
+!$  USE threads
+
+    IMPLICIT NONE
+    REAL(KIND=GP),INTENT(INOUT),ALLOCATABLE,DIMENSION(:) :: a
+    INTEGER      ,INTENT(IN)                             :: new_size
+    LOGICAL      ,INTENT(IN)                             :: docpy
+    REAL(KIND=GP)              ,ALLOCATABLE,DIMENSION(:) :: temp
+    INTEGER                                              :: i,n
+
+    ALLOCATE ( temp(new_size) )
+    IF (docpy) THEN
+      n = SIZE(a)
+      n = MIN(n,new_size)
+!$omp parallel do if(n.gt.NMIN_OMP)
+      DO i = 1,n
+        temp(i) = a(i)
+      END DO
+    END IF
+
+    CALL move_alloc(temp, a)
+
+    RETURN
+  END SUBROUTINE Resize_ArrayRank1
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE Resize_ArrayRank2(a,new_size,docpy)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Resize_ArrayRank2
+!  DESCRIPTION: Resize input 2D array to new size
+!  ARGUMENTS  :
+!    a       : array to be resized
+!    new_size: new size for array (second axis)
+!    docpy   : if true, keeps previous data in resized array
+!-----------------------------------------------------------------
+!$  USE threads
+
+    IMPLICIT NONE
+    REAL(KIND=GP),INTENT(INOUT),ALLOCATABLE,DIMENSION(:,:) :: a
+    INTEGER      ,INTENT(IN)                               :: new_size
+    LOGICAL      ,INTENT(IN)                               :: docpy
+    REAL(KIND=GP)              ,ALLOCATABLE,DIMENSION(:,:) :: temp
+    INTEGER                                                :: i,n,shp(2)
+
+    shp = SHAPE(a)
+    ALLOCATE ( temp(shp(1),new_size) )
+
+    IF (docpy) THEN
+      n = shp(2)
+      n = MIN(n,new_size)
+!$omp parallel do if(n.gt.NMIN_OMP)
+      DO i = 1,n
+        temp(:,i) = a(:,i)
+      END DO
+    END IF
+
+    CALL move_alloc(temp, a)
+
+    RETURN
+  END SUBROUTINE Resize_ArrayRank2
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE Resize_ArrayRank2Transposed(a,new_size,docpy)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Resize_ArrayRank2Transposed
+!  DESCRIPTION: Resize input 2D array to new size
+!  ARGUMENTS  :
+!    a       : array to be resized
+!    new_size: new size for array (first axis)
+!    docpy   : if true, keeps previous data in resized array
+!-----------------------------------------------------------------
+!$  USE threads
+ 
+    IMPLICIT NONE
+    REAL(KIND=GP),INTENT(INOUT),ALLOCATABLE,DIMENSION(:,:) :: a
+    INTEGER      ,INTENT(IN)                               :: new_size
+    LOGICAL      ,INTENT(IN)                               :: docpy
+    REAL(KIND=GP)              ,ALLOCATABLE,DIMENSION(:,:) :: temp
+    INTEGER                                                :: i,n,j,shp(2)
+
+    shp = SHAPE(a) 
+    ALLOCATE ( temp(new_size,shp(2)) )
+    
+    IF (docpy) THEN
+      n = shp(1)
+      n = MIN(n,new_size)
+!$omp parallel do if((n*sph(2)).gt.NMIN_OMP) collapse(2)
+      DO i = 1,n
+        DO j = 1,shp(2)
+          temp(i,j) = a(i,j)
+        END DO
+      END DO
+    END IF
+    
+    CALL move_alloc(temp, a)
+
+    RETURN
+  END SUBROUTINE Resize_ArrayRank2Transposed
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 

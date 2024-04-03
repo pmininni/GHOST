@@ -148,7 +148,7 @@
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)            :: v
     REAL(KIND=GP),INTENT   (IN),DIMENSION(*)            :: vext
 
-    INTEGER                                             :: itask,j
+    INTEGER                                             :: itask,j,buffsize
 
     IF ( this%intrfc_ .GE. 1 ) THEN
       WRITE(*,*) 'GFieldComm_SlabDataExchangeSF: SF interface expected'
@@ -159,13 +159,15 @@
       RETURN
     ENDIF
 
+    buffsize = this%nd_(1)*this%nd_(2)*this%nzghost_ + this%nzghost_ + 2
+
     CALL GFieldComm_Copy2Reg(this,v,vext)
 
     ! post receives:
     CALL GTStart(this%hcomm_)
     DO j=1,this%nbsnd_  ! from bottom task:
       itask = this%ibsndp_(j)
-      CALL MPI_IRECV(this%rbbuff_(:,j),this%nbuff_,GC_REAL,itask, &
+      CALL MPI_IRECV(this%rbbuff_(:,j),2*this%nbuff_,GC_REAL,itask, &
                      1,this%comm_,this%ibrh_(j),this%ierr_)
     ENDDO
     CALL GTAcc(this%hcomm_)
@@ -176,7 +178,7 @@
 !      PRINT *, 'Sending', j, this%myrank_, itask
       CALL GFieldComm_PackSF(this,this%sbbuff_(:,j),vext,j,'b')
       CALL GTStart(this%hcomm_)
-      CALL MPI_ISEND(this%sbbuff_,this%nbuff_,GC_REAL,itask, &
+      CALL MPI_ISEND(this%sbbuff_,buffsize,GC_REAL,itask, &
                      1,this%comm_,this%ibsh_(j),this%ierr_)
       CALL GTAcc(this%hcomm_)
     ENDDO
@@ -185,7 +187,7 @@
     CALL GTStart(this%hcomm_)
     DO j=1,this%ntsnd_  ! from top task:
       itask = this%itsndp_(j)
-      CALL MPI_IRECV(this%rtbuff_(:,j),this%nbuff_,GC_REAL,itask, &
+      CALL MPI_IRECV(this%rtbuff_(:,j),2*this%nbuff_,GC_REAL,itask, &
                      1,this%comm_,this%itrh_(j),this%ierr_)
     ENDDO
     CALL GTAcc(this%hcomm_)
@@ -195,7 +197,7 @@
       itask = this%itretp_(j)
       CALL GFieldComm_PackSF(this,this%stbuff_(:,j),vext,j,'t')
       CALL GTStart(this%hcomm_)
-      CALL MPI_ISEND(this%stbuff_,this%nbuff_,GC_REAL,itask, &
+      CALL MPI_ISEND(this%stbuff_,buffsize,GC_REAL,itask, &
                      1,this%comm_,this%itsh_(j),this%ierr_)
       CALL GTAcc(this%hcomm_)
     ENDDO

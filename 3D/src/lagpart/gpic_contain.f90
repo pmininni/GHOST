@@ -60,19 +60,23 @@
 
     CALL this%GPart_ctor(comm,maxparts,inittype,0,3,iexchtyp,iouttyp,&
                          bcoll,csize,nstrip,intacc,wrtunit)
+! Free memory from unused interpolator
+!    CALL this%intop_ %ResizeArrays(0,.false.)
+
+!    CALL this%intop_%GPSplineInt_dtor()
     this%intorder_ = intorder
-    CALL this%gfcomm_%GPartComm_ctor(GPCOMM_INTRFC_SF,maxparts,    &
+    CALL this%gfcomm_%GPartComm_ctor(GPCOMM_INTRFC_SF,this%partbuff_,    &
          this%nd_,this%intorder_/2+1,this%comm_,this%htimers_(GPTIME_COMM))
     CALL this%gfcomm_%SetCacheParam(csize,nstrip)
     CALL this%gfcomm_%Init()
     CALL this%gfcomm_%GFieldComm_ctor()
 
     CALL this%picspl_%GPICSplineInt_ctor(3,this%nd_,this%libnds_,this%lxbnds_, &
-         this%tibnds_,this%intorder_,this%intorder_/2+1,this%maxparts_,        &
+         this%tibnds_,this%intorder_,this%intorder_/2+1,this%partbuff_,        &
          this%gfcomm_,this%htimers_(GPTIME_DATAEX),this%htimers_(GPTIME_TRANSP))
 
-    ALLOCATE ( this%prop_  (this%maxparts_) )
-    ALLOCATE ( this%weight_(this%maxparts_) )
+    ALLOCATE ( this%prop_  (this%partbuff_) )
+    ALLOCATE ( this%weight_(this%partbuff_) )
 
   END SUBROUTINE GPIC_ctor
 !-----------------------------------------------------------------
@@ -181,7 +185,7 @@
     ENDIF
 
     IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
-      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+      CALL this%gfcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     END IF
 
@@ -241,9 +245,9 @@
     END DO
     
 
-    CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+    CALL this%gfcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-    CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+    CALL this%gfcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
                            this%nparts_,this%vdb_,this%maxparts_)
@@ -310,9 +314,9 @@
       END DO
     END DO
 
-    CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+    CALL this%gfcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-    CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+    CALL this%gfcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
                            this%nparts_,this%vdb_,this%maxparts_)
@@ -426,12 +430,12 @@
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
       IF (this%nprocs_.GT.1) THEN
         CALL GTStart(this%htimers_(GPTIME_COMM))
-        CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_,  &
+        CALL this%gfcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_,  &
              this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_INIT)
-        CALL this%gpcomm_%PartExchangeV(this%id_,this%ptmp0_(1,:),            &
+        CALL this%gfcomm_%PartExchangeV(this%id_,this%ptmp0_(1,:),            &
              this%ptmp0_(2,:),this%ptmp0_(3,:),this%nparts_,this%lxbnds_(3,1),&
              this%lxbnds_(3,2),GPEXCH_UPDT)
-        CALL this%gpcomm_%PartExchangeV(this%id_,this%weight_,this%prop_, &
+        CALL this%gfcomm_%PartExchangeV(this%id_,this%weight_,this%prop_, &
              this%prop_,this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), &
              GPEXCH_END)
         CALL GTAcc(this%htimers_(GPTIME_COMM))
@@ -454,9 +458,9 @@
       ENDIF
       ! Synch up VDB, if necessary:
       CALL GTStart(this%htimers_(GPTIME_COMM))
-      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+      CALL this%gfcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                      this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+      CALL this%gfcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                      this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
                      this%nparts_,this%ptmp1_)
       CALL GTAcc(this%htimers_(GPTIME_COMM))
@@ -468,7 +472,7 @@
                        this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
                        this%nparts_,this%vdb_,this%gptmp0_,this%maxparts_)
 
-      CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+      CALL this%gfcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
                           this%weight_,this%weight_,this%weight_,this%nparts_,this%ptmp1_)
       CALL GPIC_CopyLocalWrkScalar(this,this%weight_,this%vdb_,this%ptmp0_(1,:),this%maxparts_)
 
@@ -652,16 +656,16 @@
 
     IF ( doupdate ) THEN
       CALL GTStart(this%htimers_(GPTIME_PUPDATE))
-      CALL this%picspl_%PartUpdate3D(this%px_,this%py_,this%pz_,this%nparts_)
+      CALL this%picspl_%PartUpdate(this%px_,this%py_,this%pz_,this%nparts_)
       CALL GTAcc(this%htimers_(GPTIME_PUPDATE))
     ENDIF
     CALL GTStart(this%htimers_(GPTIME_INTERP))
 !    CALL GTStart(this%htimers_(GPTIME_SPLINE))
-    CALL this%picspl_%CompSpline3D(evar)
+    CALL this%picspl_%CompSpline(evar)
 !    CALL GTAcc(this%htimers_(GPTIME_SPLINE))
 
 !    CALL GTStart(this%htimers_(GPTIME_INTERP))
-    CALL this%picspl_%DoInterp3D(lag,nl)
+    CALL this%picspl_%DoInterp(lag,nl)
     CALL GTAcc(this%htimers_(GPTIME_INTERP))
 
   END SUBROUTINE GPIC_EulerToLag
@@ -705,12 +709,12 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 
     IF ( doupdate ) THEN
       CALL GTStart(this%htimers_(GPTIME_PUPDATE))
-      CALL this%picspl_%PartUpdate3D(this%px_,this%py_,this%pz_,this%nparts_)
+      CALL this%picspl_%PartUpdate(this%px_,this%py_,this%pz_,this%nparts_)
       CALL GTAcc(this%htimers_(GPTIME_PUPDATE))
     ENDIF
 
     CALL GTStart(this%htimers_(GPTIME_SPLINE))
-    CALL this%picspl_%DoDeposit3D(lag,nl,evar)
+    CALL this%picspl_%DoDeposit(lag,nl,evar)
     CALL GTAcc(this%htimers_(GPTIME_SPLINE))
 
   END SUBROUTINE GPIC_LagToEuler
@@ -720,7 +724,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
   SUBROUTINE GPIC_io_write_wgt(this, iunit, dir, spref, nmb, time)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!  METHOD     : io_write_pdbv
+!  METHOD     : io_write_wgt
 !  DESCRIPTION: Does write of particle velocity d.b. to file. 
 !               Position of the particle structure in file is the
 !               particle's id. Main entry point for both ASCII and
@@ -749,8 +753,18 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     CHARACTER(len=*),INTENT(IN)       :: nmb
     CHARACTER(len=*),INTENT(IN)       :: spref
 
-    CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
-         this%weight_,this%weight_,this%weight_,this%nparts_,this%ptmp1_)
+!    CALL this%gfcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+!         this%weight_,this%weight_,this%weight_,this%nparts_,this%ptmp1_)
+    ! If doing non-collective binary or ascii writes, synch up vector:
+    IF ((this%iouttype_.EQ.0 .AND. this%bcollective_.EQ.0).OR.this%iouttype_.EQ.1 ) THEN
+      IF (this%iexchtype_.EQ.GPEXCHTYPE_NN) THEN
+        CALL this%gfcomm_%LagSynch_t0(this%ptmp0_(1,:),this%maxparts_,this%id_, &
+                                      this%weight_,this%nparts_)
+      ELSE IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
+        CALL this%gfcomm_%LagSynch(this%ptmp0_(1,:),this%maxparts_,this%id_,    &
+                                   this%weight_,this%nparts_,this%ptmp1_(1,:))
+      END IF
+    ENDIF
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
       IF ( this%bcollective_.EQ. 1 ) THEN
@@ -794,7 +808,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     CLASS(GPIC)     ,INTENT(INOUT)            :: this
     REAL(KIND=GP)                             :: time
     INTEGER,INTENT(IN)                        :: iunit
-    INTEGER                                   :: ng
+    INTEGER                                   :: ng,j
     CHARACTER(len=*),INTENT   (IN)            :: dir
     CHARACTER(len=*),INTENT   (IN)            :: nmb
     CHARACTER(len=*),INTENT   (IN)            :: spref
@@ -804,14 +818,15 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
       IF ( this%bcollective_ .EQ. 1 ) THEN   ! collective binary
         IF (len_trim(nmb).gt.0 ) THEN
         CALL GPIC_binary_read_pdb_co_scalar(this,iunit, &
-        trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
+        trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp1_(1,:))
         ELSE
+!        CALL GPIC_binary_read_pdb_co_scalar(this,iunit, trim(spref),time,this%ptmp1_(1,:))
         CALL GPIC_binary_read_pdb_co_scalar(this,iunit, trim(spref),time,this%ptmp1_(1,:))
         ENDIF
       ELSE                      ! master thread binary
         IF (len_trim(nmb).gt.0 ) THEN
         CALL GPIC_binary_read_pdb_t0_scalar(this,iunit,&
-             trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
+             trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp1_(1,:))
         ELSE
         CALL GPIC_binary_read_pdb_t0_scalar(this,iunit, trim(spref),time,this%ptmp1_(1,:))
         ENDIF
@@ -826,9 +841,14 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     ENDIF
     CALL GTAcc(this%htimers_(GPTIME_GPREAD))
 
+    IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
     ! Store in particle velocity arrays
-    CALL GPIC_CopyLocalWrkScalar(this,this%weight_,this%vdb_,this%ptmp1_(1,:),this%maxparts_)
-
+      CALL GPIC_CopyLocalWrkScalar(this,this%weight_,this%vdb_,this%ptmp1_(1,:),this%maxparts_)
+    ELSE IF (this%iexchtype_.EQ.GPEXCHTYPE_NN) THEN
+      DO j = 1,this%nparts_
+        this%weight_(j) = this%ptmp1_(1,j)
+      END DO
+    END IF
     CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
                        MPI_SUM,this%comm_,this%ierr_)
     IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_ ) THEN
@@ -860,9 +880,9 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     IMPLICIT NONE
     CLASS(GPIC)  ,INTENT(INOUT)               :: this
     REAL(KIND=GP)                             :: rvar,time
-    REAL(KIND=GP),INTENT(INOUT)               :: pdb(this%maxparts_)
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:)  :: pdb
     INTEGER,INTENT(IN)                        :: iunit
-    INTEGER                                   :: fh,j,lc,nerr,szreal
+    INTEGER                                   :: fh,i,j,lc,nerr,szreal,nb,nr
     INTEGER(kind=MPI_OFFSET_KIND)             :: offset
     CHARACTER(len=*),INTENT   (IN)            :: sfile
 
@@ -888,8 +908,25 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     offset = szreal
     CALL MPI_FILE_READ_AT_ALL(fh,offset,rvar,1,GC_REAL,this%istatus_,this%ierr_) ! time
     offset = 2*szreal
-    CALL MPI_FILE_READ_AT_ALL(fh,offset,pdb,this%maxparts_,GC_REAL,this%istatus_,this%ierr_)
-! PDB
+    IF (this%iexchtype_.EQ.GPEXCHTYPE_NN) THEN
+      nb = 0
+      nr = this%maxparts_/this%nprocs_
+      i  = 1
+      DO WHILE ((this%ierr_.EQ.MPI_SUCCESS) .AND. (nb.LT.this%maxparts_))
+        nr = MIN(nr, this%maxparts_-nb)
+        CALL MPI_FILE_READ_AT_ALL(fh,offset,this%ptmp1_(1,:),nr,GC_REAL,this%istatus_,this%ierr_) ! PDB
+        offset = offset + nr*szreal
+        DO j = 1,nr
+          IF ((i.LE.this%nparts_).AND.(this%id_(i).EQ.(j+nb-1))) THEN
+            pdb(i) = this%ptmp1_(1,j)
+            i = i + 1
+          END IF
+        END DO
+        nb = nb + nr
+      END DO
+    ELSE IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
+      CALL MPI_FILE_READ_AT_ALL(fh,offset,pdb,this%maxparts_,GC_REAL,this%istatus_,this%ierr_)! PDB
+    END IF
     CALL MPI_FILE_CLOSE(fh,this%ierr_)
 
   END SUBROUTINE GPIC_binary_read_pdb_co_scalar
@@ -915,13 +952,13 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     USE mpivars
 
     IMPLICIT NONE
-    CLASS(GPIC)  ,INTENT(INOUT)       :: this
-    REAL(KIND=GP),INTENT(INOUT)       :: time
-    REAL(KIND=GP),INTENT(INOUT)       :: pdb(this%maxparts_)
-    REAL(KIND=GP)                     :: fnt
-    INTEGER      ,INTENT   (IN)       :: iunit
-    INTEGER                           :: j
-    CHARACTER(len=*),INTENT(IN)       :: sfile
+    CLASS(GPIC)  ,INTENT(INOUT)              :: this
+    REAL(KIND=GP),INTENT(INOUT)              :: time
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:) :: pdb
+    REAL(KIND=GP)                            :: fnt
+    INTEGER      ,INTENT   (IN)              :: iunit
+    INTEGER                                  :: j
+    CHARACTER(len=*),INTENT(IN)              :: sfile
 
     ! Read global VDB, with time header, indexed only
     ! by time index: dir/spref.TTT.lag:
@@ -947,11 +984,16 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
       READ(iunit) pdb
       CLOSE(iunit)
     ENDIF
-    CALL MPI_BCAST(pdb,this%maxparts_,GC_REAL,0,this%comm_,this%ierr_)
-    IF ( this%ierr_.NE.MPI_SUCCESS ) THEN
+ 
+    IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
+      CALL MPI_BCAST(pdb,this%maxparts_,GC_REAL,0,this%comm_,this%ierr_)
+      IF ( this%ierr_.NE.MPI_SUCCESS ) THEN
         WRITE(*,*)this%myrank_, ': GPIC_binary_read_pdb_t0_scalar: Broadcast failed: file=',&
         trim(sfile)
-    ENDIF
+      ENDIF
+    ELSE IF (this%iexchtype_.EQ.GPEXCHTYPE_NN) THEN
+      CALL this%gpcomm_%PartScatterV(this%id_,pdb,pdb,pdb,this%nparts_,this%tmpint_)
+    END IF
 
   END SUBROUTINE GPIC_binary_read_pdb_t0_scalar
 !-----------------------------------------------------------------
@@ -1052,6 +1094,49 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+  SUBROUTINE GPIC_ResizeArrays(this,new_size,onlyinc,exc)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Resize_Arrays
+!  DESCRIPTION: Resize all arrays in the VGPIC class (including 
+!               subclases, i.e. communicator, spline)
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    new_size: new number of particles
+!    onlyinc : if true, will only resize to increase array size
+!-----------------------------------------------------------------
+!$  USE threads
+ 
+    IMPLICIT NONE
+    CLASS(GPIC) ,INTENT(INOUT)                         :: this
+    INTEGER     ,INTENT(IN)                            :: new_size
+    LOGICAL     ,INTENT(IN)                            :: onlyinc
+    LOGICAL     ,INTENT(IN)   ,OPTIONAL                :: exc
+    INTEGER                                            :: n
+
+    CALL GPart_ResizeArrays(this,new_size,onlyinc)
+
+    n = SIZE(this%prop_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%prop_,new_size,.false.)
+    END IF
+    n = SIZE(this%weight_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%weight_,new_size,.true.)
+    END IF
+ 
+    IF (PRESENT(exc)) THEN
+      IF (exc) RETURN    ! Skip subclass resizing
+    END IF
+
+! Field communicator resized within picspline
+    CALL this%picspl_%ResizeArrays(new_size,onlyinc)
+
+    RETURN
+
+  END SUBROUTINE GPIC_ResizeArrays
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 
 
 !=================================================================
@@ -1150,7 +1235,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     ENDIF
 
     IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
-      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+      CALL this%gfcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     END IF
 
@@ -1191,8 +1276,19 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     CHARACTER(len=*),INTENT(IN)       :: nmb
     CHARACTER(len=*),INTENT(IN)       :: spref
 
-    CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
-         this%pvx_,this%pvy_,this%pvz_,this%nparts_,this%ptmp1_)
+!    CALL this%gfcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+!         this%pvx_,this%pvy_,this%pvz_,this%nparts_,this%ptmp1_)
+
+    ! If doing non-collective binary or ascii writes, synch up vector:
+    IF ((this%iouttype_.EQ.0 .AND.this%bcollective_.EQ.0).OR.this%iouttype_.EQ.1 ) THEN
+      IF (this%iexchtype_.EQ.GPEXCHTYPE_NN) THEN
+        CALL this%gfcomm_%VDBSynch_t0(this%ptmp0_,this%maxparts_,this%id_, &
+                                      this%pvx_,this%pvy_,this%pvz_,this%nparts_)
+      ELSE IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
+        CALL this%gfcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_,     &
+                                   this%pvx_,this%pvy_,this%pvz_,this%nparts_,this%ptmp1_)
+      END IF
+    ENDIF
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
       IF ( this%bcollective_.EQ. 1 ) THEN
@@ -1236,7 +1332,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     CLASS(VGPIC)    ,INTENT(INOUT)            :: this
     REAL(KIND=GP)                             :: time
     INTEGER,INTENT(IN)                        :: iunit
-    INTEGER                                   :: ng
+    INTEGER                                   :: ng,j
     CHARACTER(len=*),INTENT   (IN)            :: dir
     CHARACTER(len=*),INTENT   (IN)            :: nmb
     CHARACTER(len=*),INTENT   (IN)            :: spref
@@ -1245,22 +1341,23 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     IF ( this%iouttype_ .EQ. 0 ) THEN        ! Binary files
       IF ( this%bcollective_ .EQ. 1 ) THEN   ! collective binary
         IF (len_trim(nmb).gt.0 ) THEN
-        CALL GPart_binary_read_pdb_co(this,iunit, &
-        trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
+          CALL GPart_binary_read_pdb_co(this,iunit, &
+               trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag', &
+               time,this%ptmp0_)
         ELSE
-        CALL GPart_binary_read_pdb_co(this,iunit, trim(spref),time,this%ptmp0_)
+        CALL GPart_binary_read_pdb_co(this,iunit,trim(spref),time,this%ptmp0_)
         ENDIF
       ELSE                      ! master thread binary
         IF (len_trim(nmb).gt.0 ) THEN
-        CALL GPart_binary_read_pdb_t0(this,iunit,&
-         trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
+          CALL GPart_binary_read_pdb_t0(this,iunit,&
+            trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
         ELSE
         CALL GPart_binary_read_pdb_t0(this,iunit, trim(spref),time,this%ptmp0_)
         ENDIF
       ENDIF
     ELSE                         ! ASCII files
       IF (len_trim(nmb).gt.0 ) THEN
-      CALL GPart_ascii_read_pdb (this,iunit,&
+        CALL GPart_ascii_read_pdb (this,iunit,&
             trim(dir) // '/' // trim(spref) // '.' // nmb // '.txt',time,this%ptmp0_)
       ELSE
       CALL GPart_ascii_read_pdb (this,iunit,trim(spref),time,this%ptmp0_)
@@ -1268,9 +1365,17 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     ENDIF
     CALL GTAcc(this%htimers_(GPTIME_GPREAD))
 
+    IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
     ! Store in particle velocity arrays
-    CALL GPart_CopyLocalWrk(this,this%pvx_,this%pvy_,this%pvz_, &
-                            this%vdb_,this%ptmp0_,this%maxparts_)
+      CALL GPart_CopyLocalWrk(this,this%pvx_,this%pvy_,this%pvz_, &
+                              this%vdb_,this%ptmp0_,this%maxparts_)
+    ELSE
+      DO j = 1,this%nparts_
+        this%pvx_(j) = this%ptmp0_(1,j)
+        this%pvy_(j) = this%ptmp0_(2,j)
+        this%pvz_(j) = this%ptmp0_(3,j)
+      END DO
+    END IF
 
     CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
                        MPI_SUM,this%comm_,this%ierr_)
@@ -1328,6 +1433,52 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+  SUBROUTINE VGPIC_ResizeArrays(this,new_size,onlyinc,exc)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Resize_Arrays
+!  DESCRIPTION: Resize all arrays in the VGPIC class (including 
+!               subclases, i.e. communicator, spline)
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    new_size: new number of particles
+!    onlyinc : if true, will only resize to increase array size
+!-----------------------------------------------------------------
+!$  USE threads
+ 
+    IMPLICIT NONE
+    CLASS(VGPIC) ,INTENT(INOUT)                         :: this
+    INTEGER      ,INTENT(IN)                            :: new_size
+    LOGICAL      ,INTENT(IN)                            :: onlyinc
+    LOGICAL      ,INTENT(IN)   ,OPTIONAL                :: exc
+    INTEGER                                             :: n
+
+    CALL GPIC_ResizeArrays(this,new_size,onlyinc,exc)
+
+    n = SIZE(this%pvx_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%pvx_,new_size,.true.)
+    END IF
+    n = SIZE(this%pvy_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%pvy_,new_size,.true.)
+    END IF
+    n = SIZE(this%pvz_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%pvz_,new_size,.true.)
+    END IF
+
+    n = SIZE(this%ttmp0_,2)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank2(this%ttmp0_,new_size,.true.)
+    END IF
+
+    RETURN
+
+  END SUBROUTINE VGPIC_ResizeArrays
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
 
 !=================================================================
 ! ChargPIC SUBROUTINES
@@ -1350,16 +1501,16 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     IMPLICIT NONE
     CLASS(ChargPIC)   , INTENT(INOUT)   :: this
 
-    ALLOCATE(this%pvx_     (this%maxparts_))
-    ALLOCATE(this%pvy_     (this%maxparts_))
-    ALLOCATE(this%pvz_     (this%maxparts_))
-    ALLOCATE(this%lbx_     (this%maxparts_))
-    ALLOCATE(this%lby_     (this%maxparts_))
-    ALLOCATE(this%lbz_     (this%maxparts_))
-    ALLOCATE(this%lfx_     (this%maxparts_))
-    ALLOCATE(this%lfy_     (this%maxparts_))
-    ALLOCATE(this%lfz_     (this%maxparts_))
-    ALLOCATE(this%ttmp0_ (3,this%maxparts_))
+    ALLOCATE(this%pvx_     (this%partbuff_))
+    ALLOCATE(this%pvy_     (this%partbuff_))
+    ALLOCATE(this%pvz_     (this%partbuff_))
+    ALLOCATE(this%lbx_     (this%partbuff_))
+    ALLOCATE(this%lby_     (this%partbuff_))
+    ALLOCATE(this%lbz_     (this%partbuff_))
+    ALLOCATE(this%lfx_     (this%partbuff_))
+    ALLOCATE(this%lfy_     (this%partbuff_))
+    ALLOCATE(this%lfz_     (this%partbuff_))
+    ALLOCATE(this%ttmp0_ (3,this%partbuff_))
 
   END SUBROUTINE ChargPIC_ctor
 !-----------------------------------------------------------------
@@ -1680,17 +1831,32 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
       IF (this%nprocs_.GT.1) THEN
         CALL GTStart(this%htimers_(GPTIME_COMM))
-        CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_,  &
+        CALL this%gfcomm_%IdentifyExchV(this%id_,this%pz_,this%nparts_,ng,    &
+                                       this%lxbnds_(3,1),this%lxbnds_(3,2)) 
+        IF (ng.GT.this%partbuff_) THEN
+          PRINT *, 'Rank', this%myrank_, 'resizing: nparts=', ng, ' | partbuff=',&
+                   this%partbuff_, ' --> ', this%partbuff_ + &
+                   (1+(ng-this%partbuff_)/this%partchunksize_)*this%partchunksize_
+          this%partbuff_ = this%partbuff_ + &
+                (1+(ng-this%partbuff_)/this%partchunksize_)*this%partchunksize_
+          CALL this%ResizeArrays(this%partbuff_,.true.)
+        END IF
+        CALL MPI_BARRIER(this%comm_, this%ierr_)
+        CALL this%gfcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_,  &
              this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_INIT)
-        CALL this%gpcomm_%PartExchangeV(this%id_,this%ptmp0_(1,:),            &
+        CALL MPI_BARRIER(this%comm_, this%ierr_)
+        CALL this%gfcomm_%PartExchangeV(this%id_,this%ptmp0_(1,:),            &
              this%ptmp0_(2,:),this%ptmp0_(3,:),this%nparts_,this%lxbnds_(3,1),&
              this%lxbnds_(3,2),GPEXCH_UPDT)
-        CALL this%gpcomm_%PartExchangeV(this%id_,this%ttmp0_(1,:),            &
+        CALL MPI_BARRIER(this%comm_, this%ierr_)
+        CALL this%gfcomm_%PartExchangeV(this%id_,this%ttmp0_(1,:),            &
              this%ttmp0_(2,:),this%ttmp0_(3,:),this%nparts_,                  &
              this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_UPDT)
-        CALL this%gpcomm_%PartExchangeV(this%id_,this%pvx_,this%pvy_,this%pvz_,&
+        CALL MPI_BARRIER(this%comm_, this%ierr_)
+        CALL this%gfcomm_%PartExchangeV(this%id_,this%pvx_,this%pvy_,this%pvz_,&
              this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_UPDT)
-        CALL this%gpcomm_%PartExchangeV(this%id_,this%weight_,this%prop_, &
+        CALL MPI_BARRIER(this%comm_, this%ierr_)
+        CALL this%gfcomm_%PartExchangeV(this%id_,this%weight_,this%prop_, &
              this%prop_,this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), &
              GPEXCH_END)
         CALL GTAcc(this%htimers_(GPTIME_COMM))
@@ -1714,23 +1880,23 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
       ENDIF
       ! Synch up VDB, if necessary:
       CALL GTStart(this%htimers_(GPTIME_COMM))
-      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+      CALL this%gfcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                      this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+      CALL this%gfcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                      this%pvx_,this%pvy_,this%pvz_,this%nparts_,this%ptmp1_)
       CALL GPart_CopyLocalWrk(this,this%pvx_,this%pvy_,this%pvz_, &
                      this%vdb_,this%gptmp0_,this%maxparts_)
-      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+      CALL this%gfcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                      this%ttmp0_(1,:),this%ttmp0_(2,:),this%ttmp0_(3,:),&
                      this%nparts_,this%ptmp1_)
       CALL GPart_CopyLocalWrk(this,this%ttmp0_(1,:),this%ttmp0_(2,:), &
                      this%ttmp0_(3,:),this%vdb_,this%gptmp0_,this%maxparts_)
 
-      CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+      CALL this%gfcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
                this%weight_,this%weight_,this%weight_,this%nparts_,this%ptmp1_)
       CALL GPIC_CopyLocalWrkScalar(this,this%weight_,this%vdb_,this%ptmp0_(1,:),this%maxparts_)
  
-      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+      CALL this%gfcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                      this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
                      this%nparts_,this%ptmp1_)
       CALL GPart_GetLocalWrk_aux(this,this%id_,this%px_,this%py_,this%pz_,&
@@ -1861,6 +2027,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 
     ppc = this%maxparts_/(nx*ny*nz)
     pps = ppc**(1.0/3.0)
+    IF (this%myrank_.EQ.0) PRINT *, this%maxparts_, nx,ny,nz,ppc, pps
     IF (pps*pps*pps .NE. ppc) THEN
       IF ( this%myrank_.eq.0 ) THEN
         WRITE(*,*) 'GPIC_InitLattice: Number of particles per cell &
@@ -1869,6 +2036,11 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
       ENDIF
     END IF
     this%nparts_ = nx*ny*(kend - ksta + 1)*ppc
+    IF (this%nparts_.GT.this%partbuff_) THEN
+      this%partbuff_ = this%partbuff_+(1+(this%nparts_-this%partbuff_) &
+                              /this%partchunksize_)*this%partchunksize_
+      CALL ChargPIC_ResizeArrays(this,this%partbuff_,.true.)
+    END IF
     ib = nx*ny*(ksta-1)*ppc - 1
     lag = 1
     del = 1.0_GP/pps
@@ -1923,19 +2095,19 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     END DO
 
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
-       CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+       CALL this%gfcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-       CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+       CALL this%gfcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
        CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
                            this%nparts_,this%vdb_,this%maxparts_)
 
-       CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+       CALL this%gfcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
                           this%pvx_,this%pvy_,this%pvz_,this%nparts_,this%ptmp1_)
        CALL GPart_CopyLocalWrk(this,this%pvx_,this%pvy_,this%pvz_, &
                             this%vdb_,this%ptmp0_,this%maxparts_)
 
-       CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+       CALL this%gfcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
                           this%weight_,this%weight_,this%weight_,this%nparts_,this%ptmp1_)
        CALL GPIC_CopyLocalWrkScalar(this,this%weight_,this%vdb_,this%ptmp0_(1,:),this%maxparts_)
 
@@ -1958,12 +2130,11 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
        ENDIF
     END IF
 
-
+    RETURN
 
   END SUBROUTINE ChargPIC_InitFromFields
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-
   
   SUBROUTINE random_gaussian(gauss)
 !-----------------------------------------------------------------
@@ -2023,5 +2194,59 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     RETURN
 
   END SUBROUTINE ChargPIC_GetTemperature
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE ChargPIC_ResizeArrays(this,new_size,onlyinc,exc)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Resize_Arrays
+!  DESCRIPTION: Resize all arrays in the ChargPIC class (including
+!               subclases, i.e. communicator, spline)
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    new_size: new number of particles
+!    onlyinc : if true, will only resize to increase array size
+!-----------------------------------------------------------------
+!$  USE threads
+
+    IMPLICIT NONE
+    CLASS(ChargPIC) ,INTENT(INOUT)                      :: this
+    INTEGER         ,INTENT(IN)                         :: new_size
+    LOGICAL         ,INTENT(IN)                         :: onlyinc
+    LOGICAL         ,INTENT(IN)   ,OPTIONAL             :: exc
+    INTEGER                                             :: n
+
+    CALL VGPIC_ResizeArrays(this,new_size,onlyinc,exc)
+
+    n = SIZE(this%lfx_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%lfx_,new_size,.false.)
+    END IF
+    n = SIZE(this%lfy_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%lfy_,new_size,.false.)
+    END IF
+    n = SIZE(this%lfz_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%lfz_,new_size,.false.)
+    END IF
+
+    n = SIZE(this%lbx_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%lbx_,new_size,.false.)
+    END IF
+    n = SIZE(this%lby_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%lby_,new_size,.false.)
+    END IF
+    n = SIZE(this%lbz_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%lbz_,new_size,.false.)
+    END IF
+
+    RETURN
+
+  END SUBROUTINE ChargPIC_ResizeArrays
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
