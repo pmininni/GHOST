@@ -170,6 +170,7 @@
 #ifdef CPIC_
       REAL(KIND=GP)   , ALLOCATABLE, DIMENSION (:,:,:) :: Re1,Re2,Re3
       REAL(KIND=GP)   , ALLOCATABLE, DIMENSION (:,:,:) :: Rb1,Rb2,Rb3
+      REAL(KIND=GP)   , ALLOCATABLE, DIMENSION (:,:,:) :: Rj1,Rj2,Rj3
 #endif
 #ifdef MAGFIELD_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C9,C10,C11
@@ -306,6 +307,7 @@
       INTEGER      :: picwrtunit,piccoll
 #endif
 #ifdef CPIC_
+      INTEGER          :: Bmult = 10, iB
       REAL(KIND=GP)    :: r0,T0,delT
       REAL(KIND=GP)    :: krd,kru,kud,kuu,ktd,ktu
       REAL(KIND=GP)    :: rparam0,rparam1,rparam2,rparam3,rparam4
@@ -482,7 +484,7 @@
       NAMELIST / picinitflds / tparam7,tparam8,tparam9
 #endif
 #ifdef HYBPIC_
-      NAMELIST / phybrid / dii,betae,gammae
+      NAMELIST / phybrid / dii,betae,gammae,Bmult
 #endif
 #ifdef ELECSTAT_
       NAMELIST / elecstat / kde
@@ -721,6 +723,9 @@
       ALLOCATE( Re1(nx,ny,ksta:kend) )
       ALLOCATE( Re2(nx,ny,ksta:kend) )
       ALLOCATE( Re3(nx,ny,ksta:kend) )
+      ALLOCATE( Rj1(nx,ny,ksta:kend) )
+      ALLOCATE( Rj2(nx,ny,ksta:kend) )
+      ALLOCATE( Rj3(nx,ny,ksta:kend) )
 #endif
 #ifdef EDQNM_
       ALLOCATE( Eden(nz,ny,ista:iend) )
@@ -1178,6 +1183,7 @@
 !     gammae: barotropic exponent for fluid electrons
 !     betae : electronic plasma beta
 !     dii   : ion inertial length scale
+!     Bmult : magnetic field steps per ion step
 
       gammae = 0.0_GP
       dii    = 1.0_GP
@@ -1189,6 +1195,7 @@
       CALL MPI_BCAST(gammae,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(betae ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(dii   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(Bmult ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       gam1 = gammae-1.0_GP
       cp1 = dii*betae/2
       IF (gammae.GT.1) THEN
@@ -1667,7 +1674,6 @@
          DO j = 1,ny
             DO k = 1,nz
                kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
-!               C17(k,j,i)= EXP(-3.0_GP*kn2(k,j,i)/kmax)*(1.0_GP-kn2(k,j,i)/kmax)**2
             END DO
          END DO
       END DO
@@ -1941,7 +1947,7 @@
         CALL picpart%InitUserSeed()
       END IF
       IF (bench.ne.1) THEN
-        CALL picpart%io_write_wgt(1,odir,'wgt','init',0.0) 
+        CALL picpart%io_write_wgt(1,odir,'wgt','init',0.0_GP) 
       END IF
 #endif
 #ifdef ELECSTAT_
@@ -2140,9 +2146,15 @@
 
 #ifdef PIC_
           CALL picpart%io_read    (1,idir,'xpic',ext)
+          PRINT *, 'Done pdb'
           CALL picpart%io_read_wgt(1,idir,'wgt','init')
+          PRINT *, 'Done wgt'
 #ifdef CPIC_
           CALL picpart%io_readv   (1,idir,'vpic',ext)
+          PRINT *, 'Done pdbv'
+          CALL picpart%io_write_pdb (1,odir,'xpic','test',(ini-1)*dt) 
+          CALL picpart%io_write_wgt (1,odir,'wgt' ,'test',0.0_GP) 
+          CALL picpart%io_write_pdbv(1,odir,'vpic','test',(ini-1)*dt) 
 #endif
 #endif
 
@@ -2696,147 +2708,147 @@
 #endif
 #ifdef PIC_
             IF (MODULO(tind,picdiv).eq.0) THEN
-               CALL picpart%io_write_pdb (1,odir,'xpic',ext,(t-1)*dt)
+       CALL picpart%io_write_pdb (1,odir,'xpic',ext,(t-1)*dt)
 !               CALL picpart%io_write_wgt (1,odir,'weights',ext,(t-1)*dt)
 #ifdef CPIC_
-               CALL picpart%io_write_pdbv(1,odir,'vpic',ext,(t-1)*dt)
+       CALL picpart%io_write_pdbv(1,odir,'vpic',ext,(t-1)*dt)
 #endif
-            END IF
+    END IF
 #endif
 #ifdef MAGFIELD_
-            rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+    rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
-            DO i = ista,iend
+    DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     C1(k,j,i) = ax(k,j,i)*rmp
-                     C2(k,j,i) = ay(k,j,i)*rmp
-                     C3(k,j,i) = az(k,j,i)*rmp
-                  END DO
-               END DO
-            END DO
-            IF (outs.ge.1) THEN
-               CALL rotor3(C2,C3,C4,1)
-               CALL rotor3(C1,C3,C5,2)
-               CALL rotor3(C1,C2,C6,3)
-               CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
-               CALL io_write(1,odir,'bx',ext,planio,R1)
-               CALL io_write(1,odir,'by',ext,planio,R2)
-               CALL io_write(1,odir,'bz',ext,planio,R3)
-            ENDIF
-            IF (outs.eq.2) THEN
-               CALL laplak3(C1,C4)
-               CALL laplak3(C2,C5)
-               CALL laplak3(C3,C6)
-               CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
-               CALL io_write(1,odir,'jx',ext,planio,R1)
-               CALL io_write(1,odir,'jy',ext,planio,R2)
-               CALL io_write(1,odir,'jz',ext,planio,R3)
-            ENDIF
-            CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
-            CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
-            CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
-            CALL io_write(1,odir,'ax',ext,planio,R1)
-            CALL io_write(1,odir,'ay',ext,planio,R2)
-            CALL io_write(1,odir,'az',ext,planio,R3)
-            IF (rand.eq.2) THEN
+       DO j = 1,ny
+          DO k = 1,nz
+             C1(k,j,i) = ax(k,j,i)*rmp
+             C2(k,j,i) = ay(k,j,i)*rmp
+             C3(k,j,i) = az(k,j,i)*rmp
+          END DO
+       END DO
+    END DO
+    IF (outs.ge.1) THEN
+       CALL rotor3(C2,C3,C4,1)
+       CALL rotor3(C1,C3,C5,2)
+       CALL rotor3(C1,C2,C6,3)
+       CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
+       CALL io_write(1,odir,'bx',ext,planio,R1)
+       CALL io_write(1,odir,'by',ext,planio,R2)
+       CALL io_write(1,odir,'bz',ext,planio,R3)
+    ENDIF
+    IF (outs.eq.2) THEN
+       CALL laplak3(C1,C4)
+       CALL laplak3(C2,C5)
+       CALL laplak3(C3,C6)
+       CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
+       CALL io_write(1,odir,'jx',ext,planio,R1)
+       CALL io_write(1,odir,'jy',ext,planio,R2)
+       CALL io_write(1,odir,'jz',ext,planio,R3)
+    ENDIF
+    CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+    CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+    CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+    CALL io_write(1,odir,'ax',ext,planio,R1)
+    CALL io_write(1,odir,'ay',ext,planio,R2)
+    CALL io_write(1,odir,'az',ext,planio,R3)
+    IF (rand.eq.2) THEN
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
-               DO i = ista,iend
+       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-                  DO j = 1,ny
-                     DO k = 1,nz
-                        C1(k,j,i) = mxold(k,j,i)*rmp
-                        C2(k,j,i) = myold(k,j,i)*rmp
-                        C3(k,j,i) = mzold(k,j,i)*rmp
-                     END DO
-                  END DO
-               END DO
-               CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
-               CALL io_write(1,odir,'mxold',ext,planio,R1)
-               CALL io_write(1,odir,'myold',ext,planio,R2)
-               CALL io_write(1,odir,'mzold',ext,planio,R3)
+          DO j = 1,ny
+             DO k = 1,nz
+                C1(k,j,i) = mxold(k,j,i)*rmp
+                C2(k,j,i) = myold(k,j,i)*rmp
+                C3(k,j,i) = mzold(k,j,i)*rmp
+             END DO
+          END DO
+       END DO
+       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+       CALL io_write(1,odir,'mxold',ext,planio,R1)
+       CALL io_write(1,odir,'myold',ext,planio,R2)
+       CALL io_write(1,odir,'mzold',ext,planio,R3)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
-               DO i = ista,iend
+       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-                  DO j = 1,ny
-                     DO k = 1,nz
-                        C1(k,j,i) = mxnew(k,j,i)*rmp
-                        C2(k,j,i) = mynew(k,j,i)*rmp
-                        C3(k,j,i) = mznew(k,j,i)*rmp
-                     END DO
-                  END DO
-               END DO
-               CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
-               CALL io_write(1,odir,'mxnew',ext,planio,R1)
-               CALL io_write(1,odir,'mynew',ext,planio,R2)
-               CALL io_write(1,odir,'mznew',ext,planio,R3)
-            END IF
-            IF (mean.eq.1) THEN
-               dump = real(cstep,kind=GP)/t
+          DO j = 1,ny
+             DO k = 1,nz
+                C1(k,j,i) = mxnew(k,j,i)*rmp
+                C2(k,j,i) = mynew(k,j,i)*rmp
+                C3(k,j,i) = mznew(k,j,i)*rmp
+             END DO
+          END DO
+       END DO
+       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+       CALL io_write(1,odir,'mxnew',ext,planio,R1)
+       CALL io_write(1,odir,'mynew',ext,planio,R2)
+       CALL io_write(1,odir,'mznew',ext,planio,R3)
+    END IF
+    IF (mean.eq.1) THEN
+       dump = real(cstep,kind=GP)/t
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
-               DO i = ista,iend
+       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-                  DO j = 1,ny
-                     DO k = 1,nz
-                        C1(k,j,i) = dump*M4(k,j,i)*rmp
-                        C2(k,j,i) = dump*M5(k,j,i)*rmp
-                        C3(k,j,i) = dump*M6(k,j,i)*rmp
-                     END DO
-                  END DO
-               END DO
-               CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
-               CALL io_write(1,odir,'mean_bx',ext,planio,R1)
-               CALL io_write(1,odir,'mean_by',ext,planio,R2)
-               CALL io_write(1,odir,'mean_bz',ext,planio,R3)
-            ENDIF
+          DO j = 1,ny
+             DO k = 1,nz
+                C1(k,j,i) = dump*M4(k,j,i)*rmp
+                C2(k,j,i) = dump*M5(k,j,i)*rmp
+                C3(k,j,i) = dump*M6(k,j,i)*rmp
+             END DO
+          END DO
+       END DO
+       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+       CALL io_write(1,odir,'mean_bx',ext,planio,R1)
+       CALL io_write(1,odir,'mean_by',ext,planio,R2)
+       CALL io_write(1,odir,'mean_bz',ext,planio,R3)
+    ENDIF
 #endif
 #ifdef WAVEFUNCTION_
-            rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+    rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
-            DO i = ista,iend
+    DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     C1(k,j,i) = zre(k,j,i)*rmp
-                     C2(k,j,i) = zim(k,j,i)*rmp
-                  END DO
-               END DO
-            END DO
-            CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
-            CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
-            CALL io_write(1,odir,'phi_re',ext,planio,R1)
-            CALL io_write(1,odir,'phi_im',ext,planio,R2)
-            IF (outs.ge.1) THEN
+       DO j = 1,ny
+          DO k = 1,nz
+             C1(k,j,i) = zre(k,j,i)*rmp
+             C2(k,j,i) = zim(k,j,i)*rmp
+          END DO
+       END DO
+    END DO
+    CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+    CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+    CALL io_write(1,odir,'phi_re',ext,planio,R1)
+    CALL io_write(1,odir,'phi_im',ext,planio,R2)
+    IF (outs.ge.1) THEN
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-               DO k = ksta,kend
+       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-                  DO j = 1,ny
-                     DO i = 1,nx
-                        R3(i,j,k) = R1(i,j,k)**2+R2(i,j,k)**2
-                     END DO
-                  END DO
-               END DO
-               CALL io_write(1,odir,'rho',ext,planio,R3)
-            ENDIF
+          DO j = 1,ny
+             DO i = 1,nx
+                R3(i,j,k) = R1(i,j,k)**2+R2(i,j,k)**2
+             END DO
+          END DO
+       END DO
+       CALL io_write(1,odir,'rho',ext,planio,R3)
+    ENDIF
 #endif
-         ENDIF
+ ENDIF
 
 #ifdef PART_
-         IF ( dolag.GT.0 ) THEN
-           IF ((timep.eq.pstep).and.(bench.eq.0)) THEN
+ IF ( dolag.GT.0 ) THEN
+   IF ((timep.eq.pstep).and.(bench.eq.0)) THEN
 #if defined(LAGPART_)
-             INCLUDE 'lagpartout_velfield.f90'
+     INCLUDE 'lagpartout_velfield.f90'
 #endif
 #if defined(MAGFIELD_)
              INCLUDE 'lagpartout_magfield.f90'
@@ -2967,7 +2979,7 @@
 ! Evolves the system in time
 
          DO o = ord,1,-1
-
+        
          INCLUDE RKSTEP2_
 
 #ifdef PART_
