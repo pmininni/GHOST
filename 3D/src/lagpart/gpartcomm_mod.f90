@@ -1371,7 +1371,7 @@ MODULE class_GPartComm
     TYPE(GPData) ,INTENT(INOUT),DIMENSION(:)   :: buff
     REAL(KIND=GP),INTENT   (IN),DIMENSION(:)   :: px,py,pz
 
-!$omp parallel do if(nind.ge.NMIN_OMP) private(nb)
+!$omp parallel do if(nind.ge.NMIN_OMP)
     DO j = 1,nind
       buff(j)%idp_   = id(iind(j))
       buff(j)%rp_(1) = px(iind(j))
@@ -1410,7 +1410,7 @@ MODULE class_GPartComm
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(:)   :: px,py,pz
     TYPE(GPData) ,INTENT   (IN),DIMENSION(:)   :: buff
 
-!$omp parallel do if(nind.ge.NMIN_OMP) private(nb)
+!$omp parallel do if(nbuff.ge.NMIN_OMP) 
     DO j = 1,nbuff
       id(nparts+j) = buff(j)%idp_
       px(nparts+j) = buff(j)%rp_(1)
@@ -2924,7 +2924,7 @@ MODULE class_GPartComm
     IF (docpy) THEN
       n = shp(1)
       n = MIN(n,new_size)
-!$omp parallel do if((n*sph(2)).gt.NMIN_OMP) collapse(2)
+!$omp parallel do if((n*shp(2)).gt.NMIN_OMP) collapse(2)
       DO i = 1,n
         DO j = 1,shp(2)
           temp(i,j) = a(i,j)
