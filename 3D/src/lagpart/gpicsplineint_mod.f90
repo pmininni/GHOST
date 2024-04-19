@@ -663,7 +663,7 @@ MODULE class_GPICSplineInt
     ny = 1
     nz = this%ldims_(3) + 2*this%gfcomm_%GetNumGhost()
   
-!$omp parallel do if((ny*nz).gt.nth) private(i)
+!$omp parallel do if((ny*nz).gt.nth)
     DO k = 1,nz
       this%esplflddp_(1,1,k) = 0.0D0
     END DO
@@ -703,7 +703,7 @@ MODULE class_GPICSplineInt
       six    = 6.0_GP
       four   = 4.0_GP
       three  = 3.0_GP
-!$omp parallel do private(xxx,xxm,xx,zzz,zzm,zz)
+!$omp parallel do private(zzz,zzm,zz)
       DO lag=1,np
         zzz = this%zrk_(lag)
         zzm = (1.0_GP-zzz)
@@ -718,7 +718,7 @@ MODULE class_GPICSplineInt
       ENDDO
     ENDIF
   
-!$omp parallel do if((ny*nz).gt.nth) private(i)
+!$omp parallel do if((ny*nz).gt.nth)
     DO k = 1,nz
       this%esplfld_(1,1,k) = REAL(this%esplflddp_(1,1,k),kind=GP)
     END DO
@@ -1060,7 +1060,7 @@ MODULE class_GPICSplineInt
     DO j = 1, np
       btmp = (zp(j).GE.this%xbnds_(3,1).AND.zp(j).LT.this%xbnds_(3,2))
       IF ( .NOT. btmp ) THEN
-        WRITE(*,*) this%rank_, ' GPICSplineInt::PartUpdate3D: Invalid particle z-range'
+        WRITE(*,*) this%rank_, ' GPICSplineInt::PartUpdate: Invalid particle z-range'
         WRITE(*,*) this%rank_, ' GPICSplineInt::zbnd_0=',this%xbnds_(3,1),';  zbnd_1=',this%xbnds_(3,2), 'zp=',zp(j)
         STOP
       ENDIF
