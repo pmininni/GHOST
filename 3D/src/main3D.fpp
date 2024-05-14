@@ -1674,6 +1674,8 @@
          DO j = 1,ny
             DO k = 1,nz
                kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
+               C17(k,j,i) = EXP(-5.0_GP*(kn2(k,j,i)/kmax)**2)
+!               C17(k,j,i) = 1.0_GP
             END DO
          END DO
       END DO
@@ -2146,15 +2148,9 @@
 
 #ifdef PIC_
           CALL picpart%io_read    (1,idir,'xpic',ext)
-          PRINT *, 'Done pdb'
           CALL picpart%io_read_wgt(1,idir,'wgt','init')
-          PRINT *, 'Done wgt'
 #ifdef CPIC_
           CALL picpart%io_readv   (1,idir,'vpic',ext)
-          PRINT *, 'Done pdbv'
-          CALL picpart%io_write_pdb (1,odir,'xpic','test',(ini-1)*dt) 
-          CALL picpart%io_write_wgt (1,odir,'wgt' ,'test',0.0_GP) 
-          CALL picpart%io_write_pdbv(1,odir,'vpic','test',(ini-1)*dt) 
 #endif
 #endif
 
