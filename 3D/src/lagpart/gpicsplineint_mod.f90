@@ -1058,7 +1058,7 @@ MODULE class_GPICSplineInt
     ! First, do a check:
 !$omp parallel do if(np.ge.NMIN_OMP) private(btmp)
     DO j = 1, np
-      btmp = (zp(j).GE.this%xbnds_(3,1).AND.zp(j).LT.this%xbnds_(3,2))
+      btmp = (zp(j).GE.this%xbnds_(3,1).AND.zp(j).LE.this%xbnds_(3,2))
       IF ( .NOT. btmp ) THEN
         WRITE(*,*) this%rank_, ' GPICSplineInt::PartUpdate: Invalid particle z-range'
         WRITE(*,*) this%rank_, ' GPICSplineInt::zbnd_0=',this%xbnds_(3,1),';  zbnd_1=',this%xbnds_(3,2), 'zp=',zp(j)

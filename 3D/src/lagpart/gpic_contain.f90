@@ -1947,7 +1947,8 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     IMPLICIT NONE
     CLASS(ChargPIC)   , INTENT(INOUT)                   :: this
     REAL(KIND=GP),INTENT(IN),DIMENSION(nx,ny,ksta:kend) :: n,ux,uy,uz,T
-    REAL(KIND=GP)                            :: gauss,vr,vth,del,w
+    REAL(KIND=GP)                            :: gauss,vr,vth,w
+    REAL(KIND=GP)                            :: del,delx,dely,delz
     DOUBLE PRECISION                         :: vmx,vmy,vmz
     INTEGER                                  :: ppc,pps,ib,lag
     INTEGER                                  :: i,j,k,ii,jj,kk
@@ -1965,13 +1966,17 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     END IF
 
     ppc = this%maxparts_/(nx*ny*nz)
-    pps = ppc**(1.0/d)
-    IF (pps**d .NE. ppc) THEN
-      IF ( this%myrank_.eq.0 ) THEN
-        WRITE(*,*) 'GPIC_InitFromFields: Number of particles per cell &
-                         must be perfect square (2D) or cube (3D)'
-        STOP
-      ENDIF
+    IF (d.EQ.1) THEN
+      pps = ppc
+    ELSE
+      pps = ppc**(1.0/d)
+      IF (pps**d .NE. ppc) THEN
+        IF ( this%myrank_.eq.0 ) THEN
+          WRITE(*,*) 'GPIC_InitFromFields: Number of particles per cell &
+                           must be perfect square (2D) or cube (3D)'
+          STOP
+        ENDIF
+      END IF
     END IF
     this%nparts_ = nx*ny*(kend - ksta + 1)*ppc
     IF (this%nparts_.GT.this%partbuff_) THEN
@@ -1981,14 +1986,26 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     END IF
     ib = nx*ny*(ksta-1)*ppc - 1
     lag = 1
+
     del = 1.0_GP/pps
-    ppx = pps
-    IF (nx.EQ.1) ppx = 1
-    ppy = pps
-    IF (ny.EQ.1) ppy = 1
-    ppz = pps
-    IF (nz.EQ.1) ppz = 1
-    DO i = 1,nz
+    IF (nx.EQ.1) THEN
+      ppx  = 1
+      delx = 1.0_GP
+    ELSE
+      ppx  = pps
+      delx = del
+    END IF
+    IF (ny.EQ.1) THEN
+      ppy  = 1
+      dely = 1.0_GP
+    ELSE
+      ppy  = pps
+      dely = del
+    END IF
+    ppz  = pps
+    delz = del
+
+    DO i = 1,nx
       DO j = 1,ny
         DO k = ksta,kend
           vmx = 0.0D0
@@ -2000,9 +2017,9 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
             DO jj = 1,ppy
               DO kk = 1,ppz
                 this%id_(lag) = lag + ib
-                this%px_(lag) = (i-1.00_GP) + (ii-0.50_GP)*del
-                this%py_(lag) = (j-1.00_GP) + (jj-0.50_GP)*del
-                this%pz_(lag) = (k-1.00_GP) + (kk-0.50_GP)*del
+                this%px_(lag) = (i-1.00_GP) + (ii-0.50_GP)*delx
+                this%py_(lag) = (j-1.00_GP) + (jj-0.50_GP)*dely
+                this%pz_(lag) = (k-1.00_GP) + (kk-0.50_GP)*delz
                 this%weight_(lag) = w
                 CALL random_gaussian(gauss)
                 vr = gauss*vth
