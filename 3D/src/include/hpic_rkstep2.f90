@@ -5,9 +5,9 @@
          CALL fftp3d_real_to_complex(planrc,Rj2,C5,MPI_COMM_WORLD)
          CALL fftp3d_real_to_complex(planrc,Rj3,C6,MPI_COMM_WORLD)
          CALL fftp3d_real_to_complex(planrc,R1 ,C7,MPI_COMM_WORLD)
-         CALL rotor3(ax,ay,C8 ,1) ! bx
-         CALL rotor3(ay,az,C9 ,2) ! by
-         CALL rotor3(az,ax,C10,3) ! bz
+         CALL rotor3(ay,az,C8 ,1) ! bx
+         CALL rotor3(ax,az,C9 ,2) ! by
+         CALL rotor3(ax,ay,C10,3) ! bz
          tmp = real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)
          IF (myrank.eq.0) THEN          ! b = b + B_0
             C8(1,1,1) = bx0*tmp
@@ -24,10 +24,13 @@
          DO j = 1,ny
          DO k = 1,nz
             IF ((kn2(k,j,i).le.kmax)) THEN
-               C4(k,j,i) = dii*ax(k,j,i) + C4(k,j,i)
-               C5(k,j,i) = dii*ay(k,j,i) + C5(k,j,i)
-               C6(k,j,i) = dii*az(k,j,i) + C6(k,j,i)
-               C7(k,j,i) = C7(k,j,i)
+               C4(k,j,i) = dii*ax(k,j,i) + C4(k,j,i)*C17(k,j,i)
+               C5(k,j,i) = dii*ay(k,j,i) + C5(k,j,i)*C17(k,j,i)
+               C6(k,j,i) = dii*az(k,j,i) + C6(k,j,i)*C17(k,j,i)
+               ax(k,j,i) = C4(k,j,i)  ! Store electron current j_e
+               ay(k,j,i) = C5(k,j,i)
+               az(k,j,i) = C6(k,j,i)
+               C7(k,j,i) = C7(k,j,i)*C17(k,j,i)
             ELSE
                C4(k,j,i) = 0.0_GP
                C5(k,j,i) = 0.0_GP
@@ -55,6 +58,19 @@
             END DO
             END DO
             CALL fftp3d_real_to_complex(planrc,R2,C11,MPI_COMM_WORLD)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.ge.nth) private (k)
+            DO j = 1,ny
+            DO k = 1,nz
+               IF ((kn2(k,j,i).le.kmax)) THEN
+                  C11(k,j,i) = C11(k,j,i)*C17(k,j,i)
+               ELSE
+                  C11(k,j,i) = 0.0_GP
+               ENDIF
+            END DO
+            END DO
+            END DO
             CALL derivk3(C11,C14,1)
             CALL derivk3(C11,C15,2)
             CALL derivk3(C11,C16,3) ! grad(P_e)/n_e
@@ -120,9 +136,9 @@
             CALL fftp3d_real_to_complex(planrc,Rj1,C4,MPI_COMM_WORLD)
             CALL fftp3d_real_to_complex(planrc,Rj2,C5,MPI_COMM_WORLD)
             CALL fftp3d_real_to_complex(planrc,Rj3,C6,MPI_COMM_WORLD)
-            CALL rotor3(ax,ay,C8 ,1) ! bx
-            CALL rotor3(ay,az,C9 ,2) ! by
-            CALL rotor3(az,ax,C10,3) ! bz
+            CALL rotor3(ay,az,C8 ,1) ! bx
+            CALL rotor3(ax,az,C9 ,2) ! by
+            CALL rotor3(ax,ay,C10,3) ! bz
             tmp = real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)
             IF (myrank.eq.0) THEN          ! b = b + B_0
                C8(1,1,1) = bx0*tmp
@@ -139,9 +155,12 @@
             DO j = 1,ny
             DO k = 1,nz
                IF ((kn2(k,j,i).le.kmax)) THEN
-                  C4(k,j,i) = dii*C14(k,j,i) + C4(k,j,i)
-                  C5(k,j,i) = dii*C15(k,j,i) + C5(k,j,i)
-                  C6(k,j,i) = dii*C16(k,j,i) + C6(k,j,i)
+                  C4(k,j,i)  = dii*C14(k,j,i) + C4(k,j,i)*C17(k,j,i)
+                  C5(k,j,i)  = dii*C15(k,j,i) + C5(k,j,i)*C17(k,j,i)
+                  C6(k,j,i)  = dii*C16(k,j,i) + C6(k,j,i)*C17(k,j,i)
+                  C14(k,j,i) = C4(k,j,i)  ! Store electron current -j_e
+                  C15(k,j,i) = C5(k,j,i)
+                  C16(k,j,i) = C6(k,j,i)
                ELSE
                   C4(k,j,i) = 0.0_GP
                   C5(k,j,i) = 0.0_GP
