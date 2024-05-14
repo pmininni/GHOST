@@ -76,17 +76,18 @@
       END SUBROUTINE poisson_elecstat
 
 !*****************************************************************
-      SUBROUTINE hpiccheck(Tem, ni, ax, ay, az, gamm, beta, t, dt)
+      SUBROUTINE hpiccheck(Tem,ux,uy,uz,ni,ax,ay,az,gamm,beta,t,dt)
 !-----------------------------------------------------------------
 !
 ! Consistency check for the conservation of the total
 ! energy of electrostatic hybrid-pic solver.
 !
 ! Output files contain:
-! 'energy.txt':   time, <v^2>, <B^2>, <Pe*beta/(gamma-1)>
+! 'energy.txt':   time, <u^2>, <(v-u)^2>, <B^2>, <Pe*beta/(gamma-1)>
 !
 ! Parameters
-!       Tem: kinetic energy (of particles) in real space
+!       Tem: ion kinetic energy density in real space
+!  ux,uy,uz: ion bulk velocity components in real space
 !       ni : ion density in real space
 !  ax,ay,az: vector potential components in Fourier space
 !      gamm: barotropic exponent (fluid electrons)
@@ -103,9 +104,10 @@
 
       COMPLEX(KIND=GP),INTENT(IN),DIMENSION(nz,ny,ista:iend) :: ax,ay,az
       REAL(KIND=GP)   ,INTENT(IN),DIMENSION(ksta:kend,ny,nz) :: Tem,ni
+      REAL(KIND=GP)   ,INTENT(IN),DIMENSION(ksta:kend,ny,nz) :: ux,uy,uz
       REAL(KIND=GP), INTENT(IN)    :: dt,gamm,beta
       INTEGER      , INTENT(IN)    :: t
-      DOUBLE PRECISION    :: ek,ekloc,ei,eiloc,em
+      DOUBLE PRECISION    :: et,etloc,ei,eiloc,em,ek,ekloc
       INTEGER             :: i,j,k
       REAL(KIND=GP)       :: rmp,tmp
 
@@ -120,7 +122,9 @@
          DO j = 1,ny
 !$omp parallel do if (kend-2.ge.nth) private (i) reduction(+:ekloc)
             DO i = 1,nx
-               ekloc = ekloc + Tem(k,j,i)*rmp
+               etloc = etloc + Tem(k,j,i)*rmp
+               ekloc = ekloc + (ux(k,j,i)**2 +uy(k,j,i)**2   &
+                               +uz(k,j,i)**2)*rmp*ni(k,j,i)
                eiloc = eiloc + ni(k,j,i)*LOG(ni(k,j,i))*rmp
             ENDDO
          ENDDO
@@ -132,7 +136,9 @@
          DO j = 1,ny
 !$omp parallel do if (kend-2.ge.nth) private (i) reduction(+:ekloc)
             DO i = 1,nx
-               ekloc = ekloc + Tem(k,j,i)*rmp
+               etloc = etloc + Tem(k,j,i)*rmp
+               ekloc = ekloc + (ux(k,j,i)**2 +uy(k,j,i)**2   &
+                               +uz(k,j,i)**2)*rmp
                eiloc = eiloc + (ni(k,j,i)**gamm)*rmp
             ENDDO
          ENDDO
@@ -142,6 +148,8 @@
 
       CALL MPI_REDUCE(ekloc,ek,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
+      CALL MPI_REDUCE(etloc,et,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+                      MPI_COMM_WORLD,ierr)
       CALL MPI_REDUCE(eiloc,ei,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
 !
@@ -149,8 +157,9 @@
 !
       IF (myrank.eq.0) THEN
          ei = ei*tmp
+         et = et - ek
          OPEN(1,file='energy.txt',position='append')
-         WRITE(1,10) (t-1)*dt,ek,em,ei
+         WRITE(1,10) (t-1)*dt,ek,et,em,ei
    10    FORMAT( E13.6,E22.14,E22.14,E22.14,E22.14 )
          CLOSE(1)
       ENDIF
@@ -212,7 +221,7 @@
       IF (myrank.eq.0) THEN
          OPEN(1,file='energy.txt',position='append')
          WRITE(1,10) (t-1)*dt,ek,ep
-   10    FORMAT( E13.6,E22.14,E22.14,E22.14 )
+   10    FORMAT( E13.6,E22.14,E22.14)
          CLOSE(1)
       ENDIF
 
