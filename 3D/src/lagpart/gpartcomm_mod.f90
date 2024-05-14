@@ -1253,7 +1253,7 @@ MODULE class_GPartComm
       ! Determine corresponding task owner for each particle
       DO i = 1,nparts
         j = 1
-        DO WHILE (pz(i).GE.zmaxs(j))
+        DO WHILE (pz(i).GT.zmaxs(j))
           j = j + 1
         END DO
         IF (j.GT.this%nprocs_) THEN
