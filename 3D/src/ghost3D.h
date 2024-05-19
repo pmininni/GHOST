@@ -91,6 +91,7 @@
 #ifdef COMPIHD_SOL
 #define DNS_
 #define VELOC_
+#define MOM_
 #define DENSITY_
 #define SCALAR_
 #define COMPRESSIBLE_

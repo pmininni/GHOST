@@ -269,7 +269,7 @@
 
 
 !*****************************************************************
-      SUBROUTINE divrhov(d,a,b,c,e)
+      SUBROUTINE divrhov(d,a,b,c,dodealias,e)
 !-----------------------------------------------------------------
 !
 ! Computes the divergence of the product of scalar 'd' by
@@ -280,6 +280,8 @@
 !     b  : input matrix with v_y (in Fourier space)
 !     c  : input matrix with v_z (in Fourier space) [A = (a,b,c)]
 !     d  : input matrix with density (in Fourier space)
+!     dodealias:
+!          flag (0, 1) to do dealiasing
 !     e  : output matrix with div(d.A) (in Fourier space)
 !
       USE fprecision
@@ -291,6 +293,7 @@
 !$    USE threads
       IMPLICIT NONE
 
+      INTEGER         , INTENT (IN)                             :: dodealias
       COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: a,b
       COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: c,d
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: e
@@ -348,6 +351,22 @@
             END DO
          END DO
       END DO
+
+      ! Dealiases the result:
+      IF ( dodealias .gt. 0 ) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+                  IF (kn2(k,j,i).gt.kmax) THEN
+                     e(k,j,i) = 0.0_GP
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ENDIF
+
 
       RETURN
       END SUBROUTINE divrhov
@@ -640,7 +659,7 @@
 
 
 !*****************************************************************
-      SUBROUTINE pdVwork(gam1,e,a,b,c,pdV)
+      SUBROUTINE pdVwork(gam1,e,a,b,c,dodealias,pdV)
 !-----------------------------------------------------------------
 !
 ! Computes p.Div v term
@@ -651,6 +670,8 @@
 !     a   : input matrix with v_x (in Fourier space)
 !     b   : input matrix with v_y (in Fourier space)
 !     c   : input matrix with v_z (in Fourier space) [A = (a,b,c)]
+!     dodealias:
+!          flag (0, 1) to do dealiasing
 !     pdV : result 
 !
       USE fprecision
@@ -662,6 +683,7 @@
 !$    USE threads
       IMPLICIT NONE
 
+      INTEGER         , INTENT (IN)                             :: dodealias
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: b
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: c
@@ -720,8 +742,116 @@
          END DO
       END DO
 
+ 
+      ! Dealiases the result:
+      IF ( dodealias .gt. 0 ) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+                  IF (kn2(k,j,i).gt.kmax) THEN
+                     pdV(k,j,i) = 0.0_GP
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ENDIF
+
+
       RETURN
       END SUBROUTINE pdVwork
+
+!*****************************************************************
+      SUBROUTINE mom2vel(rho,sx,sy,sz,dodealias,vx,vy,vz) 
+!-----------------------------------------------------------------
+!
+! Computes velocity from momentum
+!
+! Parameters
+!     rho   : density
+!     sx,sy,
+!     sz    : momentum componnts
+!     dodealias:
+!          flag (0, 1) to do dealiasing
+!     vx,vy,
+!     vz    : velocity componnts
+!
+      USE fprecision
+      USE kes
+      USE grid
+      USE commtypes
+      USE mpivars
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      INTEGER         , INTENT (IN)                             :: dodealias
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: rho
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: sx,sy,sz
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: t1,t2,t3,t4
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3,r4
+      REAL(KIND=GP)                 :: tmp
+      INTEGER                       :: i,j,k
+
+      
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               t1(k,j,i) = sx (k,j,i)
+               t2(k,j,i) = sy (k,j,i)
+               t3(k,j,i) = sz (k,j,i)
+               t4(k,j,i) = rho(k,j,i)
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_complex_to_real(plancr,t1,r1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t2,r2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t3,r3,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t4,r4,MPI_COMM_WORLD)
+
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               r1(i,j,k) = r1(i,j,k)/r4(i,j,k)
+               r2(i,j,k) = r2(i,j,k)/r4(i,j,k)
+               r3(i,j,k) = r3(i,j,k)/r4(i,j,k)
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_real_to_complex(planrc,r1,vx,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,r2,vy,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,r3,vz,MPI_COMM_WORLD)
+
+      ! Dealiases the result:
+      IF ( dodealias .gt. 0 ) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+                  IF (kn2(k,j,i).gt.kmax) THEN
+                     vx(k,j,i) = 0.0_GP
+                     vy(k,j,i) = 0.0_GP
+                     vz(k,j,i) = 0.0_GP
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ENDIF
+
+
+      RETURN
+      END SUBROUTINE mom2vel
 
 !*****************************************************************
       SUBROUTINE viscHeatRayleigh(a,b,c,phi)

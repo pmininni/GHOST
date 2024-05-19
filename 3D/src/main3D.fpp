@@ -128,6 +128,9 @@
 #if defined(VELOC_) || defined(ADVECT_)
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz
 #endif
+#if defined(MOM_) 
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: sx,sy,sz
+#endif
 #ifdef VELOC_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fx,fy,fz
 #endif
@@ -558,6 +561,11 @@
       ALLOCATE( vx(nz,ny,ista:iend) )
       ALLOCATE( vy(nz,ny,ista:iend) )
       ALLOCATE( vz(nz,ny,ista:iend) )
+#endif
+#if defined(MOM_) 
+      ALLOCATE( sx(nz,ny,ista:iend) )
+      ALLOCATE( sy(nz,ny,ista:iend) )
+      ALLOCATE( sz(nz,ny,ista:iend) )
 #endif
 #ifdef VELOC_
       ALLOCATE( fx(nz,ny,ista:iend) )
@@ -1806,12 +1814,21 @@
       timef = int(modulo(float(ini-1),float(fstep)))
 
 #ifdef VELOC_
+  #ifdef MOM_
+      CALL io_read(1,idir,'sx',ext,planio,R1)
+      CALL io_read(1,idir,'sy',ext,planio,R2)
+      CALL io_read(1,idir,'sz',ext,planio,R3)
+      CALL fftp3d_real_to_complex(planrc,R1,sx,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R2,sy,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R3,sz,MPI_COMM_WORLD)
+  #else
       CALL io_read(1,idir,'vx',ext,planio,R1)
       CALL io_read(1,idir,'vy',ext,planio,R2)
       CALL io_read(1,idir,'vz',ext,planio,R3)
       CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
+  #endif
 
       IF (rand.eq.2) THEN
          CALL io_read(1,idir,'fxnew',ext,planio,R1)
@@ -2337,9 +2354,15 @@
             CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
             CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
             CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+  #ifdef MOM_
+            CALL io_write(1,odir,'sx',ext,planio,R1)
+            CALL io_write(1,odir,'sy',ext,planio,R2)
+            CALL io_write(1,odir,'sz',ext,planio,R3)
+  #else
             CALL io_write(1,odir,'vx',ext,planio,R1)
             CALL io_write(1,odir,'vy',ext,planio,R2)
             CALL io_write(1,odir,'vz',ext,planio,R3)
+  #endif
             IF (rand.eq.2) THEN
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
@@ -3066,6 +3089,9 @@
 #endif
 #if defined(VELOC_) || defined (ADVECT_)
       DEALLOCATE( vx,vy,vz )
+#endif
+#ifdef MOM_ 
+      DEALLOCATE( sx,sy,sz )
 #endif
 #ifdef ADVECT_
       DEALLOCATE( vsq )
