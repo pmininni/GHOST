@@ -1732,11 +1732,11 @@
       timec = cstep
       times = sstep
       timep = pstep
+#ifdef DENSITY_
+      INCLUDE 'initialrho.f90'          ! initial mass density
+#endif
 #if defined(VELOC_) || defined (ADVECT_)
       INCLUDE 'initialv.f90'            ! initial velocity
-#endif
-#ifdef DENSITY_
-      INCLUDE 'initialrho.f90'           ! initial mass density
 #endif
 #ifdef SCALAR_
       INCLUDE 'initials.f90'            ! initial scalar density
