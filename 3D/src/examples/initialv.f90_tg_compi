@@ -26,7 +26,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,ny
             DO k = 1,nz
-               vz(k,j,i) = 0.0_GP
+               sz(k,j,i) = 0.0_GP
             END DO
          END DO
       END DO
@@ -100,8 +100,8 @@
          END DO
       END DO
 
-      CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
-      CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R1,sx,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R2,sy,MPI_COMM_WORLD)
 
 
 #endif
