@@ -1724,7 +1724,7 @@
 ! Generates initial conditions for the fields and particles.
  IC : IF (stat.eq.0) THEN
 
-      ini = 1
+      ini  = 1
       sind = 0                          ! index for the spectrum
       tind = 0                          ! index for the binaries
       pind = 0                          ! index for the particles
@@ -1814,21 +1814,21 @@
       timef = int(modulo(float(ini-1),float(fstep)))
 
 #ifdef VELOC_
-  #ifdef MOM_
+#ifdef MOM_
       CALL io_read(1,idir,'sx',ext,planio,R1)
       CALL io_read(1,idir,'sy',ext,planio,R2)
       CALL io_read(1,idir,'sz',ext,planio,R3)
       CALL fftp3d_real_to_complex(planrc,R1,sx,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R2,sy,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R3,sz,MPI_COMM_WORLD)
-  #else
+#else
       CALL io_read(1,idir,'vx',ext,planio,R1)
       CALL io_read(1,idir,'vy',ext,planio,R2)
       CALL io_read(1,idir,'vz',ext,planio,R3)
       CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
-  #endif
+#endif
 
       IF (rand.eq.2) THEN
          CALL io_read(1,idir,'fxnew',ext,planio,R1)
@@ -2354,15 +2354,15 @@
             CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
             CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
             CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
-  #ifdef MOM_
+#ifdef MOM_
             CALL io_write(1,odir,'sx',ext,planio,R1)
             CALL io_write(1,odir,'sy',ext,planio,R2)
             CALL io_write(1,odir,'sz',ext,planio,R3)
-  #else
+#else
             CALL io_write(1,odir,'vx',ext,planio,R1)
             CALL io_write(1,odir,'vy',ext,planio,R2)
             CALL io_write(1,odir,'vz',ext,planio,R3)
-  #endif
+#endif
             IF (rand.eq.2) THEN
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
