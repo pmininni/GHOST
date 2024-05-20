@@ -27,6 +27,7 @@
          DO j = 1,ny
             DO k = 1,nz
                sz(k,j,i) = 0.0_GP
+               vz(k,j,i) = 0.0_GP
             END DO
          END DO
       END DO
@@ -73,18 +74,21 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,ny
             DO k = 1,nz
+               C1(k,j,i) = vx (k,j,i)
+               C2(k,j,i) = vy (k,j,i)
+               C3(k,j,i) = rho(k,j,i)
                IF (kn2(k,j,i).gt.kmax) THEN
-                  vx (k,j,i) = 0.0_GP
-                  vy (k,j,i) = 0.0_GP
-                  rho(k,j,i) = 0.0_GP
+                  C1 (k,j,i) = 0.0_GP
+                  C2 (k,j,i) = 0.0_GP
+                  C3 (k,j,i) = 0.0_GP
                ENDIF
             END DO
          END DO
       END DO
 
-      CALL fftp3d_complex_to_real(plancr,vx ,R1,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,vy ,R2,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,rho,R3,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,C1 ,R1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,C2 ,R2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,C3 ,R3,MPI_COMM_WORLD)
 
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
@@ -102,6 +106,5 @@
 
       CALL fftp3d_real_to_complex(planrc,R1,sx,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R2,sy,MPI_COMM_WORLD)
-
 
 #endif
