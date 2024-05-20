@@ -316,6 +316,25 @@
          END DO
       END DO
 
+      ! Dealiases the result:
+      IF ( dodealias .gt. 0 ) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+                  IF (kn2(k,j,i).gt.kmax) THEN
+                     e(k,j,i) = 0.0_GP
+                     f(k,j,i) = 0.0_GP
+                     g(k,j,i) = 0.0_GP
+                     h(k,j,i) = 0.0_GP
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ENDIF
+
+
       CALL fftp3d_complex_to_real(plancr,f,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,g,r2,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,h,r3,MPI_COMM_WORLD)
@@ -709,6 +728,24 @@
          END DO
       END DO
 
+      ! Dealiases the result:
+      IF ( dodealias .gt. 0 ) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+                  IF (kn2(k,j,i).gt.kmax) THEN
+                     t1(k,j,i) = 0.0_GP
+                     t2(k,j,i) = 0.0_GP
+                     t3(k,j,i) = 0.0_GP
+                     t4(k,j,i) = 0.0_GP
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ENDIF
+
       CALL fftp3d_complex_to_real(plancr,t1,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,t2,r2,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,t3,r3,MPI_COMM_WORLD)
@@ -808,6 +845,25 @@
             END DO
          END DO
       END DO
+
+      ! Dealiases the result:
+      IF ( dodealias .gt. 0 ) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+                  IF (kn2(k,j,i).gt.kmax) THEN
+                     t1(k,j,i) = 0.0_GP
+                     t2(k,j,i) = 0.0_GP
+                     t3(k,j,i) = 0.0_GP
+                     t4(k,j,i) = 0.0_GP
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ENDIF
+
 
       CALL fftp3d_complex_to_real(plancr,t1,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,t2,r2,MPI_COMM_WORLD)
