@@ -290,6 +290,7 @@
       USE commtypes
       USE mpivars
       USE fft
+      USE ali
 !$    USE threads
       IMPLICIT NONE
 
@@ -699,6 +700,7 @@
       USE commtypes
       USE mpivars
       USE fft
+      USE ali
 !$    USE threads
       IMPLICIT NONE
 
@@ -820,6 +822,7 @@
       USE commtypes
       USE mpivars
       USE fft
+      USE ali
 !$    USE threads
       IMPLICIT NONE
 
