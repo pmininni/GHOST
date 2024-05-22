@@ -1263,10 +1263,10 @@ MODULE gutils
       COMPLEX(KIND=GP), INTENT  (IN) , &
                          TARGET      , DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1
-      DOUBLE_PRECISION, INTENT  (OUT), DIMENSION(3,3)             :: bij
-      DOUBLE_PRECISION,                DIMENSION(3,3)             :: tij
+      DOUBLE PRECISION, INTENT  (OUT), DIMENSION(3,3)             :: bij
+      DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
       REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3
-      DOUBLE_PRECISION                                            :: tmp1,ui,uloc
+      DOUBLE PRECISION                                            :: tmp1,ui,uloc
       REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,j,k,m
 
@@ -1316,10 +1316,9 @@ MODULE gutils
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               r1(i,j,k) = ( r1(i,j,k)*r1(i,j,k) &
-                             r2(i,j,k)*r2(i,j,k)
-                             r3(i,j,k)*r3(i,j,k) )
-               uloc      = uloc + r1(i,j,k)
+               uloc = uloc + ( r1(i,j,k)*r1(i,j,k) &
+                               r2(i,j,k)*r2(i,j,k)
+                               r3(i,j,k)*r3(i,j,k) )*tmp
             END DO
          END DO
       END DO
@@ -1334,26 +1333,26 @@ MODULE gutils
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               tij(1,1)  = tij(1,1) + ( r1(i,j,k)*r1(i,j,k) )
-               tij(1,2)  = tij(1,2) + ( r1(i,j,k)*r2(i,j,k) ) 
-               tij(1,3)  = tij(1,3) + ( r1(i,j,k)*r3(i,j,k) ) 
-               tij(2,2)  = tij(2,2) + ( r2(i,j,k)*r2(i,j,k) ) 
-               tij(2,3)  = tij(2,3) + ( r2(i,j,k)*r3(i,j,k) ) 
-               tij(3,3)  = tij(3,3) + ( r3(i,j,k)*r3(i,j,k) ) 
+               tij(1,1)  = tij(1,1) + ( r1(i,j,k)*r1(i,j,k) )*tmp
+               tij(1,2)  = tij(1,2) + ( r1(i,j,k)*r2(i,j,k) )*tmp 
+               tij(1,3)  = tij(1,3) + ( r1(i,j,k)*r3(i,j,k) )*tmp 
+               tij(2,2)  = tij(2,2) + ( r2(i,j,k)*r2(i,j,k) )*tmp 
+               tij(2,3)  = tij(2,3) + ( r2(i,j,k)*r3(i,j,k) )*tmp 
+               tij(3,3)  = tij(3,3) + ( r3(i,j,k)*r3(i,j,k) )*tmp 
             END DO
          END DO
       END DO
       CALL MPI_ALLREDUCE(tij, bij, 9, MPI_DOUBLE_PRECISION, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
-      bij(1,1) = bij(1,1)*tmp1 - 1.0_DP/3.0_DP
-      bij(1,2) = bij(1,2)*tmp1
-      bij(1,3) = bij(1,3)*tmp1
+      bij(1,1) = bij(1,1)*tmp1*ui - 1.0_DP/3.0_DP
+      bij(1,2) = bij(1,2)*tmp1*ui
+      bij(1,3) = bij(1,3)*tmp1*ui
       bij(2,1) = bij(1,2)
-      bij(2,2) = bij(2,2)*tmp1 - 1.0_DP/3.0_DP
-      bij(2,3) = bij(2,3)*tmp1
+      bij(2,2) = bij(2,2)*tmp1*ui - 1.0_DP/3.0_DP
+      bij(2,3) = bij(2,3)*tmp1*ui
       bij(3,1) = bij(1,3)
       bij(3,2) = bij(2,3)
-      bij(3,3) = bij(3,3)*tmp1 - 1.0_DP/3.0_DP
+      bij(3,3) = bij(3,3)*tmp1*ui - 1.0_DP/3.0_DP
 
       END SUBROUTINE anisobij
 
@@ -1383,10 +1382,10 @@ MODULE gutils
       COMPLEX(KIND=GP), INTENT  (IN) , &
                          TARGET      , DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1,c2
-      DOUBLE_PRECISION, INTENT  (OUT), DIMENSION(3,3)             :: vij
-      DOUBLE_PRECISION,                DIMENSION(3,3)             :: tij
+      DOUBLE PRECISION, INTENT  (OUT), DIMENSION(3,3)             :: vij
+      DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
       REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3
-      DOUBLE_PRECISION                                            :: tmp1,ui,uloc
+      DOUBLE PRECISION                                            :: tmp1,ui,uloc
       REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,j,k,m
 
@@ -1439,10 +1438,9 @@ MODULE gutils
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               r1(i,j,k) = ( r1(i,j,k)*r1(i,j,k) &
-                             r2(i,j,k)*r2(i,j,k)
-                             r3(i,j,k)*r3(i,j,k) )
-               uloc = uloc + r1(i,j,k)
+               uloc = uloc +  ( r1(i,j,k)*r1(i,j,k) &
+                                r2(i,j,k)*r2(i,j,k)
+                                r3(i,j,k)*r3(i,j,k) ) * tmp
             END DO
          END DO
       END DO
@@ -1457,26 +1455,26 @@ MODULE gutils
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               tij(1,1)  = tij(1,1) + ( r1(i,j,k)*r1(i,j,k) ) 
-               tij(1,2)  = tij(1,2) + ( r1(i,j,k)*r2(i,j,k) ) 
-               tij(1,3)  = tij(1,3) + ( r1(i,j,k)*r3(i,j,k) ) 
-               tij(2,2)  = tij(2,2) + ( r2(i,j,k)*r2(i,j,k) ) 
-               tij(2,3)  = tij(2,3) + ( r2(i,j,k)*r3(i,j,k) ) 
-               tij(3,3)  = tij(3,3) + ( r3(i,j,k)*r3(i,j,k) ) 
+               tij(1,1)  = tij(1,1) + ( r1(i,j,k)*r1(i,j,k) )*tmp 
+               tij(1,2)  = tij(1,2) + ( r1(i,j,k)*r2(i,j,k) )*tmp 
+               tij(1,3)  = tij(1,3) + ( r1(i,j,k)*r3(i,j,k) )*tmp 
+               tij(2,2)  = tij(2,2) + ( r2(i,j,k)*r2(i,j,k) )*tmp 
+               tij(2,3)  = tij(2,3) + ( r2(i,j,k)*r3(i,j,k) )*tmp 
+               tij(3,3)  = tij(3,3) + ( r3(i,j,k)*r3(i,j,k) )*tmp 
             END DO
          END DO
       END DO
       CALL MPI_ALLREDUCE(tij, vij, 9, MPI_DOUBLE_PRECISION, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
-      vij(1,1) = vij(1,1)*tmp1 - 1.0_DP/3.0_DP
-      vij(1,2) = vij(1,2)*tmp1
-      vij(1,3) = vij(1,3)*tmp1
+      vij(1,1) = vij(1,1)*tmp1*ui - 1.0_DP/3.0_DP
+      vij(1,2) = vij(1,2)*tmp1*ui
+      vij(1,3) = vij(1,3)*tmp1*ui
       vij(2,1) = vij(1,2)
-      vij(2,2) = vij(2,2)*tmp1 - 1.0_DP/3.0_DP
-      vij(2,3) = vij(2,3)*tmp1
+      vij(2,2) = vij(2,2)*tmp1*ui - 1.0_DP/3.0_DP
+      vij(2,3) = vij(2,3)*tmp1*ui
       vij(3,1) = vij(1,3)
       vij(3,2) = vij(2,3)
-      vij(3,3) = vij(3,3)*tmp1 - 1.0_DP/3.0_DP
+      vij(3,3) = vij(3,3)*tmp1*ui - 1.0_DP/3.0_DP
 
       END SUBROUTINE anisvbij
 
@@ -1508,10 +1506,10 @@ MODULE gutils
       COMPLEX(KIND=GP), INTENT  (IN) , &
                          TARGET      , DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1,c2
-      DOUBLE_PRECISION, INTENT  (OUT), DIMENSION(3,3)             :: dij
-      DOUBLE_PRECISION,                DIMENSION(3,3)             :: tij
+      DOUBLE PRECISION, INTENT  (OUT), DIMENSION(3,3)             :: dij
+      DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
       REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2
-      DOUBLE_PRECISION                                            :: tmp1,ui,uloc
+      DOUBLE PRECISION                                            :: tmp1,ui,uloc
       REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,ic,j,jr,k
       TYPE(PARRAY)                                                :: pv(3)
@@ -1655,15 +1653,15 @@ MODULE gutils
 
       CALL MPI_ALLREDUCE(tij, dij, 9, MPI_DOUBLE_PRECISION, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
-      dij(1,1) = dij(1,1)*tmp1 - 1.0_DP/3.0_DP
-      dij(1,2) = dij(1,2)*tmp1
-      dij(1,3) = dij(1,3)*tmp1
+      dij(1,1) = dij(1,1)*tmp1*ui - 1.0_DP/3.0_DP
+      dij(1,2) = dij(1,2)*tmp1*ui
+      dij(1,3) = dij(1,3)*tmp1*ui
       dij(2,1) = dij(1,2)
-      dij(2,2) = dij(2,2)*tmp1 - 1.0_DP/3.0_DP
-      dij(2,3) = dij(2,3)*tmp1
+      dij(2,2) = dij(2,2)*tmp1*ui - 1.0_DP/3.0_DP
+      dij(2,3) = dij(2,3)*tmp1*ui
       dij(3,1) = dij(1,3)
       dij(3,2) = dij(2,3)
-      dij(3,3) = dij(3,3)*tmp1 - 1.0_DP/3.0_DP
+      dij(3,3) = dij(3,3)*tmp1*ui - 1.0_DP/3.0_DP
 
       END SUBROUTINE anisobij
 
@@ -1691,9 +1689,9 @@ MODULE gutils
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE_PRECISION, INTENT   (IN), DIMENSION(3,3)             :: Tij
+      DOUBLE PRECISION, INTENT   (IN), DIMENSION(3,3)             :: Tij
       INTEGER         , INTENT   (IN)                             :: iwhich
-      DOUBLE_PRECISION, INTENT  (OUT)                             :: invar
+      DOUBLE PRECISION, INTENT  (OUT)                             :: invar
       INTEGER                                                     :: i,j,k
 
       invar = 0.0_DP
