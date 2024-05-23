@@ -26,6 +26,10 @@ MODULE gutils
          REAL   (KIND=GP), DIMENSION (:,:,:), POINTER :: preal
       END TYPE PARRAY
 
+      TYPE PMAT
+         DOUBLE PRECISION, DIMENSION(:,:), POINTER :: mat
+      END TYPE PMAT
+
 !
 !
 ! Methods:
