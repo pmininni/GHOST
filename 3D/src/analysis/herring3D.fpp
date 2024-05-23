@@ -302,7 +302,7 @@
       REAL(kind=GP) sav,ssk,sku,sg5,sw6,ss2,ss3,ss4,ss5,ss6
       REAL(kind=GP) ktmin,ktmax,omega(3),xnormn
       INTEGER :: ic,ir,it,jc
-      INTEGER :: dolog,inorm,istat(4096),jpdf,nstat
+      INTEGER :: bAniso,bHPDF,dolog,inorm,istat(4096),jpdf,nstat
       INTEGER :: nbinx,nbiny,nbins(2)
       INTEGER :: btrunc
       CHARACTER(len=64) :: ext1
@@ -1305,6 +1305,8 @@
 !              2: do joint pdfs only
 !              3: do both 1d and joint pdfs
 !     dolog  : compute PDFs in log=space?
+!     bHPDF  : Do PDFs as in Herring m.s.
+!     bAniso : Do anisotropy tensor calculations
 !
 !     Defaults:
       idir   = '.'
@@ -1314,30 +1316,34 @@
       oswap  = 0
       btrunc = 0
       dolog  = 1
+      bHPDF  = 1
+      bAniso = 1
       jpdf   = 3
       ktmin  = tiny
       ktmax  = kmax
 
 
       IF (myrank.eq.0) THEN
-write(*,*)'main: opening shear.inp...'
-         OPEN(1,file='shear.inp',status='unknown',form="formatted")
+write(*,*)'main: opening herring.inp...'
+         OPEN(1,file='herring.inp',status='unknown',form="formatted")
          READ(1,NML=shear)
          CLOSE(1)
-write(*,*)'main: shear.inp read.'
+write(*,*)'main: herring.inp read.'
       ENDIF
-      CALL MPI_BCAST(idir  ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(odir  ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(sstat ,4096,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(btrunc,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(dolog ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(iswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(jpdf  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(ktmin ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(ktmax ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(nbinx ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(nbiny ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(oswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(idir   ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(odir   ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sstat  ,4096,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(btrunc ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dolog  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(bHPDF  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(bAniso ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(iswap  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(jpdf   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ktmin  ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ktmax  ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(nbinx  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(nbiny  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(oswap  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
 if (myrank.eq.0) write(*,*)'main: broadcast done.'
 ! Befor
 ! options are compatible with the SOLVER being used
@@ -1493,18 +1499,25 @@ if (myrank.eq.0) write(*,*)'main: Do fftr2c... '
           END DO
         END DO
       END DO
+
+        IF ( bHPDF .gt. 0 ) THEN
 !if ( myrank.eq.0 ) write(*,*) 'main: vz=',vz(16,1:16,iend)
 if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
-        omega(1) = omegax; omega(2) = omegay; omega(3) = omegaz;
-        nbins(1) = nbinx ; nbins(2) = nbiny;
-        CALL DoHPDF(vx,vy,vz,th,bvfreq,omega,nu,kappa,istat(it), &
-                    odir,jpdf,nbins,dolog,planio,C1,C2,R1,R2,R3,R4,&
-                    R5,R6,R7,R8,R9,R10)
-        IF ( myrank.EQ. 0 ) THEN
-          write(*,*)'main: time index ', ext, ' done.'
+          omega(1) = omegax; omega(2) = omegay; omega(3) = omegaz 
+          nbins(1) = nbinx ; nbins(2) = nbiny
+          CALL DoHPDF(vx,vy,vz,th,bvfreq,omega,nu,kappa,istat(it), &
+                      odir,jpdf,nbins,dolog,planio,C1,C2,R1,R2,R3,R4,&
+                      R5,R6,R7,R8,R9,R10)
+          IF ( myrank.EQ. 0 ) THEN
+            write(*,*)'main: time index ', ext, ' done.'
+          ENDIF
         ENDIF
 
-      ENDDO
+        IF ( bAniso .gt. 0 ) THEN
+          CALL DoAniso(vx,vy,vz,th,istat(it),odir,C1,C2,R1,R2,R3)
+        ENDIF
+
+      ENDDO ! end, it-loop
 
       CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 !
@@ -3403,3 +3416,78 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+      SUBROUTINE DoAniso(vx,vy,vz,th,indtime,odir,C1,C2,R1,R2,R3)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Computes the 1d and joint PDFs, misc statistics 
+! Note: after this call, the input data should be expected to be overwritten.
+!
+! Parameters
+!     vx,
+!     vy,
+!     vz     : complex velocities
+!     th     : pot. temp
+!     indtime: integter time index
+!     odir   : output directory
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE gutils
+      USE iovar
+      USE iompi
+      USE filefmt
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend):: vx,vy,vz,th
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: C1,C2
+
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2,R3
+      DOUBLE PRECISION,                DIMENSION(3,3), TARGET    :: bij,vij,dij,gij
+      DOUBLE PRECISION,                DIMENSION(4,3)            :: invar
+      TYPE(PMAT)                                                 :: pm(4)
+      LOGICAL                                                    :: bexist
+      INTEGER         , INTENT   (IN)                            :: indtime
+      INTEGER                                                    :: i,j
+      CHARACTER(len=*), INTENT   (IN)                            :: odir
+      CHARACTER(len=1024)                                        :: fnout
+
+
+      pm(1).mat => bij
+      pm(2).mat => dij
+      pm(3).mat => gij
+      pm(4).mat => vij
+      CALL anisobij(vx,vy,vz,C1,R1,R2,R3,bij)
+      CALL anisodij(vx,vy,vz,C1,C2,R1,R2,dij)
+      CALL anisogij(th,C1,R1,R2,R3,gij)
+      CALL anisovij(vx,vy,vz,C1,C2,R1,R2,R3,vij)
+
+      DO i = 1, 3
+        DO j = 1, 4
+          CALL invariant(pm(j).mat, j, invar(i,j))
+        ENDDO
+      ENDDO
+
+
+      fnout = trim(odir) // '/' // 'invar.txt'
+      inquire( file=fnout, exist=bexist )
+      OPEN(2,file=trim(fnout),position='append')
+      if ( .NOT. bexist ) THEN
+      WRITE(2,'(A, 4x, 12(A, 3x))') '#itime', 'bI', 'bII', 'bIII', 'dI', 'dII', 'dIII', 'gI', 'gII', 'gIII', 'vI', 'vII', 'vIII'
+      ENDIF
+      WRITE(2,*) indtime, invar(1,1), invar(1,2), invar(1,3), &
+                          invar(2,1), invar(2,2), invar(2,3), &
+                          invar(3,1), invar(3,2), invar(3,3), &
+                          invar(4,1), invar(4,2), invar(4,3) 
+      CLOSE(2)
+
+
+      END SUBROUTINE DoAniso
