@@ -1356,6 +1356,100 @@ MODULE gutils
 
       END SUBROUTINE anisobij
 
+      SUBROUTINE anisogij(th,c1,r1,r2,r3,gij)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Compute anisotropy tensor:
+!   gij = <th_i th_j> / <th_j th^j> - delta_ij / 3
+! were th_i = d th /dx^i
+!
+! Parameters
+!     th    : input scalar
+!     c1    : complex temp array
+!     r1-3  : real temp array
+!     gij   : 3x3 tensor, returned
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT  (IN) , &
+                         TARGET      , DIMENSION(nz,ny,ista:iend) :: th
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1
+      DOUBLE PRECISION, INTENT  (OUT), DIMENSION(3,3)             :: gij
+      DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
+      REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3
+      DOUBLE PRECISION                                            :: tmp1,ui,uloc
+      REAL   (KIND=GP)                                            :: tmp
+      INTEGER                                                     :: i,j,k,m
+
+
+!     bij = <u_i u_j> / <u_j u^j> - delta_ij 
+      CALL derivk3(th,c1,1)
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      CALL derivk3(th,c1,2)
+      CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+      CALL derivk3(th,c1,3)
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+
+      ! Compute <u^2>:
+      tmp  = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
+      tmp1 = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+      uloc = 0.0D0
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               uloc = uloc + ( r1(i,j,k)*r1(i,j,k) &
+                             + r2(i,j,k)*r2(i,j,k) &
+                             + r3(i,j,k)*r3(i,j,k) )*tmp
+            END DO
+         END DO
+      END DO
+      CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE_PRECISION, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
+      ui = 1.0 / (ui*tmp1)
+
+      gij = 0.0D0;
+      tij = 0.0D0;
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               tij(1,1)  = tij(1,1) + ( r1(i,j,k)*r1(i,j,k) )*tmp
+               tij(1,2)  = tij(1,2) + ( r1(i,j,k)*r2(i,j,k) )*tmp 
+               tij(1,3)  = tij(1,3) + ( r1(i,j,k)*r3(i,j,k) )*tmp 
+               tij(2,2)  = tij(2,2) + ( r2(i,j,k)*r2(i,j,k) )*tmp 
+               tij(2,3)  = tij(2,3) + ( r2(i,j,k)*r3(i,j,k) )*tmp 
+               tij(3,3)  = tij(3,3) + ( r3(i,j,k)*r3(i,j,k) )*tmp 
+            END DO
+         END DO
+      END DO
+      CALL MPI_ALLREDUCE(tij, gij, 9, MPI_DOUBLE_PRECISION, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
+      gij(1,1) = gij(1,1)*tmp1*ui - 1.0D0/3.0D0
+      gij(1,2) = gij(1,2)*tmp1*ui
+      gij(1,3) = gij(1,3)*tmp1*ui
+      gij(2,1) = gij(1,2)
+      gij(2,2) = gij(2,2)*tmp1*ui - 1.0D0/3.0D0
+      gij(2,3) = gij(2,3)*tmp1*ui
+      gij(3,1) = gij(1,3)
+      gij(3,2) = gij(2,3)
+      gij(3,3) = gij(3,3)*tmp1*ui - 1.0D0/3.0D0
+
+      END SUBROUTINE anisogij
+
       SUBROUTINE anisovij(vx,vy,vz,c1,c2,r1,r2,r3,vij)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
