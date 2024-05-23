@@ -1237,7 +1237,7 @@ MODULE gutils
       END SUBROUTINE div
 
 
-      SUBROUTINE anisobij(vx,vy,vz,c1,r1,r2,u2,r3,bij)
+      SUBROUTINE anisobij(vx,vy,vz,c1,r1,r2,r3,bij)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -1310,7 +1310,7 @@ MODULE gutils
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
       tmp1 = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
-      uloc = 0.0_DP
+      uloc = 0.0D0
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
@@ -1326,8 +1326,8 @@ MODULE gutils
                       MPI_SUM, MPI_COMM_WORLD,ierr)
       ui = 1.0 / (ui*tmp1)
 
-      vij = 0.0_DP;
-      tij = 0.0_DP;
+      bij = 0.0D0;
+      tij = 0.0D0;
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
@@ -1344,15 +1344,15 @@ MODULE gutils
       END DO
       CALL MPI_ALLREDUCE(tij, bij, 9, MPI_DOUBLE_PRECISION, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
-      bij(1,1) = bij(1,1)*tmp1*ui - 1.0_DP/3.0_DP
+      bij(1,1) = bij(1,1)*tmp1*ui - 1.0D0/3.0D0
       bij(1,2) = bij(1,2)*tmp1*ui
       bij(1,3) = bij(1,3)*tmp1*ui
       bij(2,1) = bij(1,2)
-      bij(2,2) = bij(2,2)*tmp1*ui - 1.0_DP/3.0_DP
+      bij(2,2) = bij(2,2)*tmp1*ui - 1.0D0/3.0D0
       bij(2,3) = bij(2,3)*tmp1*ui
       bij(3,1) = bij(1,3)
       bij(3,2) = bij(2,3)
-      bij(3,3) = bij(3,3)*tmp1*ui - 1.0_DP/3.0_DP
+      bij(3,3) = bij(3,3)*tmp1*ui - 1.0D0/3.0D0
 
       END SUBROUTINE anisobij
 
@@ -1432,7 +1432,7 @@ MODULE gutils
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
       tmp1 = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
-      uloc = 0.0_DP
+      uloc = 0.0D0
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
@@ -1448,8 +1448,8 @@ MODULE gutils
                       MPI_SUM, MPI_COMM_WORLD,ierr)
       ui = 1.0 / (ui*tmp1)
 
-      vij = 0.0_DP;
-      tij = 0.0_DP;
+      vij = 0.0D0;
+      tij = 0.0D0;
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
@@ -1466,17 +1466,17 @@ MODULE gutils
       END DO
       CALL MPI_ALLREDUCE(tij, vij, 9, MPI_DOUBLE_PRECISION, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
-      vij(1,1) = vij(1,1)*tmp1*ui - 1.0_DP/3.0_DP
+      vij(1,1) = vij(1,1)*tmp1*ui - 1.0D0/3.0D0
       vij(1,2) = vij(1,2)*tmp1*ui
       vij(1,3) = vij(1,3)*tmp1*ui
       vij(2,1) = vij(1,2)
-      vij(2,2) = vij(2,2)*tmp1*ui - 1.0_DP/3.0_DP
+      vij(2,2) = vij(2,2)*tmp1*ui - 1.0D0/3.0D0
       vij(2,3) = vij(2,3)*tmp1*ui
       vij(3,1) = vij(1,3)
       vij(3,2) = vij(2,3)
-      vij(3,3) = vij(3,3)*tmp1*ui - 1.0_DP/3.0_DP
+      vij(3,3) = vij(3,3)*tmp1*ui - 1.0D0/3.0D0
 
-      END SUBROUTINE anisvbij
+      END SUBROUTINE anisovij
 
       SUBROUTINE anisodij(vx,vy,vz,c1,c2,r1,r2,dij)
 !-----------------------------------------------------------------
@@ -1525,7 +1525,7 @@ MODULE gutils
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
       tmp1 = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
-      uloc = 0.0_DP
+      uloc = 0.0D0
        DO jr = 1, 3
          DO ic = 1, 3
             CALL derivk3(pv(jr),c1,ic)
@@ -1546,8 +1546,8 @@ MODULE gutils
                       MPI_SUM, MPI_COMM_WORLD,ierr)
       ui = 1.0 / (ui*tmp1)
 
-      dij = 0.0_DP;
-      tij = 0.0_DP;
+      dij = 0.0D0;
+      tij = 0.0D0;
 
       ! d(1,1):
       DO ic = 1, 3
@@ -1653,17 +1653,17 @@ MODULE gutils
 
       CALL MPI_ALLREDUCE(tij, dij, 9, MPI_DOUBLE_PRECISION, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
-      dij(1,1) = dij(1,1)*tmp1*ui - 1.0_DP/3.0_DP
+      dij(1,1) = dij(1,1)*tmp1*ui - 1.0D0/3.0D0
       dij(1,2) = dij(1,2)*tmp1*ui
       dij(1,3) = dij(1,3)*tmp1*ui
       dij(2,1) = dij(1,2)
-      dij(2,2) = dij(2,2)*tmp1*ui - 1.0_DP/3.0_DP
+      dij(2,2) = dij(2,2)*tmp1*ui - 1.0D0/3.0D0
       dij(2,3) = dij(2,3)*tmp1*ui
       dij(3,1) = dij(1,3)
       dij(3,2) = dij(2,3)
-      dij(3,3) = dij(3,3)*tmp1*ui - 1.0_DP/3.0_DP
+      dij(3,3) = dij(3,3)*tmp1*ui - 1.0D0/3.0D0
 
-      END SUBROUTINE anisobij
+      END SUBROUTINE anisodij
 
       SUBROUTINE invariant(Tij, iwhich, invar)
 !-----------------------------------------------------------------
@@ -1694,7 +1694,7 @@ MODULE gutils
       DOUBLE PRECISION, INTENT  (OUT)                             :: invar
       INTEGER                                                     :: i,j,k
 
-      invar = 0.0_DP
+      invar = 0.0D0
       SELECT CASE (iwhich)
         CASE (1)
           DO j = 1, 3
