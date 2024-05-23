@@ -199,7 +199,8 @@
       REAL(KIND=GP)    :: s3param5,s3param6,s3param7,s3param8,s3param9
 #endif
 #ifdef COMPRESSIBLE_
-      REAL(KIND=GP)    :: smach, gam1, cp1, nu2
+      INTEGER          :: Stokeshyp
+      REAL(KIND=GP)    :: smach, gam1, cp1, nu2, rho0
 #endif
 #ifdef CMHD_
       REAL(KIND=GP)    :: amach, cp2
@@ -352,7 +353,7 @@
       NAMELIST / inject / injt,injtm,creset
 #endif
 #ifdef COMPRESSIBLE_
-      NAMELIST / compressible / smach, gam1, nu2
+      NAMELIST / compressible / Stokeshyp, smach, gam1, nu2, rho0
 #endif
 #ifdef CMHD_
       NAMELIST / cmhdb / amach
