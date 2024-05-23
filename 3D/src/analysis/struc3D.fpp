@@ -102,11 +102,12 @@
 
       REAL(KIND=GP)    :: tmp,norm,spaux
 
-#ifdef SO3_
+#if defined(SO3_)
       INTEGER, PARAMETER        :: ngen = 146
-#endif
-#ifdef SO2_
+#elif defined(SO2_)
       INTEGER, PARAMETER        :: ngen = 26
+#else
+#  error "strucr3D.fpp: SO2_ or SO3_ must be defined!"
 #endif
       INTEGER, DIMENSION (ngen) :: j1,j2,j3
       INTEGER :: n
