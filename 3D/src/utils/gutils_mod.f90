@@ -8,6 +8,8 @@
 !=================================================================
 MODULE gutils
 !
+      USE fprecision
+!
 ! Utils data, if any:
 !
 ! ...
@@ -19,9 +21,16 @@ MODULE gutils
       INTEGER, DIMENSION  (:), ALLOCATABLE   :: ikeep_
       INTEGER  :: nbins_=2500,nbins2_(2)=(/2500,2500/),nikeep_=0
 !
+      TYPE PARRAY
+         COMPLEX(KIND=GP), DIMENSION (:,:,:), POINTER :: pcomplex
+         REAL   (KIND=GP), DIMENSION (:,:,:), POINTER :: preal
+      END TYPE PARRAY
+
+!
 !
 ! Methods:
       CONTAINS
+
 
       INTEGER FUNCTION imaxarrp(Iin, nin) 
 !-----------------------------------------------------------------
@@ -188,20 +197,21 @@ MODULE gutils
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-!
-!
       SUBROUTINE parseind(sind, sep, ind, nmax, nind) 
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
-! Parses string of integers that are ';' separated, and stores, and
+! Parses string of integers that are ';' separated, and stores 
 ! stores them in the integer array, specifying how many integers
 ! were found in the string. A test is made against the specified
 ! max number of integer indices, nmax, before attempting to add
 ! any more indices to this array.
 !
 ! Parameters
-!     sind : ';'-separated string of integers (IN)
+!     sind : ';'-separated string of strings (IN). Substrings can
+!            either be an integer (time index), or a string of
+!            the form 'n:m:p', which specifies a range of indices
+!            n-p, with skip of m.
 !     sep  : separator string (IN)
 !     ind  : integer array contining integers found in sind (IN)
 !     nmax : max size of 'ind' array (OUT)
@@ -211,25 +221,64 @@ MODULE gutils
       INTEGER, INTENT(IN)          :: nmax
       CHARACTER(len=*), INTENT(IN) :: sind, sep
 
-      INTEGER                      :: i
-      CHARACTER(len=1024)          :: sint
+      CHARACTER(len=len(sind))     :: tstr, pstr, qstr
+      INTEGER                      :: i, ib, ie, j1, j2, k
+      INTEGER                      :: idel, ibeg, iend, lstr
 
       ib = 1;
       ie = len(sind)
       nind = 0
       DO WHILE ( len(trim(sind(ib:ie))) .GT. 0 )
         i = index(sind(ib:ie),sep)
+        ! Get substring:
         IF ( i .eq. 0 ) THEN
-          sint = trim(adjustl(sind(ib:ie)))
+          tstr = trim(adjustl(sind(ib:ie)))
           ib = ie + 1
         ELSE
-          sint = trim(adjustl(sind(ib:(ib+i-2))))
+          tstr = trim(adjustl(sind(ib:(ib+i-2))))
           ib = ib + i
         ENDIF
-        nind = nind + 1
-        IF ( nind.GT.nmax ) RETURN
-        READ(sint,'(I10)') ind(nind)
+
+        ! Check for 'n:m:p' formatting:
+        j1 = index(tstr,":")
+        lstr = len(tstr)
+        IF ( j1 .eq. 0 ) THEN
+
+          IF ( nind.GE.nmax ) RETURN
+          read(tstr , *) ind(nind+1)! convert to integer index
+          nind = nind + 1
+
+        ELSE
+
+!i = index(strin(ib:ie),sep)
+          j2 = j1 + index(tstr(j1+1:lstr),":")
+          idel = 1
+
+          
+          pstr = trim(adjustl(tstr(1:(j1-1))))
+!write(*,*) '     parseind: pstr 1 =', pstr
+          read(pstr, *) ibeg
+          IF ( j2 .eq. j1 ) THEN ! no second ':'
+            pstr = trim(adjustl(tstr(j1+1:lstr)))
+!write(*,*) '     parseind: pstr 2 =', pstr
+            read(tstr(j1+1:lstr) , *) iend
+          ELSE
+            pstr = trim(adjustl(tstr(j1+1:j2-1)))
+            qstr = trim(adjustl(tstr(j2+1:lstr)))
+!write(*,*) '     parseind: pstr 2 =', pstr, ' qstr 2 =', qstr
+            read(pstr, *) idel
+            read(qstr, *) iend
+          ENDIF
+          DO k = ibeg, iend, idel 
+            IF ( nind.GE.nmax ) RETURN
+            ind(nind+1) = k
+            nind = nind + 1
+          ENDDO
+
+        ENDIF
+
       ENDDO
+      
       RETURN
 
       END SUBROUTINE parseind
@@ -241,7 +290,7 @@ MODULE gutils
 !-----------------------------------------------------------------
 !
 ! Parses string of names, separated by 'sep' delimiter, and
-! returns them in an array.
+! returns them in an array, astr.
 !
 ! Parameters
 !     strin: 'sep'-separated string of strings(IN)
@@ -254,31 +303,36 @@ MODULE gutils
       CHARACTER(len=*)      , INTENT (IN) :: strin,sep
       CHARACTER(len=astrlen), INTENT(OUT) :: astr(nmax)
       CHARACTER(len=astrlen)              :: tstr
-      INTEGER                             :: i, ib, ie
+      INTEGER                             :: i, ib, ie, idx
 
       ib = 1;
       ie = len(strin)
       nind = 0
       DO WHILE ( len(trim(strin(ib:ie))) .GT. 0 )
         i = index(strin(ib:ie),sep)
+        ! Get substring:
         IF ( i .eq. 0 ) THEN
-          astr(nind+1) = trim(adjustl(strin(ib:ie)))
+          tstr = trim(adjustl(strin(ib:ie)))
           ib = ie + 1
         ELSE
-          astr(nind+1) = trim(adjustl(strin(ib:(ib+i-2))))
+          tstr = trim(adjustl(strin(ib:(ib+i-2))))
           ib = ib + i
         ENDIF
-        nind = nind + 1
+
         IF ( nind.GE.nmax ) RETURN
+        astr(nind+1) = tstr
+        nind = nind + 1
+
       ENDDO
+      
+
       RETURN
 
       END SUBROUTINE parsestr
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!
-!
-      SUBROUTINE dopdfr(Rin, nin, n, fname, nbins, ifixdr, fmin, fmax, dolog)
+
+      SUBROUTINE dopdfr(Rin, nx, ny, nz, fname, nbins, ifixdr, fmin, fmax, dolog)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -287,8 +341,8 @@ MODULE gutils
 !
 ! Parameters
 !     Rin   : real array (kind GP) of dimension nin
-!     nin   : integer size of array
-!     n     : full linear domain size
+!     nx,ny,
+!     nz    : local linear dimensions of Rin
 !     fname : full file name
 !     nbins : number of bins to use for PDF (>0)
 !     ifixdr: if > 0, will use fmin/fmax as bounds for dynamic
@@ -306,16 +360,17 @@ MODULE gutils
 
       REAL(KIND=GP), INTENT(IN), DIMENSION(*)    :: Rin
       REAL(KIND=GP), INTENT(INOUT)               :: fmin,fmax
-      INTEGER, INTENT(IN)                        :: nin,n,nbins,ifixdr,dolog
+      INTEGER, INTENT(IN)                        :: nx,ny,nz,nbins,ifixdr,dolog
       CHARACTER(len=*), INTENT(IN)               :: fname
 
       REAL(KIND=GP)                              :: del,gmin,gmax,tmin,tmax,test
       REAL(KIND=GP)                              :: fmin1,fmax1
       REAL(KIND=GP)                              :: gavg,sig,sumr,xnorm
       REAL                                       :: fbin,fkeep,gkeep
-      INTEGER                                    :: hwrite,i,ibin,nkeep
+      INTEGER                                    :: hwrite,i,ibin,nin,nkeep
       CHARACTER(len=1024)                        :: shead
 
+      nin = nx * ny * nz
       IF ( .NOT. ALLOCATED(ikeep_) .OR. nin.GT.nikeep_ ) THEN
         IF ( ALLOCATED(ikeep_ ) ) DEALLOCATE(ikeep_)
         ALLOCATE(ikeep_(nin))
@@ -484,7 +539,7 @@ MODULE gutils
 !-----------------------------------------------------------------
 !
 !
-      SUBROUTINE dojpdfr(R1, sR1, R2, sR2, nin, n, fname, nbins, ifixdr, fmin, fmax, dolog)
+      SUBROUTINE dojpdfr(R1, sR1, R2, sR2, nx, ny, nz, fname, nbins, ifixdr, fmin, fmax, dolog)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -494,8 +549,8 @@ MODULE gutils
 ! Parameters
 !     R1/R2  : real arrays (kind GP) of dimension nin
 !     sR1/sR2: descriptions of quantities R1 & R2; only 4 chars are used
-!     nin    : integer size of arrays R2/R2
-!     n      : full linear domain size
+!     nx, ny
+!     nz     : local linear dimensions of R1, R2, etc
 !     fname  : output interval id extension
 !     nbins  : 2D array giving number of bins to use for PDF (>0) 
 !              in each 'direction'. Must be the same for all MPI tasks on entry.
@@ -513,19 +568,21 @@ MODULE gutils
 !$    USE threads
       IMPLICIT NONE
 
-      REAL(KIND=GP)   , INTENT   (IN), DIMENSION(nin):: R1,R2
+      REAL(KIND=GP)   , INTENT   (IN), DIMENSION(*)  :: R1,R2
       REAL(KIND=GP)   , INTENT(INOUT)                :: fmin(2),fmax(2)
-      INTEGER         , INTENT   (IN)                :: nin,n,nbins(2),ifixdr(2),dolog(2)
+      INTEGER         , INTENT   (IN)                :: nx,ny,nz,nbins(2),ifixdr(2),dolog(2)
       CHARACTER(len=*), INTENT   (IN)                :: sR1,sR2,fname
 
       REAL(KIND=GP)                                  :: del (2),gmin(2),gmax(2),tmin(2),tmax(2),test(2)
       REAL(KIND=GP)                                  :: fmin1(2),fmax1(2)
       REAL(KIND=GP)                                  :: aa,gavg(2),sumr(2),sig(2),xnorm(2)
       REAL                                           :: fbin,fkeep,gkeep
-      INTEGER                                        :: hwrite,i,j,jx,jy,nkeep
+      INTEGER                                        :: hwrite,i,j,jx,jy,nin,nkeep
       CHARACTER(len=2048)                            :: shead
 
 !if ( myrank.eq. 0 ) write(*,*)'dojpdf: sR1=',sR1,' sR2=',sR2, ' nbins=',nbins, ' ifixdr=',ifixdr, ' dolog=',dolog
+
+      nin = nx * ny * nz
 
       IF ( .NOT. ALLOCATED(ikeep_) .OR. nin.GT.nikeep_ ) THEN
         IF ( ALLOCATED(ikeep_ ) )DEALLOCATE(ikeep_)
@@ -858,6 +915,810 @@ MODULE gutils
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 
+      SUBROUTINE Strain(vx,vy,vz,ir,jc,inorm,ctmp,sij)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Computes the complex strain rate component 
+!
+! Parameters
+!     vi    : input velocities
+!     ir,jc : the row and col of sij
+!     inorm : normalize (1), or not (0)
+!     ctmp  : complex temp array
+!     sij   : complex tensor component, returned
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: sij
+      INTEGER         , INTENT   (IN)                             :: inorm,ir,jc
+!
+      REAL   (KIND=GP)                                            :: tmp
+      INTEGER                                                     :: i,j,k
+
+      IF ( ir.NE.1 .AND. ir.NE.2 .AND. ir.NE.3 &
+      .AND.jc.NE.1 .AND. jc.NE.2 .AND. jc.NE.3 ) THEN
+        WRITE(*,*)'Strain: invalid row/column specification: ', ir, jc
+        STOP
+      ENDIF
+
+
+      IF ( ir.EQ.1 ) THEN
+        CALL derivk3(vx, sij, jc)
+        SELECT CASE (jc)
+          CASE(1)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+              DO j = 1,ny
+                DO k = 1,nz
+                  ctmp(k,j,i) = sij(k,j,i)
+                END DO
+              END DO
+            END DO
+          CASE(2)
+            CALL derivk3(vy, ctmp, 1)
+          CASE(3)
+            CALL derivk3(vz, ctmp, 1)
+        END SELECT
+      ELSE IF ( ir.EQ.2 ) THEN
+        CALL derivk3(vy, sij, jc)
+        SELECT CASE (jc)
+          CASE(1)
+            CALL derivk3(vx, ctmp, 2)
+          CASE(2)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+              DO j = 1,ny
+                DO k = 1,nz
+                  ctmp(k,j,i) = sij(k,j,i)
+                END DO
+              END DO
+            END DO
+          CASE(3)
+            CALL derivk3(vz, ctmp, 2)
+        END SELECT
+      ELSE IF ( ir.EQ.3 ) THEN
+        CALL derivk3(vz, sij, jc)
+        SELECT CASE (jc)
+          CASE(1)
+            CALL derivk3(vx, ctmp, 3)
+          CASE(2)
+            CALL derivk3(vy, ctmp, 3)
+          CASE(3)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+              DO j = 1,ny
+                DO k = 1,nz
+                  ctmp(k,j,i) = sij(k,j,i)
+                END DO
+              END DO
+            END DO
+        END SELECT
+      ENDIF
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,ny
+          DO k = 1,nz
+            sij(k,j,i) = 0.50_GP*(sij(k,j,i)+ctmp(k,j,i)) 
+          END DO
+        END DO
+      END DO
+
+
+      IF ( inorm.GT.0 ) THEN
+        
+        tmp = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              sij(k,j,i) = sij(k,j,i)*tmp
+            END DO
+          END DO
+        END DO
+
+      ENDIF
+
+      END SUBROUTINE Strain
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+      SUBROUTINE StrainMag(vx,vy,vz,inorm,ctmp1,ctmp2,smag)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Computes the complex strain rate magnitude:
+!    sqrt(s_ij s^ij)
+!
+! Parameters
+!     vi    : input velocities
+!     inorm : normalize (1), or not (0)
+!     ctmp  : complex temp array
+!     sij   : complex tensor component, returned
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp1,ctmp2
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: smag
+      INTEGER         , INTENT   (IN)                             :: inorm
+!
+      REAL   (KIND=GP)                                            :: tmp
+      INTEGER                                                     :: i,j,k
+      INTEGER                                                     :: ir,jc
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,ny
+          DO k = 1,nz
+            smag(k,j,i) = 0.0_GP
+          END DO
+        END DO
+      END DO
+
+      DO ir = 1, 3
+        DO jc = 1, 3
+          CALL Strain(vx,vy,vz, ir, jc, 1, ctmp1, ctmp2 )   
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+              DO k = 1,nz
+                smag(k,j,i) = smag(k,j,i) + ctmp2(k,j,i) 
+              END DO
+            END DO
+          END DO
+
+        ENDDO
+      ENDDO
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,ny
+          DO k = 1,nz
+            smag(k,j,i) = sqrt(smag(k,j,i))
+          END DO
+        END DO
+      END DO
+
+      END SUBROUTINE StrainMag
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+      SUBROUTINE StrainDiv(vx,vy,vz,ir,inorm,ctmp1,ctmp2,ds)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Computes the complex divergence of strain:
+!    Sum_j d(s_ij)dx^j
+! for component ir
+!
+! Parameters
+!     vi    : input velocities
+!     ir    : component
+!     inorm : normalize (1), or not (0)
+!     ctmp  : complex temp array
+!     ds    : complex tensor component, returned
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp1,ctmp2
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ds
+      INTEGER         , INTENT   (IN)                             :: inorm, ir
+!
+      REAL   (KIND=GP)                                            :: tmp
+      INTEGER                                                     :: i,j,k
+      INTEGER                                                     :: jc
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,ny
+          DO k = 1,nz
+            ds(k,j,i) = 0.0_GP
+          END DO
+        END DO
+      END DO
+
+      DO jc = 1, 3
+          CALL Strain(vx,vy,vz, ir, jc, 1, ctmp2, ctmp1)   
+          CALL derivk3(ctmp1, ctmp2, jc)               
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+              DO k = 1,nz
+                ds(k,j,i) = ds(k,j,i) + ctmp2(k,j,i)
+              END DO
+            END DO
+          END DO
+
+      ENDDO
+
+
+      END SUBROUTINE StrainDiv
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+      SUBROUTINE div(vx,vy,vz,inorm,ctmp,divv)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Computes the complex divergence field for input vector field
+!
+! Parameters
+!     vi    : input velocities
+!     inorm : normalize (1), or not (0)
+!     ctmp  : complex temp array
+!     divv  : divergence field, returned
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT  (IN) , &
+                         TARGET      , DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp
+      COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(nz,ny,ista:iend) :: divv
+      INTEGER         , INTENT   (IN)                             :: inorm
+      TYPE(PARRAY)                                                :: pv(3)
+      REAL   (KIND=GP)                                            :: tmp
+      INTEGER                                                     :: i,j,k,m
+
+      pv(1).pcomplex => vx
+      pv(2).pcomplex => vy
+      pv(3).pcomplex => vz
+      divv = 0.0;
+
+      tmp = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+      DO m = 1, 3
+        CALL derivk3(pv(m).pcomplex, ctmp, m)
+        
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              divv(k,j,i) = divv(k,j,i) +  ctmp(k,j,i)*tmp
+            END DO
+          END DO
+        END DO
+
+      END DO
+
+      END SUBROUTINE div
+
+
+      SUBROUTINE anisobij(vx,vy,vz,c1,r1,r2,u2,r3,bij)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Compute anisotropy tensor:
+!   bij = <u_i u_j> / <u_j u^j> - delta_ij / 3
+!
+! Parameters
+!     vi    : input velocities
+!     c1    : complex temp array
+!     r1-3  : real temp array
+!     bij   : 3x3 tensor, returned
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT  (IN) , &
+                         TARGET      , DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1
+      DOUBLE PRECISION, INTENT  (OUT), DIMENSION(3,3)             :: bij
+      DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
+      REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3
+      DOUBLE PRECISION                                            :: tmp1,ui,uloc
+      REAL   (KIND=GP)                                            :: tmp
+      INTEGER                                                     :: i,j,k,m
+
+
+!     bij = <u_i u_j> / <u_j u^j> - delta_ij 
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = vx(k,j,i)
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = vy(k,j,i)
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = vz(k,j,i)
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+
+      ! Compute <u^2>:
+      tmp  = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
+      tmp1 = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+      uloc = 0.0_DP
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               uloc = uloc + ( r1(i,j,k)*r1(i,j,k) &
+                               r2(i,j,k)*r2(i,j,k)
+                               r3(i,j,k)*r3(i,j,k) )*tmp
+            END DO
+         END DO
+      END DO
+      CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE_PRECISION, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
+      ui = 1.0 / (ui*tmp1)
+
+      vij = 0.0_DP;
+      tij = 0.0_DP;
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               tij(1,1)  = tij(1,1) + ( r1(i,j,k)*r1(i,j,k) )*tmp
+               tij(1,2)  = tij(1,2) + ( r1(i,j,k)*r2(i,j,k) )*tmp 
+               tij(1,3)  = tij(1,3) + ( r1(i,j,k)*r3(i,j,k) )*tmp 
+               tij(2,2)  = tij(2,2) + ( r2(i,j,k)*r2(i,j,k) )*tmp 
+               tij(2,3)  = tij(2,3) + ( r2(i,j,k)*r3(i,j,k) )*tmp 
+               tij(3,3)  = tij(3,3) + ( r3(i,j,k)*r3(i,j,k) )*tmp 
+            END DO
+         END DO
+      END DO
+      CALL MPI_ALLREDUCE(tij, bij, 9, MPI_DOUBLE_PRECISION, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
+      bij(1,1) = bij(1,1)*tmp1*ui - 1.0_DP/3.0_DP
+      bij(1,2) = bij(1,2)*tmp1*ui
+      bij(1,3) = bij(1,3)*tmp1*ui
+      bij(2,1) = bij(1,2)
+      bij(2,2) = bij(2,2)*tmp1*ui - 1.0_DP/3.0_DP
+      bij(2,3) = bij(2,3)*tmp1*ui
+      bij(3,1) = bij(1,3)
+      bij(3,2) = bij(2,3)
+      bij(3,3) = bij(3,3)*tmp1*ui - 1.0_DP/3.0_DP
+
+      END SUBROUTINE anisobij
+
+      SUBROUTINE anisovij(vx,vy,vz,c1,c2,r1,r2,r3,vij)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Compute anisotropy tensor:
+!   vij = <o_i o_j> / <o_j o^j> - delta_ij / 3
+!
+! Parameters
+!     vi    : input velocities
+!     c1    : complex temp array
+!     r1-3  : real temp array
+!     vij   : 3x3 tensor, returned
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT  (IN) , &
+                         TARGET      , DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1,c2
+      DOUBLE PRECISION, INTENT  (OUT), DIMENSION(3,3)             :: vij
+      DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
+      REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3
+      DOUBLE PRECISION                                            :: tmp1,ui,uloc
+      REAL   (KIND=GP)                                            :: tmp
+      INTEGER                                                     :: i,j,k,m
+
+
+      ! vij = <o_i o_j> / <o_j o^j> - delta_ij / 3
+      CALL rotor3(vy,vz,c2,1)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = c2(k,j,i)
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+
+      CALL rotor3(vz,vx,c2,2)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = c2(k,j,i)
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+
+      CALL rotor3(vx,vy,c2,3)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = c2(k,j,i)
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+
+      ! Compute <o^2>:
+      tmp  = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
+      tmp1 = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+      uloc = 0.0_DP
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               uloc = uloc +  ( r1(i,j,k)*r1(i,j,k) &
+                                r2(i,j,k)*r2(i,j,k)
+                                r3(i,j,k)*r3(i,j,k) ) * tmp
+            END DO
+         END DO
+      END DO
+      CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE_PRECISION, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
+      ui = 1.0 / (ui*tmp1)
+
+      vij = 0.0_DP;
+      tij = 0.0_DP;
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               tij(1,1)  = tij(1,1) + ( r1(i,j,k)*r1(i,j,k) )*tmp 
+               tij(1,2)  = tij(1,2) + ( r1(i,j,k)*r2(i,j,k) )*tmp 
+               tij(1,3)  = tij(1,3) + ( r1(i,j,k)*r3(i,j,k) )*tmp 
+               tij(2,2)  = tij(2,2) + ( r2(i,j,k)*r2(i,j,k) )*tmp 
+               tij(2,3)  = tij(2,3) + ( r2(i,j,k)*r3(i,j,k) )*tmp 
+               tij(3,3)  = tij(3,3) + ( r3(i,j,k)*r3(i,j,k) )*tmp 
+            END DO
+         END DO
+      END DO
+      CALL MPI_ALLREDUCE(tij, vij, 9, MPI_DOUBLE_PRECISION, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
+      vij(1,1) = vij(1,1)*tmp1*ui - 1.0_DP/3.0_DP
+      vij(1,2) = vij(1,2)*tmp1*ui
+      vij(1,3) = vij(1,3)*tmp1*ui
+      vij(2,1) = vij(1,2)
+      vij(2,2) = vij(2,2)*tmp1*ui - 1.0_DP/3.0_DP
+      vij(2,3) = vij(2,3)*tmp1*ui
+      vij(3,1) = vij(1,3)
+      vij(3,2) = vij(2,3)
+      vij(3,3) = vij(3,3)*tmp1*ui - 1.0_DP/3.0_DP
+
+      END SUBROUTINE anisvbij
+
+      SUBROUTINE anisodij(vx,vy,vz,c1,c2,r1,r2,dij)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Compute anisotropy tensor:
+!   dij = <d_k v_i d_k v_j> / <d_k vm d_k v^m> - delta_ij / 3
+!           where
+!          d_k is the kth derivative
+!
+! Parameters
+!     vi    : input velocities
+!     c1    : complex temp array
+!     r1-3  : real temp array
+!     dij   : 3x3 tensor, returned
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT  (IN) , &
+                         TARGET      , DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1,c2
+      DOUBLE PRECISION, INTENT  (OUT), DIMENSION(3,3)             :: dij
+      DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
+      REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2
+      DOUBLE PRECISION                                            :: tmp1,ui,uloc
+      REAL   (KIND=GP)                                            :: tmp
+      INTEGER                                                     :: i,ic,j,jr,k
+      TYPE(PARRAY)                                                :: pv(3)
+
+      pv(1).pcomplex => vx
+      pv(2).pcomplex => vy
+      pv(3).pcomplex => vz
+
+      ! dij = <d_k v_i d_k v_j> / <d_k vm d_k v^m> - delta_ij / 3
+
+      ! Compute <o^2>:
+      tmp  = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
+      tmp1 = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+      uloc = 0.0_DP
+       DO jr = 1, 3
+         DO ic = 1, 3
+            CALL derivk3(pv(jr),c1,ic)
+            CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+            DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+               DO j = 1,ny
+                  DO i = 1,nx
+                     r2(i,j,k) =   r1(i,j,k)*r1(i,j,k) * tmp
+                     uloc = uloc + r2(i,j,k)
+                  END DO
+               END DO
+            END DO
+         END DO
+       END DO
+      CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE_PRECISION, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
+      ui = 1.0 / (ui*tmp1)
+
+      dij = 0.0_DP;
+      tij = 0.0_DP;
+
+      ! d(1,1):
+      DO ic = 1, 3
+         CALL derivk3(pv(1),c1,ic)
+         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+         DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+             DO j = 1,ny
+                DO i = 1,nx
+                   r2(i,j,k) = r1(i,j,k)*r1(i,j,k) * tmp
+                   tij(1,1)  = tij(1,1) + r2(i,j,k)
+                END DO
+             END DO
+          END DO
+      END DO
+
+      ! d(1,2):
+      DO ic = 1, 3
+         CALL derivk3(pv(2),c2,ic)
+         CALL derivk3(pv(1),c1,ic)
+         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+         CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+         DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+             DO j = 1,ny
+                DO i = 1,nx
+                   r2(i,j,k) = r1(i,j,k)*r2(i,j,k) * tmp
+                   tij(1,1)  = tij(1,1) + r2(i,j,k)
+                END DO
+             END DO
+          END DO
+      END DO
+
+      ! d(1,3):
+      DO ic = 1, 3
+         CALL derivk3(pv(3),c2,ic)
+         CALL derivk3(pv(1),c1,ic)
+         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+         CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+         DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+             DO j = 1,ny
+                DO i = 1,nx
+                   r2(i,j,k) = r1(i,j,k)*r2(i,j,k) * tmp
+                   tij(1,3)  = tij(1,3) + r2(i,j,k)
+                END DO
+             END DO
+          END DO
+      END DO
+
+      ! d(2,2):
+      DO ic = 1, 3
+         CALL derivk3(pv(2),c1,ic)
+         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+         DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+             DO j = 1,ny
+                DO i = 1,nx
+                   r2(i,j,k) = r1(i,j,k)*r1(i,j,k) * tmp
+                   tij(1,3)  = tij(1,3) + r2(i,j,k)
+                END DO
+             END DO
+          END DO
+      END DO
+
+      ! d(2,3):
+      DO ic = 1, 3
+         CALL derivk3(pv(3),c2,ic)
+         CALL derivk3(pv(2),c1,ic)
+         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+         CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+         DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+             DO j = 1,ny
+                DO i = 1,nx
+                   r2(i,j,k) = r1(i,j,k)*r2(i,j,k) * tmp
+                   tij(2,3)  = tij(2,3) + r2(i,j,k)
+                END DO
+             END DO
+          END DO
+      END DO
+
+      ! d(3,3):
+      DO ic = 1, 3
+         CALL derivk3(pv(3),c1,ic)
+         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+         DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+             DO j = 1,ny
+                DO i = 1,nx
+                   r2(i,j,k) = r1(i,j,k)*r1(i,j,k) * tmp
+                   tij(3,3)  = tij(3,3) + r2(i,j,k)
+                END DO
+             END DO
+          END DO
+      END DO
+
+      CALL MPI_ALLREDUCE(tij, dij, 9, MPI_DOUBLE_PRECISION, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
+      dij(1,1) = dij(1,1)*tmp1*ui - 1.0_DP/3.0_DP
+      dij(1,2) = dij(1,2)*tmp1*ui
+      dij(1,3) = dij(1,3)*tmp1*ui
+      dij(2,1) = dij(1,2)
+      dij(2,2) = dij(2,2)*tmp1*ui - 1.0_DP/3.0_DP
+      dij(2,3) = dij(2,3)*tmp1*ui
+      dij(3,1) = dij(1,3)
+      dij(3,2) = dij(2,3)
+      dij(3,3) = dij(3,3)*tmp1*ui - 1.0_DP/3.0_DP
+
+      END SUBROUTINE anisobij
+
+      SUBROUTINE invariant(Tij, iwhich, invar)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+! Compute specified invariant of input tensor:
+!   rI   = Ti,i
+!   rII  = Ti,j Tj,i
+!   rIII = Ti,j Tj,k Tk,i
+! (repeated indices indicate summation)
+
+! Parameters:
+!   Tij   : input tensor (3x3)
+!   iwhich: which invariant (1, 2, 3)
+!   invar : invariant value
+!    
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, INTENT   (IN), DIMENSION(3,3)             :: Tij
+      INTEGER         , INTENT   (IN)                             :: iwhich
+      DOUBLE PRECISION, INTENT  (OUT)                             :: invar
+      INTEGER                                                     :: i,j,k
+
+      invar = 0.0_DP
+      SELECT CASE (iwhich)
+        CASE 1
+          DO j = 1, 3
+            invar = invar + TIJ(j,j)
+          ENDDO
+        CASE 2
+          DO j = 1, 3
+            DO i = 1, 3
+              invar = invar + TIJ(i,j) * Tij(j,i)
+            ENDDO
+          ENDDO
+        CASE 3
+          DO k = 1, 3
+            DO j = 1, 3
+              DO i = 1, 3
+                invar = invar + Tij(i,j) * Tij(j,k) * Tij(k,i);
+              ENDDO
+            ENDDO
+          ENDDO
+        CASE DEFAULT
+          write(*,*) 'Invariant: Invalid invariant specified:', iwhich
+          STOP
+      END SELECT
+
+      END SUBROUTINE invariant
 
 END MODULE gutils
