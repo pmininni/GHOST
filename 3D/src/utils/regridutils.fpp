@@ -1,5 +1,5 @@
 #if !defined(DEF_GHOST_CUDA_)
-#include "fftw_wrappers.h"
+!#include "fftw_wrappers.h"
 #endif
 !*****************************************************************
       SUBROUTINE fftp3d_create_trblock(n,nt,nprocs,myrank,itype1,itype2)
