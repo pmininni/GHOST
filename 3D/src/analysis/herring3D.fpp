@@ -3499,6 +3499,9 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       INTEGER                                                    :: i,j
       CHARACTER(len=*), INTENT   (IN)                            :: odir
       CHARACTER(len=1024)                                        :: fnout
+      CHARACTER(len=128)                                         :: rowfmt
+
+      WRITE(rowfmt,'(A, I4, A)') '(I4,',12,'(2X,E14.6))'
 
       pm(1).mat => bij
       pm(2).mat => dij
@@ -3523,7 +3526,8 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       if ( .NOT. bexist ) THEN
       WRITE(2,'(A, 4x, 12(A, 3x))') '#itime', 'bI', 'bII', 'bIII', 'dI', 'dII', 'dIII', 'gI', 'gII', 'gIII', 'vI', 'vII', 'vIII'
       ENDIF
-      WRITE(2,*) indtime, invar(1,1), invar(1,2), invar(1,3), &
+      WRITE(2,rowfmt,advance='no') &
+                          indtime, invar(1,1), invar(1,2), invar(1,3), &
                           invar(2,1), invar(2,2), invar(2,3), &
                           invar(3,1), invar(3,2), invar(3,3), &
                           invar(4,1), invar(4,2), invar(4,3) 
