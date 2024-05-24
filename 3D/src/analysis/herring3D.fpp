@@ -62,10 +62,16 @@
 #if defined(VELOC_) || defined(ADVECT_)
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz
 #endif
+#if defined(MOM_) 
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: sx,sy,sz
+#endif
 #ifdef VELOC_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fx,fy,fz
 #endif
-
+#ifdef DENSITY_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: rho
+      CHARACTER                                        :: srho           
+#endif
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: th
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fs
 
@@ -407,7 +413,7 @@
       NAMELIST / ptestpart / gyrof,vtherm
 #endif
       NAMELIST / shear / iswap,jpdf
-      NAMELIST / shear / dolog,oswap,idir,odir,sstat
+      NAMELIST / shear / dolog,bAniso,bHPDF,oswap,idir,odir,sstat
       NAMELIST / shear / btrunc,ktmin,ktmax,nbinx,nbiny
 
 !
@@ -469,6 +475,11 @@
       ALLOCATE( vx(nz,ny,ista:iend) )
       ALLOCATE( vy(nz,ny,ista:iend) )
       ALLOCATE( vz(nz,ny,ista:iend) )
+#endif
+#if defined(MOM_) 
+      ALLOCATE( sx(nz,ny,ista:iend) )
+      ALLOCATE( sy(nz,ny,ista:iend) )
+      ALLOCATE( sz(nz,ny,ista:iend) )
 #endif
 #ifdef VELOC_
       ALLOCATE( fx(nz,ny,ista:iend) )
@@ -1464,11 +1475,33 @@ if (myrank.eq.0) write(*,*)'main: index parsing done: nstat=',nstat
         WRITE(ext1, fmtext) istat(it)
         ext = trim(ext1)
 if (myrank.eq.0) write(*,*)'main: Reading time index: ', ext, '...' 
+#ifndef MOM_
+        write(*,*) '************************main: MOM_ not defined!'
+        STOP
+#endif
+#ifdef MOM_
+        CALL io_read(1,idir,'sx',ext,planio,R1)
+        CALL io_read(1,idir,'sy',ext,planio,R2)
+        CALL io_read(1,idir,'sz',ext,planio,R3)
+        CALL fftp3d_real_to_complex(planrc,R1,sx,MPI_COMM_WORLD)
+        CALL fftp3d_real_to_complex(planrc,R2,sy,MPI_COMM_WORLD)
+        CALL fftp3d_real_to_complex(planrc,R3,sz,MPI_COMM_WORLD)
+# ifdef DENSITY_
+        CALL io_read(1,idir,'rho',ext,planio,R1)
+        CALL fftp3d_real_to_complex(planrc,R1,th,MPI_COMM_WORLD)
+        CALL mom2vel(rho,sx,sy,sz,0,vx,vy,vz)
+#  endif
+#else
         CALL io_read(1,idir,'vx',ext,planio,R1)
         CALL io_read(1,idir,'vy',ext,planio,R2)
         CALL io_read(1,idir,'vz',ext,planio,R3)
+        CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
+        CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
+        CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
+#endif
 #ifdef SCALAR_
-        CALL io_read(5,idir,'th',ext,planio,R4)
+        CALL io_read(5,idir,'th',ext,planio,R1)
+        CALL fftp3d_real_to_complex(planrc,R1,th,MPI_COMM_WORLD)
 #endif
 
 if (myrank.eq.0) write(*,*)'main: Time index ', ext, ' read.' 
@@ -1479,12 +1512,6 @@ write(*,*) 'main: max(th)=',maxval(R4), ' min(th)=',minval(R4)
 endif
 
 if (myrank.eq.0) write(*,*)'main: Do fftr2c... ' 
-        CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
-        CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
-        CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
-#ifdef SCALAR_
-        CALL fftp3d_real_to_complex(planrc,R4,th,MPI_COMM_WORLD)
-#endif
       xnormn = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
@@ -1553,6 +1580,9 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
 #endif
 #if defined(VELOC_) || defined (ADVECT_)
       DEALLOCATE( vx,vy,vz )
+#endif
+#ifdef MOM_ 
+      DEALLOCATE( sx,sy,sz )
 #endif
 #ifdef ADVECT_
       DEALLOCATE( vsq )
