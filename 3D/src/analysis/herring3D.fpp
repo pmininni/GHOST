@@ -486,6 +486,10 @@
       ALLOCATE( fy(nz,ny,ista:iend) )
       ALLOCATE( fz(nz,ny,ista:iend) )
 #endif
+#ifdef DENSITY_
+      ALLOCATE( rho(nz,ny,ista:iend) )
+      srho = 'rhospect'
+#endif
 #ifdef SCALAR_
       ALLOCATE( C20(nz,ny,ista:iend) )
       ALLOCATE( fs (nz,ny,ista:iend) )
@@ -1475,20 +1479,22 @@ if (myrank.eq.0) write(*,*)'main: index parsing done: nstat=',nstat
         WRITE(ext1, fmtext) istat(it)
         ext = trim(ext1)
 if (myrank.eq.0) write(*,*)'main: Reading time index: ', ext, '...' 
-#ifndef MOM_
-        write(*,*) '************************main: MOM_ not defined!'
-        STOP
-#endif
 #ifdef MOM_
+if (myrank.eq.0) write(*,*)'main: Reading sx...'
         CALL io_read(1,idir,'sx',ext,planio,R1)
+if (myrank.eq.0) write(*,*)'main: Reading sy...'
         CALL io_read(1,idir,'sy',ext,planio,R2)
+if (myrank.eq.0) write(*,*)'main: Reading sz...'
         CALL io_read(1,idir,'sz',ext,planio,R3)
         CALL fftp3d_real_to_complex(planrc,R1,sx,MPI_COMM_WORLD)
         CALL fftp3d_real_to_complex(planrc,R2,sy,MPI_COMM_WORLD)
         CALL fftp3d_real_to_complex(planrc,R3,sz,MPI_COMM_WORLD)
 # ifdef DENSITY_
+if (myrank.eq.0) write(*,*)'main: Reading rho...'
         CALL io_read(1,idir,'rho',ext,planio,R1)
-        CALL fftp3d_real_to_complex(planrc,R1,th,MPI_COMM_WORLD)
+if (myrank.eq.0) write(*,*)'main: FFT rho...'
+        CALL fftp3d_real_to_complex(planrc,R1,rho,MPI_COMM_WORLD)
+if (myrank.eq.0) write(*,*)'main: call mom2vel...'
         CALL mom2vel(rho,sx,sy,sz,0,vx,vy,vz)
 #  endif
 #else
@@ -1586,6 +1592,9 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
 #endif
 #ifdef ADVECT_
       DEALLOCATE( vsq )
+#endif
+#ifdef DENSITY_
+      DEALLOCATE( rho )
 #endif
 #ifdef SCALAR_
       DEALLOCATE( th,fs )
@@ -3491,7 +3500,6 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CHARACTER(len=*), INTENT   (IN)                            :: odir
       CHARACTER(len=1024)                                        :: fnout
 
-
       pm(1).mat => bij
       pm(2).mat => dij
       pm(3).mat => gij
@@ -3503,11 +3511,12 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 
       DO i = 1, 3
         DO j = 1, 4
-          CALL invariant(pm(j).mat, j, invar(i,j))
+          CALL invariant(pm(j).mat, i, invar(j,i))
         ENDDO
       ENDDO
 
 
+      IF (myrank.eq.0) THEN
       fnout = trim(odir) // '/' // 'invar.txt'
       inquire( file=fnout, exist=bexist )
       OPEN(2,file=trim(fnout),position='append')
@@ -3519,6 +3528,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
                           invar(3,1), invar(3,2), invar(3,3), &
                           invar(4,1), invar(4,2), invar(4,3) 
       CLOSE(2)
+      ENDIF
 
 
       END SUBROUTINE DoAniso
