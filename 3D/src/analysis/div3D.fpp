@@ -409,8 +409,8 @@
 #if defined(TESTPART_) && defined(MAGFIELD_)
       NAMELIST / ptestpart / gyrof,vtherm
 #endif
-      NAMELIST / divchk / iswap
-      NAMELIST / divchk / oswap,idir,odir,sstat
+      NAMELIST / divchknl / iswap
+      NAMELIST / divchknl / oswap,idir,odir,sstat
 
 !
 ! Initialization
@@ -1320,7 +1320,7 @@
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='divchk.inp',status='unknown',form="formatted")
-         READ(1,NML=divchk)
+         READ(1,NML=divchknl)
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(idir   ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
