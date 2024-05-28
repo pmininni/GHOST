@@ -308,7 +308,7 @@
       ! Data specific to Div3D:
       REAL(kind=GP) fmax, fmin
       REAL(kind=GP) flmax, flmin
-      INTEGER :: istat(4096)
+      INTEGER :: istat(4096), it, nstat
       CHARACTER(len=64) :: ext1
       CHARACTER(len=4096) :: sstat
 
@@ -1609,7 +1609,6 @@ if (myrank.eq.0) write(*,*)'main: call CheckDiv...'
       REAL(KIND=GP)       :: tmq
       INTEGER             :: i,j,k
 
-      div = 0.0D0
       tmq = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 
