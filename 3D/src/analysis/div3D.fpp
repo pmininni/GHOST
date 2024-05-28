@@ -1616,7 +1616,7 @@ if (myrank.eq.0) write(*,*)'main: call CheckDiv...'
 !$omp parallel do private (k) 
          DO j = 1,ny
             DO k = 1,nz
-               d(k,j,i) = (c1(k,j,1)+c2(k,j,1)+c3(k,j,1))*tmq
+               d(k,j,1) = (c1(k,j,1)+c2(k,j,1)+c3(k,j,1))*tmq
             END DO
          END DO
 !$omp parallel do if (iend-2.ge.nth) private (j,k) 
