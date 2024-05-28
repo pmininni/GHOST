@@ -2354,14 +2354,29 @@
             CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
             CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
             CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
-#ifdef MOM_
-            CALL io_write(1,odir,'sx',ext,planio,R1)
-            CALL io_write(1,odir,'sy',ext,planio,R2)
-            CALL io_write(1,odir,'sz',ext,planio,R3)
-#else
             CALL io_write(1,odir,'vx',ext,planio,R1)
             CALL io_write(1,odir,'vy',ext,planio,R2)
             CALL io_write(1,odir,'vz',ext,planio,R3)
+#ifdef MOM_
+            rmp = 1.0_GP/ &
+	          (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+               DO j = 1,ny
+                  DO k = 1,nz
+                     C1(k,j,i) = sx(k,j,i)*rmp
+                     C2(k,j,i) = sy(k,j,i)*rmp
+                     C3(k,j,i) = sz(k,j,i)*rmp
+                  END DO
+               END DO
+            END DO
+            CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+            CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+            CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+            CALL io_write(1,odir,'sx',ext,planio,R1)
+            CALL io_write(1,odir,'sy',ext,planio,R2)
+            CALL io_write(1,odir,'sz',ext,planio,R3)
 #endif
             IF (rand.eq.2) THEN
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
