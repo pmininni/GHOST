@@ -1481,7 +1481,7 @@ if (myrank.eq.0) write(*,*)'main: Time index ', ext, ' read.'
 
 !if ( myrank.eq.0 ) write(*,*) 'main: vz=',vz(16,1:16,iend)
 if (myrank.eq.0) write(*,*)'main: call CheckDiv...'
-      CALL DivChk(vx,vy,vz,C1) ! includes normalization already
+      CALL divchk(vx,vy,vz,C1) ! includes normalization already
       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
       flmin = MINVAL(R1); flmax = MAXVAL(R1)
       CALL MPI_REDUCE(flmin,fmin, 1, GC_REAL,MPI_MIN,0,MPI_COMM_WORLD,ierr)
@@ -1588,7 +1588,7 @@ if (myrank.eq.0) write(*,*)'main: call CheckDiv...'
 !     a  : velocity field in the x-direction
 !     b  : velocity field in the y-direction
 !     c  : velocity field in the z-direction
-!     d  : divergence, returned
+!     d  : divergence field, returned
 !
       USE fprecision
       USE commtypes
@@ -1624,7 +1624,7 @@ if (myrank.eq.0) write(*,*)'main: call CheckDiv...'
 !$omp parallel do if (iend-2.lt.nth) private (k)
             DO j = 1,ny
                DO k = 1,nz
-                  d(k,j,i) = 2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))*tmq
+                  d(k,j,i) = 2*(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))*tmq
                END DO
             END DO
          END DO
@@ -1634,7 +1634,7 @@ if (myrank.eq.0) write(*,*)'main: call CheckDiv...'
 !$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,ny
                DO k = 1,nz
-                  d(k,j,i) = 2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))*tmq
+                  d(k,j,i) = 2*(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))*tmq
                END DO
             END DO
          END DO
