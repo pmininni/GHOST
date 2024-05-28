@@ -1479,17 +1479,11 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
 
 if (myrank.eq.0) write(*,*)'main: Time index ', ext, ' read.' 
 
-!if ( myrank.eq.0 ) write(*,*) 'main: real(vz)=',R1(16,1:16,kend)
-if ( myrank.eq.0 ) then
-write(*,*) 'main: max(th)=',maxval(R4), ' min(th)=',minval(R4)
-endif
-
 !if ( myrank.eq.0 ) write(*,*) 'main: vz=',vz(16,1:16,iend)
 if (myrank.eq.0) write(*,*)'main: call CheckDiv...'
-      CALL Div(vx,vy,vz,C1) ! includes normalization already
+      CALL DivChk(vx,vy,vz,C1) ! includes normalization already
       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
-      flmin = MINVAL(R1)
-      flmax = MAXVAL(R1)
+      flmin = MINVAL(R1); flmax = MAXVAL(R1)
       CALL MPI_REDUCE(flmin,fmin, 1, GC_REAL,MPI_MIN,0,MPI_COMM_WORLD,ierr)
       CALL MPI_REDUCE(flmax,fmax, 1, GC_REAL,MPI_MAX,0,MPI_COMM_WORLD,ierr)
       
@@ -1585,7 +1579,7 @@ if (myrank.eq.0) write(*,*)'main: call CheckDiv...'
       END PROGRAM Div3D
 
 !*****************************************************************
-      SUBROUTINE div(a,b,c,d)
+      SUBROUTINE divchk(a,b,c,d)
 !-----------------------------------------------------------------
 !
 ! Compute divergence field.
@@ -1647,5 +1641,5 @@ if (myrank.eq.0) write(*,*)'main: call CheckDiv...'
       ENDIF
 !
       RETURN
-      END SUBROUTINE div
+      END SUBROUTINE divchk
 
