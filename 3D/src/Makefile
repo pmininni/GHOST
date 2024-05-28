@@ -262,6 +262,15 @@ herring:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) \
 	   $(IOLIB)/*.o  $(GTIMER) $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
+divchk:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) \
+	   $(IOLIB)/binary_io.o
+	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
+	   -I$(GHOME) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
+	$(COMPILE) $@.f90 -o $@.o
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(OBJS)\
+	   $(IOLIB)/*.o  $(GTIMER) $@.o $(LDFLAGS) -o $(BIN)/$@
+	$(MAKE) undo
+
 wv:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) \
 	   $(IOLIB)/binary_io.o 
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
