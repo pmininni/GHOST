@@ -1,4 +1,6 @@
-! Initial condition for the velocity.
+! Initial condition for the momentum density. Density
+! must be set before computing.
+!
 ! This file contains the expression used for the initial 
 ! velocity field. You can use temporary real arrays R1-R3 
 ! of size (1:nx,1:ny,ksta:kend) and temporary complex arrays
@@ -24,6 +26,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,ny
             DO k = 1,nz
+               sz(k,j,i) = 0.0_GP
                vz(k,j,i) = 0.0_GP
             END DO
          END DO
@@ -60,3 +63,48 @@
 ! just by sine, cosine with amplitude 1
       CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
 
+#if !defined(DENSITY_)
+  #error "DENSITY_ not defined"
+#endif
+
+#if defined(MOM_)
+      ! Dealias:
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               C1(k,j,i) = vx (k,j,i)
+               C2(k,j,i) = vy (k,j,i)
+               C3(k,j,i) = rho(k,j,i)
+               IF (kn2(k,j,i).gt.kmax) THEN
+                  C1 (k,j,i) = 0.0_GP
+                  C2 (k,j,i) = 0.0_GP
+                  C3 (k,j,i) = 0.0_GP
+               ENDIF
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_complex_to_real(plancr,C1 ,R1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,C2 ,R2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,C3 ,R3,MPI_COMM_WORLD)
+
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               R1(i,j,k) = R1(i,j,k)*R3(i,j,k) * tmp
+               R2(i,j,k) = R2(i,j,k)*R3(i,j,k) * tmp
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_real_to_complex(planrc,R1,sx,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R2,sy,MPI_COMM_WORLD)
+
+#endif
