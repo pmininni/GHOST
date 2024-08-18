@@ -22,7 +22,9 @@ gtimer_mod.o:
 edit:
 	$(CPP) -DG$(PRECISION)_PRECISION $(CUDA_GHOST$(P_CUDA)) -I../fftp-3 \
            regridutils.fpp -o regridutils.f90
+	$(CPP) -DG$(PRECISION)_PRECISION $(CUDA_GHOST$(P_CUDA)) -I../fftp-3 \
+           gutils_mod.fpp -o gutils_mod.f90
 
 clean:
 	rm -f *.o *.d *.s *.int *.inf *.mod *.modmic work.pc* ifc* \
-           regridutils.f90
+           regridutils.f90 gutils_mod.f90
