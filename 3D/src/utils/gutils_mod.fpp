@@ -1238,18 +1238,24 @@ MODULE gutils
       END SUBROUTINE div
 
 
-      SUBROUTINE anisobij(vx,vy,vz,c1,r1,r2,r3,bij)
+      SUBROUTINE anisobij(vx,vy,vz,c1,r1,r2,r3,accum,denom,bij)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
 ! Compute anisotropy tensor:
 !   bij = <u_i u_j> / <u_j u^j> - delta_ij / 3
+!  
+! Spatial/ensemble averages will be accumulated until accum=FALSE,
+! at which time the full tensor, bij, will be computed. Before
+! final computation, bij contains intermediate partial sums.
 !
 ! Parameters
 !     vi    : input velocities
 !     c1    : complex temp array
 !     r1-3  : real temp array
-!     bij   : 3x3 tensor, returned
+!     accum : continue accumulating (TRUE) or to global sums (FALSE)
+!     denom : tensor normalization. First time in, should be initialized to 0
+!     bij   : 3x3 tensor, returned. First time in, should be initialized to 0
 !
       USE fprecision
       USE commtypes
@@ -1264,11 +1270,13 @@ MODULE gutils
       COMPLEX(KIND=GP), INTENT  (IN) , &
                          TARGET      , DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1
-      DOUBLE PRECISION, INTENT  (OUT), DIMENSION(3,3)             :: bij
+      DOUBLE PRECISION, INTENT(INOUT), DIMENSION(3,3)             :: bij
       DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
+      DOUBLE PRECISION, INTENT(INOUT)                             :: denom
       REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3
       DOUBLE PRECISION                                            :: tmp1,ui,uloc
       REAL   (KIND=GP)                                            :: tmp
+      LOGICAL         , INTENT(   IN)                             :: accum
       INTEGER                                                     :: i,j,k,m
 
 
@@ -1323,41 +1331,44 @@ MODULE gutils
             END DO
          END DO
       END DO
-      CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE_PRECISION, &
-                      MPI_SUM, MPI_COMM_WORLD,ierr)
-      ui = 1.0 / (ui*tmp1)
+      denom = denom + uloc
+      IF  ( .not. accum ) THEN
+        CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
+                        MPI_SUM, MPI_COMM_WORLD,ierr)
+        ui = 1.0 / (ui*tmp1)
+      ENDIF
 
-      bij = 0.0D0;
-      tij = 0.0D0;
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               tij(1,1)  = tij(1,1) + ( r1(i,j,k)*r1(i,j,k) )*tmp
-               tij(1,2)  = tij(1,2) + ( r1(i,j,k)*r2(i,j,k) )*tmp 
-               tij(1,3)  = tij(1,3) + ( r1(i,j,k)*r3(i,j,k) )*tmp 
-               tij(2,2)  = tij(2,2) + ( r2(i,j,k)*r2(i,j,k) )*tmp 
-               tij(2,3)  = tij(2,3) + ( r2(i,j,k)*r3(i,j,k) )*tmp 
-               tij(3,3)  = tij(3,3) + ( r3(i,j,k)*r3(i,j,k) )*tmp 
+               bij(1,1)  = bij(1,1) + ( r1(i,j,k)*r1(i,j,k) )*tmp
+               bij(1,2)  = bij(1,2) + ( r1(i,j,k)*r2(i,j,k) )*tmp 
+               bij(1,3)  = bij(1,3) + ( r1(i,j,k)*r3(i,j,k) )*tmp 
+               bij(2,2)  = bij(2,2) + ( r2(i,j,k)*r2(i,j,k) )*tmp 
+               bij(2,3)  = bij(2,3) + ( r2(i,j,k)*r3(i,j,k) )*tmp 
+               bij(3,3)  = bij(3,3) + ( r3(i,j,k)*r3(i,j,k) )*tmp 
             END DO
          END DO
       END DO
-      CALL MPI_ALLREDUCE(tij, bij, 9, MPI_DOUBLE_PRECISION, &
-                      MPI_SUM, MPI_COMM_WORLD,ierr)
-      bij(1,1) = bij(1,1)*tmp1*ui - 1.0D0/3.0D0
-      bij(1,2) = bij(1,2)*tmp1*ui
-      bij(1,3) = bij(1,3)*tmp1*ui
-      bij(2,1) = bij(1,2)
-      bij(2,2) = bij(2,2)*tmp1*ui - 1.0D0/3.0D0
-      bij(2,3) = bij(2,3)*tmp1*ui
-      bij(3,1) = bij(1,3)
-      bij(3,2) = bij(2,3)
-      bij(3,3) = bij(3,3)*tmp1*ui - 1.0D0/3.0D0
+      IF  ( .not. accum ) THEN
+        CALL MPI_ALLREDUCE(bij, tij, 9, MPI_DOUBLE_PRECISION, &
+                           MPI_SUM, MPI_COMM_WORLD,ierr)
+        bij(1,1) = tij(1,1)*tmp1*ui - 1.0D0/3.0D0
+        bij(1,2) = tij(1,2)*tmp1*ui
+        bij(1,3) = tij(1,3)*tmp1*ui
+        bij(2,1) = tij(1,2)
+        bij(2,2) = tij(2,2)*tmp1*ui - 1.0D0/3.0D0
+        bij(2,3) = tij(2,3)*tmp1*ui
+        bij(3,1) = tij(1,3)
+        bij(3,2) = tij(2,3)
+        bij(3,3) = tij(3,3)*tmp1*ui - 1.0D0/3.0D0
+      ENDIF
 
       END SUBROUTINE anisobij
 
-      SUBROUTINE anisogij(th,c1,r1,r2,r3,gij)
+      SUBROUTINE anisogij(th,c1,r1,r2,r3,accum,denom,gij)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -1365,11 +1376,17 @@ MODULE gutils
 !   gij = <th_i th_j> / <th_j th^j> - delta_ij / 3
 ! were th_i = d th /dx^i
 !
+! Spatial/ensemble averages will be accumulated until accum=FALSE,
+! at which time the full tensor, bij, will be computed. Before
+! final computation, bij contains intermediate partial sums.
+!
 ! Parameters
 !     th    : input scalar
 !     c1    : complex temp array
 !     r1-3  : real temp array
-!     gij   : 3x3 tensor, returned
+!     accum : continue accumulating (TRUE) or to global sums (FALSE)
+!     denom : tensor normalization. First time in, should be initialized to 0
+!     gij   : 3x3 tensor, returned. First time in, should be initialized to 0
 !
       USE fprecision
       USE commtypes
@@ -1386,11 +1403,12 @@ MODULE gutils
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1
       DOUBLE PRECISION, INTENT  (OUT), DIMENSION(3,3)             :: gij
       DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
+      DOUBLE PRECISION, INTENT(INOUT)                             :: denom
       REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3
       DOUBLE PRECISION                                            :: tmp1,ui,uloc
       REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,j,k,m
-
+      LOGICAL         , INTENT(   IN)                             :: accum
 
 !     bij = <u_i u_j> / <u_j u^j> - delta_ij 
       CALL derivk3(th,c1,1)
@@ -1417,52 +1435,62 @@ MODULE gutils
             END DO
          END DO
       END DO
-      CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE_PRECISION, &
-                      MPI_SUM, MPI_COMM_WORLD,ierr)
-      ui = 1.0 / (ui*tmp1)
+      denom = denom + uloc
 
-      gij = 0.0D0;
-      tij = 0.0D0;
+      IF ( .not. accum  ) THEN
+        CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE_PRECISION, &
+                        MPI_SUM, MPI_COMM_WORLD,ierr)
+        ui = 1.0 / (ui*tmp1)
+      ENDIF
+
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               tij(1,1)  = tij(1,1) + ( r1(i,j,k)*r1(i,j,k) )*tmp
-               tij(1,2)  = tij(1,2) + ( r1(i,j,k)*r2(i,j,k) )*tmp 
-               tij(1,3)  = tij(1,3) + ( r1(i,j,k)*r3(i,j,k) )*tmp 
-               tij(2,2)  = tij(2,2) + ( r2(i,j,k)*r2(i,j,k) )*tmp 
-               tij(2,3)  = tij(2,3) + ( r2(i,j,k)*r3(i,j,k) )*tmp 
-               tij(3,3)  = tij(3,3) + ( r3(i,j,k)*r3(i,j,k) )*tmp 
+               gij(1,1)  = gij(1,1) + ( r1(i,j,k)*r1(i,j,k) )*tmp
+               gij(1,2)  = gij(1,2) + ( r1(i,j,k)*r2(i,j,k) )*tmp 
+               gij(1,3)  = gij(1,3) + ( r1(i,j,k)*r3(i,j,k) )*tmp 
+               gij(2,2)  = gij(2,2) + ( r2(i,j,k)*r2(i,j,k) )*tmp 
+               gij(2,3)  = gij(2,3) + ( r2(i,j,k)*r3(i,j,k) )*tmp 
+               gij(3,3)  = gij(3,3) + ( r3(i,j,k)*r3(i,j,k) )*tmp 
             END DO
          END DO
       END DO
-      CALL MPI_ALLREDUCE(tij, gij, 9, MPI_DOUBLE_PRECISION, &
-                      MPI_SUM, MPI_COMM_WORLD,ierr)
-      gij(1,1) = gij(1,1)*tmp1*ui - 1.0D0/3.0D0
-      gij(1,2) = gij(1,2)*tmp1*ui
-      gij(1,3) = gij(1,3)*tmp1*ui
-      gij(2,1) = gij(1,2)
-      gij(2,2) = gij(2,2)*tmp1*ui - 1.0D0/3.0D0
-      gij(2,3) = gij(2,3)*tmp1*ui
-      gij(3,1) = gij(1,3)
-      gij(3,2) = gij(2,3)
-      gij(3,3) = gij(3,3)*tmp1*ui - 1.0D0/3.0D0
+      IF ( .not. accum  ) THEN
+        CALL MPI_ALLREDUCE(gij, tij, 9, MPI_DOUBLE_PRECISION, &
+                        MPI_SUM, MPI_COMM_WORLD,ierr)
+        gij(1,1) = tij(1,1)*tmp1*ui - 1.0D0/3.0D0
+        gij(1,2) = tij(1,2)*tmp1*ui
+        gij(1,3) = tij(1,3)*tmp1*ui
+        gij(2,1) = tij(1,2)
+        gij(2,2) = tij(2,2)*tmp1*ui - 1.0D0/3.0D0
+        gij(2,3) = tij(2,3)*tmp1*ui
+        gij(3,1) = tij(1,3)
+        gij(3,2) = tij(2,3)
+        gij(3,3) = tij(3,3)*tmp1*ui - 1.0D0/3.0D0
+      ENDIF
 
       END SUBROUTINE anisogij
 
-      SUBROUTINE anisovij(vx,vy,vz,c1,c2,r1,r2,r3,vij)
+      SUBROUTINE anisovij(vx,vy,vz,c1,c2,r1,r2,r3,accum,denom,vij)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
 ! Compute anisotropy tensor:
 !   vij = <o_i o_j> / <o_j o^j> - delta_ij / 3
 !
+! Spatial/ensemble averages will be accumulated until accum=FALSE,
+! at which time the full tensor, bij, will be computed. Before
+! final computation, bij contains intermediate partial sums.
+!
 ! Parameters
 !     vi    : input velocities
 !     c1    : complex temp array
 !     r1-3  : real temp array
-!     vij   : 3x3 tensor, returned
+!     accum : continue accumulating (TRUE) or to global sums (FALSE)
+!     denom : tensor normalization. First time in, should be initialized to 0
+!     vij   : 3x3 tensor, returned. First time in, should be initialized to 0
 !
       USE fprecision
       USE commtypes
@@ -1479,10 +1507,12 @@ MODULE gutils
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1,c2
       DOUBLE PRECISION, INTENT  (OUT), DIMENSION(3,3)             :: vij
       DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
+      DOUBLE PRECISION, INTENT(INOUT)                             :: denom
       REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3
       DOUBLE PRECISION                                            :: tmp1,ui,uloc
       REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,j,k,m
+      LOGICAL         , INTENT(   IN)                             :: accum
 
 
       ! vij = <o_i o_j> / <o_j o^j> - delta_ij / 3
@@ -1539,12 +1569,14 @@ MODULE gutils
             END DO
          END DO
       END DO
-      CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE_PRECISION, &
-                      MPI_SUM, MPI_COMM_WORLD,ierr)
-      ui = 1.0 / (ui*tmp1)
+      denom = denom + uloc
+     
+      IF ( .not. accum ) THEN
+        CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE_PRECISION, &
+                        MPI_SUM, MPI_COMM_WORLD,ierr)
+        ui = 1.0 / (ui*tmp1)
+      ENDIF
 
-      vij = 0.0D0;
-      tij = 0.0D0;
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
@@ -1559,21 +1591,23 @@ MODULE gutils
             END DO
          END DO
       END DO
-      CALL MPI_ALLREDUCE(tij, vij, 9, MPI_DOUBLE_PRECISION, &
-                      MPI_SUM, MPI_COMM_WORLD,ierr)
-      vij(1,1) = vij(1,1)*tmp1*ui - 1.0D0/3.0D0
-      vij(1,2) = vij(1,2)*tmp1*ui
-      vij(1,3) = vij(1,3)*tmp1*ui
-      vij(2,1) = vij(1,2)
-      vij(2,2) = vij(2,2)*tmp1*ui - 1.0D0/3.0D0
-      vij(2,3) = vij(2,3)*tmp1*ui
-      vij(3,1) = vij(1,3)
-      vij(3,2) = vij(2,3)
-      vij(3,3) = vij(3,3)*tmp1*ui - 1.0D0/3.0D0
+      IF ( .not. accum ) THEN
+        CALL MPI_ALLREDUCE(vij, tij, 9, MPI_DOUBLE_PRECISION, &
+                        MPI_SUM, MPI_COMM_WORLD,ierr)
+        vij(1,1) = tij(1,1)*tmp1*ui - 1.0D0/3.0D0
+        vij(1,2) = tij(1,2)*tmp1*ui
+        vij(1,3) = tij(1,3)*tmp1*ui
+        vij(2,1) = tij(1,2)
+        vij(2,2) = tij(2,2)*tmp1*ui - 1.0D0/3.0D0
+        vij(2,3) = tij(2,3)*tmp1*ui
+        vij(3,1) = tij(1,3)
+        vij(3,2) = tij(2,3)
+        vij(3,3) = tij(3,3)*tmp1*ui - 1.0D0/3.0D0
+      ENDIF
 
       END SUBROUTINE anisovij
 
-      SUBROUTINE anisodij(vx,vy,vz,c1,c2,r1,r2,dij)
+      SUBROUTINE anisodij(vx,vy,vz,c1,c2,r1,r2,accum,denom,dij)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -1582,10 +1616,16 @@ MODULE gutils
 !           where
 !          d_k is the kth derivative
 !
+! Spatial/ensemble averages will be accumulated until accum=FALSE,
+! at which time the full tensor, bij, will be computed. Before    
+! final computation, bij contains intermediate partial sums.      
+!
 ! Parameters
 !     vi    : input velocities
 !     c1    : complex temp array
 !     r1-3  : real temp array
+!     accum : continue accumulating (TRUE) or to global sums (FALSE)
+!     denom : tensor normalization. First time in, should be initialized to 0
 !     dij   : 3x3 tensor, returned
 !
       USE fprecision
@@ -1607,6 +1647,7 @@ MODULE gutils
       DOUBLE PRECISION                                            :: tmp1,ui,uloc
       REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,ic,j,jr,k
+      LOGICAL         , INTENT(   IN)                             :: accum
       TYPE(PARRAY)                                                :: pv(3)
 
       pv(1).pcomplex => vx
@@ -1635,13 +1676,14 @@ MODULE gutils
                END DO
             END DO
          END DO
-       END DO
-      CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE_PRECISION, &
-                      MPI_SUM, MPI_COMM_WORLD,ierr)
-      ui = 1.0 / (ui*tmp1)
+      END DO
+      denom = denom + uloc
 
-      dij = 0.0D0;
-      tij = 0.0D0;
+      IF ( .not. accum ) THEN
+        CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE_PRECISION, &
+                        MPI_SUM, MPI_COMM_WORLD,ierr)
+        ui = 1.0 / (ui*tmp1)
+      ENDIF
 
       ! d(1,1):
       DO ic = 1, 3
@@ -1653,7 +1695,7 @@ MODULE gutils
              DO j = 1,ny
                 DO i = 1,nx
                    r2(i,j,k) = r1(i,j,k)*r1(i,j,k) * tmp
-                   tij(1,1)  = tij(1,1) + r2(i,j,k)
+                   dij(1,1)  = dij(1,1) + r2(i,j,k)
                 END DO
              END DO
           END DO
@@ -1671,7 +1713,7 @@ MODULE gutils
              DO j = 1,ny
                 DO i = 1,nx
                    r2(i,j,k) = r1(i,j,k)*r2(i,j,k) * tmp
-                   tij(1,1)  = tij(1,1) + r2(i,j,k)
+                   dij(1,1)  = dij(1,1) + r2(i,j,k)
                 END DO
              END DO
           END DO
@@ -1689,7 +1731,7 @@ MODULE gutils
              DO j = 1,ny
                 DO i = 1,nx
                    r2(i,j,k) = r1(i,j,k)*r2(i,j,k) * tmp
-                   tij(1,3)  = tij(1,3) + r2(i,j,k)
+                   dij(1,3)  = dij(1,3) + r2(i,j,k)
                 END DO
              END DO
           END DO
@@ -1705,7 +1747,7 @@ MODULE gutils
              DO j = 1,ny
                 DO i = 1,nx
                    r2(i,j,k) = r1(i,j,k)*r1(i,j,k) * tmp
-                   tij(1,3)  = tij(1,3) + r2(i,j,k)
+                   dij(1,3)  = dij(1,3) + r2(i,j,k)
                 END DO
              END DO
           END DO
@@ -1723,7 +1765,7 @@ MODULE gutils
              DO j = 1,ny
                 DO i = 1,nx
                    r2(i,j,k) = r1(i,j,k)*r2(i,j,k) * tmp
-                   tij(2,3)  = tij(2,3) + r2(i,j,k)
+                   dij(2,3)  = dij(2,3) + r2(i,j,k)
                 END DO
              END DO
           END DO
@@ -1739,23 +1781,25 @@ MODULE gutils
              DO j = 1,ny
                 DO i = 1,nx
                    r2(i,j,k) = r1(i,j,k)*r1(i,j,k) * tmp
-                   tij(3,3)  = tij(3,3) + r2(i,j,k)
+                   dij(3,3)  = dij(3,3) + r2(i,j,k)
                 END DO
              END DO
           END DO
       END DO
 
-      CALL MPI_ALLREDUCE(tij, dij, 9, MPI_DOUBLE_PRECISION, &
-                      MPI_SUM, MPI_COMM_WORLD,ierr)
-      dij(1,1) = dij(1,1)*tmp1*ui - 1.0D0/3.0D0
-      dij(1,2) = dij(1,2)*tmp1*ui
-      dij(1,3) = dij(1,3)*tmp1*ui
-      dij(2,1) = dij(1,2)
-      dij(2,2) = dij(2,2)*tmp1*ui - 1.0D0/3.0D0
-      dij(2,3) = dij(2,3)*tmp1*ui
-      dij(3,1) = dij(1,3)
-      dij(3,2) = dij(2,3)
-      dij(3,3) = dij(3,3)*tmp1*ui - 1.0D0/3.0D0
+      IF ( .not. accum ) THEN
+        CALL MPI_ALLREDUCE(dij, tij, 9, MPI_DOUBLE_PRECISION, &
+                        MPI_SUM, MPI_COMM_WORLD,ierr)
+        dij(1,1) = tij(1,1)*tmp1*ui - 1.0D0/3.0D0
+        dij(1,2) = tij(1,2)*tmp1*ui
+        dij(1,3) = tij(1,3)*tmp1*ui
+        dij(2,1) = tij(1,2)
+        dij(2,2) = tij(2,2)*tmp1*ui - 1.0D0/3.0D0
+        dij(2,3) = tij(2,3)*tmp1*ui
+        dij(3,1) = tij(1,3)
+        dij(3,2) = tij(2,3)
+        dij(3,3) = tij(3,3)*tmp1*ui - 1.0D0/3.0D0
+      ENDIF
 
       END SUBROUTINE anisodij
 

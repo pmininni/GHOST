@@ -306,12 +306,15 @@
       LOGICAL               :: bbenchexist
 
       ! Data specific to HERRING3D:
+      DOUBLE PRECISION, DIMENSION(3,3) :: bij,dij,gij,vij
+      DOUBLE PRECISION                 :: bden,dden,gden,gden
       REAL(kind=GP) sav,ssk,sku,sg5,sw6,ss2,ss3,ss4,ss5,ss6
       REAL(kind=GP) ktmin,ktmax,omega(3),xnormn
       INTEGER :: ic,ir,it,jc
       INTEGER :: bAniso,bHPDF,dolog,inorm,istat(4096),jpdf,nstat
       INTEGER :: nbinx,nbiny,nbins(2)
-      INTEGER :: btrunc
+      INTEGER :: btrunc,useaccum
+      LOGICAL :: accum
       CHARACTER(len=64) :: ext1
       CHARACTER(len=4096) :: sstat
 
@@ -413,7 +416,7 @@
       NAMELIST / ptestpart / gyrof,vtherm
 #endif
       NAMELIST / shear / iswap,jpdf
-      NAMELIST / shear / dolog,bAniso,bHPDF,oswap,idir,odir,sstat
+      NAMELIST / shear / dolog,useaccum,bAniso,bHPDF,oswap,idir,odir,sstat
       NAMELIST / shear / btrunc,ktmin,ktmax,nbinx,nbiny
 
 !
@@ -1321,6 +1324,8 @@
 !              2: do joint pdfs only
 !              3: do both 1d and joint pdfs
 !     dolog  : compute PDFs in log=space?
+!     useaccum: do accumulation over all specified time steps to 
+!               compute aniso tensors?
 !     bHPDF  : Do PDFs as in Herring m.s.
 !     bAniso : Do anisotropy tensor calculations
 !
@@ -1332,6 +1337,7 @@
       oswap  = 0
       btrunc = 0
       dolog  = 1
+      useaccum = 0
       bHPDF  = 1
       bAniso = 1
       jpdf   = 3
@@ -1351,6 +1357,7 @@ write(*,*)'main: herring.inp read.'
       CALL MPI_BCAST(sstat  ,4096,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(btrunc ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(dolog  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(useaccum,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(bHPDF  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(bAniso ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iswap  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
@@ -1363,6 +1370,16 @@ write(*,*)'main: herring.inp read.'
 if (myrank.eq.0) write(*,*)'main: broadcast done.'
 ! Befor
 ! options are compatible with the SOLVER being used
+
+      ! Initialize anisotropy tensor data:
+      IF ( bAniso .gt. 0 ) THEN
+        accum = .TRUE.
+        IF ( useaccum .gt. 0 ) THEN
+          accum = .FALSE.
+        ENDIF
+        bij = 0.0; dij = 0.0; gij = 0.0; vij = 0.0;
+        bden= 0.0; dden= 0.0; gden= 0.0; vden= 0.0;
+      ENDIF
 
       INCLUDE SOLVERCHECK_
 
@@ -1509,7 +1526,6 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
         CALL io_read(5,idir,'th',ext,planio,R1)
         CALL fftp3d_real_to_complex(planrc,R1,th,MPI_COMM_WORLD)
 #endif
-
 if (myrank.eq.0) write(*,*)'main: Time index ', ext, ' read.' 
 
 !if ( myrank.eq.0 ) write(*,*) 'main: real(vz)=',R1(16,1:16,kend)
@@ -1548,7 +1564,8 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
         ENDIF
 
         IF ( bAniso .gt. 0 ) THEN
-          CALL DoAniso(vx,vy,vz,th,istat(it),odir,C1,C2,R1,R2,R3)
+          IF ( useaccum .tT. 0 .AND. it .EQ. nstat ) accum = .FALSE.
+          CALL DoAniso(vx,vy,vz,th,istat(it),odir,C1,C2,R1,R2,R3,accum,bden,dden,gden,vden, bij,dij,gij,vij)
         ENDIF
 
       ENDDO ! end, it-loop
@@ -3456,7 +3473,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-      SUBROUTINE DoAniso(vx,vy,vz,th,indtime,odir,C1,C2,R1,R2,R3)
+      SUBROUTINE DoAniso(vx,vy,vz,th,indtime,odir,C1,C2,R1,R2,R3,accum,bden,dden,gden,vden, bij,dij,gij,vij)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -3470,6 +3487,14 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !     th     : pot. temp
 !     indtime: integter time index
 !     odir   : output directory
+!     accum  : if TRUE, continues to accumulate the aniso tensors and normalizations.
+!              If FALSE, final accumulation is done, and global sums are done to
+!              compute tensors
+!     bij,gij,
+!     vij,dij: aniso tensors, returned. First time in, should be initialized to 0
+!     bdenom,
+!     ...   ,
+!     ddenom: Tensor normalizations, returned. First time in, should be initialized to 0
 !
       USE fprecision
       USE commtypes
@@ -3491,8 +3516,9 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: C1,C2
 
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2,R3
-      DOUBLE PRECISION,                DIMENSION(3,3), TARGET    :: bij,vij,dij,gij
       DOUBLE PRECISION,                DIMENSION(4,3)            :: invar
+      DOUBLE PRECISION, INTENT(INOUT), DIMENSION(3,3), TARGET    :: bij,vij,gij,dij
+      DOUBLE PRECISION, INTENT(INOUT)                            :: bdenom,vdenom,gdenom,ddenom
       TYPE(PMAT)                                                 :: pm(4)
       LOGICAL                                                    :: bexist
       INTEGER         , INTENT   (IN)                            :: indtime
@@ -3507,19 +3533,21 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       pm(2).mat => dij
       pm(3).mat => gij
       pm(4).mat => vij
-      CALL anisobij(vx,vy,vz,C1,R1,R2,R3,bij)
-      CALL anisodij(vx,vy,vz,C1,C2,R1,R2,dij)
-      CALL anisogij(th,C1,R1,R2,R3,gij)
-      CALL anisovij(vx,vy,vz,C1,C2,R1,R2,R3,vij)
+      CALL anisobij(vx,vy,vz,C1,R1,R2,R3,accum,bdenom,bij)
+      CALL anisodij(vx,vy,vz,C1,C2,R1,R2,accum,ddenom,dij)
+      CALL anisogij(th,C1,R1,R2,R3,accum,gdenom,gij)
+      CALL anisovij(vx,vy,vz,C1,C2,R1,R2,R3,accum,vdenom,vij)
 
-      DO i = 1, 3
-        DO j = 1, 4
-          CALL invariant(pm(j).mat, i, invar(j,i))
+      IF (.not. accum) THEN
+        DO i = 1, 3
+          DO j = 1, 4
+            CALL invariant(pm(j).mat, i, invar(j,i))
+          ENDDO
         ENDDO
-      ENDDO
+      ENDIF
 
 
-      IF (myrank.eq.0) THEN
+      IF (myrank.eq.0 .AND. .not. accum) THEN
       fnout = trim(odir) // '/' // 'invar.txt'
       inquire( file=fnout, exist=bexist )
       OPEN(2,file=trim(fnout),position='append')
