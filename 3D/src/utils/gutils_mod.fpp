@@ -1643,6 +1643,7 @@ MODULE gutils
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1,c2
       DOUBLE PRECISION, INTENT  (OUT), DIMENSION(3,3)             :: dij
       DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
+      DOUBLE PRECISION, INTENT(INOUT)                             :: denom
       REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2
       DOUBLE PRECISION                                            :: tmp1,ui,uloc
       REAL   (KIND=GP)                                            :: tmp
