@@ -32,7 +32,7 @@ to build a solver other than the default):
    HMHD       Hall-MHD solver
    HMHDB      HMHD solver with a uniform magnetic field
    COMPRHD    Compressible HD solver
-   COMIRHD    Compressible HD solver, evolving int. energy density
+   COMPIHD    Compressible HD solver, evolving int. energy density
    CMHD       Compressible MHD solver
    CMHDB      Compressible MHD solver with uniform B_0
    CHMHD      Compressible Hall-MHD solver
