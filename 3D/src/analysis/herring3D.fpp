@@ -3540,8 +3540,8 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL anisovij(vx,vy,vz,C1,C2,R1,R2,R3,accum,vdenom,vij)
 
       IF (.not. accum) THEN
-        DO i = 1, 3
-          DO j = 1, 4
+        DO i = 1, 3 ! which invariant, I, II, III
+          DO j = 1, 4 ! which tensor
             CALL invariant(pm(j).mat, i, invar(j,i))
           ENDDO
         ENDDO
