@@ -1373,9 +1373,9 @@ if (myrank.eq.0) write(*,*)'main: broadcast done.'
 
       ! Initialize anisotropy tensor data:
       IF ( bAniso .gt. 0 ) THEN
-        accum = .TRUE.
+        accum = .FALSE.
         IF ( useaccum .gt. 0 ) THEN
-          accum = .FALSE.
+          accum = .TRUE.
         ENDIF
         bij = 0.0; dij = 0.0; gij = 0.0; vij = 0.0;
         bden= 0.0; dden= 0.0; gden= 0.0; vden= 0.0;
@@ -1564,7 +1564,7 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
         ENDIF
 
         IF ( bAniso .gt. 0 ) THEN
-          IF ( useaccum .tT. 0 .AND. it .EQ. nstat ) accum = .FALSE.
+          IF ( useaccum .GT. 0 .AND. it .EQ. nstat ) accum = .FALSE.
           CALL DoAniso(vx,vy,vz,th,istat(it),odir,C1,C2,R1,R2,R3,accum,bden,dden,gden,vden, bij,dij,gij,vij)
         ENDIF
 
@@ -3521,6 +3521,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       DOUBLE PRECISION, INTENT(INOUT)                            :: bdenom,vdenom,gdenom,ddenom
       TYPE(PMAT)                                                 :: pm(4)
       LOGICAL                                                    :: bexist
+      LOGICAL         , INTENT   (IN)                            :: accum
       INTEGER         , INTENT   (IN)                            :: indtime
       INTEGER                                                    :: i,j
       CHARACTER(len=*), INTENT   (IN)                            :: odir
