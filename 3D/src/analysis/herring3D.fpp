@@ -307,7 +307,7 @@
 
       ! Data specific to HERRING3D:
       DOUBLE PRECISION, DIMENSION(3,3) :: bij,dij,gij,vij
-      DOUBLE PRECISION                 :: bden,dden,gden,gden
+      DOUBLE PRECISION                 :: bden,dden,gden,vden
       REAL(kind=GP) sav,ssk,sku,sg5,sw6,ss2,ss3,ss4,ss5,ss6
       REAL(kind=GP) ktmin,ktmax,omega(3),xnormn
       INTEGER :: ic,ir,it,jc
@@ -3473,7 +3473,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-      SUBROUTINE DoAniso(vx,vy,vz,th,indtime,odir,C1,C2,R1,R2,R3,accum,bden,dden,gden,vden, bij,dij,gij,vij)
+      SUBROUTINE DoAniso(vx,vy,vz,th,indtime,odir,C1,C2,R1,R2,R3,accum,bdenom,ddenom,gdenom,vdenom, bij,dij,gij,vij)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
