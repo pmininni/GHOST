@@ -21,9 +21,9 @@
            PRINT *,'TG forcing require at least Lx=Ly'
         STOP
       ENDIF
-      IF ( c0 .LT. epsilon(c0) .OR. rho0 .LT. epsilon(c0) ) THEN
+      IF ( f0 .LT. epsilon(f0) .OR. rho0 .LT. epsilon(f0) ) THEN
         IF (myrank.eq.0) &
-           PRINT *,'TG_MA forcing require c0 and rho0 different from 0'
+           PRINT *,'TG_MA forcing require f0 and rho0 different from 0'
         STOP
       ENDIF 
 
