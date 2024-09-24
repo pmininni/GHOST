@@ -38,6 +38,7 @@
         PROCEDURE,PUBLIC :: InitVel           => InerGPart_InitVel
         PROCEDURE,PUBLIC :: SetStepVel        => InerGPart_SetStepRKK
         PROCEDURE,PUBLIC :: StepInerp         => InerGPart_StepRKK
+        PROCEDURE,PUBLIC :: StepInerpPenalty  => InerGPart_pnlt_StepRKK
         PROCEDURE,PUBLIC :: StepLitep         => InerGPart_lite_StepRKK
         PROCEDURE,PUBLIC :: EndStage          => InerGPart_EndStageRKK
       END TYPE InerGPart

@@ -2736,7 +2736,7 @@
             CALL lagpart%StepInerp(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),Rv1,Rv2)
 #endif
 #if defined(PENALTY_)
-            CALL lagpart%StepInerpPenalty(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),Rv1,Rv2,x0,y0,z0,radius,t)
+            CALL lagpart%StepInerpPenalty(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),Rv1,Rv2,x0,y0,z0,radius,shape,t)
 #endif
          ELSE                       ! Light particles
             CALL gradre3(vx,vy,vz,C4,C5,C6)
