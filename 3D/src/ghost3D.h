@@ -202,6 +202,13 @@
 #define INCLUDEFNAME_ 'mprotbouss_
 #endif
 
+#ifdef HDPNLT_SOL
+#define DNS_
+#define VELOC_
+#define PENALTY_
+#define INCLUDEFNAME_ 'hdpnlt_
+#endif
+
 #ifdef GPE_SOL
 #define DNS_
 #define WAVEFUNCTION_
