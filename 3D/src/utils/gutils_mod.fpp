@@ -1582,12 +1582,12 @@ MODULE gutils
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               tij(1,1)  = tij(1,1) + ( r1(i,j,k)*r1(i,j,k) )*tmp 
-               tij(1,2)  = tij(1,2) + ( r1(i,j,k)*r2(i,j,k) )*tmp 
-               tij(1,3)  = tij(1,3) + ( r1(i,j,k)*r3(i,j,k) )*tmp 
-               tij(2,2)  = tij(2,2) + ( r2(i,j,k)*r2(i,j,k) )*tmp 
-               tij(2,3)  = tij(2,3) + ( r2(i,j,k)*r3(i,j,k) )*tmp 
-               tij(3,3)  = tij(3,3) + ( r3(i,j,k)*r3(i,j,k) )*tmp 
+               vij(1,1)  = vij(1,1) + ( r1(i,j,k)*r1(i,j,k) )*tmp 
+               vij(1,2)  = vij(1,2) + ( r1(i,j,k)*r2(i,j,k) )*tmp 
+               vij(1,3)  = vij(1,3) + ( r1(i,j,k)*r3(i,j,k) )*tmp 
+               vij(2,2)  = vij(2,2) + ( r2(i,j,k)*r2(i,j,k) )*tmp 
+               vij(2,3)  = vij(2,3) + ( r2(i,j,k)*r3(i,j,k) )*tmp 
+               vij(3,3)  = vij(3,3) + ( r3(i,j,k)*r3(i,j,k) )*tmp 
             END DO
          END DO
       END DO
