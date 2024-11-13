@@ -1847,7 +1847,7 @@ MODULE gutils
               invar = invar   &
                     - TIJ(1,3)*TIJ(2,2)*TIJ(3,1) + TIJ(1,2)*TIJ(2,3)*TIJ(3,1) &
                     + TIJ(1,3)*TIJ(2,1)*TIJ(3,2) - TIJ(1,1)*TIJ(2,3)*TIJ(3,2) &
-                    - TIJ(1,2)*TIJ(2,1)*TIJ(3,3) + TIJ(1,1)*TIJ(2,2)*TIJ(3,3) &
+                    - TIJ(1,2)*TIJ(2,1)*TIJ(3,3) + TIJ(1,1)*TIJ(2,2)*TIJ(3,3) 
         CASE DEFAULT
           write(*,*) 'Invariant: Invalid invariant specified:', iwhich
           STOP
