@@ -1377,8 +1377,8 @@ MODULE gutils
 ! were th_i = d th /dx^i
 !
 ! Spatial/ensemble averages will be accumulated until accum=FALSE,
-! at which time the full tensor, bij, will be computed. Before
-! final computation, bij contains intermediate partial sums.
+! at which time the full tensor, gij, will be computed. Before
+! final computation, gij contains intermediate partial sums.
 !
 ! Parameters
 !     th    : input scalar
@@ -1481,8 +1481,8 @@ MODULE gutils
 !   vij = <o_i o_j> / <o_j o^j> - delta_ij / 3
 !
 ! Spatial/ensemble averages will be accumulated until accum=FALSE,
-! at which time the full tensor, bij, will be computed. Before
-! final computation, bij contains intermediate partial sums.
+! at which time the full tensor, vij, will be computed. Before
+! final computation, vij contains intermediate partial sums.
 !
 ! Parameters
 !     vi    : input velocities
@@ -1516,7 +1516,7 @@ MODULE gutils
 
 
       ! vij = <o_i o_j> / <o_j o^j> - delta_ij / 3
-      CALL rotor3(vy,vz,c2,1)
+      CALL rotor3(vz,vy,c2,1)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
        DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -1528,7 +1528,7 @@ MODULE gutils
        END DO
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
 
-      CALL rotor3(vz,vx,c2,2)
+      CALL rotor3(vx,vz,c2,2)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
        DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -1540,7 +1540,7 @@ MODULE gutils
        END DO
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
 
-      CALL rotor3(vx,vy,c2,3)
+      CALL rotor3(vy,vx,c2,3)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
        DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -1617,8 +1617,8 @@ MODULE gutils
 !          d_k is the kth derivative
 !
 ! Spatial/ensemble averages will be accumulated until accum=FALSE,
-! at which time the full tensor, bij, will be computed. Before    
-! final computation, bij contains intermediate partial sums.      
+! at which time the full tensor, dij, will be computed. Before    
+! final computation, dij contains intermediate partial sums.      
 !
 ! Parameters
 !     vi    : input velocities
