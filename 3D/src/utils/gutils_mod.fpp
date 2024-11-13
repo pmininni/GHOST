@@ -1335,7 +1335,7 @@ MODULE gutils
       IF  ( .not. accum ) THEN
         CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
-        ui = 1.0 / (ui*tmp1)
+        ui = 1.0 / ui
       ENDIF
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1355,15 +1355,15 @@ MODULE gutils
       IF  ( .not. accum ) THEN
         CALL MPI_ALLREDUCE(bij, tij, 9, MPI_DOUBLE_PRECISION, &
                            MPI_SUM, MPI_COMM_WORLD,ierr)
-        bij(1,1) = tij(1,1)*tmp1*ui - 1.0D0/3.0D0
-        bij(1,2) = tij(1,2)*tmp1*ui
-        bij(1,3) = tij(1,3)*tmp1*ui
+        bij(1,1) = tij(1,1)*ui - 1.0D0/3.0D0
+        bij(1,2) = tij(1,2)*ui
+        bij(1,3) = tij(1,3)*ui
         bij(2,1) = tij(1,2)
-        bij(2,2) = tij(2,2)*tmp1*ui - 1.0D0/3.0D0
-        bij(2,3) = tij(2,3)*tmp1*ui
+        bij(2,2) = tij(2,2)*ui - 1.0D0/3.0D0
+        bij(2,3) = tij(2,3)*ui
         bij(3,1) = tij(1,3)
         bij(3,2) = tij(2,3)
-        bij(3,3) = tij(3,3)*tmp1*ui - 1.0D0/3.0D0
+        bij(3,3) = tij(3,3)*ui - 1.0D0/3.0D0
       ENDIF
 
       END SUBROUTINE anisobij
@@ -1440,7 +1440,7 @@ MODULE gutils
       IF ( .not. accum  ) THEN
         CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
-        ui = 1.0 / (ui*tmp1)
+        ui = 1.0 / ui
       ENDIF
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1460,15 +1460,15 @@ MODULE gutils
       IF ( .not. accum  ) THEN
         CALL MPI_ALLREDUCE(gij, tij, 9, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
-        gij(1,1) = tij(1,1)*tmp1*ui - 1.0D0/3.0D0
-        gij(1,2) = tij(1,2)*tmp1*ui
-        gij(1,3) = tij(1,3)*tmp1*ui
+        gij(1,1) = tij(1,1)*ui - 1.0D0/3.0D0
+        gij(1,2) = tij(1,2)*ui
+        gij(1,3) = tij(1,3)*ui
         gij(2,1) = tij(1,2)
-        gij(2,2) = tij(2,2)*tmp1*ui - 1.0D0/3.0D0
-        gij(2,3) = tij(2,3)*tmp1*ui
+        gij(2,2) = tij(2,2)*ui - 1.0D0/3.0D0
+        gij(2,3) = tij(2,3)*ui
         gij(3,1) = tij(1,3)
         gij(3,2) = tij(2,3)
-        gij(3,3) = tij(3,3)*tmp1*ui - 1.0D0/3.0D0
+        gij(3,3) = tij(3,3)*ui - 1.0D0/3.0D0
       ENDIF
 
       END SUBROUTINE anisogij
@@ -1516,7 +1516,7 @@ MODULE gutils
 
 
       ! vij = <o_i o_j> / <o_j o^j> - delta_ij / 3
-      CALL rotor3(vz,vy,c2,1)
+      CALL rotor3(vy,vz,c2,1)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
        DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -1540,7 +1540,7 @@ MODULE gutils
        END DO
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
 
-      CALL rotor3(vy,vx,c2,3)
+      CALL rotor3(vx,vy,c2,3)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
        DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -1574,7 +1574,7 @@ MODULE gutils
       IF ( .not. accum ) THEN
         CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
-        ui = 1.0 / (ui*tmp1)
+        ui = 1.0 / ui
       ENDIF
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1594,15 +1594,15 @@ MODULE gutils
       IF ( .not. accum ) THEN
         CALL MPI_ALLREDUCE(vij, tij, 9, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
-        vij(1,1) = tij(1,1)*tmp1*ui - 1.0D0/3.0D0
-        vij(1,2) = tij(1,2)*tmp1*ui
-        vij(1,3) = tij(1,3)*tmp1*ui
+        vij(1,1) = tij(1,1)*ui - 1.0D0/3.0D0
+        vij(1,2) = tij(1,2)*ui
+        vij(1,3) = tij(1,3)*ui
         vij(2,1) = tij(1,2)
-        vij(2,2) = tij(2,2)*tmp1*ui - 1.0D0/3.0D0
-        vij(2,3) = tij(2,3)*tmp1*ui
+        vij(2,2) = tij(2,2)*ui - 1.0D0/3.0D0
+        vij(2,3) = tij(2,3)*ui
         vij(3,1) = tij(1,3)
         vij(3,2) = tij(2,3)
-        vij(3,3) = tij(3,3)*tmp1*ui - 1.0D0/3.0D0
+        vij(3,3) = tij(3,3)*ui - 1.0D0/3.0D0
       ENDIF
 
       END SUBROUTINE anisovij
@@ -1683,7 +1683,7 @@ MODULE gutils
       IF ( .not. accum ) THEN
         CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
-        ui = 1.0 / (ui*tmp1)
+        ui = 1.0 / ui
       ENDIF
 
       ! d(1,1):
@@ -1791,15 +1791,15 @@ MODULE gutils
       IF ( .not. accum ) THEN
         CALL MPI_ALLREDUCE(dij, tij, 9, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
-        dij(1,1) = tij(1,1)*tmp1*ui - 1.0D0/3.0D0
-        dij(1,2) = tij(1,2)*tmp1*ui
-        dij(1,3) = tij(1,3)*tmp1*ui
+        dij(1,1) = tij(1,1)*ui - 1.0D0/3.0D0
+        dij(1,2) = tij(1,2)*ui
+        dij(1,3) = tij(1,3)*ui
         dij(2,1) = tij(1,2)
-        dij(2,2) = tij(2,2)*tmp1*ui - 1.0D0/3.0D0
-        dij(2,3) = tij(2,3)*tmp1*ui
+        dij(2,2) = tij(2,2)*ui - 1.0D0/3.0D0
+        dij(2,3) = tij(2,3)*ui
         dij(3,1) = tij(1,3)
         dij(3,2) = tij(2,3)
-        dij(3,3) = tij(3,3)*tmp1*ui - 1.0D0/3.0D0
+        dij(3,3) = tij(3,3)*ui - 1.0D0/3.0D0
       ENDIF
 
       END SUBROUTINE anisodij
@@ -1840,11 +1840,11 @@ MODULE gutils
             invar = invar + TIJ(j,j)
           ENDDO
         CASE (2)
-              invar = invar   &
+              invar = &
                     + TIJ(1,1)*TIJ(2,2) + TIJ(2,2)*TIJ(3,3) + TIJ(1,1)*TIJ(3,3) & 
                     - TIJ(1,2)*TIJ(2,1) - TIJ(2,3)*TIJ(3,2) - TIJ(1,3)*TIJ(3,1)
         CASE (3)
-              invar = invar   &
+              invar = &
                     - TIJ(1,3)*TIJ(2,2)*TIJ(3,1) + TIJ(1,2)*TIJ(2,3)*TIJ(3,1) &
                     + TIJ(1,3)*TIJ(2,1)*TIJ(3,2) - TIJ(1,1)*TIJ(2,3)*TIJ(3,2) &
                     - TIJ(1,2)*TIJ(2,1)*TIJ(3,3) + TIJ(1,1)*TIJ(2,2)*TIJ(3,3) 
