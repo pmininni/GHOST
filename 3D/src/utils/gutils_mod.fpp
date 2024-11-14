@@ -1358,11 +1358,11 @@ MODULE gutils
         bij(1,1) = tij(1,1)*ui - 1.0D0/3.0D0
         bij(1,2) = tij(1,2)*ui
         bij(1,3) = tij(1,3)*ui
-        bij(2,1) = tij(1,2)
+        bij(2,1) = bij(1,2)
         bij(2,2) = tij(2,2)*ui - 1.0D0/3.0D0
         bij(2,3) = tij(2,3)*ui
-        bij(3,1) = tij(1,3)
-        bij(3,2) = tij(2,3)
+        bij(3,1) = bij(1,3)
+        bij(3,2) = bij(2,3)
         bij(3,3) = tij(3,3)*ui - 1.0D0/3.0D0
       ENDIF
 
@@ -1438,7 +1438,7 @@ MODULE gutils
       denom = denom + uloc
 
       IF ( .not. accum  ) THEN
-        CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE_PRECISION, &
+        CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
         ui = 1.0 / ui
       ENDIF
@@ -1463,11 +1463,11 @@ MODULE gutils
         gij(1,1) = tij(1,1)*ui - 1.0D0/3.0D0
         gij(1,2) = tij(1,2)*ui
         gij(1,3) = tij(1,3)*ui
-        gij(2,1) = tij(1,2)
+        gij(2,1) = gij(1,2)
         gij(2,2) = tij(2,2)*ui - 1.0D0/3.0D0
         gij(2,3) = tij(2,3)*ui
-        gij(3,1) = tij(1,3)
-        gij(3,2) = tij(2,3)
+        gij(3,1) = gij(1,3)
+        gij(3,2) = gij(2,3)
         gij(3,3) = tij(3,3)*ui - 1.0D0/3.0D0
       ENDIF
 
@@ -1572,7 +1572,7 @@ MODULE gutils
       denom = denom + uloc
      
       IF ( .not. accum ) THEN
-        CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE_PRECISION, &
+        CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
         ui = 1.0 / ui
       ENDIF
@@ -1597,11 +1597,11 @@ MODULE gutils
         vij(1,1) = tij(1,1)*ui - 1.0D0/3.0D0
         vij(1,2) = tij(1,2)*ui
         vij(1,3) = tij(1,3)*ui
-        vij(2,1) = tij(1,2)
+        vij(2,1) = vij(1,2)
         vij(2,2) = tij(2,2)*ui - 1.0D0/3.0D0
         vij(2,3) = tij(2,3)*ui
-        vij(3,1) = tij(1,3)
-        vij(3,2) = tij(2,3)
+        vij(3,1) = vij(1,3)
+        vij(3,2) = vij(2,3)
         vij(3,3) = tij(3,3)*ui - 1.0D0/3.0D0
       ENDIF
 
@@ -1681,7 +1681,7 @@ MODULE gutils
       denom = denom + uloc
 
       IF ( .not. accum ) THEN
-        CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE_PRECISION, &
+        CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
         ui = 1.0 / ui
       ENDIF
@@ -1794,11 +1794,11 @@ MODULE gutils
         dij(1,1) = tij(1,1)*ui - 1.0D0/3.0D0
         dij(1,2) = tij(1,2)*ui
         dij(1,3) = tij(1,3)*ui
-        dij(2,1) = tij(1,2)
+        dij(2,1) = dij(1,2)
         dij(2,2) = tij(2,2)*ui - 1.0D0/3.0D0
         dij(2,3) = tij(2,3)*ui
-        dij(3,1) = tij(1,3)
-        dij(3,2) = tij(2,3)
+        dij(3,1) = dij(1,3)
+        dij(3,2) = dij(2,3)
         dij(3,3) = tij(3,3)*ui - 1.0D0/3.0D0
       ENDIF
 
