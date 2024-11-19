@@ -1379,6 +1379,7 @@ if (myrank.eq.0) write(*,*)'main: broadcast done.'
         ENDIF
         bij = 0.0; dij = 0.0; gij = 0.0; vij = 0.0;
         bden= 0.0; dden= 0.0; gden= 0.0; vden= 0.0;
+if (myrank.eq.0) write(*,*)'main: accum = ', accum
       ENDIF
 
       INCLUDE SOLVERCHECK_
@@ -1564,7 +1565,12 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
         ENDIF
 
         IF ( bAniso .gt. 0 ) THEN
+          IF ( useaccum .EQ. 0 ) THEN
+            bij = 0.0; dij = 0.0; gij = 0.0; vij = 0.0;
+            bden= 0.0; dden= 0.0; gden= 0.0; vden= 0.0;
+          ENDIF
           IF ( useaccum .GT. 0 .AND. it .EQ. nstat ) accum = .FALSE.
+write(*,*)'main: nstat=', nstat, ' it=', it, ' accum=', accum
           CALL DoAniso(vx,vy,vz,th,istat(it),odir,C1,C2,R1,R2,R3,accum,bden,dden,gden,vden, bij,dij,gij,vij)
         ENDIF
 
