@@ -61,7 +61,7 @@
     CALL this%GPart_ctor(comm,maxparts,inittype,0,3,iexchtyp,iouttyp,&
                          bcoll,csize,nstrip,intacc,wrtunit)
 ! Free memory from unused interpolator
-!    CALL this%intop_ %ResizeArrays(0,.false.)
+    CALL this%intop_ %ResizeArrays(0,.false.)
 
 !    CALL this%intop_%GPSplineInt_dtor()
     this%intorder_ = intorder
@@ -1433,6 +1433,53 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+  SUBROUTINE VGPIC_GetMoment(this,field,ord,dir)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : GetMoment
+!  DESCRIPTION: Deposits particle moment density of chosen component
+!
+!  ARGUMENTS  :
+!    this     : 'this' class instance
+!    field    : Eulerian field containing particle moment
+!               density (OUT)
+!    ord      : Order of the moment to calculate
+!    dir      : Chosen velocity component (0->x, 1->y, 2->z)
+!-----------------------------------------------------------------
+    USE grid
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(VGPIC) ,INTENT(INOUT)                            :: this
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: field
+    INTEGER      ,INTENT(IN)                               :: ord,dir
+    INTEGER                                                :: lag
+
+    IF (dir.EQ.0) THEN
+! x-coord
+      DO lag=1,this%nparts_
+        this%prop_(lag) = this%weight_(lag)*this%pvx_(lag)**ord
+      END DO
+    ELSE IF (dir.EQ.1) THEN
+! y-coord
+      DO lag=1,this%nparts_
+        this%prop_(lag) = this%weight_(lag)*this%pvy_(lag)**ord
+      END DO
+    ELSE IF (dir.EQ.2) THEN
+! z-coord
+      DO lag=1,this%nparts_
+        this%prop_(lag) = this%weight_(lag)*this%pvz_(lag)**ord
+      END DO
+    END IF
+
+    CALL GPIC_LagToEuler(this,this%prop_,this%nparts_,field,.false.)
+
+    RETURN
+
+  END SUBROUTINE VGPIC_GetMoment
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
   SUBROUTINE VGPIC_ResizeArrays(this,new_size,onlyinc,exc)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -2126,12 +2173,11 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-
   SUBROUTINE ChargPIC_GetTemperature(this,T)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : GetTemperature
-!  DESCRIPTION: Deposits particle temperature into grid.
+!  DESCRIPTION: Deposits particle kinetic energy density into grid.
 !
 !  ARGUMENTS  :
 !    this     : 'this' class instance
@@ -2155,6 +2201,69 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     RETURN
 
   END SUBROUTINE ChargPIC_GetTemperature
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE ChargPIC_GetTemperatureAnis(this,Tpa,Tpe,dir)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : GetTemperature
+!  DESCRIPTION: Deposits particle parallel and perpendicular 
+!               kinetic energy density into grid.
+!
+!  ARGUMENTS  :
+!    this     : 'this' class instance
+!    Tpa,Tpe  : Eulerian field containing particle parallel and
+!               perpendicular temperature (OUT)
+!    dir      : Component defining 'parallel' (0->x, 1->y, 2->z)
+!-----------------------------------------------------------------
+    USE grid
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(ChargPIC),INTENT(INOUT)                          :: this
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: Tpa,Tpe
+    INTEGER      ,INTENT(IN)                               :: dir
+    INTEGER                                                :: lag
+
+    IF (dir.EQ.0) THEN
+      DO lag=1,this%nparts_
+        this%prop_(lag) = this%weight_(lag)*(this%pvy_(lag)**2&
+                                            +this%pvz_(lag)**2)
+      END DO
+      CALL GPIC_LagToEuler(this,this%prop_,this%nparts_,Tpe,.false.)
+
+      DO lag=1,this%nparts_
+        this%prop_(lag) = this%weight_(lag)*this%pvx_(lag)**2
+      END DO
+      CALL GPIC_LagToEuler(this,this%prop_,this%nparts_,Tpa,.false.)
+    ELSE IF (dir.EQ.1) THEN
+      DO lag=1,this%nparts_
+        this%prop_(lag) = this%weight_(lag)*(this%pvx_(lag)**2&
+                                            +this%pvz_(lag)**2)
+      END DO
+      CALL GPIC_LagToEuler(this,this%prop_,this%nparts_,Tpe,.false.)
+
+      DO lag=1,this%nparts_
+        this%prop_(lag) = this%weight_(lag)*this%pvy_(lag)**2
+      END DO
+      CALL GPIC_LagToEuler(this,this%prop_,this%nparts_,Tpa,.false.)
+    ELSE IF (dir.EQ.2) THEN
+       DO lag=1,this%nparts_
+        this%prop_(lag) = this%weight_(lag)*(this%pvx_(lag)**2&
+                                            +this%pvy_(lag)**2)
+      END DO
+      CALL GPIC_LagToEuler(this,this%prop_,this%nparts_,Tpe,.false.)
+
+      DO lag=1,this%nparts_
+        this%prop_(lag) = this%weight_(lag)*this%pvz_(lag)**2
+      END DO
+      CALL GPIC_LagToEuler(this,this%prop_,this%nparts_,Tpa,.false.)
+    END IF
+
+    RETURN
+
+  END SUBROUTINE ChargPIC_GetTemperatureAnis
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 

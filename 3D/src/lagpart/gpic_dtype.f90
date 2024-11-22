@@ -8,6 +8,7 @@
 !=================================================================
 
   TYPE, PUBLIC, EXTENDS ( GPart ) :: GPIC
+
         PRIVATE
         ! Member data:
         TYPE(GFieldComm)                             :: gfcomm_
@@ -36,6 +37,7 @@
         PROCEDURE,PUBLIC :: io_write_pdbv     => VGPIC_io_write_pdbv
         PROCEDURE,PUBLIC :: io_readv          => VGPIC_io_read_pdbv
         PROCEDURE,PUBLIC :: GetFlux           => VGPIC_GetFlux
+        PROCEDURE,PUBLIC :: GetMoment         => VGPIC_GetMoment
         PROCEDURE,PUBLIC :: InitUserSeed      => VGPIC_InitUserSeed
         PROCEDURE,PUBLIC :: ResizeArrays      => VGPIC_ResizeArrays
       END TYPE VGPIC
@@ -53,6 +55,7 @@
         PROCEDURE,PUBLIC :: StepChargedPICBor => ChargPIC_StepBoris
         PROCEDURE,PUBLIC :: EndStageChargedPIC=> ChargPIC_EndStageRKK
         PROCEDURE,PUBLIC :: GetTemperature    => ChargPIC_GetTemperature
+        PROCEDURE,PUBLIC :: GetTemperatureAnis=> ChargPIC_GetTemperatureAnis
         PROCEDURE,PUBLIC :: InitFromFields    => ChargPIC_InitFromFields
         PROCEDURE,PUBLIC :: ResizeArrays      => ChargPIC_ResizeArrays
       END TYPE ChargPIC

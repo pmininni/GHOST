@@ -18,6 +18,7 @@
          CALL laplak3(ay,ay) ! -jy
          CALL laplak3(az,az) ! -jz
 
+         tmp = 1.0_GP/dii
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.ge.nth) private (k)
@@ -27,9 +28,9 @@
                C4(k,j,i) = dii*ax(k,j,i) + C4(k,j,i)*C17(k,j,i)
                C5(k,j,i) = dii*ay(k,j,i) + C5(k,j,i)*C17(k,j,i)
                C6(k,j,i) = dii*az(k,j,i) + C6(k,j,i)*C17(k,j,i)
-               ax(k,j,i) = C4(k,j,i)  ! Store electron current j_e
-               ay(k,j,i) = C5(k,j,i)
-               az(k,j,i) = C6(k,j,i)
+               ax(k,j,i) = C4(k,j,i)*tmp  ! Store electron current j_e
+               ay(k,j,i) = C5(k,j,i)*tmp
+               az(k,j,i) = C6(k,j,i)*tmp
                C7(k,j,i) = C7(k,j,i)*C17(k,j,i)
             ELSE
                C4(k,j,i) = 0.0_GP
@@ -149,6 +150,7 @@
             CALL laplak3(ay,C15) ! -jy
             CALL laplak3(az,C16) ! -jz
    
+            tmp = 1.0_GP/dii
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.ge.nth) private (k)
@@ -158,9 +160,9 @@
                   C4(k,j,i)  = dii*C14(k,j,i) + C4(k,j,i)*C17(k,j,i)
                   C5(k,j,i)  = dii*C15(k,j,i) + C5(k,j,i)*C17(k,j,i)
                   C6(k,j,i)  = dii*C16(k,j,i) + C6(k,j,i)*C17(k,j,i)
-                  C14(k,j,i) = C4(k,j,i)  ! Store electron current -j_e
-                  C15(k,j,i) = C5(k,j,i)
-                  C16(k,j,i) = C6(k,j,i)
+                  C14(k,j,i) = C4(k,j,i)*tmp  ! Store electron current -j_e
+                  C15(k,j,i) = C5(k,j,i)*tmp
+                  C16(k,j,i) = C6(k,j,i)*tmp
                ELSE
                   C4(k,j,i) = 0.0_GP
                   C5(k,j,i) = 0.0_GP

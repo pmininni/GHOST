@@ -23,6 +23,10 @@ MODULE class_GPart
       INTEGER,PARAMETER,PUBLIC                       :: GPINIT_RANDLOC =0
       INTEGER,PARAMETER,PUBLIC                       :: GPINIT_USERLOC =1
 
+      INTEGER,PARAMETER,PUBLIC                       :: GPICINIT_FROMFLD=0
+      INTEGER,PARAMETER,PUBLIC                       :: GPICINIT_FROMBIN=1
+      INTEGER,PARAMETER,PUBLIC                       :: GPICINIT_FROMUSR=2
+
       INTEGER,PARAMETER,PUBLIC                       :: GPINTRP_CSPLINE=0
       INTEGER,PARAMETER,PUBLIC                       :: GPINTRP_LAGINT =1
 

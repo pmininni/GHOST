@@ -307,7 +307,6 @@
       INTEGER      :: picwrtunit,piccoll
 #endif
 #ifdef CPIC_
-      INTEGER          :: Bmult = 10, iB
       REAL(KIND=GP)    :: r0,T0,delT
       REAL(KIND=GP)    :: krd,kru,kud,kuu,ktd,ktu
       REAL(KIND=GP)    :: rparam0,rparam1,rparam2,rparam3,rparam4
@@ -318,6 +317,7 @@
       REAL(KIND=GP)    :: tparam5,tparam6,tparam7,tparam8,tparam9
 #endif
 #ifdef HYBPIC_
+      INTEGER          :: Bmult = 10, iB
       REAL(KIND=GP)    :: ekin,dii,betae,gammae,gam1,cp1
 #endif
 #ifdef MAGFIELD_
@@ -1674,8 +1674,8 @@
          DO j = 1,ny
             DO k = 1,nz
                kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
-               C17(k,j,i) = EXP(-5.0_GP*(kn2(k,j,i)/kmax)**2)
-!               C17(k,j,i) = 1.0_GP
+!               C17(k,j,i) = EXP(-5.0_GP*(kn2(k,j,i)/kmax)**2)
+               C17(k,j,i) = 1.0_GP
             END DO
          END DO
       END DO
@@ -1938,14 +1938,27 @@
       INCLUDE 'initialz.f90'            ! initial wave function
 #endif
 #ifdef CPIC_
-      IF (picinittype.EQ.GPINIT_RANDLOC) THEN
+      IF (picinittype.EQ.GPICINIT_FROMFLD) THEN
         CALL fftp3d_complex_to_real(plancr,rhoc,R1 ,MPI_COMM_WORLD)
-        CALL fftp3d_complex_to_real(plancr, ux ,Re1,MPI_COMM_WORLD)
-        CALL fftp3d_complex_to_real(plancr, uy ,Re2,MPI_COMM_WORLD)
-        CALL fftp3d_complex_to_real(plancr, uz ,Re3,MPI_COMM_WORLD)
+        CALL fftp3d_complex_to_real(plancr, ux ,Rj1,MPI_COMM_WORLD)
+        CALL fftp3d_complex_to_real(plancr, uy ,Rj2,MPI_COMM_WORLD)
+        CALL fftp3d_complex_to_real(plancr, uz ,Rj3,MPI_COMM_WORLD)
         CALL fftp3d_complex_to_real(plancr,Temp,R2 ,MPI_COMM_WORLD)
-        CALL picpart%InitFromFields(R1,Re1,Re2,Re3,R2)
-      ELSE IF (picinittype.EQ.GPINIT_USERLOC) THEN
+        CALL picpart%InitFromFields(R1,Rj1,Rj2,Rj3,R2)
+      ELSE IF (picinittype.EQ.GPICINIT_FROMBIN) THEN
+        CALL io_read(1,idir,'ni','init',planio,R1)
+        CALL io_read(1,idir,'ux','init',planio,Rj1)
+        CALL io_read(1,idir,'uy','init',planio,Rj2)
+        CALL io_read(1,idir,'uz','init',planio,Rj3)
+        CALL io_read(1,idir,'Ti','init',planio,R2)
+        CALL picpart%InitFromFields(R1,Rj1,Rj2,Rj3,R2)
+        CALL io_read(1,idir,'ax','init',planio,R1)
+        CALL io_read(1,idir,'ay','init',planio,R2)
+        CALL io_read(1,idir,'az','init',planio,R3)
+        CALL fftp3d_real_to_complex(planrc,R1,ax,MPI_COMM_WORLD)
+        CALL fftp3d_real_to_complex(planrc,R2,ay,MPI_COMM_WORLD)
+        CALL fftp3d_real_to_complex(planrc,R3,az,MPI_COMM_WORLD)
+      ELSE IF (picinittype.EQ.GPICINIT_FROMUSR) THEN
         CALL picpart%InitUserSeed()
       END IF
       IF (bench.ne.1) THEN
@@ -2692,18 +2705,41 @@
             IF (outs.ge.1) THEN
                CALL picpart%GetDensity(R1)
                CALL io_write(1,odir,'ni',ext,planio,R1)
-            END IF
-            IF (outs.ge.2) THEN
                CALL picpart%GetFlux(Re1,Re2,Re3)
                CALL io_write(1,odir,'jix',ext,planio,Re1)
                CALL io_write(1,odir,'jiy',ext,planio,Re2)
                CALL io_write(1,odir,'jiz',ext,planio,Re3)
-               CALL picpart%GetTemperature(R1)
-               CALL io_write(1,odir,'Ti',ext,planio,R1)
+            END IF
+            IF (outs.ge.2) THEN
+               IF ((bx0.EQ.0).AND.(by0.EQ.0).AND.(bz0.EQ.0)) THEN
+                  CALL picpart%GetTemperature(R1)
+                  CALL io_write(1,odir,'Ti',ext,planio,R1)
+               ELSE
+                  CALL picpart%GetMoment(Re1,2,0)
+                  CALL picpart%GetMoment(Re2,2,1)
+                  CALL picpart%GetMoment(Re3,2,2)
+                  CALL io_write(1,odir,'Txi',ext,planio,Re1)
+                  CALL io_write(1,odir,'Tyi',ext,planio,Re2)
+                  CALL io_write(1,odir,'Tzi',ext,planio,Re3)
+               END IF
+            END IF
+            IF (outs.ge.3) THEN   
+               CALL picpart%GetMoment(Re1,3,0)
+               CALL picpart%GetMoment(Re2,3,1)
+               CALL picpart%GetMoment(Re3,3,2)
+               CALL picpart%GetMoment(Rj1,4,0)
+               CALL picpart%GetMoment(Rj2,4,1)
+               CALL picpart%GetMoment(Rj3,4,2)
+               CALL io_write(1,odir,'Sxi',ext,planio,Re1)
+               CALL io_write(1,odir,'Syi',ext,planio,Re2)
+               CALL io_write(1,odir,'Szi',ext,planio,Re3)
+               CALL io_write(1,odir,'Kxi',ext,planio,Rj1)
+               CALL io_write(1,odir,'Kyi',ext,planio,Rj2)
+               CALL io_write(1,odir,'Kzi',ext,planio,Rj3)
             END IF
 #endif
 #ifdef PIC_
-            IF (MODULO(tind,picdiv).eq.0) THEN
+            IF (MODULO(tind,picdiv).eq.1) THEN
        CALL picpart%io_write_pdb (1,odir,'xpic',ext,(t-1)*dt)
 !               CALL picpart%io_write_wgt (1,odir,'weights',ext,(t-1)*dt)
 #ifdef CPIC_
@@ -2735,7 +2771,7 @@
        CALL io_write(1,odir,'by',ext,planio,R2)
        CALL io_write(1,odir,'bz',ext,planio,R3)
     ENDIF
-    IF (outs.eq.2) THEN
+    IF (outs.ge.2) THEN
        CALL laplak3(C1,C4)
        CALL laplak3(C2,C5)
        CALL laplak3(C3,C6)

@@ -97,6 +97,7 @@
 !
       USE fprecision
       USE commtypes
+      USE fft
       USE grid
       USE mpivars
 !$    USE threads
@@ -107,11 +108,13 @@
       REAL(KIND=GP)   ,INTENT(IN),DIMENSION(ksta:kend,ny,nz) :: ux,uy,uz
       REAL(KIND=GP), INTENT(IN)    :: dt,gamm,beta
       INTEGER      , INTENT(IN)    :: t
-      DOUBLE PRECISION    :: et,etloc,ei,eiloc,em,ek,ekloc
+      COMPLEX(KIND=GP),DIMENSION(nz,ny,ista:iend) :: c1,c2,c3,c4,c5,c6
+      DOUBLE PRECISION    :: et,etloc,ei,eiloc,em,ek,ekloc,div
       INTEGER             :: i,j,k
       REAL(KIND=GP)       :: rmp,tmp
 
       CALL energy(ax,ay,az,em,0) 
+      
       
       rmp = 1/(real(nx,KIND=GP)*real(ny,KIND=GP)*real(nz,KIND=GP))
       ekloc = 0.0D0
@@ -139,7 +142,7 @@
                etloc = etloc + Tem(k,j,i)*rmp
                ekloc = ekloc + (ux(k,j,i)**2 +uy(k,j,i)**2   &
                                +uz(k,j,i)**2)*rmp
-               eiloc = eiloc + (ni(k,j,i)**gamm)*rmp
+               eiloc = eiloc + (ni(k,j,i)**gamm)*rmp 
             ENDDO
          ENDDO
       ENDDO
@@ -160,7 +163,39 @@
          et = et - ek
          OPEN(1,file='energy.txt',position='append')
          WRITE(1,10) (t-1)*dt,ek,et,em,ei
+         CLOSE(1)
+         et = ek + et + em + ei
+      ENDIF
+
+      CALL fftp3d_real_to_complex(planrc,ux,c1,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,uy,c2,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,uz,c3,MPI_COMM_WORLD)
+
+      CALL maxabs(c1,c2,c3,rmp,0)  ! maximum vorticity
+      CALL maxabs(ax,ay,az,tmp,1)  ! maximum current density
+
+      CALL derivk3(c1,c4,1)
+      CALL derivk3(c2,c5,2)
+      CALL derivk3(c3,c6,3)
+      CALL energy(c4,c5,c6,div,1)  ! <div(u)^2>
+
+      CALL rotor3(c2,c3,c4,1)
+      CALL rotor3(c1,c3,c5,2)
+      CALL rotor3(c1,c2,c6,3)
+      CALL energy(c4,c5,c6,ek,1)   ! <w^2>
+
+      CALL laplak3(ax,c1)
+      CALL laplak3(ay,c2) 
+      CALL laplak3(az,c3) 
+      CALL energy(c1,c2,c3,em,1)   ! <j^2>
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='balance.txt',position='append')
+         WRITE(1,10) (t-1)*dt,et,ek,em,div
    10    FORMAT( E13.6,E22.14,E22.14,E22.14,E22.14 )
+         CLOSE(1)
+         OPEN(1,file='maximum.txt',position='append')
+         WRITE(1,FMT='(E13.6,E13.6,E13.6)') (t-1)*dt,rmp,tmp
          CLOSE(1)
       ENDIF
 
