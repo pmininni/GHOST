@@ -1675,7 +1675,6 @@
             DO k = 1,nz
                kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
 !               C17(k,j,i) = EXP(-5.0_GP*(kn2(k,j,i)/kmax)**2)
-               C17(k,j,i) = 1.0_GP
             END DO
          END DO
       END DO

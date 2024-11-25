@@ -25,13 +25,13 @@
          DO j = 1,ny
          DO k = 1,nz
             IF ((kn2(k,j,i).le.kmax)) THEN
-               C4(k,j,i) = dii*ax(k,j,i) + C4(k,j,i)*C17(k,j,i)
-               C5(k,j,i) = dii*ay(k,j,i) + C5(k,j,i)*C17(k,j,i)
-               C6(k,j,i) = dii*az(k,j,i) + C6(k,j,i)*C17(k,j,i)
+               C4(k,j,i) = dii*ax(k,j,i) + C4(k,j,i)!*C17(k,j,i)
+               C5(k,j,i) = dii*ay(k,j,i) + C5(k,j,i)!*C17(k,j,i)
+               C6(k,j,i) = dii*az(k,j,i) + C6(k,j,i)!*C17(k,j,i)
                ax(k,j,i) = C4(k,j,i)*tmp  ! Store electron current j_e
                ay(k,j,i) = C5(k,j,i)*tmp
                az(k,j,i) = C6(k,j,i)*tmp
-               C7(k,j,i) = C7(k,j,i)*C17(k,j,i)
+               C7(k,j,i) = C7(k,j,i)!*C17(k,j,i)
             ELSE
                C4(k,j,i) = 0.0_GP
                C5(k,j,i) = 0.0_GP
@@ -65,7 +65,7 @@
             DO j = 1,ny
             DO k = 1,nz
                IF ((kn2(k,j,i).le.kmax)) THEN
-                  C11(k,j,i) = C11(k,j,i)*C17(k,j,i)
+                  C11(k,j,i) = C11(k,j,i)!*C17(k,j,i)
                ELSE
                   C11(k,j,i) = 0.0_GP
                ENDIF
@@ -157,9 +157,9 @@
             DO j = 1,ny
             DO k = 1,nz
                IF ((kn2(k,j,i).le.kmax)) THEN
-                  C4(k,j,i)  = dii*C14(k,j,i) + C4(k,j,i)*C17(k,j,i)
-                  C5(k,j,i)  = dii*C15(k,j,i) + C5(k,j,i)*C17(k,j,i)
-                  C6(k,j,i)  = dii*C16(k,j,i) + C6(k,j,i)*C17(k,j,i)
+                  C4(k,j,i)  = dii*C14(k,j,i) + C4(k,j,i)!*C17(k,j,i)
+                  C5(k,j,i)  = dii*C15(k,j,i) + C5(k,j,i)!*C17(k,j,i)
+                  C6(k,j,i)  = dii*C16(k,j,i) + C6(k,j,i)!*C17(k,j,i)
                   C14(k,j,i) = C4(k,j,i)*tmp  ! Store electron current -j_e
                   C15(k,j,i) = C5(k,j,i)*tmp
                   C16(k,j,i) = C6(k,j,i)*tmp
