@@ -42,13 +42,13 @@
 
             DO ki = INT(kdn),INT(kup)
                R1(i,j,k) = R1(i,j,k)+SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
-                          (Lx*real(nx,kind=GP)))*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
-                          (Ly*real(ny,kind=GP)))*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
-                          (Lz*real(nz,kind=GP)))
+                          real(nx,kind=GP))*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
+                          real(ny,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
+                          real(nz,kind=GP))
                R2(i,j,k) = R2(i,j,k)-COS(2*pi*ki*(real(i,kind=GP)-1)/ &
-                          (Lx*real(nx,kind=GP)))*SIN(2*pi*ki*(real(j,kind=GP)-1)/ &
-                          (Ly*real(ny,kind=GP)))*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
-                          (Lz*real(nz,kind=GP)))
+                          real(nx,kind=GP))*SIN(2*pi*ki*(real(j,kind=GP)-1)/ &
+                          real(ny,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
+                          real(nz,kind=GP))
             END DO
 
             END DO
