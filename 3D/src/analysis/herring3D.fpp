@@ -1341,6 +1341,8 @@
       bHPDF  = 1
       bAniso = 1
       jpdf   = 3
+      nbinx  = 100
+      nbiny  = 100
       ktmin  = tiny
       ktmax  = kmax
 

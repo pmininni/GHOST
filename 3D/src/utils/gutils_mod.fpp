@@ -468,6 +468,7 @@ MODULE gutils
       sig = sqrt(sig*xnorm)
 
       del = ABS(fmax-fmin)/dble(nbins)
+      
       ! Compute local PDF:
       IF ( dolog .GT. 0 ) THEN
 !$omp parallel do private (ibin,test)
@@ -485,6 +486,7 @@ MODULE gutils
           test = Rin(ikeep_(i))
           ibin = NINT( ( test - fmin )/del+1 )
           ibin = MIN(MAX(ibin,1),nbins)
+     !  write(*,*) 'dopdfr: ikeep=', ikeep_(i), ' ibin=', ibin, ' test=', test, ' fmin=',fmin, ' del=', del
 !$omp atomic
           fpdf_(ibin) = fpdf_(ibin) + 1.0_GP
         ENDDO
