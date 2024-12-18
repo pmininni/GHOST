@@ -29,7 +29,7 @@
       IF (ista.EQ.1) THEN
         Temp(1,1,1) = T0!*real(nx,KIND=GP)*real(ny,KIND=GP)*real(nz,KIND=GP)
         DO j = 2,ny/2+1
-          IF ((kk2(1,j,1).le.mkup**2).and.(kk2(1,j,1).ge.mkdn**2)) THEN
+          IF ((kk2(1,j,1).le.ktu**2).and.(kk2(1,j,1).ge.ktd**2)) THEN
             dump = 1.0_GP
             phase = 2.0*pi*randu(seed);
             cdump = (cos(phase)+im*sin(phase))*dump
@@ -42,7 +42,7 @@
         END DO
 
         DO k = 1,nz/2+1
-            IF ((kk2(k,1,1).le.mkup**2).and.(kk2(k,1,1).ge.mkdn**2)) THEN
+            IF ((kk2(k,1,1).le.ktu**2).and.(kk2(k,1,1).ge.ktd**2)) THEN
             dump = 1.0_GP
             phase = 2.0*pi*randu(seed);
             cdump = (cos(phase)+im*sin(phase))*dump
@@ -57,7 +57,7 @@
 !$omp parallel do private (k)
         DO j = 2,ny
           DO k = 1,nz/2+1
-            IF ((kk2(k,j,1).le.mkup**2).and.(kk2(k,j,1).ge.mkdn**2)) THEN
+            IF ((kk2(k,j,1).le.ktu**2).and.(kk2(k,j,1).ge.ktd**2)) THEN
             dump = 1.0_GP
             phase = 2.0*pi*randu(seed);
             cdump = (cos(phase)+im*sin(phase))*dump
@@ -74,7 +74,7 @@
 !$omp parallel do if (iend-2.lt.nth) private (k)
           DO j = 1,ny
             DO k = 1,nz
-              IF ((kk2(k,j,i).le.mkup**2).and.(kk2(k,j,i).ge.mkdn**2)) THEN
+              IF ((kk2(k,j,i).le.ktu**2).and.(kk2(k,j,i).ge.ktd**2)) THEN
               dump = 1.0_GP
               phase = 2.0*pi*randu(seed);
               cdump = (cos(phase)+im*sin(phase))*dump
@@ -91,7 +91,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
             DO k = 1,nz
-              IF ((kk2(k,j,i).le.mkup**2).and.(kk2(k,j,i).ge.mkdn**2)) THEN
+              IF ((kk2(k,j,i).le.ktu**2).and.(kk2(k,j,i).ge.ktd**2)) THEN
               dump = 1.0_GP
               phase = 2.0*pi*randu(seed);
               cdump = (cos(phase)+im*sin(phase))*dump
