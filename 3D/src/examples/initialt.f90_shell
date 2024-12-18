@@ -15,7 +15,91 @@
       IF (T0.LT.0) THEN
          PRINT *, 'Mean particle temperature T0 must be positive'
       END IF
-   
-      IF (myrank.EQ.0) THEN
-         Temp(1,1,1) = T0!*real(nx,KIND=GP)*real(ny,KIND=GP)*real(nz,KIND=GP)
-      END IF
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               Temp(k,j,i) = 0.0_GP
+            END DO
+         END DO
+      END DO
+
+      IF (ista.EQ.1) THEN
+        Temp(1,1,1) = T0!*real(nx,KIND=GP)*real(ny,KIND=GP)*real(nz,KIND=GP)
+        DO j = 2,ny/2+1
+          IF ((kk2(1,j,1).le.mkup**2).and.(kk2(1,j,1).ge.mkdn**2)) THEN
+            dump = 1.0_GP
+            phase = 2.0*pi*randu(seed);
+            cdump = (cos(phase)+im*sin(phase))*dump
+            Temp(1,j,1) = delT*cdump
+            Temp(1,ny-j+2,1) = conjg(Temp(1,j,1))
+            ELSE
+            Temp(1,j,1) = delT*cdump
+            Temp(1,ny-j+2,1) = conjg(Temp(1,j,1))
+          END IF
+        END DO
+
+        DO k = 1,nz/2+1
+            IF ((kk2(k,1,1).le.mkup**2).and.(kk2(k,1,1).ge.mkdn**2)) THEN
+            dump = 1.0_GP
+            phase = 2.0*pi*randu(seed);
+            cdump = (cos(phase)+im*sin(phase))*dump
+            Temp(k,1,1) = delT*cdump
+            Temp(nz-k+2,1,1) = conj(Temp(nz-k+2,1,1))
+            ELSE
+            Temp(k,1,1) = 0.0_GP
+            Temp(nz-k+2,1,1) = 0.0_GP
+            END IF
+        END DO
+
+!$omp parallel do private (k)
+        DO j = 2,ny
+          DO k = 1,nz/2+1
+            IF ((kk2(k,j,1).le.mkup**2).and.(kk2(k,j,1).ge.mkdn**2)) THEN
+            dump = 1.0_GP
+            phase = 2.0*pi*randu(seed);
+            cdump = (cos(phase)+im*sin(phase))*dump
+            Temp(k,j,1) = deltT*cdump
+            Temp(nz-k+2,ny-j+2,1) = conjg(Temp(k,j,1))
+            ELSE
+            Temp(k,j,1) = 0.0_GP
+            Temp(nz-k+2,ny-j+2,1) = 0.0_GP 
+            END IF
+          END DO
+        END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k)
+        DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              IF ((kk2(k,j,i).le.mkup**2).and.(kk2(k,j,i).ge.mkdn**2)) THEN
+              dump = 1.0_GP
+              phase = 2.0*pi*randu(seed);
+              cdump = (cos(phase)+im*sin(phase))*dump
+              Temp(k,j,i) = deltT*cdump
+              ELSE
+              Temp(k,j,i) = 0.0_GP
+              ENDIF
+            END DO
+          END DO
+        END DO
+      ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              IF ((kk2(k,j,i).le.mkup**2).and.(kk2(k,j,i).ge.mkdn**2)) THEN
+              dump = 1.0_GP
+              phase = 2.0*pi*randu(seed);
+              cdump = (cos(phase)+im*sin(phase))*dump
+              Temp(k,j,i) = deltT*cdump
+              ELSE
+              Temp(k,j,i) = 0.0_GP
+              ENDIF
+            END DO
+          END DO
+        END DO
+      ENDIF
