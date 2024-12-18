@@ -1433,7 +1433,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-  SUBROUTINE VGPIC_GetMoment(this,field,ord,dir)
+  SUBROUTINE VGPIC_GetMoment(this,field,ox,oy,oz)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : GetMoment
@@ -1443,8 +1443,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 !    this     : 'this' class instance
 !    field    : Eulerian field containing particle moment
 !               density (OUT)
-!    ord      : Order of the moment to calculate
-!    dir      : Chosen velocity component (0->x, 1->y, 2->z)
+!    ox,oy,oz : Order of the moment to calculate in each component
 !-----------------------------------------------------------------
     USE grid
     USE mpivars
@@ -1452,25 +1451,14 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     IMPLICIT NONE
     CLASS(VGPIC) ,INTENT(INOUT)                            :: this
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: field
-    INTEGER      ,INTENT(IN)                               :: ord,dir
+    INTEGER      ,INTENT(IN)                               :: ox,oy,oz
     INTEGER                                                :: lag
 
-    IF (dir.EQ.0) THEN
-! x-coord
-      DO lag=1,this%nparts_
-        this%prop_(lag) = this%weight_(lag)*this%pvx_(lag)**ord
-      END DO
-    ELSE IF (dir.EQ.1) THEN
-! y-coord
-      DO lag=1,this%nparts_
-        this%prop_(lag) = this%weight_(lag)*this%pvy_(lag)**ord
-      END DO
-    ELSE IF (dir.EQ.2) THEN
-! z-coord
-      DO lag=1,this%nparts_
-        this%prop_(lag) = this%weight_(lag)*this%pvz_(lag)**ord
-      END DO
-    END IF
+    DO lag=1,this%nparts_
+      this%prop_(lag) = this%weight_(lag)*this%pvx_(lag)**ox &
+                                         *this%pvy_(lag)**oy &
+                                         *this%pvz_(lag)**oz
+    END DO
 
     CALL GPIC_LagToEuler(this,this%prop_,this%nparts_,field,.false.)
 
@@ -1988,6 +1976,8 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
 !    ux,uy,uz: mean particle velocity field
 !    T       : particle temperature field
 !-----------------------------------------------------------------
+    USE random
+    USE var
     USE mpivars
     USE grid
 
@@ -1997,11 +1987,11 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     REAL(KIND=GP)                            :: gauss,vr,vth,w
     REAL(KIND=GP)                            :: del,delx,dely,delz
     DOUBLE PRECISION                         :: vmx,vmy,vmz
-    INTEGER                                  :: ppc,pps,ib,lag
+    INTEGER                                  :: ppc,pps,ib,lag,rppc
     INTEGER                                  :: i,j,k,ii,jj,kk
     INTEGER                                  :: ppx,ppy,ppz,d
 
-    d = 3 ! Dimension of the system
+    d = 3  ! Dimension of the system
     IF (nx.EQ.1) d = d - 1
     IF (ny.EQ.1) d = d - 1
     IF (nz.EQ.1) d = d - 1
@@ -2013,18 +2003,10 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     END IF
 
     ppc = this%maxparts_/(nx*ny*nz)
-    IF (d.EQ.1) THEN
-      pps = ppc
-    ELSE
-      pps = ppc**(1.0/d)
-      IF (pps**d .NE. ppc) THEN
-        IF ( this%myrank_.eq.0 ) THEN
-          WRITE(*,*) 'GPIC_InitFromFields: Number of particles per cell &
-                           must be perfect square (2D) or cube (3D)'
-          STOP
-        ENDIF
-      END IF
-    END IF
+
+    pps = ppc**(1.0/d)
+    rppc = pps**d    ! Round to closest perfect d-power (trivial for d=1)
+
     this%nparts_ = nx*ny*(kend - ksta + 1)*ppc
     IF (this%nparts_.GT.this%partbuff_) THEN
       this%partbuff_ = this%partbuff_+(1+(this%nparts_-this%partbuff_) &
@@ -2049,8 +2031,13 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
       ppy  = pps
       dely = del
     END IF
-    ppz  = pps
-    delz = del
+    IF (nz.EQ.1) THEN
+      ppz  = 1
+      delz = 1.0_GP
+    ELSE
+      ppz  = pps
+      delz = del
+    END IF
 
     DO i = 1,nx
       DO j = 1,ny
@@ -2060,6 +2047,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
           vmz = 0.0D0
           vth = SQRT(T(i,j,k))
           w   = n(i,j,k)*this%icv_
+          PRINT *, this%myrank_, i, j, k, vth, w
           DO ii = 1,ppx
             DO jj = 1,ppy
               DO kk = 1,ppz
@@ -2084,19 +2072,38 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
               END DO
             END DO
           END DO
+          DO ii = rppc+1,ppc
+            this%id_(lag) = lag + ib
+            CALL prandom_number(this%px_(lag))
+            CALL prandom_number(this%py_(lag))
+            CALL prandom_number(this%pz_(lag))
+            this%px_(lag) = this%px_(lag) + (i-1.00_GP)
+            this%py_(lag) = this%py_(lag) + (j-1.00_GP)
+            this%pz_(lag) = this%pz_(lag) + (k-1.00_GP)
+            this%weight_(lag) = w
+            CALL random_gaussian(gauss)
+            vr = gauss*vth
+            this%pvx_(lag) = vr
+            vmx = vmx + vr
+            CALL random_gaussian(gauss)
+            vr = gauss*vth
+            this%pvy_(lag) = vr
+            vmy = vmy + vr
+            CALL random_gaussian(gauss)
+            vr = gauss*vth
+            this%pvz_(lag) = vr
+            vmz = vmz + vr
+            lag = lag + 1
+          END DO
           vmx = vmx/ppc - ux(i,j,k)
           vmy = vmy/ppc - uy(i,j,k)
           vmz = vmz/ppc - uz(i,j,k)
           lag = lag - ppc
-          DO ii = 1,ppx
-            DO jj = 1,ppy
-              DO kk = 1,ppz
-                this%pvx_(lag) = this%pvx_(lag) - vmx
-                this%pvy_(lag) = this%pvy_(lag) - vmy
-                this%pvz_(lag) = this%pvz_(lag) - vmz
-                lag = lag + 1
-              END DO
-            END DO
+          DO ii = 1,ppc
+            this%pvx_(lag) = this%pvx_(lag) - vmx
+            this%pvy_(lag) = this%pvy_(lag) - vmy
+            this%pvz_(lag) = this%pvz_(lag) - vmz
+            lag = lag + 1
           END DO
         END DO
       END DO

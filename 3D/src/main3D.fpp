@@ -2714,31 +2714,37 @@
                   CALL picpart%GetTemperature(R1)
                   CALL io_write(1,odir,'Ti',ext,planio,R1)
                ELSE
-                  CALL picpart%GetMoment(Re1,2,0)
-                  CALL picpart%GetMoment(Re2,2,1)
-                  CALL picpart%GetMoment(Re3,2,2)
-                  CALL io_write(1,odir,'Txi',ext,planio,Re1)
-                  CALL io_write(1,odir,'Tyi',ext,planio,Re2)
-                  CALL io_write(1,odir,'Tzi',ext,planio,Re3)
+                  CALL picpart%GetMoment(Re1,2,0,0)
+                  CALL picpart%GetMoment(Re2,0,2,0)
+                  CALL picpart%GetMoment(Re3,0,0,2)
+                  CALL picpart%GetMoment(Rj1,1,1,0)
+                  CALL picpart%GetMoment(Rj2,0,1,1)
+                  CALL picpart%GetMoment(Rj3,1,0,1)
+                  CALL io_write(1,odir,'Pxx',ext,planio,Re1)
+                  CALL io_write(1,odir,'Pyy',ext,planio,Re2)
+                  CALL io_write(1,odir,'Pzz',ext,planio,Re3)
+                  CALL io_write(1,odir,'Pxy',ext,planio,Rj1)
+                  CALL io_write(1,odir,'Pyz',ext,planio,Rj2)
+                  CALL io_write(1,odir,'Pxz',ext,planio,Rj3)
                END IF
             END IF
             IF (outs.ge.3) THEN   
-               CALL picpart%GetMoment(Re1,3,0)
-               CALL picpart%GetMoment(Re2,3,1)
-               CALL picpart%GetMoment(Re3,3,2)
-               CALL picpart%GetMoment(Rj1,4,0)
-               CALL picpart%GetMoment(Rj2,4,1)
-               CALL picpart%GetMoment(Rj3,4,2)
-               CALL io_write(1,odir,'Sxi',ext,planio,Re1)
-               CALL io_write(1,odir,'Syi',ext,planio,Re2)
-               CALL io_write(1,odir,'Szi',ext,planio,Re3)
-               CALL io_write(1,odir,'Kxi',ext,planio,Rj1)
-               CALL io_write(1,odir,'Kyi',ext,planio,Rj2)
-               CALL io_write(1,odir,'Kzi',ext,planio,Rj3)
+               CALL picpart%GetMoment(Re1,3,0,0)
+               CALL picpart%GetMoment(Re2,0,3,0)
+               CALL picpart%GetMoment(Re3,0,0,3)
+               CALL picpart%GetMoment(Rj1,4,0,0)
+               CALL picpart%GetMoment(Rj2,0,4,0)
+               CALL picpart%GetMoment(Rj3,0,0,4)
+               CALL io_write(1,odir,'Six',ext,planio,Re1)
+               CALL io_write(1,odir,'Siy',ext,planio,Re2)
+               CALL io_write(1,odir,'Siz',ext,planio,Re3)
+               CALL io_write(1,odir,'Kix',ext,planio,Rj1)
+               CALL io_write(1,odir,'Kiy',ext,planio,Rj2)
+               CALL io_write(1,odir,'Kiz',ext,planio,Rj3)
             END IF
 #endif
 #ifdef PIC_
-            IF (MODULO(tind,picdiv).eq.1) THEN
+            IF ((MODULO(tind,picdiv).eq.1).OR.(picdiv.eq.1)) THEN
        CALL picpart%io_write_pdb (1,odir,'xpic',ext,(t-1)*dt)
 !               CALL picpart%io_write_wgt (1,odir,'weights',ext,(t-1)*dt)
 #ifdef CPIC_
