@@ -47,7 +47,7 @@
             phase = 2.0*pi*randu(seed);
             cdump = (cos(phase)+im*sin(phase))*dump
             Temp(k,1,1) = delT*cdump
-            Temp(nz-k+2,1,1) = conj(Temp(nz-k+2,1,1))
+            Temp(nz-k+2,1,1) = conjg(Temp(nz-k+2,1,1))
             ELSE
             Temp(k,1,1) = 0.0_GP
             Temp(nz-k+2,1,1) = 0.0_GP
@@ -61,7 +61,7 @@
             dump = 1.0_GP
             phase = 2.0*pi*randu(seed);
             cdump = (cos(phase)+im*sin(phase))*dump
-            Temp(k,j,1) = deltT*cdump
+            Temp(k,j,1) = delT*cdump
             Temp(nz-k+2,ny-j+2,1) = conjg(Temp(k,j,1))
             ELSE
             Temp(k,j,1) = 0.0_GP
@@ -78,7 +78,7 @@
               dump = 1.0_GP
               phase = 2.0*pi*randu(seed);
               cdump = (cos(phase)+im*sin(phase))*dump
-              Temp(k,j,i) = deltT*cdump
+              Temp(k,j,i) = delT*cdump
               ELSE
               Temp(k,j,i) = 0.0_GP
               ENDIF
@@ -95,7 +95,7 @@
               dump = 1.0_GP
               phase = 2.0*pi*randu(seed);
               cdump = (cos(phase)+im*sin(phase))*dump
-              Temp(k,j,i) = deltT*cdump
+              Temp(k,j,i) = delT*cdump
               ELSE
               Temp(k,j,i) = 0.0_GP
               ENDIF
