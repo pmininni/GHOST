@@ -15,7 +15,8 @@
 ! the sides of the domain. The penalty function is stored in
 ! real space in the array chi of size (1:nx,1:ny,ksta:kend).
 ! It is assumed that this file is used together with null
-! forcing.
+! forcing. Make sure that the initial conditions here are
+! compatible with the contents of include/hdpnlt_rkstep2.f90.
 !     x0     : x coordinate of the center of the obstacle (in units of Lx)
 !     y0     : y coordinate of the center of the obstacle (in units of Lx)
 !     z0     : z coordinate of the center of the obstacle (in units of Lz)
@@ -32,13 +33,13 @@
 	    vparam3 = sqrt((2*pi*Lx*(i-nx*x0)/nx)**2 + (2*pi*Ly*(j-ny*y0)/ny)**2 + (2*pi*Lz*(k-nz*z0)/nz)**2)
 	    chi(i,j,k) = (0.5)*(1 + tanh(75.0*(1-(vparam3/radius))))
 	    ! Creates a grid
-	    IF ((i == 1 .OR. i == 2) .AND. &
-    		(((j >= (ny/6-ny/50) .AND. j <= (ny/6+ny/50)) .OR. (j >= (ny/2-ny/50) .AND. j <= (ny/2+ny/50)) &
-		.OR. (j >= (5*ny/6-ny/50) .AND. j <= (5*ny/6+ny/50)) .OR. &
-    		((k >= (nz/6-nz/50) .AND. k <= (nz/6+nz/50))) .OR. (k >= (nz/2-nz/50) .AND. k <= (nz/2+nz/50)) &
-		.OR. (k >= (5*ny/6-ny/50) .AND. k <= (5*ny/6+ny/50))))) THEN
-		chi(i,j,k) = 1.0_GP
-	    ENDIF
+	    !IF ((i == 1 .OR. i == 2) .AND. &
+    	    ! 	(((j >= (ny/6-ny/50) .AND. j <= (ny/6+ny/50)) .OR. (j >= (ny/2-ny/50) .AND. j <= (ny/2+ny/50)) &
+	    !	.OR. (j >= (5*ny/6-ny/50) .AND. j <= (5*ny/6+ny/50)) .OR. &
+    	    !	((k >= (nz/6-nz/50) .AND. k <= (nz/6+nz/50))) .OR. (k >= (nz/2-nz/50) .AND. k <= (nz/2+nz/50)) &
+	    !	.OR. (k >= (5*ny/6-ny/50) .AND. k <= (5*ny/6+ny/50))))) THEN
+	    !	chi(i,j,k) = 1.0_GP
+	    !ENDIF
             END DO
          END DO
       END DO

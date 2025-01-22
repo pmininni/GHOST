@@ -343,7 +343,7 @@
       INTEGER :: corr
 #endif
 #ifdef PENALTY_
-      INTEGER      :: shape
+      INTEGER      :: shape, ischi
       REAL(KIND=GP):: inveta, x0, y0, z0, radius
 #endif
 #ifdef WAVEFUNCTION_
@@ -1037,6 +1037,7 @@
 !     radius: radius of the obstacle
 
       inveta = 1000.0_GP
+      ischi  = 0 ! The penalty function must be computed after a restart
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=penalty)
