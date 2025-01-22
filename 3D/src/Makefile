@@ -170,6 +170,7 @@ MPBOUSS_OBJS   = $(BOUSS_OBJS)
 ROTBOUSS_OBJS  = $(BOUSS_OBJS)
 ROTBOUMHDB_OBJS= $(BOUSS_OBJS) pseudospec3D_mhd.o
 MPROTBOUSS_OBJS= $(MPROTH_OBJS) pseudospec3D_bouss.o
+MOIST_OBJS     = $(BOUSS_OBJS)
 HDPNLT_OBJS    = $(HD_OBJS)
 GPE_OBJS       = $(PHD_OBJS) pseudospec3D_mhd.o pseudospec3D_gpe.o
 ARGL_OBJS      = $(GPE_OBJS) pseudospec3D_newt.o
@@ -273,10 +274,11 @@ clean:  undo
 
 dist:
 	rm -f $(BIN)/*HD* $(BIN)/*MHD* $(BIN)/*ROT* $(BIN)/*BOUSS* \
-              $(BIN)/*GPE* $(BIN)/*ARGL* $(BIN)/boots $(BIN)/trunc \
-              $(BIN)/vt $(BIN)/shear $(BIN)/wv $(BIN)/wt $(BIN)/README_* \
+              $(BIN)/*MOIST* $(BIN)/*GPE* $(BIN)/*ARGL* $(BIN)/boots \
+              $(BIN)/trunc $(BIN)/vt $(BIN)/shear $(BIN)/wv $(BIN)/wt \
+              $(BIN)/README_* \
               *HD* *MHD* *ROT* *BOUSS* \
-              *GPE* *ARGL* boots trunc vt shear wv
+              *MOIST* *GPE* *ARGL* boots trunc vt shear wv
 	$(MAKE) clean
 
 edit:

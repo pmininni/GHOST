@@ -43,6 +43,7 @@ to build a solver other than the default):
    ROTBOUSS   BOUSS solver in a rotating frame
    ROTBOUMHDB BOUSS and MHD solver with rotation and B_0
    MPROTBOUSS BOUSS solver in a rotating frame with multi-scalar
+   MOIST_SOL  MOIST Boussinesq solver
    HDPNLT     HD solver with the penalty method
    GPE        Gross-Pitaevskii Equation (GPE) solver
    ARGL       Advective Real Ginzburg Landau solver

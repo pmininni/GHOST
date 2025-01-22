@@ -38,6 +38,7 @@
 !           ROTBOUSS_SOL   builds the BOUSS solver in a rotating frame
 !           ROTBOUMHDB_SOL builds BOUSS and MHD with rotation and B_0
 !           MPROTBOUSS_SOL builds the BOUSS eq, rotating, multi-scalar
+!           MOIST_SOL      builds the MOIST Boussinesq solver
 !           HDPNLT_SOL     builds the HD solver with the penalty method
 !           GPE_SOL        builds the Gross-Pitaevskii Equation solver
 !           ARGL_SOL       builds the Advective Real Ginzburg Landau

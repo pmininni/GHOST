@@ -202,6 +202,15 @@
 #define INCLUDEFNAME_ 'mprotbouss_
 #endif
 
+#ifdef MOIST_SOL
+#define DNS_
+#define VELOC_
+#define SCALAR_
+#define BOUSSINESQ_
+#define MULTISCALAR_
+#define INCLUDEFNAME_ 'moist_
+#endif 
+
 #ifdef HDPNLT_SOL
 #define DNS_
 #define VELOC_
