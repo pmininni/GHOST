@@ -48,13 +48,12 @@
             CALL derivk3(C7,C16,3)     ! grad(P_e)
             CALL divide(C7,C14,C15,C16)
          ELSE
-            tmp = 1./(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,i)
             DO k = ksta,kend
 !$omp parallel do if (iend-ista.lt.nth) private (i)
             DO j = 1,ny
             DO i = 1,nx
-               R2(i,j,k) = (R1(i,j,k)*tmp)**gam1
+               R2(i,j,k) = R1(i,j,k)**gam1
             END DO
             END DO
             END DO
