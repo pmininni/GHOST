@@ -42,7 +42,7 @@ MODULE class_GPICSplineInt
         REAL(KIND=GP),ALLOCATABLE,DIMENSION  (:,:)   :: esplfld2_
         REAL(KIND=GP),ALLOCATABLE,DIMENSION    (:)   :: xrk_,yrk_,zrk_
         REAL(KIND=GP)                                :: dxi_(3),xbnds_(3,2)
-        TYPE(GFieldComm),POINTER                     :: gfcomm_
+        TYPE(GPartComm),POINTER                      :: gfcomm_
         INTEGER      ,ALLOCATABLE,DIMENSION  (:,:)   :: ilg_,jlg_,klg_
         INTEGER                                      :: maxint_,splord_
         INTEGER                                      :: ierr_,ider_(3),nd_(3)
@@ -101,7 +101,7 @@ MODULE class_GPICSplineInt
 !-----------------------------------------------------------------
     IMPLICIT NONE
     CLASS(GPICSplineInt)                         :: this
-    TYPE(GFieldComm),TARGET                      :: gfcomm
+    TYPE(GPartComm),TARGET                       :: gfcomm
     INTEGER        ,INTENT(IN)                   :: hdataex,htransp,maxpart,nzghost,rank,splord
     INTEGER        ,INTENT(IN),DIMENSION(rank)   :: nd
     INTEGER        ,INTENT(IN),DIMENSION(rank,2) :: ibnds,obnds

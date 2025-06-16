@@ -65,15 +65,16 @@
 
 !    CALL this%intop_%GPSplineInt_dtor()
     this%intorder_ = intorder
-    CALL this%gfcomm_%GPartComm_ctor(GPCOMM_INTRFC_SF,this%partbuff_,    &
-         this%nd_,this%intorder_/2+1,this%comm_,this%htimers_(GPTIME_COMM))
-    CALL this%gfcomm_%SetCacheParam(csize,nstrip)
-    CALL this%gfcomm_%Init()
-    CALL this%gfcomm_%GFieldComm_ctor()
+!    CALL this%gpcomm_%GPartComm_ctor(GPCOMM_INTRFC_SF,this%partbuff_,    &
+!         this%nd_,this%intorder_/2+1,this%comm_,this%htimers_(GPTIME_COMM))
+!    CALL this%gpcomm_%SetCacheParam(csize,nstrip)
+!    CALL this%gpcomm_%Init()
+!    CALL this%gpcomm_%GFieldComm_ctor()
+    CALL this%gpcomm_%AllocRetArrays()
 
     CALL this%picspl_%GPICSplineInt_ctor(3,this%nd_,this%libnds_,this%lxbnds_, &
          this%tibnds_,this%intorder_,this%intorder_/2+1,this%partbuff_,        &
-         this%gfcomm_,this%htimers_(GPTIME_DATAEX),this%htimers_(GPTIME_TRANSP))
+         this%gpcomm_,this%htimers_(GPTIME_DATAEX),this%htimers_(GPTIME_TRANSP))
 
     ALLOCATE ( this%prop_  (this%partbuff_) )
     ALLOCATE ( this%weight_(this%partbuff_) )
@@ -185,7 +186,7 @@
     ENDIF
 
     IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
-      CALL this%gfcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     END IF
 
@@ -245,9 +246,9 @@
     END DO
     
 
-    CALL this%gfcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+    CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-    CALL this%gfcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+    CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
                            this%nparts_,this%vdb_,this%maxparts_)
@@ -314,9 +315,9 @@
       END DO
     END DO
 
-    CALL this%gfcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+    CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-    CALL this%gfcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+    CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
                            this%nparts_,this%vdb_,this%maxparts_)
@@ -430,12 +431,12 @@
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
       IF (this%nprocs_.GT.1) THEN
         CALL GTStart(this%htimers_(GPTIME_COMM))
-        CALL this%gfcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_,  &
+        CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_,  &
              this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_INIT)
-        CALL this%gfcomm_%PartExchangeV(this%id_,this%ptmp0_(1,:),            &
+        CALL this%gpcomm_%PartExchangeV(this%id_,this%ptmp0_(1,:),            &
              this%ptmp0_(2,:),this%ptmp0_(3,:),this%nparts_,this%lxbnds_(3,1),&
              this%lxbnds_(3,2),GPEXCH_UPDT)
-        CALL this%gfcomm_%PartExchangeV(this%id_,this%weight_,this%prop_, &
+        CALL this%gpcomm_%PartExchangeV(this%id_,this%weight_,this%prop_, &
              this%prop_,this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), &
              GPEXCH_END)
         CALL GTAcc(this%htimers_(GPTIME_COMM))
@@ -458,9 +459,9 @@
       ENDIF
       ! Synch up VDB, if necessary:
       CALL GTStart(this%htimers_(GPTIME_COMM))
-      CALL this%gfcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                      this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-      CALL this%gfcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                      this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
                      this%nparts_,this%ptmp1_)
       CALL GTAcc(this%htimers_(GPTIME_COMM))
@@ -472,7 +473,7 @@
                        this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
                        this%nparts_,this%vdb_,this%gptmp0_,this%maxparts_)
 
-      CALL this%gfcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+      CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
                           this%weight_,this%weight_,this%weight_,this%nparts_,this%ptmp1_)
       CALL GPIC_CopyLocalWrkScalar(this,this%weight_,this%vdb_,this%ptmp0_(1,:),this%maxparts_)
 
@@ -753,15 +754,15 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     CHARACTER(len=*),INTENT(IN)       :: nmb
     CHARACTER(len=*),INTENT(IN)       :: spref
 
-!    CALL this%gfcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+!    CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
 !         this%weight_,this%weight_,this%weight_,this%nparts_,this%ptmp1_)
     ! If doing non-collective binary or ascii writes, synch up vector:
     IF ((this%iouttype_.EQ.0 .AND. this%bcollective_.EQ.0).OR.this%iouttype_.EQ.1 ) THEN
       IF (this%iexchtype_.EQ.GPEXCHTYPE_NN) THEN
-        CALL this%gfcomm_%LagSynch_t0(this%ptmp0_(1,:),this%maxparts_,this%id_, &
+        CALL this%gpcomm_%LagSynch_t0(this%ptmp0_(1,:),this%maxparts_,this%id_, &
                                       this%weight_,this%nparts_)
       ELSE IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
-        CALL this%gfcomm_%LagSynch(this%ptmp0_(1,:),this%maxparts_,this%id_,    &
+        CALL this%gpcomm_%LagSynch(this%ptmp0_(1,:),this%maxparts_,this%id_,    &
                                    this%weight_,this%nparts_,this%ptmp1_(1,:))
       END IF
     ENDIF
@@ -1235,7 +1236,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     ENDIF
 
     IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
-      CALL this%gfcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
     END IF
 
@@ -1276,16 +1277,16 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     CHARACTER(len=*),INTENT(IN)       :: nmb
     CHARACTER(len=*),INTENT(IN)       :: spref
 
-!    CALL this%gfcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+!    CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
 !         this%pvx_,this%pvy_,this%pvz_,this%nparts_,this%ptmp1_)
 
     ! If doing non-collective binary or ascii writes, synch up vector:
     IF ((this%iouttype_.EQ.0 .AND.this%bcollective_.EQ.0).OR.this%iouttype_.EQ.1 ) THEN
       IF (this%iexchtype_.EQ.GPEXCHTYPE_NN) THEN
-        CALL this%gfcomm_%VDBSynch_t0(this%ptmp0_,this%maxparts_,this%id_, &
+        CALL this%gpcomm_%VDBSynch_t0(this%ptmp0_,this%maxparts_,this%id_, &
                                       this%pvx_,this%pvy_,this%pvz_,this%nparts_)
       ELSE IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
-        CALL this%gfcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_,     &
+        CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_,     &
                                    this%pvx_,this%pvy_,this%pvz_,this%nparts_,this%ptmp1_)
       END IF
     ENDIF
@@ -1649,73 +1650,52 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: Bx,By,Bz
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: Ex,Ey,Ez
     REAL(KIND=GP),INTENT   (IN)                            :: dt
-    REAL(KIND=GP)                                          :: dtv,dtvx,dtvy,dtvz
+    REAL(KIND=GP)                                          :: dtv,dtx,dty,dtz
     REAL(KIND=GP)                                          :: fact,inprod,b2
     REAL(KIND=GP)                                          :: c1,c2,c3
     REAL(KIND=GP), ALLOCATABLE, DIMENSION              (:) :: lid,gid
 
-    dtv  = dt*0.50_GP
-    dtvx = dtv*this%invdel_(1)
-    dtvy = dtv*this%invdel_(2)
-    dtvz = dtv*this%invdel_(3)
+    dtv = dt*0.50_GP/real(o,kind=GP)
+    dtx = dtv*this%invdel_(1)
+    dty = dtv*this%invdel_(2)
+    dtz = dtv*this%invdel_(3)
     CALL GTStart(this%htimers_(GPTIME_STEP))
 
-    ! Find F(u*):
+    ! Find E and B:
     CALL GPIC_EulerToLag(this,this%lfx_,this%nparts_,Ex,.true. )
     CALL GPIC_EulerToLag(this,this%lfy_,this%nparts_,Ey,.false.)
     CALL GPIC_EulerToLag(this,this%lfz_,this%nparts_,Ez,.false.)
     CALL GPIC_EulerToLag(this,this%lbx_,this%nparts_,Bx,.false.)
     CALL GPIC_EulerToLag(this,this%lby_,this%nparts_,By,.false.)
     CALL GPIC_EulerToLag(this,this%lbz_,this%nparts_,Bz,.false.)
-    IF (o.EQ.2) THEN
-!$omp parallel do if(this%nparts_.ge.NMIN_OMP)
-       DO j = 1, this%nparts_
-          this%px_ (j) = this%px_(j) + dtvx*this%pvx_(j)
-          this%py_ (j) = this%py_(j) + dtvy*this%pvy_(j)
-          this%pz_ (j) = this%pz_(j) + dtvz*this%pvz_(j)
-       ENDDO
-    ENDIF
 !$omp parallel do if(this%nparts_.ge.NMIN_OMP)
     DO j = 1, this%nparts_
        this%lbx_(j) = dtv*this%lbx_(j)
        this%lby_(j) = dtv*this%lby_(j)
        this%lbz_(j) = dtv*this%lbz_(j)
 
-       this%pvx_(j) = this%ttmp0_(1,j) + dt*this%lfx_(j) + &
-                      this%ttmp0_(2,j)*this%lbz_(j)-this%ttmp0_(3,j)*this%lby_(j)
-       this%pvy_(j) = this%ttmp0_(2,j) + dt*this%lfy_(j) + &
-                      this%ttmp0_(3,j)*this%lbx_(j)-this%ttmp0_(1,j)*this%lbz_(j)
-       this%pvz_(j) = this%ttmp0_(3,j) + dt*this%lfz_(j) + &
-                      this%ttmp0_(1,j)*this%lby_(j)-this%ttmp0_(2,j)*this%lbx_(j)
+       this%pvx_(j) = this%ttmp0_(1,j) + dtv*this%lfx_(j)
+       this%pvy_(j) = this%ttmp0_(2,j) + dtv*this%lfy_(j)
+       this%pvz_(j) = this%ttmp0_(3,j) + dtv*this%lfz_(j)
 
        b2     = this%lbx_(j)*this%lbx_(j)+this%lby_(j)*this%lby_(j)+this%lbz_(j)*this%lbz_(j)
-       fact   = 1.0_GP/(1.0_GP + b2)
+       fact   = 2.0_GP/(1.0_GP + b2)
        inprod = this%pvx_(j)*this%lbx_(j)+this%pvy_(j)*this%lby_(j)+this%pvz_(j)*this%lbz_(j)
-       c1 = this%pvy_(j)*this%lbz_(j)-this%pvz_(j)*this%lby_(j)
-       c2 = this%pvz_(j)*this%lbx_(j)-this%pvx_(j)*this%lbz_(j)
-       c3 = this%pvx_(j)*this%lby_(j)-this%pvy_(j)*this%lbx_(j)
+       c1 = this%pvy_(j)*this%lbz_(j) - this%pvz_(j)*this%lby_(j)  !(vxb)_x
+       c2 = this%pvz_(j)*this%lbx_(j) - this%pvx_(j)*this%lbz_(j)  !(vxb)_y
+       c3 = this%pvx_(j)*this%lby_(j) - this%pvy_(j)*this%lbx_(j)  !(vxb)_z
        this%pvx_(j) = this%pvx_(j) + fact*(inprod*this%lbx_(j) - this%pvx_(j)*b2 + c1)
        this%pvy_(j) = this%pvy_(j) + fact*(inprod*this%lby_(j) - this%pvy_(j)*b2 + c2)
        this%pvz_(j) = this%pvz_(j) + fact*(inprod*this%lbz_(j) - this%pvz_(j)*b2 + c3)
+
+       this%pvx_(j) = this%pvx_(j) + dtv*this%lfx_(j)
+       this%pvy_(j) = this%pvy_(j) + dtv*this%lfy_(j)
+       this%pvz_(j) = this%pvz_(j) + dtv*this%lfz_(j)
+
+       this%px_(j) = this%ptmp0_(1,j) + dtx*(this%pvx_(j) + this%ttmp0_(1,j))
+       this%py_(j) = this%ptmp0_(2,j) + dty*(this%pvy_(j) + this%ttmp0_(2,j))
+       this%pz_(j) = this%ptmp0_(3,j) + dtz*(this%pvz_(j) + this%ttmp0_(3,j))
     ENDDO
-    IF (o.EQ.1) THEN
-!$omp parallel do if(this%nparts_.ge.NMIN_OMP)
-       DO j = 1, this%nparts_
-          this%px_ (j) = this%px_(j) + dtvx*this%pvx_(j)
-          this%py_ (j) = this%py_(j) + dtvy*this%pvy_(j)
-          this%pz_ (j) = this%pz_(j) + dtvz*this%pvz_(j)
-       ENDDO
-    ELSE IF (o.EQ.2) THEN
-!$omp parallel do if(this%nparts_.ge.NMIN_OMP)
-       DO j = 1, this%nparts_
-          this%pvx_(j) = (this%pvx_(j) + this%ttmp0_(1,j))*0.50_GP
-          this%pvy_(j) = (this%pvy_(j) + this%ttmp0_(2,j))*0.50_GP
-          this%pvz_(j) = (this%pvz_(j) + this%ttmp0_(3,j))*0.50_GP
-       ENDDO
-    ENDIF
- 
-    ! Enforce periodicity in x-y only:
-!    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3)
 
     CALL GTAcc(this%htimers_(GPTIME_STEP))
 
@@ -1866,7 +1846,7 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
       IF (this%nprocs_.GT.1) THEN
         CALL GTStart(this%htimers_(GPTIME_COMM))
-        CALL this%gfcomm_%IdentifyExchV(this%id_,this%pz_,this%nparts_,ng,    &
+        CALL this%gpcomm_%IdentifyExchV(this%id_,this%pz_,this%nparts_,ng,    &
                                        this%lxbnds_(3,1),this%lxbnds_(3,2)) 
         IF (ng.GT.this%partbuff_) THEN
           PRINT *, 'Rank', this%myrank_, 'resizing: nparts=', ng, ' | partbuff=',&
@@ -1877,21 +1857,21 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
           CALL this%ResizeArrays(this%partbuff_,.true.)
         END IF
         CALL MPI_BARRIER(this%comm_, this%ierr_)
-        CALL this%gfcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_,  &
+        CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_,  &
              this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_INIT)
         CALL MPI_BARRIER(this%comm_, this%ierr_)
-        CALL this%gfcomm_%PartExchangeV(this%id_,this%ptmp0_(1,:),            &
+        CALL this%gpcomm_%PartExchangeV(this%id_,this%ptmp0_(1,:),            &
              this%ptmp0_(2,:),this%ptmp0_(3,:),this%nparts_,this%lxbnds_(3,1),&
              this%lxbnds_(3,2),GPEXCH_UPDT)
         CALL MPI_BARRIER(this%comm_, this%ierr_)
-        CALL this%gfcomm_%PartExchangeV(this%id_,this%ttmp0_(1,:),            &
+        CALL this%gpcomm_%PartExchangeV(this%id_,this%ttmp0_(1,:),            &
              this%ttmp0_(2,:),this%ttmp0_(3,:),this%nparts_,                  &
              this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_UPDT)
         CALL MPI_BARRIER(this%comm_, this%ierr_)
-        CALL this%gfcomm_%PartExchangeV(this%id_,this%pvx_,this%pvy_,this%pvz_,&
+        CALL this%gpcomm_%PartExchangeV(this%id_,this%pvx_,this%pvy_,this%pvz_,&
              this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_UPDT)
         CALL MPI_BARRIER(this%comm_, this%ierr_)
-        CALL this%gfcomm_%PartExchangeV(this%id_,this%weight_,this%prop_, &
+        CALL this%gpcomm_%PartExchangeV(this%id_,this%weight_,this%prop_, &
              this%prop_,this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), &
              GPEXCH_END)
         CALL GTAcc(this%htimers_(GPTIME_COMM))
@@ -1915,23 +1895,23 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
       ENDIF
       ! Synch up VDB, if necessary:
       CALL GTStart(this%htimers_(GPTIME_COMM))
-      CALL this%gfcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                      this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-      CALL this%gfcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                      this%pvx_,this%pvy_,this%pvz_,this%nparts_,this%ptmp1_)
       CALL GPart_CopyLocalWrk(this,this%pvx_,this%pvy_,this%pvz_, &
                      this%vdb_,this%gptmp0_,this%maxparts_)
-      CALL this%gfcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                      this%ttmp0_(1,:),this%ttmp0_(2,:),this%ttmp0_(3,:),&
                      this%nparts_,this%ptmp1_)
       CALL GPart_CopyLocalWrk(this,this%ttmp0_(1,:),this%ttmp0_(2,:), &
                      this%ttmp0_(3,:),this%vdb_,this%gptmp0_,this%maxparts_)
 
-      CALL this%gfcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+      CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
                this%weight_,this%weight_,this%weight_,this%nparts_,this%ptmp1_)
       CALL GPIC_CopyLocalWrkScalar(this,this%weight_,this%vdb_,this%ptmp0_(1,:),this%maxparts_)
  
-      CALL this%gfcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                      this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:),&
                      this%nparts_,this%ptmp1_)
       CALL GPart_GetLocalWrk_aux(this,this%id_,this%px_,this%py_,this%pz_,&
@@ -2047,7 +2027,6 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
           vmz = 0.0D0
           vth = SQRT(T(i,j,k))
           w   = n(i,j,k)*this%icv_
-          PRINT *, this%myrank_, i, j, k, vth, w
           DO ii = 1,ppx
             DO jj = 1,ppy
               DO kk = 1,ppz
@@ -2110,19 +2089,19 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
     END DO
 
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
-       CALL this%gfcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+       CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-       CALL this%gfcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+       CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
        CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
                            this%nparts_,this%vdb_,this%maxparts_)
 
-       CALL this%gfcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+       CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
                           this%pvx_,this%pvy_,this%pvz_,this%nparts_,this%ptmp1_)
        CALL GPart_CopyLocalWrk(this,this%pvx_,this%pvy_,this%pvz_, &
                             this%vdb_,this%ptmp0_,this%maxparts_)
 
-       CALL this%gfcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+       CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
                           this%weight_,this%weight_,this%weight_,this%nparts_,this%ptmp1_)
        CALL GPIC_CopyLocalWrkScalar(this,this%weight_,this%vdb_,this%ptmp0_(1,:),this%maxparts_)
 
