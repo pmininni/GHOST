@@ -35,15 +35,34 @@
             R1(i,j,k) = 0.
             R2(i,j,k) = 0.
 
-            DO ki = INT(kdn),INT(kup)
+            DO ki = INT(kud),INT(kuu)
                R1(i,j,k) = R1(i,j,k)-2*SIN(2*pi*ki*(real(k,kind=GP)-1)/real(nz,kind=GP))
                R2(i,j,k) = R2(i,j,k)+2*SIN(2*pi*ki*(real(i,kind=GP)-1)/real(nx,kind=GP))
+               PRINT *, "Hooolisss", ki
             END DO
 
             END DO
          END DO
       END DO
 
+
       CALL fftp3d_real_to_complex(planrc,R1,ux,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R2,uz,MPI_COMM_WORLD)
+      CALL energy(ux,uy,uz,tmp,1)
+      IF (myrank.EQ.0) PRINT *, tmp
       CALL normalize(ux,uy,uz,u0,1,MPI_COMM_WORLD)
+      CALL energy(ux,uy,uz,tmp,1)
+      IF (myrank.EQ.0) PRINT *, tmp
+
+      rmq = 1.0_GP/(real(nx,KIND=GP)*real(ny,KIND=GP)*real(nz,KIND=GP))
+!$omp parallel do if (iend-ista.ge.nth) private (j,i)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (j,i)
+         DO j = 1,ny
+            DO k = 1,nz
+               ux(k,j,i) = rmq*ux(k,j,i)
+               uy(k,j,i) = rmq*uy(k,j,i)
+               uz(k,j,i) = rmq*uz(k,j,i)
+            END DO
+         END DO
+      END DO

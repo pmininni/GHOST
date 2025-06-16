@@ -12,8 +12,8 @@
 ! Generates random phased initial conditions for the
 ! velocity with the value of rho_k specified.
 
-!     kdn : minimum wave number 
-!     kup : maximum wave number
+!     kud : minimum wave number 
+!     kuu : maximum wave number
 !     v0  : twice the global energy in the magnetic field
 !     vparam0: seed for random number generation
 !     vparam1: related to the helicity by vparam1 = ARCSIN(rho_k)/2 ... almost
@@ -46,7 +46,7 @@
       IF (ista.eq.1) THEN
 !$omp parallel do
         DO j = 2,ny/2+1
-          IF ((kk2(1,j,1).le.kup**2).and.(kk2(1,j,1).ge.kdn**2)) THEN
+          IF ((kk2(1,j,1).le.kuu**2).and.(kk2(1,j,1).ge.kud**2)) THEN
           dump = 0.0_GP
           !rmq  = sqrt(kk2(1,j,1))
           !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
@@ -74,7 +74,7 @@
         END DO
 !$omp parallel do
         DO k = 2,nz/2+1
-          IF ((kk2(k,1,1).le.kup**2).and.(kk2(k,1,1).ge.kdn**2)) THEN
+          IF ((kk2(k,1,1).le.kuu**2).and.(kk2(k,1,1).ge.kud**2)) THEN
           dump = 0.0_GP
           !rmq  = sqrt(kk2(k,1,1))
           !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
@@ -103,7 +103,7 @@
 !$omp parallel do private (k)
         DO j = 2,ny
           DO k = 2,nz/2+1
-            IF ((kk2(k,j,1).le.kup**2).and.(kk2(k,j,1).ge.kdn**2)) THEN
+            IF ((kk2(k,j,1).le.kuu**2).and.(kk2(k,j,1).ge.kud**2)) THEN
             dump = 0.0_GP
             !rmq  = sqrt(kk2(k,j,1))
             !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))            
@@ -135,7 +135,7 @@
 !$omp parallel do if (iend-2.lt.nth) private (k)
           DO j = 1,ny
             DO k = 1,nz
-              IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+              IF ((kk2(k,j,i).le.kuu**2).and.(kk2(k,j,i).ge.kud**2)) THEN
               dump = 0.0_GP
               !rmq  = sqrt(kk2(k,j,i))
               !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2)) 
@@ -163,7 +163,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
             DO k = 1,nz
-              IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+              IF ((kk2(k,j,i).le.kuu**2).and.(kk2(k,j,i).ge.kud**2)) THEN
               dump = 0.0_GP
               !rmq  = sqrt(kk2(k,j,i))
               !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
@@ -192,7 +192,7 @@
       IF (ista.eq.1) THEN
 !$omp parallel do
         DO j = 2,ny/2+1
-          IF ((kk2(1,j,1).le.kup**2).and.(kk2(1,j,1).ge.kdn**2)) THEN
+          IF ((kk2(1,j,1).le.kuu**2).and.(kk2(1,j,1).ge.kud**2)) THEN
           dump = 1.0_GP
           !rmq  = sqrt(kk2(1,j,1))
           !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
@@ -219,7 +219,7 @@
         END DO
 !$omp parallel do
         DO k = 2,nz/2+1
-          IF ((kk2(k,1,1).le.kup**2).and.(kk2(k,1,1).ge.kdn**2)) THEN
+          IF ((kk2(k,1,1).le.kuu**2).and.(kk2(k,1,1).ge.kud**2)) THEN
           dump = 1.0_GP
           !rmq  = sqrt(kk2(k,1,1))
           !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
@@ -247,7 +247,7 @@
 !$omp parallel do private (k)
         DO j = 2,ny
           DO k = 2,nz/2+1
-            IF ((kk2(k,j,1).le.kup**2).and.(kk2(k,j,1).ge.kdn**2)) THEN
+            IF ((kk2(k,j,1).le.kuu**2).and.(kk2(k,j,1).ge.kud**2)) THEN
             dump = 1.0_GP
             !rmq  = sqrt(kk2(k,j,1))
             !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
@@ -278,7 +278,7 @@
 !$omp parallel do if (iend-2.lt.nth) private (k)
           DO j = 1,ny
             DO k = 1,nz
-              IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+              IF ((kk2(k,j,i).le.kuu**2).and.(kk2(k,j,i).ge.kud**2)) THEN
               dump = 1.0_GP
               !rmq  = sqrt(kk2(k,j,i))
               !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
@@ -305,7 +305,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
             DO k = 1,nz
-              IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+              IF ((kk2(k,j,i).le.kuu**2).and.(kk2(k,j,i).ge.kud**2)) THEN
               dump = 1.0_GP
               !rmq  = sqrt(kk2(k,j,i))
               !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
@@ -461,6 +461,7 @@
       END DO
 
       CALL normalize(ux,uy,uz,u0,1,MPI_COMM_WORLD)
+      rmq = 1.0_GP/(real(nx,KIND=GP)*real(ny,KIND=GP)*real(nz,KIND=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,i)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (j,i)
