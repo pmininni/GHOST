@@ -116,9 +116,10 @@
       CALL energy(ax,ay,az,em,0) 
       
       
-      rmp = 1/(real(nx,KIND=GP)*real(ny,KIND=GP)*real(nz,KIND=GP))
+      rmp = 1.0_GP/(real(nx,KIND=GP)*real(ny,KIND=GP)*real(nz,KIND=GP))
       ekloc = 0.0D0
       eiloc = 0.0D0
+      etloc = 0.0D0
       IF (gamm.EQ.1) THEN
       DO k = ksta,kend
 !$omp parallel do if (kend-2.ge.nth) private (j,i) reduction(+:ekloc)
@@ -146,7 +147,7 @@
             ENDDO
          ENDDO
       ENDDO
-      tmp = beta/(gamm-1)
+      tmp = beta/(gamm-1.0_GP)
       END IF
 
       CALL MPI_REDUCE(ekloc,ek,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
