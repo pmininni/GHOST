@@ -216,6 +216,7 @@ gammae = 1.0     ! Barotropic exponent for fluid electrons
 betae = 1.0      ! Electronic plasma beta
 dii = 0.1        ! Ion inertial length
 Bmult = 1        ! Magnetic field steps per ion step
+filstr = 0.0     ! Filter strength for density/velocity (0: no filter)
 /
 
 ! Parameters for electrostatic solver

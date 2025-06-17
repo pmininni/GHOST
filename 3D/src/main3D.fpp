@@ -318,7 +318,7 @@
 #endif
 #ifdef HYBPIC_
       INTEGER          :: Bmult = 10, iB
-      REAL(KIND=GP)    :: ekin,dii,betae,gammae,gam1,cp1
+      REAL(KIND=GP)    :: ekin,dii,betae,gammae,gam1,cp1,filstr
 #endif
 #ifdef MAGFIELD_
       REAL(KIND=GP)    :: mkup,mkdn
@@ -484,7 +484,7 @@
       NAMELIST / picinitflds / tparam7,tparam8,tparam9
 #endif
 #ifdef HYBPIC_
-      NAMELIST / phybrid / dii,betae,gammae,Bmult
+      NAMELIST / phybrid / dii,betae,gammae,Bmult,filstr
 #endif
 #ifdef ELECSTAT_
       NAMELIST / elecstat / kde
@@ -1192,10 +1192,11 @@
          READ(1,NML=phybrid)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(gammae,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(betae ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(dii   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(Bmult ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(gammae ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(betae  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dii    ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(filstr,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(Bmult,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       gam1 = gammae-1.0_GP
       cp1 = dii*betae/2
       IF (gammae.GT.1) THEN
@@ -1674,7 +1675,9 @@
          DO j = 1,ny
             DO k = 1,nz
                kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
-!               C17(k,j,i) = EXP(-5.0_GP*(kn2(k,j,i)/kmax)**2)
+!#ifdef PIC_
+               C17(k,j,i) = EXP(-filstr*(kn2(k,j,i)/kmax)**2)
+!#endif
             END DO
          END DO
       END DO
