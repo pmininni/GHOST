@@ -27,9 +27,7 @@ MODULE class_GPartComm
       INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_UNIQ = 3    ! exchange only positions
 !$    INTEGER,PARAMETER,PUBLIC                       :: NMIN_OMP    = 10000! min. no. of op. for threadingi
       INTEGER,PUBLIC                                 :: MPI_GPDataType=-1,MPI_GPDataPackType=-1
-!!!
       INTEGER                                        :: UNPACK_REP = 0, UNPACK_SUM = 1
-!!!
       PRIVATE
       TYPE, BIND(C), PUBLIC :: GPData
         INTEGER        :: idp_
@@ -64,11 +62,9 @@ MODULE class_GPartComm
         REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:)   :: rbbuff_    ,rtbuff_
         TYPE(GPData) , ALLOCATABLE, DIMENSION(:)     :: sbbuffp_   ,stbuffp_
         TYPE(GPData) , ALLOCATABLE, DIMENSION(:)     :: rbbuffp_   ,rtbuffp_
-!!!
         INTEGER                                      :: nbret_     ,ntret_
         INTEGER, ALLOCATABLE, DIMENSION(:)           :: ibretp_    ,itretp_    ,ibretnz_ ,itretnz_
         INTEGER, ALLOCATABLE, DIMENSION(:,:)         :: ibret_     ,itret_     ,ibretdst_,itretdst_
-!!!
       CONTAINS
         ! Public methods:
         PROCEDURE,PUBLIC :: GPartComm_ctor
@@ -94,19 +90,16 @@ MODULE class_GPartComm
         PROCEDURE,PUBLIC :: Copy2Ext          => GPartComm_Copy2Ext
         GENERIC  ,PUBLIC :: Concat            => ConcatPDB,ConcatV
         PROCEDURE,PUBLIC :: ResizeArrays      => GPartComm_ResizeArrays
-!!!
         PROCEDURE,PUBLIC :: SlabDataReturnMF  => GPartComm_SlabDataReturnMF
         PROCEDURE,PUBLIC :: SlabDataReturnSF  => GPartComm_SlabDataReturnSF
         PROCEDURE,PUBLIC :: Copy2Reg          => GPartComm_Copy2Reg
         PROCEDURE,PUBLIC :: AllocRetArrays    => GPartComm_AllocRet
-!!!
       END TYPE GPartComm
 
       PUBLIC :: Resize_ArrayRank1,Resize_ArrayRank2
       PUBLIC :: Resize_IntArray,Resize_IntArrayRank2
       PUBLIC :: Resize_ArrayRank2Transposed
 
-!      INCLUDE 'gfieldcomm_dtype.f90'
 
       PRIVATE :: GPartComm_Init              , GPartComm_AllocRet
       PRIVATE :: GPartComm_SlabDataExchangeMF, GPartComm_SlabDataExchangeSF
@@ -118,12 +111,9 @@ MODULE class_GPartComm
       PRIVATE :: GPartComm_PPackPDB          , GPartComm_PUnpackPDB
       PRIVATE :: GPartComm_PPackV            , GPartComm_PUnpackV
       PRIVATE :: GPartComm_SetCacheParam
-!!!
       PRIVATE :: GPartComm_PackRetSF         , GPartComm_PackRetMF
       PRIVATE :: GPartComm_UnpackRetSF       , GPartComm_UnpackRetMF
       PRIVATE :: GPartComm_LocalDataRetMF    , GPartComm_LocalDataRetSF
-!!!      
-!      INCLUDE 'gfieldcomm_private.f90'
 
 ! Methods:
   CONTAINS
@@ -352,7 +342,6 @@ MODULE class_GPartComm
     IF ( ALLOCATED  (this%itsndnz_) ) DEALLOCATE (this%itsndnz_)
 
     IF ( ALLOCATED  (this%oldid_)   ) DEALLOCATE   (this%oldid_)
-!!!
     IF ( ALLOCATED (this%ibretp_  ) ) DEALLOCATE (this%ibretp_  )
     IF ( ALLOCATED (this%itretp_  ) ) DEALLOCATE (this%itretp_  )
     IF ( ALLOCATED (this%ibretnz_ ) ) DEALLOCATE (this%ibretnz_ )
@@ -361,7 +350,6 @@ MODULE class_GPartComm
     IF ( ALLOCATED (this%itret_   ) ) DEALLOCATE (this%itret_   )
     IF ( ALLOCATED (this%ibretdst_) ) DEALLOCATE (this%ibretdst_)
     IF ( ALLOCATED (this%itretdst_) ) DEALLOCATE (this%itretdst_)
-!!!
 
   END SUBROUTINE GPartComm_DoDealloc
 !-----------------------------------------------------------------
@@ -3058,8 +3046,8 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-!  INCLUDE 'gfieldcomm_contain.f90'
-!!! GFIELDCOMM SUBROUTINES UNTIL THE END
+!-------------------- RETURN SUBROUTINES -------------------------
+
   SUBROUTINE GPartComm_SlabDataReturnSF(this,v,vext,method)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -3900,5 +3888,5 @@ MODULE class_GPartComm
   END SUBROUTINE GPartComm_Copy2Reg
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!!!
+
 END MODULE class_GPartComm
