@@ -64,14 +64,12 @@
       END DO
 
       rmq = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
-      IF (myrank.EQ.0) PRINT *, rmq, u0
       IF (u0.LT.0) THEN ! Change convergent to divergent
          rmq = -rmq
          u0 = -u0
-      END IF
-     
+      END IF     
       CALL normalize(ux,uy,uz,u0,1,MPI_COMM_WORLD)
-      IF (myrank.EQ.0) PRINT *, rmq, u0
+
 !$omp parallel do if (iend-ista.ge.nth) private (j,i)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (j,i)
