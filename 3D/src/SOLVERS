@@ -55,6 +55,8 @@ to build a solver other than the default):
    LAMHD      Lagrangian-averaged MHD solver
    EDQNMHD    EDQNM HD solver
    EDQNMROTH  EDQNM ROTH solver
+   HPIC_SOL       builds the hybrid PIC solver
+   EHPIC_SOL      builds the hybrid electrostatic PIC solver
 
 2. utils
 ========
