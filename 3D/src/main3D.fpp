@@ -1730,9 +1730,9 @@
          DO j = 1,ny
             DO k = 1,nz
                kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
-!#ifdef PIC_
+#ifdef PIC_
                C17(k,j,i) = EXP(-filstr*(kn2(k,j,i)/kmax)**2)
-!#endif
+#endif
             END DO
          END DO
       END DO

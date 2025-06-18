@@ -425,8 +425,6 @@ MODULE class_GPartComm
     ALLOCATE(this%ibsnddst_(nt,this%nzghost_+1))
     ALLOCATE(this%itsnddst_(nt,this%nzghost_+1))
 
-    ALLOCATE(this%oldid_(this%maxparts_))
-
     ! Initialize all task/neighbor  lists with GPNULL:
     this%ibrcv_   =GPNULL; this%itrcv_   =GPNULL; this%ibsnd_  =GPNULL; this%itsnd_ =GPNULL;
     this%ibsnddst_=GPNULL; this%itsnddst_=GPNULL;
