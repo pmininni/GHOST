@@ -25,13 +25,13 @@
          DO j = 1,ny
          DO k = 1,nz
             IF ((kn2(k,j,i).le.kmax)) THEN
-               C4(k,j,i) = dii*ax(k,j,i) + C4(k,j,i)!*C17(k,j,i)
-               C5(k,j,i) = dii*ay(k,j,i) + C5(k,j,i)!*C17(k,j,i)
-               C6(k,j,i) = dii*az(k,j,i) + C6(k,j,i)!*C17(k,j,i)
+               C4(k,j,i) = dii*ax(k,j,i) + C4(k,j,i)*C17(k,j,i)
+               C5(k,j,i) = dii*ay(k,j,i) + C5(k,j,i)*C17(k,j,i)
+               C6(k,j,i) = dii*az(k,j,i) + C6(k,j,i)*C17(k,j,i)
                ax(k,j,i) = C4(k,j,i)*tmp  ! Store electron current j_e
                ay(k,j,i) = C5(k,j,i)*tmp
                az(k,j,i) = C6(k,j,i)*tmp
-               C7(k,j,i) = C7(k,j,i)!*C17(k,j,i)
+               C7(k,j,i) = C7(k,j,i)*C17(k,j,i)
             ELSE
                C4(k,j,i) = 0.0_GP
                C5(k,j,i) = 0.0_GP
@@ -64,7 +64,7 @@
             DO j = 1,ny
             DO k = 1,nz
                IF ((kn2(k,j,i).le.kmax)) THEN
-                  C11(k,j,i) = C11(k,j,i)!*C17(k,j,i)
+                  C11(k,j,i) = C11(k,j,i)*C17(k,j,i)
                ELSE
                   C11(k,j,i) = 0.0_GP
                ENDIF
@@ -156,9 +156,9 @@
             DO j = 1,ny
             DO k = 1,nz
                IF ((kn2(k,j,i).le.kmax)) THEN
-                  C4(k,j,i)  = dii*C14(k,j,i) + C4(k,j,i)!*C17(k,j,i)
-                  C5(k,j,i)  = dii*C15(k,j,i) + C5(k,j,i)!*C17(k,j,i)
-                  C6(k,j,i)  = dii*C16(k,j,i) + C6(k,j,i)!*C17(k,j,i)
+                  C4(k,j,i)  = dii*C14(k,j,i) + C4(k,j,i)*C17(k,j,i)
+                  C5(k,j,i)  = dii*C15(k,j,i) + C5(k,j,i)*C17(k,j,i)
+                  C6(k,j,i)  = dii*C16(k,j,i) + C6(k,j,i)*C17(k,j,i)
                   C14(k,j,i) = C4(k,j,i)*tmp  ! Store electron current -j_e
                   C15(k,j,i) = C5(k,j,i)*tmp
                   C16(k,j,i) = C6(k,j,i)*tmp
@@ -180,18 +180,18 @@
             CALL gauge3(C11,C12,C13,C5,2)
             CALL gauge3(C11,C12,C13,C6,3) ! u_exB - grad(Phi)
    
-            rmp = 1.0_GP/real(o*Bmult,kind=GP)
+            rmp = 1.0_GP/real(o*(Bmult+1-iB),kind=GP)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.ge.nth) private (k)
             DO j = 1,ny
             DO k = 1,nz
                IF ((kn2(k,j,i).le.kmax)) THEN
-                  ax(k,j,i) = ax(k,j,i) + dt*(mu*C14(k,j,i) +          &
+                  ax(k,j,i) = C1(k,j,i) + dt*(mu*C14(k,j,i) +          &
                                               C4(k,j,i) + mx(k,j,i))*rmp
-                  ay(k,j,i) = ay(k,j,i) + dt*(mu*C15(k,j,i) +          &
+                  ay(k,j,i) = C2(k,j,i) + dt*(mu*C15(k,j,i) +          &
                                               C5(k,j,i) + my(k,j,i))*rmp
-                  az(k,j,i) = az(k,j,i) + dt*(mu*C16(k,j,i) +          &
+                  az(k,j,i) = C3(k,j,i) + dt*(mu*C16(k,j,i) +          &
                                               C6(k,j,i) + mz(k,j,i))*rmp
                ELSE
                   ax(k,j,i) = 0.0_GP
