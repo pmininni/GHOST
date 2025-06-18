@@ -34,8 +34,14 @@
     CHARACTER(len=*),INTENT(IN)       :: nmb
     CHARACTER(len=*),INTENT(IN)       :: spref
 
-    CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
-         this%pvx_,this%pvy_,this%pvz_,this%nparts_,this%ptmp1_)
+!    CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
+!         this%pvx_,this%pvy_,this%pvz_,this%nparts_,this%ptmp1_)
+
+    ! If doing non-collective binary or ascii writes, synch up vector:
+    IF ((this%iouttype_.EQ.0.AND.this%bcollective_.EQ.0).OR.this%iouttype_.EQ.1 ) THEN
+      CALL this%gpcomm_%VDBSynch_t0(this%ptmp0_,this%maxparts_,this%id_, &
+                                 this%pvx_,this%pvy_,this%pvz_,this%nparts_)
+    ENDIF
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
       IF ( this%bcollective_.EQ. 1 ) THEN
@@ -111,10 +117,11 @@
     ENDIF
     CALL GTAcc(this%htimers_(GPTIME_GPREAD))
 
-    ! Store in particle velocity arrays
-    CALL GPart_CopyLocalWrk(this,this%pvx_,this%pvy_,this%pvz_, &
+    IF (this%iexchtype_ .EQ. GPEXCHTYPE_VDB) THEN
+      ! Store in particle velocity arrays
+      CALL GPart_CopyLocalWrk(this,this%pvx_,this%pvy_,this%pvz_, &
                             this%vdb_,this%ptmp0_,this%maxparts_)
-
+    END IF
     CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
                        MPI_SUM,this%comm_,this%ierr_)
     IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_ ) THEN
@@ -127,6 +134,51 @@
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+  SUBROUTINE VGPart_ResizeArrays(this,new_size,onlyinc,exc)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Resize_Arrays
+!  DESCRIPTION: Resize all arrays in the VGPart class (including 
+!               subclases, i.e. communicator, spline)
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    new_size: new number of particles
+!    onlyinc : if true, will only resize to increase array size
+!-----------------------------------------------------------------
+!$  USE threads
+ 
+    IMPLICIT NONE
+    CLASS(VGPart) ,INTENT(INOUT)                         :: this
+    INTEGER       ,INTENT(IN)                            :: new_size
+    LOGICAL       ,INTENT(IN)                            :: onlyinc
+    LOGICAL       ,INTENT(IN)   ,OPTIONAL                :: exc
+    INTEGER                                              :: n
+
+    CALL GPart_ResizeArrays(this,new_size,onlyinc,exc)
+
+    n = SIZE(this%pvx_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%pvx_,new_size,.true.)
+    END IF
+    n = SIZE(this%pvy_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%pvy_,new_size,.true.)
+    END IF
+    n = SIZE(this%pvz_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%pvz_,new_size,.true.)
+    END IF
+
+    n = SIZE(this%ttmp0_,2)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank2(this%ttmp0_,new_size,.true.)
+    END IF
+
+    RETURN
+
+  END SUBROUTINE VGPart_ResizeArrays
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 
 !=================================================================
 ! InerGPart SUBROUTINES
@@ -171,13 +223,13 @@
        this%dorotatn_ = 0
     ENDIF       
 
-    ALLOCATE(this%pvx_     (this%maxparts_))
-    ALLOCATE(this%pvy_     (this%maxparts_))
-    ALLOCATE(this%pvz_     (this%maxparts_))
-    ALLOCATE(this%dfx_     (this%maxparts_))
-    ALLOCATE(this%dfy_     (this%maxparts_))
-    ALLOCATE(this%dfz_     (this%maxparts_))
-    ALLOCATE(this%ttmp0_ (3,this%maxparts_))
+    ALLOCATE(this%pvx_     (this%partbuff_))
+    ALLOCATE(this%pvy_     (this%partbuff_))
+    ALLOCATE(this%pvz_     (this%partbuff_))
+    ALLOCATE(this%dfx_     (this%partbuff_))
+    ALLOCATE(this%dfy_     (this%partbuff_))
+    ALLOCATE(this%dfz_     (this%partbuff_))
+    ALLOCATE(this%ttmp0_ (3,this%partbuff_))
 
   END SUBROUTINE InerGPart_ctor
 !-----------------------------------------------------------------
@@ -776,6 +828,16 @@
     ! Note this interface has not been tested yet for test particles.
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
       CALL GTStart(this%htimers_(GPTIME_COMM))
+      CALL this%gpcomm_%IdentifyExchV(this%id_,this%pz_,this%nparts_,ng,    &
+                                     this%lxbnds_(3,1),this%lxbnds_(3,2))
+      IF (ng.GT.this%partbuff_) THEN
+        PRINT *, 'Rank', this%myrank_, 'resizing: nparts=', ng, ' | partbuff=',&
+                 this%partbuff_, ' --> ', this%partbuff_ + &
+                 (1+(ng-this%partbuff_)/this%partchunksize_)*this%partchunksize_
+        this%partbuff_ = this%partbuff_ + &
+              (1+(ng-this%partbuff_)/this%partchunksize_)*this%partchunksize_
+        CALL this%ResizeArrays(this%partbuff_,.true.)
+      END IF
       CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_,  &
            this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_INIT)
       CALL this%gpcomm_%PartExchangeV(this%id_,this%ptmp0_(1,:),            &
@@ -791,6 +853,22 @@
       CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3)
       ! Enforce periodicity in z and ptmp0(3):
       CALL GPart_MakePeriodicZ(this,this%pz_,this%ptmp0_(3,:),this%nparts_)
+      IF (this%stepcounter_.GE.GPSWIPERATE) THEN
+        IF ((this%bcollective_.EQ.1).OR.(this%myrank_.NE.0)) THEN
+          ng = this%partbuff_ - this%nparts_
+          IF (ng.GE.this%partchunksize_) THEN   ! Reduce array size
+            PRINT *, 'Rank', this%myrank_, 'resizing: nparts=', this%nparts_, '| partbuff=',&
+                      this%partbuff_, ' --> ', this%partbuff_ - &
+                      (ng/this%partchunksize_-1)*this%partchunksize_
+            this%partbuff_ = this%partbuff_ - &
+                         (ng/this%partchunksize_-1)*this%partchunksize_
+            CALL this%ResizeArrays(this%partbuff_,.false.)
+          END IF
+        END IF
+        this%stepcounter_ = 1
+      ELSE
+        this%stepcounter_ = this%stepcounter_ + 1
+      END IF
     ENDIF
 
     ! If using VDB interface, do synch-up, and get local work:
@@ -842,5 +920,46 @@
     RETURN
 
   END SUBROUTINE InerGPart_EndStageRKK
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE InerGPart_ResizeArrays(this,new_size,onlyinc,exc)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Resize_Arrays
+!  DESCRIPTION: Resize all arrays in the GPart class (including 
+!               subclases, i.e. communicator, spline)
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    new_size: new number of particles
+!    onlyinc : if true, will only resize to increase array size
+!-----------------------------------------------------------------
+!$  USE threads
+ 
+    IMPLICIT NONE
+    CLASS(InerGPart) ,INTENT(INOUT)                      :: this
+    INTEGER          ,INTENT(IN)                         :: new_size
+    LOGICAL          ,INTENT(IN)                         :: onlyinc
+    LOGICAL          ,INTENT(IN)   ,OPTIONAL             :: exc
+    INTEGER                                              :: n
+
+    CALL VGPart_ResizeArrays(this,new_size,onlyinc,exc)
+
+    n = SIZE(this%dfx_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%dfx_,new_size,.false.)
+    END IF
+    n = SIZE(this%dfy_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%dfy_,new_size,.false.)
+    END IF
+    n = SIZE(this%dfz_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%dfz_,new_size,.false.)
+    END IF
+
+    RETURN
+
+  END SUBROUTINE InerGPart_ResizeArrays
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------

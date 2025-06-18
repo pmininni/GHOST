@@ -48,12 +48,15 @@ LAGPDEFyes   = -DDEF_GHOST_LAGP
 LAGPDEFlag   = $(LAGPDEFyes)
 LAGPDEFiner  = -DDEF_GHOST_INERP
 LAGPDEFtest  = -DDEF_GHOST_TESTP
+LAGPDEFpic   = -DDEF_GHOST_PICP
 LAGPDEFno    = 
 LAGPOBJSyes  = $(LAGP)/gpdbrec_mod.o $(LAGP)/gpartcomm_mod.o \
-	           $(LAGP)/gpsplineint_mod.o  $(LAGP)/gparts_mod.o
+	       $(LAGP)/gpicsplineint_mod.o                   \
+	       $(LAGP)/gpsplineint_mod.o  $(LAGP)/gparts_mod.o
 LAGPOBJSlag  = $(LAGPOBJSyes)
 LAGPOBJSiner = $(LAGPOBJSyes)
 LAGPOBJStest = $(LAGPOBJSyes)
+LAGPOBJSpic  = $(LAGPOBJSyes)#!!!
 LAGPOBJSno   = 
 
 CUDA_GHOSTno =
@@ -191,6 +194,9 @@ EDQNMROTH_OBJS = $(ROTH_OBJS) $(EDQNM_OBJS)
 EDQNMBUSS_OBJS = $(BOUSS_OBJS) $(EDQNM_OBJS)
 TRAN_OBJS      = pseudospec3D_trn.o
 STRU_OBJS      = pseudospec3D_shf.o
+EHPIC_OBJS     = $(PHD_OBJS) pseudospec3D_pic.o \
+                 pseudospec3D_prot.o
+HPIC_OBJS      = $(CMHDB_OBJS) pseudospec3D_pic.o
 OBJS           = $($(SOLVER)_OBJS) 
 OBJSDIR        = pseudo
 SUBDIRS        = posix mpiio fftp-2 fftp-3 fftp-cu fftp-mkl utils \
@@ -276,9 +282,9 @@ dist:
 	rm -f $(BIN)/*HD* $(BIN)/*MHD* $(BIN)/*ROT* $(BIN)/*BOUSS* \
               $(BIN)/*MOIST* $(BIN)/*GPE* $(BIN)/*ARGL* $(BIN)/boots \
               $(BIN)/trunc $(BIN)/vt $(BIN)/shear $(BIN)/wv $(BIN)/wt \
-              $(BIN)/README_* \
-              *HD* *MHD* *ROT* *BOUSS* \
-              *MOIST* *GPE* *ARGL* boots trunc vt shear wv
+              $(BIN)/*PIC* $(BIN)/README_* \
+              *HD* *MHD* *ROT* *BOUSS* *MOIST* \
+              *GPE* *ARGL* *PIC* boots trunc vt shear wv
 	$(MAKE) clean
 
 edit:
@@ -379,6 +385,9 @@ $(LAGP)/gpartcomm_mod.o:
 
 $(LAGP)/gpsplineint_mod.o:
 	cd $(LAGP) && $(MAKE) COMPILE='$(SPECOMP)' gpsplineint_mod.o
+
+$(LAGP)/gpicsplineint_mod.o:
+	cd $(LAGP) && $(MAKE) COMPILE='$(SPECOMP)' gpicsplineint_mod.o
 
 $(LAGP)/gparts_mod.o:
 	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' gparts_mod.o
