@@ -38,6 +38,8 @@
 !           ROTBOUSS_SOL   builds the BOUSS solver in a rotating frame
 !           ROTBOUMHDB_SOL builds BOUSS and MHD with rotation and B_0
 !           MPROTBOUSS_SOL builds the BOUSS eq, rotating, multi-scalar
+!           MOIST_SOL      builds the MOIST Boussinesq solver
+!           HDPNLT_SOL     builds the HD solver with the penalty method
 !           GPE_SOL        builds the Gross-Pitaevskii Equation solver
 !           ARGL_SOL       builds the Advective Real Ginzburg Landau
 !           RGPE_SOL       builds the rotating GPE solver
@@ -48,6 +50,8 @@
 !           LAMHD_SOL      builds the Lagrangian-averaged MHD solver
 !           EDQNMHD_SOL    builds the EDQNM HD solver
 !           EDQNMROTH_SOL  builds the EDQNM ROTH solver
+!           HPIC_SOL       builds the hybrid PIC solver
+!           EHPIC_SOL      builds the hybrid electrostatic PIC solver
 !
 ! 2003 Pablo D. Mininni.
 !      Department of Physics,
@@ -203,13 +207,16 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C28,C29
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C30
 #endif
+#ifdef PENALTY_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C31,C32
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C33,C34
+#endif
 
 #ifdef WAVEFUNCTION_
       DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: iold,qold,kold,cold
       DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: inew,qnew,knew,cnew
 #endif
 
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: R1,R2,R3
 #ifdef VELOC_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fxold,fyold,fzold
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fxnew,fynew,fznew
@@ -219,6 +226,10 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: mxold,myold,mzold
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: mxnew,mynew,mznew
 #endif
+
+#ifdef PENALTY_
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: chi
+#endif
 #ifdef ADVECT_
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: vsq
 #endif
@@ -226,6 +237,8 @@
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: Vtrap
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: Vlinx,Vliny
 #endif
+
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: R1,R2,R3
 #ifdef PART_
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: R4,R5,R6
 #endif
@@ -369,10 +382,15 @@
       INTEGER :: dyna
       INTEGER :: corr
 #endif
+#ifdef PENALTY_
+      INTEGER      :: shape, ischi
+      REAL(KIND=GP):: inveta, x0, y0, z0, radius
+#endif
 #ifdef WAVEFUNCTION_
       INTEGER :: cflow
 #endif
-#if defined(PART_)
+
+#ifdef PART_
       REAL         :: rbal
       REAL(KIND=GP):: tbeta(3)
       INTEGER      :: maxparts
@@ -509,6 +527,9 @@
 #ifdef BOUSSINESQ_
       NAMELIST / boussinesq / bvfreq,xmom,xtemp
 #endif
+#ifdef PENALTY_ 
+      NAMELIST / penalty / shape,inveta,x0,y0,z0,radius
+#endif
 #ifdef WAVEFUNCTION_
       NAMELIST / wavefunction / cspeed,lambda,rho0,kttherm,V0
       NAMELIST / wavefunction / cflow,iter_max_newt,iter_max_bicg
@@ -525,7 +546,8 @@
 #ifdef EDQNM_
       NAMELIST / edqnmles / kolmo,heli
 #endif
-#if defined(PART_)
+
+#ifdef PART_
       NAMELIST / plagpart / lgmult,maxparts,ilginittype,ilgintrptype
       NAMELIST / plagpart / ilgexchtype,ilgouttype,ilgwrtunit,lgseedfile
       NAMELIST / plagpart / injtp,ilgcoll,cresetp,dolag,dopacc
@@ -667,6 +689,10 @@
       ALLOCATE( C28(nz,ny,ista:iend), C29(nz,ny,ista:iend) )
       ALLOCATE( C30(nz,ny,ista:iend) )
 #endif
+#ifdef PENALTY_
+      ALLOCATE( C31(nz,ny,ista:iend),  C32(nz,ny,ista:iend) )
+      ALLOCATE( C33(nz,ny,ista:iend),  C34(nz,ny,ista:iend) )
+#endif
 #ifdef WAVEFUNCTION_
       ALLOCATE( zre(nz,ny,ista:iend), zim(nz,ny,ista:iend) )
 #endif
@@ -692,6 +718,9 @@
       ALLOCATE( R1(nx,ny,ksta:kend) )
       ALLOCATE( R2(nx,ny,ksta:kend) )
       ALLOCATE( R3(nx,ny,ksta:kend) )
+#ifdef PENALTY_
+      ALLOCATE( chi(nx,ny,ksta:kend) )
+#endif
 #ifdef ADVECT_
       ALLOCATE( vsq(nx,ny,ksta:kend) )
 #endif
@@ -699,6 +728,7 @@
       ALLOCATE( Vtrap(nx,ny,ksta:kend) )
       ALLOCATE( Vlinx(nx,ny,ksta:kend), Vliny(nx,ny,ksta:kend) )
 #endif
+
 #ifdef PART_
       ALLOCATE( R4(nx,ny,ksta:kend) )
       ALLOCATE( R5(nx,ny,ksta:kend) )
@@ -1081,6 +1111,31 @@
       CALL MPI_BCAST(c3param7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(c3param8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(c3param9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+#endif
+
+#ifdef PENALTY_
+! Reads parameters for runs with the penalty method from the
+! namelist 'penalty' on the external file 'parameter.inp'
+!     shape : shape of the obstacle
+!     inveta: inverse of the eta penalty parameter
+!     x0    : x coordinate of the center of the obstacle
+!     y0    : y coordinate of the center of the obstacle
+!     z0    : z coordinate of the center of the obstacle
+!     radius: radius of the obstacle
+
+      inveta = 1000.0_GP
+      ischi  = 0 ! The penalty function must be computed after a restart
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
+         READ(1,NML=penalty)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(shape,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(inveta,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(x0    ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(y0    ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(z0    ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(radius,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #ifdef COMPRESSIBLE_
@@ -1849,7 +1904,7 @@
 
 #ifdef PART_
       rmp   = 0.5/dt
-      tbeta = (/-rmp, 0.0, rmp/)
+      tbeta = (/-rmp, 0.0_GP, rmp/)
       IF ( dolag.GT.0 ) THEN
         CALL lagpart%GPart_ctor(MPI_COMM_WORLD,maxparts,ilginittype,&
              ilgintrptype,3,ilgexchtype,ilgouttype,ilgcoll,csize, &
@@ -3058,10 +3113,14 @@
 #ifdef LAGPART_
          CALL lagpart%Step(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),R4,R5,R6)
 #endif
-
 #if defined(INERPART_)
          IF ( dolightp.EQ.0 ) THEN  ! Heavy particles
+#if !defined(PENALTY_)
             CALL lagpart%StepInerp(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),Rv1,Rv2)
+#endif
+#if defined(PENALTY_)
+            CALL lagpart%StepInerpPenalty(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),Rv1,Rv2,x0,y0,z0,radius,shape,t)
+#endif
          ELSE                       ! Light particles
             CALL gradre3(vx,vy,vz,C4,C5,C6)
             rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
@@ -3401,6 +3460,9 @@
 #ifdef TRAP_
       DEALLOCATE( C28,C29,C30 )
       DEALLOCATE( Vtrap,Vlinx,Vliny )
+#endif
+#ifdef PENALTY_
+      DEALLOCATE( C31, C32, C33, C34, chi )
 #endif
 #ifdef PART_
       DEALLOCATE( R4,R5,R6 )

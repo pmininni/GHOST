@@ -101,6 +101,15 @@ omegay = 0.00    ! uniform rotation in y
 omegaz = 10.00   ! uniform rotation in z
 /
 
+! Parameters for runs with the penalty method (HDPNLT solver)
+&penalty
+shape = 1        ! =1 if using spheres 
+x0 = 0.00        ! x center coordinate of the obstacle
+y0 = 0.00        ! y center coordinate of the obstacle
+z0 = 0.00        ! z center coordinate of the obstacle
+radius = 1       ! radius of the obstacle
+/
+
 ! Parameters for compressible runs (COMPHD, CMHD and CMHDB solvers)
 &compressible
 smach = 0.25     ! sound Mach number

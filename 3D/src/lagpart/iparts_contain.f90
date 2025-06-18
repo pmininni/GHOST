@@ -423,6 +423,212 @@
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+ SUBROUTINE InerGPart_pnlt_StepRKK(this, vx, vy, vz, dt, xk, tmp1, tmp2, x0, y0, z0 , R, shape, n)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Step_testp
+!  DESCRIPTION: Carries out one stage of explicit RK-like time
+!               integration step.  Intended for explicit step within 
+!               an outer stepper method of the form:
+!
+!               X = X_0 + dt * V[X(t),t] * xk,
+!               V = V_0 + dt * (F[V(X(t)),U(X(t))] - g_z) * xk,
+!       
+!               where F is the drag force, V(X(t)) is the particle
+!               velocity, U(X(t)) is the Lagrangian velocity, and
+!               g_z is the (positive) z-component of the gravity  
+!               acceleration. The drag force is:
+!
+!               F = 1/tau ( U(X(t)) - V(X(t)) )
+!
+!               Inertial particles in this method are pointwise and
+!               heavy. Any other forces, except for the Stokes drag,
+!               are neglected. This method also computes collitions
+!               between the particles and a body submerged in the 
+!               fluid using the penalty method.
+!
+!               Note that the vx, vy, vz, will be overwritten here.
+!  ARGUMENTS  :
+!    this     : 'this' class instance
+!    vx,vy,vz : compoments of velocity field, in real space, partially
+!               updated, possibly. These will be overwritten!
+!    dt       : integration timestep
+!    xk       : multiplicative RK time stage factor
+!    tmpX     : temp arrays the same size as vx, vy, vz
+!    xc,yc,zc : coordinates of the center of the obstacle
+!    R        : radius of the obstacle
+!    shape    : shape of the body (only spheres are supported now)
+!    n        : absolute time index in the simulation
+!-----------------------------------------------------------------
+    USE grid
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(InerGPart) ,INTENT(INOUT)                        :: this
+    INTEGER                                                :: i,j
+    INTEGER,INTENT         (IN)                            :: n,shape
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: vx,vy,vz
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: tmp1,tmp2
+    REAL(KIND=GP),INTENT   (IN)                            :: dt,xk
+    REAL(KIND=GP),INTENT   (IN)                            :: x0,y0,z0,R
+    REAL(KIND=GP)                                          :: norm_x, norm_y, norm_z, pi, collision_count
+    REAL(KIND=GP)                                          :: dtv, nfact, distance, a,b,c, xc,yc,zc, R0, dt_frac
+    REAL(KIND=GP)                                          :: x_frac, y_frac, z_frac, vz_temp, size_fact
+    REAL(KIND=GP)                                          :: vx_temp, vy_temp, dtfact_x, dtfact_y, dtfact_z
+    REAL(KIND=GP), ALLOCATABLE, DIMENSION              (:) :: lid, gid
+    
+    collision_count = 0 
+
+    dtv    = dt*xk
+    CALL GTStart(this%htimers_(GPTIME_STEP))
+
+    ! Find the Lagrangian velocity for F(U*,V*):
+    CALL GPart_EulerToLag(this,this%lvx_,this%nparts_,vx,.true.,tmp1,tmp2)
+    CALL GPart_EulerToLag(this,this%lvy_,this%nparts_,vy,.false.,tmp1,tmp2)
+    CALL GPart_EulerToLag(this,this%lvz_,this%nparts_,vz,.false.,tmp1,tmp2)
+
+    ! Drag force
+!$omp parallel do
+    DO j = 1, this%nparts_
+       this%dfx_(j) = (this%lvx_(j)-this%pvx_(j))*this%invtau_
+       this%dfy_(j) = (this%lvy_(j)-this%pvy_(j))*this%invtau_
+       this%dfz_(j) = (this%lvz_(j)-this%pvz_(j))*this%invtau_
+    ENDDO
+
+! Reflection equations for the particles
+   ! Particles parameters
+    pi = 4.0_GP*atan(1.0_GP)          
+    xc = x0*nx                   ! x coordinate of sphere center in grid units
+    yc = y0*ny                   ! y coordinate of sphere center in grid units
+    zc = z0*nz                   ! z coordinate of sphere center in grid units
+    R0 = R*((ny/2)/pi)           ! Radius of the sphere 
+    size_fact = 0.05_GP          ! Ratio of particle to sphere radius (r/R0)
+
+    R0 = R0 * (1 + size_fact)
+
+    ! ... x, y and z:
+    dtfact_x = dt*xk*this%invdel_(1)
+    dtfact_y = dt*xk*this%invdel_(2)
+    dtfact_z = dt*xk*this%invdel_(3)
+	
+    !$omp parallel do
+    DO j = 1, this%nparts_
+	
+    ! Define the temporary velocties and normal vectors for radial distance calculation	
+	vx_temp = this%pvx_(j)
+	vy_temp = this%pvy_(j)
+	vz_temp = this%pvz_(j)
+
+  	norm_x = (this%ptmp0_(1,j) - xc)/R0
+	norm_y = (this%ptmp0_(2,j) - yc)/R0
+	norm_z = (this%ptmp0_(3,j) - zc)/R0
+
+    ! Find hypothetical radial distance of particle if it continues along current trajectory for 1 dt
+	distance = sqrt((this%ptmp0_(1,j) + dt*xk*this%invdel_(1)*vx_temp - xc)**2 &
+			+ (this%ptmp0_(2,j) + dt*xk*this%invdel_(2)*vy_temp - yc)**2 &
+			+ (this%ptmp0_(3,j) + dt*xk*this%invdel_(3)*vz_temp - zc)**2)
+		
+    ! Check for collision condition
+	IF ((distance.lt.R0) .AND. ((vx_temp*norm_x + vy_temp*norm_y + vz_temp*norm_z).lt.0))  THEN	
+		
+    ! Find coefficients of the quadratic 		
+		a = (vx_temp*xk*this%invdel_(1))**2 & 
+		   +(vy_temp*xk*this%invdel_(2))**2 & 
+		   +(vz_temp*xk*this%invdel_(3))**2
+		
+		b = 2*((this%ptmp0_(1,j) - xc)*vx_temp*xk*this%invdel_(1) &
+		     + (this%ptmp0_(2,j) - yc)*vy_temp*xk*this%invdel_(2) &
+		     + (this%ptmp0_(3,j) - zc)*vz_temp*xk*this%invdel_(3))        	
+		
+		c = ((xc-this%ptmp0_(1, j))**2 + (yc-this%ptmp0_(2, j))**2 &
+                + (zc-this%ptmp0_(3, j))**2 - R0**2)
+		
+		! Check for positive solution for fractional timestep		
+		IF ((((-b+sqrt(b**2 - 4*a*c))/(2*a)).gt.0) .AND. (((-b+sqrt(b**2 - 4*a*c))/(2*a)).lt.dt)) THEN
+      			dt_frac = (-b+sqrt(b**2 - 4*a*c))/(2*a)
+    		ELSE
+      			dt_frac = (-b-sqrt(b**2 - 4*a*c))/(2*a)
+		ENDIF
+
+    ! Determine the fractional position increment
+    		x_frac = this%ptmp0_(1,j) + this%ttmp0_(1,j)*dt_frac*xk*this%invdel_(1)  
+		y_frac = this%ptmp0_(2,j) + this%ttmp0_(2,j)*dt_frac*xk*this%invdel_(2)   
+		z_frac = this%ptmp0_(3,j) + this%ttmp0_(3,j)*dt_frac*xk*this%invdel_(3)   		
+
+    ! Update v_temp as the temporary velocities 
+    	        vx_temp = this%ttmp0_(1,j)
+        	vy_temp = this%ttmp0_(2,j)
+        	vz_temp = this%ttmp0_(3,j)
+
+    ! Calculate the normal vectors at the time of contact
+		norm_x = (x_frac - xc)/R0
+		norm_y = (y_frac - yc)/R0
+		norm_z = (z_frac - zc)/R0
+
+		! Define the common factor (v.n^)
+		nfact = vx_temp*norm_x + vy_temp*norm_y + vz_temp*norm_z 
+		
+		! Update the temporary velocities after collision
+		this%ttmp0_(1,j) = this%ttmp0_(1,j) - 2.0*nfact*norm_x
+		this%ttmp0_(2,j) = this%ttmp0_(2,j) - 2.0*nfact*norm_y
+		this%ttmp0_(3,j) = this%ttmp0_(3,j) - 2.0*nfact*norm_z
+		
+    ! Update the post collision positions
+		this%px_(j) = x_frac + (dt - dt_frac)*this%pvx_(j)*xk*this%invdel_(1)
+		this%py_(j) = y_frac + (dt - dt_frac)*this%pvy_(j)*xk*this%invdel_(2)
+		this%pz_(j) = z_frac + (dt - dt_frac)*this%pvz_(j)*xk*this%invdel_(3)	
+		
+    ! Update the post collision velocities 
+    		this%pvx_(j) = this%ttmp0_(1,j) 
+	  	this%pvy_(j) = this%ttmp0_(2,j) 
+		this%pvz_(j) = this%ttmp0_(3,j) 
+
+		collision_count = collision_count + 1
+
+    ! We write data from individual collisions
+    	        OPEN(1,file='collisions_individual.txt', position='append')
+		  WRITE(1, FMT='(E13.6, I13, E26.18, E26.18, E26.18, E26.18, E26.18, E26.18, &
+                   E26.18, E26.18, E26.18, E26.18, E26.18, E26.18, &
+                   E26.18, E26.18, E26.18, E26.18)') n*dt, this%id_(j), this%ptmp0_(1,j), &
+                                           this%ptmp0_(2,j), this%ptmp0_(3,j), vx_temp, vy_temp, vz_temp, &
+                                           this%px_(j), this%py_(j), this%pz_(j), this%pvx_(j), this%pvy_(j), this%pvz_(j), &
+                                           dt_frac, x_frac, y_frac, z_frac
+	        CLOSE(1)
+
+	ELSE
+
+    ! Normal particle evolution without collisions
+		this%px_(j) = this%ptmp0_(1,j) + dtfact_x*this%pvx_(j)
+		this%py_(j) = this%ptmp0_(2,j) + dtfact_y*this%pvy_(j)
+		this%pz_(j) = this%ptmp0_(3,j) + dtfact_z*this%pvz_(j)
+
+    		this%pvx_(j) = this%ttmp0_(1,j) + dtv*this%dfx_(j)
+	  	this%pvy_(j) = this%ttmp0_(2,j) + dtv*this%dfy_(j)
+		this%pvz_(j) = this%ttmp0_(3,j) + dtv*(this%dfz_(j) - this%grav_)
+
+	ENDIF	            
+    ENDDO
+
+    ! We keep track of the collision count in an external file
+    IF (collision_count.gt.0) THEN
+      OPEN(1,file='collisions_total.txt', position='append')
+      WRITE(1, FMT='(E13.6, E26.18)') n*dt, collision_count
+      CLOSE(1)
+    ENDIF
+
+    ! Enforce periodicity in x-y only:
+    CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3)
+
+    CALL GTAcc(this%htimers_(GPTIME_STEP))
+
+    CALL InerGPart_EndStageRKK(this,vx,vy,vz,xk,tmp1,tmp2)
+
+  END SUBROUTINE InerGPart_pnlt_StepRKK
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+  
   SUBROUTINE InerGPart_lite_StepRKK(this, vx, vy, vz, ax, ay, az, dt, xk, tmp1, tmp2)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------

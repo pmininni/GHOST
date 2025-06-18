@@ -173,6 +173,8 @@ MPBOUSS_OBJS   = $(BOUSS_OBJS)
 ROTBOUSS_OBJS  = $(BOUSS_OBJS)
 ROTBOUMHDB_OBJS= $(BOUSS_OBJS) pseudospec3D_mhd.o
 MPROTBOUSS_OBJS= $(MPROTH_OBJS) pseudospec3D_bouss.o
+MOIST_OBJS     = $(BOUSS_OBJS)
+HDPNLT_OBJS    = $(HD_OBJS)
 GPE_OBJS       = $(PHD_OBJS) pseudospec3D_mhd.o pseudospec3D_gpe.o
 ARGL_OBJS      = $(GPE_OBJS) pseudospec3D_newt.o
 RGPE_OBJS      = $(GPE_OBJS) pseudospec3D_rot.o pseudospec3D_prot.o \
@@ -277,11 +279,12 @@ clean:  undo
         done
 
 dist:
-	rm -f $(BIN)/*HD* $(BIN)/*MHD* $(BIN)/*ROT* $(BIN)/*BOUSS*    \
-              $(BIN)/*GPE* $(BIN)/*ARGL* $(BIN)/boots $(BIN)/trunc    \
-              $(BIN)/vt $(BIN)/shear $(BIN)/wv $(BIN)/wt $(BIN)/*PIC* \
-              $(BIN)/README_*  *PIC* *HD* *MHD* *ROT* *BOUSS* \
-              *GPE* *ARGL* boots trunc vt shear wv
+	rm -f $(BIN)/*HD* $(BIN)/*MHD* $(BIN)/*ROT* $(BIN)/*BOUSS* \
+              $(BIN)/*MOIST* $(BIN)/*GPE* $(BIN)/*ARGL* $(BIN)/boots \
+              $(BIN)/trunc $(BIN)/vt $(BIN)/shear $(BIN)/wv $(BIN)/wt \
+              $(BIN)/*PIC* $(BIN)/README_* \
+              *HD* *MHD* *ROT* *BOUSS* *MOIST* \
+              *GPE* *ARGL* *PIC* boots trunc vt shear wv
 	$(MAKE) clean
 
 edit:

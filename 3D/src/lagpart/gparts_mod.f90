@@ -272,14 +272,8 @@ MODULE class_GPart
     this%lxbnds_(2,2) = real(ny,kind=GP)
     this%libnds_(3,1) = ksta ; 
     this%libnds_(3,2) = kend ; 
-    this%lxbnds_(3,1) = real(ksta-1,kind=GP) !- 0.50_GP
-    this%lxbnds_(3,2) = real(kend-1,kind=GP) + 1!0.50_GP !- 1.0_GP*epsilon(1.0_GP)
-!    IF ( this%myrank_ .EQ. 0 ) THEN
-!      this%lxbnds_(3,1) = -1.0_GP
-!    ENDIF
-!    IF ( this%myrank_ .EQ. this%nprocs_-1 ) THEN
-!      this%lxbnds_(3,2) = real(kend,kind=GP) 
-!    ENDIF
+    this%lxbnds_(3,1) = real(ksta-1,kind=GP)          !- 0.50_GP
+    this%lxbnds_(3,2) = real(kend-1,kind=GP) + 1.0_GP !0.50_GP
     CALL range(1,nx,nprocs,myrank,tsta,tend) !Bounds of transposed real array
     this%tibnds_(1,1) = 1  ;
     this%tibnds_(1,2) = nz ;
@@ -619,8 +613,7 @@ MODULE class_GPart
        CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
        CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,this%nparts_, &
-                           this%vdb_,this%maxparts_)
-    
+                          this%vdb_,this%maxparts_)    
        IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to box units
           this%ptmp0_(1,:) = this%vdb_(1,:)*this%delta_(1)
           this%ptmp0_(2,:) = this%vdb_(2,:)*this%delta_(2)

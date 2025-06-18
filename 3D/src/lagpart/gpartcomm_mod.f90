@@ -25,9 +25,10 @@ MODULE class_GPartComm
       INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_UPDT = 1    ! continues part. exchange
       INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_END  = 2    ! finishes particle exchange
       INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_UNIQ = 3    ! exchange only positions
-!$    INTEGER,PARAMETER,PUBLIC                       :: NMIN_OMP    = 10000! min. no. of op. for threadingi
-      INTEGER,PUBLIC                                 :: MPI_GPDataType=-1,MPI_GPDataPackType=-1
+!$    INTEGER,PARAMETER,PUBLIC                       :: NMIN_OMP    = 10000! min. no. of op. for threading
+      INTEGER,PUBLIC                                 :: MPI_GPDataType=-1, MPI_GPDataPackType=-1
       INTEGER                                        :: UNPACK_REP = 0, UNPACK_SUM = 1
+
       PRIVATE
       TYPE, BIND(C), PUBLIC :: GPData
         INTEGER        :: idp_
@@ -423,6 +424,8 @@ MODULE class_GPartComm
     ALLOCATE(this%itypea_(0:this%nprocs_-1))
     ALLOCATE(this%ibsnddst_(nt,this%nzghost_+1))
     ALLOCATE(this%itsnddst_(nt,this%nzghost_+1))
+
+    ALLOCATE(this%oldid_(this%maxparts_))
 
     ! Initialize all task/neighbor  lists with GPNULL:
     this%ibrcv_   =GPNULL; this%itrcv_   =GPNULL; this%ibsnd_  =GPNULL; this%itsnd_ =GPNULL;
@@ -1424,7 +1427,7 @@ MODULE class_GPartComm
             this%itop_(nsend) = i
           END IF
         END DO
-        CALL GPartComm_PPackV2(this,this%stbuffp_,id,px,py,pz,this%itop_,nsend)
+        CALL GPartComm_PPackV(this,this%stbuffp_,id,px,py,pz,this%itop_,nsend)
         CALL MPI_ISEND(this%stbuffp_,nsend,MPI_GPDataPackType,j-1,j-1,this%comm_,this%itsh_(1),this%ierr_)
         CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
       END DO
@@ -1444,7 +1447,7 @@ MODULE class_GPartComm
     ELSE
       CALL MPI_IRECV(this%rtbuffp_,this%maxparts_,MPI_GPDataPackType,0,this%myrank_,this%comm_,this%itrh_(1),this%ierr_)
       CALL MPI_WAIT(this%itrh_(1),this%istatus_,this%ierr_)
-      CALL GPartComm_PUnpackV2(this,id,px,py,pz,0,this%rtbuffp_,nparts)
+      CALL GPartComm_PUnpackV(this,id,px,py,pz,0,this%rtbuffp_,nparts)
     END IF
 
     RETURN
@@ -1453,7 +1456,7 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-  SUBROUTINE GPartComm_PPackV2(this,buff,id,px,py,pz,iind,nind)
+  SUBROUTINE GPartComm_PPackV(this,buff,id,px,py,pz,iind,nind)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : PPack
@@ -1486,11 +1489,11 @@ MODULE class_GPartComm
       buff(j)%rp_(3) = pz(iind(j))
     ENDDO
 
-  END SUBROUTINE GPartComm_PPackV2
+  END SUBROUTINE GPartComm_PPackV
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-  SUBROUTINE GPartComm_PUnpackV2(this,id,px,py,pz,nparts,buff,nbuff)
+  SUBROUTINE GPartComm_PUnpackV(this,id,px,py,pz,nparts,buff,nbuff)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : PUnpackV
@@ -1525,7 +1528,7 @@ MODULE class_GPartComm
       pz(nparts+j) = buff(j)%rp_(3)
     ENDDO
 
-  END SUBROUTINE GPartComm_PUnpackV2
+  END SUBROUTINE GPartComm_PUnpackV
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -1669,30 +1672,16 @@ MODULE class_GPartComm
        END DO
     ENDIF
 
-    ! Post receives:
-    CALL GTStart(this%hcomm_)
-!    CALL MPI_IRECV(this%rbbuff_(:,1),2*this%nbuff_,GC_REAL,ibrank, &
-!                   1,this%comm_,this%ibrh_(1),this%ierr_)
-!    CALL MPI_IRECV(this%rtbuff_(:,1),2*this%nbuff_,GC_REAL,itrank, &
-!                   1,this%comm_,this%itrh_(1),this%ierr_)
-    CALL GTAcc(this%hcomm_)
-
     !
     ! send data:
-!    CALL GPartComm_PPackV(this,this%sbbuff_(:,1),this%nbuff_,id,px,py,pz,nparts,this%ibot_,this%nbot_)
-    CALL GPartComm_PPackV2(this,this%sbbuffp_,id,px,py,pz,this%ibot_,this%nbot_)
+    CALL GPartComm_PPackV(this,this%sbbuffp_,id,px,py,pz,this%ibot_,this%nbot_)
     CALL GTStart(this%hcomm_)
-!    CALL MPI_ISEND(this%sbbuff_,4*this%nbot_+1,GC_REAL,ibrank, &
-!                   1,this%comm_,this%ibsh_(1),this%ierr_)
     CALL MPI_ISEND(this%sbbuffp_,this%nbot_,MPI_GPDataPackType,ibrank, &
                    1,this%comm_,this%ibsh_(1),this%ierr_)
     CALL GTAcc(this%hcomm_)
 
-!    CALL GPartComm_PPackV(this,this%stbuff_(:,1),this%nbuff_,id,px,py,pz,nparts,this%itop_,this%ntop_)
-    CALL GPartComm_PPackV2(this,this%stbuffp_,id,px,py,pz,this%itop_,this%ntop_)
+    CALL GPartComm_PPackV(this,this%stbuffp_,id,px,py,pz,this%itop_,this%ntop_)
     CALL GTStart(this%hcomm_)
-!    CALL MPI_ISEND(this%stbuff_,4*this%ntop_+1,GC_REAL,itrank, &
-!                   1,this%comm_,this%itsh_(1),this%ierr_)
     CALL MPI_ISEND(this%stbuffp_,this%ntop_,MPI_GPDataPackType,itrank, &
                    1,this%comm_,this%itsh_(1),this%ierr_)
     CALL GTAcc(this%hcomm_)
@@ -1701,24 +1690,22 @@ MODULE class_GPartComm
     CALL GPartComm_ConcatV(this,id,px,py,pz,nparts,this%ibot_,this%nbot_,this%itop_,this%ntop_)
 
     CALL GTStart(this%hcomm_)
-!    CALL MPI_WAIT(this%ibrh_(1),this%istatus_,this%ierr_)
-!    CALL MPI_WAIT(this%itrh_(1),this%istatus_,this%ierr_)
+
     CALL MPI_RECV(this%rbbuffp_,this%maxparts_,MPI_GPDataPackType,ibrank, &
                   1,this%comm_,this%ibrh_(1),this%ierr_)
     CALL MPI_GET_COUNT(this%ibrh_,MPI_GPDataPackType,nrb)
     CALL MPI_RECV(this%rtbuffp_,this%maxparts_,MPI_GPDataPackType,itrank, &
                   1,this%comm_,this%itrh_(1),this%ierr_)
     CALL MPI_GET_COUNT(this%itrh_,MPI_GPDataPackType,nrt)
+
     CALL MPI_WAIT(this%ibsh_(1),this%istatus_,this%ierr_)
     CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
     CALL GTAcc(this%hcomm_)
 
     ! Update particle list:
-!    CALL GPartComm_PUnpackV(this,id,px,py,pz,nparts,this%rbbuff_(:,1),this%nbuff_)
-!    CALL GPartComm_PUnpackV(this,id,px,py,pz,nparts,this%rtbuff_(:,1),this%nbuff_)
-    CALL GPartComm_PUnpackV2(this,id,px,py,pz,nparts,this%rbbuffp_,nrb)
+    CALL GPartComm_PUnpackV(this,id,px,py,pz,nparts,this%rbbuffp_,nrb)
     nparts = nparts + nrb
-    CALL GPartComm_PUnpackV2(this,id,px,py,pz,nparts,this%rtbuffp_,nrt)
+    CALL GPartComm_PUnpackV(this,id,px,py,pz,nparts,this%rtbuffp_,nrt)
     nparts = nparts + nrt
     
     IF ((stage.NE.GPEXCH_END).AND.(stage.NE.GPEXCH_UNIQ)) THEN
@@ -1729,50 +1716,12 @@ MODULE class_GPartComm
        nparts = ng
     ENDIF
 
+    IF ((stage.NE.GPEXCH_END).AND.(stage.NE.GPEXCH_UNIQ)) THEN
+       id(1:ng) = this%oldid_(1:ng)
+       nparts = ng
+    ENDIF
+
   END SUBROUTINE GPartComm_PartExchangeV
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_PPackV(this,buff,nbuff,id,px,py,pz,nparts,iind,nind)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : PPack
-!  DESCRIPTION: Packs send buffer with particles. Uses V interface.
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    buff    : buffer into which to pack particles for sends
-!    nbuff   : max buffer length
-!    id      : part. ids
-!    px,py,pz: part. locations
-!    nparts  : number of particles in pdb
-!    iind    : pointers into pdb particle arrays for
-!              particles to pack
-!    nind    : no. particles to pack
-!-----------------------------------------------------------------
-    USE pdbtypes
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)             :: this
-    INTEGER      ,INTENT   (IN)                :: nbuff,nparts,nind
-    INTEGER      ,INTENT   (IN),DIMENSION(:)   :: iind
-    INTEGER      ,INTENT   (IN),DIMENSION(:)   :: id
-    INTEGER                                    :: j,nb
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:)   :: buff
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(:)   :: px,py,pz
-
-    buff(1) = nind
-!    nb = 1
-!$omp parallel do if(nind.ge.NMIN_OMP) private(nb)
-    DO j = 1, nind
-      nb = 4*j - 3
-      buff(nb+1) = id(iind(j))
-      buff(nb+2) = px(iind(j))
-      buff(nb+3) = py(iind(j))
-      buff(nb+4) = pz(iind(j))
-!      nb = nb + 4
-    ENDDO
-
-  END SUBROUTINE GPartComm_PPackV
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -1804,7 +1753,7 @@ MODULE class_GPartComm
     INTEGER                                       :: i,j,ngood
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(:)      :: px,py,pz
 
-    IF ((nbind+ntind).EQ.0) RETURN ! Nothing to do if no particle left
+    IF ((nbind+ntind).EQ.0) RETURN ! Nothing to do if no particle is left
 
     DO j = 1, nbind
       id(ibind(j)) = GPNULL
@@ -1828,51 +1777,6 @@ MODULE class_GPartComm
     nparts = ngood
 
   END SUBROUTINE GPartComm_ConcatV
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_PUnpackV(this,id,px,py,pz,nparts,buff,nbuff)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : PUnpackV
-!  DESCRIPTION: Unpacks recv buffer with particles. Partlcles
-!               will be added directly to the existing particle list.
-!               Uses V interface.
-!
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    id      : part. ids
-!    px,py,pz: part. locations
-!    nparts  : new number of particles in pdb
-!              with new particles
-!    buff    : buffer from which particle data is read
-!    nbuff   : buffer length
-!-----------------------------------------------------------------
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)                :: this
-    INTEGER      ,INTENT(INOUT)                   :: nparts
-    INTEGER      ,INTENT   (IN)                   :: nbuff
-    INTEGER      ,INTENT(INOUT),DIMENSION(:)      :: id
-    INTEGER                                       :: j,nb,nind
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:)      :: px,py,pz
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(:)      :: buff
-
-!    nb = 1
-     nind = int(buff(1))
-!$omp parallel do if(nind.ge.NMIN_OMP) private(nb)
-    DO j = 1,nind
-!      nparts = nparts + 1
-      nb = 4*j - 3
-      id(nparts+j) = int(buff(nb+1))
-      px(nparts+j) =     buff(nb+2)
-      py(nparts+j) =     buff(nb+3)
-      pz(nparts+j) =     buff(nb+4)
-!      nb = nb+4
-    ENDDO
-    nparts = nparts + nind
-
-  END SUBROUTINE GPartComm_PUnpackV
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -2498,10 +2402,8 @@ MODULE class_GPartComm
       DO i = 1,nl
         this%itop_(i) = i
       END DO 
-!      CALL GPartComm_PPackV(this,this%stbuff_(:,1),this%nbuff_,id,lx,ly,lz,nl,this%itop_,nl)
-      CALL GPartComm_PPackV2(this,this%stbuffp_,id,lx,ly,lz,this%itop_,nl)
+      CALL GPartComm_PPackV(this,this%stbuffp_,id,lx,ly,lz,this%itop_,nl)
       CALL GTStart(this%hcomm_)
-!      CALL MPI_ISEND(this%stbuff_(:,1),4*nl+1,GC_REAL,0,this%myrank_,this%comm_,this%itsh_(1),this%ierr_)
       CALL MPI_ISEND(this%stbuffp_,nl,MPI_GPDataPackType,0,this%myrank_,this%comm_,this%itsh_(1),this%ierr_)
       CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
       CALL GTAcc(this%hcomm_)
