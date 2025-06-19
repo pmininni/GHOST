@@ -8,18 +8,24 @@
 ! 22 Dec 2015: Extensions for test particles (P. Dmitruk)
 !=================================================================
 MODULE class_GPart
+!$    USE threads
       USE mpivars
       USE fprecision
       USE pdbtypes
       USE gtimer
       USE class_GPartComm
       USE class_GPSplineInt
+      USE class_GPICSplineInt
 
       IMPLICIT NONE
       INCLUDE 'mpif.h' 
 
       INTEGER,PARAMETER,PUBLIC                       :: GPINIT_RANDLOC =0
       INTEGER,PARAMETER,PUBLIC                       :: GPINIT_USERLOC =1
+
+      INTEGER,PARAMETER,PUBLIC                       :: GPICINIT_FROMFLD=0
+      INTEGER,PARAMETER,PUBLIC                       :: GPICINIT_FROMBIN=1
+      INTEGER,PARAMETER,PUBLIC                       :: GPICINIT_FROMUSR=2
 
       INTEGER,PARAMETER,PUBLIC                       :: GPINTRP_CSPLINE=0
       INTEGER,PARAMETER,PUBLIC                       :: GPINTRP_LAGINT =1
@@ -36,6 +42,8 @@ MODULE class_GPart
       INTEGER,PARAMETER,PUBLIC                       :: GPTIME_PUPDATE =7
       INTEGER,PARAMETER,PUBLIC                       :: GPTIME_GPREAD  =8
       INTEGER,PARAMETER,PUBLIC                       :: GPTIME_GPWRITE =9
+
+      INTEGER,PARAMETER,PUBLIC                       :: GPSWIPERATE    =100
 
       INTEGER,PARAMETER,PRIVATE                      :: GPMAXTIMERS    =9  ! no. GPTIME parameters
       CHARACTER(len=8),PUBLIC                        :: lgext              ! string to hold time index
@@ -62,8 +70,9 @@ MODULE class_GPart
         INTEGER                                      :: htimers_(GPMAXTIMERS)
         INTEGER                                      :: ierr_,iseed_,istep_
         INTEGER                                      :: maxparts_,nparts_,npartsm_,nvdb_
+        INTEGER                                      :: partbuff_,partchunksize_,stepcounter_  !!!
         INTEGER                                      :: comm_
-        INTEGER      , ALLOCATABLE, DIMENSION    (:) :: id_,idm_
+        INTEGER      , ALLOCATABLE, DIMENSION    (:) :: id_,idm_,tmpint_
         INTEGER      , ALLOCATABLE, DIMENSION    (:) :: fpid_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: px_ ,py_ ,pz_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: lvx_,lvy_,lvz_
@@ -105,10 +114,12 @@ MODULE class_GPart
         PROCEDURE,PUBLIC :: GetLoadBal        => GPart_GetLoadBal
         PROCEDURE,PUBLIC :: io_write_acc      => GPart_io_write_acc
         PROCEDURE,PUBLIC :: synch_acc         => GPart_synch_acc
+        PROCEDURE,PUBLIC :: ResizeArrays      => GPart_ResizeArrays
       END TYPE GPart
 
       INCLUDE 'iparts_dtype.f90'
       INCLUDE 'tparts_dtype.f90'
+      INCLUDE 'gpic_dtype.f90'
 
       PRIVATE :: GPart_Init               , GPart_StepRKK     
       PRIVATE :: GPart_SetStepRKK         , GPart_EndStageRKK
@@ -129,6 +140,7 @@ MODULE class_GPart
 
       INCLUDE 'iparts_private.f90'
       INCLUDE 'tparts_private.f90'
+      INCLUDE 'gpic_private.f90'
 
 ! Methods:
   CONTAINS
@@ -203,8 +215,8 @@ MODULE class_GPart
     this%inittype_ = inittype
     this%itorder_  = 2
     this%intorder_ = max(intorder,1)
-    this%iseed_     = 1000
-    this%istep_     = 0   
+    this%iseed_    = 1000
+    this%istep_    = 0   
     this%iexchtype_   =  iexchtyp
     this%iouttype_    =  iouttyp
     this%bcollective_ =  bcoll
@@ -223,7 +235,19 @@ MODULE class_GPart
 
     CALL MPI_COMM_SIZE(this%comm_,this%nprocs_,this%ierr_)
     CALL MPI_COMM_RANK(this%comm_,this%myrank_,this%ierr_)
-    
+ 
+    IF (iexchtyp.EQ.GPEXCHTYPE_VDB) THEN
+      this%partbuff_ = mparts  
+    ELSE IF (iexchtyp.EQ.GPEXCHTYPE_NN) THEN
+      this%partbuff_      = 1 + (mparts - 1)/this%nprocs_
+      this%partchunksize_ = (this%partbuff_ + 9)/10
+      this%partbuff_      =  this%partbuff_ + this%partchunksize_
+      IF ((bcoll.EQ.0).AND.(this%myrank_.EQ.0)) THEN
+        this%partbuff_   = mparts
+      END IF
+      this%stepcounter_ = 0
+    END IF
+   
     ! Initialize timers (get handles):
     DO j = 1, GPMAXTIMERS
       CALL GTInitHandle(this%htimers_(j),this%itimetype_)
@@ -233,7 +257,7 @@ MODULE class_GPart
       ENDIF
     ENDDO
 
-    CALL this%gpcomm_%GPartComm_ctor(GPCOMM_INTRFC_SF,this%maxparts_, &
+    CALL this%gpcomm_%GPartComm_ctor(GPCOMM_INTRFC_SF,this%partbuff_, &
          this%nd_,this%intorder_-1,this%comm_,this%htimers_(GPTIME_COMM))
     CALL this%gpcomm_%SetCacheParam(csize,nstrip)
     CALL this%gpcomm_%Init()
@@ -248,8 +272,8 @@ MODULE class_GPart
     this%lxbnds_(2,2) = real(ny,kind=GP)
     this%libnds_(3,1) = ksta ; 
     this%libnds_(3,2) = kend ; 
-    this%lxbnds_(3,1) = real(ksta-1,kind=GP)
-    this%lxbnds_(3,2) = real(kend-1,kind=GP) + 1.0_GP
+    this%lxbnds_(3,1) = real(ksta-1,kind=GP)          !- 0.50_GP
+    this%lxbnds_(3,2) = real(kend-1,kind=GP) + 1.0_GP !0.50_GP
     CALL range(1,nx,nprocs,myrank,tsta,tend) !Bounds of transposed real array
     this%tibnds_(1,1) = 1  ;
     this%tibnds_(1,2) = nz ;
@@ -265,37 +289,38 @@ MODULE class_GPart
     ! Instantiate interp operation. Remember that a valid timer 
     ! handle must be passed:
     CALL this%intop_%GPSplineInt_ctor(3,this%nd_,this%libnds_,this%lxbnds_, &
-         this%tibnds_,this%intorder_,this%maxparts_,this%gpcomm_,&
+         this%tibnds_,this%intorder_,this%partbuff_,this%gpcomm_,&
          this%htimers_(GPTIME_DATAEX),this%htimers_(GPTIME_TRANSP))
 
     ! Create part. d.b. structure type for I/O
     CALL MPI_TYPE_SIZE(GC_REAL,szreal,this%ierr_)
 
-    ALLOCATE(this%id_      (this%maxparts_))
+    ALLOCATE(this%id_      (this%partbuff_))
+    ALLOCATE(this%tmpint_  (this%partbuff_))
     IF ( this%intacc_.EQ.1 ) THEN
-    ALLOCATE(this%idm_     (this%maxparts_))
+    ALLOCATE(this%idm_     (this%partbuff_))
     ENDIF
-    ALLOCATE(this%px_      (this%maxparts_))
-    ALLOCATE(this%py_      (this%maxparts_))
-    ALLOCATE(this%pz_      (this%maxparts_))
-    ALLOCATE(this%lvx_     (this%maxparts_))
-    ALLOCATE(this%lvy_     (this%maxparts_))
-    ALLOCATE(this%lvz_     (this%maxparts_))
-    ALLOCATE(this%ptmp0_ (3,this%maxparts_))
-    ALLOCATE(this%ptmp1_ (3,this%maxparts_))
+    ALLOCATE(this%px_      (this%partbuff_))
+    ALLOCATE(this%py_      (this%partbuff_))
+    ALLOCATE(this%pz_      (this%partbuff_))
+    ALLOCATE(this%lvx_     (this%partbuff_))
+    ALLOCATE(this%lvy_     (this%partbuff_))
+    ALLOCATE(this%lvz_     (this%partbuff_))
+    ALLOCATE(this%ptmp0_ (3,this%partbuff_))
+    ALLOCATE(this%ptmp1_ (3,this%partbuff_))
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
-      ALLOCATE(this%gptmp0_ (3,this%maxparts_))
-      ALLOCATE(this%vdb_ (3,this%maxparts_))
+      ALLOCATE(this%gptmp0_ (3,this%partbuff_))
+      ALLOCATE(this%vdb_ (3,this%partbuff_))
     ENDIF
     IF ( this%intacc_.EQ. 1 ) THEN
-      ALLOCATE(this%vk0_  (3,this%maxparts_))
-      ALLOCATE(this%vk1_  (3,this%maxparts_))
-      ALLOCATE(this%vk2_  (3,this%maxparts_))
-      ALLOCATE(this%xk1_  (3,this%maxparts_))
-      ALLOCATE(this%ptmp2_(3,this%maxparts_))
+      ALLOCATE(this%vk0_  (3,this%partbuff_))
+      ALLOCATE(this%vk1_  (3,this%partbuff_))
+      ALLOCATE(this%vk2_  (3,this%partbuff_))
+      ALLOCATE(this%xk1_  (3,this%partbuff_))
+      ALLOCATE(this%ptmp2_(3,this%partbuff_))
     ENDIF
-    ALLOCATE(this%ltmp0_ (this%maxparts_))
-    ALLOCATE(this%ltmp1_ (this%maxparts_))
+    ALLOCATE(this%ltmp0_ (this%partbuff_))
+    ALLOCATE(this%ltmp1_ (this%partbuff_))
 
   END SUBROUTINE GPart_ctor
 !-----------------------------------------------------------------
@@ -313,28 +338,29 @@ MODULE class_GPart
     TYPE(GPart)   ,INTENT(INOUT)             :: this
     INTEGER                                  :: j
 
-    IF ( ALLOCATED    (this%id_) ) DEALLOCATE   (this%id_)
-    IF ( ALLOCATED   (this%idm_) ) DEALLOCATE  (this%idm_)
-    IF ( ALLOCATED    (this%px_) ) DEALLOCATE   (this%px_)
-    IF ( ALLOCATED    (this%py_) ) DEALLOCATE   (this%py_)
-    IF ( ALLOCATED    (this%pz_) ) DEALLOCATE   (this%pz_)
-    IF ( ALLOCATED   (this%lvx_) ) DEALLOCATE  (this%lvx_)
-    IF ( ALLOCATED   (this%lvy_) ) DEALLOCATE  (this%lvy_)
-    IF ( ALLOCATED   (this%lvz_) ) DEALLOCATE  (this%lvz_)
-    IF ( ALLOCATED (this%ptmp0_) ) DEALLOCATE(this%ptmp0_)
-    IF ( ALLOCATED (this%gptmp0_) ) DEALLOCATE(this%gptmp0_)
-    IF ( ALLOCATED (this%ptmp1_) ) DEALLOCATE(this%ptmp1_)
-    IF ( ALLOCATED (this%ptmp2_) ) DEALLOCATE(this%ptmp2_)
-    IF ( ALLOCATED   (this%vdb_) ) DEALLOCATE  (this%vdb_)
-    IF ( ALLOCATED (this%ltmp0_) ) DEALLOCATE(this%ltmp0_)
-    IF ( ALLOCATED (this%ltmp1_) ) DEALLOCATE(this%ltmp1_)
-    IF ( ALLOCATED   (this%lvy_) ) DEALLOCATE  (this%lvy_)
-    IF ( ALLOCATED   (this%lvz_) ) DEALLOCATE  (this%lvz_)
-    IF ( ALLOCATED  (this%fpid_) ) DEALLOCATE (this%fpid_)
-    IF ( ALLOCATED   (this%vk0_) ) DEALLOCATE  (this%vk0_)
-    IF ( ALLOCATED   (this%vk1_) ) DEALLOCATE  (this%vk1_)
-    IF ( ALLOCATED   (this%vk2_) ) DEALLOCATE  (this%vk2_)
-    IF ( ALLOCATED   (this%xk1_) ) DEALLOCATE  (this%xk1_)
+    IF ( ALLOCATED    (this%id_) ) DEALLOCATE    (this%id_)
+    IF ( ALLOCATED(this%tmpint_) ) DEALLOCATE(this%tmpint_)
+    IF ( ALLOCATED   (this%idm_) ) DEALLOCATE   (this%idm_)
+    IF ( ALLOCATED    (this%px_) ) DEALLOCATE    (this%px_)
+    IF ( ALLOCATED    (this%py_) ) DEALLOCATE    (this%py_)
+    IF ( ALLOCATED    (this%pz_) ) DEALLOCATE    (this%pz_)
+    IF ( ALLOCATED   (this%lvx_) ) DEALLOCATE   (this%lvx_)
+    IF ( ALLOCATED   (this%lvy_) ) DEALLOCATE   (this%lvy_)
+    IF ( ALLOCATED   (this%lvz_) ) DEALLOCATE   (this%lvz_)
+    IF ( ALLOCATED (this%ptmp0_) ) DEALLOCATE (this%ptmp0_)
+    IF ( ALLOCATED (this%gptmp0_)) DEALLOCATE(this%gptmp0_)
+    IF ( ALLOCATED (this%ptmp1_) ) DEALLOCATE (this%ptmp1_)
+    IF ( ALLOCATED (this%ptmp2_) ) DEALLOCATE (this%ptmp2_)
+    IF ( ALLOCATED   (this%vdb_) ) DEALLOCATE   (this%vdb_)
+    IF ( ALLOCATED (this%ltmp0_) ) DEALLOCATE (this%ltmp0_)
+    IF ( ALLOCATED (this%ltmp1_) ) DEALLOCATE (this%ltmp1_)
+    IF ( ALLOCATED   (this%lvy_) ) DEALLOCATE   (this%lvy_)
+    IF ( ALLOCATED   (this%lvz_) ) DEALLOCATE   (this%lvz_)
+    IF ( ALLOCATED  (this%fpid_) ) DEALLOCATE  (this%fpid_)
+    IF ( ALLOCATED   (this%vk0_) ) DEALLOCATE   (this%vk0_)
+    IF ( ALLOCATED   (this%vk1_) ) DEALLOCATE   (this%vk1_)
+    IF ( ALLOCATED   (this%vk2_) ) DEALLOCATE   (this%vk2_)
+    IF ( ALLOCATED   (this%xk1_) ) DEALLOCATE   (this%xk1_)
 
     ! Destroy timers:
     DO j = 1, GPMAXTIMERS
@@ -581,20 +607,13 @@ MODULE class_GPart
       this%maxparts_,' total created: ',nt
       STOP
     ENDIF
-    IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
-      CALL GTStart(this%htimers_(GPTIME_COMM))
-      CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_, &
-           this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_UNIQ)
-      CALL GTAcc(this%htimers_(GPTIME_COMM))
-    ENDIF
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
        CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
        CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
        CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,this%nparts_, &
-                          this%vdb_,this%maxparts_)
-    
+                          this%vdb_,this%maxparts_)    
        IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to box units
           this%ptmp0_(1,:) = this%vdb_(1,:)*this%delta_(1)
           this%ptmp0_(2,:) = this%vdb_(2,:)*this%delta_(2)
@@ -671,6 +690,10 @@ MODULE class_GPart
            y.GE.this%lxbnds_(2,1) .AND. y.LT.this%lxbnds_(2,2) .AND. &
            x.GE.this%lxbnds_(1,1) .AND. x.LT.this%lxbnds_(1,2) ) THEN
         nl = nl + 1
+        IF (nl.GT.this%partbuff_) THEN
+          this%partbuff_ = this%partbuff_ + this%partchunksize_
+          CALL this%ResizeArrays(this%partbuff_,.true.)
+        END IF
         this%id_(nl) = nt
         this%px_(nl) = x
         this%py_(nl) = y
@@ -681,13 +704,19 @@ MODULE class_GPart
     CLOSE(5)
 
     this%nparts_ = nl;
+    IF ((this%myrank_.NE.0).OR.(this%bcollective_.EQ.1)) THEN
+      IF (this%nparts_.LT.(this%partbuff_-this%partchunksize_)) THEN
+        this%partbuff_ = this%partbuff_ - ((this%partbuff_-this%nparts_) &
+                        /this%partchunksize_-1)*this%partchunksize_
+        CALL this%ResizeArrays(this%partbuff_,.false.) 
+      END IF
+    END IF
     CALL MPI_ALLREDUCE(nl,nt,1,MPI_INTEGER,MPI_SUM,this%comm_,this%ierr_)
     IF ( this%myrank_.eq.0 .AND. nt.NE.this%maxparts_ ) THEN
       WRITE(*,*) 'GPart_InitUserSeed: Inconsistent particle count: required no.=', &
       this%maxparts_,' total read: ',nt,' file:',this%seedfile_
       STOP
     ENDIF
-
     IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
       CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
                           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
@@ -740,10 +769,14 @@ MODULE class_GPart
 !!    STOP
 !!  ENDIF
 
-    IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
-      CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
-           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
-    ELSE
+    IF (this%iexchtype_.EQ.GPEXCHTYPE_NN) THEN
+      IF (this%bcollective_.EQ.0) THEN
+        CALL this%gpcomm_%VDBSynch_t0(this%ptmp0_,this%maxparts_,this%id_,&
+             this%px_,this%py_,this%pz_,this%nparts_)
+      END IF
+    ELSE IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
+      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+                     this%px_,this%py_,this%pz_,this%nparts_,this%ptmp1_)
       ! Store global VDB data into temp array:
 !$omp parallel do
       DO j = 1, this%maxparts_
@@ -934,10 +967,10 @@ MODULE class_GPart
     CALL GTInitHandle(ht,GT_WTIME)
 
     ! If doing non-collective binary or ascii writes, synch up vector:
-    IF ( this%iouttype_.EQ.0 .AND. this%bcollective_.EQ.0 .OR. this%iouttype_.EQ.1 ) THEN
+    IF ((this%iouttype_.EQ.0 .AND. this%bcollective_.EQ.0).OR.this%iouttype_.EQ.1 ) THEN
     
-      CALL this%gpcomm_%VDBSynch(this%ptmp0_,this%maxparts_,this%id_, &
-                                 this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp1_)
+      CALL this%gpcomm_%VDBSynch_t0(this%ptmp0_,this%maxparts_,this%id_, &
+                                 this%lvx_,this%lvy_,this%lvz_,this%nparts_)
     ENDIF
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
@@ -1082,8 +1115,7 @@ MODULE class_GPart
     CALL GTInitHandle(ht,GT_WTIME)
     ! If doing non-collective binary or ascii writes, synch up vector:
     IF ( this%iouttype_.EQ.0 .AND. this%bcollective_.EQ.0 .OR. this%iouttype_.EQ.1 ) THEN
-      CALL this%gpcomm_%LagSynch(this%ltmp0_,this%maxparts_,this%id_,this%ltmp1_,&
-                                 this%nparts_,this%ptmp0_(1,:))
+      CALL this%gpcomm_%LagSynch_t0(this%ltmp0_,this%maxparts_,this%id_,this%ltmp1_,this%nparts_)
     ENDIF
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
@@ -1415,6 +1447,26 @@ MODULE class_GPart
     ELSE
       bcoll = this%bcollective_
     ENDIF
+    
+    IF (this%iexchtype_.EQ.GPEXCHTYPE_NN) THEN
+      IF (bcoll.EQ.1) THEN
+        IF (len_trim(nmb).gt.0 ) THEN
+          CALL GPart_binary_read_id_co(this,iunit, &
+          trim(dir) // '/' // trim(spref) // '.' // nmb //'.lag')
+        ELSE
+          CALL GPart_binary_read_id_co(this,iunit, trim(spref))
+        ENDIF
+      ELSE
+        IF (len_trim(nmb).gt.0 ) THEN
+          CALL GPart_binary_read_pdb_t0(this,iunit, &
+               trim(dir) // '/' // trim(spref) // '.' // nmb //'.lag',&
+               time,this%ptmp0_,.true.)
+        ELSE
+          CALL GPart_binary_read_pdb_t0(this,iunit,trim(spref),time,&
+                                        this%ptmp0_, .true.)
+        END IF
+      END IF
+    END IF
 
     CALL GTStart(this%htimers_(GPTIME_GPREAD))
     IF ( iotype .EQ. 0 ) THEN   ! Binary files
@@ -1441,7 +1493,8 @@ MODULE class_GPart
       CALL GPart_ascii_read_pdb (this,iunit,trim(spref),time,this%ptmp0_)
       ENDIF
     ENDIF
-    IF ( this%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates from box units
+    ! rescale coordinates from box units
+    IF (this%wrtunit_ .EQ. 1) THEN
        this%ptmp0_(1,:) = this%ptmp0_(1,:)*this%invdel_(1)
        this%ptmp0_(2,:) = this%ptmp0_(2,:)*this%invdel_(2)
        this%ptmp0_(3,:) = this%ptmp0_(3,:)*this%invdel_(3)
@@ -1449,15 +1502,22 @@ MODULE class_GPart
     
     CALL GTAcc(this%htimers_(GPTIME_GPREAD))
 
-    IF ( .NOT.(present(id).and.present(lx).and.present(ly).and.present(lz).and.present(nl)) ) THEN 
+    IF ( (this%iexchtype_.EQ.GPEXCHTYPE_VDB).AND.              &
+.NOT.(present(id).and.present(lx).and.present(ly).and.present(lz).and.present(nl)) ) THEN 
       ! Store in member data arrays
       CALL GPart_GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
                              this%nparts_,this%ptmp0_,this%maxparts_)
-    ELSE
+    ELSE IF(this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
       ! Store in specified input arrays
       CALL GPart_GetLocalWrk(this,id,lx,ly,lz, &
                              nl,this%ptmp0_,this%maxparts_)
-    ENDIF
+    ELSE IF (this%iexchtype_.EQ.GPEXCHTYPE_NN) THEN
+      DO j = 1,this%nparts_
+        this%px_(j) = this%ptmp0_(1,j)
+        this%py_(j) = this%ptmp0_(2,j)
+        this%pz_(j) = this%ptmp0_(3,j)
+      END DO
+    END IF
 
     CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
                        MPI_SUM,this%comm_,this%ierr_)
@@ -1482,6 +1542,78 @@ MODULE class_GPart
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+  SUBROUTINE GPart_binary_read_id_co(this,iunit,sfile)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : binary_read_pdb_co
+!  DESCRIPTION: Does read of binary Lagrangian particle data from file, 
+!               collectively to determine corresponding ids.
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    iunit   : unit number
+!    sfile   : fully resolved file name 
+!-----------------------------------------------------------------
+    USE fprecision
+    USE commtypes
+    USE mpivars
+
+    IMPLICIT NONE
+    CLASS(GPart) ,INTENT(INOUT)               :: this
+    REAL(KIND=GP)                             :: rvar,time
+    INTEGER,INTENT(IN)                        :: iunit
+    INTEGER                                   :: fh,i,j,nerr,szreal,nr,nb
+    INTEGER(kind=MPI_OFFSET_KIND)             :: offset
+    CHARACTER(len=*),INTENT   (IN)            :: sfile
+
+    CALL MPI_TYPE_SIZE(GC_REAL,szreal,this%ierr_)
+    CALL MPI_FILE_OPEN(this%comm_,trim(sfile),MPI_MODE_RDONLY,MPI_INFO_NULL,fh,this%ierr_)
+    IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
+      CALL MPI_ERROR_STRING(this%ierr_, this%serr_, nerr,ierr);
+      WRITE(*,*) 'GPart_binary_read_pdb_count: Error reading opening : ', trim(sfile),& 
+                trim(this%serr_)
+      STOP
+    ENDIF
+  
+    ! Must read part. data from correct spot in file:
+    offset = 0
+    CALL MPI_FILE_READ_AT_ALL(fh,offset,rvar,1,GC_REAL,this%istatus_,this%ierr_)    !  no.parts
+    IF ( int(rvar).NE.this%maxparts_ ) THEN
+      WRITE(*,*) 'GPart_binary_read_pdb_count: Attempt to read incorrect number of particles: required:',&
+                  this%maxparts_,' no. read: ',int(rvar)
+      WRITE(*,*) 'GPart_binary_read_pdb_count: Error reading: ', trim(sfile)
+      STOP
+    ENDIF
+    offset = szreal
+    CALL MPI_FILE_READ_AT_ALL(fh, offset,rvar,1,GC_REAL,this%istatus_,this%ierr_) ! time
+    offset = 2*szreal
+    this%nparts_ = 0
+    nb = 0
+    nr = this%maxparts_/this%nprocs_
+    DO WHILE ((this%ierr_.EQ.MPI_SUCCESS) .AND. (nb.LT.this%maxparts_))
+      nr = MIN(nr, this%maxparts_-nb)
+      CALL MPI_FILE_READ_AT_ALL(fh,offset,this%ptmp0_,3*nr,GC_REAL,this%istatus_,this%ierr_) ! PDB
+      offset = offset + 3*nr*szreal
+      DO j = 1,nr
+        IF (this%wrtunit_ .EQ. 1) THEN
+          this%ptmp0_(3,j) = this%ptmp0_(3,j)*this%invdel_(3)
+        END IF
+        IF ((this%ptmp0_(3,j).GE.this%lxbnds_(3,1)).AND.(this%ptmp0_(3,j).LT.this%lxbnds_(3,2))) THEN
+          IF (this%nparts_.GE.this%partbuff_) THEN
+            this%partbuff_ = this%partbuff_ + this%partchunksize_
+            CALL this%ResizeArrays(this%partbuff_,.true.)
+          END IF
+          this%nparts_ = this%nparts_+1
+          this%id_(this%nparts_) = j+nb-1
+        END IF
+      END DO
+      nb = nb + nr
+    END DO
+    CALL MPI_FILE_CLOSE(fh,this%ierr_)
+
+  END SUBROUTINE GPart_binary_read_id_co
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
   SUBROUTINE GPart_binary_read_pdb_co(this,iunit,sfile,time,pdb)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1501,9 +1633,9 @@ MODULE class_GPart
     IMPLICIT NONE
     CLASS(GPart) ,INTENT(INOUT)               :: this
     REAL(KIND=GP)                             :: rvar,time
-    REAL(KIND=GP),INTENT(INOUT)               :: pdb(3,this%maxparts_)
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:,:):: pdb
     INTEGER,INTENT(IN)                        :: iunit
-    INTEGER                                   :: fh,j,lc,nerr,szreal
+    INTEGER                                   :: fh,i,j,nerr,szreal,nr,nb
     INTEGER(kind=MPI_OFFSET_KIND)             :: offset
     CHARACTER(len=*),INTENT   (IN)            :: sfile
 
@@ -1528,14 +1660,32 @@ MODULE class_GPart
     offset = szreal
     CALL MPI_FILE_READ_AT_ALL(fh, offset,rvar,1,GC_REAL,this%istatus_,this%ierr_) ! time
     offset = 2*szreal
-    CALL MPI_FILE_READ_AT_ALL(fh,offset,pdb,3*this%maxparts_,GC_REAL,this%istatus_,this%ierr_) ! PDB
+    IF (this%iexchtype_.EQ.GPEXCHTYPE_NN) THEN
+      i = 1
+      nb = 0
+      nr = this%maxparts_/this%nprocs_
+      DO WHILE ((this%ierr_.EQ.MPI_SUCCESS) .AND. (nb.LT.this%maxparts_))
+        nr = MIN(nr, this%maxparts_-nb)
+        CALL MPI_FILE_READ_AT_ALL(fh,offset,this%ptmp1_,3*nr,GC_REAL,this%istatus_,this%ierr_) ! PDB
+        offset = offset + 3*nr*szreal
+        DO j = 1,nr
+          IF ((i.LE.this%nparts_).AND.(this%id_(i).EQ.(j+nb-1))) THEN
+            pdb(:,i) = this%ptmp1_(:,j)
+            i = i + 1
+          END IF
+        END DO
+        nb = nb + nr
+      END DO
+    ELSE IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
+      CALL MPI_FILE_READ_AT_ALL(fh,offset,pdb,3*this%maxparts_,GC_REAL,this%istatus_,this%ierr_) ! PDB
+    END IF
     CALL MPI_FILE_CLOSE(fh,this%ierr_)
 
   END SUBROUTINE GPart_binary_read_pdb_co
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
- SUBROUTINE GPart_binary_read_pdb_t0(this,iunit,sfile,time,pdb)
+ SUBROUTINE GPart_binary_read_pdb_t0(this,iunit,sfile,time,pdb,stg)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : binary_read_pdb_t0
@@ -1546,21 +1696,24 @@ MODULE class_GPart
 !    iunit   : unit number
 !    sfile   : fully resolved file name
 !    time    : real time
-!    pdb     : part. d.b. in (3,maxparts) array
-!
+!    pdb     : part. d.b. in array
+!    stg     : stage of reading (if True, only determine ids from 
+!                                file and resize if necessary)
 !-----------------------------------------------------------------
     USE fprecision
     USE commtypes
     USE mpivars
 
     IMPLICIT NONE
-    CLASS(GPart) ,INTENT(INOUT)       :: this
-    REAL(KIND=GP),INTENT(INOUT)       :: time
-    REAL(KIND=GP),INTENT(INOUT)       :: pdb(3,this%maxparts_)
-    REAL(KIND=GP)                     :: fnt
-    INTEGER      ,INTENT   (IN)       :: iunit
-    INTEGER                           :: j
-    CHARACTER(len=*),INTENT(IN)       :: sfile
+    CLASS(GPart) ,INTENT(INOUT)                :: this
+    REAL(KIND=GP),INTENT(INOUT)                :: time
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:,:) :: pdb
+    LOGICAL      ,INTENT(IN), OPTIONAL         :: stg
+    REAL(KIND=GP)                              :: fnt
+    INTEGER      ,INTENT   (IN)                :: iunit
+    INTEGER                                    :: j
+    CHARACTER(len=*),INTENT(IN)                :: sfile
+    LOGICAL                                    :: calc_ids
 
     ! Read global VDB, with time header, indexed only
     ! by time index: dir/spref.TTT.lag:
@@ -1586,12 +1739,40 @@ MODULE class_GPart
       READ(iunit) pdb
       CLOSE(iunit)
     ENDIF
-    CALL MPI_BCAST(pdb,3*this%maxparts_,GC_REAL,0,this%comm_,this%ierr_)
-    IF ( this%ierr_.NE.MPI_SUCCESS ) THEN
+
+    IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
+      CALL MPI_BCAST(pdb,3*this%maxparts_,GC_REAL,0,this%comm_,this%ierr_)
+      IF ( this%ierr_.NE.MPI_SUCCESS ) THEN
         WRITE(*,*)this%myrank_, ': GPart_binary_read_pdb_t0: Broadcast failed: file=',&
         trim(sfile)
     ENDIF
-
+    ELSE IF (this%iexchtype_.EQ.GPEXCHTYPE_NN) THEN
+      IF (this%myrank_.EQ.0) THEN
+!$omp parallel do
+        DO j = 1,this%maxparts_
+          this%id_(j) = j-1
+        END DO
+      END IF
+      IF (PRESENT(stg)) THEN
+        calc_ids = stg
+      ELSE
+        calc_ids = .false.
+      END IF
+      IF (calc_ids) THEN
+        IF (this%myrank_.EQ.0) this%nparts_ = this%maxparts_
+        IF (this%wrtunit_ .EQ.1) pdb(3,:) = pdb(3,:)*this%invdel_(3)
+        CALL this%gpcomm_%IdentifyTaskV(this%id_,pdb(3,:),this%nparts_,this%tmpint_)
+        IF (this%nparts_.GT.this%partbuff_) THEN
+          PRINT *, 'Rank', this%myrank_, 'resizing: nparts=', this%nparts_,  &
+                   ' | partbuff=', this%partbuff_, ' --> ', &
+                   (1+this%nparts_/this%partchunksize_)*this%partchunksize_
+          this%partbuff_ = (1+this%nparts_/this%partchunksize_)*this%partchunksize_
+          CALL this%ResizeArrays(this%partbuff_,.true.)
+        END IF
+      ELSE
+        CALL this%gpcomm_%PartScatterV(this%id_,pdb(1,:),pdb(2,:),pdb(3,:),this%nparts_,this%tmpint_)
+      END IF
+    END IF
   END SUBROUTINE GPart_binary_read_pdb_t0
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1758,6 +1939,16 @@ MODULE class_GPart
     ! between nearest-neighbor tasks BEFORE z-PERIODIZING particle coordinates:
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
       CALL GTStart(this%htimers_(GPTIME_COMM))
+      CALL this%gpcomm_%IdentifyExchV(this%id_,this%pz_,this%nparts_,ng,    &
+                                     this%lxbnds_(3,1),this%lxbnds_(3,2)) 
+      IF (ng.GT.this%partbuff_) THEN
+        PRINT *, 'Rank', this%myrank_, 'resizing: nparts=', ng, ' | partbuff=',&
+                 this%partbuff_, ' --> ', this%partbuff_ + &
+                 (1+(ng-this%partbuff_)/this%partchunksize_)*this%partchunksize_
+        this%partbuff_ = this%partbuff_ + &
+              (1+(ng-this%partbuff_)/this%partchunksize_)*this%partchunksize_
+        CALL this%ResizeArrays(this%partbuff_,.true.)
+      END IF
       CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_,  &
            this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_INIT)
       CALL this%gpcomm_%PartExchangeV(this%id_,this%ptmp0_(1,:),            &
@@ -1768,6 +1959,22 @@ MODULE class_GPart
       CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3)
       ! Enforce periodicity in z and gptmp0(3):
       CALL GPart_MakePeriodicZ(this,this%pz_,this%ptmp0_(3,:),this%nparts_)
+      IF (this%stepcounter_.GE.GPSWIPERATE) THEN
+        IF ((this%bcollective_.EQ.1).OR.(this%myrank_.NE.0)) THEN
+          ng = this%partbuff_ - this%nparts_
+          IF (ng.GE.this%partchunksize_) THEN   ! Reduce array size
+            PRINT *, 'Rank', this%myrank_, 'resizing: nparts=', this%nparts_, ' | partbuff=',&
+                      this%partbuff_, ' --> ', this%partbuff_ - &
+                      (ng/this%partchunksize_-1)*this%partchunksize_
+            this%partbuff_ = this%partbuff_ - &
+                         (ng/this%partchunksize_-1)*this%partchunksize_
+            CALL this%ResizeArrays(this%partbuff_,.false.)
+          END IF
+        END IF
+        this%stepcounter_ = 1
+      ELSE
+        this%stepcounter_ = this%stepcounter_ + 1
+      END IF
     ENDIF
 
     ! If using VDB interface, do synch-up, and get local work:
@@ -2130,7 +2337,7 @@ MODULE class_GPart
     IMPLICIT NONE
     CLASS(GPart) ,INTENT(INOUT)                      :: this
     INTEGER,INTENT(IN)                               :: npdb
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)         :: pz,tpz
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(npdb)      :: pz,tpz
     INTEGER                                          :: j
 
 !$omp parallel do 
@@ -2774,7 +2981,7 @@ MODULE class_GPart
     USE fprecision
     USE commtypes
     USE mpivars
-    USE threads
+!$  USE threads
 
     IMPLICIT NONE
     CLASS(GPart) ,INTENT(INOUT)                          :: this
@@ -2795,8 +3002,131 @@ MODULE class_GPart
   END SUBROUTINE GPart_R3toR3
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
+  
+  SUBROUTINE GPart_ResizeArrays(this,new_size,onlyinc,exc)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Resize_Arrays
+!  DESCRIPTION: Resize all arrays in the GPart class (including 
+!               subclases, i.e. communicator, spline)
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    new_size: new number of particles
+!    onlyinc : if true, will only resize to increase array size
+!-----------------------------------------------------------------
+!$  USE threads
+ 
+    IMPLICIT NONE
+    CLASS(GPart) ,INTENT(INOUT)                          :: this
+    INTEGER      ,INTENT(IN)                             :: new_size
+    LOGICAL      ,INTENT(IN)                             :: onlyinc
+    LOGICAL      ,INTENT(IN)   ,OPTIONAL                 :: exc
+    INTEGER                                              :: n
+
+    n = SIZE(this%id_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_IntArray(this%id_,new_size,.true.)
+    END IF
+
+    n = SIZE(this%px_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%px_,new_size,.true.)
+    END IF
+    n = SIZE(this%py_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%py_,new_size,.true.)
+    END IF
+    n = SIZE(this%pz_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%pz_,new_size,.true.)
+    END IF
+
+    n = SIZE(this%lvx_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%lvx_,new_size,.false.)
+    END IF
+    n = SIZE(this%lvy_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%lvy_,new_size,.false.)
+    END IF
+    n = SIZE(this%lvz_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%lvz_,new_size,.false.)
+    END IF
+    n = SIZE(this%ltmp0_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%ltmp0_,new_size,.false.)
+    END IF
+    n = SIZE(this%ltmp1_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%ltmp1_,new_size,.false.)
+    END IF
+
+    n = SIZE(this%ptmp0_,2)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank2(this%ptmp0_,new_size,.true.)
+    END IF
+    n = SIZE(this%ptmp1_,2)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank2(this%ptmp1_,new_size,.false.)
+    END IF
+
+    IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
+      n = SIZE(this%vdb_)
+      IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+        CALL Resize_ArrayRank2(this%vdb_,new_size,.false.)
+      END IF
+    ELSE IF (this%iexchtype_.EQ.GPEXCHTYPE_NN) THEN
+      n = SIZE(this%tmpint_)
+      IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+        CALL Resize_IntArray(this%tmpint_,new_size,.true.)
+      END IF
+    END IF
+ 
+    IF ( this%intacc_.EQ. 1 ) THEN
+      n = SIZE(this%idm_)
+      IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+        CALL Resize_IntArray(this%idm_,new_size,.true.)
+      END IF
+
+      n = SIZE(this%vk0_,2)
+      IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+        CALL Resize_ArrayRank2(this%vk0_,new_size,.true.)
+      END IF
+      n = SIZE(this%vk1_,2)
+      IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+        CALL Resize_ArrayRank2(this%vk1_,new_size,.true.)
+      END IF
+      n = SIZE(this%vk2_,2)
+      IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+        CALL Resize_ArrayRank2(this%vk2_,new_size,.true.)
+      END IF
+
+      n = SIZE(this%xk1_,2)
+      IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+        CALL Resize_ArrayRank2(this%xk1_,new_size,.true.)
+      END IF
+
+      n = SIZE(this%ptmp2_,2)
+      IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+        CALL Resize_ArrayRank2(this%ptmp2_,new_size,.false.)
+      END IF
+    END IF
+
+    IF (PRESENT(exc)) THEN
+      IF (exc) RETURN    ! Skip subclass resizing
+    END IF
+
+    CALL this%intop_ %ResizeArrays(new_size,onlyinc)
+    CALL this%gpcomm_%ResizeArrays(new_size,onlyinc)
+
+    RETURN 
+  END SUBROUTINE GPart_ResizeArrays
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 
   INCLUDE 'iparts_contain.f90'
   INCLUDE 'tparts_contain.f90'
-  
+  INCLUDE 'gpic_contain.f90'
+
 END MODULE class_GPart

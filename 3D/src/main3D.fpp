@@ -39,6 +39,8 @@
 !           ROTBOUSS_SOL   builds the BOUSS solver in a rotating frame
 !           ROTBOUMHDB_SOL builds BOUSS and MHD with rotation and B_0
 !           MPROTBOUSS_SOL builds the BOUSS eq, rotating, multi-scalar
+!           MOIST_SOL      builds the MOIST Boussinesq solver
+!           HDPNLT_SOL     builds the HD solver with the penalty method
 !           GPE_SOL        builds the Gross-Pitaevskii Equation solver
 !           ARGL_SOL       builds the Advective Real Ginzburg Landau
 !           RGPE_SOL       builds the rotating GPE solver
@@ -49,6 +51,8 @@
 !           LAMHD_SOL      builds the Lagrangian-averaged MHD solver
 !           EDQNMHD_SOL    builds the EDQNM HD solver
 !           EDQNMROTH_SOL  builds the EDQNM ROTH solver
+!           HPIC_SOL       builds the hybrid PIC solver
+!           EHPIC_SOL      builds the hybrid electrostatic PIC solver
 !
 ! 2003 Pablo D. Mininni.
 !      Department of Physics,
@@ -116,7 +120,7 @@
       USE cuda_bindings
       USE cutypes
 #endif
-#if defined(PART_)
+#if defined(PART_) || defined(PIC_)
       USE class_GPart
 #endif
 
@@ -146,6 +150,14 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: th1,th2,th3
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fs1,fs2,fs3
 #endif
+#ifdef CPIC_
+      TYPE(ChargPIC)                                   :: picpart
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: rhoc,Temp
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: ux,uy,uz
+#endif
+#ifdef ELECFIELD_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: phi
+#endif
 #ifdef MAGFIELD_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: ax,ay,az
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: mx,my,mz
@@ -166,6 +178,11 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C7,C8
 #ifdef VELOC_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M1,M2,M3
+#endif
+#ifdef CPIC_
+      REAL(KIND=GP)   , ALLOCATABLE, DIMENSION (:,:,:) :: Re1,Re2,Re3
+      REAL(KIND=GP)   , ALLOCATABLE, DIMENSION (:,:,:) :: Rb1,Rb2,Rb3
+      REAL(KIND=GP)   , ALLOCATABLE, DIMENSION (:,:,:) :: Rj1,Rj2,Rj3
 #endif
 #ifdef MAGFIELD_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C9,C10,C11
@@ -205,13 +222,16 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C31,C32,C33
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C34,C35,C36
 #endif
+#ifdef PENALTY_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C37,C38
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C39,C40
+#endif
 
 #ifdef WAVEFUNCTION_
       DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: iold,qold,kold,cold
       DOUBLE PRECISION, ALLOCATABLE, DIMENSION (:)     :: inew,qnew,knew,cnew
 #endif
 
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: R1,R2,R3
 #ifdef VELOC_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fxold,fyold,fzold
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fxnew,fynew,fznew
@@ -221,6 +241,10 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: mxold,myold,mzold
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: mxnew,mynew,mznew
 #endif
+
+#ifdef PENALTY_
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: chi
+#endif
 #ifdef ADVECT_
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: vsq
 #endif
@@ -228,6 +252,8 @@
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: Vtrap
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: Vlinx,Vliny
 #endif
+
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: R1,R2,R3
 #ifdef PART_
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: R4,R5,R6
 #endif
@@ -299,6 +325,30 @@
 #ifdef CMHD_
       REAL(KIND=GP)    :: amach, cp2
 #endif
+#ifdef ELECSTAT_
+      REAL(KIND=GP)    :: kde,kde2
+#endif
+#ifdef PIC_
+      REAL         :: rbal
+      INTEGER      :: splord, picdiv, partpcell
+      INTEGER      :: picinittype
+      INTEGER      :: picexchtype,picouttype
+      INTEGER      :: picwrtunit,piccoll
+#endif
+#ifdef CPIC_
+      REAL(KIND=GP)    :: r0,T0,delT
+      REAL(KIND=GP)    :: krd,kru,kud,kuu,ktd,ktu
+      REAL(KIND=GP)    :: rparam0,rparam1,rparam2,rparam3,rparam4
+      REAL(KIND=GP)    :: rparam5,rparam6,rparam7,rparam8,rparam9
+      REAL(KIND=GP)    :: uparam0,uparam1,uparam2,uparam3,uparam4
+      REAL(KIND=GP)    :: uparam5,uparam6,uparam7,uparam8,uparam9
+      REAL(KIND=GP)    :: tparam0,tparam1,tparam2,tparam3,tparam4
+      REAL(KIND=GP)    :: tparam5,tparam6,tparam7,tparam8,tparam9
+#endif
+#ifdef HYBPIC_
+      INTEGER          :: Bmult = 10, iB
+      REAL(KIND=GP)    :: ekin,dii,betae,gammae,gam1,cp1,filstr
+#endif
 #ifdef MAGFIELD_
       REAL(KIND=GP)    :: mkup,mkdn
       REAL(KIND=GP)    :: m0,a0
@@ -348,9 +398,14 @@
       INTEGER :: dyna
       INTEGER :: corr
 #endif
+#ifdef PENALTY_
+      INTEGER      :: shape, ischi
+      REAL(KIND=GP):: inveta, x0, y0, z0, radius
+#endif
 #ifdef WAVEFUNCTION_
       INTEGER :: cflow
 #endif
+
 #ifdef PART_
       REAL         :: rbal
       REAL(KIND=GP):: tbeta(3)
@@ -389,8 +444,11 @@
 #endif
       TYPE(IOPLAN)          :: planio
       CHARACTER(len=100)    :: odir,idir
-#ifdef PART_
+#if defined(PART_)
       CHARACTER(len=1024)   :: lgseedfile,slgfpfile
+#endif
+#if defined(PIC_)
+      CHARACTER(len=1024)   :: picseedfile,spicfpfile
 #endif
       LOGICAL               :: bbenchexist
 
@@ -442,6 +500,29 @@
 #ifdef CMHD_
       NAMELIST / cmhdb / amach
 #endif
+#ifdef PIC_
+      NAMELIST / ppic / splord, picdiv, partpcell
+      NAMELIST / ppic / picinittype,picexchtype
+      NAMELIST / ppic / picouttype,picwrtunit,picseedfile,piccoll
+#endif
+#ifdef CPIC_
+      NAMELIST / picinitflds / r0,u0,T0,delT
+      NAMELIST / picinitflds / krd,kru,kud,kuu,ktd,ktu
+      NAMELIST / picinitflds / rparam0,rparam1,rparam2,rparam3
+      NAMELIST / picinitflds / rparam4,rparam5,rparam6,rparam7
+      NAMELIST / picinitflds / rparam8,rparam9,uparam0,uparam1
+      NAMELIST / picinitflds / uparam2,uparam3,uparam4,uparam4
+      NAMELIST / picinitflds / uparam5,uparam6,uparam7,uparam8
+      NAMELIST / picinitflds / uparam9,tparam0,tparam1,tparam2
+      NAMELIST / picinitflds / tparam3,tparam4,tparam5,tparam6
+      NAMELIST / picinitflds / tparam7,tparam8,tparam9
+#endif
+#ifdef HYBPIC_
+      NAMELIST / phybrid / dii,betae,gammae,Bmult,filstr
+#endif
+#ifdef ELECSTAT_
+      NAMELIST / elecstat / kde
+#endif
 #ifdef MAGFIELD_
       NAMELIST / magfield / m0,a0,mkdn,mkup,mu,corr,mparam0,mparam1
       NAMELIST / magfield / mparam2,mparam3,mparam4,mparam5,mparam6
@@ -462,6 +543,9 @@
 #ifdef BOUSSINESQ_
       NAMELIST / boussinesq / bvfreq,xmom,xtemp
 #endif
+#ifdef PENALTY_ 
+      NAMELIST / penalty / shape,inveta,x0,y0,z0,radius
+#endif
 #ifdef WAVEFUNCTION_
       NAMELIST / wavefunction / cspeed,lambda,rho0,kttherm,V0
       NAMELIST / wavefunction / cflow,iter_max_newt,iter_max_bicg
@@ -478,6 +562,7 @@
 #ifdef EDQNM_
       NAMELIST / edqnmles / kolmo,heli
 #endif
+
 #ifdef PART_
       NAMELIST / plagpart / lgmult,maxparts,ilginittype,ilgintrptype
       NAMELIST / plagpart / ilgexchtype,ilgouttype,ilgwrtunit,lgseedfile
@@ -572,6 +657,16 @@
       ALLOCATE( fy(nz,ny,ista:iend) )
       ALLOCATE( fz(nz,ny,ista:iend) )
 #endif
+#ifdef CPIC_
+      ALLOCATE(rhoc(nz,ny,ista:iend))
+      ALLOCATE(  ux(nz,ny,ista:iend))
+      ALLOCATE(  uy(nz,ny,ista:iend))
+      ALLOCATE(  uz(nz,ny,ista:iend))
+      ALLOCATE(Temp(nz,ny,ista:iend))
+#endif
+#ifdef ELECFIELD_
+      ALLOCATE( phi(nz,ny,ista:iend))
+#endif
 #ifdef MAGFIELD_
       ALLOCATE( C9 (nz,ny,ista:iend), C10(nz,ny,ista:iend) )
       ALLOCATE( C11(nz,ny,ista:iend), C12(nz,ny,ista:iend) )
@@ -628,6 +723,10 @@
       ALLOCATE( C35(nz,ny,ista:iend) )
       ALLOCATE( C36(nz,ny,ista:iend) )
 #endif
+#ifdef PENALTY_
+      ALLOCATE( C37(nz,ny,ista:iend),  C38(nz,ny,ista:iend) )
+      ALLOCATE( C39(nz,ny,ista:iend),  C40(nz,ny,ista:iend) )
+#endif
 #ifdef WAVEFUNCTION_
       ALLOCATE( zre(nz,ny,ista:iend), zim(nz,ny,ista:iend) )
 #endif
@@ -653,6 +752,9 @@
       ALLOCATE( R1(nx,ny,ksta:kend) )
       ALLOCATE( R2(nx,ny,ksta:kend) )
       ALLOCATE( R3(nx,ny,ksta:kend) )
+#ifdef PENALTY_
+      ALLOCATE( chi(nx,ny,ksta:kend) )
+#endif
 #ifdef ADVECT_
       ALLOCATE( vsq(nx,ny,ksta:kend) )
 #endif
@@ -660,6 +762,7 @@
       ALLOCATE( Vtrap(nx,ny,ksta:kend) )
       ALLOCATE( Vlinx(nx,ny,ksta:kend), Vliny(nx,ny,ksta:kend) )
 #endif
+
 #ifdef PART_
       ALLOCATE( R4(nx,ny,ksta:kend) )
       ALLOCATE( R5(nx,ny,ksta:kend) )
@@ -673,6 +776,17 @@
       ALLOCATE( Rb1(nx,ny,ksta:kend) )
       ALLOCATE( Rb2(nx,ny,ksta:kend) )
       ALLOCATE( Rb3(nx,ny,ksta:kend) )
+      ALLOCATE( Rj1(nx,ny,ksta:kend) )
+      ALLOCATE( Rj2(nx,ny,ksta:kend) )
+      ALLOCATE( Rj3(nx,ny,ksta:kend) )
+#endif
+#if defined (CPIC_)
+      ALLOCATE( Rb1(nx,ny,ksta:kend) )
+      ALLOCATE( Rb2(nx,ny,ksta:kend) )
+      ALLOCATE( Rb3(nx,ny,ksta:kend) )
+      ALLOCATE( Re1(nx,ny,ksta:kend) )
+      ALLOCATE( Re2(nx,ny,ksta:kend) )
+      ALLOCATE( Re3(nx,ny,ksta:kend) )
       ALLOCATE( Rj1(nx,ny,ksta:kend) )
       ALLOCATE( Rj2(nx,ny,ksta:kend) )
       ALLOCATE( Rj3(nx,ny,ksta:kend) )
@@ -1033,6 +1147,31 @@
       CALL MPI_BCAST(c3param9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
+#ifdef PENALTY_
+! Reads parameters for runs with the penalty method from the
+! namelist 'penalty' on the external file 'parameter.inp'
+!     shape : shape of the obstacle
+!     inveta: inverse of the eta penalty parameter
+!     x0    : x coordinate of the center of the obstacle
+!     y0    : y coordinate of the center of the obstacle
+!     z0    : z coordinate of the center of the obstacle
+!     radius: radius of the obstacle
+
+      inveta = 1000.0_GP
+      ischi  = 0 ! The penalty function must be computed after a restart
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
+         READ(1,NML=penalty)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(shape,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(inveta,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(x0    ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(y0    ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(z0    ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(radius,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+#endif
+
 #ifdef COMPRESSIBLE_
 ! Reads parameters for the compressible runs from the
 ! namelist 'compressible' on the external file 'parameter.inp'
@@ -1138,6 +1277,147 @@
       CALL MPI_BCAST(aparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(aparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(aparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+#endif
+
+#ifdef HYBPIC_
+! namelist 'phybrid' on the external file 'parameter.inp'
+!     gammae: barotropic exponent for fluid electrons
+!     betae : electronic plasma beta
+!     dii   : ion inertial length scale
+!     Bmult : magnetic field steps per ion step
+
+      gammae = 0.0_GP
+      dii    = 1.0_GP
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
+         READ(1,NML=phybrid)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(gammae ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(betae  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dii    ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(filstr,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(Bmult,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      gam1 = gammae-1.0_GP
+      cp1 = dii*betae/2
+      IF (gammae.GT.1) THEN
+         cp1 = cp1*gammae/gam1
+      END IF
+#endif
+
+#ifdef ELECSTAT_
+! namelist 'elecstat' on the external file 'parameter.inp'
+!     kde  : inverse debye length
+      
+      kde  = 0.0_GP
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
+         READ(1,NML=elecstat)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(kde ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      kde2 = kde*kde
+#endif
+
+#ifdef PIC_
+! namelist 'ppic' on the external file 'parameter.inp'
+!     splord     : spline order (0, 1, 2 or 3)
+!     partpcell  : number of particles per cell
+!     picdiv     : divisor for pic particle output
+!     picinittype: initialization type for locations (0=random,1=lattice, 2=user)
+!     picexchtype: boundary exchange type (0=nearest neighbor, 1=voxeldb)
+!     picouttype : output type (0=binary, 1=ASCII)
+!     piccoll    : I/O method when using binary output (0=task 0,1=collective)
+!     picwrtunit :   ! Write part. positions in box units (=1) or grid units(=0)
+!     picseedfile: filename for picinittype=2 case
+
+      splord    = 0
+      picdiv    = 1
+      partpcell = 1
+      rbal      = 0.0
+      spicfpfile= 'xpicInitRndSeed.000.txt'
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
+         READ(1,NML=ppic)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(splord,        1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(picdiv,        1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(partpcell,     1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(picinittype   ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(picexchtype   ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(picouttype    ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(picwrtunit    ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(piccoll       ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(spicfpfile ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(picseedfile,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+#endif
+
+#ifdef CPIC_
+! namelist 'picinitflds' on the external file 'parameter.inp'
+!     r0        : amplitude of the density fluctuations (mean density=1)
+!     krd       : minimum wavenumber for density fluctuations
+!     kru       : maximum wavenumber for density fluctuations
+!     rparam0   : rparam0-9 can be used to control the ion density
+!     rparam0-9 : ten real numbers to control properties of
+!                 the initial ion density fluctuations
+!     u0        : amplitude of the initial ion mean velocity field
+!     kud       : minimum wavenumber for ion mean velocity
+!     kuu       : maximum wavenumber for ion mean velocity
+!     uparam0-9 : ten real numbers to control properties of
+!                 the initial ion mean velocity fluctuations
+!     T0        : mean temperature of the ions
+!     delT      : amplitude of the temperature fluctuations
+!     ktd       : minimum wavenumber for temperature fluctuations
+!     ktu       : maximum wavenumber for temperature fluctuations
+!     tparam0-9 : ten real numbers to control properties of
+!                 the initial ion temperature fluctuations
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
+         READ(1,NML=picinitflds)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(r0  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(krd ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kru ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(u0  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kud ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(kuu ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(T0  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(delT,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ktd ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ktu ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(uparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
 #ifdef UNIFORMB_
@@ -1307,7 +1587,7 @@
       CALL MPI_BCAST(heli,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 #endif
 
-#ifdef PART_
+#if defined(PART_)
 ! Reads parameters for runs with particles
 !     maxparts    : Maximum number of particles
 !     injtp       : = 0 when stat=0 generates initial v and part seeds
@@ -1467,6 +1747,9 @@
          kx(i) = real(i-1,kind=GP)
          kx(i+nx/2) = real(i-nx/2-1,kind=GP)
       END DO
+      IF (nx.eq.1) THEN
+         kx(1) = 0.0_GP
+      END IF
       DO j = 1,ny/2
          ky(j) = real(j-1,kind=GP)
          ky(j+ny/2) = real(j-ny/2-1,kind=GP)
@@ -1493,6 +1776,9 @@
          DO j = 1,ny
             DO k = 1,nz
                kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
+#ifdef PIC_
+               C17(k,j,i) = EXP(-filstr*(kn2(k,j,i)/kmax)**2)
+#endif
             END DO
          END DO
       END DO
@@ -1663,9 +1949,20 @@
       ENDIF
 #endif
 
+#ifdef PIC_
+      CALL picpart%GPIC_ctor(MPI_COMM_WORLD,partpcell,picinittype, &
+                       splord,picexchtype,picouttype,piccoll,csize,&
+                       nstrip,0,picwrtunit)
+      CALL picpart%SetRandSeed(seed)
+      CALL picpart%SetSeedFile(trim(picseedfile))
+#endif
+#ifdef CPIC_
+      CALL picpart%ChargPIC_ctor()
+#endif
+
 #ifdef PART_
       rmp   = 0.5/dt
-      tbeta = (/-rmp, 0.0, rmp/)
+      tbeta = (/-rmp, 0.0_GP, rmp/)
       IF ( dolag.GT.0 ) THEN
         CALL lagpart%GPart_ctor(MPI_COMM_WORLD,maxparts,ilginittype,&
              ilgintrptype,3,ilgexchtype,ilgouttype,ilgcoll,csize, &
@@ -1738,6 +2035,14 @@
 #if defined(VELOC_) || defined (ADVECT_)
       INCLUDE 'initialv.f90'            ! initial velocity
 #endif
+#ifdef CPIC_
+      INCLUDE 'initialr.f90'            ! initial particle density
+      INCLUDE 'initialu.f90'            ! initial particle mean velocity
+      INCLUDE 'initialt.f90'            ! initial particle temperature
+      IF (myrank.EQ.0) THEN ! Fix mean ion density to 1
+        rhoc(1,1,1) = 1.0_GP
+      END IF
+#endif
 #ifdef SCALAR_
       INCLUDE 'initials.f90'            ! initial scalar density
 #endif
@@ -1749,6 +2054,43 @@
 #endif
 #ifdef WAVEFUNCTION_
       INCLUDE 'initialz.f90'            ! initial wave function
+#endif
+#ifdef CPIC_
+      IF (picinittype.EQ.GPICINIT_FROMFLD) THEN
+        CALL fftp3d_complex_to_real(plancr,rhoc,R1 ,MPI_COMM_WORLD)
+        CALL fftp3d_complex_to_real(plancr, ux ,Rj1,MPI_COMM_WORLD)
+        CALL fftp3d_complex_to_real(plancr, uy ,Rj2,MPI_COMM_WORLD)
+        CALL fftp3d_complex_to_real(plancr, uz ,Rj3,MPI_COMM_WORLD)
+        CALL fftp3d_complex_to_real(plancr,Temp,R2 ,MPI_COMM_WORLD)
+        CALL picpart%InitFromFields(R1,Rj1,Rj2,Rj3,R2)
+      ELSE IF (picinittype.EQ.GPICINIT_FROMBIN) THEN
+        CALL io_read(1,idir,'ni','init',planio,R1)
+        CALL io_read(1,idir,'ux','init',planio,Rj1)
+        CALL io_read(1,idir,'uy','init',planio,Rj2)
+        CALL io_read(1,idir,'uz','init',planio,Rj3)
+        CALL io_read(1,idir,'Ti','init',planio,R2)
+        CALL picpart%InitFromFields(R1,Rj1,Rj2,Rj3,R2)
+        CALL io_read(1,idir,'ax','init',planio,R1)
+        CALL io_read(1,idir,'ay','init',planio,R2)
+        CALL io_read(1,idir,'az','init',planio,R3)
+        CALL fftp3d_real_to_complex(planrc,R1,ax,MPI_COMM_WORLD)
+        CALL fftp3d_real_to_complex(planrc,R2,ay,MPI_COMM_WORLD)
+        CALL fftp3d_real_to_complex(planrc,R3,az,MPI_COMM_WORLD)
+      ELSE IF (picinittype.EQ.GPICINIT_FROMUSR) THEN
+        CALL picpart%InitUserSeed()
+      END IF
+      IF (bench.ne.1) THEN
+        CALL picpart%io_write_wgt(1,odir,'wgt','init',0.0_GP) 
+      END IF
+#endif
+#ifdef ELECSTAT_
+      CALL picpart%GetDensity(R1)
+      CALL fftp3d_real_to_complex(planrc,R1,rhoc,MPI_COMM_WORLD)
+      CALL dealias(rhoc)
+      CALL poisson_elecstat(rhoc,kde2,phi)
+      Rb1 = bx0
+      Rb2 = by0
+      Rb3 = bz0
 #endif
 #ifdef PART_
       IF ( dolag.GT.0 ) THEN
@@ -1975,6 +2317,14 @@
          timep = pstep
          ENDIF
       ENDIF INJM
+#endif
+
+#ifdef PIC_
+          CALL picpart%io_read    (1,idir,'xpic',ext)
+          CALL picpart%io_read_wgt(1,idir,'wgt','init')
+#ifdef CPIC_
+          CALL picpart%io_readv   (1,idir,'vpic',ext)
+#endif
 #endif
 
 #ifdef MAGFIELD_
@@ -2533,140 +2883,220 @@
                CALL io_write(1,odir,'mean_th3',ext,planio,R1)
             ENDIF
 #endif
-#ifdef MAGFIELD_
+#ifdef ELECFIELD_
             rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
                DO j = 1,ny
                   DO k = 1,nz
-                     C1(k,j,i) = ax(k,j,i)*rmp
-                     C2(k,j,i) = ay(k,j,i)*rmp
-                     C3(k,j,i) = az(k,j,i)*rmp
+                     C4(k,j,i) = phi(k,j,i)*rmp
+                     C5(k,j,i) = rhoc(k,j,i)*rmp
                   END DO
                END DO
             END DO
             IF (outs.ge.1) THEN
-               CALL rotor3(C2,C3,C4,1)
-               CALL rotor3(C1,C3,C5,2)
-               CALL rotor3(C1,C2,C6,3)
-               CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
-               CALL io_write(1,odir,'bx',ext,planio,R1)
-               CALL io_write(1,odir,'by',ext,planio,R2)
-               CALL io_write(1,odir,'bz',ext,planio,R3)
-            ENDIF
-            IF (outs.eq.2) THEN
-               CALL laplak3(C1,C4)
-               CALL laplak3(C2,C5)
-               CALL laplak3(C3,C6)
-               CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
-               CALL io_write(1,odir,'jx',ext,planio,R1)
-               CALL io_write(1,odir,'jy',ext,planio,R2)
-               CALL io_write(1,odir,'jz',ext,planio,R3)
-            ENDIF
-            CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
-            CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
-            CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
-            CALL io_write(1,odir,'ax',ext,planio,R1)
-            CALL io_write(1,odir,'ay',ext,planio,R2)
-            CALL io_write(1,odir,'az',ext,planio,R3)
-            IF (rand.eq.2) THEN
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-               DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-                  DO j = 1,ny
-                     DO k = 1,nz
-                        C1(k,j,i) = mxold(k,j,i)*rmp
-                        C2(k,j,i) = myold(k,j,i)*rmp
-                        C3(k,j,i) = mzold(k,j,i)*rmp
-                     END DO
-                  END DO
-               END DO
+               CALL derivk3(C4,C1,1)
+               CALL derivk3(C4,C2,2)
+               CALL derivk3(C4,C3,3)
                CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
                CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
                CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
-               CALL io_write(1,odir,'mxold',ext,planio,R1)
-               CALL io_write(1,odir,'myold',ext,planio,R2)
-               CALL io_write(1,odir,'mzold',ext,planio,R3)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-               DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-                  DO j = 1,ny
-                     DO k = 1,nz
-                        C1(k,j,i) = mxnew(k,j,i)*rmp
-                        C2(k,j,i) = mynew(k,j,i)*rmp
-                        C3(k,j,i) = mznew(k,j,i)*rmp
-                     END DO
-                  END DO
-               END DO
-               CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
-               CALL io_write(1,odir,'mxnew',ext,planio,R1)
-               CALL io_write(1,odir,'mynew',ext,planio,R2)
-               CALL io_write(1,odir,'mznew',ext,planio,R3)
+               CALL io_write(1,odir,'Ex',ext,planio,R1)
+               CALL io_write(1,odir,'Ey',ext,planio,R2)
+               CALL io_write(1,odir,'Ez',ext,planio,R3)
             END IF
-            IF (mean.eq.1) THEN
-               dump = real(cstep,kind=GP)/t
+            CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
+            CALL io_write(1,odir,'ph',ext,planio,R1)
+            CALL fftp3d_complex_to_real(plancr,C5,R1,MPI_COMM_WORLD)
+            CALL io_write(1,odir,'rh',ext,planio,R1)           
+#endif
+#if defined(HYBPIC_)
+            IF (outs.ge.1) THEN
+               CALL picpart%GetDensity(R1)
+               CALL io_write(1,odir,'ni',ext,planio,R1)
+               CALL picpart%GetFlux(Re1,Re2,Re3)
+               CALL io_write(1,odir,'jix',ext,planio,Re1)
+               CALL io_write(1,odir,'jiy',ext,planio,Re2)
+               CALL io_write(1,odir,'jiz',ext,planio,Re3)
+            END IF
+            IF (outs.ge.2) THEN
+               IF ((bx0.EQ.0).AND.(by0.EQ.0).AND.(bz0.EQ.0)) THEN
+                  CALL picpart%GetTemperature(R1)
+                  CALL io_write(1,odir,'Ti',ext,planio,R1)
+               ELSE
+                  CALL picpart%GetMoment(Re1,2,0,0)
+                  CALL picpart%GetMoment(Re2,0,2,0)
+                  CALL picpart%GetMoment(Re3,0,0,2)
+                  CALL picpart%GetMoment(Rj1,1,1,0)
+                  CALL picpart%GetMoment(Rj2,0,1,1)
+                  CALL picpart%GetMoment(Rj3,1,0,1)
+                  CALL io_write(1,odir,'Pxx',ext,planio,Re1)
+                  CALL io_write(1,odir,'Pyy',ext,planio,Re2)
+                  CALL io_write(1,odir,'Pzz',ext,planio,Re3)
+                  CALL io_write(1,odir,'Pxy',ext,planio,Rj1)
+                  CALL io_write(1,odir,'Pyz',ext,planio,Rj2)
+                  CALL io_write(1,odir,'Pxz',ext,planio,Rj3)
+               END IF
+            END IF
+            IF (outs.ge.3) THEN   
+               CALL picpart%GetMoment(Re1,3,0,0)
+               CALL picpart%GetMoment(Re2,0,3,0)
+               CALL picpart%GetMoment(Re3,0,0,3)
+               CALL picpart%GetMoment(Rj1,4,0,0)
+               CALL picpart%GetMoment(Rj2,0,4,0)
+               CALL picpart%GetMoment(Rj3,0,0,4)
+               CALL io_write(1,odir,'Six',ext,planio,Re1)
+               CALL io_write(1,odir,'Siy',ext,planio,Re2)
+               CALL io_write(1,odir,'Siz',ext,planio,Re3)
+               CALL io_write(1,odir,'Kix',ext,planio,Rj1)
+               CALL io_write(1,odir,'Kiy',ext,planio,Rj2)
+               CALL io_write(1,odir,'Kiz',ext,planio,Rj3)
+            END IF
+#endif
+#ifdef PIC_
+            IF ((MODULO(tind,picdiv).eq.1).OR.(picdiv.eq.1)) THEN
+       CALL picpart%io_write_pdb (1,odir,'xpic',ext,(t-1)*dt)
+!               CALL picpart%io_write_wgt (1,odir,'weights',ext,(t-1)*dt)
+#ifdef CPIC_
+       CALL picpart%io_write_pdbv(1,odir,'vpic',ext,(t-1)*dt)
+#endif
+    END IF
+#endif
+#ifdef MAGFIELD_
+    rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
-               DO i = ista,iend
+    DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-                  DO j = 1,ny
-                     DO k = 1,nz
-                        C1(k,j,i) = dump*M4(k,j,i)*rmp
-                        C2(k,j,i) = dump*M5(k,j,i)*rmp
-                        C3(k,j,i) = dump*M6(k,j,i)*rmp
-                     END DO
-                  END DO
-               END DO
-               CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
-               CALL io_write(1,odir,'mean_bx',ext,planio,R1)
-               CALL io_write(1,odir,'mean_by',ext,planio,R2)
-               CALL io_write(1,odir,'mean_bz',ext,planio,R3)
-            ENDIF
+       DO j = 1,ny
+          DO k = 1,nz
+             C1(k,j,i) = ax(k,j,i)*rmp
+             C2(k,j,i) = ay(k,j,i)*rmp
+             C3(k,j,i) = az(k,j,i)*rmp
+          END DO
+       END DO
+    END DO
+    IF (outs.ge.1) THEN
+       CALL rotor3(C2,C3,C4,1)
+       CALL rotor3(C1,C3,C5,2)
+       CALL rotor3(C1,C2,C6,3)
+       CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
+       CALL io_write(1,odir,'bx',ext,planio,R1)
+       CALL io_write(1,odir,'by',ext,planio,R2)
+       CALL io_write(1,odir,'bz',ext,planio,R3)
+    ENDIF
+    IF (outs.ge.2) THEN
+       CALL laplak3(C1,C4)
+       CALL laplak3(C2,C5)
+       CALL laplak3(C3,C6)
+       CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
+       CALL io_write(1,odir,'jx',ext,planio,R1)
+       CALL io_write(1,odir,'jy',ext,planio,R2)
+       CALL io_write(1,odir,'jz',ext,planio,R3)
+    ENDIF
+    CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+    CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+    CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+    CALL io_write(1,odir,'ax',ext,planio,R1)
+    CALL io_write(1,odir,'ay',ext,planio,R2)
+    CALL io_write(1,odir,'az',ext,planio,R3)
+    IF (rand.eq.2) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                C1(k,j,i) = mxold(k,j,i)*rmp
+                C2(k,j,i) = myold(k,j,i)*rmp
+                C3(k,j,i) = mzold(k,j,i)*rmp
+             END DO
+          END DO
+       END DO
+       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+       CALL io_write(1,odir,'mxold',ext,planio,R1)
+       CALL io_write(1,odir,'myold',ext,planio,R2)
+       CALL io_write(1,odir,'mzold',ext,planio,R3)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                C1(k,j,i) = mxnew(k,j,i)*rmp
+                C2(k,j,i) = mynew(k,j,i)*rmp
+                C3(k,j,i) = mznew(k,j,i)*rmp
+             END DO
+          END DO
+       END DO
+       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+       CALL io_write(1,odir,'mxnew',ext,planio,R1)
+       CALL io_write(1,odir,'mynew',ext,planio,R2)
+       CALL io_write(1,odir,'mznew',ext,planio,R3)
+    END IF
+    IF (mean.eq.1) THEN
+       dump = real(cstep,kind=GP)/t
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                C1(k,j,i) = dump*M4(k,j,i)*rmp
+                C2(k,j,i) = dump*M5(k,j,i)*rmp
+                C3(k,j,i) = dump*M6(k,j,i)*rmp
+             END DO
+          END DO
+       END DO
+       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+       CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+       CALL io_write(1,odir,'mean_bx',ext,planio,R1)
+       CALL io_write(1,odir,'mean_by',ext,planio,R2)
+       CALL io_write(1,odir,'mean_bz',ext,planio,R3)
+    ENDIF
 #endif
 #ifdef WAVEFUNCTION_
-            rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+    rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
-            DO i = ista,iend
+    DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     C1(k,j,i) = zre(k,j,i)*rmp
-                     C2(k,j,i) = zim(k,j,i)*rmp
-                  END DO
-               END DO
-            END DO
-            CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
-            CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
-            CALL io_write(1,odir,'phi_re',ext,planio,R1)
-            CALL io_write(1,odir,'phi_im',ext,planio,R2)
-            IF (outs.ge.1) THEN
+       DO j = 1,ny
+          DO k = 1,nz
+             C1(k,j,i) = zre(k,j,i)*rmp
+             C2(k,j,i) = zim(k,j,i)*rmp
+          END DO
+       END DO
+    END DO
+    CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+    CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+    CALL io_write(1,odir,'phi_re',ext,planio,R1)
+    CALL io_write(1,odir,'phi_im',ext,planio,R2)
+    IF (outs.ge.1) THEN
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-               DO k = ksta,kend
+       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-                  DO j = 1,ny
-                     DO i = 1,nx
-                        R3(i,j,k) = R1(i,j,k)**2+R2(i,j,k)**2
-                     END DO
-                  END DO
-               END DO
-               CALL io_write(1,odir,'rho',ext,planio,R3)
-            ENDIF
+          DO j = 1,ny
+             DO i = 1,nx
+                R3(i,j,k) = R1(i,j,k)**2+R2(i,j,k)**2
+             END DO
+          END DO
+       END DO
+       CALL io_write(1,odir,'rho',ext,planio,R3)
+    ENDIF
 #endif
-         ENDIF
+ ENDIF
 
 #ifdef PART_
-         IF ( dolag.GT.0 ) THEN
-           IF ((timep.eq.pstep).and.(bench.eq.0)) THEN
+ IF ( dolag.GT.0 ) THEN
+   IF ((timep.eq.pstep).and.(bench.eq.0)) THEN
 #if defined(LAGPART_)
-             INCLUDE 'lagpartout_velfield.f90'
+     INCLUDE 'lagpartout_velfield.f90'
 #endif
 #if defined(MAGFIELD_)
              INCLUDE 'lagpartout_magfield.f90'
@@ -2765,6 +3195,10 @@
 ! Runge-Kutta step 1
 ! Copies the fields into auxiliary arrays
 
+#ifdef CPIC_
+         CALL picpart%SetStep()
+         CALL picpart%SetStepVel()
+#endif
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -2793,7 +3227,7 @@
 ! Evolves the system in time
 
          DO o = ord,1,-1
-
+        
          INCLUDE RKSTEP2_
 
 #ifdef PART_
@@ -2832,10 +3266,14 @@
 #ifdef LAGPART_
          CALL lagpart%Step(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),R4,R5,R6)
 #endif
-
 #if defined(INERPART_)
          IF ( dolightp.EQ.0 ) THEN  ! Heavy particles
+#if !defined(PENALTY_)
             CALL lagpart%StepInerp(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),Rv1,Rv2)
+#endif
+#if defined(PENALTY_)
+            CALL lagpart%StepInerpPenalty(R1,R2,R3,dt,1.0_GP/real(o,kind=GP),Rv1,Rv2,x0,y0,z0,radius,shape,t)
+#endif
          ELSE                       ! Light particles
             CALL gradre3(vx,vy,vz,C4,C5,C6)
             rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
@@ -2994,6 +3432,9 @@
           rbal = rbal + lagpart%GetLoadBal()
         ENDIF
 #endif
+#ifdef PIC_
+         rbal = rbal + picpart%GetLoadBal()
+#endif
          inquire( file='benchmark.txt', exist=bbenchexist )
          IF (myrank.eq.0) THEN
             OPEN(1,file='benchmark.txt',position='append')
@@ -3046,7 +3487,7 @@
               OPEN(1,file='gpbenchmark.txt',position='append')
               IF (.NOT. bbenchexist) THEN
                  WRITE(1,*) &
-  '# nx ny nz nparts rbal nsteps nth TRK TCOMM TSPL TTRANS TDEX TINT TUPD'
+  '# nx ny nz nparts rbal nsteps nprocs nth TRK TCOMM TSPL TTRANS TDEX TINT TUPD'
               ENDIF
               WRITE(1,*) nx,ny,nz,maxparts,rbal/(step-ini+1),            &
                            (step-ini+1),nprocs,nth,                      &
@@ -3059,6 +3500,24 @@
                            lagpart%GetTime(GPTIME_PUPDATE)/(step-ini+1)
               CLOSE(1)
             ENDIF
+#endif
+#if defined(PIC_)
+            inquire( file='gpicbenchmark.txt', exist=bbenchexist )
+            OPEN(1,file='gpicbenchmark.txt',position='append')
+            IF (.NOT. bbenchexist) THEN
+               WRITE(1,*) &
+ '# nx ny nz nparts rbal nsteps nth TRK TCOMM TDEP TTRANS TDEX TINT TUPD'
+            ENDIF
+            WRITE(1,*) nx,ny,nz,partpcell*nx*ny*nz,rbal/(step-ini+1),  &
+                         (step-ini+1),nprocs,nth,                      &
+                         picpart%GetTime   (GPTIME_STEP)/(step-ini+1), &
+                         picpart%GetTime   (GPTIME_COMM)/(step-ini+1), &
+                         picpart%GetTime (GPTIME_SPLINE)/(step-ini+1), &
+                         picpart%GetTime (GPTIME_TRANSP)/(step-ini+1), &
+                         picpart%GetTime (GPTIME_DATAEX)/(step-ini+1), &
+                         picpart%GetTime (GPTIME_INTERP)/(step-ini+1), &
+                         picpart%GetTime(GPTIME_PUPDATE)/(step-ini+1)
+            CLOSE(1)
 #endif
          ENDIF
       ENDIF
@@ -3111,6 +3570,16 @@
 #ifdef ADVECT_
       DEALLOCATE( vsq )
 #endif
+#ifdef CPIC_
+      DEALLOCATE(rhoc)
+      DEALLOCATE( ux )
+      DEALLOCATE( uy )
+      DEALLOCATE( uz )
+      DEALLOCATE(Temp)
+#endif
+#ifdef ELECFIELD_
+      DEALLOCATE(phi)
+#endif
 #ifdef MAGFIELD_
       DEALLOCATE( ax,ay,az,mx,my,mz )
       DEALLOCATE( C9,C10,C11,C12,C13,C14,C15,C16,C17 )
@@ -3154,6 +3623,9 @@
 #ifdef TRAP_
       DEALLOCATE( C28,C29,C30 )
       DEALLOCATE( Vtrap,Vlinx,Vliny )
+#endif
+#ifdef PENALTY_
+      DEALLOCATE( C31, C32, C33, C34, chi )
 #endif
 #ifdef PART_
       DEALLOCATE( R4,R5,R6 )

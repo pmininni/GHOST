@@ -3,7 +3,8 @@
 # D. Rosenberg - 8/04/2013
 #****************************************************************************
 
-OBJS = gpdbrec_mod.o gpartcomm_mod.o gpsplineint_mod.o gparts_mod.o
+OBJS = gpdbrec_mod.o gpartcomm_mod.o gpicsplineint_mod.o gpsplineint_mod.o \
+       gparts_mod.o
 
 CUDA_GHOSTno   =
 CUDA_GHOSTyes  = -DDEF_GHOST_CUDA_

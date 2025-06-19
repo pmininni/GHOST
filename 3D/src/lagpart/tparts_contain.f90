@@ -15,16 +15,16 @@
     IMPLICIT NONE
     CLASS(TestGPart), INTENT(INOUT)     :: this
 
-    ALLOCATE(this%pvx_     (this%maxparts_))
-    ALLOCATE(this%pvy_     (this%maxparts_))
-    ALLOCATE(this%pvz_     (this%maxparts_))
-    ALLOCATE(this%lbx_     (this%maxparts_))
-    ALLOCATE(this%lby_     (this%maxparts_))
-    ALLOCATE(this%lbz_     (this%maxparts_))
-    ALLOCATE(this%lfx_     (this%maxparts_))
-    ALLOCATE(this%lfy_     (this%maxparts_))
-    ALLOCATE(this%lfz_     (this%maxparts_))
-    ALLOCATE(this%ttmp0_ (3,this%maxparts_))
+    ALLOCATE(this%pvx_     (this%partbuff_))
+    ALLOCATE(this%pvy_     (this%partbuff_))
+    ALLOCATE(this%pvz_     (this%partbuff_))
+    ALLOCATE(this%lbx_     (this%partbuff_))
+    ALLOCATE(this%lby_     (this%partbuff_))
+    ALLOCATE(this%lbz_     (this%partbuff_))
+    ALLOCATE(this%lfx_     (this%partbuff_))
+    ALLOCATE(this%lfy_     (this%partbuff_))
+    ALLOCATE(this%lfz_     (this%partbuff_))
+    ALLOCATE(this%ttmp0_ (3,this%partbuff_))
 
   END SUBROUTINE TestGPart_ctor
 !-----------------------------------------------------------------
@@ -373,5 +373,59 @@
     RETURN
 
   END SUBROUTINE TestGPart_EndStageRKK
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE TestGPart_ResizeArrays(this,new_size,onlyinc,exc)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Resize_Arrays
+!  DESCRIPTION: Resize all arrays in the TestGPart class (including
+!               subclases, i.e. communicator, spline)
+!  ARGUMENTS  :
+!    this    : 'this' class instance
+!    new_size: new number of particles
+!    onlyinc : if true, will only resize to increase array size
+!-----------------------------------------------------------------
+!$  USE threads
+
+    IMPLICIT NONE
+    CLASS(TestGPart) ,INTENT(INOUT)                      :: this
+    INTEGER          ,INTENT(IN)                         :: new_size
+    LOGICAL          ,INTENT(IN)                         :: onlyinc
+    LOGICAL          ,INTENT(IN)   ,OPTIONAL             :: exc
+    INTEGER                                              :: n
+
+    CALL VGPart_ResizeArrays(this,new_size,onlyinc,exc)
+
+    n = SIZE(this%lfx_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%lfx_,new_size,.false.)
+    END IF
+    n = SIZE(this%lfy_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%lfy_,new_size,.false.)
+    END IF
+    n = SIZE(this%lfz_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%lfz_,new_size,.false.)
+    END IF
+
+    n = SIZE(this%lbx_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%lbx_,new_size,.false.)
+    END IF
+    n = SIZE(this%lby_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%lby_,new_size,.false.)
+    END IF
+    n = SIZE(this%lbz_)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank1(this%lbz_,new_size,.false.)
+    END IF
+
+    RETURN
+
+  END SUBROUTINE TestGPart_ResizeArrays
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
