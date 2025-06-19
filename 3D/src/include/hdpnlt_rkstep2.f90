@@ -60,8 +60,8 @@
      ENDIF
 
 ! Volume penalization 
-     C34 = vx
-	 CALL fftp3d_complex_to_real(plancr,C34,R1,MPI_COMM_WORLD)
+     C40 = vx
+	 CALL fftp3d_complex_to_real(plancr,C40,R1,MPI_COMM_WORLD)
 	 DO k = ksta, kend
 	 DO j = 1,ny
      	 DO i = 1,nx 
@@ -69,11 +69,11 @@
 	 END DO
 	 END DO
 	 END DO 
-	 CALL fftp3d_real_to_complex(planrc, R2, C31, MPI_COMM_WORLD)
-	 C4 = C4 + C31 
+	 CALL fftp3d_real_to_complex(planrc, R2, C37, MPI_COMM_WORLD)
+	 C4 = C4 + C37 
 
-     C34 = vy
-	 CALL fftp3d_complex_to_real(plancr,C34,R1,MPI_COMM_WORLD)
+     C40 = vy
+	 CALL fftp3d_complex_to_real(plancr,C40,R1,MPI_COMM_WORLD)
 	 DO k = ksta, kend
 	 DO j = 1,ny
          DO i = 1,nx 
@@ -81,11 +81,11 @@
 	 END DO
 	 END DO
 	 END DO 
-	 CALL fftp3d_real_to_complex(planrc, R2, C32, MPI_COMM_WORLD)
-	 C5 = C5 + C32
+	 CALL fftp3d_real_to_complex(planrc, R2, C38, MPI_COMM_WORLD)
+	 C5 = C5 + C38
 
-     C34 = vz
-	 CALL fftp3d_complex_to_real(plancr,C34,R1,MPI_COMM_WORLD)
+     C40 = vz
+	 CALL fftp3d_complex_to_real(plancr,C40,R1,MPI_COMM_WORLD)
 	 DO k = ksta,kend
 	 DO j = 1,ny
          DO i = 1,nx 
@@ -93,16 +93,16 @@
 	 END DO
 	 END DO
 	 END DO 
-	 CALL fftp3d_real_to_complex(planrc, R2, C33, MPI_COMM_WORLD)
-	 C6 = C6 + C33
+	 CALL fftp3d_real_to_complex(planrc, R2, C39, MPI_COMM_WORLD)
+	 C6 = C6 + C39
 
 ! Calculate the U0.del(U) terms for the time derivative
-     CALL derivk3(vx, C31, 1)
-     CALL derivk3(vy, C32, 1)
-     CALL derivk3(vz, C33, 1)
-     C4 = C4 - vparam8*C31
-     C5 = C5 - vparam8*C32
-     C6 = C6 - vparam8*C33
+     CALL derivk3(vx, C37, 1)
+     CALL derivk3(vy, C38, 1)
+     CALL derivk3(vz, C39, 1)
+     C4 = C4 - vparam8*C37
+     C5 = C5 - vparam8*C38
+     C6 = C6 - vparam8*C39
 
 ! Evaluate the individual terms and solve the NS equations in Fourier
 ! space

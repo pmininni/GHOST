@@ -3625,7 +3625,7 @@
       DEALLOCATE( Vtrap,Vlinx,Vliny )
 #endif
 #ifdef PENALTY_
-      DEALLOCATE( C31, C32, C33, C34, chi )
+      DEALLOCATE( C37, C38, C39, C40, chi )
 #endif
 #ifdef PART_
       DEALLOCATE( R4,R5,R6 )
