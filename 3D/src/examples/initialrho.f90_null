@@ -11,14 +11,14 @@
 ! terms. At the end, the initial concentration of the scalar in 
 ! spectral space should be stored in the array th.
 
-! Null pasive scalar
+! Null density
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,ny
             DO k = 1,nz
-               th(k,j,i) = 0.0_GP
+               rho(k,j,i) = 0.0_GP
             END DO
          END DO
       END DO

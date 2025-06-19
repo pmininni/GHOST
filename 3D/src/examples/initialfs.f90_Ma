@@ -1,0 +1,55 @@
+! External source of passive/active scalar.
+! The scalar can be passive (e.g., in the PHD solver) or 
+! active (as in the Boussinesq solvers). 
+! This file contains the expression used for the external 
+! use temporary real arrays R1-R3 of size (1:nx,1:ny,ksta:kend)
+! and temporary complex arrays C1-C8 of size (1:nz,1:ny,ista:iend)
+! to do intermediate computations. The variable s0 should 
+! control the global amplitude of the forcing, and variables 
+! mparam0-9 can be used to control the amplitudes of 
+! individual terms. At the end, the forcing in spectral
+! space should be stored in the array fs.
+!
+!
+! Intended to force internal energy, by using momentum forcing
+! to maintain specified Mach number:
+!   fs = rho0 * f^2 / ( gamma (gamma-1) * Ma^2 )
+! where
+!   f^2 = fx^2 + fy^2 + fz^2
+
+! like initialv.f90_bal).
+!     skdn    : minimum wave number; leverages kdn, via f
+!     skup    : maximum wave number; leverages kup, via f
+!
+      CALL fftp3d_complex_to_real(plancr,fx,R1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,fy,R2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,fz,R3,MPI_COMM_WORLD)
+
+      rmp = 1.0_GP/ &
+                  (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+
+      DO k = ksta,kend
+         DO j = 1,ny
+            DO i = 1,nx
+              R1(i,j,k) = rho0 * ( R1(i,j,k)**2 + R2(i,j,k)**2 + R3(i,j,k)**2 ) &
+                               * rmp / ( gam1*(gam1+1.0_GP) * smach**2 )
+            ENDDO
+         ENDDO
+      ENDDO
+
+      CALL fftp3d_real_to_complex(planrc,R1,fs,MPI_COMM_WORLD)
+
+
+!!    CALL variance(fs,tmp,1)
+!!    CALL MPI_BCAST(tmp,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
+!!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!!    DO i = ista,iend
+!!$omp parallel do if (iend-ista.lt.nth) private (k)
+!!       DO j = 1,ny
+!!          DO k = 1,nz
+!!             fs(k,j,i) = fs(k,j,i)*s0/sqrt(tmp)
+!!          END DO
+!!       END DO
+!!    END DO
+
+

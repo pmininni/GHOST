@@ -27,6 +27,7 @@
 !           HMHD_SOL       builds the Hall-MHD solver
 !           HMHDB_SOL      builds the HMHD solver with uniform B_0
 !           COMPRHD_SOL    builds the compressible HD solver
+!           COMPIHD_SOL    builds the compressible HD solver with int. energy
 !           CMHD_SOL       builds the compressible MHD solver
 !           CMHDB_SOL      builds the compressible MHD solver with B_0
 !           CHMHD_SOL      builds the compressible Hall-MHD solver
@@ -131,8 +132,15 @@
 #if defined(VELOC_) || defined(ADVECT_)
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz
 #endif
+#if defined(MOM_) 
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: sx,sy,sz
+#endif
 #ifdef VELOC_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fx,fy,fz
+#endif
+#ifdef DENSITY_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: rho
+      CHARACTER                                        :: srho           
 #endif
 #ifdef SCALAR_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: th
@@ -200,6 +208,9 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C21,C22,C23,C24
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M8,M9,M10
 #endif
+#ifdef DENSITY_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M11
+#endif
 #ifdef COMPR_AUX_ARR_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C25,C26,C27
 #endif
@@ -207,9 +218,13 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C28,C29
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C30
 #endif
+#ifdef COMPI_AUX_ARR_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C31,C32,C33
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C34,C35,C36
+#endif
 #ifdef PENALTY_
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C31,C32
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C33,C34
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C37,C38
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C39,C40
 #endif
 
 #ifdef WAVEFUNCTION_
@@ -304,7 +319,8 @@
       REAL(KIND=GP)    :: s3param5,s3param6,s3param7,s3param8,s3param9
 #endif
 #ifdef COMPRESSIBLE_
-      REAL(KIND=GP)    :: smach, gam1, cp1, nu2
+      INTEGER          :: Stokeshyp
+      REAL(KIND=GP)    :: smach, gam1, cp1, nu2, rho0
 #endif
 #ifdef CMHD_
       REAL(KIND=GP)    :: amach, cp2
@@ -479,7 +495,7 @@
       NAMELIST / inject / injt,injtm,creset
 #endif
 #ifdef COMPRESSIBLE_
-      NAMELIST / compressible / smach, gam1, nu2
+      NAMELIST / compressible / Stokeshyp, smach, gam1, nu2, rho0
 #endif
 #ifdef CMHD_
       NAMELIST / cmhdb / amach
@@ -563,6 +579,7 @@
 !
 ! Initialization
 
+
 ! Initializes the MPI and I/O libraries
       CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
@@ -630,6 +647,11 @@
       ALLOCATE( vy(nz,ny,ista:iend) )
       ALLOCATE( vz(nz,ny,ista:iend) )
 #endif
+#if defined(MOM_) 
+      ALLOCATE( sx(nz,ny,ista:iend) )
+      ALLOCATE( sy(nz,ny,ista:iend) )
+      ALLOCATE( sz(nz,ny,ista:iend) )
+#endif
 #ifdef VELOC_
       ALLOCATE( fx(nz,ny,ista:iend) )
       ALLOCATE( fy(nz,ny,ista:iend) )
@@ -665,6 +687,10 @@
       n = nx ! EDQNM solvers only work in cubic boxes
       ALLOCATE( C19(nz,ny,ista:iend) )
 #endif
+#ifdef DENSITY_
+      ALLOCATE( rho(nz,ny,ista:iend) )
+      srho = 'rhospect'
+#endif
 #ifdef SCALAR_
       ALLOCATE( C20(nz,ny,ista:iend) )
       ALLOCATE( th (nz,ny,ista:iend) )
@@ -689,9 +715,17 @@
       ALLOCATE( C28(nz,ny,ista:iend), C29(nz,ny,ista:iend) )
       ALLOCATE( C30(nz,ny,ista:iend) )
 #endif
+#ifdef COMPI_AUX_ARR_
+      ALLOCATE( C31(nz,ny,ista:iend) )
+      ALLOCATE( C32(nz,ny,ista:iend) )
+      ALLOCATE( C33(nz,ny,ista:iend) )
+      ALLOCATE( C34(nz,ny,ista:iend) )
+      ALLOCATE( C35(nz,ny,ista:iend) )
+      ALLOCATE( C36(nz,ny,ista:iend) )
+#endif
 #ifdef PENALTY_
-      ALLOCATE( C31(nz,ny,ista:iend),  C32(nz,ny,ista:iend) )
-      ALLOCATE( C33(nz,ny,ista:iend),  C34(nz,ny,ista:iend) )
+      ALLOCATE( C37(nz,ny,ista:iend),  C38(nz,ny,ista:iend) )
+      ALLOCATE( C39(nz,ny,ista:iend),  C40(nz,ny,ista:iend) )
 #endif
 #ifdef WAVEFUNCTION_
       ALLOCATE( zre(nz,ny,ista:iend), zim(nz,ny,ista:iend) )
@@ -1141,21 +1175,33 @@
 #ifdef COMPRESSIBLE_
 ! Reads parameters for the compressible runs from the
 ! namelist 'compressible' on the external file 'parameter.inp'
-!     smach : sound Mach number
-!     gam1  : gamma parameter for polytropic eq. of state
-!     nu2   : second viscosity for divergence (velocity) term
+!     smach    : sound Mach number
+!     gam1     : gamma parameter for polytropic eq. of state
+!     nu2      : second (bulk) viscosity for divergence (velocity) term
+!     rho0     : reference density
+!     Stokeshyp: if 1, then nu2 = -2/3 * nu; else set by user
+      Stokeshyp = 0
+      rho0      = 1.0
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=compressible)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(smach,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(gam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(nu2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(smach    ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(gam1     ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(Stokeshyp,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(nu2      ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(rho0     ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
       gam1 = gam1 - 1.0_GP
       cp1  = 2.0_GP / (gam1*smach*smach)
-      nu2  = nu2 + nu/3.0_GP
+      IF ( Stokeshyp .GE. 1 ) THEN
+        ! s.t. nu2 + 2 nu/d = 0 ; d == dimensionality
+        nu2  = -2.0_GP * nu / 3.0_GP
+      ELSE IF (Stokeshyp .EQ. 0)  THEN
+        nu2  = nu2 + nu/3.0
+      ! IF < 0, then accept nu2 as set
+      ENDIF
 #endif
 
 #ifdef CMHD_
@@ -1846,6 +1892,18 @@
             END DO
          END DO
 #endif
+#ifdef DENSITY_ 
+         ALLOCATE( M11(nz,ny,ista:iend) )
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+                  M11(k,j,i) = 0.0_GP
+               END DO
+            END DO
+         END DO
+#endif
 #ifdef MULTISCALAR_
          ALLOCATE( M8 (nz,ny,ista:iend) )
          ALLOCATE( M9 (nz,ny,ista:iend) )
@@ -1963,7 +2021,7 @@
 ! Generates initial conditions for the fields and particles.
  IC : IF (stat.eq.0) THEN
 
-      ini = 1
+      ini  = 1
       sind = 0                          ! index for the spectrum
       tind = 0                          ! index for the binaries
       pind = 0                          ! index for the particles
@@ -1971,6 +2029,9 @@
       timec = cstep
       times = sstep
       timep = pstep
+#ifdef DENSITY_
+      INCLUDE 'initialrho.f90'          ! initial mass density
+#endif
 #if defined(VELOC_) || defined (ADVECT_)
       INCLUDE 'initialv.f90'            ! initial velocity
 #endif
@@ -2095,12 +2156,21 @@
       timef = int(modulo(float(ini-1),float(fstep)))
 
 #ifdef VELOC_
+#ifdef MOM_
+      CALL io_read(1,idir,'sx',ext,planio,R1)
+      CALL io_read(1,idir,'sy',ext,planio,R2)
+      CALL io_read(1,idir,'sz',ext,planio,R3)
+      CALL fftp3d_real_to_complex(planrc,R1,sx,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R2,sy,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R3,sz,MPI_COMM_WORLD)
+#else
       CALL io_read(1,idir,'vx',ext,planio,R1)
       CALL io_read(1,idir,'vy',ext,planio,R2)
       CALL io_read(1,idir,'vz',ext,planio,R3)
       CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
+#endif
 
       IF (rand.eq.2) THEN
          CALL io_read(1,idir,'fxnew',ext,planio,R1)
@@ -2171,6 +2241,39 @@
          timep = pstep
          ENDIF
       ENDIF INJ
+#endif
+
+#ifdef DENSITY_
+ INRHO: IF (injt.eq.0) THEN
+         CALL io_read(1,idir,'rho',ext,planio,R1)
+         CALL fftp3d_real_to_complex(planrc,R1,rho,MPI_COMM_WORLD)
+         IF (mean.eq.1) THEN
+            CALL io_read(1,idir,'mean_rho',ext,planio,R1)
+            CALL fftp3d_real_to_complex(planrc,R1,M11,MPI_COMM_WORLD)
+            dump = real(ini,kind=GP)/cstep
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+               DO j = 1,ny
+                  DO k = 1,nz
+                     M11(k,j,i) = dump*M11(k,j,i)
+                 END DO
+               END DO
+            END DO
+         ENDIF
+      ELSE
+         INCLUDE 'initialrho.f90'      ! initial concentration
+         IF (creset.ne.0) THEN
+         ini = 1                     ! resets all counters (the
+         sind = 0                    ! run starts at t=0)
+         tind = 0
+         pind = 0
+         timet = tstep
+         timec = cstep
+         times = sstep
+         timep = pstep
+         ENDIF
+      ENDIF INRHO
 #endif
 
 #ifdef MULTISCALAR_
@@ -2604,6 +2707,27 @@
             CALL io_write(1,odir,'vx',ext,planio,R1)
             CALL io_write(1,odir,'vy',ext,planio,R2)
             CALL io_write(1,odir,'vz',ext,planio,R3)
+#ifdef MOM_
+            rmp = 1.0_GP/ &
+	          (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+               DO j = 1,ny
+                  DO k = 1,nz
+                     C1(k,j,i) = sx(k,j,i)*rmp
+                     C2(k,j,i) = sy(k,j,i)*rmp
+                     C3(k,j,i) = sz(k,j,i)*rmp
+                  END DO
+               END DO
+            END DO
+            CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+            CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+            CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+            CALL io_write(1,odir,'sx',ext,planio,R1)
+            CALL io_write(1,odir,'sy',ext,planio,R2)
+            CALL io_write(1,odir,'sz',ext,planio,R3)
+#endif
             IF (rand.eq.2) THEN
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
                DO i = ista,iend
@@ -2659,6 +2783,35 @@
                CALL io_write(1,odir,'mean_vx',ext,planio,R1)
                CALL io_write(1,odir,'mean_vy',ext,planio,R2)
                CALL io_write(1,odir,'mean_vz',ext,planio,R3)
+            ENDIF
+#endif
+#ifdef DENSITY_
+            rmp = 1.0_GP/ &
+	          (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+               DO j = 1,ny
+                  DO k = 1,nz
+                     C1(k,j,i) = rho(k,j,i)*rmp
+                  END DO
+               END DO
+            END DO
+            CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+            CALL io_write(1,odir,'rho',ext,planio,R1)
+            IF (mean.eq.1) THEN
+               dump = real(cstep,kind=GP)/t
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+               DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+                  DO j = 1,ny
+                     DO k = 1,nz
+                        C1(k,j,i) = dump*M11(k,j,i)*rmp
+                     END DO
+                  END DO
+               END DO
+               CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+               CALL io_write(1,odir,'mean_rho',ext,planio,R1)
             ENDIF
 #endif
 #ifdef SCALAR_
@@ -3411,6 +3564,9 @@
 #if defined(VELOC_) || defined (ADVECT_)
       DEALLOCATE( vx,vy,vz )
 #endif
+#ifdef MOM_ 
+      DEALLOCATE( sx,sy,sz )
+#endif
 #ifdef ADVECT_
       DEALLOCATE( vsq )
 #endif
@@ -3438,6 +3594,10 @@
       DEALLOCATE( C19 )
       DEALLOCATE( tepq,thpq,tve,tvh,Eext,Hext )
 #endif
+#ifdef DENSITY_
+      DEALLOCATE( rho )
+      DEALLOCATE( M11 )
+#endif
 #ifdef SCALAR_
       DEALLOCATE( th,fs )
       DEALLOCATE( C20 )
@@ -3450,6 +3610,9 @@
 #endif
 #ifdef COMPR_AUX_ARR_
       DEALLOCATE( C25,C26,C27 )
+#endif
+#ifdef COMPI_AUX_ARR_
+      DEALLOCATE( C31,C32,C33,C34,C35,C36 )
 #endif
 #ifdef WAVEFUNCTION_
       DEALLOCATE( zre,zim )

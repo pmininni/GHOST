@@ -1,4 +1,6 @@
-! Initial condition for the velocity.
+! Initial condition for the momentum density. Density
+! must be set before computing.
+!
 ! This file contains the expression used for the initial 
 ! velocity field. You can use temporary real arrays R1-R3 
 ! of size (1:nx,1:ny,ksta:kend) and temporary complex arrays
@@ -24,7 +26,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,ny
             DO k = 1,nz
-               vz(k,j,i) = 0.0_GP
+               fz(k,j,i) = 0.0_GP
             END DO
          END DO
       END DO
@@ -53,10 +55,12 @@
          END DO
       END DO
 
-      CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
-      CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R1,fx,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R2,fy,MPI_COMM_WORLD)
 
 ! We do not normalize if the want the velocity to be given 
 ! just by sine, cosine with amplitude 1
-      CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
+      CALL normalize(fx,fy,fz,f0,1,MPI_COMM_WORLD)
+
+
 
