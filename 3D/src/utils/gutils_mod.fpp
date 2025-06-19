@@ -1215,15 +1215,15 @@ MODULE gutils
       REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,j,k,m
 
-      pv(1).pcomplex => vx
-      pv(2).pcomplex => vy
-      pv(3).pcomplex => vz
+      pv(1)%pcomplex => vx
+      pv(2)%pcomplex => vy
+      pv(3)%pcomplex => vz
       divv = 0.0;
 
       tmp = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
       DO m = 1, 3
-        CALL derivk3(pv(m).pcomplex, ctmp, m)
+        CALL derivk3(pv(m)%pcomplex, ctmp, m)
         
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend
@@ -1653,9 +1653,9 @@ MODULE gutils
       LOGICAL         , INTENT(   IN)                             :: accum
       TYPE(PARRAY)                                                :: pv(3)
 
-      pv(1).pcomplex => vx
-      pv(2).pcomplex => vy
-      pv(3).pcomplex => vz
+      pv(1)%pcomplex => vx
+      pv(2)%pcomplex => vy
+      pv(3)%pcomplex => vz
 
       ! dij = <d_k v_i d_k v_j> / <d_k vm d_k v^m> - delta_ij / 3
 
@@ -1667,7 +1667,7 @@ MODULE gutils
       uloc = 0.0D0
        DO jr = 1, 3
          DO ic = 1, 3
-            CALL derivk3(pv(jr).pcomplex,c1,ic)
+            CALL derivk3(pv(jr)%pcomplex,c1,ic)
             CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
             DO k = ksta,kend
@@ -1690,7 +1690,7 @@ MODULE gutils
 
       ! d(1,1):
       DO ic = 1, 3
-         CALL derivk3(pv(1).pcomplex,c1,ic)
+         CALL derivk3(pv(1)%pcomplex,c1,ic)
          CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
          DO k = ksta,kend
@@ -1706,8 +1706,8 @@ MODULE gutils
 
       ! d(1,2):
       DO ic = 1, 3
-         CALL derivk3(pv(1).pcomplex,c1,ic)
-         CALL derivk3(pv(2).pcomplex,c2,ic)
+         CALL derivk3(pv(1)%pcomplex,c1,ic)
+         CALL derivk3(pv(2)%pcomplex,c2,ic)
          CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
          CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1724,8 +1724,8 @@ MODULE gutils
 
       ! d(1,3):
       DO ic = 1, 3
-         CALL derivk3(pv(1).pcomplex,c1,ic)
-         CALL derivk3(pv(3).pcomplex,c2,ic)
+         CALL derivk3(pv(1)%pcomplex,c1,ic)
+         CALL derivk3(pv(3)%pcomplex,c2,ic)
          CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
          CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1742,7 +1742,7 @@ MODULE gutils
 
       ! d(2,2):
       DO ic = 1, 3
-         CALL derivk3(pv(2).pcomplex,c1,ic)
+         CALL derivk3(pv(2)%pcomplex,c1,ic)
          CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
          DO k = ksta,kend
@@ -1758,8 +1758,8 @@ MODULE gutils
 
       ! d(2,3):
       DO ic = 1, 3
-         CALL derivk3(pv(2).pcomplex,c1,ic)
-         CALL derivk3(pv(3).pcomplex,c2,ic)
+         CALL derivk3(pv(2)%pcomplex,c1,ic)
+         CALL derivk3(pv(3)%pcomplex,c2,ic)
          CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
          CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1776,7 +1776,7 @@ MODULE gutils
 
       ! d(3,3):
       DO ic = 1, 3
-         CALL derivk3(pv(3).pcomplex,c1,ic)
+         CALL derivk3(pv(3)%pcomplex,c1,ic)
          CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
          DO k = ksta,kend

@@ -632,7 +632,7 @@
               (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       tmp1 = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
-!$omp parallel do if (kend-ista.ge.nth) private (j,i) reduction(+vloc)
+!$omp parallel do if (kend-ista.ge.nth) private (j,i) reduction(+:vloc)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i) reduction(+:vloc)
          DO j = 1,ny
