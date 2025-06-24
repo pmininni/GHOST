@@ -292,7 +292,7 @@ clean:  undo
 	rm -f *.o *.d *.s *.int *.inf *.mod *.modmic work.pc* ifc*
 	rm -f $(OBJSDIR)/pseudospec3D_mod.f90
 	rm -f $(OBJSDIR)/gutils_mod.f90
-	for dir in $(SUBDIRS); do \
+	for dir in $(SUBDIRS) $(UTILS); do \
             cd $$dir && $(MAKE) clean && cd .. ; \
         done
 
