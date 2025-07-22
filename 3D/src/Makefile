@@ -165,7 +165,7 @@ CHMHDB_OBJS    = $(CMHDB_OBJS)
 ROTH_OBJS      = $(HD_OBJS) pseudospec3D_rot.o
 PROTH_OBJS     = $(PHD_OBJS) pseudospec3D_rot.o pseudospec3D_prot.o
 MPROTH_OBJS    = $(PROTH_OBJS) 
-BOUSS_OBJS     = $(PROTH_OBJS) pseudospec3D_bouss.o
+BOUSS_OBJS     = $(PROTH_OBJS) pseudospec3D_bouss.o lessgs_mod.o
 MPBOUSS_OBJS   = $(BOUSS_OBJS)
 ROTBOUSS_OBJS  = $(BOUSS_OBJS)
 ROTBOUMHDB_OBJS= $(BOUSS_OBJS) pseudospec3D_mhd.o
@@ -196,6 +196,7 @@ SUBDIRS        = posix mpiio fftp-2 fftp-3 fftp-cu fftp-mkl utils \
 EXTRASDIR      = analysis
 GTIMER         = $(UTILS)/gtimer_mod.o
 GUTILS         = $(UTILS)/gutils_mod.o 
+GSGS           = pseudo/lessgs_mod.o 
 GREGRID        = $(UTILS)/gtrunc_mod.o $(UTILS)/regridutils.o
 GIO            = $(IOLIB)/binary_io.o 
 
