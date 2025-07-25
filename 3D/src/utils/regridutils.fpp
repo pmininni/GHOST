@@ -188,8 +188,17 @@
       INTEGER              :: ierr, grpworld
       INTEGER              :: nmt, np, nprocs, ntprocs
       INTEGER              :: iExclude(3,1), iInclude(3,1)
+      INTEGER              :: rlen
+      INTEGER, PARAMETER   :: MAX_ERR_STRING_LEN = MPI_MAX_ERROR_STRING
+      CHARACTER(LEN=MAX_ERR_STRING_LEN) :: serr
+
 
       CALL MPI_COMM_SIZE(oldcomm, nprocs, ierr)
+      IF (ierr .NE. MPI_SUCCESS) THEN
+        CALL MPI_Error_string(ierr, serr, rlen, ierr)
+        WRITE(*,*) 'create_trcomm:', TRIM(serr(:rlen))
+        STOP
+      END IF
       np      = n(1) / nprocs
       ntprocs = nt(1) / np
       nmt     = mod(nt(1),np) 
@@ -197,6 +206,11 @@
       ntprocs = min(ntprocs, nprocs)
 
       CALL MPI_COMM_GROUP(oldcomm, grpworld, ierr)
+      IF (ierr .NE. MPI_SUCCESS) THEN
+        CALL MPI_Error_string(ierr, serr, rlen, ierr)
+        WRITE(*,*) 'create_trcomm:', TRIM(serr(:rlen))
+        STOP
+      END IF
       newcomm  = MPI_COMM_NULL
       newgrp = MPI_GROUP_NULL
       IF ( ntprocs .LT. nprocs ) THEN
@@ -204,10 +218,30 @@
         iExclude(2,1) = nprocs-1
         iExclude(3,1) = 1
         CALL MPI_GROUP_RANGE_EXCL(grpworld, 1, iExclude, newgrp, ierr)   
+        IF (ierr .NE. MPI_SUCCESS) THEN
+          CALL MPI_Error_string(ierr, serr, rlen, ierr)
+          WRITE(*,*) 'create_trcomm:', TRIM(serr(:rlen))
+          STOP
+        END IF
         CALL MPI_COMM_CREATE(MPI_COMM_WORLD, newgrp, newcomm, ierr)
+        IF (ierr .NE. MPI_SUCCESS) THEN
+          CALL MPI_Error_string(ierr, serr, rlen, ierr)
+          WRITE(*,*) 'create_trcomm:', TRIM(serr(:rlen))
+          STOP
+        END IF
       ELSE IF ( ntprocs .EQ. nprocs ) THEN
         CALL MPI_COMM_DUP(MPI_COMM_WORLD,newcomm,ierr)
+        IF (ierr .NE. MPI_SUCCESS) THEN
+          CALL MPI_Error_string(ierr, serr, rlen, ierr)
+          WRITE(*,*) 'create_trcomm:', TRIM(serr(:rlen))
+          STOP
+        END IF
         CALL MPI_COMM_GROUP(MPI_COMM_WORLD,newgrp,ierr)
+        IF (ierr .NE. MPI_SUCCESS) THEN
+          CALL MPI_Error_string(ierr, serr, rlen, ierr)
+          WRITE(*,*) 'create_trcomm:', TRIM(serr(:rlen))
+          STOP
+        END IF
       ENDIF
 
       RETURN
