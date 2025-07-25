@@ -92,16 +92,30 @@ MODULE class_GSGS
 
 
 
-    this%comm_ = comm
+    WRITE(*,*) 'GSGS_ctor: 0'
+
     CALL MPI_COMM_DUP(comm, this%comm_, this%ierr_)
     IF (this%ierr_ .NE. MPI_SUCCESS) THEN
       CALL MPI_Error_string(this%ierr_, this%serr_, this%rlen_, this%ierr_)
-      WRITE(*,*) 'create_trcomm:', TRIM(this%serr_(:this%rlen_))
+      WRITE(*,*) 'GSGS_ctor:', TRIM(this%serr_(:this%rlen_))
       STOP
     END IF
 
+    WRITE(*,*) 'GSGS_ctor: 1'
     CALL MPI_COMM_SIZE(this%comm_,this%nprocs_,this%ierr_)
+    IF (this%ierr_ .NE. MPI_SUCCESS) THEN
+      CALL MPI_Error_string(this%ierr_, this%serr_, this%rlen_, this%ierr_)
+      WRITE(*,*) 'GSGS_ctor:', TRIM(this%serr_(:this%rlen_))
+      STOP
+    END IF
+
+    WRITE(*,*) 'GSGS_ctor: 2'
     CALL MPI_COMM_RANK(this%comm_,this%myrank_,this%ierr_)
+    IF (this%ierr_ .NE. MPI_SUCCESS) THEN
+      CALL MPI_Error_string(this%ierr_, this%serr_, this%rlen_, this%ierr_)
+      WRITE(*,*) 'GSGS_ctor:', TRIM(this%serr_(:this%rlen_))
+      STOP
+    END IF
 
     this%nx = ngrid(1)
     this%ny = ngrid(2)
@@ -124,6 +138,8 @@ MODULE class_GSGS
     this%planrc => planrc
 
 
+    WRITE(*,*) 'GSGS_ctor: 3'
+
     ALLOCATE( this%kx(this%nx), this%ky(this%ny), this%kz(this%nz) )
 !   ALLOCATE( this%kn2(this%nz,this%ny,this%ista:this%iend) )
     ALLOCATE( this%kk2(this%nz,this%ny,this%ista:this%iend) )
@@ -136,6 +152,7 @@ MODULE class_GSGS
          aniso = 0
       ENDIF
     ENDIF
+    WRITE(*,*) 'GSGS_ctor: 4'
 
     DO i = 1,this%nx/2
        this%kx(i) = real(i-1,kind=GP)
@@ -162,6 +179,7 @@ MODULE class_GSGS
         rms = 1.0_GP
      ENDIF
 
+    WRITE(*,*) 'GSGS_ctor: 5'
 !$omp parallel do if (this%iend-this%ista.ge.nth) private (j,k)
      DO i = this%ista,this%iend
 !$omp parallel do if (this%iend-this%ista.lt.nth) private (k)
@@ -189,6 +207,7 @@ MODULE class_GSGS
            END DO
         END DO
      ENDIF
+     WRITE(*,*) 'GSGS_ctor: done.'
 
   END SUBROUTINE GSGS_ctor
 !-----------------------------------------------------------------
@@ -214,6 +233,8 @@ MODULE class_GSGS
 
     CALL fftp3d_destroy_plan(this%plancr)
     CALL fftp3d_destroy_plan(this%planrc)
+
+    CALL MPI_Comm_free(this%comm_, this%ierr_)
 
   END SUBROUTINE GSGS_dtor
 !-----------------------------------------------------------------
