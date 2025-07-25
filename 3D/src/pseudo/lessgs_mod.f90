@@ -22,9 +22,9 @@ MODULE class_GSGS
         INTEGER, DIMENSION(MPI_STATUS_SIZE)          :: istatus_
         INTEGER                                      :: myrank_,nprocs_
         INTEGER                                      :: nx,ny,nz
-        INTEGER                                      :: ierr_
         INTEGER                                      :: comm_
         INTEGER                                      :: ista,iend,ksta,kend
+        INTEGER                                      :: ierr_, rlen_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:,:) :: kk2
 !       REAL(KIND=GP), TARGET     , ALLOCATABLE, DIMENSION(:,:,:) :: kn2
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: kx,ky,kz
@@ -85,12 +85,21 @@ MODULE class_GSGS
     INTEGER          ,INTENT   (IN)     :: ngrid(3)
     INTEGER          ,INTENT   (IN)     :: bnds(4)
     INTEGER                             :: aniso,i,j,k,n(3)
+    INTEGER                             :: ierr
     REAL(KIND=GP)    ,INTENT   (IN)     :: Dk(3)
     REAL(KIND=GP)                       :: rmp,rmq,rms
     TYPE(FFTPLAN)    ,INTENT   (IN), TARGET     :: plancr, planrc
 
 
+
     this%comm_ = comm
+    CALL MPI_COMM_DUP(comm, this%comm_, this%ierr_)
+    IF (this%ierr_ .NE. MPI_SUCCESS) THEN
+      CALL MPI_Error_string(this%ierr_, this%serr_, this%rlen_, this%ierr_)
+      WRITE(*,*) 'create_trcomm:', TRIM(this%serr_(:this%rlen_))
+      STOP
+    END IF
+
     CALL MPI_COMM_SIZE(this%comm_,this%nprocs_,this%ierr_)
     CALL MPI_COMM_RANK(this%comm_,this%myrank_,this%ierr_)
 

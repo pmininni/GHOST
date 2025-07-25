@@ -1366,7 +1366,7 @@
       CALL trrange(1,nz    ,nzt    ,nprocs,myrank,ktsta,ktend)
       CALL trrange(1,nz/2+1,nzt/2+1,nprocs,myrank,itsta,itend)
       CALL fftp3d_create_trplan_comm(plancrt,n,nt,FFTW_COMPLEX_TO_REAL,FFTW_MEASURE,MPI_COMM_WORLD)
-      CALL fftp3d_create_trplan_comm(planrct,n,nt,FFTW_REAL_TO_COMPLEX,FFTW_MEASURE,MPI_COMM_wORLD)
+      CALL fftp3d_create_trplan_comm(planrct,n,nt,FFTW_REAL_TO_COMPLEX,FFTW_MEASURE,MPI_COMM_WORLD)
       trtraits%ktrunc  =  1.0_GP/9.0_GP
 #ifndef DEF_ARBSIZE_
       IF (anis.eq.0)  trtraits%ktrunc = trtraits%ktrunc*real(nxt,kind=GP)**2
