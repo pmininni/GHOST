@@ -86,36 +86,41 @@ MODULE class_GSGS
     INTEGER          ,INTENT   (IN)     :: bnds(4)
     INTEGER                             :: aniso,i,j,k,n(3)
     INTEGER                             :: ierr
+    INTEGER                             :: nprocs, myrank
     REAL(KIND=GP)    ,INTENT   (IN)     :: Dk(3)
     REAL(KIND=GP)                       :: rmp,rmq,rms
     TYPE(FFTPLAN)    ,INTENT   (IN), TARGET     :: plancr, planrc
 
 
 
-    WRITE(*,*) 'GSGS_ctor: 0'
 
-    CALL MPI_COMM_DUP(comm, this%comm_, this%ierr_)
-    IF (this%ierr_ .NE. MPI_SUCCESS) THEN
-      CALL MPI_Error_string(this%ierr_, this%serr_, this%rlen_, this%ierr_)
-      WRITE(*,*) 'GSGS_ctor:', TRIM(this%serr_(:this%rlen_))
-      STOP
-    END IF
+    IF ( comm .NE. MPI_COMM_NULL ) THEN
 
-    WRITE(*,*) 'GSGS_ctor: 1'
-    CALL MPI_COMM_SIZE(this%comm_,this%nprocs_,this%ierr_)
-    IF (this%ierr_ .NE. MPI_SUCCESS) THEN
-      CALL MPI_Error_string(this%ierr_, this%serr_, this%rlen_, this%ierr_)
-      WRITE(*,*) 'GSGS_ctor:', TRIM(this%serr_(:this%rlen_))
-      STOP
-    END IF
+      CALL MPI_COMM_SIZE(comm,nprocs,this%ierr_)
+      CALL MPI_COMM_RANK(comm,myrank,this%ierr_)
+  
+      CALL MPI_COMM_DUP(comm, this%comm_, this%ierr_)
+  !   thiscomm_ = comm
+      IF (this%ierr_ .NE. MPI_SUCCESS) THEN
+        CALL MPI_Error_string(this%ierr_, this%serr_, this%rlen_, this%ierr_)
+        WRITE(*,*) myrank, ' GSGS_ctor:', TRIM(this%serr_(:this%rlen_))
+        STOP
+      END IF
 
-    WRITE(*,*) 'GSGS_ctor: 2'
-    CALL MPI_COMM_RANK(this%comm_,this%myrank_,this%ierr_)
-    IF (this%ierr_ .NE. MPI_SUCCESS) THEN
-      CALL MPI_Error_string(this%ierr_, this%serr_, this%rlen_, this%ierr_)
-      WRITE(*,*) 'GSGS_ctor:', TRIM(this%serr_(:this%rlen_))
-      STOP
-    END IF
+      CALL MPI_COMM_SIZE(this%comm_,this%nprocs_,this%ierr_)
+      IF (this%ierr_ .NE. MPI_SUCCESS) THEN
+        CALL MPI_Error_string(this%ierr_, this%serr_, this%rlen_, this%ierr_)
+        WRITE(*,*) 'GSGS_ctor:', TRIM(this%serr_(:this%rlen_))
+        STOP
+      END IF
+
+      CALL MPI_COMM_RANK(this%comm_,this%myrank_,this%ierr_)
+      IF (this%ierr_ .NE. MPI_SUCCESS) THEN
+        CALL MPI_Error_string(this%ierr_, this%serr_, this%rlen_, this%ierr_)
+        WRITE(*,*) 'GSGS_ctor:', TRIM(this%serr_(:this%rlen_))
+        STOP
+      END IF
+    ENDIF
 
     this%nx = ngrid(1)
     this%ny = ngrid(2)
@@ -137,9 +142,6 @@ MODULE class_GSGS
     this%plancr => plancr
     this%planrc => planrc
 
-
-    WRITE(*,*) 'GSGS_ctor: 3'
-
     ALLOCATE( this%kx(this%nx), this%ky(this%ny), this%kz(this%nz) )
 !   ALLOCATE( this%kn2(this%nz,this%ny,this%ista:this%iend) )
     ALLOCATE( this%kk2(this%nz,this%ny,this%ista:this%iend) )
@@ -152,7 +154,6 @@ MODULE class_GSGS
          aniso = 0
       ENDIF
     ENDIF
-    WRITE(*,*) 'GSGS_ctor: 4'
 
     DO i = 1,this%nx/2
        this%kx(i) = real(i-1,kind=GP)
@@ -179,7 +180,6 @@ MODULE class_GSGS
         rms = 1.0_GP
      ENDIF
 
-    WRITE(*,*) 'GSGS_ctor: 5'
 !$omp parallel do if (this%iend-this%ista.ge.nth) private (j,k)
      DO i = this%ista,this%iend
 !$omp parallel do if (this%iend-this%ista.lt.nth) private (k)
@@ -207,7 +207,6 @@ MODULE class_GSGS
            END DO
         END DO
      ENDIF
-     WRITE(*,*) 'GSGS_ctor: done.'
 
   END SUBROUTINE GSGS_ctor
 !-----------------------------------------------------------------
