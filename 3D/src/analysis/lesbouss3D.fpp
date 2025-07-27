@@ -454,7 +454,12 @@
 ! Initialization
 
 ! Initializes the MPI and I/O libraries
-      CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
+!     CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
+      CALL MPI_INIT_THREAD(MPI_THREAD_SINGLE,provided,ierr)
+      IF ( ierr .NE. MPI_SUCCESS ) THEN
+              write(*,*) 'main: MPI_INIT_THREAD failed'
+              STOP
+      ENDIF
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
 
@@ -721,8 +726,6 @@
       CALL MPI_BCAST(fstep,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(rand,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(seed,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-
-      write(*,*) 'main: sparam=', sparam, '  dt_0=', dt
 
       Lx  = 1.0_GP
       Ly  = 1.0_GP
@@ -1378,9 +1381,13 @@
 
       ! Get new communicator, props  for truncated grid: 
       CALL create_trcomm(n, nt, MPI_COMM_WORLD, commtrunc, grouptrunc)
-      CALL MPI_COMM_SIZE(commtrunc, ntprocs, ierr)
-      CALL MPI_COMM_RANK(commtrunc, mytrank, ierr)
-      CALL io_init_comm(commtrunc,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
+      IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
+        write(*,*) myrank, ' main: check commtrunc size...'
+        CALL MPI_COMM_SIZE(commtrunc, ntprocs, ierr)
+        CALL MPI_COMM_RANK(commtrunc, mytrank, ierr)
+        write(*,*) myrank, ' main: commtrunk size check done.'
+        CALL io_init_comm(commtrunc,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
+      ENDIF
 
        
 ! Now that we have nmax we can allocate some temporary
@@ -1567,10 +1574,12 @@
       trtraits%R3        => R3;
       trtraits%RT1       => RT1;
 
-       write(*,*)'instantiate sgstr...'
-      CALL sgstr%GSGS_ctor(commtrunc, (/nxt,nyt,nzt/), (/itsta,itend,ktsta,ktend/), arbsz, (/Dkx,Dky,Dkz/), plancrt, planrct )
-       write(*,*)'instantiate sgs  ...'
+      
+       write(*,*) myrank, ' instantiate sgs  ...'
       CALL sgs  %GSGS_ctor(MPI_COMM_WORLD, (/nx ,ny ,nz /), (/ista,iend,ksta,kend/), arbsz, (/Dkx,Dky,Dkz/), plancr, planrc )
+
+       write(*,*) myrank, ' instantiate sgstr  ...'
+      CALL sgstr%GSGS_ctor(commtrunc, (/nxt,nyt,nzt/), (/itsta,itend,ktsta,ktend/), arbsz, (/Dkx,Dky,Dkz/), plancrt, planrct )
       DO k = 1,3
         IF ( doprojection ) THEN
           write(sfpref(k),"(A3,I1,A)") "SGS", k,"_TP"
@@ -1579,23 +1588,33 @@
         ENDIF
       ENDDO
 
+      write(*,*) myrank, ' main: Enter time snapshot loop...'
+
+      iidir = trim(idir) // '/outs'
+      IF ( myrank .EQ. 0 ) THEN
+        write(*,*) ' iidir=', trim(iidir)
+      ENDIF
 ! Cycle over all input times, and do analysis:
  LSTAT : DO t = 1, nstat
 
 !       Read binary data
-      WRITE(ext, fmtext) istat(t)
+        WRITE(ext, fmtext) istat(t)
+        write(*,*) ' ext=', ext
 #ifdef VELOC_
-        iidir = trim(idir) // '/outs'
-        write(*,*) ' ext=', ext, ' iidir=', trim(iidir)
         CALL io_read(1,iidir,'vx',ext,planio,R1)
         CALL io_read(1,iidir,'vy',ext,planio,R2)
         CALL io_read(1,iidir,'vz',ext,planio,R3)
+        if ( myrank.eq.0 ) write(*,*) ' fft vx...'
         CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
+        if ( myrank.eq.0 ) write(*,*) ' fft vy...'
         CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
+        if ( myrank.eq.0 ) write(*,*) ' fft vz...'
         CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
 #endif
 #ifdef BOUSSINESQ_
+        if ( myrank.eq.0 ) write(*,*) ' reading th...'
         CALL io_read(1,iidir,'th',ext,planio,R1)
+        if ( myrank.eq.0 ) write(*,*) ' fft th...'
         CALL fftp3d_real_to_complex(planrc,R1,th,MPI_COMM_WORLD)
 #endif
         write(*,*) ' data loaded: index=', ext
