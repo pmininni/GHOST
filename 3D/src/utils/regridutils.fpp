@@ -217,31 +217,50 @@
         iExclude(1,1) = ntprocs
         iExclude(2,1) = nprocs-1
         iExclude(3,1) = 1
+        write(*,*) 'create_trcomm: 0: ntprocs=', ntprocs, ' nprocs=', nprocs
         CALL MPI_GROUP_RANGE_EXCL(grpworld, 1, iExclude, newgrp, ierr)   
         IF (ierr .NE. MPI_SUCCESS) THEN
           CALL MPI_Error_string(ierr, serr, rlen, ierr)
           WRITE(*,*) 'create_trcomm:', TRIM(serr(:rlen))
           STOP
         END IF
-        CALL MPI_COMM_CREATE(MPI_COMM_WORLD, newgrp, newcomm, ierr)
+        IF (ierr .EQ. MPI_ERR_GROUP) THEN
+          WRITE(*,*) 'create_trcomm: MPI_GROUP_RANGE_EXCL failed'
+          STOP
+        END IF
+        CALL MPI_COMM_CREATE(oldcomm, newgrp, newcomm, ierr)
         IF (ierr .NE. MPI_SUCCESS) THEN
           CALL MPI_Error_string(ierr, serr, rlen, ierr)
           WRITE(*,*) 'create_trcomm:', TRIM(serr(:rlen))
+          STOP
+        END IF
+        IF (ierr .EQ. MPI_ERR_COMM) THEN
+          WRITE(*,*) 'create_trcomm: MPI_ERR_COMM'
+          STOP
+        END IF
+        IF (ierr .EQ. MPI_ERR_GROUP) THEN
+          WRITE(*,*) 'create_trcomm: MPI_ERR_GROUP'
           STOP
         END IF
       ELSE IF ( ntprocs .EQ. nprocs ) THEN
-        CALL MPI_COMM_DUP(MPI_COMM_WORLD,newcomm,ierr)
+        write(*,*) 'create_trcomm: 1'
+        CALL MPI_COMM_DUP(oldcomm,newcomm,ierr)
         IF (ierr .NE. MPI_SUCCESS) THEN
           CALL MPI_Error_string(ierr, serr, rlen, ierr)
           WRITE(*,*) 'create_trcomm:', TRIM(serr(:rlen))
           STOP
         END IF
-        CALL MPI_COMM_GROUP(MPI_COMM_WORLD,newgrp,ierr)
-        IF (ierr .NE. MPI_SUCCESS) THEN
-          CALL MPI_Error_string(ierr, serr, rlen, ierr)
-          WRITE(*,*) 'create_trcomm:', TRIM(serr(:rlen))
+        IF (ierr .EQ. MPI_ERR_COMM) THEN
+          WRITE(*,*) 'create_trcomm: MPI_ERR_COMM'
           STOP
         END IF
+        CALL MPI_COMM_GROUP(newcomm,newgrp,ierr)
+        IF (ierr .NE. MPI_SUCCESS) THEN
+          CALL MPI_Error_string(ierr, serr, rlen, ierr)
+        END IF
+      ELSE
+        WRITE(*,*) 'create_trcomm: ntprocs invalid: ntprocs= ', ntprocs, ' nprocs=', nprocs
+        STOP
       ENDIF
 
       RETURN
