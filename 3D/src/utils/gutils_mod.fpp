@@ -1208,19 +1208,19 @@ MODULE gutils
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp
       COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(nz,ny,ista:iend) :: divv
       INTEGER         , INTENT   (IN)                             :: inorm
-      TYPE(PARRAY)                                                :: pv(3)
+      TYPE(PARRAY)    , ALLOCATABLE                               :: pv(3)
       REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,j,k,m
 
-      pv(1).pcomplex => vx
-      pv(2).pcomplex => vy
-      pv(3).pcomplex => vz
+      pv(1)%pcomplex => vx
+      pv(2)%pcomplex => vy
+      pv(3)%pcomplex => vz
       divv = 0.0;
 
       tmp = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
       DO m = 1, 3
-        CALL derivk3(pv(m).pcomplex, ctmp, m)
+        CALL derivk3(pv(m)%pcomplex, ctmp, m)
         
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend
