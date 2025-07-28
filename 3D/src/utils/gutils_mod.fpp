@@ -1208,7 +1208,7 @@ MODULE gutils
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp
       COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(nz,ny,ista:iend) :: divv
       INTEGER         , INTENT   (IN)                             :: inorm
-      TYPE(PARRAY)    , ALLOCATABLE                               :: pv(3)
+      TYPE(PARRAY)                                                :: pv(3)
       REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,j,k,m
 
