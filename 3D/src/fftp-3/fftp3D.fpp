@@ -78,11 +78,20 @@
       USE gtimer
       IMPLICIT NONE
 
+      INCLUDE 'mpif.h'
+
       INTEGER, INTENT(IN) :: n(3)
       INTEGER, INTENT(IN) :: fftdir
       INTEGER, INTENT(IN) :: flags
       TYPE(FFTPLAN), INTENT(OUT) :: plan
 
+      CALL MPI_COMM_DUP(MPI_COMM_WORLD, plan%comm, ierr)
+      IF ( ierr .NE. MPI_SUCCESS ) THEN
+        write(*,*) 'fftp3d_create_plan_comm: MPI_COMM_DUP failed'
+        STOP
+      ENDIF
+      CALL MPI_COMM_SIZE(plan%comm,plan%nprocs,ierr)
+      CALL MPI_COMM_RANK(plan%comm,plan%myrank,ierr)
 
       ! NOTE: plan%comm is *NOT* initialized here!
       plan%nprocs = nprocs ! set in mpivars
@@ -95,8 +104,6 @@
       plan%ista   = ista
       plan%iend   = iend
 
-      CALL MPI_COMM_SIZE(plan%comm,plan%nprocs,ierr)
-      CALL MPI_COMM_RANK(plan%comm,plan%myrank,ierr)
 
       ALLOCATE ( plan%ccarr(n(3),n(2),plan%ista:plan%iend)    )
       ALLOCATE ( plan%carr(n(1)/2+1,n(2),plan%ksta:plan%kend) )
@@ -159,12 +166,13 @@
 !              create plans (specially when using OpenMP)
 !     comm   : MPI communicator
 !-----------------------------------------------------------------
-
       USE mpivars
       USE fftplans
 !$    USE threads
       USE gtimer
       IMPLICIT NONE
+
+      INCLUDE 'mpif.h'
 
       INTEGER, INTENT(IN) :: n(3)
       INTEGER, INTENT(IN) :: fftdir
@@ -172,8 +180,16 @@
       INTEGER, INTENT(IN) :: comm
       TYPE(FFTPLAN), INTENT(OUT) :: plan
 
+      IF ( comm .EQ. MPI_COMM_NULL ) THEN
+        write(*,*) 'fftp3d_create_plan_comm: comm is NULL'
+        STOP
+      ENDIF
 
-      plan%comm = comm
+      CALL MPI_COMM_DUP(comm, plan%comm, ierr)
+      IF ( ierr .NE. MPI_SUCCESS .OR. comm .EQ. MPI_COMM_NULL ) THEN
+        write(*,*) 'fftp3d_create_plan_comm: MPI_COMM_DUP failed'
+        STOP
+      ENDIF
       plan%nx   = n(1)
       plan%ny   = n(2)
       plan%nz   = n(3)
@@ -184,6 +200,8 @@
 
       CALL MPI_COMM_SIZE(plan%comm,plan%nprocs,ierr)
       CALL MPI_COMM_RANK(plan%comm,plan%myrank,ierr)
+
+!     write(*,*)' fftp3d_create_plan_comm: nprocs=', plan%nprocs, ' irank=', plan%myrank 
 
       ALLOCATE ( plan%ccarr(n(3),n(2),plan%ista:plan%iend)    )
       ALLOCATE ( plan%carr(n(1)/2+1,n(2),plan%ksta:plan%kend) )
@@ -303,7 +321,7 @@
       END SUBROUTINE fftp3d_create_block
 
 !*****************************************************************
-      SUBROUTINE fftp3d_real_to_complex(plan,in,out,comm)
+      SUBROUTINE fftp3d_real_to_complex(plan,in,out)
 !-----------------------------------------------------------------
 !
 ! Computes the 3D real-to-complex FFT in parallel. The 
@@ -314,11 +332,6 @@
 !     plan : the 3D plan created with fftp3d_create_plan [IN]
 !     in   : real input array [IN]
 !     out  : complex output array [OUT]
-!     comm : the MPI communicator (handle) [IN]. No longer used:
-!            the plan%comm is used now instead. NOTE: If we aren't
-!            going to remove this argument in all calls, then
-!            we might want to make it OPTIONAL, even though it
-!            will no longer be used.
 !-----------------------------------------------------------------
 
       USE commtypes
@@ -337,12 +350,16 @@
 
       INTEGER, DIMENSION(0:plan%nprocs-1) :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
-      INTEGER, INTENT(IN)                 :: comm
       INTEGER :: i,j,k
       INTEGER :: ii,jj,kk
       INTEGER :: irank
       INTEGER :: isendTo,igetFrom
       INTEGER :: istrip,iproc
+
+
+      IF ( plan%comm .EQ. MPI_COMM_NULL .OR. plan%nprocs .EQ. 0 ) THEN
+        RETURN
+      ENDIF
 
 !
 ! 2D FFT in each node using the FFTW library
@@ -421,7 +438,7 @@
       END SUBROUTINE fftp3d_real_to_complex
 
 !*****************************************************************
-      SUBROUTINE fftp3d_complex_to_real(plan,in,out,comm)
+      SUBROUTINE fftp3d_complex_to_real(plan,in,out)
 !-----------------------------------------------------------------
 !
 ! Computes the 3D complex-to-real FFT in parallel. The 
@@ -434,8 +451,6 @@
 !     plan : the 3D plan created with fftp3d_create_plan [IN]
 !     in   : complex input array [IN]
 !     out  : real output array [OUT]
-!     comm : the MPI communicator (handle) [IN]. No longer used:
-!            the plan%comm is used now instead.
 !-----------------------------------------------------------------
 
       USE fprecision
@@ -456,13 +471,15 @@
 
       INTEGER, DIMENSION(0:plan%nprocs-1) :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
-      INTEGER, INTENT(IN)                 :: comm
       INTEGER :: i,j,k
       INTEGER :: ii,jj,kk
       INTEGER :: irank
       INTEGER :: isendTo, igetFrom
       INTEGER :: istrip,iproc
 
+      IF ( plan%comm .EQ. MPI_COMM_NULL .OR. plan%nprocs .EQ. 0 ) THEN
+        RETURN
+      ENDIF
 !
 ! 1D FFT in each node using the FFTW library
 
@@ -506,10 +523,19 @@
 
             igetFrom = plan%myrank - irank
             if ( igetFrom .lt. 0 ) igetFrom = igetFrom + plan%nprocs
+
             CALL MPI_IRECV(plan%carr,1,plan%itype1(igetFrom),igetFrom, & 
                           1,plan%comm,ireq2(irank),ierr)
+                  if ( ierr .ne. MPI_SUCCESS ) then
+                     write(*,*) 'c2r: rank=', plan%myrank, ' IRECV failed.'
+                     stop
+                  endif
             CALL MPI_ISEND(c1,1,plan%itype2(isendTo),isendTo, &
                           1,plan%comm,ireq1(irank),ierr)
+                  if ( ierr .ne. MPI_SUCCESS ) then
+                     write(*,*) 'c2r: rank=', plan%myrank, ' IRECV failed.'
+                     stop
+                  endif
          enddo
 
          do istrip=0, nstrip-1
@@ -527,6 +553,7 @@
       CALL GTStop(hfft); 
       
       CALL GTStop(htot); 
+
 
       ! Update local accumulated timers:
       ffttime = GTGetTime(hfft)
