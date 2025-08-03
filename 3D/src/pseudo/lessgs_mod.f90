@@ -92,6 +92,8 @@ MODULE class_GSGS
     TYPE(FFTPLAN)    ,INTENT   (IN), TARGET     :: plancr, planrc
 
 
+    this%nprocs_ = 0
+    this%myrank_ = -1
 
 
     IF ( comm .NE. MPI_COMM_NULL ) THEN
@@ -259,8 +261,12 @@ MODULE class_GSGS
     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1,C2,C3
     COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: Nt
 
-     CALL this%prodre3(vx,vy,vz,C1,C2,C3)
-     CALL this%nonlhd3(C1,C2,C3,Nt,idir)
+    IF ( this%comm_ .NE. MPI_COMM_NULL .OR. this%nprocs_ .EQ. 0 ) THEN
+      RETURN
+    ENDIF
+
+    CALL this%prodre3(vx,vy,vz,C1,C2,C3)
+    CALL this%nonlhd3(C1,C2,C3,Nt,idir)
 
 
   END SUBROUTINE GSGS_Nuu
@@ -285,6 +291,10 @@ MODULE class_GSGS
     COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: vx,vy,vz,th
     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1
     COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: Nt
+
+    IF ( this%comm_ .NE. MPI_COMM_NULL .OR. this%nprocs_ .EQ. 0 ) THEN
+      RETURN
+    ENDIF
 
     CALL this%advect3(vx,vy,vz,th,Nt)
 
@@ -484,6 +494,9 @@ MODULE class_GSGS
       REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
 
+      IF ( this%comm_ .NE. MPI_COMM_NULL .OR. this%nprocs_ .EQ. 0 ) THEN
+        RETURN
+      ENDIF
 !
 ! Computes (A_x.dx)A_dir
 !
@@ -491,10 +504,10 @@ MODULE class_GSGS
       CALL this%derivk3(a,c2,1)
       CALL this%derivk3(b,c3,1)
       CALL this%derivk3(c,c4,1)
-      CALL fftp3d_complex_to_real(this%plancr,c1,r1,this%comm_)
-      CALL fftp3d_complex_to_real(this%plancr,c2,r2,this%comm_)
-      CALL fftp3d_complex_to_real(this%plancr,c3,r3,this%comm_)
-      CALL fftp3d_complex_to_real(this%plancr,c4,r4,this%comm_)
+      CALL fftp3d_complex_to_real(this%plancr,c1,r1)
+      CALL fftp3d_complex_to_real(this%plancr,c2,r2)
+      CALL fftp3d_complex_to_real(this%plancr,c3,r3)
+      CALL fftp3d_complex_to_real(this%plancr,c4,r4)
 
 !$omp parallel do if (this%kend-this%ksta.ge.nth) private (j,i)
       DO k = this%ksta,this%kend
@@ -514,10 +527,10 @@ MODULE class_GSGS
       CALL this%derivk3(a,c2,2)
       CALL this%derivk3(b,c3,2)
       CALL this%derivk3(c,c4,2)
-      CALL fftp3d_complex_to_real(this%plancr,c1,r1,this%comm_)
-      CALL fftp3d_complex_to_real(this%plancr,c2,r2,this%comm_)
-      CALL fftp3d_complex_to_real(this%plancr,c3,r3,this%comm_)
-      CALL fftp3d_complex_to_real(this%plancr,c4,r4,this%comm_)
+      CALL fftp3d_complex_to_real(this%plancr,c1,r1)
+      CALL fftp3d_complex_to_real(this%plancr,c2,r2)
+      CALL fftp3d_complex_to_real(this%plancr,c3,r3)
+      CALL fftp3d_complex_to_real(this%plancr,c4,r4)
 
 !$omp parallel do if (this%kend-this%ksta.ge.nth) private (j,i)
       DO k = this%ksta,this%kend
@@ -537,10 +550,10 @@ MODULE class_GSGS
       CALL this%derivk3(a,c2,3)
       CALL this%derivk3(b,c3,3)
       CALL this%derivk3(c,c4,3)
-      CALL fftp3d_complex_to_real(this%plancr,c1,r1,this%comm_)
-      CALL fftp3d_complex_to_real(this%plancr,c2,r2,this%comm_)
-      CALL fftp3d_complex_to_real(this%plancr,c3,r3,this%comm_)
-      CALL fftp3d_complex_to_real(this%plancr,c4,r4,this%comm_)
+      CALL fftp3d_complex_to_real(this%plancr,c1,r1)
+      CALL fftp3d_complex_to_real(this%plancr,c2,r2)
+      CALL fftp3d_complex_to_real(this%plancr,c3,r3)
+      CALL fftp3d_complex_to_real(this%plancr,c4,r4)
 
       tmp = 1.0_GP/ &
             (real(this%nx,kind=GP)*real(this%ny,kind=GP)*real(this%nz,kind=GP))**2
@@ -556,9 +569,9 @@ MODULE class_GSGS
          END DO
       END DO
 
-      CALL fftp3d_real_to_complex(this%planrc,rx,d,this%comm_)
-      CALL fftp3d_real_to_complex(this%planrc,ry,e,this%comm_)
-      CALL fftp3d_real_to_complex(this%planrc,rz,f,this%comm_)
+      CALL fftp3d_real_to_complex(this%planrc,rx,d)
+      CALL fftp3d_real_to_complex(this%planrc,ry,e)
+      CALL fftp3d_real_to_complex(this%planrc,rz,f)
 
       RETURN
       END SUBROUTINE GSGS_gradre3
@@ -599,15 +612,18 @@ MODULE class_GSGS
       REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
 
+      IF ( this%comm_ .NE. MPI_COMM_NULL .OR. this%nprocs_ .EQ. 0 ) THEN
+        RETURN
+      ENDIF
 !
 ! Computes curl(A)
 !
       CALL this%rotor3(b,c,d,1)
       CALL this%rotor3(a,c,e,2)
       CALL this%rotor3(a,b,f,3)
-      CALL fftp3d_complex_to_real(this%plancr,d,r1,this%comm_)
-      CALL fftp3d_complex_to_real(this%plancr,e,r2,this%comm_)
-      CALL fftp3d_complex_to_real(this%plancr,f,r3,this%comm_)
+      CALL fftp3d_complex_to_real(this%plancr,d,r1)
+      CALL fftp3d_complex_to_real(this%plancr,e,r2)
+      CALL fftp3d_complex_to_real(this%plancr,f,r3)
 
 !
 ! Computes A
@@ -623,9 +639,9 @@ MODULE class_GSGS
             END DO
          END DO
       END DO
-      CALL fftp3d_complex_to_real(this%plancr,d,r4,this%comm_)
-      CALL fftp3d_complex_to_real(this%plancr,e,r5,this%comm_)
-      CALL fftp3d_complex_to_real(this%plancr,f,r6,this%comm_)
+      CALL fftp3d_complex_to_real(this%plancr,d,r4)
+      CALL fftp3d_complex_to_real(this%plancr,e,r5)
+      CALL fftp3d_complex_to_real(this%plancr,f,r6)
 !
 ! Computes curl(A)xA
 !
@@ -643,9 +659,9 @@ MODULE class_GSGS
          END DO
       END DO
 
-      CALL fftp3d_real_to_complex(this%planrc,r7,d,this%comm_)
-      CALL fftp3d_real_to_complex(this%planrc,r3,e,this%comm_)
-      CALL fftp3d_real_to_complex(this%planrc,r1,f,this%comm_)
+      CALL fftp3d_real_to_complex(this%planrc,r7,d)
+      CALL fftp3d_real_to_complex(this%planrc,r3,e)
+      CALL fftp3d_real_to_complex(this%planrc,r1,f)
 
       RETURN
       END SUBROUTINE GSGS_prodre3
@@ -802,13 +818,16 @@ MODULE class_GSGS
       REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
 
+      IF ( this%comm_ .NE. MPI_COMM_NULL .OR. this%nprocs_ .EQ. 0 ) THEN
+        RETURN
+      ENDIF
 !
 ! Computes (A_x.dx)B
 !
       c1 = a
       CALL this%derivk3(d,c2,1)
-      CALL fftp3d_complex_to_real(this%plancr,c1,r1,this%comm_)
-      CALL fftp3d_complex_to_real(this%plancr,c2,r2,this%comm_)
+      CALL fftp3d_complex_to_real(this%plancr,c1,r1)
+      CALL fftp3d_complex_to_real(this%plancr,c2,r2)
 
 !$omp parallel do if (this%kend-this%ksta.ge.nth) private (j,i)
       DO k = this%ksta,this%kend
@@ -824,8 +843,8 @@ MODULE class_GSGS
 !
       c1 = b
       CALL this%derivk3(d,c2,2)
-      CALL fftp3d_complex_to_real(this%plancr,c1,r1,this%comm_)
-      CALL fftp3d_complex_to_real(this%plancr,c2,r2,this%comm_)
+      CALL fftp3d_complex_to_real(this%plancr,c1,r1)
+      CALL fftp3d_complex_to_real(this%plancr,c2,r2)
 
 !$omp parallel do if (this%kend-this%ksta.ge.nth) private (j,i)
       DO k = this%ksta,this%kend
@@ -841,8 +860,8 @@ MODULE class_GSGS
 !
       c1 = c
       CALL this%derivk3(d,c2,3)
-      CALL fftp3d_complex_to_real(this%plancr,c1,r1,this%comm_)
-      CALL fftp3d_complex_to_real(this%plancr,c2,r2,this%comm_)
+      CALL fftp3d_complex_to_real(this%plancr,c1,r1)
+      CALL fftp3d_complex_to_real(this%plancr,c2,r2)
 
 ! We need -A.grad(B)
       tmp = -1.0_GP/ &
@@ -857,7 +876,7 @@ MODULE class_GSGS
          END DO
       END DO
 
-      CALL fftp3d_real_to_complex(this%planrc,r3,e,this%comm_)
+      CALL fftp3d_real_to_complex(this%planrc,r3,e)
 
       RETURN
       END SUBROUTINE GSGS_advect3
