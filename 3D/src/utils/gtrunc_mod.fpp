@@ -18,6 +18,7 @@ MODULE gtrunc
      TYPE TRUNCDAT
          TYPE(IOPLAN)    :: planiot
          TYPE(FFTPLAN)   :: plancrt
+         INTEGER         :: commparent
          INTEGER         :: commtrunc
          COMPLEX(KIND=GP), DIMENSION (:,:,:), POINTER :: C1,C2,C3,C4,C5
          COMPLEX(KIND=GP), DIMENSION (:,:,:), POINTER :: CT1
