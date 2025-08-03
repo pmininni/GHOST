@@ -114,13 +114,23 @@
 !$    USE threads
       IMPLICIT NONE
 
+      INCLUDE 'mpif.h'
+
       INTEGER, INTENT(IN) :: n(3), nt(3)
       INTEGER, INTENT(IN) :: fftdir
       INTEGER, INTENT(IN) :: flags
       INTEGER, INTENT(IN) :: comm
       TYPE(FFTPLAN), INTENT(OUT) :: plan
 
-      plan%comm = comm
+
+      IF ( comm .NE. MPI_COMM_NULL ) THEN
+        CALL MPI_COMM_DUP(comm, plan%comm, ierr)
+        IF ( ierr .NE. MPI_SUCCESS .OR. plan%comm .EQ. MPI_COMM_NULL ) THEN
+          write(*,*) 'fftp3d_create_trplan_comm: MPI_COMM_DUP failed'
+          STOP
+        ENDIF
+      ENDIF
+
       plan%nx   = nt(1)
       plan%ny   = nt(2)
       plan%nz   = nt(3)
@@ -128,6 +138,12 @@
       plan%kend = ktend
       plan%ista = itsta
       plan%iend = itend
+      plan%nprocs = 0
+      plan%myrank = 0
+
+      IF ( comm .EQ. MPI_COMM_NULL ) THEN
+              RETURN
+      ENDIF
 
       ALLOCATE ( plan%ccarr(nt(3),nt(2),plan%ista:plan%iend)    )
       ALLOCATE ( plan%carr(nt(1)/2+1,nt(2),plan%ksta:plan%kend) )
