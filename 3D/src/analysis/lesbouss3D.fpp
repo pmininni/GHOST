@@ -1663,19 +1663,14 @@
           CALL trunc(vy, n, nt, trtraits%ktrunc, 1, C1, vyt) 
           CALL trunc(vz, n, nt, trtraits%ktrunc, 1, C1, vzt) 
           ! Momentum components:
-          if (myrank.eq.0) write(*,*) ' sgs_x...'
           CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,1, C4)
           CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
-          if (myrank.eq.0) write(*,*) ' sgs_x trunc...'
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
-          if (myrank.eq.0) write(*,*) ' sgstr_x ...'
           CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,1, CT4)
           CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
-          if (myrank.eq.0) write(*,*) ' sgs_x done.'
           CT4 = CT4 - CT1
-          if (myrank.eq.0) write(*,*) ' sgs_y...'
           CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,2, C4)
           CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
@@ -1683,7 +1678,6 @@
           CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,2, CT5)
           CT5 = CT5 - CT1
-          if (myrank.eq.0) write(*,*) ' sgs_z...'
           CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,3, C4)
           CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
@@ -1702,19 +1696,15 @@
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
             CALL io_write(1,odir,trim(sfpref(1)),ext,planiot,RT1)
           ENDIF
-           write(*,*) myrank, ' ', sfpref(1), ' written.'
           CALL fftp3d_complex_to_real(plancrt,CT2,RT1)
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
             CALL io_write(1,odir,trim(sfpref(2)),ext,planiot,RT1)
           ENDIF
-           write(*,*) myrank, ' ', sfpref(2), ' written.'
           CALL fftp3d_complex_to_real(plancrt,CT3,RT1)
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
             CALL io_write(1,odir,trim(sfpref(3)),ext,planiot,RT1)
           ENDIF
-           write(*,*) myrank, ' ', sfpref(3), ' written.'
         ! Energy component:
-          if (myrank.eq.0) write(*,*) ' sgs_th...'
           CALL sgs  %sgsth(vx,vy,vz,th,C1,C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
           CALL sgstr%sgsth(vxt,vyt,vzt,tht,CT2,CT3)
@@ -1723,7 +1713,7 @@
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
             CALL io_write(1,odir,"SGSth_T",ext,planiot,RT1)
           ENDIF
-           write(*,*) myrank,  'SGSth_T', ' written.'
+           write(*,*) myrank,  'SGSs', ' written.'
 
 !         CALL MPI_BARRIER(commtrunc, ierr)
 !         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
@@ -2063,7 +2053,7 @@
       ENDIF
       write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' omz  done.'
 
-
+#if 0
       CALL derivk3(th, tr%C1, 1)                        ! dth/dx
       CALL derivk3(th, tr%C2, 2)                        ! dth/dy
       CALL derivk3(th, tr%C3, 3)                        ! dth/dz
@@ -2074,6 +2064,7 @@
         CALL io_write(1,tr%odir,'Lapth_T',ext,tr%planiot,tr%RT1)
       ENDIF
       write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' done.'
+#endif
 
 !     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
