@@ -14,6 +14,7 @@
          INTEGER       :: ksta,kend
          INTEGER       :: nx,ny,nz
          INTEGER       :: iotype
+         INTEGER       :: myrank
          INTEGER       :: comm=MPI_COMM_WORLD
       END TYPE IOPLAN
       INTEGER :: iswap=0
