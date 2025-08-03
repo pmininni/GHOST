@@ -454,8 +454,7 @@
 ! Initialization
 
 ! Initializes the MPI and I/O libraries
-!     CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
-      CALL MPI_INIT_THREAD(MPI_THREAD_SINGLE,provided,ierr)
+      CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
       IF ( ierr .NE. MPI_SUCCESS ) THEN
               write(*,*) 'main: MPI_INIT_THREAD failed'
               STOP
@@ -511,7 +510,7 @@
 
      CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
      CALL range(1,nz,nprocs,myrank,ksta,kend)
-     CALL io_init_comm(MPI_COMM_WORLD,(/nx,ny,nz/),ksta,kend,planio)
+     CALL io_init(myrank,(/nx,ny,nz/),ksta,kend,planio)
 
 !
 ! Allocates memory for distributed blocks
@@ -1358,26 +1357,18 @@
       CALL fftp3d_create_plan_comm(plancr,n,FFTW_COMPLEX_TO_REAL, &
                              FFTW_ESTIMATE, MPI_COMM_WORLD)
 
-      CALL fftp3d_create_plan_comm(planrctt,nt,FFTW_REAL_TO_COMPLEX, &
-                             FFTW_ESTIMATE, MPI_COMM_WORLD)
-      CALL fftp3d_create_plan_comm(plancrtt,nt,FFTW_COMPLEX_TO_REAL, &
-                             FFTW_ESTIMATE, MPI_COMM_WORLD)
+
+!!    CALL fftp3d_create_plan_comm(planrctt,nt,FFTW_REAL_TO_COMPLEX, &
+!!                           FFTW_ESTIMATE, MPI_COMM_WORLD)
+!!    CALL fftp3d_create_plan_comm(plancrtt,nt,FFTW_COMPLEX_TO_REAL, &
+!!                           FFTW_ESTIMATE, MPI_COMM_WORLD)
+
       ! Parse input index set, store in istat:
       CALL parseind(sstat,';', istat , 4096, nstat)
 
       ! Plans for truncated grid:
       CALL trrange(1,nz    ,nzt    ,nprocs,myrank,ktsta,ktend)
       CALL trrange(1,nz/2+1,nzt/2+1,nprocs,myrank,itsta,itend)
-      CALL fftp3d_create_trplan_comm(plancrt,n,nt,FFTW_COMPLEX_TO_REAL,FFTW_MEASURE,MPI_COMM_WORLD)
-      CALL fftp3d_create_trplan_comm(planrct,n,nt,FFTW_REAL_TO_COMPLEX,FFTW_MEASURE,MPI_COMM_WORLD)
-      trtraits%ktrunc  =  1.0_GP/9.0_GP
-#ifndef DEF_ARBSIZE_
-      IF (anis.eq.0)  trtraits%ktrunc = trtraits%ktrunc*real(nxt,kind=GP)**2
-#endif
-
-      ! Reset indices:
-      CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
-      CALL range(1,nz    ,nprocs,myrank,ksta,kend)
 
       ! Get new communicator, props  for truncated grid: 
       CALL create_trcomm(n, nt, MPI_COMM_WORLD, commtrunc, grouptrunc)
@@ -1386,10 +1377,23 @@
         CALL MPI_COMM_SIZE(commtrunc, ntprocs, ierr)
         CALL MPI_COMM_RANK(commtrunc, mytrank, ierr)
         write(*,*) myrank, ' main: commtrunk size check done.'
-        CALL io_init_comm(commtrunc,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
+        CALL io_init_comm(commtrunc,n,ksta,kend,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
+        write(*,*) myrank, ' main: io_init_comm done.'
       ENDIF
 
-       
+      CALL fftp3d_create_trplan_comm(plancrt,n,nt,FFTW_COMPLEX_TO_REAL,FFTW_MEASURE,commtrunc)
+      CALL fftp3d_create_trplan_comm(planrct,n,nt,FFTW_REAL_TO_COMPLEX,FFTW_MEASURE,commtrunc)
+      trtraits%ktrunc  =  1.0_GP/9.0_GP
+#ifndef DEF_ARBSIZE_
+      IF (anis.eq.0)  trtraits%ktrunc = trtraits%ktrunc*real(nxt,kind=GP)**2
+#endif
+
+      ! Reset 'global' indices:
+      CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
+      CALL range(1,nz    ,nprocs,myrank,ksta,kend)
+
+
+
 ! Now that we have nmax we can allocate some temporary
 ! arrays needed to compute transfer functions in quantum
 ! flows
@@ -1514,9 +1518,9 @@
             END DO
          END DO
       END DO
-      CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,C1,R1)
+      CALL fftp3d_complex_to_real(plancr,C2,R2)
+      CALL fftp3d_complex_to_real(plancr,C3,R3)
       rmp = 1.0_GP/(4*alpha*beta*(real(nx,kind=GP)* &
             real(ny,kind=GP)*real(nz,kind=GP))**2)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1529,7 +1533,7 @@
             END DO
          END DO
       END DO
-      CALL fftp3d_real_to_complex(planrc,vsq,C1,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,vsq,C1)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -1541,7 +1545,7 @@
             END DO
          END DO
       END DO
-      CALL fftp3d_complex_to_real(plancr,C1,vsq,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,C1,vsq)
 #endif
   
       ! Set trtraits structure, and allocate trunc arrays
@@ -1560,7 +1564,21 @@
       ALLOCATE( RT3(nxt,nyt,ktsta:ktend))
       trtraits%planiot   = planiot
       trtraits%plancrt   = plancrt
-      trtraits%commtrunc = commtrunc
+      IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL MPI_COMM_DUP(commtrunc, trtraits%commtrunc, ierr) 
+        IF ( ierr .NE. MPI_SUCCESS ) THEN
+           write(*,*) 'main: MPI_COMM_DUP for commtrunc failed'
+           STOP
+        ENDIF
+      ELSE
+        trtraits%commtrunc = MPI_COMM_NULL
+      ENDIF
+              write(*,*) 'main: calling MPI_COMM_DUP for COMM_WORLD'
+      CALL MPI_COMM_DUP(MPI_COMM_WORLD, trtraits%commparent, ierr) 
+      IF ( ierr .NE. MPI_SUCCESS ) THEN
+              write(*,*) 'main: MPI_COMM_DUP for commparent failed'
+              STOP
+      ENDIF
       ! NOTE: trtraits%ktrunc set above
       trtraits%odir      = odir
       trtraits%C1        => C1;
@@ -1597,83 +1615,80 @@
 ! Cycle over all input times, and do analysis:
  LSTAT : DO t = 1, nstat
 
+!       CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 !       Read binary data
         WRITE(ext, fmtext) istat(t)
-        write(*,*) ' ext=', ext
+        write(*,*) myrank, ' Starting  ext=', ext
 #ifdef VELOC_
+        write(*,*) myrank, ' data read directory:', trim(iidir)
+        write(*,*) myrank, ' data read vx...'
         CALL io_read(1,iidir,'vx',ext,planio,R1)
+        write(*,*) myrank, ' data read vy...'
         CALL io_read(1,iidir,'vy',ext,planio,R2)
+        write(*,*) myrank, ' data read vy...'
         CALL io_read(1,iidir,'vz',ext,planio,R3)
-        if ( myrank.eq.0 ) write(*,*) ' fft vx...'
-        CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
-        if ( myrank.eq.0 ) write(*,*) ' fft vy...'
-        CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
-        if ( myrank.eq.0 ) write(*,*) ' fft vz...'
-        CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
+        write(*,*) myrank, ' r2c vx...'
+        CALL fftp3d_real_to_complex(planrc,R1,vx)
+        write(*,*) myrank, ' r2c vy...'
+        CALL fftp3d_real_to_complex(planrc,R2,vy)
+        write(*,*) myrank, ' r2c vz...'
+        CALL fftp3d_real_to_complex(planrc,R3,vz)
+        CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 #endif
 #ifdef BOUSSINESQ_
-        if ( myrank.eq.0 ) write(*,*) ' reading th...'
+        write(*,*) myrank, ' data read ty...'
         CALL io_read(1,iidir,'th',ext,planio,R1)
-        if ( myrank.eq.0 ) write(*,*) ' fft th...'
-        CALL fftp3d_real_to_complex(planrc,R1,th,MPI_COMM_WORLD)
+        write(*,*) myrank, ' r2c th...'
+        CALL fftp3d_real_to_complex(planrc,R1,th)
 #endif
-        write(*,*) ' data loaded: index=', ext
+        CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+        if (myrank.eq.0) write(*,*) ' data loaded: index=', ext
 
 #if defined(BOUSSINESQ_)
         IF ( dotraining ) THEN
+!         CALL MPI_BARRIER(commtrunc, ierr)
+          if (myrank.eq.0) write(*,*) ' starting training data...'
           CALL bouss_lescomp(trtraits,istat(t),vx,vy,vz,th)
+          if (myrank.eq.0) write(*,*) ' training data done.'
+!         CALL MPI_BARRIER(commtrunc, ierr)
         ENDIF
 #endif
+        CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 
-#if 0
-        ! Compute time derivative estimate at this time step:
-        INCLUDE RKSTEP1_
-        DO o = ord,1,-1
-           INCLUDE RKSTEP2_
-        END DO 
-
-#ifdef BOUSSINESQ_
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-        DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-          DO j = 1,ny
-            DO k = 1,nz
-              C1 (k,j,i) = ( vx(k,j,i) - C1 (k,j,i) )/dt
-              C2 (k,j,i) = ( vy(k,j,i) - C2 (k,j,i) )/dt
-              C3 (k,j,i) = ( vz(k,j,i) - C3 (k,j,i) )/dt
-              C20(k,j,i) = ( th(k,j,i) - C20(k,j,i) )/dt
-            ENDDO
-          ENDDO
-        ENDDO
-        CALL trunc(C1, n, nt, trtraits%ktrunc, 1, C4, CT1) 
-        CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
-        CALL io_write(1,odir,'dvxdt_T',ext,planiot,RT1)
-        CALL trunc(C2, n, nt, trtraits%ktrunc, 1, C4, CT1) 
-        CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
-        CALL io_write(1,odir,'dvydt_T',ext,planiot,RT1)
-        CALL trunc(C3, n, nt, trtraits%ktrunc, 1, C4, CT1) 
-        CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
-        CALL io_write(1,odir,'dvzdt_T',ext,planiot,RT1)
-        CALL trunc(C20, n, nt, trtraits%ktrunc, 1, C4, CT1) 
-        CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
-        CALL io_write(1,odir,'dthdt_T',ext,planiot,RT1)
-#endif
-#else
         IF ( dolabels ) THEN
+          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+!         CALL MPI_BARRIER(commtrunc, ierr)
+          if (myrank.eq.0) write(*,*) ' starting SGS terms...'
           CALL trunc(vx, n, nt, trtraits%ktrunc, 1, C1, vxt) 
           CALL trunc(vy, n, nt, trtraits%ktrunc, 1, C1, vyt) 
           CALL trunc(vz, n, nt, trtraits%ktrunc, 1, C1, vzt) 
           ! Momentum components:
+          if (myrank.eq.0) write(*,*) ' sgs_x...'
+          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,1, C4)
+          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+          if (myrank.eq.0) write(*,*) ' sgs_x trunc...'
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
+          if (myrank.eq.0) write(*,*) ' sgstr_x ...'
+          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,1, CT4)
+          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+          if (myrank.eq.0) write(*,*) ' sgs_x done.'
           CT4 = CT4 - CT1
+          if (myrank.eq.0) write(*,*) ' sgs_y...'
+          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,2, C4)
+          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
+          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,2, CT5)
           CT5 = CT5 - CT1
+          if (myrank.eq.0) write(*,*) ' sgs_z...'
+          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,3, C4)
+          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
+          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,3, CT6)
           CT6 = CT6 - CT1
           IF ( doprojection ) THEN
@@ -1683,28 +1698,40 @@
              CT2 = CT5
              CT3 = CT6
           ENDIF
-          CALL fftp3d_complex_to_real(plancrt,CT1,RT1,MPI_COMM_WORLD)
-          CALL io_write(1,odir,trim(sfpref(1)),ext,planiot,RT1)
-           write(*,*) sfpref(1), ' written.'
-          CALL fftp3d_complex_to_real(plancrt,CT2,RT1,MPI_COMM_WORLD)
-          CALL io_write(1,odir,trim(sfpref(2)),ext,planiot,RT1)
-           write(*,*) sfpref(2), ' written.'
-          CALL fftp3d_complex_to_real(plancrt,CT3,RT1,MPI_COMM_WORLD)
-          CALL io_write(1,odir,trim(sfpref(3)),ext,planiot,RT1)
-           write(*,*) sfpref(3), ' written.'
+          CALL fftp3d_complex_to_real(plancrt,CT1,RT1)
+          IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
+            CALL io_write(1,odir,trim(sfpref(1)),ext,planiot,RT1)
+          ENDIF
+           write(*,*) myrank, ' ', sfpref(1), ' written.'
+          CALL fftp3d_complex_to_real(plancrt,CT2,RT1)
+          IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
+            CALL io_write(1,odir,trim(sfpref(2)),ext,planiot,RT1)
+          ENDIF
+           write(*,*) myrank, ' ', sfpref(2), ' written.'
+          CALL fftp3d_complex_to_real(plancrt,CT3,RT1)
+          IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
+            CALL io_write(1,odir,trim(sfpref(3)),ext,planiot,RT1)
+          ENDIF
+           write(*,*) myrank, ' ', sfpref(3), ' written.'
         ! Energy component:
+          if (myrank.eq.0) write(*,*) ' sgs_th...'
           CALL sgs  %sgsth(vx,vy,vz,th,C1,C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
           CALL sgstr%sgsth(vxt,vyt,vzt,tht,CT2,CT3)
           CT3 = CT3 - CT1
-          CALL fftp3d_complex_to_real(plancrt,CT4,RT1,MPI_COMM_WORLD)
-          CALL io_write(1,odir,"SGSth_T",ext,planiot,RT1)
-           write(*,*) 'SGSth_T', ' written.'
+          CALL fftp3d_complex_to_real(plancrt,CT4,RT1)
+          IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
+            CALL io_write(1,odir,"SGSth_T",ext,planiot,RT1)
+          ENDIF
+           write(*,*) myrank,  'SGSth_T', ' written.'
+
+!         CALL MPI_BARRIER(commtrunc, ierr)
+!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
         ENDIF
 
-#endif
-        write(*,*) ' done: index=', ext
+        write(*,*) myrank, ' done: index=', ext
       
+        CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
       END DO LSTAT
 
 !
@@ -1836,119 +1863,205 @@
 !     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,itsta:itend) :: CT1
 !
       INTEGER                                                     :: i,j,k
-      INTEGER                                                     :: n(3),nt(3)
+      INTEGER                                                     :: irankpar, iranktr
+      INTEGER                                                     :: nprocspar, nprocstr, n(3),nt(3)
+
+      CALL MPI_COMM_SIZE(tr%commparent,nprocspar,ierr)
+      CALL MPI_COMM_RANK(tr%commparent,irankpar,ierr)
+
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' ... 0 '
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL MPI_COMM_SIZE(tr%commtrunc,nprocstr,ierr)
+        CALL MPI_COMM_RANK(tr%commtrunc,iranktr ,ierr)
+        write(*,*) 'bouss_lescomp: iranktr=', iranktr
+      ELSE
+         write(*,*) 'bouss_lescomp: commtrunc is NULL on parent rank: ', irankpar
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' ... 1 '
 
       WRITE(ext, fmtext) istat
       n (1) = nx ; n (2) = ny ; n (3) = nz
       nt(1) = nxt; nt(2) = nyt; nt(3) = nzt
 
-      ! Truncate input vars, put to disk:
-      CALL trunc(th, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1)  ! th
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'th_T',ext,tr%planiot,tr%RT1)
+      
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' staring th...'
 
+      ! Truncate input vars, put to disk:
+      if (iranktr.eq.0) write(*,*) ' compute th_T...'
+      CALL trunc(th, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1)  ! th
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' after th c2r done.'
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'th_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' th done.'
+
+      if (iranktr.eq.0) write(*,*) ' compute vx_T...'
       CALL trunc(vx, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1)  ! vx
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'vx_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+         CALL io_write(1,tr%odir,'vx_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' vx  done.'
 
       CALL trunc(vy, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1)  ! vy
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'vy_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'vy_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' vy  done.'
 
       CALL trunc(vz, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1)  ! vz
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'vz_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'vz_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' vz  done.'
 
       CALL Strain(vx,vy,vz, 1, 1, 1, tr%C2, tr%C1)   ! S11
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'S11_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'S11_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' S11  done.'
 
       CALL Strain(vx,vy,vz, 1, 2, 1, tr%C2, tr%C1)   ! S12
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'S12_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'S12_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' S12  done.'
 
       CALL Strain(vx,vy,vz, 1, 3, 1, tr%C2, tr%C1)   ! S13
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'S13_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'S13_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' S13  done.'
 
       CALL Strain(vx,vy,vz, 2, 2, 1, tr%C2, tr%C1)   ! S22
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'S22_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'S22_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' S22  done.'
 
       CALL Strain(vx,vy,vz, 2, 3, 1, tr%C2, tr%C1)   ! S23
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'S23_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'S23_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' S23  done.'
 
       CALL Strain(vx,vy,vz, 3, 3, 1, tr%C2, tr%C1)   ! S33
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'S33_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'S33_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' S33  done.'
 
       CALL derivk3(th, tr%C1, 1)                     ! dth/dx
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1) 
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'dthdx_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'dthdx_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' dthdx  done.'
 
       CALL derivk3(th, tr%C1, 2)                     ! dth/dy
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1) 
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'dthdy_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'dthdy_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' dthdy  done.'
 
       CALL derivk3(th, tr%C1, 3)                     ! dth/dz
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1) 
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'dthdz_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'dthdz_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' dthdz  done.'
 
       CALL StrainMag(vx,vy,vz, 1, tr%C1, tr%C2, tr%C3)  ! S = sqrt(S^ij S^ij)
       CALL derivk3(tr%C3, tr%C1, 1)                     ! dS/dx
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'dSdx_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'dSdx_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' dSdx  done.'
 
       CALL derivk3(tr%C3, tr%C1, 2)                     ! dS/dy
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1) 
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'dSdy_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'dSdy_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' dSdy  done.'
 
-      CALL derivk3(tr%C3, tr%C1, 3)                     ! dS/dx
+      CALL derivk3(tr%C3, tr%C1, 3)                     ! dS/dz
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1) 
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'dSdz_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'dSdz_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' dSdz  done.'
 
       CALL StrainDiv(vx,vy,vz, 1, 1,tr%C3,tr%C2,tr%C1)  ! Sum_j dS1j/dx^j
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'divSx_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'divSx_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' divSx  done.'
 
       CALL StrainDiv(vx,vy,vz, 2, 1,tr%C3,tr%C2,tr%C1)  ! Sum_j dS2j/dx^j
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'divSy_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'divSy_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' divSy  done.'
 
       CALL StrainDiv(vx,vy,vz, 3, 1,tr%C3,tr%C2,tr%C1)  ! Sum_j dS3j/dx^j
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'divSz_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'divSz_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' divSz  done.'
 
       CALL rotor3(vy,vz,tr%C1,1)                        ! omega_x=(curl v)_x
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'omx_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'omx_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' omx  done.'
 
       CALL rotor3(vz,vx,tr%C1,2)                        ! omega_y=(curl v)_y
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'omy_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'omy_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' omy  done.'
 
       CALL rotor3(vx,vy,tr%C1,3)                        ! omega_z=(curl v)_z
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'omz_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'omz_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' omz  done.'
 
 
       CALL derivk3(th, tr%C1, 1)                        ! dth/dx
@@ -1956,8 +2069,13 @@
       CALL derivk3(th, tr%C3, 3)                        ! dth/dz
       CALL div(tr%C1, tr%C2, tr%C3, 1, tr%C4, tr%C5)    ! div ( Grad th )
       CALL trunc(tr%C5, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
-      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1,MPI_COMM_WORLD)
-      CALL io_write(1,tr%odir,'Lapth_T',ext,tr%planiot,tr%RT1)
+      CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL io_write(1,tr%odir,'Lapth_T',ext,tr%planiot,tr%RT1)
+      ENDIF
+      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' done.'
+
+!     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
       END SUBROUTINE bouss_lescomp
 
