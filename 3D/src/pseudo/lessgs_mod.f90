@@ -91,10 +91,10 @@ MODULE class_GSGS
     REAL(KIND=GP)                       :: rmp,rmq,rms
     TYPE(FFTPLAN)    ,INTENT   (IN), TARGET     :: plancr, planrc
 
-    IF ( comm .EQ. MPI_COMM_NULL ) THEN
-      WRITE(*,*) ' GSGS_ctor: NULL communicator'
-      STOP
-    ENDIF
+    this%nprocs_ = 0
+    this%myrank_ = -1
+
+    IF ( comm .NE. MPI_COMM_NULL ) THEN
 
     CALL MPI_COMM_SIZE(comm,nprocs,this%ierr_)
     CALL MPI_COMM_RANK(comm,myrank,this%ierr_)
@@ -120,6 +120,7 @@ MODULE class_GSGS
       WRITE(*,*) 'GSGS_ctor:', TRIM(this%serr_(:this%rlen_))
       STOP
     END IF
+    ENDIF
 
     this%nx = ngrid(1)
     this%ny = ngrid(2)
@@ -259,8 +260,7 @@ MODULE class_GSGS
     COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: Nt
 
     IF ( this%comm_ .EQ. MPI_COMM_NULL ) THEN
-      write(*,*) 'GSGS::Nuu: NULL communicator; exiting...'
-      STOP
+      RETURN
     ENDIF
 
     CALL this%prodre3(vx,vy,vz,C1,C2,C3)
@@ -292,8 +292,7 @@ MODULE class_GSGS
     COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: Nt
 
     IF ( this%comm_ .EQ. MPI_COMM_NULL ) THEN
-      write(*,*) 'GSGS::Ntheta: NULL communicator; exiting...'
-      STOP
+      RETURN
     ENDIF
 
     CALL this%advect3(vx,vy,vz,th,Nt)
@@ -495,8 +494,7 @@ MODULE class_GSGS
       INTEGER :: i,j,k
 
       IF ( this%comm_ .EQ. MPI_COMM_NULL ) THEN
-        write(*,*) 'GSGS::gradre3: NULL communicator; exiting...'
-        STOP
+        RETURN
       ENDIF
 !
 ! Computes (A_x.dx)A_dir
@@ -614,8 +612,7 @@ MODULE class_GSGS
       INTEGER :: i,j,k
 
       IF ( this%comm_ .EQ. MPI_COMM_NULL ) THEN
-        write(*,*) 'GSGS::prodre3: NULL communicator; exiting...'
-        STOP
+        RETURN
       ENDIF
 !
 ! Computes curl(A)
@@ -821,8 +818,7 @@ MODULE class_GSGS
       INTEGER :: i,j,k
 
       IF ( this%comm_ .EQ. MPI_COMM_NULL ) THEN
-        write(*,*) 'GSGS::advect3: NULL communicator; exiting...'
-        STOP
+        RETURN
       ENDIF
 !
 ! Computes (A_x.dx)B
