@@ -1663,26 +1663,28 @@
           CALL trunc(vy, n, nt, trtraits%ktrunc, 1, C1, vyt) 
           CALL trunc(vz, n, nt, trtraits%ktrunc, 1, C1, vzt) 
           ! Momentum components:
-          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+          write(*,*) 'lesbouss: calling sgsv...'
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,1, C4)
-          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
-          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+          write(*,*) 'lesbouss: calling sgsvtr...'
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,1, CT4)
-          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CT4 = CT4 - CT1
-          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,2, C4)
-          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
-          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,2, CT5)
           CT5 = CT5 - CT1
-          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,3, C4)
-          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
-          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,3, CT6)
           CT6 = CT6 - CT1
           IF ( doprojection ) THEN
