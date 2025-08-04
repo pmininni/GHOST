@@ -175,7 +175,6 @@
 
       CALL GTStart(ihopen)
       IF ( bmangle.EQ.1 ) THEN
-      write(*,*) plan%myrank, ': io_read: 0.2: ', trim(dir) // '/' // fname //  '.' // nmb // '.out'
       CALL MPI_FILE_OPEN(plan%comm,trim(dir) // '/' // fname // &
           '.' // nmb // '.out',MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
       IF ( ioerr.NE.MPI_SUCCESS ) THEN
