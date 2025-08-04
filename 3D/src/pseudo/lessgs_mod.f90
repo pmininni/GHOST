@@ -264,7 +264,6 @@ MODULE class_GSGS
     ENDIF
 
     CALL this%prodre3(vx,vy,vz,C1,C2,C3)
-    write(*,*) 'GSGS::Nuu: C3=', C3(2,2,1:4)
     CALL this%nonlhd3(C1,C2,C3,Nt,idir)
 
 
