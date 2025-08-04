@@ -121,7 +121,7 @@
       starts  (1) = 0
       starts  (2) = 0
       starts  (3) = plan%ksta-1
-      CALL MPI_TYPE_CREATE_SUBARRAY(3,n,subsizes,starts, &
+      CALL MPI_TYPE_CREATE_SUBARRAY(3,nt,subsizes,starts, &
            MPI_ORDER_FORTRAN,GC_REAL,plan%iotype,ioerr)
       CALL MPI_TYPE_COMMIT(plan%iotype,ioerr)
       CALL GTInitHandle(ihopen ,GT_CPUTIME)
@@ -162,7 +162,8 @@
       INTEGER, INTENT(IN)            :: unit
       TYPE(IOPLAN),INTENT  (IN)      :: plan
       INTEGER                        :: fh
-      REAL(KIND=GP),INTENT(OUT)      :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
+!     REAL(KIND=GP),INTENT(OUT)      :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
+      REAL(KIND=GP), INTENT(INOUT) :: var(plan%nx,plan%ny,*)
       CHARACTER(len=100), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname
@@ -171,8 +172,6 @@
         RETURN
       ENDIF
 
-
-      write(*,*) plan%myrank, ': io_read: 0'
 
       CALL GTStart(ihopen)
       IF ( bmangle.EQ.1 ) THEN
@@ -186,7 +185,6 @@
       ENDIF
       ELSE
 
-      write(*,*) plan%myrank, ': io_read: 0.3'
       CALL MPI_FILE_OPEN(plan%comm, trim(dir) // '/' // fname  &
                         ,MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
       IF ( ioerr.NE.MPI_SUCCESS ) THEN
@@ -198,20 +196,16 @@
       CALL GTStop(ihopen)
 
       CALL GTStart(ihread)
-      write(*,*) plan%myrank, ': io_read: 1'
       CALL MPI_FILE_SET_VIEW(fh,disp,GC_REAL,plan%iotype,'native', &
           MPI_INFO_NULL,ioerr)
-      write(*,*) plan%myrank, ': io_read: 2'
       CALL MPI_FILE_READ_ALL(fh,var, &
           plan%nx*plan%ny*(plan%kend-plan%ksta+1),GC_REAL,         &
           MPI_STATUS_IGNORE,ioerr)
-      write(*,*) plan%myrank, ': io_read: 3'
       CALL MPI_FILE_CLOSE(fh,ioerr)
       CALL GTStop(ihread)
       IF ( iswap.gt.0 ) THEN
         CALL rarray_byte_swap(var,plan%nx*plan%ny*(plan%kend-plan%ksta+1))
       ENDIF
-      write(*,*) plan%myrank, ': io_read: done.'
       
       RETURN
       END SUBROUTINE io_read
@@ -246,12 +240,12 @@
       TYPE(IOPLAN), INTENT(IN)       :: plan
       INTEGER, INTENT(IN)            :: unit
       INTEGER                        :: fh
-      REAL(KIND=GP), INTENT(INOUT) :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
+!     REAL(KIND=GP), INTENT(INOUT) :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
+      REAL(KIND=GP), INTENT(INOUT) :: var(plan%nx,plan%ny,*)
       CHARACTER(len=100), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname
      
-      write(*,*) ' io_write: myrank=', plan%myrank, ' bmangle=', bmangle
       IF ( plan%comm .EQ. MPI_COMM_NULL .OR. plan%myrank .LT. 0 ) THEN
         RETURN
       ENDIF
@@ -278,7 +272,6 @@
       CALL GTStop(ihwrite)
 
 !     CALL MPI_BARRIER(plan%comm,ierr)
-      write(*,*) ' io_write: myrank=', plan%myrank, ' done.'
 
       RETURN
       END SUBROUTINE io_write
