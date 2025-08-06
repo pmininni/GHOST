@@ -91,6 +91,7 @@ MODULE class_GSGS
     REAL(KIND=GP)                       :: rmp,rmq,rms
     TYPE(FFTPLAN)    ,INTENT   (IN), TARGET     :: plancr, planrc
 
+    this%comm_   = MPI_COMM_NULL
     this%nprocs_ = 0
     this%myrank_ = -1
 
@@ -100,7 +101,6 @@ MODULE class_GSGS
     CALL MPI_COMM_RANK(comm,myrank,this%ierr_)
 
     CALL MPI_COMM_DUP(comm, this%comm_, this%ierr_)
-!   thiscomm_ = comm
     IF (this%ierr_ .NE. MPI_SUCCESS) THEN
       CALL MPI_Error_string(this%ierr_, this%serr_, this%rlen_, this%ierr_)
       WRITE(*,*) myrank, ' GSGS_ctor:', TRIM(this%serr_(:this%rlen_))
@@ -208,6 +208,7 @@ MODULE class_GSGS
         END DO
      ENDIF
 
+  RETURN
   END SUBROUTINE GSGS_ctor
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -235,6 +236,7 @@ MODULE class_GSGS
 
     CALL MPI_Comm_free(this%comm_, this%ierr_)
 
+  RETURN
   END SUBROUTINE GSGS_dtor
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -266,6 +268,7 @@ MODULE class_GSGS
     CALL this%prodre3(vx,vy,vz,C1,C2,C3)
     CALL this%nonlhd3(C1,C2,C3,Nt,idir)
 
+  RETURN
 
   END SUBROUTINE GSGS_Nuu
 !-----------------------------------------------------------------
@@ -296,6 +299,7 @@ MODULE class_GSGS
 
     CALL this%advect3(vx,vy,vz,th,Nt)
 
+  RETURN
 
   END SUBROUTINE GSGS_Ntheta
 !-----------------------------------------------------------------
@@ -777,6 +781,7 @@ MODULE class_GSGS
             END DO
          END DO
       ENDIF
+
       RETURN
       END SUBROUTINE GSGS_nonlhd3
 !-----------------------------------------------------------------
@@ -977,6 +982,7 @@ MODULE class_GSGS
          END DO
 
 
+      RETURN
       END SUBROUTINE GSGS_project3
   
 END MODULE class_GSGS
