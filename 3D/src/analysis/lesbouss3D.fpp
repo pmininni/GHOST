@@ -1367,22 +1367,30 @@
       CALL parseind(sstat,';', istat , 4096, nstat)
 
       ! Plans for truncated grid:
-      CALL trrange(1,nz    ,nzt    ,nprocs,myrank,ktsta,ktend)
-      CALL trrange(1,nz/2+1,nzt/2+1,nprocs,myrank,itsta,itend)
+!     CALL trrange(1,nz    ,nzt    ,nprocs,myrank,ktsta,ktend)
+!     CALL trrange(1,nx/2+1,nxt/2+1,nprocs,myrank,itsta,itend)
 
       ! Get new communicator, props  for truncated grid: 
       CALL create_trcomm(n, nt, MPI_COMM_WORLD, commtrunc, grouptrunc)
       IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
-        write(*,*) myrank, ' main: check commtrunc size...'
+!       write(*,*) myrank, ' main: check commtrunc size...'
         CALL MPI_COMM_SIZE(commtrunc, ntprocs, ierr)
         CALL MPI_COMM_RANK(commtrunc, mytrank, ierr)
-        write(*,*) myrank, ' main: commtrunk size check done.'
+!       write(*,*) myrank, ' main: commtrunk size check done.'
+!       CALL io_init_comm(commtrunc,n,ksta,kend,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
+!       write(*,*) myrank, ' main: io_init_comm done.'
+      ENDIF
+
+      ! Plans for truncated grid:
+      IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL range(1,nxt/2+1,ntprocs,mytrank,itsta,itend)
+        CALL range(1,nzt,ntprocs,mytrank,ktsta,ktend)
         CALL io_init_comm(commtrunc,n,ksta,kend,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
         write(*,*) myrank, ' main: io_init_comm done.'
       ENDIF
 
-      CALL fftp3d_create_trplan_comm(plancrt,n,nt,FFTW_COMPLEX_TO_REAL,FFTW_MEASURE,commtrunc)
-      CALL fftp3d_create_trplan_comm(planrct,n,nt,FFTW_REAL_TO_COMPLEX,FFTW_MEASURE,commtrunc)
+      CALL fftp3d_create_trplan_comm(plancrt,n,nt,FFTW_COMPLEX_TO_REAL,FFTW_MEASURE,MPI_COMM_WORLD)
+      CALL fftp3d_create_trplan_comm(planrct,n,nt,FFTW_REAL_TO_COMPLEX,FFTW_MEASURE,MPI_COMM_WORLD)
       trtraits%ktrunc  =  1.0_GP/9.0_GP
 #ifndef DEF_ARBSIZE_
       IF (anis.eq.0)  trtraits%ktrunc = trtraits%ktrunc*real(nxt,kind=GP)**2
@@ -1618,27 +1626,18 @@
 !       CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 !       Read binary data
         WRITE(ext, fmtext) istat(t)
-        write(*,*) myrank, ' Starting  ext=', ext
+        IF ( myrank .EQ. 0 ) write(*,*) ' Starting  ext=', ext
 #ifdef VELOC_
-        write(*,*) myrank, ' data read directory:', trim(iidir)
-        write(*,*) myrank, ' data read vx...'
         CALL io_read(1,iidir,'vx',ext,planio,R1)
-        write(*,*) myrank, ' data read vy...'
         CALL io_read(1,iidir,'vy',ext,planio,R2)
-        write(*,*) myrank, ' data read vy...'
         CALL io_read(1,iidir,'vz',ext,planio,R3)
-        write(*,*) myrank, ' r2c vx...'
         CALL fftp3d_real_to_complex(planrc,R1,vx)
-        write(*,*) myrank, ' r2c vy...'
         CALL fftp3d_real_to_complex(planrc,R2,vy)
-        write(*,*) myrank, ' r2c vz...'
         CALL fftp3d_real_to_complex(planrc,R3,vz)
         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 #endif
 #ifdef BOUSSINESQ_
-        write(*,*) myrank, ' data read ty...'
         CALL io_read(1,iidir,'th',ext,planio,R1)
-        write(*,*) myrank, ' r2c th...'
         CALL fftp3d_real_to_complex(planrc,R1,th)
 #endif
         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
@@ -1662,31 +1661,31 @@
           CALL trunc(vx, n, nt, trtraits%ktrunc, 1, C1, vxt) 
           CALL trunc(vy, n, nt, trtraits%ktrunc, 1, C1, vyt) 
           CALL trunc(vz, n, nt, trtraits%ktrunc, 1, C1, vzt) 
+
           ! Momentum components:
-!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
-          write(*,*) 'lesbouss: calling sgsv...'
+!         write(*,*) 'lesbouss: calling sgsvx...'
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,1, C4)
-!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
-!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
-          write(*,*) 'lesbouss: calling sgsvtr...'
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,1, CT4)
-!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+!         write(*,*) '       lesbouss: x-sgsvtr done.'
           CT4 = CT4 - CT1
-!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+
+!         write(*,*) 'lesbouss: calling sgsvy...'
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,2, C4)
-!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
-!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,2, CT5)
+!         write(*,*) '       lesbouss: y-sgsvtr done.'
+!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CT5 = CT5 - CT1
-!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+
+!         write(*,*) 'lesbouss: calling sgsvz...'
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,3, C4)
-!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
-!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,3, CT6)
+!         write(*,*) '       lesbouss: z-sgsvtr done.'
           CT6 = CT6 - CT1
+
+
           IF ( doprojection ) THEN
             CALL sgstr%project3(CT4,CT5,CT6,CT1,CT2,CT3)
           ELSE
@@ -1715,22 +1714,19 @@
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
             CALL io_write(1,odir,"SGSth_T",ext,planiot,RT1)
           ENDIF
-           write(*,*) myrank,  'SGSs', ' written.'
-
-!         CALL MPI_BARRIER(commtrunc, ierr)
-!         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+          write(*,*) myrank,  'SGS terms done.'
         ENDIF
 
         write(*,*) myrank, ' done: index=', ext
       
-        CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+!       CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
       END DO LSTAT
 
 !
 ! End of STAT loop
 
 
-      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+!     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
 !
 ! End of MAIN3D
