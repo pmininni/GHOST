@@ -94,6 +94,15 @@ MODULE class_GSGS
     this%comm_   = MPI_COMM_NULL
     this%nprocs_ = 0
     this%myrank_ = -1
+    this%nx = ngrid(1)
+    this%ny = ngrid(2)
+    this%nz = ngrid(3)
+!   CALL range(1,this%nx/2+1,this%nprocs_,this%myrank_,this%ista,this%iend)
+!   CALL range(1,this%nz,this%nprocs_,this%myrank_,this%ksta,this%kend)
+    this%ista = bnds(1)
+    this%iend = bnds(2)
+    this%ksta = bnds(3)
+    this%kend = bnds(4)
 
     IF ( comm .NE. MPI_COMM_NULL ) THEN
 
@@ -206,7 +215,9 @@ MODULE class_GSGS
               END DO
            END DO
         END DO
-     ENDIF
+     ENDIF 
+
+  !   write(*,*)this%myrank_, ' GSGS_ctor: ksta=', this%ksta, ' kend=', this%kend, ' ista=', this%ista, ' iend=', this%iend
 
   RETURN
   END SUBROUTINE GSGS_ctor
@@ -261,9 +272,6 @@ MODULE class_GSGS
     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1,C2,C3
     COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: Nt
 
-    IF ( this%comm_ .EQ. MPI_COMM_NULL ) THEN
-      RETURN
-    ENDIF
 
     CALL this%prodre3(vx,vy,vz,C1,C2,C3)
     CALL this%nonlhd3(C1,C2,C3,Nt,idir)
@@ -293,9 +301,6 @@ MODULE class_GSGS
     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1
     COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: Nt
 
-    IF ( this%comm_ .EQ. MPI_COMM_NULL ) THEN
-      RETURN
-    ENDIF
 
     CALL this%advect3(vx,vy,vz,th,Nt)
 
@@ -496,9 +501,6 @@ MODULE class_GSGS
       REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
 
-      IF ( this%comm_ .EQ. MPI_COMM_NULL ) THEN
-        RETURN
-      ENDIF
 !
 ! Computes (A_x.dx)A_dir
 !
@@ -614,18 +616,20 @@ MODULE class_GSGS
       REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
 
-      IF ( this%comm_ .EQ. MPI_COMM_NULL ) THEN
-        RETURN
-      ENDIF
+
 !
 ! Computes curl(A)
 !
       CALL this%rotor3(b,c,d,1)
       CALL this%rotor3(a,c,e,2)
       CALL this%rotor3(a,b,f,3)
+!     write(*,*)this%myrank_, ' GSGS_prodre3: 0'
       CALL fftp3d_complex_to_real(this%plancr,d,r1)
+!     write(*,*)this%myrank_, ' GSGS_prodre3: 1'
       CALL fftp3d_complex_to_real(this%plancr,e,r2)
+!     write(*,*)this%myrank_, ' GSGS_prodre3: 2'
       CALL fftp3d_complex_to_real(this%plancr,f,r3)
+!     write(*,*)this%myrank_, ' GSGS_prodre3: 3'
 
 !
 ! Computes A
@@ -641,9 +645,13 @@ MODULE class_GSGS
             END DO
          END DO
       END DO
+!     write(*,*)this%myrank_, ' GSGS_prodre3: 4'
       CALL fftp3d_complex_to_real(this%plancr,d,r4)
+!     write(*,*)this%myrank_, ' GSGS_prodre3: 5'
       CALL fftp3d_complex_to_real(this%plancr,e,r5)
+!     write(*,*)this%myrank_, ' GSGS_prodre3: 6'
       CALL fftp3d_complex_to_real(this%plancr,f,r6)
+!     write(*,*)this%myrank_, ' GSGS_prodre3: 7'
 !
 ! Computes curl(A)xA
 !
@@ -661,9 +669,13 @@ MODULE class_GSGS
          END DO
       END DO
 
+!     write(*,*)this%myrank_, ' GSGS_prodre3: 8'
       CALL fftp3d_real_to_complex(this%planrc,r7,d)
+!     write(*,*)this%myrank_, ' GSGS_prodre3: 9'
       CALL fftp3d_real_to_complex(this%planrc,r3,e)
+!     write(*,*)this%myrank_, ' GSGS_prodre3: 10'
       CALL fftp3d_real_to_complex(this%planrc,r1,f)
+!     write(*,*)this%myrank_, ' GSGS_prodre3: done.'
 
       RETURN
       END SUBROUTINE GSGS_prodre3
@@ -821,9 +833,6 @@ MODULE class_GSGS
       REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
 
-      IF ( this%comm_ .EQ. MPI_COMM_NULL ) THEN
-        RETURN
-      ENDIF
 !
 ! Computes (A_x.dx)B
 !
