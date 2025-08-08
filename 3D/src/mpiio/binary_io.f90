@@ -120,7 +120,8 @@
       subsizes(3) = plan%kend-plan%ksta+1
       starts  (1) = 0
       starts  (2) = 0
-      starts  (3) = plan%ksta-1
+!     starts  (3) = plan%ksta-1
+      starts  (3) = max(plan%ksta-1, 0)
       CALL MPI_TYPE_CREATE_SUBARRAY(3,nt,subsizes,starts, &
            MPI_ORDER_FORTRAN,GC_REAL,plan%iotype,ioerr)
       CALL MPI_TYPE_COMMIT(plan%iotype,ioerr)
