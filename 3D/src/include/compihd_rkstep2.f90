@@ -21,6 +21,8 @@
          CALL laplak3(th,th)                      ! laplacian(e)
         
          rmp = 1./real(o,kind=GP)
+
+         if ( .NOT. use_voigt ) THEN
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -56,5 +58,37 @@
          END DO
          END DO
          END DO
+     
+         ELSE ! using Voigt
+!
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+         DO k = 1,nz
+
+            IF (kn2(k,j,i).le.kmax) THEN
+               sx (k,j,i) = C1(k,j,i)+dt*(sx(k,j,i)-C4(k,j,i)-C31(k,j,i) &
+              +fx(k,j,i))*rmp * Hinv(k,j,i)
+               sy (k,j,i) = C2(k,j,i)+dt*(sy(k,j,i)-C5(k,j,i)-C32(k,j,i) &
+              +fy(k,j,i))*rmp * Hinv(k,j,i)
+               sz (k,j,i) = C3(k,j,i)+dt*(sz(k,j,i)-C6(k,j,i)-C33(k,j,i) &
+              +fz(k,j,i))*rmp * Hinv(k,j,i)
+               rho(k,j,i) = C20(k,j,i)-dt*C7(k,j,i)*rmp
+               th (k,j,i) = C35(k,j,i)+dt*(kappa*th(k,j,i)-C8(k,j,i)-C34(k,j,i) &
+              +fs(k,j,i))*rmp
+            ELSE 
+               sx (k,j,i) = 0.0_GP
+               sy (k,j,i) = 0.0_GP
+               sz (k,j,i) = 0.0_GP
+               rho(k,j,i) = 0.0_GP
+               th (k,j,i) = 0.0_GP
+            ENDIF
+
+         END DO
+         END DO
+         END DO
+
+         ENDIF ! Voigt check
 !
          CALL mom2vel(rho,sx,sy,sz,0,vx,vy,vz)    ! compute velocity update
