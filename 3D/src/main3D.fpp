@@ -28,6 +28,7 @@
 !           HMHDB_SOL      builds the HMHD solver with uniform B_0
 !           COMPRHD_SOL    builds the compressible HD solver
 !           COMPIHD_SOL    builds the compressible HD solver with int. energy
+!           COMPIVHD_SOL   builds the compressible HD solver with int. energy + Voigt regularization
 !           CMHD_SOL       builds the compressible MHD solver
 !           CMHDB_SOL      builds the compressible MHD solver with B_0
 !           CHMHD_SOL      builds the compressible Hall-MHD solver
@@ -97,6 +98,7 @@
       USE threads
       USE offloading
       USE boxsize
+      USE voigt 
       USE gtimer
       USE fftplans
 #ifdef DNS_
@@ -451,6 +453,7 @@
       CHARACTER(len=1024)   :: picseedfile,spicfpfile
 #endif
       LOGICAL               :: bbenchexist
+      LOGICAL               :: use_voigt
 
 !
 ! Namelists for the input files
@@ -631,6 +634,8 @@
 #endif
 #endif
 
+     use_voigt = .FALSE. ! Voigt flag
+
      CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
      CALL range(1,nz,nprocs,myrank,ksta,kend)
      CALL io_init(myrank,(/nx,ny,nz/),ksta,kend,planio)
@@ -748,6 +753,7 @@
          kk2 => kn2
       ENDIF
 #endif
+      ALLOCATE( Hinv(nz,ny,ista:iend) ) ! Voigt inv. Helmholtz operator
 
       ALLOCATE( R1(nx,ny,ksta:kend) )
       ALLOCATE( R2(nx,ny,ksta:kend) )
@@ -916,10 +922,12 @@
 !     kdn  : minimum wave number in v/mechanical forcing
 !     kup  : maximum wave number in v/mechanical forcing
 !     nu   : kinematic viscosity
-!     fparam0-9 : ten real numbers to control properties of
-!            the mechanical forcing
-!     vparam0-9 : ten real numbers to control properties of
-!            the initial conditions for the velocity field
+!     use_voigt   : use Voigt regularization
+!     voigt_alpha : use Voigt regularization parameter (length scale in [0,1])
+!     fparam0-9   : ten real numbers to control properties of
+!                   the mechanical forcing
+!     vparam0-9   : ten real numbers to control properties of
+!                   the initial conditions for the velocity field
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
@@ -931,6 +939,7 @@
       CALL MPI_BCAST(kdn,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(kup,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nu,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(use_voigt,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(fparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(fparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(fparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
@@ -1716,6 +1725,13 @@
 ! Before continuing, we verify that all parameters and compilation
 ! options are compatible with the SOLVER being used
 
+#if !defined(COMPIHD_SOL) 
+     IF ( use_voigt ) THEN
+       write(*,*) 'main: Voigt regularization may only be used with COMPIHD_SOL'
+       STOP
+     ENDIF
+#endif
+
       INCLUDE SOLVERCHECK_
 
 ! Initializes arrays and constants for the pseudospectral method
@@ -1775,9 +1791,10 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,ny
             DO k = 1,nz
-               kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
+               kn2 (k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
+               Hinv(k,j,i) = 1.0 / ( 1.0_GP - voigt_alpha**2 * kn2(k,j,i) )
 #ifdef PIC_
-               C17(k,j,i) = EXP(-filstr*(kn2(k,j,i)/kmax)**2)
+               C17( k,j,i) = EXP(-filstr*(kn2(k,j,i)/kmax)**2)
 #endif
             END DO
          END DO
