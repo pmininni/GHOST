@@ -9,10 +9,13 @@
 !=================================================================
 
   MODULE iovar
+      USE commtypes
       TYPE IOPLAN
-         INTEGER      :: ksta,kend
-         INTEGER      :: nx,ny,nz
-         INTEGER      :: iotype
+         INTEGER       :: ksta,kend
+         INTEGER       :: nx,ny,nz
+         INTEGER       :: iotype
+         INTEGER       :: myrank
+         INTEGER       :: comm=MPI_COMM_WORLD
       END TYPE IOPLAN
       INTEGER :: iswap=0
       INTEGER :: oswap=0

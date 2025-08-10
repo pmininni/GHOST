@@ -60,9 +60,8 @@
 !
 ! Auxiliary variables
 
-      INTEGER :: nfiles,nmt,np,npt,ntprocs,npkeep
-      INTEGER :: nxt,nyt,nzt
-      INTEGER :: i,ib,ie,ind,itsta,itend,j,k,ktsta,ktend
+      INTEGER :: nfiles,nmt,np,npt,npkeep
+      INTEGER :: i,ib,ie,ind,j,k
       INTEGER :: istak,iendk,kstak,kendk
       INTEGER :: commtrunc, fh, groupworld, flags, grouptrunc
       INTEGER :: iExclude(3,1), iInclude(3,1)

@@ -66,10 +66,10 @@
 !
 ! Auxiliary variables
 
-      INTEGER :: fftdir,flags,nfiles,nmt,np,npt,nxt,nyt,nzt,ntprocs,npkeep
-      INTEGER :: i,ib,ie,ind,itsta,itend,j,k,ktsta,ktend
+      INTEGER :: fftdir,flags,nfiles,nmt,np,npt,npkeep
+      INTEGER :: i,ib,ie,ind,j,k
       INTEGER :: istak,iendk,kstak,kendk
-      INTEGER :: mykrank,mytrank
+      INTEGER :: mykrank
 
       INTEGER :: commtrunc, fh, groupworld, grouptrunc, iExclude(3,1), iInclude(3,1)
 
@@ -236,7 +236,7 @@
       CALL trrange(1,nz    ,nzt    ,nprocs,myrank,ksta,kend)
       CALL trrange(1,nz/2+1,nzt/2+1,nprocs,myrank,ista,iend)
       IF ( myrank.eq.0 ) write(*,*)'main: creating trplan...'
-      CALL fftp3d_create_trplan(plancrt,(/nx,ny,nz/),(/nxt,nyt,nzt/),FFTW_COMPLEX_TO_REAL,flags)
+      CALL fftp3d_create_trplan_comm(plancrt,(/nx,ny,nz/),(/nxt,nyt,nzt/),FFTW_COMPLEX_TO_REAL,flags,MPI_COMM_WORLD)
       CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
       CALL range(1,nz    ,nprocs,myrank,ksta,kend)
 

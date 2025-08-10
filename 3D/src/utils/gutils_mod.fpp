@@ -267,6 +267,7 @@ MODULE gutils
           ELSE
             pstr = trim(adjustl(tstr(j1+1:j2-1)))
             qstr = trim(adjustl(tstr(j2+1:lstr)))
+!write(*,*) '     parseind: pstr 2 =', pstr, ' qstr 2 =', qstr
             read(pstr, *) idel
             read(qstr, *) iend
           ENDIF
@@ -468,7 +469,6 @@ MODULE gutils
       sig = sqrt(sig*xnorm)
 
       del = ABS(fmax-fmin)/dble(nbins)
-      
       ! Compute local PDF:
       IF ( dolog .GT. 0 ) THEN
 !$omp parallel do private (ibin,test)
@@ -486,7 +486,6 @@ MODULE gutils
           test = Rin(ikeep_(i))
           ibin = NINT( ( test - fmin )/del+1 )
           ibin = MIN(MAX(ibin,1),nbins)
-     !  write(*,*) 'dopdfr: ikeep=', ikeep_(i), ' ibin=', ibin, ' test=', test, ' fmin=',fmin, ' del=', del
 !$omp atomic
           fpdf_(ibin) = fpdf_(ibin) + 1.0_GP
         ENDDO
@@ -1215,15 +1214,15 @@ MODULE gutils
       REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,j,k,m
 
-      pv(1).pcomplex => vx
-      pv(2).pcomplex => vy
-      pv(3).pcomplex => vz
+      pv(1)%pcomplex => vx
+      pv(2)%pcomplex => vy
+      pv(3)%pcomplex => vz
       divv = 0.0;
 
       tmp = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
       DO m = 1, 3
-        CALL derivk3(pv(m).pcomplex, ctmp, m)
+        CALL derivk3(pv(m)%pcomplex, ctmp, m)
         
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend

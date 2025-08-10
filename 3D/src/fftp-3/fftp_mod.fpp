@@ -37,6 +37,8 @@
          REAL(KIND=GP), DIMENSION (:,:,:), POINTER    :: rarr
          INTEGER(kind=ikind) :: planr,planc
          INTEGER :: nx,ny,nz
+         INTEGER :: ista,iend,ksta,kend
+         INTEGER :: comm,myrank,nprocs
          INTEGER, DIMENSION (:), POINTER :: itype1, itype2
       END TYPE FFTPLAN
       SAVE
@@ -100,7 +102,11 @@
       INTEGER, SAVE :: ista,iend
       INTEGER, SAVE :: jsta,jend
       INTEGER, SAVE :: ksta,kend
+      INTEGER, SAVE :: itsta,itend ! truncated versions
+      INTEGER, SAVE :: jtsta,jtend
+      INTEGER, SAVE :: ktsta,ktend
       INTEGER, SAVE :: nprocs,myrank
+      INTEGER, SAVE :: ntprocs,mytrank
       INTEGER, SAVE :: provided
       INTEGER, SAVE :: ierr
 
