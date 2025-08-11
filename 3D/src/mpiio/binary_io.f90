@@ -194,10 +194,6 @@
       ENDIF
       ENDIF
       CALL GTStop(ihopen)
-<<<<<<< HEAD
-=======
-
->>>>>>> feature/les_ml
       CALL GTStart(ihread)
       CALL MPI_FILE_SET_VIEW(fh,disp,GC_REAL,plan%iotype,'native', &
           MPI_INFO_NULL,ioerr)
@@ -273,11 +269,8 @@
           MPI_STATUS_IGNORE,ioerr)
       CALL MPI_FILE_CLOSE(fh,ioerr)
       CALL GTStop(ihwrite)
-<<<<<<< HEAD
-=======
 
 !     CALL MPI_BARRIER(plan%comm,ierr)
->>>>>>> feature/les_ml
 
       RETURN
       END SUBROUTINE io_write
