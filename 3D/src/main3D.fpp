@@ -963,6 +963,7 @@
       CALL MPI_BCAST(vparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
+
 #ifdef BOUSSINESQ_
 ! Reads parameters specifically for Boussinesq solver from the
 ! namelist 'boussinesq' on the external file 'parameter.inp'
@@ -1793,7 +1794,8 @@
          DO j = 1,ny
             DO k = 1,nz
                kn2 (k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
-               Hinv(k,j,i) = 1.0 / ( 1.0_GP - voigt_alpha**2 * kn2(k,j,i) )
+               Hinv(k,j,i) = 1.0 / ( 1.0_GP + kn2(k,j,i) * voigt_alpha**2 )
+
 #ifdef PIC_
                C17( k,j,i) = EXP(-filstr*(kn2(k,j,i)/kmax)**2)
 #endif
