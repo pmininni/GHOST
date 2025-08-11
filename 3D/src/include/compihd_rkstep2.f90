@@ -23,6 +23,7 @@
          rmp = 1./real(o,kind=GP)
 
          if ( .NOT. use_voigt ) THEN
+
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
