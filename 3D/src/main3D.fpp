@@ -468,7 +468,7 @@
       NAMELIST / velocity / fparam3,fparam4,fparam5,fparam6,fparam7
       NAMELIST / velocity / fparam8,fparam9,vparam0,vparam1,vparam2
       NAMELIST / velocity / vparam3,vparam4,vparam5,vparam6,vparam7
-      NAMELIST / velocity / vparam8,vparam9
+      NAMELIST / velocity / vparam8,vparam9,use_voigt,voigt_alpha
 #endif
 #ifdef SCALAR_
       NAMELIST / scalar / c0,s0,skdn,skup,kappa,cparam0,cparam1
