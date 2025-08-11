@@ -940,6 +940,7 @@
       CALL MPI_BCAST(kup,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nu,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(use_voigt,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(voigt_alpha,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(fparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(fparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(fparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
@@ -3571,6 +3572,7 @@
          NULLIFY( kk2 )
       ENDIF
       DEALLOCATE( kn2 )
+      DEALLOCATE( Hinv)
 #ifdef VELOC_
       DEALLOCATE( fx,fy,fz )
       IF (mean.eq.1) DEALLOCATE( M1,M2,M3 )
