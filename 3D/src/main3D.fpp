@@ -1725,9 +1725,9 @@
 ! Before continuing, we verify that all parameters and compilation
 ! options are compatible with the SOLVER being used
 
-#if !defined(COMPIHD_SOL) 
+#if !(defined(COMPIHD_SOL) | defined(HD_SOL) |  defined(BOUSS_SOL) | defined(ROTBOUSS_SOL))
      IF ( use_voigt ) THEN
-       write(*,*) 'main: Voigt regularization may only be used with COMPIHD_SOL'
+       write(*,*) 'main: Voigt regularization may not be used with this solver'
        STOP
      ENDIF
 #endif
