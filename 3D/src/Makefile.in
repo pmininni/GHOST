@@ -3,15 +3,15 @@
 #****************************************************************************
 
 # Spatial resolution (grid points in X,Y,Z)
-NX       = 256
-NY       = 256
-NZ       = 256
+NX       = 128
+NY       = 128
+NZ       = 128
 
 # ORD:     number of iterations in the Runge-Kutta method
 ORD      = 2
 
 # SOLVER:  (read the file SOLVERS for a list of options)
-SOLVER   = HD
+SOLVER   = COMPIHD
 
 # PRECISION: (SINGLE or DOUBLE)
 PRECISION= SINGLE
@@ -52,14 +52,14 @@ PARTICLES = no
 # version of the FFT that is used is needed, the others can be left empty.
 FFTP     = fftp-3
 FFTW2DIR = /opt/ohpc/pub/libs/gnu7/fftw/2.1.5
-FFTW3DIR = /opt/ohpc/pub/libs/gnu7/fftw/3.3.7
+FFTW3DIR = /scratch3/BMC/gsd-hpcs/rosenberg/opt/apps/fftw-3.3.10_gnu
 MKLDIR   = /opt/ohpc/pub/compiler/intel/mkl/2022.1.0
 
 # IKIND    4 in 32 bits machines, 8 in 64 bits machines
 # NSTRIP   controls strip mining (often set to 1)
 # CSIZE    CPUs: 8 if L1 cache is <= 64 kb, 16 if L1 cache is 128 kb
 #          When offloading to GPUs use smaller values, e.g., CSIZE=4
-IKIND    = 8
+IKIND    = 4
 NSTRIP   = 1
 CSIZE    = 32
 
@@ -70,7 +70,7 @@ APPEND   = _
 
 # Fortran compiler and MPI distribution (see below)
 COMPILER   = GNU
-MPI        = OPEN
+MPI        = 
 CUCOMPILER = NVIDIA
 
 #****************************************************************************
@@ -128,8 +128,8 @@ TARGET_INTEL  =
 # CGG >=10.X with some MPI libraries may require using
 # "FC_GNU = gfortran -w -fallow-argument-mismatch".
 CPP_GNU       = cpp -traditional-cpp
-FC_GNU        = gfortran
-CC_GNU        = gcc
+FC_GNU        = mpif90 -w -fallow-argument-mismatch
+CC_GNU        = mpicc
 FFLAGS_GNU    = -O3 -funroll-loops
 FPSPEC_GNU    = -O3 -funroll-loops
 CFLAGS_GNU    = -O3
