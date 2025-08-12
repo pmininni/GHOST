@@ -209,8 +209,10 @@ GSGS           = pseudo/lessgs_mod.o
 GREGRID        = $(UTILS)/gtrunc_mod.o $(UTILS)/regridutils.o
 GIO            = $(IOLIB)/binary_io.o 
 
-all: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o  \
-	  $(OBJS) $(GUTILS) $(GIO) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
+#all: edit $(CONTRIBOBJS) $(GTIMER) $(GUTILS) $(FFTPDIR)/fftp3D.o  \
+#	  $(OBJS) $(GUTILS) $(GIO) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
+all: edit $(CONTRIBOBJS) $(FFTPDIR)/fftp3D.o  \
+	  $(OBJS) $(GTIMER) $(GUTILS) $(GIO) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
 
 main: all
 
@@ -311,18 +313,14 @@ dist:
 edit:
 	$(CPP) -DNX_=$(NX) -DNY_=$(NY) -DNZ_=$(NZ) -DORD_=$(ORD) \
 	   $(OBJSDIR)/pseudospec3D_mod.fpp -o $(OBJSDIR)/pseudospec3D_mod.f90
-	$(CPP) -DNX_=$(NX) -DNY_=$(NY) -DNZ_=$(NZ) -DORD_=$(ORD) \
-	   $(UTILS)/gutils_mod.fpp -o $(OBJSDIR)/gutils_mod.f90
 #	$(CPP) -DNX_=$(NX) -DNY_=$(NY) -DNZ_=$(NZ) -DORD_=$(ORD) \
 #	   $(UTILS)/regridutils.fpp -o $(OBJSDIR)/regridutils.f90
 	cd $(FFTPDIR) && $(MAKE) edit CPP='$(CPP)' IKIND='$(IKIND)' \
 	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)' \
            NSTREAMS='$(NSTREAMS)' DO_HYBRID='DO_HYBRID$(P_HYBRID)'
 	cd ../
-#	cd $(UTILS) && $(MAKE) edit CPP='$(CPP)' IKIND='$(IKIND)' \
-	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)' \
-	   DO_HYBRID='DO_HYBRID$(P_HYBRID)' P_CUDA='$(P_CUDA)'
-# 	cd ../
+	$(CPP) -DNX_=$(NX) -DNY_=$(NY) -DNZ_=$(NZ) -DORD_=$(ORD) \
+	    $(UTILS)/gutils_mod.fpp -o $(OBJSDIR)/gutils_mod.f90
 	cd $(LAGP) && $(MAKE) edit CPP='$(CPP)' CSIZE='$(CSIZE)' \
 	   NSTRIP='$(NSTRIP)' DO_HYBRID='DO_HYBRID$(P_HYBRID)'
 	cd ../
