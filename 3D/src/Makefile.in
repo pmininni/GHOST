@@ -11,7 +11,7 @@ NZ       = 128
 ORD      = 2
 
 # SOLVER:  (read the file SOLVERS for a list of options)
-SOLVER   = COMPIHD
+SOLVER   = ROTBOUSS
 
 # PRECISION: (SINGLE or DOUBLE)
 PRECISION= SINGLE
@@ -59,7 +59,7 @@ MKLDIR   = /opt/ohpc/pub/compiler/intel/mkl/2022.1.0
 # NSTRIP   controls strip mining (often set to 1)
 # CSIZE    CPUs: 8 if L1 cache is <= 64 kb, 16 if L1 cache is 128 kb
 #          When offloading to GPUs use smaller values, e.g., CSIZE=4
-IKIND    = 4
+IKIND    = 8
 NSTRIP   = 1
 CSIZE    = 32
 
