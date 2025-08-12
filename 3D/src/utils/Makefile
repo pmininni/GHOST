@@ -15,7 +15,7 @@ $(OBJS):
 regridutils.o:
 	$(COMPILE) regridutils.f90
 gutils_mod.o:
-	$(COMPILE) gutils_mod.f90
+	$(COMPILE) ../pseudo/gutils_mod.f90
 gtrunc_mod.o:
 	$(COMPILE) gtrunc_mod.f90
 gtimer_mod.o:

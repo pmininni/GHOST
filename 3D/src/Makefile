@@ -211,8 +211,8 @@ GIO            = $(IOLIB)/binary_io.o
 
 #all: edit $(CONTRIBOBJS) $(GTIMER) $(GUTILS) $(FFTPDIR)/fftp3D.o  \
 #	  $(OBJS) $(GUTILS) $(GIO) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
-all: edit $(CONTRIBOBJS) $(FFTPDIR)/fftp3D.o  \
-	  $(OBJS) $(GTIMER) $(GUTILS) $(GIO) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
+all: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o  \
+	  $(OBJS) $(GUTILS) $(GIO) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
 
 main: all
 
