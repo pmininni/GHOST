@@ -635,6 +635,7 @@
 #endif
 
      use_voigt = .FALSE. ! Voigt flag
+     voigt_alpha = 0.0   ! truncation scale
 
      CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
      CALL range(1,nz,nprocs,myrank,ksta,kend)
