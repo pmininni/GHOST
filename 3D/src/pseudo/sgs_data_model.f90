@@ -1,0 +1,396 @@
+!=================================================================
+! GHOST computation of SGS data model. Assumes
+! trained model is in ONNx format, this class 
+! uses the ECMWF Infero engine to make a pred-
+! iction for all SGS terms 
+!   (hat(N)(hat(u),hat(u)) - hat(N(u,u))
+! given feature input data from truncated
+! numerical simulation
+! 
+! Requires Infero built with the ONNx Runtime 
+! backend and fckit available.
+!
+! 2025 D. Rosenberg
+!      CIRA/ NOAA
+!
+!=================================================================
+MODULE class_GSGSmodel
+ !    USE kes
+ !    USE mpivars
+      USE fprecision
+      USE fftplans
+      USE, intrinsic :: iso_c_binding, only: c_float, c_null_char
+      USE infero_fortran_module, only: infero_model, &
+          infero_initialise, infero_finalise, infero_check
+      USE fckit,                 only: fckit_map, fckit_tensor_real32
+
+
+      IMPLICIT NONE
+      INCLUDE 'mpif.h' 
+
+
+      INTERFACE
+        TYPE(C_PTR) FUNCTION allocate_c_array(size_in_bytes) BIND(C, NAME='allocate_c_array')
+          INTEGER(C_INT), INTENT(IN), VALUE :: size_in_bytes
+        END FUNCTION allocate_c_array
+
+        SUBROUTINE free_c_array(c_ptr_to_free) BIND(C, NAME='free_c_array')
+            TYPE(C_PTR), INTENT(IN), VALUE :: c_ptr_to_free
+        END SUBROUTINE free_c_array
+      END INTERFACE
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+      TYPE, PUBLIC :: GSGSmodelTraits
+        PRIVATE
+
+        INTEGER            :: n_batch, in_size, out_size
+        CHARACTER(len=512) :: model_path, model_type
+        CHARACTER(len=128) :: in_name, out_name
+
+      END TYPE GSGSmodelTraits
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+      TYPE, PUBLIC :: GSGSmodel
+        PRIVATE
+        ! Member data:
+        INTEGER, DIMENSION(MPI_STATUS_SIZE)          :: istatus_
+        INTEGER                                      :: myrank_,nprocs_
+        INTEGER                                      :: nx,ny,nz
+        INTEGER                                      :: comm_
+        INTEGER                                      :: ista,iend,ksta,kend
+        INTEGER                                      :: ierr_, rlen_
+        TYPE(GSGSmodelTraits)                        :: modelTraits_
+
+        REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:,:) :: kk2
+        REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:,:) :: R1g,R2g,R3g,R4g
+        COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION(:,:,:) :: C1g
+        REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: kx,ky,kz
+        TYPE(FFTPLAN), POINTER                       :: plancr, planrc
+
+        ! Infero data:
+        REAL(c_float), POINTER, DIMENSION(:,:)       :: t_in_
+        REAL(c_float), POINTER, DIMENSION(:,:)       :: t_out_
+        TYPE(C_PTR)                                  :: c_ptr_t_in_
+        TYPE(C_PTR)                                  :: c_ptr_t_out_
+        ! fckit wrappers and name->tensor maps
+        TYPE(fckit_tensor_real32)                    :: tin_wrapped_, tout_wrapped_
+        TYPE(fckit_map)                              :: imap_, omap_
+
+        ! Inference model
+        TYPE(infero_model)                           :: infmodel_
+
+
+        CHARACTER(len=MPI_MAX_ERROR_STRING)          :: serr_
+      CONTAINS
+        ! Public methods:
+        PROCEDURE,PUBLIC :: GSGS_ctor
+        FINAL            :: GSGS_dtor
+        PROCEDURE,PUBLIC :: sgs_model         => GSGS_compute_model
+      END TYPE GSGSmodel
+
+      PRIVATE :: GSGS_init_infero
+
+
+! Methods:
+  CONTAINS
+
+  SUBROUTINE GSGS_ctor(this, comm, ngrid, bnds, arbsz, Dk, plancr, planrc,modtraits)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  Main explicit constructor
+!  ARGUMENTS:
+!    this    : 'this' class instance
+!    comm    : MPI communicator
+!    ngrid   : array of size 3 giving grid size
+!    bnds    : array of [ista, iend, ksta, kend]
+!    arbsz   : arbitrary size flag (0, 1)
+!    Dk      : array of size 3 giving Fourier shell widths
+!    plancr,
+!     planrc : FFT plans
+!    modraits: GSGSmodelTraits structure
+!-----------------------------------------------------------------
+ !  USE var
+ !  USE grid
+ !  USE boxsize
+ !  USE mpivars
+ !  USE random
+    USE commtypes
+    USE fftplans
+
+    IMPLICIT NONE
+    CLASS(GSGSmodel)      ,INTENT(INOUT)     :: this
+    INTEGER          ,INTENT   (IN)     :: comm
+    INTEGER          ,INTENT   (IN)     :: arbsz
+    INTEGER          ,INTENT   (IN)     :: ngrid(3)
+    INTEGER          ,INTENT   (IN)     :: bnds(4)
+    INTEGER                             :: aniso,i,j,k,n(3)
+    INTEGER                             :: ierr
+    INTEGER                             :: nprocs, myrank
+    REAL(KIND=GP)    ,INTENT   (IN)     :: Dk(3)
+    REAL(KIND=GP)                       :: rmp,rmq,rms
+    TYPE(FFTPLAN)    ,INTENT   (IN), TARGET     :: plancr, planrc
+    TYPE(GSGSmodelTraits)               :: modtraits
+
+    this%comm_   = MPI_COMM_NULL
+    this%nprocs_ = 0
+    this%myrank_ = -1
+    this%nx = ngrid(1)
+    this%ny = ngrid(2)
+    this%nz = ngrid(3)
+!   CALL range(1,this%nx/2+1,this%nprocs_,this%myrank_,this%ista,this%iend)
+!   CALL range(1,this%nz,this%nprocs_,this%myrank_,this%ksta,this%kend)
+    this%ista = bnds(1)
+    this%iend = bnds(2)
+    this%ksta = bnds(3)
+    this%kend = bnds(4)
+
+    IF ( comm .NE. MPI_COMM_NULL ) THEN
+
+    CALL MPI_COMM_SIZE(comm,nprocs,this%ierr_)
+    CALL MPI_COMM_RANK(comm,myrank,this%ierr_)
+
+    CALL MPI_COMM_DUP(comm, this%comm_, this%ierr_)
+    IF (this%ierr_ .NE. MPI_SUCCESS) THEN
+      CALL MPI_Error_string(this%ierr_, this%serr_, this%rlen_, this%ierr_)
+      WRITE(*,*) myrank, ' GSGS_ctor:', TRIM(this%serr_(:this%rlen_))
+      STOP
+    END IF
+
+    CALL MPI_COMM_SIZE(this%comm_,this%nprocs_,this%ierr_)
+    IF (this%ierr_ .NE. MPI_SUCCESS) THEN
+      CALL MPI_Error_string(this%ierr_, this%serr_, this%rlen_, this%ierr_)
+      WRITE(*,*) 'GSGS_ctor:', TRIM(this%serr_(:this%rlen_))
+      STOP
+    END IF
+
+    CALL MPI_COMM_RANK(this%comm_,this%myrank_,this%ierr_)
+    IF (this%ierr_ .NE. MPI_SUCCESS) THEN
+      CALL MPI_Error_string(this%ierr_, this%serr_, this%rlen_, this%ierr_)
+      WRITE(*,*) 'GSGS_ctor:', TRIM(this%serr_(:this%rlen_))
+      STOP
+    END IF
+    ENDIF
+
+    this%nx = ngrid(1)
+    this%ny = ngrid(2)
+    this%nz = ngrid(3)
+!   CALL range(1,this%nx/2+1,this%nprocs_,this%myrank_,this%ista,this%iend)
+!   CALL range(1,this%nz,this%nprocs_,this%myrank_,this%ksta,this%kend)
+    this%ista = bnds(1)
+    this%iend = bnds(2)
+    this%ksta = bnds(3)
+    this%kend = bnds(4)
+
+
+!   n = ngrid
+!   CALL fftp3d_create_plan_comm(this%planrc,n,FFTW_REAL_TO_COMPLEX, &
+!                                FFTW_ESTIMATE, this%comm_)
+!   CALL fftp3d_create_plan_comm(this%plancr,n,FFTW_COMPLEX_TO_REAL, &
+!                                FFTW_ESTIMATE, this%comm_)
+
+    this%plancr => plancr
+    this%planrc => planrc
+
+    ALLOCATE( this%kx(this%nx), this%ky(this%ny), this%kz(this%nz) )
+    ALLOCATE( this%kk2(this%nz,this%ny,this%ista:this%iend) )
+    ALLOCATE( this%R1g(this%nx,this%ny,this%nz) )
+    ALLOCATE( this%R2g(this%nx,this%ny,this%nz) )
+    ALLOCATE( this%R3g(this%nx,this%ny,this%nz) )
+    ALLOCATE( this%R4g(this%nx,this%ny,this%nz) )
+    if ( arbsz .EQ. 1 ) THEN
+      aniso = 1
+    ELSE
+      IF ((this%nx.ne.this%ny).or.(this%ny.ne.this%nz)) THEN
+         aniso = 1
+      ELSE
+         aniso = 0
+      ENDIF
+    ENDIF
+
+    DO i = 1,this%nx/2
+       this%kx(i) = real(i-1,kind=GP)
+       this%kx(i+this%nx/2) = real(i-this%nx/2-1,kind=GP)
+     END DO
+     DO j = 1,this%ny/2
+        this%ky(j) = real(j-1,kind=GP)
+        this%ky(j+this%ny/2) = real(j-this%ny/2-1,kind=GP)
+     END DO
+     IF (this%ny.eq.1) THEN
+        this%ky(1) = 0.0_GP
+     ENDIF
+     DO k = 1,this%nz/2
+        this%kz(k) = real(k-1,kind=GP)
+        this%kz(k+this%nz/2) = real(k-this%nz/2-1,kind=GP)
+     END DO
+     IF (aniso.eq.1) THEN
+        rmp = 1.0_GP/real(this%nx,kind=GP)**2
+        rmq = 1.0_GP/real(this%ny,kind=GP)**2
+        rms = 1.0_GP/real(this%nz,kind=GP)**2
+     ELSE
+        rmp = 1.0_GP
+        rmq = 1.0_GP
+        rms = 1.0_GP
+     ENDIF
+
+!$omp parallel do if (this%iend-this%ista.ge.nth) private (j,k)
+     DO i = this%ista,this%iend
+!$omp parallel do if (this%iend-this%ista.lt.nth) private (k)
+        DO j = 1,this%ny
+           DO k = 1,this%nz
+              this%kk2(k,j,i) = rmp*this%kx(i)**2+rmq*this%ky(j)**2+rms*this%kz(k)**2
+           END DO
+        END DO
+     END DO
+
+     IF ( arbsz .eq. 1 ) THEN
+       this%kx = this%kx*Dk(1)
+       this%ky = this%ky*Dk(2)
+       this%kz = this%kz*Dk(3)
+     ENDIF
+
+     IF (aniso.eq.1) THEN
+!$omp parallel do if (this%iend-this%ista.ge.nth) private (j,k)
+        DO i = this%ista,this%iend
+!$omp parallel do if (this%iend-this%ista.lt.nth) private (k)
+           DO j = 1,this%ny
+              DO k = 1,this%nz
+                 this%kk2(k,j,i) = this%kx(i)**2+this%ky(j)**2+this%kz(k)**2
+              END DO
+           END DO
+        END DO
+     ENDIF 
+
+    this%GSGS_init_infero(this, modtraits)
+  !   write(*,*)this%myrank_, ' GSGS_ctor: ksta=', this%ksta, ' kend=', this%kend, ' ista=', this%ista, ' iend=', this%iend
+
+  RETURN
+  END SUBROUTINE GSGS_ctor
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE GSGS_dtor(this)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  Main explicit destructor
+!  ARGUMENTS:
+!    this    : 'this' class instance
+!-----------------------------------------------------------------
+
+    IMPLICIT NONE
+    TYPE(GSGSmodel)   ,INTENT(INOUT)             :: this
+    INTEGER                                 :: j
+
+    IF ( ALLOCATED    (this%kk2) ) DEALLOCATE   (this%kk2)
+    IF ( ALLOCATED    (this%R1g) ) DEALLOCATE   (this%R1g)
+    IF ( ALLOCATED    (this%R2g) ) DEALLOCATE   (this%R2g)
+    IF ( ALLOCATED    (this%R3g) ) DEALLOCATE   (this%R3g)
+    IF ( ALLOCATED    (this%R4g) ) DEALLOCATE   (this%R4g)
+    IF ( ALLOCATED    (this%C1g) ) DEALLOCATE   (this%C1g)
+    IF ( ALLOCATED    (this%kx)  ) DEALLOCATE   (this%kx)
+    IF ( ALLOCATED    (this%ky)  ) DEALLOCATE   (this%ky)
+    IF ( ALLOCATED    (this%kz)  ) DEALLOCATE   (this%kz)
+
+!   CALL fftp3d_destroy_plan(this%plancr)
+!   CALL fftp3d_destroy_plan(this%planrc)
+
+    ! Clean up Infero:
+    CALL infero_check( this%infmodel_%free() )
+    CALL this%tin_wrapped_%final()
+    CALL this%tout_wrapped_%final()
+    CALL this%imap_%final()
+    CALL this%omap_%final()
+    CALL infero_check( infero_finalise() )
+
+    CALL free_c_array(this%c_ptr_t_in_)
+    CALL free_c_array(this%c_ptr_t_out_)
+
+    CALL MPI_Comm_free(this%comm_, this%ierr_)
+
+  RETURN
+  END SUBROUTINE GSGS_dtor
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+
+  SUBROUTINE GSGS_init_infero(this, modtraits)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  Performs inference of ML model and returns the SGS terms
+!  ARGUMENTS:
+!    this    : 'this' class instance
+!-----------------------------------------------------------------
+
+    IMPLICIT NONE
+    INTEGER                                       :: n
+    class(GSGSmodel)     ,INTENT(INOUT)           :: this
+    TYPE(GSGSmodelTraits), INTENT  (IN)           :: modtraits
+
+    this%modelTraits_ = modtraits
+    
+    CALL infero_check( infero_initialise() )
+  
+    ! Wrap Fortran arrays into fckit tensors and map them by layer names
+    this%tin_wrapped_  = fckit_tensor_real32(t_in)
+    this%tout_wrapped_ = fckit_tensor_real32(t_out)
+
+    this%imap_ = fckit_map()
+    CALL imap%insert(trim(this%modelTraits_%in_name),  this%tin_wrapped%c_ptr())
+
+    this%omap_ = fckit_map()
+    CALL omap%insert(trim(this%modelTraits_%out_name), this%tout_wrapped%c_ptr())
+
+    ! Allocate C arrays 
+    n = modelTraits_.n_batch * modelTraits_.in_size; 
+    this%c_ptr_t_in_  = allocate_c_array(n * SIZEOF(1.0_c_float))
+
+    n = modelTraits_.n_batch * modelTraits_.out_size; 
+    this%c_ptr_t_out_ = allocate_c_array(n * SIZEOF(1.0_c_float))
+
+    ! Associate Fortran pointers with C memory:
+    CALL C_F_POINTER(this%c_ptr_t_in_ , this%t_in_ , SHAPE=[array_size])
+    CALL C_F_POINTER(this%c_ptr_t_out_, this%t_out_, SHAPE=[array_size])
+
+
+  RETURN
+
+  END SUBROUTINE GSGS_init_infero
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+  SUBROUTINE GSGS_compute_model(this, vx, vy, vz, th, C1, C2, C3, SGS1, SGS2, SGS3)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  Performs inference of ML model and returns the SGS terms
+!  ARGUMENTS:
+!    this    : 'this' class instance
+!    vx,vy,vz: input velocities
+!    th      : input pot'l temp
+!    C1,C2,C3: tmp arrays
+!    SGSi    : output SGS components
+!-----------------------------------------------------------------
+
+    IMPLICIT NONE
+    class(GSGSmodel)   ,INTENT(INOUT)             :: this
+    INTEGER         , INTENT   (IN)         :: idir
+    COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: vx,vy,vz,th
+    COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1,C2,C3
+    COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: SGS1,SGS2,SGS3
+
+
+  RETURN
+
+  END SUBROUTINE GSGS_compute_model
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+END MODULE class_GSGSmodel
