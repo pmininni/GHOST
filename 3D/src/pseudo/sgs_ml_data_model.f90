@@ -1,5 +1,5 @@
 !=================================================================
-! GHOST computation of SGS data model. Assumes
+! GHOST computation of SGS  ML data model. Assumes
 ! trained model is in ONNx format, this class 
 ! uses the ECMWF Infero engine to make a pred-
 ! iction for all SGS terms 
