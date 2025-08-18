@@ -460,10 +460,12 @@
 ! 'sNspectrum.XXX.txt': k, V(k) (same for the N-th scalar)
 !
 ! Parameters
-!     a  : input matrix with the scalar
-!     nmb: the extension used when writting the file
-!     isc: index to specify which scalar the spectrum 
-!          represents; modifies output file name
+!     a    : input matrix with the scalar
+!     nmb  : the extension used when writting the file
+!     isc  : index to specify which scalar the spectrum 
+!            represents; modifies output file name. If 
+!            isc < 0, then we get the following prefixes:
+!            -1 ==> 'rhospect.XXX.txt'
 !
       USE kes
       USE grid
@@ -476,9 +478,9 @@
       DOUBLE PRECISION, DIMENSION(nmax/2+1)                   :: Ek
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
       INTEGER, INTENT(IN)                                    :: isc
-      INTEGER                      :: i
-      CHARACTER(len=*), INTENT(IN) :: nmb
-      CHARACTER(len=1)             :: si
+      INTEGER                                :: i
+      CHARACTER(len=*),           INTENT(IN) :: nmb
+      CHARACTER(len=1)                       :: si
 
 !
 ! Computes the power spectrum
@@ -487,16 +489,24 @@
 !
 ! Exports the spectrum to a file
 !
-      IF (myrank.eq.0) THEN
-         IF ( isc.gt.0 ) THEN
-           WRITE(si,'(i1.1)') isc
-           OPEN(1,file='s' // si // 'spectrum.' // nmb // '.txt')
+      IF ( myrank.eq.0 ) THEN
+         IF ( isc.ge.0 ) THEN
+           IF ( isc.gt.0 ) THEN
+             WRITE(si,'(i1.1)') isc
+             OPEN(1,file='s' // si // 'spectrum.' // nmb // '.txt')
+           ELSE
+             OPEN(1,file='sspectrum.' // nmb // '.txt')
+           ENDIF
+         ELSE IF ( isc .eq. -1 ) THEN
+             OPEN(1,file='rhospectrum.' // nmb // '.txt')
          ELSE
-           OPEN(1,file='sspectrum.' // nmb // '.txt')
+             PRINT*, 'SPECTRSC: Invalid option'
+             STOP
          ENDIF
          DO i=1,nmax/2+1
             WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Ek(i)/Dkk
          END DO
+         CLOSE(1)
       ENDIF
 
       RETURN

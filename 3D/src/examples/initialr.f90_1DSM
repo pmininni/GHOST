@@ -1,0 +1,50 @@
+! Initial condition for the particles' density (fluctuations).
+! This file contains the expression used for the initial 
+! particles' density fluctuations. You can use temporary 
+! real arrays R1-R3 of size (1:nx,1:ny,ksta:kend) and temporary 
+! complex arrays C1-C8 of size (1:nz,1:ny,ista:iend) to do 
+! intermediate computations. The variable r0 should control 
+! the amplitude of the density fluctuations, and variables 
+! rparam0-9 can be used to control the amplitudes of individual 
+! terms. At the end, the initial ion density in spectral space 
+! should be stored in the array rhoc.
+
+! Single-mode uniform ion density fluctuation
+!     r0  : fluctuation amplitude
+!     krd : excited wave number (must coincide with kup)
+!  rparam0: mode direction (0=x,1=y,2=z)
+      
+      IF (krd.ne.kru) THEN
+         PRINT *, 'Single-mode density fluctuation requires krd=kru'
+      END IF
+! Set density to zero
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               rhoc(k,j,i) = 0.0_GP
+            END DO
+         END DO
+      END DO
+      
+      IF (rparam0.eq.0) THEN
+         IF ((ista.le.kj).and.(iend.ge.kj)) THEN
+            i = kru
+            rhoc(1,1,i) = r0
+         END IF
+      ELSE IF (rparam0.eq.1) THEN
+         IF (myrank.eq.0) THEN
+            j = kru
+            rhoc(1,j,1) = 0.5_GP*r0
+            rhoc(1,ny-j+2,1) = 0.5_GP*r0
+         END IF
+      ELSE IF (rparam0.eq.2) THEN
+         IF (myrank.eq.0) THEN
+            k = kru
+            rhoc(k,1,1) = 0.5_GP*r0
+            rhoc(nz-k+2,1,1) = 0.5_GP*r0
+         END IF
+      ELSE
+         PRINT *, 'Single-mode density fluctuation requires rparam0=0,1,2'
+      END IF

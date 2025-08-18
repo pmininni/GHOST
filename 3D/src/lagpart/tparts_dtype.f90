@@ -20,4 +20,5 @@
         PROCEDURE,PUBLIC :: SetStepVel        => TestGPart_SetStepRKK
         PROCEDURE,PUBLIC :: StepTestp         => TestGPart_StepRKK
         PROCEDURE,PUBLIC :: EndStage          => TestGPart_EndStageRKK
+        PROCEDURE,PUBLIC :: ResizeArrays      => TestGPart_ResizeArrays
       END TYPE TestGPart

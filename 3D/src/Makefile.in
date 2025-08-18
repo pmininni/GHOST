@@ -11,7 +11,7 @@ NZ       = 64
 ORD      = 2
 
 # SOLVER:  (read the file SOLVERS for a list of options)
-SOLVER   = HD
+SOLVER   = ROTBOUSS
 
 # PRECISION: (SINGLE or DOUBLE)
 PRECISION= ROTBOUSS
@@ -137,8 +137,8 @@ TARGET_INTEL  =
 # CGG >=10.X with some MPI libraries may require using
 # "FC_GNU = gfortran -w -fallow-argument-mismatch".
 CPP_GNU       = cpp -traditional-cpp
-FC_GNU        = gfortran
-CC_GNU        = gcc
+FC_GNU        = mpif90 -w -fallow-argument-mismatch
+CC_GNU        = mpicc
 FFLAGS_GNU    = -O3 -funroll-loops
 FPSPEC_GNU    = -O3 -funroll-loops
 CFLAGS_GNU    = -O3

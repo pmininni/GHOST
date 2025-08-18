@@ -194,7 +194,6 @@
       ENDIF
       ENDIF
       CALL GTStop(ihopen)
-
       CALL GTStart(ihread)
       CALL MPI_FILE_SET_VIEW(fh,disp,GC_REAL,plan%iotype,'native', &
           MPI_INFO_NULL,ioerr)

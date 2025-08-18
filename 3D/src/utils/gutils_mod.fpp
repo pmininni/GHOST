@@ -26,6 +26,10 @@ MODULE gutils
          REAL   (KIND=GP), DIMENSION (:,:,:), POINTER :: preal
       END TYPE PARRAY
 
+      TYPE PMAT
+         DOUBLE PRECISION, DIMENSION(:,:), POINTER :: mat
+      END TYPE PMAT
+
 !
 !
 ! Methods:
@@ -256,11 +260,9 @@ MODULE gutils
 
           
           pstr = trim(adjustl(tstr(1:(j1-1))))
-!write(*,*) '     parseind: pstr 1 =', pstr
           read(pstr, *) ibeg
           IF ( j2 .eq. j1 ) THEN ! no second ':'
             pstr = trim(adjustl(tstr(j1+1:lstr)))
-!write(*,*) '     parseind: pstr 2 =', pstr
             read(tstr(j1+1:lstr) , *) iend
           ELSE
             pstr = trim(adjustl(tstr(j1+1:j2-1)))
@@ -1236,5 +1238,622 @@ MODULE gutils
 
       END SUBROUTINE div
 
+
+      SUBROUTINE anisobij(vx,vy,vz,c1,r1,r2,r3,accum,denom,bij)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Compute anisotropy tensor:
+!   bij = <u_i u_j> / <u_j u^j> - delta_ij / 3
+!  
+! Spatial/ensemble averages will be accumulated until accum=FALSE,
+! at which time the full tensor, bij, will be computed. Before
+! final computation, bij contains intermediate partial sums.
+!
+! Parameters
+!     vi    : input velocities
+!     c1    : complex temp array
+!     r1-3  : real temp array
+!     accum : continue accumulating (TRUE) or to global sums (FALSE)
+!     denom : tensor normalization. First time in, should be initialized to 0
+!     bij   : 3x3 tensor, returned. First time in, should be initialized to 0
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT  (IN) , &
+                         TARGET      , DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1
+      DOUBLE PRECISION, INTENT(INOUT), DIMENSION(3,3)             :: bij
+      DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
+      DOUBLE PRECISION, INTENT(INOUT)                             :: denom
+      REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3
+      DOUBLE PRECISION                                            :: tmp1,ui,uloc
+      REAL   (KIND=GP)                                            :: tmp
+      LOGICAL         , INTENT(   IN)                             :: accum
+      INTEGER                                                     :: i,j,k,m
+
+
+!     bij = <u_i u_j> / <u_j u^j> - delta_ij 
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = vx(k,j,i)
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = vy(k,j,i)
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = vz(k,j,i)
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+
+      ! Compute <u^2>:
+      tmp  = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
+      tmp1 = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+      uloc = 0.0D0
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               uloc = uloc + ( r1(i,j,k)*r1(i,j,k) &
+                             + r2(i,j,k)*r2(i,j,k) &
+                             + r3(i,j,k)*r3(i,j,k) )*tmp
+            END DO
+         END DO
+      END DO
+      denom = denom + uloc
+      IF  ( .not. accum ) THEN
+        CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
+                        MPI_SUM, MPI_COMM_WORLD,ierr)
+        ui = 1.0 / ui
+      ENDIF
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               bij(1,1)  = bij(1,1) + ( r1(i,j,k)*r1(i,j,k) )*tmp
+               bij(1,2)  = bij(1,2) + ( r1(i,j,k)*r2(i,j,k) )*tmp 
+               bij(1,3)  = bij(1,3) + ( r1(i,j,k)*r3(i,j,k) )*tmp 
+               bij(2,2)  = bij(2,2) + ( r2(i,j,k)*r2(i,j,k) )*tmp 
+               bij(2,3)  = bij(2,3) + ( r2(i,j,k)*r3(i,j,k) )*tmp 
+               bij(3,3)  = bij(3,3) + ( r3(i,j,k)*r3(i,j,k) )*tmp 
+            END DO
+         END DO
+      END DO
+      IF  ( .not. accum ) THEN
+        CALL MPI_ALLREDUCE(bij, tij, 9, MPI_DOUBLE_PRECISION, &
+                           MPI_SUM, MPI_COMM_WORLD,ierr)
+        bij(1,1) = tij(1,1)*ui - 1.0D0/3.0D0
+        bij(1,2) = tij(1,2)*ui
+        bij(1,3) = tij(1,3)*ui
+        bij(2,1) = bij(1,2)
+        bij(2,2) = tij(2,2)*ui - 1.0D0/3.0D0
+        bij(2,3) = tij(2,3)*ui
+        bij(3,1) = bij(1,3)
+        bij(3,2) = bij(2,3)
+        bij(3,3) = tij(3,3)*ui - 1.0D0/3.0D0
+      ENDIF
+
+      END SUBROUTINE anisobij
+
+      SUBROUTINE anisogij(th,c1,r1,r2,r3,accum,denom,gij)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Compute anisotropy tensor:
+!   gij = <th_i th_j> / <th_j th^j> - delta_ij / 3
+! were th_i = d th /dx^i
+!
+! Spatial/ensemble averages will be accumulated until accum=FALSE,
+! at which time the full tensor, gij, will be computed. Before
+! final computation, gij contains intermediate partial sums.
+!
+! Parameters
+!     th    : input scalar
+!     c1    : complex temp array
+!     r1-3  : real temp array
+!     accum : continue accumulating (TRUE) or to global sums (FALSE)
+!     denom : tensor normalization. First time in, should be initialized to 0
+!     gij   : 3x3 tensor, returned. First time in, should be initialized to 0
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT  (IN) , &
+                         TARGET      , DIMENSION(nz,ny,ista:iend) :: th
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1
+      DOUBLE PRECISION, INTENT  (OUT), DIMENSION(3,3)             :: gij
+      DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
+      DOUBLE PRECISION, INTENT(INOUT)                             :: denom
+      REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3
+      DOUBLE PRECISION                                            :: tmp1,ui,uloc
+      REAL   (KIND=GP)                                            :: tmp
+      INTEGER                                                     :: i,j,k,m
+      LOGICAL         , INTENT(   IN)                             :: accum
+
+!     bij = <u_i u_j> / <u_j u^j> - delta_ij 
+      CALL derivk3(th,c1,1)
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      CALL derivk3(th,c1,2)
+      CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+      CALL derivk3(th,c1,3)
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+
+      ! Compute <u^2>:
+      tmp  = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
+      tmp1 = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+      uloc = 0.0D0
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               uloc = uloc + ( r1(i,j,k)*r1(i,j,k) &
+                             + r2(i,j,k)*r2(i,j,k) &
+                             + r3(i,j,k)*r3(i,j,k) )*tmp
+            END DO
+         END DO
+      END DO
+      denom = denom + uloc
+
+      IF ( .not. accum  ) THEN
+        CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
+                        MPI_SUM, MPI_COMM_WORLD,ierr)
+        ui = 1.0 / ui
+      ENDIF
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               gij(1,1)  = gij(1,1) + ( r1(i,j,k)*r1(i,j,k) )*tmp
+               gij(1,2)  = gij(1,2) + ( r1(i,j,k)*r2(i,j,k) )*tmp 
+               gij(1,3)  = gij(1,3) + ( r1(i,j,k)*r3(i,j,k) )*tmp 
+               gij(2,2)  = gij(2,2) + ( r2(i,j,k)*r2(i,j,k) )*tmp 
+               gij(2,3)  = gij(2,3) + ( r2(i,j,k)*r3(i,j,k) )*tmp 
+               gij(3,3)  = gij(3,3) + ( r3(i,j,k)*r3(i,j,k) )*tmp 
+            END DO
+         END DO
+      END DO
+      IF ( .not. accum  ) THEN
+        CALL MPI_ALLREDUCE(gij, tij, 9, MPI_DOUBLE_PRECISION, &
+                        MPI_SUM, MPI_COMM_WORLD,ierr)
+        gij(1,1) = tij(1,1)*ui - 1.0D0/3.0D0
+        gij(1,2) = tij(1,2)*ui
+        gij(1,3) = tij(1,3)*ui
+        gij(2,1) = gij(1,2)
+        gij(2,2) = tij(2,2)*ui - 1.0D0/3.0D0
+        gij(2,3) = tij(2,3)*ui
+        gij(3,1) = gij(1,3)
+        gij(3,2) = gij(2,3)
+        gij(3,3) = tij(3,3)*ui - 1.0D0/3.0D0
+      ENDIF
+
+      END SUBROUTINE anisogij
+
+      SUBROUTINE anisovij(vx,vy,vz,c1,c2,r1,r2,r3,accum,denom,vij)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Compute anisotropy tensor:
+!   vij = <o_i o_j> / <o_j o^j> - delta_ij / 3
+!
+! Spatial/ensemble averages will be accumulated until accum=FALSE,
+! at which time the full tensor, vij, will be computed. Before
+! final computation, vij contains intermediate partial sums.
+!
+! Parameters
+!     vi    : input velocities
+!     c1    : complex temp array
+!     r1-3  : real temp array
+!     accum : continue accumulating (TRUE) or to global sums (FALSE)
+!     denom : tensor normalization. First time in, should be initialized to 0
+!     vij   : 3x3 tensor, returned. First time in, should be initialized to 0
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT  (IN) , &
+                         TARGET      , DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1,c2
+      DOUBLE PRECISION, INTENT  (OUT), DIMENSION(3,3)             :: vij
+      DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
+      DOUBLE PRECISION, INTENT(INOUT)                             :: denom
+      REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3
+      DOUBLE PRECISION                                            :: tmp1,ui,uloc
+      REAL   (KIND=GP)                                            :: tmp
+      INTEGER                                                     :: i,j,k,m
+      LOGICAL         , INTENT(   IN)                             :: accum
+
+
+      ! vij = <o_i o_j> / <o_j o^j> - delta_ij / 3
+      CALL rotor3(vy,vz,c2,1)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = c2(k,j,i)
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+
+      CALL rotor3(vx,vz,c2,2)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = c2(k,j,i)
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+
+      CALL rotor3(vx,vy,c2,3)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = c2(k,j,i)
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+
+      ! Compute <o^2>:
+      tmp  = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
+      tmp1 = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+      uloc = 0.0D0
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               uloc = uloc +  ( r1(i,j,k)*r1(i,j,k) &
+                              + r2(i,j,k)*r2(i,j,k) &
+                              + r3(i,j,k)*r3(i,j,k) ) * tmp
+            END DO
+         END DO
+      END DO
+      denom = denom + uloc
+     
+      IF ( .not. accum ) THEN
+        CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
+                        MPI_SUM, MPI_COMM_WORLD,ierr)
+        ui = 1.0 / ui
+      ENDIF
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               vij(1,1)  = vij(1,1) + ( r1(i,j,k)*r1(i,j,k) )*tmp 
+               vij(1,2)  = vij(1,2) + ( r1(i,j,k)*r2(i,j,k) )*tmp 
+               vij(1,3)  = vij(1,3) + ( r1(i,j,k)*r3(i,j,k) )*tmp 
+               vij(2,2)  = vij(2,2) + ( r2(i,j,k)*r2(i,j,k) )*tmp 
+               vij(2,3)  = vij(2,3) + ( r2(i,j,k)*r3(i,j,k) )*tmp 
+               vij(3,3)  = vij(3,3) + ( r3(i,j,k)*r3(i,j,k) )*tmp 
+            END DO
+         END DO
+      END DO
+      IF ( .not. accum ) THEN
+        CALL MPI_ALLREDUCE(vij, tij, 9, MPI_DOUBLE_PRECISION, &
+                        MPI_SUM, MPI_COMM_WORLD,ierr)
+        vij(1,1) = tij(1,1)*ui - 1.0D0/3.0D0
+        vij(1,2) = tij(1,2)*ui
+        vij(1,3) = tij(1,3)*ui
+        vij(2,1) = vij(1,2)
+        vij(2,2) = tij(2,2)*ui - 1.0D0/3.0D0
+        vij(2,3) = tij(2,3)*ui
+        vij(3,1) = vij(1,3)
+        vij(3,2) = vij(2,3)
+        vij(3,3) = tij(3,3)*ui - 1.0D0/3.0D0
+      ENDIF
+
+      END SUBROUTINE anisovij
+
+      SUBROUTINE anisodij(vx,vy,vz,c1,c2,r1,r2,accum,denom,dij)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Compute anisotropy tensor:
+!   dij = <d_k v_i d_k v_j> / <d_k vm d_k v^m> - delta_ij / 3
+!           where
+!          d_k is the kth derivative
+!
+! Spatial/ensemble averages will be accumulated until accum=FALSE,
+! at which time the full tensor, dij, will be computed. Before    
+! final computation, dij contains intermediate partial sums.      
+!
+! Parameters
+!     vi    : input velocities
+!     c1    : complex temp array
+!     r1-3  : real temp array
+!     accum : continue accumulating (TRUE) or to global sums (FALSE)
+!     denom : tensor normalization. First time in, should be initialized to 0
+!     dij   : 3x3 tensor, returned
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT  (IN) , &
+                         TARGET      , DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1,c2
+      DOUBLE PRECISION, INTENT  (OUT), DIMENSION(3,3)             :: dij
+      DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
+      DOUBLE PRECISION, INTENT(INOUT)                             :: denom
+      REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2
+      DOUBLE PRECISION                                            :: tmp1,ui,uloc
+      REAL   (KIND=GP)                                            :: tmp
+      INTEGER                                                     :: i,ic,j,jr,k
+      LOGICAL         , INTENT(   IN)                             :: accum
+      TYPE(PARRAY)                                                :: pv(3)
+
+      pv(1)%pcomplex => vx
+      pv(2)%pcomplex => vy
+      pv(3)%pcomplex => vz
+
+      ! dij = <d_k v_i d_k v_j> / <d_k vm d_k v^m> - delta_ij / 3
+
+      ! Compute <o^2>:
+      tmp  = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
+      tmp1 = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+      uloc = 0.0D0
+       DO jr = 1, 3
+         DO ic = 1, 3
+            CALL derivk3(pv(jr)%pcomplex,c1,ic)
+            CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+            DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+               DO j = 1,ny
+                  DO i = 1,nx
+                     uloc = uloc + r1(i,j,k)*r1(i,j,k) * tmp
+                  END DO
+               END DO
+            END DO
+         END DO
+      END DO
+      denom = denom + uloc
+
+      IF ( .not. accum ) THEN
+        CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
+                        MPI_SUM, MPI_COMM_WORLD,ierr)
+        ui = 1.0 / ui
+      ENDIF
+
+      ! d(1,1):
+      DO ic = 1, 3
+         CALL derivk3(pv(1)%pcomplex,c1,ic)
+         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+         DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+             DO j = 1,ny
+                DO i = 1,nx
+                   r2(i,j,k) = r1(i,j,k)*r1(i,j,k) * tmp
+                   dij(1,1)  = dij(1,1) + r2(i,j,k)
+                END DO
+             END DO
+          END DO
+      END DO
+
+      ! d(1,2):
+      DO ic = 1, 3
+         CALL derivk3(pv(1)%pcomplex,c1,ic)
+         CALL derivk3(pv(2)%pcomplex,c2,ic)
+         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+         CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+         DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+             DO j = 1,ny
+                DO i = 1,nx
+                   r2(i,j,k) = r1(i,j,k)*r2(i,j,k) * tmp
+                   dij(1,1)  = dij(1,1) + r2(i,j,k)
+                END DO
+             END DO
+          END DO
+      END DO
+
+      ! d(1,3):
+      DO ic = 1, 3
+         CALL derivk3(pv(1)%pcomplex,c1,ic)
+         CALL derivk3(pv(3)%pcomplex,c2,ic)
+         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+         CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+         DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+             DO j = 1,ny
+                DO i = 1,nx
+                   r2(i,j,k) = r1(i,j,k)*r2(i,j,k) * tmp
+                   dij(1,3)  = dij(1,3) + r2(i,j,k)
+                END DO
+             END DO
+          END DO
+      END DO
+
+      ! d(2,2):
+      DO ic = 1, 3
+         CALL derivk3(pv(2)%pcomplex,c1,ic)
+         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+         DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+             DO j = 1,ny
+                DO i = 1,nx
+                   r2(i,j,k) = r1(i,j,k)*r1(i,j,k) * tmp
+                   dij(1,3)  = dij(1,3) + r2(i,j,k)
+                END DO
+             END DO
+          END DO
+      END DO
+
+      ! d(2,3):
+      DO ic = 1, 3
+         CALL derivk3(pv(2)%pcomplex,c1,ic)
+         CALL derivk3(pv(3)%pcomplex,c2,ic)
+         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+         CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+         DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+             DO j = 1,ny
+                DO i = 1,nx
+                   r2(i,j,k) = r1(i,j,k)*r2(i,j,k) * tmp
+                   dij(2,3)  = dij(2,3) + r2(i,j,k)
+                END DO
+             END DO
+          END DO
+      END DO
+
+      ! d(3,3):
+      DO ic = 1, 3
+         CALL derivk3(pv(3)%pcomplex,c1,ic)
+         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+         DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+             DO j = 1,ny
+                DO i = 1,nx
+                   r2(i,j,k) = r1(i,j,k)*r1(i,j,k) * tmp
+                   dij(3,3)  = dij(3,3) + r2(i,j,k)
+                END DO
+             END DO
+          END DO
+      END DO
+
+      IF ( .not. accum ) THEN
+        CALL MPI_ALLREDUCE(dij, tij, 9, MPI_DOUBLE_PRECISION, &
+                        MPI_SUM, MPI_COMM_WORLD,ierr)
+        dij(1,1) = tij(1,1)*ui - 1.0D0/3.0D0
+        dij(1,2) = tij(1,2)*ui
+        dij(1,3) = tij(1,3)*ui
+        dij(2,1) = dij(1,2)
+        dij(2,2) = tij(2,2)*ui - 1.0D0/3.0D0
+        dij(2,3) = tij(2,3)*ui
+        dij(3,1) = dij(1,3)
+        dij(3,2) = dij(2,3)
+        dij(3,3) = tij(3,3)*ui - 1.0D0/3.0D0
+      ENDIF
+
+      END SUBROUTINE anisodij
+
+      SUBROUTINE invariant(Tij, iwhich, invar)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+! Compute specified invariant of input tensor:
+!   rI   = Ti,i
+!   rII  = Ti,j Tj,i
+!   rIII = Ti,j Tj,k Tk,i
+! (repeated indices indicate summation)
+
+! Parameters:
+!   Tij   : input tensor (3x3)
+!   iwhich: which invariant (1, 2, 3)
+!   invar : invariant value
+!    
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, INTENT   (IN), DIMENSION(3,3)             :: Tij
+      INTEGER         , INTENT   (IN)                             :: iwhich
+      DOUBLE PRECISION, INTENT  (OUT)                             :: invar
+      INTEGER                                                     :: i,j,k
+
+      invar = 0.0D0
+      SELECT CASE (iwhich)
+        CASE (1)
+          DO j = 1, 3
+            invar = invar + TIJ(j,j)
+          ENDDO
+        CASE (2)
+              invar = &
+                    + TIJ(1,1)*TIJ(2,2) + TIJ(2,2)*TIJ(3,3) + TIJ(1,1)*TIJ(3,3) & 
+                    - TIJ(1,2)*TIJ(2,1) - TIJ(2,3)*TIJ(3,2) - TIJ(1,3)*TIJ(3,1)
+        CASE (3)
+              invar = &
+                    - TIJ(1,3)*TIJ(2,2)*TIJ(3,1) + TIJ(1,2)*TIJ(2,3)*TIJ(3,1) &
+                    + TIJ(1,3)*TIJ(2,1)*TIJ(3,2) - TIJ(1,1)*TIJ(2,3)*TIJ(3,2) &
+                    - TIJ(1,2)*TIJ(2,1)*TIJ(3,3) + TIJ(1,1)*TIJ(2,2)*TIJ(3,3) 
+        CASE DEFAULT
+          write(*,*) 'Invariant: Invalid invariant specified:', iwhich
+          STOP
+      END SELECT
+
+      END SUBROUTINE invariant
 
 END MODULE gutils

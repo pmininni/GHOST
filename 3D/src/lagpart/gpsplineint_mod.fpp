@@ -78,6 +78,7 @@ MODULE class_GPSplineInt
         PROCEDURE,PUBLIC :: PartUpdate3D => GPSplineInt_PartUpdate3D
         PROCEDURE,PUBLIC :: CompSpline2D => GPSplineInt_CompSpline2D
         PROCEDURE,PUBLIC :: CompSpline3D => GPSplineInt_CompSpline3D
+        PROCEDURE,PUBLIC :: ResizeArrays => GPSplineInt_ResizeArrays
 
 !!      GENERIC  ,PUBLIC :: PartUpdate   => PartUpdate2D,PartUpdate3D
       END TYPE GPSplineInt
@@ -1055,10 +1056,14 @@ MODULE class_GPSplineInt
       this%dxi_(j) = 1.0_GP  !real(this%ldims_(j)-1,kind=GP)/ ( this%xbnds_(j,2) - this%xbnds_(j,1) )
     ENDDO
 
+    IF (this%nd_(1).GT.2) THEN
     CALL GPSplineInt_MatInvQ(this,this%nd_(1),this%ax_,this%bx_,this%cx_,&
     this%px_,this%gamx_,this%betx_,this%xxx_,this%zetax_)
+    END IF
+    IF (this%nd_(2).GT.2) THEN
     CALL GPSplineInt_MatInvQ(this,this%nd_(2),this%ay_,this%by_,this%cy_,&
     this%py_,this%gamy_,this%bety_,this%xxy_,this%zetay_)
+    END IF
     IF ( this%rank_ .GT. 2 ) THEN
     CALL GPSplineInt_MatInvQ(this,this%nd_(3),this%az_,this%bz_,this%cz_,&
     this%pz_,this%gamz_,this%betz_,this%xxz_,this%zetaz_)
@@ -1166,6 +1171,8 @@ MODULE class_GPSplineInt
 !    tmp1/2:   temp arrays of size n X n X (kend-ksta+1) as in
 !              instantiating code.
 !-----------------------------------------------------------------
+    USE mpivars
+
     IMPLICIT NONE
     CLASS(GPSplineInt)                                :: this
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%ntot_) :: field
@@ -1570,6 +1577,161 @@ MODULE class_GPSplineInt
    RETURN
 
   END SUBROUTINE GPSplineInt_CompSpline3D
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+ SUBROUTINE GPSplineInt_ResizeArrays(this,newmparts,onlyinc)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Resize_Arrays
+!  DESCRIPTION: Resize all arrays in the GPSplineInt class.
+!               Communicator _must_ be resized separately (i.e., 
+!               from GPart%ResizeArrays).
+!               Not compatible with offloading.
+!
+!  ARGUMENTS  :
+!    this     : 'this' class instance
+!    newmparts: new number of particles
+!    onlyinc  : if true, will only resize to increase array size
+!-----------------------------------------------------------------
+    IMPLICIT NONE
+    CLASS(GPSplineInt),INTENT(INOUT)   :: this
+    INTEGER           ,INTENT(IN)      :: newmparts
+    LOGICAL           ,INTENT(IN)      :: onlyinc
+    INTEGER                            :: n
+
+    n = SIZE(this%wrkl_, 2)
+    IF ((n.lt.newmparts).OR.((n.gt.newmparts).AND..NOT.onlyinc)) THEN
+      CALL Resize_PIntArrayRank2(this%ilg_,newmparts,.false.)
+      CALL Resize_PIntArrayRank2(this%jlg_,newmparts,.false.)
+      CALL Resize_PIntArrayRank2(this%klg_,newmparts,.false.)
+      CALL Resize_PArrayRank2(this%wrkl_  ,newmparts,.false.)
+      CALL Resize_PArrayRank1(this%xrk_   ,newmparts,.false.)
+      CALL Resize_PArrayRank1(this%yrk_   ,newmparts,.false.)
+      CALL Resize_PArrayRank1(this%zrk_   ,newmparts,.false.)
+      this%maxint_ = newmparts
+    END IF
+! Communicator resized from GPart class
+    RETURN
+
+ END SUBROUTINE GPSplineInt_ResizeArrays
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE Resize_PIntArrayRank2(a,new_size,docpy)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Resize_PIntArrayRank2
+!  DESCRIPTION: Resize input integer 2D pointer array to new size
+!  ARGUMENTS  :
+!    a       : array to be resized
+!    new_size: new size for array (second axis)
+!    docpy   : if true, keeps previous data in resized array
+!-----------------------------------------------------------------
+!$  USE threads
+
+    IMPLICIT NONE
+    INTEGER,INTENT(INOUT),POINTER,DIMENSION(:,:) :: a
+    INTEGER      ,INTENT(IN)                     :: new_size
+    LOGICAL      ,INTENT(IN)                     :: docpy
+    INTEGER              ,POINTER,DIMENSION(:,:) :: temp
+    INTEGER                                      :: i,n,shp(2)
+
+    shp = SHAPE(a)
+    ALLOCATE ( temp(shp(1),new_size) )
+
+    IF (docpy) THEN
+      n = shp(2)
+      n = MIN(n,new_size)
+!$omp parallel do if(n.gt.NMIN_OMP)
+      DO i = 1,n
+        temp(:,i) = a(:,i)
+      END DO
+    END IF
+    DEALLOCATE(a)
+    a => temp
+!    CALL move_alloc(temp, a)
+
+    RETURN
+  END SUBROUTINE Resize_PIntArrayRank2
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE Resize_PArrayRank2(a,new_size,docpy)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Resize_ArrayRank2
+!  DESCRIPTION: Resize input 2D array to new size
+!  ARGUMENTS  :
+!    a       : array to be resized
+!    new_size: new size for array (second axis)
+!    docpy   : if true, keeps previous data in resized array
+!-----------------------------------------------------------------
+!$  USE threads
+
+    IMPLICIT NONE
+    REAL(KIND=GP),INTENT(INOUT),POINTER,DIMENSION(:,:) :: a
+    INTEGER      ,INTENT(IN)                           :: new_size
+    LOGICAL      ,INTENT(IN)                           :: docpy
+    REAL(KIND=GP)              ,POINTER,DIMENSION(:,:) :: temp
+    INTEGER                                            :: i,n,shp(2)
+
+    shp = SHAPE(a)
+    ALLOCATE ( temp(shp(1),new_size) )
+
+    IF (docpy) THEN
+      n = shp(2)
+      n = MIN(n,new_size)
+!$omp parallel do if(n.gt.NMIN_OMP)
+      DO i = 1,n
+        temp(:,i) = a(:,i)
+      END DO
+    END IF
+
+    DEALLOCATE(a)
+    a => temp
+!    CALL move_alloc(temp, a)
+
+    RETURN
+
+  END SUBROUTINE Resize_PArrayRank2
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+  SUBROUTINE Resize_PArrayRank1(a,new_size,docpy)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  METHOD     : Resize_ArrayRank1
+!  DESCRIPTION: Resize input 1D array to new size
+!  ARGUMENTS  :
+!    a       : array to be resized
+!    new_size: new size for array
+!    docpy   : if true, keeps previous data in resized array
+!-----------------------------------------------------------------
+!$  USE threads
+
+    IMPLICIT NONE
+    REAL(KIND=GP),INTENT(INOUT),POINTER,DIMENSION(:) :: a
+    INTEGER      ,INTENT(IN)                         :: new_size
+    LOGICAL      ,INTENT(IN)                         :: docpy
+    REAL(KIND=GP)              ,POINTER,DIMENSION(:) :: temp
+    INTEGER                                          :: i,n
+
+    ALLOCATE ( temp(new_size) )
+    IF (docpy) THEN
+      n = SIZE(a)
+      n = MIN(n,new_size)
+!$omp parallel do if(n.gt.NMIN_OMP)
+      DO i = 1,n
+        temp(i) = a(i)
+      END DO
+    END IF
+
+    DEALLOCATE(a)
+    a => temp
+
+    RETURN
+  END SUBROUTINE Resize_PArrayRank1
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 

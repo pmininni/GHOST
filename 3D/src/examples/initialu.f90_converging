@@ -1,0 +1,83 @@
+! Initial condition for the particles' mean velocity.
+! This file contains the expression used for the initial
+! velocity field. You can use temporary real arrays R1-R3
+! of size (1:nx,1:ny,ksta:kend) and temporary complex arrays
+! C1-C8 of size (1:nz,1:ny,ista:iend) to do intermediate
+! computations. The variable u0 should control the global
+! amplitude of the velocity, and variables uparam0-9 can be
+! used to control the amplitudes of individual terms. At the
+! end, the three components of the velocity in spectral
+! space should be stored in the arrays ux, uy, and uz.
+
+! Convergent/divergent mean velocity field
+!     u0  : twice the global energy in the velocity field
+!  uparam0: radius of the attracting/repelling region
+
+      uparam0 = pi*0.5_GP
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+         rmq = pi*(2*real(k-1,kind=GP)/real(nz,kind=GP)-1.0_GP)
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            IF (ny.EQ.1) THEN
+              rmt = 0.0_GP
+            ELSE
+              rmt = pi*(2*real(j-1,kind=GP)/real(ny,kind=GP)-1.0_GP)
+            END IF
+            DO i = 1,nx
+               IF (nx.EQ.1) THEN
+                  rms = 0.0_GP
+               ELSE
+                  rms = pi*(2*real(i-1,kind=GP)/real(nx,kind=GP)-1.0_GP)
+               END IF
+               rms = SQRT(rmq**2+rmt**2+rms**2)
+               IF (rms.LT.uparam0) THEN
+                 R1(i,j,k) = 1.0_GP - SIN(rms)**6
+               ELSE
+                 R1(i,j,k) = 0.0_GP
+               END IF
+            END DO
+         END DO
+      END DO
+      
+      CALL fftp3d_real_to_complex(planrc,R1,C1,MPI_COMM_WORLD)
+      IF (myrank.EQ.0) C1(1,1,1) = 0
+      
+!$omp parallel do if (iend-ista.ge.nth) private (j,i)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (j,i)
+         DO j = 1,ny
+            DO k = 1,nz
+               IF (kn2(k,j,i).LE.kmax) THEN
+                  C1(k,j,i) = C1(k,j,i)/(kk2(k,j,i)+tiny)
+                  ux(k,j,i) = im*kx(i)*C1(k,j,i)
+                  uy(k,j,i) = im*ky(j)*C1(k,j,i)
+                  uz(k,j,i) = im*kz(k)*C1(k,j,i)
+               ELSE
+                  ux(k,j,i) = 0.0_GP
+                  uy(k,j,i) = 0.0_GP
+                  uz(k,j,i) = 0.0_GP
+               END IF
+            END DO
+         END DO
+      END DO
+
+      rmq = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+      IF (u0.LT.0) THEN ! Change convergent to divergent
+         rmq = -rmq
+         u0 = -u0
+      END IF     
+      CALL normalize(ux,uy,uz,u0,1,MPI_COMM_WORLD)
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,i)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (j,i)
+         DO j = 1,ny
+            DO k = 1,nz
+               ux(k,j,i) = rmq*ux(k,j,i)
+               uy(k,j,i) = rmq*uy(k,j,i)
+               uz(k,j,i) = rmq*uz(k,j,i)
+            END DO
+         END DO
+      END DO

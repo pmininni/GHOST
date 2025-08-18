@@ -48,12 +48,15 @@ LAGPDEFyes   = -DDEF_GHOST_LAGP
 LAGPDEFlag   = $(LAGPDEFyes)
 LAGPDEFiner  = -DDEF_GHOST_INERP
 LAGPDEFtest  = -DDEF_GHOST_TESTP
+LAGPDEFpic   = -DDEF_GHOST_PICP
 LAGPDEFno    = 
 LAGPOBJSyes  = $(LAGP)/gpdbrec_mod.o $(LAGP)/gpartcomm_mod.o \
-	           $(LAGP)/gpsplineint_mod.o  $(LAGP)/gparts_mod.o
+	       $(LAGP)/gpicsplineint_mod.o                   \
+	       $(LAGP)/gpsplineint_mod.o  $(LAGP)/gparts_mod.o
 LAGPOBJSlag  = $(LAGPOBJSyes)
 LAGPOBJSiner = $(LAGPOBJSyes)
 LAGPOBJStest = $(LAGPOBJSyes)
+LAGPOBJSpic  = $(LAGPOBJSyes)#!!!
 LAGPOBJSno   = 
 
 CUDA_GHOSTno =
@@ -160,7 +163,7 @@ CUCOMPILE   = $(CUCC) $(CUGENCODE) $(CUARCH) $(CUINC) -I$(FFTPDIR) \
 BIN         = ../bin
 
 # Objects
-HD_OBJS        = pseudospec3D_mod.o module_dns.o pseudospec3D_hd.o  
+HD_OBJS        = pseudospec3D_mod.o module_dns.o pseudospec3D_hd.o gutils_mod.o 
 PHD_OBJS       = $(HD_OBJS) pseudospec3D_phd.o
 MPHD_OBJS      = $(PHD_OBJS)
 MHD_OBJS       = $(HD_OBJS) pseudospec3D_mhd.o
@@ -169,6 +172,7 @@ RMHDB_OBJS     = $(MHDB_OBJS)
 HMHD_OBJS      = $(MHD_OBJS)
 HMHDB_OBJS     = $(MHDB_OBJS)
 COMPRHD_OBJS   = $(PHD_OBJS) pseudospec3D_compr.o
+COMPIHD_OBJS   = $(PHD_OBJS) pseudospec3D_compr.o
 CMHD_OBJS      = $(COMPRHD_OBJS) pseudospec3D_mhd.o
 CMHDB_OBJS     = $(CMHD_OBJS) pseudospec3D_rot.o pseudospec3D_prot.o
 CHMHD_OBJS     = $(CMHD_OBJS)
@@ -181,6 +185,8 @@ MPBOUSS_OBJS   = $(BOUSS_OBJS)
 ROTBOUSS_OBJS  = $(BOUSS_OBJS)
 ROTBOUMHDB_OBJS= $(BOUSS_OBJS) pseudospec3D_mhd.o
 MPROTBOUSS_OBJS= $(MPROTH_OBJS) pseudospec3D_bouss.o
+MOIST_OBJS     = $(BOUSS_OBJS)
+HDPNLT_OBJS    = $(HD_OBJS)
 GPE_OBJS       = $(PHD_OBJS) pseudospec3D_mhd.o pseudospec3D_gpe.o
 ARGL_OBJS      = $(GPE_OBJS) pseudospec3D_newt.o
 RGPE_OBJS      = $(GPE_OBJS) pseudospec3D_rot.o pseudospec3D_prot.o \
@@ -200,9 +206,12 @@ EDQNMROTH_OBJS = $(ROTH_OBJS) $(EDQNM_OBJS)
 EDQNMBUSS_OBJS = $(BOUSS_OBJS) $(EDQNM_OBJS)
 TRAN_OBJS      = pseudospec3D_trn.o
 STRU_OBJS      = pseudospec3D_shf.o
+EHPIC_OBJS     = $(PHD_OBJS) pseudospec3D_pic.o \
+                 pseudospec3D_prot.o
+HPIC_OBJS      = $(CMHDB_OBJS) pseudospec3D_pic.o
 OBJS           = $($(SOLVER)_OBJS) 
 OBJSDIR        = pseudo
-SUBDIRS        = posix mpiio fftp-2 fftp-3 fftp-cu fftp-mkl utils \
+SUBDIRS        = posix mpiio fftp-2 fftp-3 fftp-cu fftp-mkl \
                  $(CONTRIB)/nvidia $(LAGP)
 EXTRASDIR      = analysis
 GTIMER         = $(UTILS)/gtimer_mod.o
@@ -211,6 +220,8 @@ GSGS           = pseudo/lessgs_mod.o
 GREGRID        = $(UTILS)/gtrunc_mod.o $(UTILS)/regridutils.o
 GIO            = $(IOLIB)/binary_io.o 
 
+#all: edit $(CONTRIBOBJS) $(GTIMER) $(GUTILS) $(FFTPDIR)/fftp3D.o  \
+#	  $(OBJS) $(GUTILS) $(GIO) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
 all: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o  \
 	  $(OBJS) $(GUTILS) $(GIO) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
 
@@ -279,7 +290,7 @@ vt:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o \
 shear:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GMIS) \
 	   $(OBJS) $(GIO) $(GUTILS)
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
-	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
+	   -I$(GHOME) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o \
 	   $(GTIMER) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
@@ -287,7 +298,7 @@ shear:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GMIS) \
 
 wv:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) $(GIO) $(GUTILS) 
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
-	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
+	   -I$(GHOME) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o \
 	   $(GTIMER) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
@@ -296,27 +307,31 @@ wv:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) $(GIO) $(GUTILS)
 clean:  undo
 	rm -f *.o *.d *.s *.int *.inf *.mod *.modmic work.pc* ifc*
 	rm -f $(OBJSDIR)/pseudospec3D_mod.f90
+	rm -f $(OBJSDIR)/gutils_mod.f90
 	for dir in $(SUBDIRS); do \
             cd $$dir && $(MAKE) clean && cd .. ; \
         done
 
 dist:
 	rm -f $(BIN)/*HD* $(BIN)/*MHD* $(BIN)/*ROT* $(BIN)/*BOUSS* \
-              $(BIN)/*GPE* $(BIN)/*ARGL* $(BIN)/boots $(BIN)/trunc \
-              $(BIN)/vt $(BIN)/shear $(BIN)/wv $(BIN)/wt $(BIN)/README_* \
-              *HD* *MHD* *ROT* *BOUSS* \
-              *GPE* *ARGL* boots trunc vt shear wv
+              $(BIN)/*MOIST* $(BIN)/*GPE* $(BIN)/*ARGL* $(BIN)/boots \
+              $(BIN)/trunc $(BIN)/vt $(BIN)/shear $(BIN)/wv $(BIN)/wt \
+              $(BIN)/*PIC* $(BIN)/README_* \
+              *HD* *MHD* *ROT* *BOUSS* *MOIST* \
+              *GPE* *ARGL* *PIC* boots trunc vt shear wv
 	$(MAKE) clean
 
 edit:
 	$(CPP) -DNX_=$(NX) -DNY_=$(NY) -DNZ_=$(NZ) -DORD_=$(ORD) \
 	   $(OBJSDIR)/pseudospec3D_mod.fpp -o $(OBJSDIR)/pseudospec3D_mod.f90
+#	$(CPP) -DNX_=$(NX) -DNY_=$(NY) -DNZ_=$(NZ) -DORD_=$(ORD) \
+#	   $(UTILS)/regridutils.fpp -o $(OBJSDIR)/regridutils.f90
 	cd $(FFTPDIR) && $(MAKE) edit CPP='$(CPP)' IKIND='$(IKIND)' \
 	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)' \
            NSTREAMS='$(NSTREAMS)' DO_HYBRID='DO_HYBRID$(P_HYBRID)'
-	cd $(UTILS) && $(MAKE) edit CPP='$(CPP)' IKIND='$(IKIND)' \
-	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)' \
-	   DO_HYBRID='DO_HYBRID$(P_HYBRID)' P_CUDA='$(P_CUDA)'
+	cd ../
+	$(CPP) -DNX_=$(NX) -DNY_=$(NY) -DNZ_=$(NZ) -DORD_=$(ORD) \
+	    $(UTILS)/gutils_mod.fpp -o $(OBJSDIR)/gutils_mod.f90
 	cd $(LAGP) && $(MAKE) edit CPP='$(CPP)' CSIZE='$(CSIZE)' \
 	   NSTRIP='$(NSTRIP)' DO_HYBRID='DO_HYBRID$(P_HYBRID)'
 	cd ../
@@ -369,7 +384,7 @@ $(SOLVER):
 	$(PREPROCESS) main3D.fpp -o $(SOLVER).f90
 	$(COMPILE) $(SOLVER).f90
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(DO_HYBRID$(P_HYBRID)) \
-           $(FFTPDIR)/*.o $(IOLIB)/*.o $(CONTRIBOBJS) $(GUTILS) \
+           $(FFTPDIR)/*.o $(IOLIB)/*.o $(CONTRIBOBJS) \
            $(LAGPOBJS$(PARTICLES)) $(GTIMER) $(OBJS) $(SOLVER).o \
            $(LDFLAGS) -o $(BIN)/$(SOLVER)
 
@@ -377,20 +392,20 @@ trans$(SOLVER) triad$(SOLVER):
 	$(PREPROCESS) $(EXTRASDIR)/$(@:$(SOLVER)=3D).fpp -o $@.f90
 	$(COMPILE) $@.f90
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(OBJS) \
-           $(CONTRIBOBJS) $(GUTILS) $(GTIMER) $(TRAN_OBJS) $@.o $(LDFLAGS) \
+           $(CONTRIBOBJS) $(GTIMER) $(TRAN_OBJS) $@.o $(LDFLAGS) \
            -o $(BIN)/$@
 
 cancel$(SOLVER):
 	$(PREPROCESS) $(EXTRASDIR)/$(@:$(SOLVER)=3D).fpp -o $@.f90
 	$(COMPILE) $@.f90
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(OBJS) \
-           $(GTIMER) $(GUTILS) $@.o $(LDFLAGS) -o $(BIN)/$@
+           $(GTIMER) $@.o $(LDFLAGS) -o $(BIN)/$@
 
 struc$(SOLVER):
 	$(PREPROCESS) $(EXTRASDIR)/$(@:$(SOLVER)=3D).fpp -o $@.f90
 	$(COMPILE) $@.f90
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(OBJS) \
-           $(STRU_OBJS) $(GTIMER) $(GUTILS) $@.o $(LDFLAGS) -o $(BIN)/$@
+           $(STRU_OBJS) $(GTIMER) $@.o $(LDFLAGS) -o $(BIN)/$@
 
 $(FFTPDIR)/fftp3D.o: 
 	cd $(FFTPDIR) && $(MAKE) COMPILE='$(COMPILE)' CUCOMPILE='$(CUCOMPILE)'
@@ -406,6 +421,9 @@ $(LAGP)/gpartcomm_mod.o:
 
 $(LAGP)/gpsplineint_mod.o:
 	cd $(LAGP) && $(MAKE) COMPILE='$(SPECOMP)' gpsplineint_mod.o
+
+$(LAGP)/gpicsplineint_mod.o:
+	cd $(LAGP) && $(MAKE) COMPILE='$(SPECOMP)' gpicsplineint_mod.o
 
 $(LAGP)/gparts_mod.o:
 	cd $(LAGP) && $(MAKE) COMPILE='$(COMPILE)' gparts_mod.o

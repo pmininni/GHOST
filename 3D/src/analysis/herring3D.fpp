@@ -62,10 +62,16 @@
 #if defined(VELOC_) || defined(ADVECT_)
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz
 #endif
+#if defined(MOM_) 
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: sx,sy,sz
+#endif
 #ifdef VELOC_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fx,fy,fz
 #endif
-
+#ifdef DENSITY_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: rho
+      CHARACTER                                        :: srho           
+#endif
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: th
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fs
 
@@ -199,7 +205,8 @@
       REAL(KIND=GP)    :: s3param5,s3param6,s3param7,s3param8,s3param9
 #endif
 #ifdef COMPRESSIBLE_
-      REAL(KIND=GP)    :: smach, gam1, cp1, nu2
+      INTEGER          :: Stokeshyp
+      REAL(KIND=GP)    :: smach, gam1, cp1, nu2, rho0
 #endif
 #ifdef CMHD_
       REAL(KIND=GP)    :: amach, cp2
@@ -299,12 +306,15 @@
       LOGICAL               :: bbenchexist
 
       ! Data specific to HERRING3D:
+      DOUBLE PRECISION, DIMENSION(3,3) :: bij,dij,gij,vij
+      DOUBLE PRECISION                 :: bden,dden,gden,vden
       REAL(kind=GP) sav,ssk,sku,sg5,sw6,ss2,ss3,ss4,ss5,ss6
       REAL(kind=GP) ktmin,ktmax,omega(3),xnormn
       INTEGER :: ic,ir,it,jc
-      INTEGER :: dolog,inorm,istat(4096),jpdf,nstat
+      INTEGER :: bAniso,bHPDF,dolog,inorm,istat(4096),jpdf,nstat
       INTEGER :: nbinx,nbiny,nbins(2)
-      INTEGER :: btrunc
+      INTEGER :: btrunc,useaccum
+      LOGICAL :: accum
       CHARACTER(len=64) :: ext1
       CHARACTER(len=4096) :: sstat
 
@@ -352,7 +362,7 @@
       NAMELIST / inject / injt,injtm,creset
 #endif
 #ifdef COMPRESSIBLE_
-      NAMELIST / compressible / smach, gam1, nu2
+      NAMELIST / compressible / Stokeshyp, smach, gam1, nu2, rho0
 #endif
 #ifdef CMHD_
       NAMELIST / cmhdb / amach
@@ -406,7 +416,7 @@
       NAMELIST / ptestpart / gyrof,vtherm
 #endif
       NAMELIST / shear / iswap,jpdf
-      NAMELIST / shear / dolog,oswap,idir,odir,sstat
+      NAMELIST / shear / dolog,useaccum,bAniso,bHPDF,oswap,idir,odir,sstat
       NAMELIST / shear / btrunc,ktmin,ktmax,nbinx,nbiny
 
 !
@@ -469,10 +479,19 @@
       ALLOCATE( vy(nz,ny,ista:iend) )
       ALLOCATE( vz(nz,ny,ista:iend) )
 #endif
+#if defined(MOM_) 
+      ALLOCATE( sx(nz,ny,ista:iend) )
+      ALLOCATE( sy(nz,ny,ista:iend) )
+      ALLOCATE( sz(nz,ny,ista:iend) )
+#endif
 #ifdef VELOC_
       ALLOCATE( fx(nz,ny,ista:iend) )
       ALLOCATE( fy(nz,ny,ista:iend) )
       ALLOCATE( fz(nz,ny,ista:iend) )
+#endif
+#ifdef DENSITY_
+      ALLOCATE( rho(nz,ny,ista:iend) )
+      srho = 'rhospect'
 #endif
 #ifdef SCALAR_
       ALLOCATE( C20(nz,ny,ista:iend) )
@@ -1305,6 +1324,10 @@
 !              2: do joint pdfs only
 !              3: do both 1d and joint pdfs
 !     dolog  : compute PDFs in log=space?
+!     useaccum: do accumulation over all specified time steps to 
+!               compute aniso tensors?
+!     bHPDF  : Do PDFs as in Herring m.s.
+!     bAniso : Do anisotropy tensor calculations
 !
 !     Defaults:
       idir   = '.'
@@ -1314,33 +1337,52 @@
       oswap  = 0
       btrunc = 0
       dolog  = 1
+      useaccum = 0
+      bHPDF  = 1
+      bAniso = 1
       jpdf   = 3
+      nbinx  = 100
+      nbiny  = 100
       ktmin  = tiny
       ktmax  = kmax
 
 
       IF (myrank.eq.0) THEN
-write(*,*)'main: opening shear.inp...'
-         OPEN(1,file='shear.inp',status='unknown',form="formatted")
+write(*,*)'main: opening herring.inp...'
+         OPEN(1,file='herring.inp',status='unknown',form="formatted")
          READ(1,NML=shear)
          CLOSE(1)
-write(*,*)'main: shear.inp read.'
+write(*,*)'main: herring.inp read.'
       ENDIF
-      CALL MPI_BCAST(idir  ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(odir  ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(sstat ,4096,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(btrunc,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(dolog ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(iswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(jpdf  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(ktmin ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(ktmax ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(nbinx ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(nbiny ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(oswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(idir   ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(odir   ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sstat  ,4096,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(btrunc ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dolog  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(useaccum,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(bHPDF  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(bAniso ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(iswap  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(jpdf   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ktmin  ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ktmax  ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(nbinx  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(nbiny  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(oswap  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
 if (myrank.eq.0) write(*,*)'main: broadcast done.'
 ! Befor
 ! options are compatible with the SOLVER being used
+
+      ! Initialize anisotropy tensor data:
+      IF ( bAniso .gt. 0 ) THEN
+        accum = .FALSE.
+        IF ( useaccum .gt. 0 ) THEN
+          accum = .TRUE.
+        ENDIF
+        bij = 0.0; dij = 0.0; gij = 0.0; vij = 0.0;
+        bden= 0.0; dden= 0.0; gden= 0.0; vden= 0.0;
+if (myrank.eq.0) write(*,*)'main: accum = ', accum
+      ENDIF
 
       INCLUDE SOLVERCHECK_
 
@@ -1457,13 +1499,36 @@ if (myrank.eq.0) write(*,*)'main: index parsing done: nstat=',nstat
         WRITE(ext1, fmtext) istat(it)
         ext = trim(ext1)
 if (myrank.eq.0) write(*,*)'main: Reading time index: ', ext, '...' 
+#ifdef MOM_
+if (myrank.eq.0) write(*,*)'main: Reading sx...'
+        CALL io_read(1,idir,'sx',ext,planio,R1)
+if (myrank.eq.0) write(*,*)'main: Reading sy...'
+        CALL io_read(1,idir,'sy',ext,planio,R2)
+if (myrank.eq.0) write(*,*)'main: Reading sz...'
+        CALL io_read(1,idir,'sz',ext,planio,R3)
+        CALL fftp3d_real_to_complex(planrc,R1,sx,MPI_COMM_WORLD)
+        CALL fftp3d_real_to_complex(planrc,R2,sy,MPI_COMM_WORLD)
+        CALL fftp3d_real_to_complex(planrc,R3,sz,MPI_COMM_WORLD)
+# ifdef DENSITY_
+if (myrank.eq.0) write(*,*)'main: Reading rho...'
+        CALL io_read(1,idir,'rho',ext,planio,R1)
+if (myrank.eq.0) write(*,*)'main: FFT rho...'
+        CALL fftp3d_real_to_complex(planrc,R1,rho,MPI_COMM_WORLD)
+if (myrank.eq.0) write(*,*)'main: call mom2vel...'
+        CALL mom2vel(rho,sx,sy,sz,0,vx,vy,vz)
+#  endif
+#else
         CALL io_read(1,idir,'vx',ext,planio,R1)
         CALL io_read(1,idir,'vy',ext,planio,R2)
         CALL io_read(1,idir,'vz',ext,planio,R3)
-#ifdef SCALAR_
-        CALL io_read(5,idir,'th',ext,planio,R4)
+        CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
+        CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
+        CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
 #endif
-
+#ifdef SCALAR_
+        CALL io_read(5,idir,'th',ext,planio,R1)
+        CALL fftp3d_real_to_complex(planrc,R1,th,MPI_COMM_WORLD)
+#endif
 if (myrank.eq.0) write(*,*)'main: Time index ', ext, ' read.' 
 
 !if ( myrank.eq.0 ) write(*,*) 'main: real(vz)=',R1(16,1:16,kend)
@@ -1472,12 +1537,6 @@ write(*,*) 'main: max(th)=',maxval(R4), ' min(th)=',minval(R4)
 endif
 
 if (myrank.eq.0) write(*,*)'main: Do fftr2c... ' 
-        CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
-        CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
-        CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
-#ifdef SCALAR_
-        CALL fftp3d_real_to_complex(planrc,R4,th,MPI_COMM_WORLD)
-#endif
       xnormn = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
@@ -1493,18 +1552,31 @@ if (myrank.eq.0) write(*,*)'main: Do fftr2c... '
           END DO
         END DO
       END DO
+
+        IF ( bHPDF .gt. 0 ) THEN
 !if ( myrank.eq.0 ) write(*,*) 'main: vz=',vz(16,1:16,iend)
 if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
-        omega(1) = omegax; omega(2) = omegay; omega(3) = omegaz;
-        nbins(1) = nbinx ; nbins(2) = nbiny;
-        CALL DoHPDF(vx,vy,vz,th,bvfreq,omega,nu,kappa,istat(it), &
-                    odir,jpdf,nbins,dolog,planio,C1,C2,R1,R2,R3,R4,&
-                    R5,R6,R7,R8,R9,R10)
-        IF ( myrank.EQ. 0 ) THEN
-          write(*,*)'main: time index ', ext, ' done.'
+          omega(1) = omegax; omega(2) = omegay; omega(3) = omegaz 
+          nbins(1) = nbinx ; nbins(2) = nbiny
+          CALL DoHPDF(vx,vy,vz,th,bvfreq,omega,nu,kappa,istat(it), &
+                      odir,jpdf,nbins,dolog,planio,C1,C2,R1,R2,R3,R4,&
+                      R5,R6,R7,R8,R9,R10)
+          IF ( myrank.EQ. 0 ) THEN
+            write(*,*)'main: time index ', ext, ' done.'
+          ENDIF
         ENDIF
 
-      ENDDO
+        IF ( bAniso .gt. 0 ) THEN
+          IF ( useaccum .EQ. 0 ) THEN
+            bij = 0.0; dij = 0.0; gij = 0.0; vij = 0.0;
+            bden= 0.0; dden= 0.0; gden= 0.0; vden= 0.0;
+          ENDIF
+          IF ( useaccum .GT. 0 .AND. it .EQ. nstat ) accum = .FALSE.
+write(*,*)'main: nstat=', nstat, ' it=', it, ' accum=', accum
+          CALL DoAniso(vx,vy,vz,th,istat(it),odir,C1,C2,R1,R2,R3,accum,bden,dden,gden,vden, bij,dij,gij,vij)
+        ENDIF
+
+      ENDDO ! end, it-loop
 
       CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 !
@@ -1540,8 +1612,14 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
 #if defined(VELOC_) || defined (ADVECT_)
       DEALLOCATE( vx,vy,vz )
 #endif
+#ifdef MOM_ 
+      DEALLOCATE( sx,sy,sz )
+#endif
 #ifdef ADVECT_
       DEALLOCATE( vsq )
+#endif
+#ifdef DENSITY_
+      DEALLOCATE( rho )
 #endif
 #ifdef SCALAR_
       DEALLOCATE( th,fs )
@@ -2959,152 +3037,6 @@ endif
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-      SUBROUTINE Strain(vx,vy,vz,ir,jc,btrunc,ktmin,ktmax,inorm,ctmp,sij)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!
-! Computes the complex strain rate component 
-!
-! Parameters
-!     vi    : input velocities
-!     ir,jc : the row and col of sij
-!     btrunc: if truncating modes within [ktmin,ktmin], set to TRUE
-!     ktmin : truncaton min wavenumber for spherical truncation
-!     ktmax : truncaton max wavenumber for spherical truncation
-!     inorm : normalize (1), or not (0)
-!     ctmp  : complex temp array
-!     sij   : complex tensor component, returned
-!
-      USE fprecision
-      USE commtypes
-      USE kes
-      USE grid
-      USE mpivars
-      USE ali
-      USE fft
-!$    USE threads
-      IMPLICIT NONE
-
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: sij
-      REAL   (KIND=GP), INTENT   (IN)                             :: ktmin,ktmax
-      INTEGER         , INTENT   (IN)                             :: btrunc,inorm,ir,jc
-!
-      REAL   (KIND=GP)                                            :: ktmin2,ktmax2,tmp
-      INTEGER                                                     :: i,j,k
-
-      IF ( ir.NE.1 .AND. ir.NE.2 .AND. ir.NE.3 &
-      .AND.jc.NE.1 .AND. jc.NE.2 .AND. jc.NE.3 ) THEN
-        WRITE(*,*)'Strain: invalid row/column specification: ', ir, jc
-        STOP
-      ENDIF
-
-      ktmin2 = ktmin**2
-      ktmax2 = ktmax**2
-
-      IF ( ir.EQ.1 ) THEN
-        CALL derivk3(vx, sij, jc)
-        SELECT CASE (jc)
-          CASE(1)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-              DO j = 1,ny
-                DO k = 1,nz
-                  ctmp(k,j,i) = sij(k,j,i)
-                END DO
-              END DO
-            END DO
-          CASE(2)
-            CALL derivk3(vy, ctmp, 1)
-          CASE(3)
-            CALL derivk3(vz, ctmp, 1)
-        END SELECT
-      ELSE IF ( ir.EQ.2 ) THEN
-        CALL derivk3(vy, sij, jc)
-        SELECT CASE (jc)
-          CASE(1)
-            CALL derivk3(vx, ctmp, 2)
-          CASE(2)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-              DO j = 1,ny
-                DO k = 1,nz
-                  ctmp(k,j,i) = sij(k,j,i)
-                END DO
-              END DO
-            END DO
-          CASE(3)
-            CALL derivk3(vz, ctmp, 2)
-        END SELECT
-      ELSE IF ( ir.EQ.3 ) THEN
-        CALL derivk3(vz, sij, jc)
-        SELECT CASE (jc)
-          CASE(1)
-            CALL derivk3(vx, ctmp, 3)
-          CASE(2)
-            CALL derivk3(vy, ctmp, 3)
-          CASE(3)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-              DO j = 1,ny
-                DO k = 1,nz
-                  ctmp(k,j,i) = sij(k,j,i)
-                END DO
-              END DO
-            END DO
-        END SELECT
-      ENDIF
-
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-        DO j = 1,ny
-          DO k = 1,nz
-            sij(k,j,i) = 0.50_GP*(sij(k,j,i)+ctmp(k,j,i)) 
-          END DO
-        END DO
-      END DO
-
-
-      IF ( btrunc .GT. 0 ) THEN
-        ! truncate spherically:
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-        DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-          DO j = 1,ny
-            DO k = 1,nz
-              IF ((kk2(k,j,i).lt.ktmin2 ).or.(kk2(k,j,i).gt.ktmax2)) THEN
-                sij(k,j,i) = 0.0_GP
-              ENDIF
-            END DO
-          END DO
-        END DO
-      ENDIF
-
-
-      IF ( inorm.GT.0 ) THEN
-        
-        tmp = 1.0_GP/REAL(nx*ny*nz,KIND=GP)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-        DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-          DO j = 1,ny
-            DO k = 1,nz
-              sij(k,j,i) = sij(k,j,i)*tmp
-            END DO
-          END DO
-        END DO
-
-      ENDIF
-
-      END SUBROUTINE Strain
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
 
       SUBROUTINE compute_dissv(vx,vy,vz,btrunc,ktmin,ktmax,inorm,ctmp1,ctmp2, &
                                 S11,S12,S13,S22,S23,S33,diss)
@@ -3549,3 +3481,95 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+      SUBROUTINE DoAniso(vx,vy,vz,th,indtime,odir,C1,C2,R1,R2,R3,accum,bdenom,ddenom,gdenom,vdenom, bij,dij,gij,vij)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Computes the 1d and joint PDFs, misc statistics 
+! Note: after this call, the input data should be expected to be overwritten.
+!
+! Parameters
+!     vx,
+!     vy,
+!     vz     : complex velocities
+!     th     : pot. temp
+!     indtime: integter time index
+!     odir   : output directory
+!     accum  : if TRUE, continues to accumulate the aniso tensors and normalizations.
+!              If FALSE, final accumulation is done, and global sums are done to
+!              compute tensors
+!     bij,gij,
+!     vij,dij: aniso tensors, returned. First time in, should be initialized to 0
+!     bdenom,
+!     ...   ,
+!     ddenom: Tensor normalizations, returned. First time in, should be initialized to 0
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE gutils
+      USE iovar
+      USE iompi
+      USE filefmt
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend):: vx,vy,vz,th
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: C1,C2
+
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2,R3
+      DOUBLE PRECISION,                DIMENSION(4,3)            :: invar
+      DOUBLE PRECISION, INTENT(INOUT), DIMENSION(3,3), TARGET    :: bij,vij,gij,dij
+      DOUBLE PRECISION, INTENT(INOUT)                            :: bdenom,vdenom,gdenom,ddenom
+      TYPE(PMAT)                                                 :: pm(4)
+      LOGICAL                                                    :: bexist
+      LOGICAL         , INTENT   (IN)                            :: accum
+      INTEGER         , INTENT   (IN)                            :: indtime
+      INTEGER                                                    :: i,j
+      CHARACTER(len=*), INTENT   (IN)                            :: odir
+      CHARACTER(len=1024)                                        :: fnout
+      CHARACTER(len=128)                                         :: rowfmt
+
+      WRITE(rowfmt,'(A, I4, A)') '(I4,',12,'(2X,E14.6))'
+
+      pm(1).mat => bij
+      pm(2).mat => dij
+      pm(3).mat => gij
+      pm(4).mat => vij
+      CALL anisobij(vx,vy,vz,C1,R1,R2,R3,accum,bdenom,bij)
+      CALL anisodij(vx,vy,vz,C1,C2,R1,R2,accum,ddenom,dij)
+      CALL anisogij(th,C1,R1,R2,R3,accum,gdenom,gij)
+      CALL anisovij(vx,vy,vz,C1,C2,R1,R2,R3,accum,vdenom,vij)
+
+      IF (.not. accum) THEN
+        DO i = 1, 3 ! which invariant, I, II, III
+          DO j = 1, 4 ! which tensor
+            CALL invariant(pm(j).mat, i, invar(j,i))
+          ENDDO
+        ENDDO
+      ENDIF
+
+
+      IF (myrank.eq.0 .AND. .not. accum) THEN
+      fnout = trim(odir) // '/' // 'invar.txt'
+      inquire( file=fnout, exist=bexist )
+      OPEN(2,file=trim(fnout),position='append')
+      if ( .NOT. bexist ) THEN
+      WRITE(2,'(A, 4x, 12(A, 3x))') '#itime', 'bI', 'bII', 'bIII', 'dI', 'dII', 'dIII', 'gI', 'gII', 'gIII', 'vI', 'vII', 'vIII'
+      ENDIF
+      WRITE(2,rowfmt,advance='no') &
+                          indtime, invar(1,1), invar(1,2), invar(1,3), &
+                          invar(2,1), invar(2,2), invar(2,3), &
+                          invar(3,1), invar(3,2), invar(3,3), &
+                          invar(4,1), invar(4,2), invar(4,3) 
+      CLOSE(2)
+      ENDIF
+
+
+      END SUBROUTINE DoAniso

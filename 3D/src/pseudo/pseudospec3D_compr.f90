@@ -39,8 +39,7 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: a,b
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN),    DIMENSION(nz,ny,ista:iend) :: d
       COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: x
       REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2
@@ -63,9 +62,9 @@
 
       CALL fftp3d_complex_to_real(plancr,x,r4,MPI_COMM_WORLD)
 
-!$omp parallel do if (iend-ista.ge.nth) private (j,i)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
-!$omp parallel do if (iend-ista.lt.nth) private (i)
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
                r1(i,j,k) = r1(i,j,k)/r4(i,j,k)
@@ -81,6 +80,54 @@
 
       RETURN
       END SUBROUTINE divide
+
+!*****************************************************************
+      SUBROUTINE gradpressi(gam1,e,dpx,dpy,dpz)
+!-----------------------------------------------------------------
+!
+! Computes the gradient of the thermo. pressure assuming
+! ideal equation of state, based on a polytropic law, s.t.
+!    p = (gamma - 1) * e
+! where e is internal energy density.
+!
+! Parameters
+!     gam1: gamma - 1
+!     e   : input matrix with int. energy density (in Fourier space)
+!     dpx : output matrix with grad(press)_x (in Fourier space)
+!     dpy : output matrix with grad(press)_y (in Fourier space)
+!     dpz : output matrix with grad(press)_z (in Fourier space)
+!
+      USE fprecision
+      USE kes
+      USE grid
+      USE commtypes
+      USE mpivars
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: e
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: dpx,dpy,dpz
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: t
+      REAL(KIND=GP),    INTENT(IN)                 :: gam1
+      INTEGER       :: i,j,k
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               t  (k,j,i) = gam1 * e(k,j,i)
+            END DO
+         END DO
+      END DO
+
+      CALL derivk3(t,dpx,1)
+      CALL derivk3(t,dpy,2)
+      CALL derivk3(t,dpz,3)
+
+      RETURN
+      END SUBROUTINE gradpressi
 
 !*****************************************************************
       SUBROUTINE gradpress(cp1,gam1,d,a,b,c,e,f,g)
@@ -137,9 +184,9 @@
       CALL fftp3d_complex_to_real(plancr,h,r4,MPI_COMM_WORLD)
 
       tmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
-!$omp parallel do if (iend-ista.ge.nth) private (j,i)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
-!$omp parallel do if (iend-ista.lt.nth) private (i)
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
                r4(i,j,k) = 0.5_GP*( r1(i,j,k)*r1(i,j,k)*tmp*tmp + &
@@ -202,9 +249,9 @@
       CALL fftp3d_complex_to_real(plancr,h,r4,MPI_COMM_WORLD)
 
       tmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
-!$omp parallel do if (iend-ista.ge.nth) private (j,i)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
-!$omp parallel do if (iend-ista.lt.nth) private (i)
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
                r4(i,j,k) = .5_GP*cp1*(r4(i,j,k)*tmp)**gam1
@@ -220,8 +267,9 @@
       RETURN
       END SUBROUTINE gradpstate
 
+
 !*****************************************************************
-      SUBROUTINE divrhov(d,a,b,c,e)
+      SUBROUTINE divrhov(d,a,b,c,dodealias,e)
 !-----------------------------------------------------------------
 !
 ! Computes the divergence of the product of scalar 'd' by
@@ -232,6 +280,8 @@
 !     b  : input matrix with v_y (in Fourier space)
 !     c  : input matrix with v_z (in Fourier space) [A = (a,b,c)]
 !     d  : input matrix with density (in Fourier space)
+!     dodealias:
+!          flag (0, 1) to do dealiasing
 !     e  : output matrix with div(d.A) (in Fourier space)
 !
       USE fprecision
@@ -240,9 +290,11 @@
       USE commtypes
       USE mpivars
       USE fft
+      USE ali
 !$    USE threads
       IMPLICIT NONE
 
+      INTEGER         , INTENT (IN)                             :: dodealias
       COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: a,b
       COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: c,d
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: e
@@ -265,6 +317,25 @@
          END DO
       END DO
 
+      ! Dealiases the result:
+      IF ( dodealias .gt. 0 ) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+                  IF (kn2(k,j,i).gt.kmax) THEN
+                     e(k,j,i) = 0.0_GP
+                     f(k,j,i) = 0.0_GP
+                     g(k,j,i) = 0.0_GP
+                     h(k,j,i) = 0.0_GP
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ENDIF
+
+
       CALL fftp3d_complex_to_real(plancr,f,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,g,r2,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,h,r3,MPI_COMM_WORLD)
@@ -272,9 +343,9 @@
 
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
-!$omp parallel do if (iend-ista.ge.nth) private (j,i)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
-!$omp parallel do if (iend-ista.lt.nth) private (i)
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
                r1(i,j,k) = r4(i,j,k)*r1(i,j,k)*tmp
@@ -300,6 +371,22 @@
             END DO
          END DO
       END DO
+
+      ! Dealiases the result:
+      IF ( dodealias .gt. 0 ) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+                  IF (kn2(k,j,i).gt.kmax) THEN
+                     e(k,j,i) = 0.0_GP
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ENDIF
+
 
       RETURN
       END SUBROUTINE divrhov
@@ -438,9 +525,9 @@
       tmp1 = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
       gam0 = gam1 + 1.0_GP
-!$omp parallel do if (iend-ista.ge.nth) private (j,i) reduction(+:loc_ekin,loc_eint)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i) reduction(+:loc_ekin,loc_eint)
       DO k = ksta,kend
-!$omp parallel do if (iend-ista.lt.nth) private (i) reduction(+:loc_ekin,loc_eint)
+!$omp parallel do if (kend-ksta.lt.nth) private (i) reduction(+:loc_ekin,loc_eint)
          DO j = 1,ny
             DO i = 1,nx
                loc_ekin = loc_ekin + r4(i,j,k) * (r1(i,j,k)*r1(i,j,k)   + &
@@ -469,3 +556,490 @@
 
       RETURN
       END SUBROUTINE energycompr
+
+!*****************************************************************
+      SUBROUTINE massenergycompi(gam1, a,b,c,d,e,t,dt)
+!-----------------------------------------------------------------
+!
+! Computes and outputs the total mass and the kinetic and 
+! internal energy densities for compressible runs, for the 
+! system of PDEs in which the internal energy is evolved.
+!
+! Output file contains:
+! 'compi_massener.txt': time, mass, kinetic energy density, internal
+! energy density, mean Mach number
+!
+! Parameters
+!     gam1: gamma - 1
+!     a   : input matrix with v_x (in Fourier space)
+!     b   : input matrix with v_y (in Fourier space)
+!     c   : input matrix with v_z (in Fourier space) [A = (a,b,c)]
+!     d   : input matrix with density (in Fourier space)
+!     e   : input matrix with density (in Fourier space)
+!     t   : number of time steps made
+!     dt  : time step
+!
+      USE fprecision
+      USE kes
+      USE grid
+      USE commtypes
+      USE mpivars
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: e
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: t1,t2,t3,t4,t5
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3,r4,r5
+      REAL(KIND=GP),    INTENT(IN)  :: gam1, dt
+      INTEGER,          INTENT(IN)  :: t
+      REAL(KIND=GP)                 :: csq, tmp1, tmp2, tmp3, vsq
+      DOUBLE PRECISION              :: tot_ekin,tot_eint,tot_mass,tot_mach
+      DOUBLE PRECISION              :: tot_c,tot_v
+      DOUBLE PRECISION              :: tiny,v2,vloc(5),vtot(5)
+      INTEGER                       :: i,j,k
+
+      tiny = 100.0*epsilon(tot_mach)
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               t1(k,j,i) = a(k,j,i)
+               t2(k,j,i) = b(k,j,i)
+               t3(k,j,i) = c(k,j,i)
+               t4(k,j,i) = d(k,j,i)
+               t5(k,j,i) = e(k,j,i)
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_complex_to_real(plancr,t1,r1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t2,r2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t3,r3,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t4,r4,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t5,r5,MPI_COMM_WORLD)
+
+      vloc = 0.0D0
+      tmp3  = 1.0_GP/ &
+              (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**3
+      tmp2  = 1.0_GP/ &
+              (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+      tmp1 = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+!$omp parallel do if (kend-ista.ge.nth) private (j,i) reduction(+vloc)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i) reduction(+:vloc)
+         DO j = 1,ny
+            DO i = 1,nx
+               v2      = r1(i,j,k)*r1(i,j,k)   + &
+                         r2(i,j,k)*r2(i,j,k)   + &
+                         r3(i,j,k)*r3(i,j,k) 
+               vsq     = v2 * tmp2
+               csq     = gam1*(gam1+1.0_GP) * r5(i,j,k) / (r4(i,j,k)+tiny)
+               vloc(1) = vloc(1) + (r4(i,j,k) * v2 * tmp3)
+               vloc(2) = vloc(2) + (r5(i,j,k)*tmp1)
+               vloc(3) = vloc(3) + (r4(i,j,k)*tmp1)
+               vloc(4) = vloc(4) + vsq 
+               vloc(5) = vloc(5) + csq
+            END DO
+         END DO
+      END DO
+
+      ! Compute averages over grid:
+      vloc(1) = vloc(1)*tmp1
+      vloc(2) = vloc(2)*tmp1
+      vloc(3) = vloc(3)*tmp1
+      vloc(4) = vloc(4)*tmp1
+      vloc(5) = vloc(5)*tmp1
+
+      CALL MPI_REDUCE(vloc,vtot,5,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+                      MPI_COMM_WORLD,ierr)
+      tot_ekin = vtot(1)
+      tot_eint = vtot(2)
+      tot_mass = vtot(3)
+      tot_v    = sqrt(vtot(4))
+      tot_c    = sqrt(vtot(5))
+      tot_mach = tot_v/(tot_c+tiny)
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='compi_massenergy.txt',position='append')
+         WRITE(1,10) (t-1)*dt,tot_mass,tot_ekin,tot_eint,tot_v,tot_c,tot_mach
+   10    FORMAT( E13.6,E26.18,E26.18,E26.18,E26.18,E26.18,E26.18 )
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE massenergycompi
+
+
+!*****************************************************************
+      SUBROUTINE pdVwork(gam1,e,a,b,c,dodealias,pdV)
+!-----------------------------------------------------------------
+!
+! Computes p.Div v term
+!
+! Parameters
+!     gam1: gamma - 1 
+!     e   : input matrix with int. energy density (in Fourier space)
+!     a   : input matrix with v_x (in Fourier space)
+!     b   : input matrix with v_y (in Fourier space)
+!     c   : input matrix with v_z (in Fourier space) [A = (a,b,c)]
+!     dodealias:
+!          flag (0, 1) to do dealiasing
+!     pdV : result 
+!
+      USE fprecision
+      USE kes
+      USE grid
+      USE commtypes
+      USE mpivars
+      USE fft
+      USE ali
+!$    USE threads
+      IMPLICIT NONE
+
+      INTEGER         , INTENT (IN)                             :: dodealias
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: c
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: e
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: pdV
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: t1,t2,t3,t4
+      REAL(KIND=GP)   , INTENT (IN)                :: gam1
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3,r4
+      REAL(KIND=GP)                 :: tmp
+      INTEGER                       :: i,j,k
+
+      ! Take divergence terms:
+      CALL derivk3(a,t1,1)
+      CALL derivk3(b,t2,2)
+      CALL derivk3(c,t3,3)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               t4(k,j,i) = e(k,j,i)
+            END DO
+         END DO
+      END DO
+
+      ! Dealiases the result:
+      IF ( dodealias .gt. 0 ) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+                  IF (kn2(k,j,i).gt.kmax) THEN
+                     t1(k,j,i) = 0.0_GP
+                     t2(k,j,i) = 0.0_GP
+                     t3(k,j,i) = 0.0_GP
+                     t4(k,j,i) = 0.0_GP
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ENDIF
+
+      CALL fftp3d_complex_to_real(plancr,t1,r1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t2,r2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t3,r3,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t4,r4,MPI_COMM_WORLD)
+
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               r1(i,j,k) = gam1*r4(i,j,k)*r1(i,j,k)*tmp
+               r2(i,j,k) = gam1*r4(i,j,k)*r2(i,j,k)*tmp
+               r3(i,j,k) = gam1*r4(i,j,k)*r3(i,j,k)*tmp
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_real_to_complex(planrc,r1,t1,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,r2,t2,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,r3,t3,MPI_COMM_WORLD)
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               pdV(k,j,i) = t1(k,j,i) + t2(k,j,i) + t3(k,j,i)
+            END DO
+         END DO
+      END DO
+
+ 
+      ! Dealiases the result:
+      IF ( dodealias .gt. 0 ) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+                  IF (kn2(k,j,i).gt.kmax) THEN
+                     pdV(k,j,i) = 0.0_GP
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ENDIF
+
+
+      RETURN
+      END SUBROUTINE pdVwork
+
+!*****************************************************************
+      SUBROUTINE mom2vel(rho,sx,sy,sz,dodealias,vx,vy,vz) 
+!-----------------------------------------------------------------
+!
+! Computes velocity from momentum
+!
+! Parameters
+!     rho   : density
+!     sx,sy,
+!     sz    : momentum componnts
+!     dodealias:
+!          flag (0, 1) to do dealiasing
+!     vx,vy,
+!     vz    : velocity componnts
+!
+      USE fprecision
+      USE kes
+      USE grid
+      USE commtypes
+      USE mpivars
+      USE fft
+      USE ali
+!$    USE threads
+      IMPLICIT NONE
+
+      INTEGER         , INTENT (IN)                             :: dodealias
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: rho
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: sx,sy,sz
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: t1,t2,t3,t4
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3,r4
+      REAL(KIND=GP)                 :: tmp
+      INTEGER                       :: i,j,k
+
+      
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               t1(k,j,i) = sx (k,j,i)
+               t2(k,j,i) = sy (k,j,i)
+               t3(k,j,i) = sz (k,j,i)
+               t4(k,j,i) = rho(k,j,i)
+            END DO
+         END DO
+      END DO
+
+      ! Dealiases the result:
+      IF ( dodealias .gt. 0 ) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+                  IF (kn2(k,j,i).gt.kmax) THEN
+                     t1(k,j,i) = 0.0_GP
+                     t2(k,j,i) = 0.0_GP
+                     t3(k,j,i) = 0.0_GP
+                     t4(k,j,i) = 0.0_GP
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ENDIF
+
+
+      CALL fftp3d_complex_to_real(plancr,t1,r1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t2,r2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t3,r3,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t4,r4,MPI_COMM_WORLD)
+
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               r1(i,j,k) = r1(i,j,k)/r4(i,j,k)
+               r2(i,j,k) = r2(i,j,k)/r4(i,j,k)
+               r3(i,j,k) = r3(i,j,k)/r4(i,j,k)
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_real_to_complex(planrc,r1,vx,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,r2,vy,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,r3,vz,MPI_COMM_WORLD)
+
+      ! Dealiases the result:
+      IF ( dodealias .gt. 0 ) THEN
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+                  IF (kn2(k,j,i).gt.kmax) THEN
+                     vx(k,j,i) = 0.0_GP
+                     vy(k,j,i) = 0.0_GP
+                     vz(k,j,i) = 0.0_GP
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ENDIF
+
+
+      RETURN
+      END SUBROUTINE mom2vel
+
+!*****************************************************************
+      SUBROUTINE viscHeatRayleigh(a,b,c,phi)
+!-----------------------------------------------------------------
+!
+! Computes viscous heat term (Rayleigh form):
+!     phi = tau_ij dv^i/dx^j
+! where
+!     tau_ij = 2 mu S_ij - 2/3 mu Div v delta_ij
+! and
+!     S_ij   = 1/2 ( v^i,j + v^j,i ) is strain rate.
+! Then
+!     phi = mu (v^j,i + v^i,j) - 2/3 mu (Div v)^2.
+!
+! Actually, the kernel phi/mu is returned, and user
+! should multiply this term by mu 
+! 
+!
+!
+! Parameters
+!     a   : input matrix with v_x (in Fourier space)
+!     b   : input matrix with v_y (in Fourier space)
+!     c   : input matrix with v_z (in Fourier space) 
+!     phi : result 
+!
+      USE fprecision
+      USE kes
+      USE grid
+      USE commtypes
+      USE mpivars
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: b
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: c
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: phi
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: t1,t2,t3,t4
+      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3,r4
+      REAL(KIND=GP)                 :: tmp
+      INTEGER                       :: i,j,k
+      INTEGER                       :: btrunc,bnorm
+
+      btrunc = 0
+      bnorm  = 0
+      ! Find diagonal strain rate components with normalization:
+      CALL Strain(a,b,c,1,1,btrunc,0,0,bnorm,t4,t1) ! S11
+      CALL Strain(a,b,c,2,2,btrunc,0,0,bnorm,t4,t2) ! S22
+      CALL Strain(a,b,c,3,3,btrunc,0,0,bnorm,t4,t3) ! S33
+
+      CALL fftp3d_complex_to_real(plancr,t1,r1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t2,r2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t3,r3,MPI_COMM_WORLD)
+
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               r4(i,j,k) = 0.0_GP
+            END DO
+         END DO
+      END DO
+
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               r4(i,j,k) = r4(i,j,k) + 2.0* ( r1(i,j,k)*r1(i,j,k) &
+                                            + r2(i,j,k)*r2(i,j,k) &
+                                            + r3(i,j,k)*r3(i,j,k) )*tmp
+            END DO
+         END DO
+      END DO
+
+      ! Find off-diagonal strain rate components with normalization:
+      CALL Strain(a,b,c,1,2,btrunc,0,0,bnorm,t4,t1) ! S12
+      CALL Strain(a,b,c,1,3,btrunc,0,0,bnorm,t4,t2) ! S13
+      CALL Strain(a,b,c,2,3,btrunc,0,0,bnorm,t4,t3) ! S23
+
+      CALL fftp3d_complex_to_real(plancr,t1,r1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t2,r2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,t3,r3,MPI_COMM_WORLD)
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               r4(i,j,k) = r4(i,j,k) + 4.0* ( r1(i,j,k)*r1(i,j,k) &
+                                            + r2(i,j,k)*r2(i,j,k) &
+                                            + r3(i,j,k)*r3(i,j,k) )*tmp
+            END DO
+         END DO
+      END DO
+
+      ! Subtract dilitation term.
+      ! First, compute dilitation term:
+      CALL derivk3(a,t1,1)
+      CALL derivk3(b,t2,2)
+      CALL derivk3(a,t3,3)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               t3(k,j,i) = t3(k,j,i) + t2(k,j,i) + t1(k,j,i)
+            END DO
+         END DO
+      END DO
+     
+      CALL fftp3d_complex_to_real(plancr,t3,r3,MPI_COMM_WORLD)
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               r4(i,j,k) = r4(i,j,k) - (2.0_GP/3.0_GP)*r3(i,j,k)*r3(i,j,k)*tmp
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_real_to_complex(planrc,r4,phi,MPI_COMM_WORLD)
+
+      RETURN
+      END SUBROUTINE viscHeatRayleigh

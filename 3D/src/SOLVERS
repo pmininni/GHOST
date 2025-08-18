@@ -32,6 +32,7 @@ to build a solver other than the default):
    HMHD       Hall-MHD solver
    HMHDB      HMHD solver with a uniform magnetic field
    COMPRHD    Compressible HD solver
+   COMPIHD    Compressible HD solver, evolving int. energy density
    CMHD       Compressible MHD solver
    CMHDB      Compressible MHD solver with uniform B_0
    CHMHD      Compressible Hall-MHD solver
@@ -43,6 +44,8 @@ to build a solver other than the default):
    ROTBOUSS   BOUSS solver in a rotating frame
    ROTBOUMHDB BOUSS and MHD solver with rotation and B_0
    MPROTBOUSS BOUSS solver in a rotating frame with multi-scalar
+   MOIST_SOL  MOIST Boussinesq solver
+   HDPNLT     HD solver with the penalty method
    GPE        Gross-Pitaevskii Equation (GPE) solver
    ARGL       Advective Real Ginzburg Landau solver
    RGPE       Rotating GPE solver with trapping potential
@@ -53,6 +56,8 @@ to build a solver other than the default):
    LAMHD      Lagrangian-averaged MHD solver
    EDQNMHD    EDQNM HD solver
    EDQNMROTH  EDQNM ROTH solver
+   HPIC_SOL       builds the hybrid PIC solver
+   EHPIC_SOL      builds the hybrid electrostatic PIC solver
 
 2. utils
 ========

@@ -93,6 +93,15 @@
   END MODULE hall
 !=================================================================
 
+  MODULE voigt
+      USE fprecision
+      REAL(KIND=GP)                                 :: voigt_alpha
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: Hinv
+      SAVE
+
+  END MODULE voigt
+!=================================================================
+
   MODULE hbar
       USE fprecision
       REAL(KIND=GP) :: alpha,beta,omegag
