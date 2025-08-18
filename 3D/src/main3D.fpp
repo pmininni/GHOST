@@ -125,6 +125,9 @@
 #if defined(PART_) || defined(PIC_)
       USE class_GPart
 #endif
+#if defined(VELOCSGS_) && defined(SCALARSGS_)
+      USE class_GSGSmodel
+#endif
 
       IMPLICIT NONE
 
@@ -206,6 +209,9 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C20
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M7
 #endif
+#ifdef SCALARSGS_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: SGSth
+#endif
 #ifdef MULTISCALAR_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C21,C22,C23,C24
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M8,M9,M10
@@ -238,6 +244,9 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fxold,fyold,fzold
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fxnew,fynew,fznew
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)        :: Faux1,Faux2
+#endif
+#ifdef VELOCSGS_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: CSGS,SGS1,SGS2,SGS3
 #endif
 #ifdef MAGFIELD_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: mxold,myold,mzold
@@ -444,6 +453,9 @@
 #if defined(DEF_GHOST_CUDA_)
       TYPE(cudaDevicePropG) :: devprop
 #endif
+#if defined(VELOCSGS_) && defined(SCALARSGS_)
+      TYPE (GSGSmodel)      :: mlsgs
+#endif
       TYPE(IOPLAN)          :: planio
       CHARACTER(len=100)    :: odir,idir
 #if defined(PART_)
@@ -453,7 +465,7 @@
       CHARACTER(len=1024)   :: picseedfile,spicfpfile
 #endif
       LOGICAL               :: bbenchexist
-      LOGICAL               :: use_voigt
+      LOGICAL               :: use_mlsgs, use_voigt
 
 !
 ! Namelists for the input files
@@ -468,7 +480,7 @@
       NAMELIST / velocity / fparam3,fparam4,fparam5,fparam6,fparam7
       NAMELIST / velocity / fparam8,fparam9,vparam0,vparam1,vparam2
       NAMELIST / velocity / vparam3,vparam4,vparam5,vparam6,vparam7
-      NAMELIST / velocity / vparam8,vparam9,use_voigt,voigt_alpha
+      NAMELIST / velocity / vparam8,vparam9,use_mlsgs,use_voigt,voigt_alpha
 #endif
 #ifdef SCALAR_
       NAMELIST / scalar / c0,s0,skdn,skup,kappa,cparam0,cparam1
@@ -635,6 +647,7 @@
 #endif
 
      use_voigt = .FALSE. ! Voigt flag
+     use_mlsgs = .FALSE. ! ML-SGS terms
 
      CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
      CALL range(1,nz,nprocs,myrank,ksta,kend)
@@ -652,6 +665,13 @@
       ALLOCATE( vy(nz,ny,ista:iend) )
       ALLOCATE( vz(nz,ny,ista:iend) )
 #endif
+#ifdef VELOCSGS_
+      ALLOCATE( SGS1(nz,ny,ista:iend) )
+      ALLOCATE( SGS2(nz,ny,ista:iend) )
+      ALLOCATE( SGS3(nz,ny,ista:iend) )
+      ALLOCATE( CSGS3(nz,ny,ista:iend) )
+#endif
+
 #if defined(MOM_) 
       ALLOCATE( sx(nz,ny,ista:iend) )
       ALLOCATE( sy(nz,ny,ista:iend) )
@@ -700,6 +720,9 @@
       ALLOCATE( C20(nz,ny,ista:iend) )
       ALLOCATE( th (nz,ny,ista:iend) )
       ALLOCATE( fs (nz,ny,ista:iend) )
+#endif
+#ifdef SCALARSGS_
+      ALLOCATE( SGSth(nz,ny,ista:iend) )
 #endif
 #ifdef MULTISCALAR_
       ALLOCATE( C21(nz,ny,ista:iend), C22(nz,ny,ista:iend) )
@@ -924,6 +947,7 @@
 !     nu   : kinematic viscosity
 !     use_voigt   : use Voigt regularization
 !     voigt_alpha : use Voigt regularization parameter (length scale in [0,1])
+!     use_mlsgs   : use ML-based SGS terms
 !     fparam0-9   : ten real numbers to control properties of
 !                   the mechanical forcing
 !     vparam0-9   : ten real numbers to control properties of
@@ -941,6 +965,7 @@
       CALL MPI_BCAST(nu,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(use_voigt,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(voigt_alpha,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(use_mlsgs,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(fparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(fparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(fparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
@@ -1732,6 +1757,13 @@
        write(*,*) 'main: Voigt regularization may not be used with this solver'
        STOP
      ENDIF
+
+#endif
+#if !(defined(BOUSS_SOL) | defined(ROTBOUSS_SOL))
+     IF ( use_mlsgs ) THEN
+       write(*,*) 'main: MLSGS may not be used with this solver'
+       STOP
+     ENDIF
 #endif
 
       INCLUDE SOLVERCHECK_
@@ -2012,6 +2044,13 @@
         CALL lagfp%SetRandSeed(seed)
         CALL lagfp%SetSeedFile(trim(slgfpfile))
       ENDIF
+#endif
+
+     ! Create ML-SGS interface:
+#if  (defined(ROTBOUSSSGS_SOL))
+     IF ( use_mlsgs ) THEN
+        CALL mlsgs%GSGS_ctor(MPI_COMM_WORLD, (/nx ,ny ,nz /), (/ista,iend,ksta,kend/), arbsz, (/Dkx,Dky,Dkz/), plancr, planrc )
+     ENDIF
 #endif
 
 !
@@ -3548,6 +3587,12 @@
         WRITE(*,*) 'main: <GPTIME_GPWRITE>=', &
 	           lagpart%GetTime(GPTIME_GPWRITE)/nwpart
       ENDIF
+#endif
+
+#if  (defined(ROTBOUSSSGS_SOL))
+     IF ( use_mlsgs ) THEN
+        CALL mlsgs%GSGS_dtor()
+     ENDIF
 #endif
       CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
