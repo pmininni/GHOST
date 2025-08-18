@@ -3,9 +3,9 @@
 #****************************************************************************
 
 # Spatial resolution (grid points in X,Y,Z)
-NX       = 256
-NY       = 256
-NZ       = 256
+NX       = 64
+NY       = 64
+NZ       = 64
 
 # ORD:     number of iterations in the Runge-Kutta method
 ORD      = 2
@@ -14,7 +14,7 @@ ORD      = 2
 SOLVER   = HD
 
 # PRECISION: (SINGLE or DOUBLE)
-PRECISION= SINGLE
+PRECISION= ROTBOUSS
 
 # Box size:
 # ARBSIZE=yes  # Box size defined by the user
@@ -52,8 +52,17 @@ PARTICLES = no
 # version of the FFT that is used is needed, the others can be left empty.
 FFTP     = fftp-3
 FFTW2DIR = /opt/ohpc/pub/libs/gnu7/fftw/2.1.5
-FFTW3DIR = /opt/ohpc/pub/libs/gnu7/fftw/3.3.7
+FFTW3DIR = /scratch3/BMC/gsd-hpcs/rosenberg/opt/apps/fftw-3.3.10_gnu_openmpi
 MKLDIR   = /opt/ohpc/pub/compiler/intel/mkl/2022.1.0
+
+# ECTOOLS:
+ECKITDIR   = /scratch3/BMC/gsd-hpcs/rosenberg/opt/apps/eckit_gcc_openmpi
+FCKITDIR   = /scratch3/BMC/gsd-hpcs/rosenberg/opt/apps/fckit_gcc_openmpi
+INFERODIR  = /scratch3/BMC/gsd-hpcs/rosenberg/opt/apps/infero_gcc_openmpi
+ECLIBSZ    = lib64
+ECKITLIB   = -leckit
+FCKITLIB   = -lfckit
+INFEROLIB  = -linfero
 
 # IKIND    4 in 32 bits machines, 8 in 64 bits machines
 # NSTRIP   controls strip mining (often set to 1)
@@ -70,7 +79,7 @@ APPEND   = _
 
 # Fortran compiler and MPI distribution (see below)
 COMPILER   = GNU
-MPI        = OPEN
+MPI        = 
 CUCOMPILER = NVIDIA
 
 #****************************************************************************
