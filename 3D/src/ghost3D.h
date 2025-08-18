@@ -192,6 +192,17 @@
 #define INCLUDEFNAME_ 'rotbouss_
 #endif
 
+#ifdef ROTBOUSSSGS_SOL
+#define DNS_
+#define VELOC_
+#define VELOCSGS_
+#define SCALAR_
+#define SCALARSGS_
+#define ROTATION_
+#define BOUSSINESQ_
+#define INCLUDEFNAME_ 'rotbouss_
+#endif
+
 #ifdef ROTBOUMHDB_SOL
 #define DNS_
 #define VELOC_

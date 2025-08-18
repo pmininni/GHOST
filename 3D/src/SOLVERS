@@ -42,6 +42,7 @@ to build a solver other than the default):
    MPROTH     ROTH solver with multi-scalar
    BOUSS      Boussinesq solver
    ROTBOUSS   BOUSS solver in a rotating frame
+   ROTBOUSSSTS BOUSS solver in a rotating frame with ML-SGS terms
    ROTBOUMHDB BOUSS and MHD solver with rotation and B_0
    MPROTBOUSS BOUSS solver in a rotating frame with multi-scalar
    MOIST_SOL  MOIST Boussinesq solver
