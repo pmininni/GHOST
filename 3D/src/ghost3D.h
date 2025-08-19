@@ -192,7 +192,7 @@
 #define INCLUDEFNAME_ 'rotbouss_
 #endif
 
-#ifdef ROTBOUSSSGS_SOL
+#ifdef ROTBOUSS_SGS_SOL
 #define DNS_
 #define VELOC_
 #define VELOCSGS_

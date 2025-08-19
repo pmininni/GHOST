@@ -2047,7 +2047,7 @@
 #endif
 
      ! Create ML-SGS interface:
-#if  (defined(ROTBOUSSSGS_SOL))
+#if  (defined(ROTBOUSS_SGS_SOL))
      IF ( use_mlsgs ) THEN
         CALL mlsgs%GSGS_ctor(MPI_COMM_WORLD, (/nx ,ny ,nz /), (/ista,iend,ksta,kend/), arbsz, (/Dkx,Dky,Dkz/), plancr, planrc )
      ENDIF
@@ -3589,7 +3589,7 @@
       ENDIF
 #endif
 
-#if  (defined(ROTBOUSSSGS_SOL))
+#if  (defined(ROTBOUSS_SGS_SOL))
      IF ( use_mlsgs ) THEN
         CALL mlsgs%GSGS_dtor()
      ENDIF
