@@ -183,6 +183,7 @@ MPROTH_OBJS    = $(PROTH_OBJS)
 BOUSS_OBJS     = $(PROTH_OBJS) pseudospec3D_bouss.o lessgs_mod.o
 MPBOUSS_OBJS   = $(BOUSS_OBJS)
 ROTBOUSS_OBJS  = $(BOUSS_OBJS)
+ROTBOUSS_SGS_OBJS  = $(ROTBOUSS_OBJS) sgs_ml_data_model.o
 ROTBOUMHDB_OBJS= $(BOUSS_OBJS) pseudospec3D_mhd.o
 MPROTBOUSS_OBJS= $(MPROTH_OBJS) pseudospec3D_bouss.o
 MOIST_OBJS     = $(BOUSS_OBJS)
@@ -216,7 +217,6 @@ SUBDIRS        = posix mpiio fftp-2 fftp-3 fftp-cu fftp-mkl \
 EXTRASDIR      = analysis
 GTIMER         = $(UTILS)/gtimer_mod.o
 GUTILS         = $(UTILS)/gutils_mod.o 
-GSGS           = pseudo/lessgs_mod.o 
 GREGRID        = $(UTILS)/gtrunc_mod.o $(UTILS)/regridutils.o
 GIO            = $(IOLIB)/binary_io.o 
 
