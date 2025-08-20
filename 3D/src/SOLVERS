@@ -23,42 +23,42 @@ The main code is built using 'make' or 'make main'. The following
 solvers are currently supported (pass 'SOLVER=' to the make command 
 to build a solver other than the default):
 
-   HD         Hydrodynamic (HD) solver [DEFAULT]
-   PHD        Hydrodynamic solver with passive scalar
-   MPHD       Hydrodynamic solver with multi-scalar
-   MHD        Magnetohydrodynamic (MHD) solver
-   MHDB       MHD solver with a uniform magnetic field
-   RMHDB      MHD solver with uniform magnetic field and rotation
-   HMHD       Hall-MHD solver
-   HMHDB      HMHD solver with a uniform magnetic field
-   COMPRHD    Compressible HD solver
-   COMPIHD    Compressible HD solver, evolving int. energy density
-   CMHD       Compressible MHD solver
-   CMHDB      Compressible MHD solver with uniform B_0
-   CHMHD      Compressible Hall-MHD solver
-   CHMHDB     Compressible Hall-MHD solver with uniform B_0
-   ROTH       HD solver in a rotating frame
-   PROTH      ROTH solver with passive scalar
-   MPROTH     ROTH solver with multi-scalar
-   BOUSS      Boussinesq solver
-   ROTBOUSS   BOUSS solver in a rotating frame
-   ROTBOUSSSTS BOUSS solver in a rotating frame with ML-SGS terms
-   ROTBOUMHDB BOUSS and MHD solver with rotation and B_0
-   MPROTBOUSS BOUSS solver in a rotating frame with multi-scalar
-   MOIST_SOL  MOIST Boussinesq solver
-   HDPNLT     HD solver with the penalty method
-   GPE        Gross-Pitaevskii Equation (GPE) solver
-   ARGL       Advective Real Ginzburg Landau solver
-   RGPE       Rotating GPE solver with trapping potential
-   RARGL      Rotating ARGL solver with trapping potential
-   LAHD       Lagrangian-averaged HD solver
-   CAHD       Clark-alpha HD solver
-   LHD        Leray HD solver
-   LAMHD      Lagrangian-averaged MHD solver
-   EDQNMHD    EDQNM HD solver
-   EDQNMROTH  EDQNM ROTH solver
-   HPIC_SOL       builds the hybrid PIC solver
-   EHPIC_SOL      builds the hybrid electrostatic PIC solver
+   HD           Hydrodynamic (HD) solver [DEFAULT]
+   PHD          Hydrodynamic solver with passive scalar
+   MPHD         Hydrodynamic solver with multi-scalar
+   MHD          Magnetohydrodynamic (MHD) solver
+   MHDB         MHD solver with a uniform magnetic field
+   RMHDB        MHD solver with uniform magnetic field and rotation
+   HMHD         Hall-MHD solver
+   HMHDB        HMHD solver with a uniform magnetic field
+   COMPRHD      Compressible HD solver
+   COMPIHD      Compressible HD solver, evolving int. energy density
+   CMHD         Compressible MHD solver
+   CMHDB        Compressible MHD solver with uniform B_0
+   CHMHD        Compressible Hall-MHD solver
+   CHMHDB       Compressible Hall-MHD solver with uniform B_0
+   ROTH         HD solver in a rotating frame
+   PROTH        ROTH solver with passive scalar
+   MPROTH       ROTH solver with multi-scalar
+   BOUSS        Boussinesq solver
+   ROTBOUSS     BOUSS solver in a rotating frame
+   ROTBOUSS_SGS BOUSS solver in a rotating frame with ML-SGS terms
+   ROTBOUMHDB   BOUSS and MHD solver with rotation and B_0
+   MPROTBOUSS   BOUSS solver in a rotating frame with multi-scalar
+   MOIST_SOL    MOIST Boussinesq solver
+   HDPNLT       HD solver with the penalty method
+   GPE          Gross-Pitaevskii Equation (GPE) solver
+   ARGL         Advective Real Ginzburg Landau solver
+   RGPE         Rotating GPE solver with trapping potential
+   RARGL        Rotating ARGL solver with trapping potential
+   LAHD         Lagrangian-averaged HD solver
+   CAHD         Clark-alpha HD solver
+   LHD          Leray HD solver
+   LAMHD        Lagrangian-averaged MHD solver
+   EDQNMHD      EDQNM HD solver
+   EDQNMROTH    EDQNM ROTH solver
+   HPIC_SOL     builds the hybrid PIC solver
+   EHPIC_SOL    builds the hybrid electrostatic PIC solver
 
 2. utils
 ========
