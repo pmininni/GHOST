@@ -20,9 +20,9 @@ MODULE class_GSGSmodel
       USE fprecision
       USE fftplans
       USE, intrinsic :: iso_c_binding, only: c_float, c_null_char
-      USE infero_fortran_module, only: infero_model, &
+      USE inferof     , only: infero_model, &
           infero_initialise, infero_finalise, infero_check
-      USE fckit,                 only: fckit_map, fckit_tensor_real32
+      USE fckit_module, only: fckit_map, fckit_tensor_real32
 
 
       IMPLICIT NONE
@@ -315,7 +315,7 @@ MODULE class_GSGSmodel
     CALL MPI_Comm_free(this%comm_, this%ierr_)
 
   RETURN
-  END SUBROUTINE GGSGS_init_inferoSGS_dtor
+  END SUBROUTINE GGSGS_dtor
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
