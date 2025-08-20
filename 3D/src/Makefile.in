@@ -11,10 +11,10 @@ NZ       = 64
 ORD      = 2
 
 # SOLVER:  (read the file SOLVERS for a list of options)
-SOLVER   = ROTBOUSS
+SOLVER   = ROTBOUSS_SGS
 
 # PRECISION: (SINGLE or DOUBLE)
-PRECISION= ROTBOUSS
+PRECISION= SINGLE
 
 # Box size:
 # ARBSIZE=yes  # Box size defined by the user
@@ -56,13 +56,9 @@ FFTW3DIR = /scratch3/BMC/gsd-hpcs/rosenberg/opt/apps/fftw-3.3.10_gnu_openmpi
 MKLDIR   = /opt/ohpc/pub/compiler/intel/mkl/2022.1.0
 
 # ECTOOLS:
-ECKITDIR   = /scratch3/BMC/gsd-hpcs/rosenberg/opt/apps/eckit_gcc_openmpi
-FCKITDIR   = /scratch3/BMC/gsd-hpcs/rosenberg/opt/apps/fckit_gcc_openmpi
-INFERODIR  = /scratch3/BMC/gsd-hpcs/rosenberg/opt/apps/infero_gcc_openmpi
-ECLIBSZ    = lib64
-ECKITLIB   = -leckit
-FCKITLIB   = -lfckit
-INFEROLIB  = -linfero
+ECKITDIR   = /scratch3/BMC/gsd-hpcs/rosenberg/opt/apps/infero_gcc_openmpi
+ECKITLIBSZ = lib64
+ECKITLIB   = -leckit -lfckit -linfero
 
 # IKIND    4 in 32 bits machines, 8 in 64 bits machines
 # NSTRIP   controls strip mining (often set to 1)
