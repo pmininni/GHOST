@@ -455,6 +455,11 @@
 #endif
 #if defined(VELOCSGS_) && defined(SCALARSGS_)
       TYPE (GSGSmodel)      :: mlsgs
+      TYPE(GSGSmodelTraits) :: mlsgstraits
+      INTEGER               :: sgs_nx, sgs_ny, sgs_nz, sgs_nchannel
+      CHARACTER(len=1024)   :: sgs_model_path, sgs_model_type
+      CHARACTER(len=1024)   :: sgs_in_name, sgs_out_name
+        
 #endif
       TYPE(IOPLAN)          :: planio
       CHARACTER(len=100)    :: odir,idir
@@ -480,7 +485,13 @@
       NAMELIST / velocity / fparam3,fparam4,fparam5,fparam6,fparam7
       NAMELIST / velocity / fparam8,fparam9,vparam0,vparam1,vparam2
       NAMELIST / velocity / vparam3,vparam4,vparam5,vparam6,vparam7
-      NAMELIST / velocity / vparam8,vparam9,use_mlsgs,use_voigt,voigt_alpha
+      NAMELIST / velocity / vparam8,vparam9,voigt_alpha,use_mlsgs,use_voigt
+#endif
+#if defined(VELOCSGS_) && defined(SCALARSGS_)
+      NAMELIST / mlsgsnml / sgs_nx, sgs_ny, sgs_nz
+      NAMELIST / mlsgsnml / sgs_nchannel 
+      NAMELIST / mlsgsnml / sgs_model_path, sgs_model_type
+      NAMELIST / mlsgsnml / sgs_in_name, sgs_out_name
 #endif
 #ifdef SCALAR_
       NAMELIST / scalar / c0,s0,skdn,skup,kappa,cparam0,cparam1
@@ -988,6 +999,48 @@
       CALL MPI_BCAST(vparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
 
+#if defined(VELOCSGS_) && defined(SCALARSGS_) 
+! Reads parameters for the SGS ML model from the 
+! namelist 'mlsgs' on the external file 'parameter.inp'
+!     nx,ny,nz   : sizes that model thinks it has
+!     nchannel   : no. channels/features
+!     model_path : path to model (+name)
+!     model_type : model type (required by ONNx)
+!     in_name    : input tensor name
+!     out_name   : output tensor name
+       
+      mlsgstraits%nx       = nx
+      mlsgstraits%ny       = ny
+      mlsgstraits%nz       = nz
+      mlsgstraits%nchannel = 4
+      mlsgstraits%model_path = './mymodel'
+      mlsgstraits%model_type = ''
+      mlsgstraits%in_name    = 'state_input'
+      mlsgstraits%out_name   = 'SGS_vecs'
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
+         READ(1,NML=mlsgsnml)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(sgs_nx        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sgs_ny        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sgs_nz        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sgs_nchannel  ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sgs_model_path,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sgs_model_type,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sgs_in_name   ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sgs_out_name  ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+
+      mlsgstraits%nx       = sgs_nx
+      mlsgstraits%ny       = sgs_ny
+      mlsgstraits%nz       = sgs_nz
+      mlsgstraits%nchannel = sgs_nchannel
+      mlsgstraits%model_path = sgs_model_path
+      mlsgstraits%model_type = sgs_model_type
+      mlsgstraits%in_name    = sgs_in_name
+      mlsgstraits%out_name   = sgs_out_name
+#endif
 
 #ifdef BOUSSINESQ_
 ! Reads parameters specifically for Boussinesq solver from the
@@ -2049,7 +2102,9 @@
      ! Create ML-SGS interface:
 #if defined(ROTBOUSS_SGS_SOL)
      IF ( use_mlsgs ) THEN
-        CALL mlsgs%GSGS_ctor(MPI_COMM_WORLD, (/nx ,ny ,nz /), (/ista,iend,ksta,kend/), arbsz, (/Dkx,Dky,Dkz/), plancr, planrc )
+        CALL mlsgs%GSGS_ctor(MPI_COMM_WORLD, (/nx ,ny ,nz /),&
+             (/ista,iend,ksta,kend/), anis, (/Dkx,Dky,Dkz/), &
+             plancr, planrc , mlsgstraits)
      ENDIF
 #endif
 
@@ -3589,11 +3644,6 @@
       ENDIF
 #endif
 
-#if  defined(ROTBOUSS_SGS_SOL)
-     IF ( use_mlsgs ) THEN
-        CALL mlsgs%GSGS_dtor()
-     ENDIF
-#endif
       CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
 !

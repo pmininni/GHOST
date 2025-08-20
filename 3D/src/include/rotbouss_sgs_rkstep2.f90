@@ -45,8 +45,8 @@
          ENDIF
 
          IF ( use_mlsgs ) THEN
-            mlsgs%sgs_model(C1, C2, C3, C20, &
-                            CSGS, R1,  SGS1, SGS2, SGS3, SGSth)
+            CALL mlsgs%sgs_model(C1, C2, C3, C20, &
+                                 CSGS, R1,  SGS1, SGS2, SGS3, SGSth)
          ENDIF
 
          rmp = 1.0_GP/(real(o,kind=GP))
