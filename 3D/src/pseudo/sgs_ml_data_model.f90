@@ -19,29 +19,37 @@ MODULE class_GSGSmodel
  !    USE mpivars
       USE fprecision
       USE fftplans
-      USE, intrinsic :: iso_c_binding, only: c_float, c_null_char
       USE inferof     , only: infero_model, &
           infero_initialise, infero_finalise, infero_check
       USE fckit_module, only: fckit_map, fckit_tensor_real32
-
+ !    USE, intrinsic :: iso_c_binding, only: c_float, c_null_char
+ !    USE, intrinsic :: iso_c_binding
+      USE  iso_c_binding
 
       IMPLICIT NONE
       INCLUDE 'mpif.h' 
 
 
       INTERFACE
-        TYPE(C_PTR) FUNCTION allocate_c_array(size_in_bytes) BIND(C, NAME='allocate_c_array')
+        TYPE(C_PTR) FUNCTION allocate_c_array(size_in_bytes) BIND(C, NAME='malloc')
+          USE iso_c_binding
+          IMPLICIT NONE
+
           INTEGER(C_INT), INTENT(IN), VALUE :: size_in_bytes
         END FUNCTION allocate_c_array
 
-        SUBROUTINE free_c_array(c_ptr_to_free) BIND(C, NAME='free_c_array')
-            TYPE(C_PTR), INTENT(IN), VALUE :: c_ptr_to_free
+        SUBROUTINE free_c_array(c_ptr_to_free) BIND(C, NAME='free')
+          USE iso_c_binding
+          IMPLICIT NONE
+
+          TYPE(C_PTR), INTENT(IN), VALUE :: c_ptr_to_free
         END SUBROUTINE free_c_array
       END INTERFACE
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
       TYPE, PUBLIC :: GSGSmodelTraits
+
         PRIVATE
 
         INTEGER            :: nx, ny, nz
@@ -50,8 +58,6 @@ MODULE class_GSGSmodel
         CHARACTER(len=512) :: model_path, model_type
         CHARACTER(len=128) :: in_name, out_name
         CHARACTER(len=:), ALLOCATABLE :: yaml_config
-
-        SAVE 
 
       END TYPE GSGSmodelTraits
 !-----------------------------------------------------------------
@@ -94,9 +100,11 @@ MODULE class_GSGSmodel
         PROCEDURE,PUBLIC :: GSGS_ctor
         FINAL            :: GSGS_dtor
         PROCEDURE,PUBLIC :: sgs_model         => GSGS_compute_model
+
       END TYPE GSGSmodel
 
-      PRIVATE :: GSGS_init_infero, GSGS_pack, GSGS_unpack
+      PRIVATE :: GSGS_compute_model, GSGS_init_infero, GSGS_pack, GSGS_unpack
+
 
 
 ! Methods:
@@ -268,10 +276,10 @@ MODULE class_GSGSmodel
         END DO
      ENDIF 
 
-    this%GSGS_init_infero(this, modtraits)
+    CALL GSGS_init_infero(this, modtraits)
   !   write(*,*)this%myrank_, ' GSGS_ctor: ksta=', this%ksta, ' kend=', this%kend, ' ista=', this%ista, ' iend=', this%iend
 
-  RETURN
+    RETURN
   END SUBROUTINE GSGS_ctor
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -314,8 +322,8 @@ MODULE class_GSGSmodel
 
     CALL MPI_Comm_free(this%comm_, this%ierr_)
 
-  RETURN
-  END SUBROUTINE GGSGS_dtor
+    RETURN
+  END SUBROUTINE GSGS_dtor
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -328,19 +336,19 @@ MODULE class_GSGSmodel
 !  ARGUMENTS:
 !    this    : 'this' class instance
 !-----------------------------------------------------------------
-
+    USE  iso_c_binding
     IMPLICIT NONE
-    INTEGER                                       :: n
-    class(GSGSmodel)     ,INTENT(INOUT)           :: this
+    TYPE(GSGSmodel)      ,INTENT(INOUT)           :: this
+    INTEGER(C_INT)                                :: n
     TYPE(GSGSmodelTraits), INTENT  (IN)           :: modtraits
 
-    INTEGER, PARAMETER                           KIND(0.0D0)
+!   INTEGER, PARAMETER                            :: KIND(0.0D0)
 
     this%modelTraits_ = modtraits
 
-    IF ( modtraits.nx .NE. this%nx &
-    .OR. modtraits.ny .NE. this%ny &
-    .OR. modtraits.nz .NE. this%nz ) THEN
+    IF ( modtraits%nx .NE. this%nx &
+    .OR. modtraits%ny .NE. this%ny &
+    .OR. modtraits%nz .NE. this%nz ) THEN
       WRITE(*,*) 'GSGS_init_infero: Incompatible grid sizes'
       STOP 
     ENDIF
@@ -352,17 +360,17 @@ MODULE class_GSGSmodel
     this%tout_wrapped_ = fckit_tensor_real32(this%t_out_)
 
     this%imap_ = fckit_map()
-    CALL imap%insert(trim(this%modelTraits_%in_name),  this%tin_wrapped%c_ptr())
+    CALL this%imap_%insert(trim(this%modelTraits_%in_name),  this%tin_wrapped_%c_ptr())
 
     this%omap_ = fckit_map()
-    CALL omap%insert(trim(this%modelTraits_%out_name), this%tout_wrapped%c_ptr())
+    CALL this%omap_%insert(trim(this%modelTraits_%out_name), this%tout_wrapped_%c_ptr())
 
     ! Allocate C arrays 
-    n = this%modelTraits_.nchannel * modelTraits_.nx * modelTraits_.ny * modelTraits_.nz
-    this%c_ptr_t_in_  = allocate_c_array(n * SIZEOF(1.0_GP))
+    n = this%modelTraits_%nchannel * this%modelTraits_%nx * this%modelTraits_%ny * this%modelTraits_%nz * SIZEOF(1.0_GP)
+    this%c_ptr_t_in_  = allocate_c_array(n)
 
-    n = 3 * this%modelTraits_.nx * modelTraits_.ny * modelTraits_.nz
-    this%c_ptr_t_out_ = allocate_c_array(n * SIZEOF(1.0_GP))
+    n = 3 * this%modelTraits_%nx * this%modelTraits_%ny * this%modelTraits_%nz * SIZEOF(1.0_GP)
+    this%c_ptr_t_out_ = allocate_c_array(n)
 
     ! Associate Fortran pointers with C memory:
     CALL C_F_POINTER(this%c_ptr_t_in_ , this%t_in_ , SHAPE=[array_size])
@@ -379,7 +387,7 @@ MODULE class_GSGSmodel
     CALL infero_check( this%infmodel_%initialise_from_yaml_string(this%modelTraits_%yaml_config) )
 
 
-  RETURN
+    RETURN
 
   END SUBROUTINE GSGS_init_infero
 !-----------------------------------------------------------------
@@ -400,8 +408,7 @@ MODULE class_GSGSmodel
 !-----------------------------------------------------------------
 
     IMPLICIT NONE
-    class(GSGSmodel)   ,INTENT(INOUT)       :: this
-    INTEGER         , INTENT   (IN)         :: idir
+    class(GSGSmodel),INTENT (INOUT)         :: this
     COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: vx,vy,vz,th
     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1
     REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
@@ -409,13 +416,13 @@ MODULE class_GSGSmodel
 
     ! Pack model input layer:
     ! shape = ("time", "channel", "x0", "x1", "x2")
-    CALL GSGS_pack(vx, 0, C1, R1, this%t_in_)
-    CALL GSGS_pack(vy, 1, C1, R1, this%t_in_)
-    CALL GSGS_pack(vz, 2, C1, R1, this%t_in_)
-    CALL GSGS_pack(th, 3, C1, R1, this%t_in_)
+    CALL GSGS_pack(this, vx, 0, C1, R1, this%t_in_)
+    CALL GSGS_pack(this, vy, 1, C1, R1, this%t_in_)
+    CALL GSGS_pack(this, vz, 2, C1, R1, this%t_in_)
+    CALL GSGS_pack(this, th, 3, C1, R1, this%t_in_)
 
     ! Run inference
-    CALL infero_check( this%infmodel_%infer(imap, omap) )
+    CALL infero_check( this%infmodel_%infer(this%imap_, this%omap_) )
 
     ! (Optional) print stats/config
     CALL infero_check( this%infmodel_%print_statistics() )
@@ -426,18 +433,18 @@ MODULE class_GSGSmodel
 !   PRINT '(100(1x,f10.6))', this%t_out_(1, :)
 
     ! Unpack model output and compute FFTs:
-    CALL GSGS_unpack(this%t_out_, 0, R1, SGS1)
-    CALL GSGS_unpack(this%t_out_, 1, R1, SGS2)
-    CALL GSGS_unpack(this%t_out_, 2, R1, SGS3)
+    CALL GSGS_unpack(this, this%t_out_, 0, R1, SGS1)
+    CALL GSGS_unpack(this, this%t_out_, 1, R1, SGS2)
+    CALL GSGS_unpack(this, this%t_out_, 2, R1, SGS3)
 
 
-  RETURN
+    RETURN
 
   END SUBROUTINE GSGS_compute_model
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-  SUBROUTINE GSGS_pack(cvar, ivar, C1, R1, itensor)
+  SUBROUTINE GSGS_pack(this, cvar, ivar, C1, R1, itensor)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Packs tensor argument for inference
@@ -449,12 +456,13 @@ MODULE class_GSGSmodel
 !    itensor : input tensor to pack into
 !-----------------------------------------------------------------
     IMPLICIT NONE
+    class(GSGSmodel), INTENT(INOUT)         :: this
     INTEGER         , INTENT   (IN)         :: ivar
     INTEGER                                 :: i, j, k
     COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: cvar
     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1
     REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
-    REAL(KIND=GP)   , INTENT  (OUT), DIMENSION(this%modelTraits_.nchannel,this%nx,this%ny,this%ksta:this%kend) :: itensor
+    REAL(KIND=GP)   , INTENT  (OUT), DIMENSION(this%modelTraits_%nchannel,this%nx,this%ny,this%ksta:this%kend) :: itensor
 
 !$omp parallel do if (this%iend-2.ge.nth) private (j,k)
     DO i = this%ista,this%iend
@@ -484,7 +492,7 @@ MODULE class_GSGSmodel
 !-----------------------------------------------------------------
 
 
-  SUBROUTINE GSGS_unpack(otensor, ivar, R1, cvar)
+  SUBROUTINE GSGS_unpack(this, otensor, ivar, R1, sgs)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Packs tensor argument for inference
@@ -495,8 +503,8 @@ MODULE class_GSGSmodel
 !    R1      : real tmp array
 !    sgs     : return complex SGS data
 !-----------------------------------------------------------------
-
-    IMPLICIT NONE
+    IMPLICIT NONE      
+    class(GSGSmodel), INTENT(INOUT)         :: this
     INTEGER         , INTENT   (IN)         :: ivar
     INTEGER                                 :: i, j, k
     COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: sgs
