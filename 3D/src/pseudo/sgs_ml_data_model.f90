@@ -339,7 +339,8 @@ MODULE class_GSGSmodel
     USE  iso_c_binding
     IMPLICIT NONE
     TYPE(GSGSmodel)      ,INTENT(INOUT)           :: this
-    INTEGER(C_INT)                                :: n
+    INTEGER(C_INT)                                :: nb
+    INTEGER                                       :: nc, nn
     TYPE(GSGSmodelTraits), INTENT  (IN)           :: modtraits
 
 !   INTEGER, PARAMETER                            :: KIND(0.0D0)
@@ -366,15 +367,17 @@ MODULE class_GSGSmodel
     CALL this%omap_%insert(trim(this%modelTraits_%out_name), this%tout_wrapped_%c_ptr())
 
     ! Allocate C arrays 
-    n = this%modelTraits_%nchannel * this%modelTraits_%nx * this%modelTraits_%ny * this%modelTraits_%nz * SIZEOF(1.0_GP)
-    this%c_ptr_t_in_  = allocate_c_array(n)
+    nb = this%modelTraits_%nchannel * this%modelTraits_%nx * this%modelTraits_%ny * this%modelTraits_%nz * SIZEOF(1.0_GP)
+    this%c_ptr_t_in_  = allocate_c_array(nb)
 
-    n = 3 * this%modelTraits_%nx * this%modelTraits_%ny * this%modelTraits_%nz * SIZEOF(1.0_GP)
-    this%c_ptr_t_out_ = allocate_c_array(n)
+    nb = 3 * this%modelTraits_%nx * this%modelTraits_%ny * this%modelTraits_%nz * SIZEOF(1.0_GP)
+    this%c_ptr_t_out_ = allocate_c_array(nb)
 
     ! Associate Fortran pointers with C memory:
-    CALL C_F_POINTER(this%c_ptr_t_in_ , this%t_in_ , SHAPE=[array_size])
-    CALL C_F_POINTER(this%c_ptr_t_out_, this%t_out_, SHAPE=[array_size])
+    nc = this%modelTraits_%nchannel
+    nn = this%modelTraits_%nx * this%modelTraits_%ny * this%modelTraits_%nz
+    CALL C_F_POINTER(this%c_ptr_t_in_ , this%t_in_ , SHAPE=[nc, nn])
+    CALL C_F_POINTER(this%c_ptr_t_out_, this%t_out_, SHAPE=[3 , nn])
 
     ! Build a YAML config to point Infero at the 
     ! model and backend type:
