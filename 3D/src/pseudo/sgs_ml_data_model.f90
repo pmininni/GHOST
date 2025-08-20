@@ -18,16 +18,16 @@ MODULE class_GSGSmodel
  !    USE kes
  !    USE mpivars
       USE fprecision
+      USE commtypes
       USE fftplans
       USE inferof     , only: infero_model, &
           infero_initialise, infero_finalise, infero_check
       USE fckit_module, only: fckit_map, fckit_tensor_real32
- !    USE, intrinsic :: iso_c_binding, only: c_float, c_null_char
  !    USE, intrinsic :: iso_c_binding
       USE  iso_c_binding
 
       IMPLICIT NONE
-      INCLUDE 'mpif.h' 
+   !  INCLUDE 'mpif.h' 
 
 
       INTERFACE
@@ -50,13 +50,11 @@ MODULE class_GSGSmodel
 
       TYPE, PUBLIC :: GSGSmodelTraits
 
-        PRIVATE
-
         INTEGER            :: nx, ny, nz
         INTEGER            :: nchannel
 
-        CHARACTER(len=512) :: model_path, model_type
-        CHARACTER(len=128) :: in_name, out_name
+        CHARACTER(len=1024) :: model_path, model_type
+        CHARACTER(len=1024) :: in_name, out_name
         CHARACTER(len=:), ALLOCATABLE :: yaml_config
 
       END TYPE GSGSmodelTraits
@@ -93,8 +91,8 @@ MODULE class_GSGSmodel
         ! Inference model
         TYPE(infero_model)                           :: infmodel_
 
-
         CHARACTER(len=MPI_MAX_ERROR_STRING)          :: serr_
+
       CONTAINS
         ! Public methods:
         PROCEDURE,PUBLIC :: GSGS_ctor
@@ -106,11 +104,10 @@ MODULE class_GSGSmodel
       PRIVATE :: GSGS_compute_model, GSGS_init_infero, GSGS_pack, GSGS_unpack
 
 
-
 ! Methods:
   CONTAINS
 
-  SUBROUTINE GSGS_ctor(this, comm, ngrid, bnds, arbsz, Dk, plancr, planrc,modtraits)
+  SUBROUTINE GSGS_ctor(this, comm, ngrid, bnds, arbsz, Dk, plancr, planrc, modtraits)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Main explicit constructor
