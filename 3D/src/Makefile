@@ -139,7 +139,7 @@ $(info    SOLVER is $(SOLVER))
 ifeq ($(SOLVER), ROTBOUSS_SGS)
 ECKITLDFLAGS = -L$(ECKITDIR)/$(ECLIBSZ) 
 ECKITINC     = -I$(ECKITDIR)/include -I$(ECKITDIR)/module/fckit -I$(ECKITDIR)/module/infero 
-ECKITLIBS    = $(ECKITLIBS) 
+ECKITLIBS    = $(ECKITLIB) 
 else
 ECKITLDFLAGS = 
 ECKITINC     = 
