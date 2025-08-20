@@ -669,7 +669,7 @@
       ALLOCATE( SGS1(nz,ny,ista:iend) )
       ALLOCATE( SGS2(nz,ny,ista:iend) )
       ALLOCATE( SGS3(nz,ny,ista:iend) )
-      ALLOCATE( CSGS3(nz,ny,ista:iend) )
+      ALLOCATE( CSGS(nz,ny,ista:iend) )
 #endif
 
 #if defined(MOM_) 
@@ -937,7 +937,7 @@
 #endif
       IF (Dkk.lt.1e-5) Dkk = min(Dkx,Dky,Dkz)
 
-#if defined(VELOC_) || defined(ADVECT_)
+#if defined(VELOC_) || defined(ADVECT_) ||  defined(VELOCSGS_) 
 ! Reads parameters for the velocity field from the
 ! namelist 'velocity' on the external file 'parameter.inp'
 !     f0   : amplitude of the mechanical forcing
@@ -1759,7 +1759,7 @@
      ENDIF
 
 #endif
-#if !(defined(BOUSS_SOL) | defined(ROTBOUSS_SOL))
+#if !(defined(ROTBOUSS_SGS_SOL))
      IF ( use_mlsgs ) THEN
        write(*,*) 'main: MLSGS may not be used with this solver'
        STOP
@@ -2047,7 +2047,7 @@
 #endif
 
      ! Create ML-SGS interface:
-#if  (defined(ROTBOUSS_SGS_SOL))
+#if defined(ROTBOUSS_SGS_SOL)
      IF ( use_mlsgs ) THEN
         CALL mlsgs%GSGS_ctor(MPI_COMM_WORLD, (/nx ,ny ,nz /), (/ista,iend,ksta,kend/), arbsz, (/Dkx,Dky,Dkz/), plancr, planrc )
      ENDIF
@@ -3589,7 +3589,7 @@
       ENDIF
 #endif
 
-#if  (defined(ROTBOUSS_SGS_SOL))
+#if  defined(ROTBOUSS_SGS_SOL)
      IF ( use_mlsgs ) THEN
         CALL mlsgs%GSGS_dtor()
      ENDIF
@@ -3630,6 +3630,9 @@
 #if defined(VELOC_) || defined (ADVECT_)
       DEALLOCATE( vx,vy,vz )
 #endif
+#ifdef VELOCSGS_
+      DEALLOCATE( SGS1,SGS2,SGS3,CSGS ) 
+#endif
 #ifdef MOM_ 
       DEALLOCATE( sx,sy,sz )
 #endif
@@ -3668,6 +3671,9 @@
       DEALLOCATE( th,fs )
       DEALLOCATE( C20 )
       IF (mean.eq.1) DEALLOCATE( M7 )
+#endif
+#ifdef SCALARSGS_
+      DEALLOCATE( SGSth )
 #endif
 #ifdef MULTISCALAR_
       DEALLOCATE( th1,fs1,th2,fs2,th3,fs3 )
