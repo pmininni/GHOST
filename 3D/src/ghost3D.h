@@ -200,7 +200,7 @@
 #define SCALARSGS_
 #define ROTATION_
 #define BOUSSINESQ_
-#define INCLUDEFNAME_ 'rotbouss_
+#define INCLUDEFNAME_ 'rotbouss_sgs_
 #endif
 
 #ifdef ROTBOUMHDB_SOL
