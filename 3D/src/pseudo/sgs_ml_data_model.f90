@@ -67,15 +67,14 @@ MODULE class_GSGSmodel
         ! Member data:
         INTEGER, DIMENSION(MPI_STATUS_SIZE)          :: istatus_
         INTEGER                                      :: myrank_,nprocs_
-        INTEGER                                      :: nx,ny,nz
+        INTEGER                                      :: nx,ny,nz,ntot
         INTEGER                                      :: comm_
         INTEGER                                      :: ista,iend,ksta,kend
         INTEGER                                      :: ierr_, rlen_
+        INTEGER, ALLOCATABLE, DIMENSION(:)           :: sndtype_, rcvtype_
         TYPE(GSGSmodelTraits)                        :: modelTraits_
 
         REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:,:) :: kk2
-        REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:,:) :: R1g,R2g,R3g,R4g
-        COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION(:,:,:) :: C1g
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: kx,ky,kz
         TYPE(FFTPLAN), POINTER                       :: plancr, planrc
 
@@ -101,7 +100,8 @@ MODULE class_GSGSmodel
 
       END TYPE GSGSmodel
 
-      PRIVATE :: GSGS_compute_model, GSGS_init_infero, GSGS_pack, GSGS_unpack
+      PRIVATE :: GSGS_compute_model, GSGS_init_infero, GSGS_pack, GSGS_unpack 
+      PRIVATE :: GSGS_real_exch_types, GSGS_real_exch
 
 
 ! Methods:
@@ -187,6 +187,7 @@ MODULE class_GSGSmodel
     this%nx = ngrid(1)
     this%ny = ngrid(2)
     this%nz = ngrid(3)
+    this%ntot = ngrid(1)*ngrid(2)*ngrid(3)
 !   CALL range(1,this%nx/2+1,this%nprocs_,this%myrank_,this%ista,this%iend)
 !   CALL range(1,this%nz,this%nprocs_,this%myrank_,this%ksta,this%kend)
     this%ista = bnds(1)
@@ -206,10 +207,8 @@ MODULE class_GSGSmodel
 
     ALLOCATE( this%kx(this%nx), this%ky(this%ny), this%kz(this%nz) )
     ALLOCATE( this%kk2(this%nz,this%ny,this%ista:this%iend) )
-    ALLOCATE( this%R1g(this%nx,this%ny,this%nz) )
-    ALLOCATE( this%R2g(this%nx,this%ny,this%nz) )
-    ALLOCATE( this%R3g(this%nx,this%ny,this%nz) )
-    ALLOCATE( this%R4g(this%nx,this%ny,this%nz) )
+    ALLOCATE( this%sndtype_(0:nprocs-1) )
+    ALLOCATE( this%rcvtype_(0:nprocs-1) )
     if ( arbsz .EQ. 1 ) THEN
       aniso = 1
     ELSE
@@ -294,14 +293,11 @@ MODULE class_GSGSmodel
     INTEGER                                 :: j
 
     IF ( ALLOCATED    (this%kk2) ) DEALLOCATE   (this%kk2)
-    IF ( ALLOCATED    (this%R1g) ) DEALLOCATE   (this%R1g)
-    IF ( ALLOCATED    (this%R2g) ) DEALLOCATE   (this%R2g)
-    IF ( ALLOCATED    (this%R3g) ) DEALLOCATE   (this%R3g)
-    IF ( ALLOCATED    (this%R4g) ) DEALLOCATE   (this%R4g)
-    IF ( ALLOCATED    (this%C1g) ) DEALLOCATE   (this%C1g)
     IF ( ALLOCATED    (this%kx)  ) DEALLOCATE   (this%kx)
     IF ( ALLOCATED    (this%ky)  ) DEALLOCATE   (this%ky)
     IF ( ALLOCATED    (this%kz)  ) DEALLOCATE   (this%kz)
+    IF ( ALLOCATED(this%sndtype_)) DEALLOCATE   (this%sndtype_)
+    IF ( ALLOCATED(this%rcvtype_)) DEALLOCATE   (this%rcvtype_)
 
 !   CALL fftp3d_destroy_plan(this%plancr)
 !   CALL fftp3d_destroy_plan(this%planrc)
@@ -372,7 +368,7 @@ MODULE class_GSGSmodel
 
     ! Associate Fortran pointers with C memory:
     nc = this%modelTraits_%nchannel
-    nn = this%modelTraits_%nx * this%modelTraits_%ny * this%modelTraits_%nz
+    nn = this%ntot
     CALL C_F_POINTER(this%c_ptr_t_in_ , this%t_in_ , SHAPE=[nc, nn])
     CALL C_F_POINTER(this%c_ptr_t_out_, this%t_out_, SHAPE=[3 , nn])
 
@@ -476,6 +472,9 @@ MODULE class_GSGSmodel
 
     CALL fftp3d_complex_to_real(this%plancr,C1,R1)
 
+    CALL GSGS_real_exch(R1, ivar, itensor) 
+
+#if 0
 !$omp parallel do if (this%kend-this%ksta.ge.nth) private (j,i)
     DO k = this%ksta,this%kend
 !$omp parallel do if (this%kend-this%ksta.lt.nth) private (i)
@@ -485,6 +484,7 @@ MODULE class_GSGSmodel
           END DO
        END DO
     END DO
+#endif
        
     RETURN
   END SUBROUTINE GSGS_pack
@@ -532,6 +532,106 @@ MODULE class_GSGSmodel
   END SUBROUTINE GSGS_unpack
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
+
+      SUBROUTINE GSGS_real_exch_types(n,nprocs,myrank,sndtype,rcvtype)
+!-----------------------------------------------------------------
+!
+! Defines derived data types for sending and receiving 
+! blocks of the 3D matrix between processors. The data 
+! types are used to transpose the matrix during the FFT.
+!
+! Parameters
+!     n      : the size of the dimensions of the input array [IN]
+!     nprocs : the number of processors [IN]
+!     myrank : the rank of the processor [IN]
+!     sndtype: contains a derived data type for sending [OUT]
+!     rcvtype: contains a derived data type for receiving [OUT]
+!-----------------------------------------------------------------
+      USE commtypes
+      IMPLICIT NONE
+
+      INTEGER, INTENT(OUT), DIMENSION(0:nprocs-1) :: sndtype,rcvtype
+      INTEGER, INTENT(IN) :: n(3),nprocs
+      INTEGER, INTENT(IN) :: myrank
+
+      INTEGER :: ista,iend
+      INTEGER :: ksta,kend
+      INTEGER :: irank,krank
+      INTEGER :: itemp1,itemp2
+
+      CALL range(1,n(3),nprocs,myrank,ksta,kend)
+      DO irank = 0,nprocs-1
+         ista = 1
+         iend = n(1)
+         CALL block3d(1,n(1),1,n(2),ksta,ista,iend,1,n(2), &
+                     ksta,kend,GC_REAL,itemp1)
+         sndtype(irank) = itemp1
+      END DO
+      CALL range(1,n(3),nprocs,myrank,ksta,kend)
+      DO krank = 0,nprocs-1
+         ista = 1
+         iend = n(1)
+         CALL block3d(1,n(1),1,n(2),ksta,ista,iend,1,n(2), &
+                     ksta,kend,GC_REAL,itemp1)
+         rcvype(krank) = itemp2
+      END DO
+
+      RETURN
+      END SUBROUTINE GSGS_real_exch_types
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+      SUBROUTINE GSGS_real_exch(R1, ivar, t_in)
+!-----------------------------------------------------------------
+!
+! Parameters
+!     R1     : Real field
+!     ivar   : which channel/feature (0, ... nchannel-1)
+!     t_in   : input tensor that will contain all other
+!              tasks' field data
+!-----------------------------------------------------------------
+
+      USE commtypes
+      IMPLICIT NONE
+
+      INTEGER         , INTENT   (IN)     :: ivar
+      REAL(KIND=GP)   , INTENT   (IN), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
+      REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%modelTraits_%nchannel,this%ntot):: t_in
+
+      INTEGER                             :: iprocs, irank, istrip, nstrip
+      INTEGER                             :: isendTo, igetFrom
+      INTEGER, DIMENSION(0:this%nprocs_-1) :: ireq1,ireq2
+      INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
+
+      nstrip = 1
+      do iproc = 0, this%nprocs_-1, nstrip
+         do istrip=0, nstrip-1
+            irank = iproc + istrip
+
+            isendTo = this%myrank_ + irank
+            if ( isendTo .ge. this%nprocs_ ) isendTo = isendTo - this%nprocs_
+
+            igetFrom = this%myrank_ - irank
+            if ( igetFrom .lt. 0 ) igetFrom = igetFrom + this%nprocs_
+            CALL MPI_IRECV(t_in(ivar_1,:),1,this%rcvtype(igetFrom),igetFrom,      &
+                          1,this%comm_,ireq2(irank),this%ierr_)
+
+            CALL MPI_ISEND(R1,1,this%sndtype(isendTo),isendTo, &
+                          1,this%comm_,ireq1(irank),this%ierr_)
+         enddo
+
+         do istrip=0, nstrip-1
+            irank = iproc + istrip
+            CALL MPI_WAIT(ireq1(irank),istatus,this%ierr_)
+            CALL MPI_WAIT(ireq2(irank),istatus,this%ierr_)
+         enddo
+      enddo
+
+      RETURN
+      END SUBROUTINE GSGS_real_exch
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
 
 
 END MODULE class_GSGSmodel
