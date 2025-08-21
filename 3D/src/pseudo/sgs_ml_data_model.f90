@@ -613,7 +613,7 @@ MODULE class_GSGSmodel
 
             igetFrom = this%myrank_ - irank
             if ( igetFrom .lt. 0 ) igetFrom = igetFrom + this%nprocs_
-            CALL MPI_IRECV(t_in(ivar_1,:),1,this%rcvtype(igetFrom),igetFrom,      &
+            CALL MPI_IRECV(t_in(ivar+1,:),1,this%rcvtype(igetFrom),igetFrom,      &
                           1,this%comm_,ireq2(irank),this%ierr_)
 
             CALL MPI_ISEND(R1,1,this%sndtype(isendTo),isendTo, &
