@@ -432,6 +432,7 @@ MODULE class_GSGSmodel
     CALL GSGS_unpack(this, this%t_out_, 0, R1, SGS1)
     CALL GSGS_unpack(this, this%t_out_, 1, R1, SGS2)
     CALL GSGS_unpack(this, this%t_out_, 2, R1, SGS3)
+    CALL GSGS_unpack(this, this%t_out_, 3, R1, SGSth)
 
 
     RETURN
@@ -472,7 +473,7 @@ MODULE class_GSGSmodel
 
     CALL fftp3d_complex_to_real(this%plancr,C1,R1)
 
-    CALL GSGS_real_exch(R1, ivar, itensor) 
+    CALL GSGS_real_exch(this, R1, ivar, itensor) 
 
 #if 0
 !$omp parallel do if (this%kend-this%ksta.ge.nth) private (j,i)
@@ -573,7 +574,7 @@ MODULE class_GSGSmodel
          iend = n(1)
          CALL block3d(1,n(1),1,n(2),ksta,ista,iend,1,n(2), &
                      ksta,kend,GC_REAL,itemp1)
-         rcvype(krank) = itemp2
+         rcvtype(krank) = itemp2
       END DO
 
       RETURN
@@ -581,7 +582,7 @@ MODULE class_GSGSmodel
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-      SUBROUTINE GSGS_real_exch(R1, ivar, t_in)
+      SUBROUTINE GSGS_real_exch(this, R1, ivar, t_in)
 !-----------------------------------------------------------------
 !
 ! Parameters
@@ -594,11 +595,12 @@ MODULE class_GSGSmodel
       USE commtypes
       IMPLICIT NONE
 
+      class(GSGSmodel), INTENT(INOUT)     :: this
       INTEGER         , INTENT   (IN)     :: ivar
       REAL(KIND=GP)   , INTENT   (IN), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
       REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%modelTraits_%nchannel,this%ntot):: t_in
 
-      INTEGER                             :: iprocs, irank, istrip, nstrip
+      INTEGER                             :: iproc, irank, istrip, nstrip
       INTEGER                             :: isendTo, igetFrom
       INTEGER, DIMENSION(0:this%nprocs_-1) :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
@@ -613,10 +615,10 @@ MODULE class_GSGSmodel
 
             igetFrom = this%myrank_ - irank
             if ( igetFrom .lt. 0 ) igetFrom = igetFrom + this%nprocs_
-            CALL MPI_IRECV(t_in(ivar+1,:),1,this%rcvtype(igetFrom),igetFrom,      &
+            CALL MPI_IRECV(t_in(ivar+1,:),1,this%rcvtype_(igetFrom),igetFrom,      &
                           1,this%comm_,ireq2(irank),this%ierr_)
 
-            CALL MPI_ISEND(R1,1,this%sndtype(isendTo),isendTo, &
+            CALL MPI_ISEND(R1,1,this%sndtype_(isendTo),isendTo, &
                           1,this%comm_,ireq1(irank),this%ierr_)
          enddo
 
