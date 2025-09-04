@@ -11,7 +11,7 @@ NZ       = 64
 ORD      = 2
 
 # SOLVER:  (read the file SOLVERS for a list of options)
-SOLVER   = ROTBOUSS_SGS
+SOLVER   = ROTBOUSS
 
 # PRECISION: (SINGLE or DOUBLE)
 PRECISION= SINGLE
@@ -58,7 +58,9 @@ MKLDIR   = /opt/ohpc/pub/compiler/intel/mkl/2022.1.0
 # ECTOOLS:
 ECKITDIR   = /scratch3/BMC/gsd-hpcs/rosenberg/opt/apps/infero_gcc_openmpi
 ECKITLIBSZ = lib64
-ECKITLIB   = -leckit -lfckit -linfero
+ECKITLIB   = -leckit -lfckit -linfero -linferoapi -linferof
+ONNXDIR    = /scratch3/BMC/gsd-hpcs/rosenberg/opt/apps/onnxruntime_gcc_openmpi
+ONNXLIB    = -lonnxruntime -lonnxruntime_providers_shared
 
 # IKIND    4 in 32 bits machines, 8 in 64 bits machines
 # NSTRIP   controls strip mining (often set to 1)
