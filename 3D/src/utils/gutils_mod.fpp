@@ -1336,7 +1336,11 @@ MODULE gutils
       IF  ( .not. accum ) THEN
         CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
-        ui = 1.0 / ui
+        if ( ui .gt. epsilon(tmp) ) then
+          ui = 1.0 / ui
+        else
+          ui = 0.0
+        endif
       ENDIF
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1441,7 +1445,11 @@ MODULE gutils
       IF ( .not. accum  ) THEN
         CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
-        ui = 1.0 / ui
+        if ( ui .gt. epsilon(tmp) ) then
+          ui = 1.0 / ui
+        else
+          ui = 0.0
+        endif
       ENDIF
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1575,7 +1583,11 @@ MODULE gutils
       IF ( .not. accum ) THEN
         CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
-        ui = 1.0 / ui
+        if ( ui .gt. epsilon(tmp) ) then
+          ui = 1.0 / ui
+        else
+          ui = 0.0
+        endif
       ENDIF
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1684,7 +1696,11 @@ MODULE gutils
       IF ( .not. accum ) THEN
         CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
-        ui = 1.0 / ui
+        if ( ui .gt. epsilon(tmp) ) then
+          ui = 1.0 / ui
+        else
+          ui = 0.0
+        endif
       ENDIF
 
       ! d(1,1):
@@ -1942,7 +1958,11 @@ MODULE gutils
                r4(i,j,k) = ( r1(i,j,k)*r1(i,j,k) &
                            + r2(i,j,k)*r2(i,j,k) &
                            + r3(i,j,k)*r3(i,j,k) )*tmp
-               r4(i,j,k) = 1.0 / r4(i,j,k) 
+               if ( r4(i,j,k) .gt. epsilon(tmp)) then
+                 r4(i,j,k) = 1.0 / r4(i,j,k) 
+               else
+                 r4(i,j,k) = 0.0
+               endif
             END DO
          END DO
       END DO
@@ -2061,7 +2081,11 @@ MODULE gutils
                r4(i,j,k) = ( r1(i,j,k)*r1(i,j,k) &
                            + r2(i,j,k)*r2(i,j,k) &
                            + r3(i,j,k)*r3(i,j,k) )*tmp
-               r4(i,j,k) = 1.0 / r4(i,j,k) 
+               if ( r4(i,j,k) .gt. epsilon(tmp)) then
+                 r4(i,j,k) = 1.0 / r4(i,j,k) 
+               else
+                 r4(i,j,k) = 0.0
+               endif
             END DO
          END DO
       END DO
@@ -2150,7 +2174,11 @@ MODULE gutils
                r4(i,j,k) = ( r1(i,j,k)*r1(i,j,k) &
                            + r2(i,j,k)*r2(i,j,k) &
                            + r3(i,j,k)*r3(i,j,k) )*tmp
-               r4(i,j,k) = 1.0 / r4(i,j,k) 
+               if ( r4(i,j,k) .gt. epsilon(tmp)) then
+                 r4(i,j,k) = 1.0 / r4(i,j,k) 
+               else
+                 r4(i,j,k) = 0.0
+               endif
             END DO
          END DO
       END DO
