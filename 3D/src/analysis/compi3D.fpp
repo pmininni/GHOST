@@ -299,7 +299,7 @@
       TYPE(cudaDevicePropG) :: devprop
 #endif
       TYPE(IOPLAN)          :: planio
-      CHARACTER(len=100)    :: odir,idir
+      CHARACTER(len=1024)   :: odir,idir
 #ifdef PART_
       CHARACTER(len=1024)   :: lgseedfile,slgfpfile
 #endif
@@ -630,8 +630,8 @@
          READ(1,NML=status)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(idir,100,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(odir,100,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(idir,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(odir,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(stat,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(mult,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(bench,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -1354,8 +1354,8 @@ write(*,*)'main: opening compi.inp...'
          CLOSE(1)
 write(*,*)'main: compi.inp read.'
       ENDIF
-      CALL MPI_BCAST(idir   ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(odir   ,256 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(idir   ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(odir   ,1024 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sstat  ,4096,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(btrunc ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(dolog  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
@@ -1573,7 +1573,11 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
           ENDIF
           IF ( useaccum .GT. 0 .AND. it .EQ. nstat ) accum = .FALSE.
 write(*,*)'main: nstat=', nstat, ' it=', it, ' accum=', accum
-          CALL DoAniso(vx,vy,vz,th,istat(it),odir,C1,C2,C3,R1,R2,R3,R4,R5,R6accum,bden,dden,gden,vden, bij,dij,gij,vij)
+#if 0
+          CALL DoAniso(vx,vy,vz,th,istat(it),odir,C1,C2, &
+                       R1,R2,R3,R4,R5,R6,accum,bden,dden,gden,vden, &
+                       bij,dij,gij,vij)
+#endif
         ENDIF
 
       ENDDO ! end, it-loop
@@ -2120,7 +2124,7 @@ write(*,*)'main: nstat=', nstat, ' it=', it, ' accum=', accum
       INTEGER                                                    :: i,inorm,j,k,knz,n,nin,sr
       INTEGER                                                    :: btrunc
       LOGICAL                                                    :: bexist
-      CHARACTER(len=*), INTENT   (IN)                            :: odir
+      CHARACTER(len=1024), INTENT   (IN)                         :: odir
       CHARACTER(len=1024)                                        :: fnout
       CHARACTER(len=16)                                          :: sfld(100)
       CHARACTER(len=128)                                         :: hdrfmt, rowfmt
@@ -2704,7 +2708,9 @@ dkeep = davg
       avg  = davg
 
 if ( davg .gt. fmax .or. davg .lt. fmin ) then
-       write(*,*)'skewflatb: fmin=',fmin, ' fmax=', fmax, ' nkeep=', nikeep_, ' nin=', nin, ' xnorm=', xnorm, ' davg=', davg, ' dkeep=', dkeep
+       write(*,*)'skewflatb: fmin=',fmin, ' fmax=', fmax, &
+                 ' nkeep=', nikeep_, ' nin=', nin, ' xnorm=', &
+                  xnorm, ' davg=', davg, ' dkeep=', dkeep
 endif
 !      write(*,*)'skewflatb: nkeep=', nikeep_, ' nin=', nin,' davg=', davg
 
@@ -2759,281 +2765,6 @@ endif
       whoa = real( s6 / ( s2**3.0 + 1.0e-15 ), kind=GP )
 
       END SUBROUTINE skewflatb
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-!
-!
-      SUBROUTINE Randomize(fx,fy,fz,krmin,krmax,phase)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!
-! Randomizes phases of vector field, (vx,vy,vz) between
-! wavenumbers krmin,krmax
-!
-! Parameters
-!     vx,
-!     vy,
-!     vz    : complex velocities
-!     krmin : minimum wavenumber
-!     krmax : maximum wavenumber
-!     phase : phase 
-!
-      USE fprecision
-      USE commtypes
-      USE kes
-      USE grid
-      USE mpivars
-      USE threads
-      USE fft
-      USE var
-      USE fftplans
-      USE gutils
-      IMPLICIT NONE
-
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: fx,fy,fz
-      REAL   (KIND=GP), INTENT   (IN)                           :: krmin,krmax,phase
-      REAL   (KIND=GP)                                          :: krmin2,krmax2
-      COMPLEX(KIND=GP)                                          :: cdump,jdump
-      INTEGER                                                   :: i,j,k
-
-      cdump = COS(phase)+im*SIN(phase)
-      jdump = conjg(cdump)
-
-      krmin2 = krmin**2
-      krmax2 = krmax**2
-      IF (ista.eq.1) THEN
-
-      DO j = 2,ny/2+1
-        IF ( kk2(1,j,1).gt.krmin2 .and. kk2(1,j,1).lt.krmax2 ) THEN
-        fx     (1,j,1) = fx     (1,j,1)*cdump
-        fx(1,ny-j+2,1) = fx(1,ny-j+2,1)*jdump
-        fy     (1,j,1) = fy     (1,j,1)*cdump
-        fy(1,ny-j+2,1) = fy(1,ny-j+2,1)*jdump
-        fz     (1,j,1) = fz     (1,j,1)*cdump
-        fz(1,ny-j+2,1) = fz(1,ny-j+2,1)*jdump
-        ENDIF
-      ENDDO
-
-!$omp parallel do
-      DO k = 2,nz/2+1
-        IF ( kk2(k,1,1).gt.krmin2 .and. kk2(k,1,1).lt.krmax2 ) THEN
-        fx     (k,1,1) = fx     (k,1,1)*cdump
-        fx(nz-k+2,1,1) = fx(nz-k+2,1,1)*jdump
-        fy    (kz,1,1) = fy     (k,1,1)*cdump
-        fy(nz-k+2,1,1) = fy(nz-k+2,1,1)*jdump
-        fz     (k,1,1) = fz     (k,1,1)*cdump
-        fz(nz-k+2,1,1) = fz(nz-k+2,1,1)*jdump
-        ENDIF
-      END DO
-!$omp end parallel do
-      
-!$omp parallel do private (k)
-      DO j = 2,ny
-        DO k = 2,nz/2+1
-          IF ( kk2(k,j,1).gt.krmin2 .and. kk2(k,j,1).lt.krmax2 ) THEN
-          fx          (k,j,1) = fx          (k,j,1)*cdump
-          fx(nz-k+2,ny-j+2,1) = fx(nz-k+2,ny-j+2,1)*jdump
-          fy          (k,j,1) = fy          (k,j,1)*cdump
-          fy(nz-k+2,ny-j+2,1) = fy(nz-k+2,ny-j+2,1)*jdump
-          fz          (k,j,1) = fz          (k,j,1)*cdump
-          fz(nz-k+2,ny-j+2,1) = fz(nz-k+2,ny-j+2,1)*jdump
-          ENDIF
-        ENDDO
-      ENDDO
-!$omp end parallel do
-
-
-!$omp parallel do if (iend-2.ge.nth) private (j,k)
-      DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k)
-        DO j = 1,ny
-          DO k = 1,nz
-            IF ( kk2(k,j,i).gt.krmin2 .and. kk2(k,j,i).lt.krmax2 ) THEN
-            fx(k,j,i) = fx(k,j,i)*cdump
-            fy(k,j,i) = fy(k,j,i)*cdump
-            fz(k,j,i) = fz(k,j,i)*cdump
-            ENDIF
-          ENDDO
-        ENDDO
-      ENDDO
-
-      ELSE
-    
-      DO  i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,ny
-           DO k = 1,nz
-             IF ( kk2(k,j,i).gt.krmin2 .and. kk2(k,j,i).lt.krmax2 ) THEN
-             fx(k,j,i) = fx(k,j,i)*cdump
-             fy(k,j,i) = fy(k,j,i)*cdump
-             fz(k,j,i) = fz(k,j,i)*cdump
-            ENDIF
-           ENDDO
-         ENDDO
-       ENDDO
-       ENDIF
-  
-      END SUBROUTINE Randomize
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!
-!
-      SUBROUTINE Shebalin(asheb,kin,vx,vy,vz,th)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!
-! Compute Shebalin angle measure of anisotrop.
-!
-! Parameters
-!     asheb : returned Shebalin angle measurement
-!     kin   : 
-!       == 0: do total energy; 
-!       == 1: do kinetic energy only; 
-!       == 2: do potential energy only; (done only if th is specified)
-!     vx,
-!     vy,
-!     vz    : complex velocities
-!     th    : optional complex potl temperature
-!
-      USE fprecision
-      USE commtypes
-      USE kes
-      USE grid
-      USE mpivars
-      USE threads
-      USE fft
-      USE var
-      USE fftplans
-      USE gutils
-      IMPLICIT NONE
-
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend)           :: vx,vy,vz
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend), OPTIONAL :: th
-      REAL   (KIND=GP), INTENT  (OUT)                           :: asheb
-      REAL   (KIND=GP)                                          :: lasheb
-      REAL   (KIND=GP)                                          :: tmp
-      DOUBLE PRECISION                                          :: kprp,kpar,tmq,lprp,lpar,gprp,gpar,la(2),ga(2)
-      INTEGER         , INTENT (IN)                             :: kin
-      INTEGER                                                   :: i,j,k
-
-      tmq  = 1.0D0/real(nx*ny*nz,kind=GP)**2
-
-      lpar = 0.0D0
-      lprp = 0.0D0
-      IF (kin.eq.0 .OR. kin.eq.1) THEN ! total or kinetic energy
-        IF (ista.eq.1) THEN
-!$omp parallel do private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-           DO j = 1,ny
-              DO k = 1,nz
-                kprp = kx(1)**2 + ky(j)**2
-                kpar = kz(k)**2
-                tmp  = ( abs(vx(k,j,1))**2+abs(vy(k,j,1))**2+          &
-                         abs(vz(k,j,1))**2 )*tmq
-                lprp  = lprp + tmp*kprp
-                lpar  = lpar + tmp*kpar
-              END DO
-           END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-           DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-              DO j = 1,ny
-                 DO k = 1,nz
-                    kprp = kx(i)**2 + ky(j)**2
-                    kpar = kz(k)**2
-                    tmp  = 2.0*( abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+       &
-                                 abs(vz(k,j,i))**2 )*tmq
-                    lprp  = lprp + tmp*kprp
-                    lpar  = lpar + tmp*kpar
-                 END DO
-              END DO
-           END DO
-        ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-           DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-              DO j = 1,ny
-                 DO k = 1,nz
-                    kprp = kx(i)**2 + ky(j)**2
-                    kpar = kz(k)**2
-                    tmp  = 2.0*( abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+       &
-                                 abs(vz(k,j,i))**2 )*tmq
-                    lprp  = lprp + tmp*kprp
-                    lpar  = lpar + tmp*kpar
-                 END DO
-              END DO
-           END DO
-        ENDIF
-      ENDIF
-
-      IF (kin.EQ.1) THEN ! kinetic energy only
-        la(1) = lprp
-        la(2) = lpar
-        CALL MPI_ALLREDUCE(la,ga,2,MPI_DOUBLE_PRECISION,MPI_SUM,   &
-                        MPI_COMM_WORLD,ierr)
-        asheb  = real(ga(1) / (ga(2) + tiny(1.0_GP)),kind=GP)
-        RETURN
-      ENDIF
-
-      IF (.NOT.PRESENT(th) ) THEN
-        WRITE(*,*) 'Shebalin: potential temperature not provided'
-        STOP
-      ENDIF
-
-      IF (kin.EQ.2) THEN ! if potential energy only
-        lprp = 0.0_GP
-        lpar = 0.0_GP
-      ENDIF
-
-      IF (ista.eq.1) THEN ! add in the potential component
-!$omp parallel do private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-         DO j = 1,ny
-            DO k = 1,nz
-              kprp = kx(1)**2 + ky(j)**2
-              kpar = kz(k)**2
-              tmp  = ( abs(th(k,j,1))**2 )*tmq
-              lprp  = lprp + tmp*kprp
-              lpar  = lpar + tmp*kpar
-            END DO
-         END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-         DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-            DO j = 1,ny
-               DO k = 1,nz
-                  kprp = kx(i)**2 + ky(j)**2
-                  kpar = kz(k)**2
-                  tmp  = 2.0*( abs(th(k,j,i))**2 )*tmq
-                  lprp  = lprp + tmp*kprp
-                  lpar  = lpar + tmp*kpar
-               END DO
-            END DO
-         END DO
-      ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kprp,kpar,tmp) reduction(+:lprp,lpar)
-            DO j = 1,ny
-               DO k = 1,nz
-                  kprp = kx(i)**2 + ky(j)**2
-                  kpar = kz(k)**2
-                  tmp  = 2.0*( abs(vx(k,j,i))**2+abs(vy(k,j,i))**2+       &
-                           abs(vz(k,j,i))**2 )*tmq
-                  lprp  = lprp + tmp*kprp
-                  lpar  = lpar + tmp*kpar
-               END DO
-            END DO
-         END DO
-      ENDIF
-!
-! Computes the reduction between nodes, store in return variable
-      la(1) = lprp
-      la(2) = lpar
-      CALL MPI_ALLREDUCE(la,ga,2,MPI_DOUBLE_PRECISION,MPI_SUM,   &
-                        MPI_COMM_WORLD,ierr)
-      asheb  = real(ga(1) / (ga(2) + tiny(1.0_GP)),kind=GP)
-
-      END SUBROUTINE Shebalin
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -3481,7 +3212,10 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-      SUBROUTINE DoAniso(vx,vy,vz,th,indtime,odir,C1,C2,C3,R1,R2,R3,R4,R5,R6,accum,bdenom,ddenom,gdenom,vdenom, bij,dij,gij,vij)
+
+      SUBROUTINE DoAniso(vx,vy,vz,th,indtime,odir,C1,C2, &
+                         R1,R2,R3,R4,R5,R6,accum,bdenom,ddenom,&
+                         gdenom,vdenom, bij,dij,gij,vij)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -3520,7 +3254,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend):: vx,vy,vz,th
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: C1,C2,C3
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: C1,C2
 
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2,R3,R4, R5,R6
       DOUBLE PRECISION,                DIMENSION(4,3)            :: invar
@@ -3531,16 +3265,18 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       LOGICAL         , INTENT   (IN)                            :: accum
       INTEGER         , INTENT   (IN)                            :: indtime
       INTEGER                                                    :: i,j
-      CHARACTER(len=*), INTENT   (IN)                            :: odir
+      CHARACTER(len=1024), INTENT   (IN)                         :: odir
       CHARACTER(len=1024)                                        :: fnout
       CHARACTER(len=128)                                         :: rowfmt
+      CHARACTER(len=64)                                          :: sext
 
       WRITE(rowfmt,'(A, I4, A)') '(I4,',12,'(2X,E14.6))'
 
-      pm(1).mat => bij
-      pm(2).mat => dij
-      pm(3).mat => gij
-      pm(4).mat => vij
+
+      pm(1)%mat => bij
+      pm(2)%mat => dij
+      pm(3)%mat => gij
+      pm(4)%mat => vij
       CALL anisobij(vx,vy,vz,C1,R1,R2,R3,accum,bdenom,bij)
       CALL anisodij(vx,vy,vz,C1,C2,R1,R2,accum,ddenom,dij)
       CALL anisogij(th,C1,R1,R2,R3,accum,gdenom,gij)
@@ -3549,7 +3285,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       IF (.not. accum) THEN
         DO i = 1, 3 ! which invariant, I, II, III
           DO j = 1, 4 ! which tensor
-            CALL invariant(pm(j).mat, i, invar(j,i))
+            CALL invariant(pm(j)%mat, i, invar(j,i))
           ENDDO
         ENDDO
       ENDIF
@@ -3572,31 +3308,33 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       ENDIF
 
       ! Compute point-wise invariant spectra:
-      CALL pw_anisobij(vx,vy,vz,C1,R1,R2,R3,R4, R5,R6)
+      CALL pw_anisobij(vx,vy,vz,C1,C2,R1,R2,R3,R4, R5,R6)
       CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
       WRITE(sext, fmtext) indtime
       fnout = trim(odir) // '/' // 'bIIspect.' // trim(sext) // '.txt'
-      CALL psspectrum(C1, fnout, kmax)
+      CALL pspectrum(C1, fnout, kmax)
       CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'bIIIspect.' // trim(sext) // '.txt'
-      CALL psspectrum(C1, fnout, kmax)
+      CALL pspectrum(C1, fnout, kmax)
 
-      CALL pw_anisovij(vx,vy,vz,C1,R1,R2,R3,R4, R5,R6)
+      CALL pw_anisovij(vx,vy,vz,C1,C2,R1,R2,R3,R4, R5,R6)
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
       WRITE(sext, fmtext) indtime
       fnout = trim(odir) // '/' // 'vIIspect.' // trim(sext) // '.txt'
-      CALL psspectrum(C1, fnout, kmax)
+      CALL pspectrum(C1, fnout, kmax)
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'vIIIspect.' // trim(sext) // '.txt'
-      CALL psspectrum(C1, fnout, kmax)
+      CALL pspectrum(C1, fnout, kmax)
 
-      CALL pw_anisogij(th,C1,R1,R2,R3,R4, R5,R6)
+      CALL pw_anisogij(th,C1,C2,R1,R2,R3,R4, R5,R6)
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
       WRITE(sext, fmtext) indtime
       fnout = trim(odir) // '/' // 'gIIspect.' // trim(sext) // '.txt'
-      CALL psspectrum(C1, fnout, kmax)
+      CALL pspectrum(C1, fnout, kmax)
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'gIIIspect.' // trim(sext) // '.txt'
-      CALL psspectrum(C1, fnout, kmax)
+      CALL pspectrum(C1, fnout, kmax)
 
       END SUBROUTINE DoAniso
+
+
