@@ -318,7 +318,6 @@
       CHARACTER(len=64) :: ext1
       CHARACTER(len=4096) :: sstat
 
-
 !
 ! Namelists for the input files
 
@@ -1564,7 +1563,9 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
             bij = 0.0; dij = 0.0; gij = 0.0; vij = 0.0;
             bden= 0.0; dden= 0.0; gden= 0.0; vden= 0.0;
           ENDIF
-          IF ( useaccum .GT. 0 .AND. it .EQ. nstat ) accum = .FALSE.
+          IF ( useaccum .GT. 0 .AND. it .EQ. nstat ) THEN
+             accum = .FALSE.
+          ENDIF
 #if 1
           CALL DoAniso(vx,vy,vz,th,istat(it),odir,C1,C2, &
                        R1,R2,R3,R4,R5,R6,accum,bden,dden,gden,vden, &
@@ -3250,9 +3251,9 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2,R3,R4, R5,R6
       DOUBLE PRECISION,                DIMENSION(4,3)            :: invar
-      DOUBLE PRECISION, INTENT(INOUT), DIMENSION(3,3), TARGET    :: bij,vij,gij,dij
+      DOUBLE PRECISION, INTENT(INOUT), DIMENSION(3,3)            :: bij,vij,gij,dij
       DOUBLE PRECISION, INTENT(INOUT)                            :: bdenom,vdenom,gdenom,ddenom
-      TYPE(PMAT)                                                 :: pm(4)
+!     TYPE(PMAT)                                                 :: pm(4)
       LOGICAL                                                    :: bexist
       LOGICAL         , INTENT   (IN)                            :: accum
       INTEGER         , INTENT   (IN)                            :: indtime
@@ -3265,10 +3266,10 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       WRITE(rowfmt,'(A, I4, A)') '(I4,',12,'(2X,E14.6))'
 
 
-      pm(1)%mat => bij
-      pm(2)%mat => dij
-      pm(3)%mat => gij
-      pm(4)%mat => vij
+!     pm(1)%mat => bij
+!     pm(2)%mat => dij
+!     pm(3)%mat => gij
+!     pm(4)%mat => vij
       CALL anisobij(vx,vy,vz,C1,R1,R2,R3,accum,bdenom,bij)
       CALL anisodij(vx,vy,vz,C1,C2,R1,R2,accum,ddenom,dij)
       CALL anisogij(th,C1,R1,R2,R3,accum,gdenom,gij)
@@ -3276,9 +3277,10 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 
       IF (.not. accum) THEN
         DO i = 1, 3 ! which invariant, I, II, III
-          DO j = 1, 4 ! which tensor
-            CALL invariant(pm(j)%mat, i, invar(j,i))
-          ENDDO
+          CALL invariant(bij, i, invar(1,i))
+          CALL invariant(dij, i, invar(2,i))
+          CALL invariant(gij, i, invar(3,i))
+          CALL invariant(vij, i, invar(4,i))
         ENDDO
       ENDIF
 
