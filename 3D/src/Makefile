@@ -276,7 +276,7 @@ vt:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o \
 	   $(GTIMER) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
-shear:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GMIS) \
+compi:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GMIS) \
 	   $(OBJS) $(GIO) $(GUTILS)
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
 	   -I$(GHOME) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
@@ -304,10 +304,10 @@ clean:  undo
 dist:
 	rm -f $(BIN)/*HD* $(BIN)/*MHD* $(BIN)/*ROT* $(BIN)/*BOUSS* \
               $(BIN)/*MOIST* $(BIN)/*GPE* $(BIN)/*ARGL* $(BIN)/boots \
-              $(BIN)/trunc $(BIN)/vt $(BIN)/shear $(BIN)/wv $(BIN)/wt \
+              $(BIN)/trunc $(BIN)/vt $(BIN)/compi $(BIN)/wv $(BIN)/wt \
               $(BIN)/*PIC* $(BIN)/README_* \
               *HD* *MHD* *ROT* *BOUSS* *MOIST* \
-              *GPE* *ARGL* *PIC* boots trunc vt shear wv
+              *GPE* *ARGL* *PIC* boots trunc vt compi wv
 	$(MAKE) clean
 
 edit:
