@@ -1857,7 +1857,7 @@ MODULE gutils
       END SUBROUTINE invariant
 
 
-      SUBROUTINE pw_anisobij(vx,vy,vz,c1,r1,r2,r3,r4,bII, bIII)
+      SUBROUTINE pw_anisobij(vx,vy,vz,c1,c2,r1,r2,r3,r4,bII, bIII)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -1866,7 +1866,7 @@ MODULE gutils
 !  
 ! Parameters
 !     vi    : input velocities
-!     c1    : complex temp array
+!     ci    : complex temp array
 !     r1-4  : real temp array
 !     bII   : II-invariant field
 !     bIII  : III-invariant field
@@ -1883,7 +1883,7 @@ MODULE gutils
 
       COMPLEX(KIND=GP), INTENT  (IN) , &
                          TARGET      , DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1,c2
       DOUBLE PRECISION,                DIMENSION(3,3)             :: bij
       DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
       DOUBLE PRECISION                                            :: invar
@@ -1972,7 +1972,7 @@ MODULE gutils
       END SUBROUTINE pw_anisobij
 
 
-      SUBROUTINE pw_anisovij(vx,vy,vz,c1,r1,r2,r3,r4,vII,vIII)
+      SUBROUTINE pw_anisovij(vx,vy,vz,c1,c2,r1,r2,r3,r4,vII,vIII)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -1999,7 +1999,7 @@ MODULE gutils
 
       COMPLEX(KIND=GP), INTENT  (IN) , &
                          TARGET      , DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1,c2
       DOUBLE PRECISION,                DIMENSION(3,3)             :: vij
       DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
       DOUBLE PRECISION                                            :: invar
@@ -2091,7 +2091,7 @@ MODULE gutils
       END SUBROUTINE pw_anisovij
 
 
-      SUBROUTINE pw_anisogij(th,c1,r1,r2,r3,r4,gII,gIII)
+      SUBROUTINE pw_anisogij(th,c1,c2,r1,r2,r3,r4,gII,gIII)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -2100,7 +2100,7 @@ MODULE gutils
 !  
 ! Parameters
 !     th    : input velocities
-!     c1    : complex temp array
+!     ci    : complex temp array
 !     r1-3  : real temp array
 !     denom : tensor normalization. First time in, should be initialized to 0
 !     vII   : II-invariant field
@@ -2118,7 +2118,7 @@ MODULE gutils
 
       COMPLEX(KIND=GP), INTENT  (IN) , &
                          TARGET      , DIMENSION(nz,ny,ista:iend) :: th
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1,c2
       DOUBLE PRECISION,                DIMENSION(3,3)             :: gij
       DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
       DOUBLE PRECISION                                            :: invar
@@ -2163,15 +2163,15 @@ MODULE gutils
                gij(1,1)  = ( r1(i,j,k)*r1(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
                gij(1,2)  = ( r1(i,j,k)*r2(i,j,k) )*tmp * r4(i,j,k)
                gij(1,3)  = ( r1(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k)
-               gij(2,1)  = vij(1,2)
+               gij(2,1)  = gij(1,2)
                gij(2,2)  = ( r2(i,j,k)*r2(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
                gij(2,3)  = ( r2(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k)
-               gij(3,1)  = vij(1,3)
-               gij(3,2)  = vij(2,3)
+               gij(3,1)  = gij(1,3)
+               gij(3,2)  = gij(2,3)
                gij(3,3)  = ( r3(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
-               CALL invariant(vij, 2, invar)
+               CALL invariant(gij, 2, invar)
                gII (i,j,k) = invar
-               CALL invariant(vij, 3, invar)
+               CALL invariant(gij, 3, invar)
                gIII(i,j,k) = invar
             END DO
          END DO
