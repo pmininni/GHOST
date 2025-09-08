@@ -1369,7 +1369,6 @@ write(*,*)'main: compi.inp read.'
       CALL MPI_BCAST(nbinx  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nbiny  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(oswap  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-if (myrank.eq.0) write(*,*)'main: broadcast done.'
 ! Befor
 ! options are compatible with the SOLVER being used
 
@@ -1381,7 +1380,6 @@ if (myrank.eq.0) write(*,*)'main: broadcast done.'
         ENDIF
         bij = 0.0; dij = 0.0; gij = 0.0; vij = 0.0;
         bden= 0.0; dden= 0.0; gden= 0.0; vden= 0.0;
-if (myrank.eq.0) write(*,*)'main: accum = ', accum
       ENDIF
 
       INCLUDE SOLVERCHECK_
@@ -1492,7 +1490,6 @@ if (myrank.eq.0) write(*,*)'main: accum = ', accum
 
       ! Parse input index set, store in istat:
       CALL parseind(sstat,';', istat , 4096, nstat)
-if (myrank.eq.0) write(*,*)'main: index parsing done: nstat=',nstat
 
       tmp = 1.0_GP/REAL(nx*ny*nz,KIND=GP)
       DO it = 1,nstat
@@ -1532,11 +1529,7 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
 if (myrank.eq.0) write(*,*)'main: Time index ', ext, ' read.' 
 
 !if ( myrank.eq.0 ) write(*,*) 'main: real(vz)=',R1(16,1:16,kend)
-if ( myrank.eq.0 ) then
-write(*,*) 'main: max(th)=',maxval(R4), ' min(th)=',minval(R4)
-endif
 
-if (myrank.eq.0) write(*,*)'main: Do fftr2c... ' 
       xnormn = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
@@ -1572,8 +1565,7 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
             bden= 0.0; dden= 0.0; gden= 0.0; vden= 0.0;
           ENDIF
           IF ( useaccum .GT. 0 .AND. it .EQ. nstat ) accum = .FALSE.
-write(*,*)'main: nstat=', nstat, ' it=', it, ' accum=', accum
-#if 0
+#if 1
           CALL DoAniso(vx,vy,vz,th,istat(it),odir,C1,C2, &
                        R1,R2,R3,R4,R5,R6,accum,bden,dden,gden,vden, &
                        bij,dij,gij,vij)
