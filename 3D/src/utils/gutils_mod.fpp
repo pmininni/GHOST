@@ -1887,7 +1887,7 @@ MODULE gutils
       DOUBLE PRECISION,                DIMENSION(3,3)             :: bij
       DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
       DOUBLE PRECISION                                            :: invar
-      REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3
+      REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3,r4
       REAL(KIND=GP),    INTENT  (OUT), DIMENSION(nx,ny,ksta:kend) :: bII, bIII
       DOUBLE PRECISION                                            :: tmp1,ui,uloc
       REAL   (KIND=GP)                                            :: tmp
@@ -1972,7 +1972,7 @@ MODULE gutils
       END SUBROUTINE pw_anisobij
 
 
-      SUBROUTINE pw_anisovij(vx,vy,vz,c1,r1,r2,r3,vII,vIII)
+      SUBROUTINE pw_anisovij(vx,vy,vz,c1,r1,r2,r3,r4,vII,vIII)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -2003,7 +2003,7 @@ MODULE gutils
       DOUBLE PRECISION,                DIMENSION(3,3)             :: vij
       DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
       DOUBLE PRECISION                                            :: invar
-      REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3
+      REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3,r4
       REAL(KIND=GP),    INTENT  (OUT), DIMENSION(nx,ny,ksta:kend) :: vII, vIII
       DOUBLE PRECISION                                            :: tmp1,ui,uloc
       REAL   (KIND=GP)                                            :: tmp
@@ -2091,7 +2091,7 @@ MODULE gutils
       END SUBROUTINE pw_anisovij
 
 
-      SUBROUTINE pw_anisogij(th,c1,r1,r2,r3,gII,gIII)
+      SUBROUTINE pw_anisogij(th,c1,r1,r2,r3,r4,gII,gIII)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -2122,7 +2122,7 @@ MODULE gutils
       DOUBLE PRECISION,                DIMENSION(3,3)             :: gij
       DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
       DOUBLE PRECISION                                            :: invar
-      REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3
+      REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3,r4
       REAL(KIND=GP),    INTENT  (OUT), DIMENSION(nx,ny,ksta:kend) :: gII, gIII
       DOUBLE PRECISION                                            :: tmp1,ui,uloc
       REAL   (KIND=GP)                                            :: tmp
