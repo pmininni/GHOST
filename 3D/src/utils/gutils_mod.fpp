@@ -1715,7 +1715,7 @@ MODULE gutils
              DO j = 1,ny
                 DO i = 1,nx
                    r2(i,j,k) = r1(i,j,k)*r2(i,j,k) * tmp
-                   dij(1,1)  = dij(1,1) + r2(i,j,k)
+                   dij(1,2)  = dij(1,2) + r2(i,j,k)
                 END DO
              END DO
           END DO
@@ -1749,7 +1749,7 @@ MODULE gutils
              DO j = 1,ny
                 DO i = 1,nx
                    r2(i,j,k) = r1(i,j,k)*r1(i,j,k) * tmp
-                   dij(1,3)  = dij(1,3) + r2(i,j,k)
+                   dij(2,2)  = dij(2,2) + r2(i,j,k)
                 END DO
              END DO
           END DO
