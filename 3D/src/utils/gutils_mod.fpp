@@ -2119,7 +2119,7 @@ MODULE gutils
       COMPLEX(KIND=GP), INTENT  (IN) , &
                          TARGET      , DIMENSION(nz,ny,ista:iend) :: th
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1
-      DOUBLE PRECISION,                DIMENSION(3,3)             :: bij
+      DOUBLE PRECISION,                DIMENSION(3,3)             :: gij
       DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
       DOUBLE PRECISION                                            :: invar
       REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3
@@ -2177,7 +2177,7 @@ MODULE gutils
          END DO
       END DO
 
-      END SUBROUTINE pw_anisovij
+      END SUBROUTINE pw_anisogij
 
 
 END MODULE gutils
