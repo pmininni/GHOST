@@ -1281,7 +1281,7 @@ MODULE gutils
       INTEGER                                                     :: i,j,k,m
 
 
-!     bij = <u_i u_j> / <u_j u^j> - delta_ij 
+!     bij = <u_i u_j> / <u_j u^j> - delta_ij / 3
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
        DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -1855,5 +1855,329 @@ MODULE gutils
       END SELECT
 
       END SUBROUTINE invariant
+
+
+      SUBROUTINE pw_anisobij(vx,vy,vz,c1,r1,r2,r3,r4,bII, bIII)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Compute point-wise II, III invariants of anisotropy tensor:
+!   bij = u_i u_j / u_j u^j - delta_ij / 3
+!  
+! Parameters
+!     vi    : input velocities
+!     c1    : complex temp array
+!     r1-4  : real temp array
+!     bII   : II-invariant field
+!     bIII  : III-invariant field
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT  (IN) , &
+                         TARGET      , DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1
+      DOUBLE PRECISION,                DIMENSION(3,3)             :: bij
+      DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
+      DOUBLE PRECISION                                            :: invar
+      REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3
+      REAL(KIND=GP),    INTENT  (OUT), DIMENSION(nx,ny,ksta:kend) :: bII, bIII
+      DOUBLE PRECISION                                            :: tmp1,ui,uloc
+      REAL   (KIND=GP)                                            :: tmp
+      INTEGER                                                     :: i,j,k,m
+
+
+!     bij = u_i u_j / u_j u^j - delta_ij / 3
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = vx(k,j,i)
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = vy(k,j,i)
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = vz(k,j,i)
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+
+      ! Compute <u^2>:
+      tmp  = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
+      tmp1 = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+      uloc = 0.0D0
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               r4(i,j,k) = ( r1(i,j,k)*r1(i,j,k) &
+                           + r2(i,j,k)*r2(i,j,k) &
+                           + r3(i,j,k)*r3(i,j,k) )*tmp
+               r4(i,j,k) = 1.0 / r4(i,j,k) 
+            END DO
+         END DO
+      END DO
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               bij(1,1)  = ( r1(i,j,k)*r1(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
+               bij(1,2)  = ( r1(i,j,k)*r2(i,j,k) )*tmp * r4(i,j,k)
+               bij(1,3)  = ( r1(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k)
+               bij(2,1)  = bij(1,2)
+               bij(2,2)  = ( r2(i,j,k)*r2(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
+               bij(2,3)  = ( r2(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k)
+               bij(3,1)  = bij(1,3)
+               bij(3,2)  = bij(2,3)
+               bij(3,3)  = ( r3(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
+               CALL invariant(bij, 2, invar)
+               bII (i,j,k) = invar
+               CALL invariant(bij, 3, invar)
+               bIII(i,j,k) = invar
+            END DO
+         END DO
+      END DO
+
+      END SUBROUTINE pw_anisobij
+
+
+      SUBROUTINE pw_anisovij(vx,vy,vz,c1,r1,r2,r3,vII,vIII)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Compute point-wise II, III invariants of anisotropy tensor:
+!   vij = o_i o_j / o_j o^j - delta_ij / 3
+!  
+! Parameters
+!     vi    : input velocities
+!     c1    : complex temp array
+!     r1-3  : real temp array
+!     denom : tensor normalization. First time in, should be initialized to 0
+!     vII   : II-invariant field
+!     vIII  : III-invariant field
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT  (IN) , &
+                         TARGET      , DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1
+      DOUBLE PRECISION,                DIMENSION(3,3)             :: vij
+      DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
+      DOUBLE PRECISION                                            :: invar
+      REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3
+      REAL(KIND=GP),    INTENT  (OUT), DIMENSION(nx,ny,ksta:kend) :: vII, vIII
+      DOUBLE PRECISION                                            :: tmp1,ui,uloc
+      REAL   (KIND=GP)                                            :: tmp
+      INTEGER                                                     :: i,j,k,m
+
+
+!     vij = om_i om_j / om_j om^j - delta_ij / 3
+      CALL rotor3(vy,vz,c2,1)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = c2(k,j,i)
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+
+      CALL rotor3(vx,vz,c2,2)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = c2(k,j,i)
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+
+      CALL rotor3(vx,vy,c2,3)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = c2(k,j,i)
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+
+      ! Compute <om^2>:
+      tmp  = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
+      tmp1 = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+      uloc = 0.0D0
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               r4(i,j,k) = ( r1(i,j,k)*r1(i,j,k) &
+                           + r2(i,j,k)*r2(i,j,k) &
+                           + r3(i,j,k)*r3(i,j,k) )*tmp
+               r4(i,j,k) = 1.0 / r4(i,j,k) 
+            END DO
+         END DO
+      END DO
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               vij(1,1)  = ( r1(i,j,k)*r1(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
+               vij(1,2)  = ( r1(i,j,k)*r2(i,j,k) )*tmp * r4(i,j,k)
+               vij(1,3)  = ( r1(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k)
+               vij(2,1)  = vij(1,2)
+               vij(2,2)  = ( r2(i,j,k)*r2(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
+               vij(2,3)  = ( r2(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k)
+               vij(3,1)  = vij(1,3)
+               vij(3,2)  = vij(2,3)
+               vij(3,3)  = ( r3(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
+               CALL invariant(vij, 2, invar)
+               vII (i,j,k) = invar
+               CALL invariant(vij, 3, invar)
+               vIII(i,j,k) = invar
+            END DO
+         END DO
+      END DO
+
+      END SUBROUTINE pw_anisovij
+
+
+      SUBROUTINE pw_anisogij(th,c1,r1,r2,r3,gII,gIII)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Compute point-wise II, III invariants of anisotropy tensor:
+!   gij = th_i th_j / th_j th^j - delta_ij / 3
+!  
+! Parameters
+!     th    : input velocities
+!     c1    : complex temp array
+!     r1-3  : real temp array
+!     denom : tensor normalization. First time in, should be initialized to 0
+!     vII   : II-invariant field
+!     vIII  : III-invariant field
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT  (IN) , &
+                         TARGET      , DIMENSION(nz,ny,ista:iend) :: th
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1
+      DOUBLE PRECISION,                DIMENSION(3,3)             :: bij
+      DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
+      DOUBLE PRECISION                                            :: invar
+      REAL(KIND=GP),    INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1,r2,r3
+      REAL(KIND=GP),    INTENT  (OUT), DIMENSION(nx,ny,ksta:kend) :: gII, gIII
+      DOUBLE PRECISION                                            :: tmp1,ui,uloc
+      REAL   (KIND=GP)                                            :: tmp
+      INTEGER                                                     :: i,j,k,m
+
+
+       CALL derivk3(th,c1,1)
+       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+       CALL derivk3(th,c1,2)
+       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+       CALL derivk3(th,c1,3)
+       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+
+      ! Compute <Grad th^2>:
+      tmp  = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
+      tmp1 = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+      uloc = 0.0D0
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               r4(i,j,k) = ( r1(i,j,k)*r1(i,j,k) &
+                           + r2(i,j,k)*r2(i,j,k) &
+                           + r3(i,j,k)*r3(i,j,k) )*tmp
+               r4(i,j,k) = 1.0 / r4(i,j,k) 
+            END DO
+         END DO
+      END DO
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               gij(1,1)  = ( r1(i,j,k)*r1(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
+               gij(1,2)  = ( r1(i,j,k)*r2(i,j,k) )*tmp * r4(i,j,k)
+               gij(1,3)  = ( r1(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k)
+               gij(2,1)  = vij(1,2)
+               gij(2,2)  = ( r2(i,j,k)*r2(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
+               gij(2,3)  = ( r2(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k)
+               gij(3,1)  = vij(1,3)
+               gij(3,2)  = vij(2,3)
+               gij(3,3)  = ( r3(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
+               CALL invariant(vij, 2, invar)
+               gII (i,j,k) = invar
+               CALL invariant(vij, 3, invar)
+               gIII(i,j,k) = invar
+            END DO
+         END DO
+      END DO
+
+      END SUBROUTINE pw_anisovij
+
 
 END MODULE gutils
