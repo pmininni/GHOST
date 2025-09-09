@@ -912,7 +912,6 @@ MODULE gutils
        rstd = sqrt(glo(1)*ng)
 
       RETURN
-
       END SUBROUTINE rarray_props
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1041,6 +1040,7 @@ MODULE gutils
 
       ENDIF
 
+      RETURN
       END SUBROUTINE Strain
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1114,6 +1114,7 @@ MODULE gutils
         END DO
       END DO
 
+      RETURN
       END SUBROUTINE StrainMag
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1179,6 +1180,7 @@ MODULE gutils
       ENDDO
 
 
+      RETURN
       END SUBROUTINE StrainDiv
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1236,6 +1238,7 @@ MODULE gutils
 
       END DO
 
+      RETURN
       END SUBROUTINE div
 
 
@@ -1336,7 +1339,7 @@ MODULE gutils
       IF  ( .not. accum ) THEN
         CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
-        if ( ui .gt. epsilon(tmp) ) then
+        if ( ui .gt. 1.0e2*epsilon(tmp) ) then
           ui = 1.0 / ui
         else
           ui = 0.0
@@ -1371,6 +1374,7 @@ MODULE gutils
         bij(3,3) = tij(3,3)*ui - 1.0D0/3.0D0
       ENDIF
 
+      RETURN
       END SUBROUTINE anisobij
 
       SUBROUTINE anisogij(th,c1,r1,r2,r3,accum,denom,gij)
@@ -1445,7 +1449,7 @@ MODULE gutils
       IF ( .not. accum  ) THEN
         CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
-        if ( ui .gt. epsilon(tmp) ) then
+        if ( ui .gt. 1.0e2*epsilon(tmp) ) then
           ui = 1.0 / ui
         else
           ui = 0.0
@@ -1480,6 +1484,7 @@ MODULE gutils
         gij(3,3) = tij(3,3)*ui - 1.0D0/3.0D0
       ENDIF
 
+      RETURN
       END SUBROUTINE anisogij
 
       SUBROUTINE anisovij(vx,vy,vz,c1,c2,r1,r2,r3,accum,denom,vij)
@@ -1583,7 +1588,7 @@ MODULE gutils
       IF ( .not. accum ) THEN
         CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
-        if ( ui .gt. epsilon(tmp) ) then
+        if ( ui .gt. 1.0e2*epsilon(tmp) ) then
           ui = 1.0 / ui
         else
           ui = 0.0
@@ -1618,6 +1623,7 @@ MODULE gutils
         vij(3,3) = tij(3,3)*ui - 1.0D0/3.0D0
       ENDIF
 
+      RETURN
       END SUBROUTINE anisovij
 
       SUBROUTINE anisodij(vx,vy,vz,c1,c2,r1,r2,accum,denom,dij)
@@ -1696,7 +1702,7 @@ MODULE gutils
       IF ( .not. accum ) THEN
         CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
-        if ( ui .gt. epsilon(tmp) ) then
+        if ( ui .gt. 1.0e2*epsilon(tmp) ) then
           ui = 1.0 / ui
         else
           ui = 0.0
@@ -1819,6 +1825,7 @@ MODULE gutils
         dij(3,3) = tij(3,3)*ui - 1.0D0/3.0D0
       ENDIF
 
+      RETURN
       END SUBROUTINE anisodij
 
       SUBROUTINE invariant(Tij, iwhich, invar)
@@ -1870,6 +1877,7 @@ MODULE gutils
           STOP
       END SELECT
 
+      RETURN
       END SUBROUTINE invariant
 
 
@@ -1958,11 +1966,11 @@ MODULE gutils
                r4(i,j,k) = ( r1(i,j,k)*r1(i,j,k) &
                            + r2(i,j,k)*r2(i,j,k) &
                            + r3(i,j,k)*r3(i,j,k) )*tmp
-               if ( r4(i,j,k) .gt. epsilon(tmp)) then
+      !        if ( r4(i,j,k) .gt. 1.0e2*epsilon(tmp)) then
                  r4(i,j,k) = 1.0 / r4(i,j,k) 
-               else
-                 r4(i,j,k) = 0.0
-               endif
+      !        else
+      !          r4(i,j,k) = 0.0
+      !        endif
             END DO
          END DO
       END DO
@@ -1989,6 +1997,7 @@ MODULE gutils
          END DO
       END DO
 
+      RETURN
       END SUBROUTINE pw_anisobij
 
 
@@ -2081,11 +2090,11 @@ MODULE gutils
                r4(i,j,k) = ( r1(i,j,k)*r1(i,j,k) &
                            + r2(i,j,k)*r2(i,j,k) &
                            + r3(i,j,k)*r3(i,j,k) )*tmp
-               if ( r4(i,j,k) .gt. epsilon(tmp)) then
+!              if ( r4(i,j,k) .gt. 1.0e2*epsilon(tmp)) then
                  r4(i,j,k) = 1.0 / r4(i,j,k) 
-               else
-                 r4(i,j,k) = 0.0
-               endif
+!              else
+!                r4(i,j,k) = 0.0
+!              endif
             END DO
          END DO
       END DO
@@ -2112,6 +2121,7 @@ MODULE gutils
          END DO
       END DO
 
+      RETURN
       END SUBROUTINE pw_anisovij
 
 
@@ -2174,11 +2184,11 @@ MODULE gutils
                r4(i,j,k) = ( r1(i,j,k)*r1(i,j,k) &
                            + r2(i,j,k)*r2(i,j,k) &
                            + r3(i,j,k)*r3(i,j,k) )*tmp
-               if ( r4(i,j,k) .gt. epsilon(tmp)) then
+!              if ( r4(i,j,k) .gt. 1.0e2*epsilon(tmp)) then
                  r4(i,j,k) = 1.0 / r4(i,j,k) 
-               else
-                 r4(i,j,k) = 0.0
-               endif
+!              else
+!                r4(i,j,k) = 0.0
+!              endif
             END DO
          END DO
       END DO
@@ -2205,6 +2215,7 @@ MODULE gutils
          END DO
       END DO
 
+      RETURN
       END SUBROUTINE pw_anisogij
 
 
