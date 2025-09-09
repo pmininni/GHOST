@@ -3359,6 +3359,18 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL fftp3d_real_to_complex(planrc,R4,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'gIIIspect.' // trim(sext) // '.txt'
       CALL pspectrum(C1, fnout, nn)
+
+      CALL pw_anisodij(vx,vy,vz,C1,C2,R1,R2,R3,R4, R5,R6)
+      R4 = abs(R5)**(0.5)
+      CALL fftp3d_real_to_complex(planrc,R4,C1,MPI_COMM_WORLD)
+      WRITE(sext, fmtext) indtime
+      fnout = trim(odir) // '/' // 'dIIspect.' // trim(sext) // '.txt'
+      CALL pspectrum(C1, fnout, nn)
+
+      R4 = abs(R6)**(1.0/3.0)
+      CALL fftp3d_real_to_complex(planrc,R4,C1,MPI_COMM_WORLD)
+      fnout = trim(odir) // '/' // 'dIIIspect.' // trim(sext) // '.txt'
+      CALL pspectrum(C1, fnout, nn)
 #endif
 
       RETURN
