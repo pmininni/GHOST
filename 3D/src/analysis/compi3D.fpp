@@ -3319,33 +3319,44 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       ENDIF
 
       nn = nmax/2 + 1
-      ! Compute point-wise invariant spectra:
+
+      ! Compute point-wise invariant spectra.
+      ! since these are products of eigenvalues, 
+      ! raise to 1/2 or 1/3 power to compare:
       CALL pw_anisobij(vx,vy,vz,C1,C2,R1,R2,R3,R4, R5,R6)
-      CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
+      R4 = abs(R5)**(0.5)
+      CALL fftp3d_real_to_complex(planrc,R4,C1,MPI_COMM_WORLD)
       WRITE(sext, fmtext) indtime
       fnout = trim(odir) // '/' // 'bIIspect.' // trim(sext) // '.txt'
       CALL pspectrum(C1, fnout, nn)
 
-#if 1
-      CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
+      R4 = abs(R6)**(1.0/3.0)
+      CALL fftp3d_real_to_complex(planrc,R4,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'bIIIspect.' // trim(sext) // '.txt'
       CALL pspectrum(C1, fnout, nn)
 
+#if 1
       CALL pw_anisovij(vx,vy,vz,C1,C2,R1,R2,R3,R4, R5,R6)
-      CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
+      R4 = abs(R5)**(0.5)
+      CALL fftp3d_real_to_complex(planrc,R4,C1,MPI_COMM_WORLD)
       WRITE(sext, fmtext) indtime
       fnout = trim(odir) // '/' // 'vIIspect.' // trim(sext) // '.txt'
       CALL pspectrum(C1, fnout, nn)
-      CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
+
+      R4 = abs(R6)**(1.0/3.0)
+      CALL fftp3d_real_to_complex(planrc,R4,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'vIIIspect.' // trim(sext) // '.txt'
       CALL pspectrum(C1, fnout, nn)
 
       CALL pw_anisogij(th,C1,C2,R1,R2,R3,R4, R5,R6)
-      CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
+      R4 = abs(R5)**(0.5)
+      CALL fftp3d_real_to_complex(planrc,R4,C1,MPI_COMM_WORLD)
       WRITE(sext, fmtext) indtime
       fnout = trim(odir) // '/' // 'gIIspect.' // trim(sext) // '.txt'
       CALL pspectrum(C1, fnout, nn)
-      CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
+
+      R4 = abs(R6)**(1.0/3.0)
+      CALL fftp3d_real_to_complex(planrc,R4,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'gIIIspect.' // trim(sext) // '.txt'
       CALL pspectrum(C1, fnout, nn)
 #endif
