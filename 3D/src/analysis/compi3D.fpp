@@ -1343,7 +1343,7 @@
       nbinx  = 100
       nbiny  = 100
       ktmin  = tiny
-      ktmax  = kmax
+      ktmax  = tiny
 
 
       IF (myrank.eq.0) THEN
@@ -3244,6 +3244,8 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       USE iovar
       USE iompi
       USE filefmt
+      USE boxsize
+
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend):: vx,vy,vz,th
@@ -3253,11 +3255,12 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       DOUBLE PRECISION,                DIMENSION(4,3)            :: invar
       DOUBLE PRECISION, INTENT(INOUT), DIMENSION(3,3)            :: bij,vij,gij,dij
       DOUBLE PRECISION, INTENT(INOUT)                            :: bdenom,vdenom,gdenom,ddenom
+      DOUBLE PRECISION                                           :: Ek((nmax+1)/2)
 !     TYPE(PMAT)                                                 :: pm(4)
       LOGICAL                                                    :: bexist
       LOGICAL         , INTENT   (IN)                            :: accum
       INTEGER         , INTENT   (IN)                            :: indtime
-      INTEGER                                                    :: i,j
+      INTEGER                                                    :: i,j,nn
       CHARACTER(len=1024), INTENT   (IN)                         :: odir
       CHARACTER(len=1024)                                        :: fnout
       CHARACTER(len=128)                                         :: rowfmt
@@ -3301,33 +3304,34 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 
       ENDIF
 
+      nn = nmax/2 + 1
       ! Compute point-wise invariant spectra:
       CALL pw_anisobij(vx,vy,vz,C1,C2,R1,R2,R3,R4, R5,R6)
       CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
       WRITE(sext, fmtext) indtime
       fnout = trim(odir) // '/' // 'bIIspect.' // trim(sext) // '.txt'
-      CALL pspectrum(C1, fnout, kmax)
-      CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
+      CALL pspectrum(C1, fnout, nn)
+      CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'bIIIspect.' // trim(sext) // '.txt'
-      CALL pspectrum(C1, fnout, kmax)
+      CALL pspectrum(C1, fnout, nn)
 
       CALL pw_anisovij(vx,vy,vz,C1,C2,R1,R2,R3,R4, R5,R6)
-      CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
       WRITE(sext, fmtext) indtime
       fnout = trim(odir) // '/' // 'vIIspect.' // trim(sext) // '.txt'
-      CALL pspectrum(C1, fnout, kmax)
+      CALL pspectrum(C1, fnout, nn)
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'vIIIspect.' // trim(sext) // '.txt'
-      CALL pspectrum(C1, fnout, kmax)
+      CALL pspectrum(C1, fnout, nn)
 
       CALL pw_anisogij(th,C1,C2,R1,R2,R3,R4, R5,R6)
-      CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
       WRITE(sext, fmtext) indtime
       fnout = trim(odir) // '/' // 'gIIspect.' // trim(sext) // '.txt'
-      CALL pspectrum(C1, fnout, kmax)
+      CALL pspectrum(C1, fnout, nn)
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'gIIIspect.' // trim(sext) // '.txt'
-      CALL pspectrum(C1, fnout, kmax)
+      CALL pspectrum(C1, fnout, nn)
 
       END SUBROUTINE DoAniso
 
