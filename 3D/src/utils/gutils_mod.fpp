@@ -1339,11 +1339,11 @@ MODULE gutils
       IF  ( .not. accum ) THEN
         CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
-        if ( ui .gt. 1.0e2*epsilon(tmp) ) then
+!       if ( ui .gt. 1.0e2*epsilon(tmp) ) then
           ui = 1.0 / ui
-        else
-          ui = 0.0
-        endif
+!       else
+!         ui = 0.0
+!       endif
       ENDIF
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1449,11 +1449,11 @@ MODULE gutils
       IF ( .not. accum  ) THEN
         CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
-        if ( ui .gt. 1.0e2*epsilon(tmp) ) then
+!       if ( ui .gt. 1.0e2*epsilon(tmp) ) then
           ui = 1.0 / ui
-        else
-          ui = 0.0
-        endif
+!       else
+!         ui = 0.0
+!       endif
       ENDIF
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1588,11 +1588,11 @@ MODULE gutils
       IF ( .not. accum ) THEN
         CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
-        if ( ui .gt. 1.0e2*epsilon(tmp) ) then
+!       if ( ui .gt. 1.0e2*epsilon(tmp) ) then
           ui = 1.0 / ui
-        else
-          ui = 0.0
-        endif
+!       else
+!         ui = 0.0
+!       endif
       ENDIF
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1702,11 +1702,11 @@ MODULE gutils
       IF ( .not. accum ) THEN
         CALL MPI_ALLREDUCE(denom, ui, 1, MPI_DOUBLE_PRECISION, &
                         MPI_SUM, MPI_COMM_WORLD,ierr)
-        if ( ui .gt. 1.0e2*epsilon(tmp) ) then
+!       if ( ui .gt. 1.0e2*epsilon(tmp) ) then
           ui = 1.0 / ui
-        else
-          ui = 0.0
-        endif
+!       else
+!         ui = 0.0
+!       endif
       ENDIF
 
       ! d(1,1):
