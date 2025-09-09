@@ -1729,6 +1729,7 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
       END DO
 
 
+      RETURN
       END SUBROUTINE EigenValMax
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1815,6 +1816,7 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
       ENDDO
 
 
+      RETURN
       END SUBROUTINE EigenSolveMax
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1855,6 +1857,7 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
         w(j) = w(j)*cmag
       ENDDO
 
+      RETURN
       END SUBROUTINE GetComplement1
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1983,6 +1986,7 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
  
       GetRank = 2 ! e-value has multiplicity 1
 
+      RETURN
       END FUNCTION GetRank
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -2045,6 +2049,7 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
         ENDDO
       ENDDO
 
+      RETURN
       END SUBROUTINE GetRoots
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -2515,6 +2520,7 @@ endif
       
 if ( myrank.eq.0 ) write(*,*) 'DoHPDF: done.'
 
+      RETURN
       END SUBROUTINE DoHPDF
 !
 !
@@ -2618,6 +2624,7 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: done.'
       glop = real( s5 / ( s2**2.5 + 1.0e-15 ), kind=GP )
       whoa = real( s6 / ( s2**3.0 + 1.0e-15 ), kind=GP )
 
+      RETURN
       END SUBROUTINE skewflat
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -2757,6 +2764,7 @@ endif
       glop = real( s5 / ( s2**2.5 + 1.0e-15 ), kind=GP )
       whoa = real( s6 / ( s2**3.0 + 1.0e-15 ), kind=GP )
 
+      RETURN
       END SUBROUTINE skewflatb
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -2849,6 +2857,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
         ENDDO
       ENDDO
 
+      RETURN
       END SUBROUTINE compute_dissv
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -2904,6 +2913,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
         ENDDO
       ENDDO
 
+      RETURN
       END SUBROUTINE compute_dissp
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -2960,6 +2970,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
         ENDDO
       ENDDO
 
+      RETURN
       END SUBROUTINE compute_vort
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -3048,6 +3059,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
         ENDDO
       ENDDO
 
+      RETURN
       END SUBROUTINE compute_PV
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -3151,6 +3163,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
         stop 'Subroutine Rig: invalid itype'
       ENDIF
 
+      RETURN
       END SUBROUTINE compute_Rig
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -3201,6 +3214,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
         ENDDO
       ENDDO
 
+      RETURN
       END SUBROUTINE compute_vperp
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -3255,7 +3269,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       DOUBLE PRECISION,                DIMENSION(4,3)            :: invar
       DOUBLE PRECISION, INTENT(INOUT), DIMENSION(3,3)            :: bij,vij,gij,dij
       DOUBLE PRECISION, INTENT(INOUT)                            :: bdenom,vdenom,gdenom,ddenom
-      DOUBLE PRECISION                                           :: Ek((nmax+1)/2)
+      DOUBLE PRECISION                                           :: Ek(nmax/2+1)
 !     TYPE(PMAT)                                                 :: pm(4)
       LOGICAL                                                    :: bexist
       LOGICAL         , INTENT   (IN)                            :: accum
@@ -3311,6 +3325,8 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       WRITE(sext, fmtext) indtime
       fnout = trim(odir) // '/' // 'bIIspect.' // trim(sext) // '.txt'
       CALL pspectrum(C1, fnout, nn)
+
+#if 1
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'bIIIspect.' // trim(sext) // '.txt'
       CALL pspectrum(C1, fnout, nn)
@@ -3332,7 +3348,9 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'gIIIspect.' // trim(sext) // '.txt'
       CALL pspectrum(C1, fnout, nn)
+#endif
 
+      RETURN
       END SUBROUTINE DoAniso
 
 
