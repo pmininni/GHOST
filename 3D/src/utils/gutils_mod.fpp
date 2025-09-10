@@ -1654,7 +1654,8 @@ MODULE gutils
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT  (IN) , DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT  (IN) , TARGET, &
+                                       DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: c1,c2
       DOUBLE PRECISION, INTENT  (OUT), DIMENSION(3,3)             :: dij
       DOUBLE PRECISION,                DIMENSION(3,3)             :: tij
