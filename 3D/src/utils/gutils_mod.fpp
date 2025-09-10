@@ -1963,28 +1963,32 @@ MODULE gutils
                            + r2(i,j,k)*r2(i,j,k) &
                            + r3(i,j,k)*r3(i,j,k) )
       !        if ( r4(i,j,k) .gt. 1.0e2*epsilon(tmp)) then
-                 r4(i,j,k) = 1.0 / r4(i,j,k) 
+              !  r4(i,j,k) = 1.0 / r4(i,j,k) 
       !        else
       !          r4(i,j,k) = 0.0
       !        endif
+             uloc = uloc + r4(i,j,k)
             END DO
          END DO
       END DO
+      CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
+      ui = 1.0 / ui
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               bij(1,1)  = ( r1(i,j,k)*r1(i,j,k) ) * r4(i,j,k) - 1.0D0/3.0D0
-               bij(1,2)  = ( r1(i,j,k)*r2(i,j,k) ) * r4(i,j,k)
-               bij(1,3)  = ( r1(i,j,k)*r3(i,j,k) ) * r4(i,j,k)
+               bij(1,1)  = ( r1(i,j,k)*r1(i,j,k) ) * ui - 1.0D0/3.0D0
+               bij(1,2)  = ( r1(i,j,k)*r2(i,j,k) ) * ui
+               bij(1,3)  = ( r1(i,j,k)*r3(i,j,k) ) * ui
                bij(2,1)  = bij(1,2)
-               bij(2,2)  = ( r2(i,j,k)*r2(i,j,k) ) * r4(i,j,k) - 1.0D0/3.0D0
-               bij(2,3)  = ( r2(i,j,k)*r3(i,j,k) ) * r4(i,j,k)
+               bij(2,2)  = ( r2(i,j,k)*r2(i,j,k) ) * ui - 1.0D0/3.0D0
+               bij(2,3)  = ( r2(i,j,k)*r3(i,j,k) ) * ui
                bij(3,1)  = bij(1,3)
                bij(3,2)  = bij(2,3)
-               bij(3,3)  = ( r3(i,j,k)*r3(i,j,k) ) * r4(i,j,k) - 1.0D0/3.0D0
+               bij(3,3)  = ( r3(i,j,k)*r3(i,j,k) ) * ui - 1.0D0/3.0D0
                CALL invariant(bij, 2, invar)
                bII (i,j,k) = abs(invar)**(1.0/2.0)
                CALL invariant(bij, 3, invar)
@@ -2086,28 +2090,32 @@ MODULE gutils
                            + r2(i,j,k)*r2(i,j,k) &
                            + r3(i,j,k)*r3(i,j,k) )
 !              if ( r4(i,j,k) .gt. 1.0e2*epsilon(tmp)) then
-                 r4(i,j,k) = 1.0 / r4(i,j,k) 
+      !          r4(i,j,k) = 1.0 / r4(i,j,k) 
 !              else
 !                r4(i,j,k) = 0.0
 !              endif
+               uloc = uloc + r4(i,j,k)
             END DO
          END DO
       END DO
+      CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
+      ui = 1.0 / ui
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               vij(1,1)  = ( r1(i,j,k)*r1(i,j,k) ) * r4(i,j,k) - 1.0D0/3.0D0
-               vij(1,2)  = ( r1(i,j,k)*r2(i,j,k) ) * r4(i,j,k)
-               vij(1,3)  = ( r1(i,j,k)*r3(i,j,k) ) * r4(i,j,k)
+               vij(1,1)  = ( r1(i,j,k)*r1(i,j,k) ) * ui - 1.0D0/3.0D0
+               vij(1,2)  = ( r1(i,j,k)*r2(i,j,k) ) * ui
+               vij(1,3)  = ( r1(i,j,k)*r3(i,j,k) ) * ui
                vij(2,1)  = vij(1,2)
-               vij(2,2)  = ( r2(i,j,k)*r2(i,j,k) ) * r4(i,j,k) - 1.0D0/3.0D0
-               vij(2,3)  = ( r2(i,j,k)*r3(i,j,k) ) * r4(i,j,k)
+               vij(2,2)  = ( r2(i,j,k)*r2(i,j,k) ) * ui - 1.0D0/3.0D0
+               vij(2,3)  = ( r2(i,j,k)*r3(i,j,k) ) * ui
                vij(3,1)  = vij(1,3)
                vij(3,2)  = vij(2,3)
-               vij(3,3)  = ( r3(i,j,k)*r3(i,j,k) ) * r4(i,j,k) - 1.0D0/3.0D0
+               vij(3,3)  = ( r3(i,j,k)*r3(i,j,k) ) * ui - 1.0D0/3.0D0
                CALL invariant(vij, 2, invar)
                vII (i,j,k) = abs(invar)**(1.0/2.0)
                CALL invariant(vij, 3, invar)
@@ -2183,24 +2191,28 @@ MODULE gutils
 !              else
 !                r4(i,j,k) = 0.0
 !              endif
+               uloc = uloc + r4(i,j,k)
             END DO
          END DO
       END DO
+      CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
+      ui = 1.0 / ui
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               gij(1,1)  = ( r1(i,j,k)*r1(i,j,k) ) * r4(i,j,k) - 1.0D0/3.0D0
-               gij(1,2)  = ( r1(i,j,k)*r2(i,j,k) ) * r4(i,j,k)
-               gij(1,3)  = ( r1(i,j,k)*r3(i,j,k) ) * r4(i,j,k)
+               gij(1,1)  = ( r1(i,j,k)*r1(i,j,k) ) * ui - 1.0D0/3.0D0
+               gij(1,2)  = ( r1(i,j,k)*r2(i,j,k) ) * ui
+               gij(1,3)  = ( r1(i,j,k)*r3(i,j,k) ) * ui
                gij(2,1)  = gij(1,2)
-               gij(2,2)  = ( r2(i,j,k)*r2(i,j,k) ) * r4(i,j,k) - 1.0D0/3.0D0
-               gij(2,3)  = ( r2(i,j,k)*r3(i,j,k) ) * r4(i,j,k)
+               gij(2,2)  = ( r2(i,j,k)*r2(i,j,k) ) * ui - 1.0D0/3.0D0
+               gij(2,3)  = ( r2(i,j,k)*r3(i,j,k) ) * ui
                gij(3,1)  = gij(1,3)
                gij(3,2)  = gij(2,3)
-               gij(3,3)  = ( r3(i,j,k)*r3(i,j,k) ) * r4(i,j,k) - 1.0D0/3.0D0
+               gij(3,3)  = ( r3(i,j,k)*r3(i,j,k) ) * ui - 1.0D0/3.0D0
                CALL invariant(gij, 2, invar)
                gII (i,j,k) = abs(invar)**(1.0/2.0)
                CALL invariant(gij, 3, invar)
@@ -2291,34 +2303,38 @@ MODULE gutils
                             + r2(i,j,k)**2 + r5(i,j,k)**2 + r8(i,j,k)**2 &
                             + r3(i,j,k)**2 + r6(i,j,k)**2 + r9(i,j,k)**2 &
                             )
-               r10(i,j,k) = 1.0 / r10(i,j,k) 
+      !        r10(i,j,k) = 1.0 / r10(i,j,k) 
+               uloc = uloc + r10(i,j,k)
             END DO
          END DO
       END DO
+      CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE, &
+                      MPI_SUM, MPI_COMM_WORLD,ierr)
+      ui = 1.0 / ui
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               dij(1,1)  = ( r1(i,j,k)**2 + r2(i,j,k)**2 + r3(i,j,k)**2 )*tmp * r10(i,j,k) - 1.0D0/3.0D0
+               dij(1,1)  = ( r1(i,j,k)**2 + r2(i,j,k)**2 + r3(i,j,k)**2) * ui - 1.0D0/3.0D0
                dij(1,2)  = ( r1(i,j,k)*r4(i,j,k) & 
                            + r2(i,j,k)*r5(i,j,k) &
                            + r3(i,j,k)*r6(i,j,k) &
-                           ) * r10(i,j,k)
+                           ) * ui
                dij(1,3)  = ( r1(i,j,k)*r7(i,j,k) & 
                            + r2(i,j,k)*r8(i,j,k) &
                            + r3(i,j,k)*r9(i,j,k) &
-                           ) * r10(i,j,k)
+                           ) * ui
                dij(2,1)  = dij(1,2)
-               dij(2,2)  = ( r4(i,j,k)**2 + r5(i,j,k)**2 + r6(i,j,k)**2 ) * r10(i,j,k) - 1.0D0/3.0D0
+               dij(2,2)  = ( r4(i,j,k)**2 + r5(i,j,k)**2 + r6(i,j,k)**2) * ui - 1.0D0/3.0D0
                dij(2,3)  = ( r4(i,j,k)*r7(i,j,k) & 
                            + r5(i,j,k)*r8(i,j,k) &
                            + r6(i,j,k)*r9(i,j,k) &
-                           ) * r10(i,j,k)
+                           ) * ui
                dij(3,1)  = dij(1,3)
                dij(3,2)  = dij(2,3)
-               dij(3,3)  = ( r7(i,j,k)**2 + r8(i,j,k)**2 + r9(i,j,k)**2 ) * r10(i,j,k) - 1.0D0/3.0D0
+               dij(3,3)  = ( r7(i,j,k)**2 + r8(i,j,k)**2 + r9(i,j,k)**2) * ui - 1.0D0/3.0D0
                CALL invariant(dij, 2, invar)
                dII (i,j,k) = abs(invar)**(1.0/2.0)
                CALL invariant(dij, 3, invar)
