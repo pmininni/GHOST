@@ -1917,6 +1917,10 @@ MODULE gutils
       REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,j,k,m
 
+      tmp  = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
+      tmp1 = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
 
 !     bij = u_i u_j / u_j u^j - delta_ij / 3
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -1924,7 +1928,7 @@ MODULE gutils
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
              DO k = 1,nz
-                 c1(k,j,i) = vx(k,j,i)
+                 c1(k,j,i) = vx(k,j,i) * tmp1;
              END DO
           END DO
        END DO
@@ -1935,7 +1939,7 @@ MODULE gutils
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
              DO k = 1,nz
-                 c1(k,j,i) = vy(k,j,i)
+                 c1(k,j,i) = vy(k,j,i) * tmp1;
              END DO
           END DO
        END DO
@@ -1946,17 +1950,13 @@ MODULE gutils
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
              DO k = 1,nz
-                 c1(k,j,i) = vz(k,j,i)
+                 c1(k,j,i) = vz(k,j,i) * tmp1;
              END DO
           END DO
        END DO
       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
 
       ! Compute <u^2>:
-      tmp  = 1.0_GP/ &
-            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
-      tmp1 = 1.0_GP/ &
-            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
       uloc = 0.0D0
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -1965,7 +1965,7 @@ MODULE gutils
             DO i = 1,nx
                r4(i,j,k) = ( r1(i,j,k)*r1(i,j,k) &
                            + r2(i,j,k)*r2(i,j,k) &
-                           + r3(i,j,k)*r3(i,j,k) )*tmp
+                           + r3(i,j,k)*r3(i,j,k) )
       !        if ( r4(i,j,k) .gt. 1.0e2*epsilon(tmp)) then
                  r4(i,j,k) = 1.0 / r4(i,j,k) 
       !        else
@@ -1980,19 +1980,19 @@ MODULE gutils
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               bij(1,1)  = ( r1(i,j,k)*r1(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
-               bij(1,2)  = ( r1(i,j,k)*r2(i,j,k) )*tmp * r4(i,j,k)
-               bij(1,3)  = ( r1(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k)
+               bij(1,1)  = ( r1(i,j,k)*r1(i,j,k) ) * r4(i,j,k) - 1.0D0/3.0D0
+               bij(1,2)  = ( r1(i,j,k)*r2(i,j,k) ) * r4(i,j,k)
+               bij(1,3)  = ( r1(i,j,k)*r3(i,j,k) ) * r4(i,j,k)
                bij(2,1)  = bij(1,2)
-               bij(2,2)  = ( r2(i,j,k)*r2(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
-               bij(2,3)  = ( r2(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k)
+               bij(2,2)  = ( r2(i,j,k)*r2(i,j,k) ) * r4(i,j,k) - 1.0D0/3.0D0
+               bij(2,3)  = ( r2(i,j,k)*r3(i,j,k) ) * r4(i,j,k)
                bij(3,1)  = bij(1,3)
                bij(3,2)  = bij(2,3)
-               bij(3,3)  = ( r3(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
+               bij(3,3)  = ( r3(i,j,k)*r3(i,j,k) ) * r4(i,j,k) - 1.0D0/3.0D0
                CALL invariant(bij, 2, invar)
-               bII (i,j,k) = invar
+               bII (i,j,k) = invar !abs(invar)**(1.0/2.0)
                CALL invariant(bij, 3, invar)
-               bIII(i,j,k) = invar
+               bIII(i,j,k) = invar !abs(invar)**(1.0/3.0)
             END DO
          END DO
       END DO
@@ -2038,6 +2038,10 @@ MODULE gutils
       REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,j,k,m
 
+      tmp  = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
+      tmp1 = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
 
 !     vij = om_i om_j / om_j om^j - delta_ij / 3
       CALL rotor3(vy,vz,c2,1)
@@ -2046,7 +2050,7 @@ MODULE gutils
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
              DO k = 1,nz
-                 c1(k,j,i) = c2(k,j,i)
+                 c1(k,j,i) = c2(k,j,i) * tmp1;
              END DO
           END DO
        END DO
@@ -2058,7 +2062,7 @@ MODULE gutils
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
              DO k = 1,nz
-                 c1(k,j,i) = c2(k,j,i)
+                 c1(k,j,i) = c2(k,j,i) * tmp1;
              END DO
           END DO
        END DO
@@ -2070,17 +2074,13 @@ MODULE gutils
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
              DO k = 1,nz
-                 c1(k,j,i) = c2(k,j,i)
+                 c1(k,j,i) = c2(k,j,i) * tmp1;
              END DO
           END DO
        END DO
       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
 
       ! Compute <om^2>:
-      tmp  = 1.0_GP/ &
-            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
-      tmp1 = 1.0_GP/ &
-            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
       uloc = 0.0D0
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -2089,7 +2089,7 @@ MODULE gutils
             DO i = 1,nx
                r4(i,j,k) = ( r1(i,j,k)*r1(i,j,k) &
                            + r2(i,j,k)*r2(i,j,k) &
-                           + r3(i,j,k)*r3(i,j,k) )*tmp
+                           + r3(i,j,k)*r3(i,j,k) )
 !              if ( r4(i,j,k) .gt. 1.0e2*epsilon(tmp)) then
                  r4(i,j,k) = 1.0 / r4(i,j,k) 
 !              else
@@ -2104,19 +2104,19 @@ MODULE gutils
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               vij(1,1)  = ( r1(i,j,k)*r1(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
-               vij(1,2)  = ( r1(i,j,k)*r2(i,j,k) )*tmp * r4(i,j,k)
-               vij(1,3)  = ( r1(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k)
+               vij(1,1)  = ( r1(i,j,k)*r1(i,j,k) ) * r4(i,j,k) - 1.0D0/3.0D0
+               vij(1,2)  = ( r1(i,j,k)*r2(i,j,k) ) * r4(i,j,k)
+               vij(1,3)  = ( r1(i,j,k)*r3(i,j,k) ) * r4(i,j,k)
                vij(2,1)  = vij(1,2)
-               vij(2,2)  = ( r2(i,j,k)*r2(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
-               vij(2,3)  = ( r2(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k)
+               vij(2,2)  = ( r2(i,j,k)*r2(i,j,k) ) * r4(i,j,k) - 1.0D0/3.0D0
+               vij(2,3)  = ( r2(i,j,k)*r3(i,j,k) ) * r4(i,j,k)
                vij(3,1)  = vij(1,3)
                vij(3,2)  = vij(2,3)
-               vij(3,3)  = ( r3(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
+               vij(3,3)  = ( r3(i,j,k)*r3(i,j,k) ) * r4(i,j,k) - 1.0D0/3.0D0
                CALL invariant(vij, 2, invar)
-               vII (i,j,k) = invar
+               vII (i,j,k) = invar !abs(invar)**(1.0/2.0)
                CALL invariant(vij, 3, invar)
-               vIII(i,j,k) = invar
+               vIII(i,j,k) = invar !abs(invar)**(1.0/3.0)
             END DO
          END DO
       END DO
@@ -2162,19 +2162,19 @@ MODULE gutils
       REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,j,k,m
 
-
-       CALL derivk3(th,c1,1)
-       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-       CALL derivk3(th,c1,2)
-       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
-       CALL derivk3(th,c1,3)
-       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
-
-      ! Compute <Grad th^2>:
       tmp  = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
       tmp1 = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+
+       CALL derivk3(th,c1,1); c1 = c1 * tmp1;
+       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+       CALL derivk3(th,c1,2); c1 = c1 * tmp1;
+       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+       CALL derivk3(th,c1,3); c1 = c1 * tmp1;
+       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+
+      ! Compute <Grad th^2>:
       uloc = 0.0D0
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -2183,7 +2183,7 @@ MODULE gutils
             DO i = 1,nx
                r4(i,j,k) = ( r1(i,j,k)*r1(i,j,k) &
                            + r2(i,j,k)*r2(i,j,k) &
-                           + r3(i,j,k)*r3(i,j,k) )*tmp
+                           + r3(i,j,k)*r3(i,j,k) )
 !              if ( r4(i,j,k) .gt. 1.0e2*epsilon(tmp)) then
                  r4(i,j,k) = 1.0 / r4(i,j,k) 
 !              else
@@ -2198,19 +2198,19 @@ MODULE gutils
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               gij(1,1)  = ( r1(i,j,k)*r1(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
-               gij(1,2)  = ( r1(i,j,k)*r2(i,j,k) )*tmp * r4(i,j,k)
-               gij(1,3)  = ( r1(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k)
+               gij(1,1)  = ( r1(i,j,k)*r1(i,j,k) ) * r4(i,j,k) - 1.0D0/3.0D0
+               gij(1,2)  = ( r1(i,j,k)*r2(i,j,k) ) * r4(i,j,k)
+               gij(1,3)  = ( r1(i,j,k)*r3(i,j,k) ) * r4(i,j,k)
                gij(2,1)  = gij(1,2)
-               gij(2,2)  = ( r2(i,j,k)*r2(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
-               gij(2,3)  = ( r2(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k)
+               gij(2,2)  = ( r2(i,j,k)*r2(i,j,k) ) * r4(i,j,k) - 1.0D0/3.0D0
+               gij(2,3)  = ( r2(i,j,k)*r3(i,j,k) ) * r4(i,j,k)
                gij(3,1)  = gij(1,3)
                gij(3,2)  = gij(2,3)
-               gij(3,3)  = ( r3(i,j,k)*r3(i,j,k) )*tmp * r4(i,j,k) - 1.0D0/3.0D0
+               gij(3,3)  = ( r3(i,j,k)*r3(i,j,k) ) * r4(i,j,k) - 1.0D0/3.0D0
                CALL invariant(gij, 2, invar)
-               gII (i,j,k) = invar
+               gII (i,j,k) = invar !abs(invar)**(1.0/2.0)
                CALL invariant(gij, 3, invar)
-               gIII(i,j,k) = invar
+               gIII(i,j,k) = invar !abs(invar)**(1.0/3.0)
             END DO
          END DO
       END DO
@@ -2259,33 +2259,34 @@ MODULE gutils
       REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,j,k,m
 
-
-       CALL derivk3(vx,c1,1)
-       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-       CALL derivk3(vx,c1,2)
-       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
-       CALL derivk3(vx,c1,3)
-       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
-
-       CALL derivk3(vy,c1,1)
-       CALL fftp3d_complex_to_real(plancr,c1,r4,MPI_COMM_WORLD)
-       CALL derivk3(vy,c1,2)
-       CALL fftp3d_complex_to_real(plancr,c1,r5,MPI_COMM_WORLD)
-       CALL derivk3(vy,c1,3)
-       CALL fftp3d_complex_to_real(plancr,c1,r6,MPI_COMM_WORLD)
-
-       CALL derivk3(vz,c1,1)
-       CALL fftp3d_complex_to_real(plancr,c1,r7,MPI_COMM_WORLD)
-       CALL derivk3(vz,c1,2)
-       CALL fftp3d_complex_to_real(plancr,c1,r8,MPI_COMM_WORLD)
-       CALL derivk3(vz,c1,3)
-       CALL fftp3d_complex_to_real(plancr,c1,r9,MPI_COMM_WORLD)
-
-      ! 
       tmp  = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
       tmp1 = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+
+
+       CALL derivk3(vx,c1,1); c1 = c1 * tmp1;
+       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+       CALL derivk3(vx,c1,2); c1 = c1 * tmp1;
+       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+       CALL derivk3(vx,c1,3); c1 = c1 * tmp1;
+       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+
+       CALL derivk3(vy,c1,1); c1 = c1 * tmp1;
+       CALL fftp3d_complex_to_real(plancr,c1,r4,MPI_COMM_WORLD)
+       CALL derivk3(vy,c1,2); c1 = c1 * tmp1;
+       CALL fftp3d_complex_to_real(plancr,c1,r5,MPI_COMM_WORLD)
+       CALL derivk3(vy,c1,3); c1 = c1 * tmp1;
+       CALL fftp3d_complex_to_real(plancr,c1,r6,MPI_COMM_WORLD)
+
+       CALL derivk3(vz,c1,1); c1 = c1 * tmp1;
+       CALL fftp3d_complex_to_real(plancr,c1,r7,MPI_COMM_WORLD)
+       CALL derivk3(vz,c1,2); c1 = c1 * tmp1;
+       CALL fftp3d_complex_to_real(plancr,c1,r8,MPI_COMM_WORLD)
+       CALL derivk3(vz,c1,3); c1 = c1 * tmp1;
+       CALL fftp3d_complex_to_real(plancr,c1,r9,MPI_COMM_WORLD)
+
+
       uloc = 0.0D0
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -2296,12 +2297,8 @@ MODULE gutils
                               r1(i,j,k)**2 + r4(i,j,k)**2 + r7(i,j,k)**2 &
                             + r2(i,j,k)**2 + r5(i,j,k)**2 + r8(i,j,k)**2 &
                             + r3(i,j,k)**2 + r6(i,j,k)**2 + r9(i,j,k)**2 &
-                            )*tmp
-!              if ( r4(i,j,k) .gt. 1.0e2*epsilon(tmp)) then
-                 r10(i,j,k) = 1.0 / r10(i,j,k) 
-!              else
-!                r4(i,j,k) = 0.0
-!              endif
+                            )
+               r10(i,j,k) = 1.0 / r10(i,j,k) 
             END DO
          END DO
       END DO
@@ -2311,28 +2308,28 @@ MODULE gutils
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               dij(1,1)  = ( r1(i,j,k)**2 * r2(i,j,k)**2 * r3(i,j,k)**2 )*tmp * r10(i,j,k) - 1.0D0/3.0D0
+               dij(1,1)  = ( r1(i,j,k)**2 + r2(i,j,k)**2 + r3(i,j,k)**2 )*tmp * r10(i,j,k) - 1.0D0/3.0D0
                dij(1,2)  = ( r1(i,j,k)*r4(i,j,k) & 
                            + r2(i,j,k)*r5(i,j,k) &
                            + r3(i,j,k)*r6(i,j,k) &
-                           )*tmp * r10(i,j,k)
+                           ) * r10(i,j,k)
                dij(1,3)  = ( r1(i,j,k)*r7(i,j,k) & 
                            + r2(i,j,k)*r8(i,j,k) &
                            + r3(i,j,k)*r9(i,j,k) &
-                           )*tmp * r10(i,j,k)
+                           ) * r10(i,j,k)
                dij(2,1)  = dij(1,2)
-               dij(2,2)  = ( r4(i,j,k)**2 * r5(i,j,k)**2 * r6(i,j,k)**2 )*tmp * r10(i,j,k) - 1.0D0/3.0D0
+               dij(2,2)  = ( r4(i,j,k)**2 + r5(i,j,k)**2 + r6(i,j,k)**2 ) * r10(i,j,k) - 1.0D0/3.0D0
                dij(2,3)  = ( r4(i,j,k)*r7(i,j,k) & 
                            + r5(i,j,k)*r8(i,j,k) &
                            + r6(i,j,k)*r9(i,j,k) &
-                           )*tmp * r10(i,j,k)
+                           ) * r10(i,j,k)
                dij(3,1)  = dij(1,3)
                dij(3,2)  = dij(2,3)
-               dij(3,3)  = ( r7(i,j,k)**2 * r8(i,j,k)**2 * r9(i,j,k)**2 )*tmp * r10(i,j,k) - 1.0D0/3.0D0
+               dij(3,3)  = ( r7(i,j,k)**2 + r8(i,j,k)**2 + r9(i,j,k)**2 ) * r10(i,j,k) - 1.0D0/3.0D0
                CALL invariant(dij, 2, invar)
-               dII (i,j,k) = invar
+               dII (i,j,k) = invar !abs(invar)**(1.0/2.0)
                CALL invariant(dij, 3, invar)
-               dIII(i,j,k) = invar
+               dIII(i,j,k) = invar !abs(invar)**(1.0/3.0)
             END DO
          END DO
       END DO
