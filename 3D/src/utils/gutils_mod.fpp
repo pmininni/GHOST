@@ -1924,7 +1924,7 @@ MODULE gutils
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
              DO k = 1,nz
-                 c1(k,j,i) = vx(k,j,i) !* tmp1;
+                 c1(k,j,i) = vx(k,j,i) * tmp1;
              END DO
           END DO
        END DO
@@ -1935,7 +1935,7 @@ MODULE gutils
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
              DO k = 1,nz
-                 c1(k,j,i) = vy(k,j,i) !* tmp1;
+                 c1(k,j,i) = vy(k,j,i) * tmp1;
              END DO
           END DO
        END DO
@@ -1946,7 +1946,7 @@ MODULE gutils
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
              DO k = 1,nz
-                 c1(k,j,i) = vz(k,j,i) !* tmp1;
+                 c1(k,j,i) = vz(k,j,i) * tmp1;
              END DO
           END DO
        END DO
@@ -1973,7 +1973,7 @@ MODULE gutils
       END DO
       CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
-      ui = 1.0 / (ui*tmp)
+      ui = 1.0 / (ui*tmp1)
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -1990,9 +1990,9 @@ MODULE gutils
                bij(3,2)  = bij(2,3)
                bij(3,3)  = ( r3(i,j,k)*r3(i,j,k) ) * ui - 1.0D0/3.0D0
                CALL invariant(bij, 2, invar)
-               bII (i,j,k) = abs(invar)**(1.0/2.0)
+               bII (i,j,k) = invar !abs(invar)**(1.0/2.0)
                CALL invariant(bij, 3, invar)
-               bIII(i,j,k) = abs(invar)**(1.0/3.0)
+               bIII(i,j,k) = invar !abs(invar)**(1.0/3.0)
             END DO
          END DO
       END DO
@@ -2049,7 +2049,7 @@ MODULE gutils
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
              DO k = 1,nz
-                 c1(k,j,i) = c2(k,j,i) !* tmp1;
+                 c1(k,j,i) = c2(k,j,i) * tmp1;
              END DO
           END DO
        END DO
@@ -2061,7 +2061,7 @@ MODULE gutils
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
              DO k = 1,nz
-                 c1(k,j,i) = c2(k,j,i) !* tmp1;
+                 c1(k,j,i) = c2(k,j,i) * tmp1;
              END DO
           END DO
        END DO
@@ -2073,7 +2073,7 @@ MODULE gutils
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
              DO k = 1,nz
-                 c1(k,j,i) = c2(k,j,i) !* tmp1;
+                 c1(k,j,i) = c2(k,j,i) * tmp1;
              END DO
           END DO
        END DO
@@ -2100,7 +2100,7 @@ MODULE gutils
       END DO
       CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
-      ui = 1.0 / (ui*tmp)
+      ui = 1.0 / (ui*tmp1)
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -2117,9 +2117,9 @@ MODULE gutils
                vij(3,2)  = vij(2,3)
                vij(3,3)  = ( r3(i,j,k)*r3(i,j,k) ) * ui - 1.0D0/3.0D0
                CALL invariant(vij, 2, invar)
-               vII (i,j,k) = abs(invar)**(1.0/2.0)
+               vII (i,j,k) = invar !abs(invar)**(1.0/2.0)
                CALL invariant(vij, 3, invar)
-               vIII(i,j,k) = abs(invar)**(1.0/3.0)
+               vIII(i,j,k) = invar !abs(invar)**(1.0/3.0)
             END DO
          END DO
       END DO
@@ -2169,11 +2169,38 @@ MODULE gutils
       tmp1 = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
 
-       CALL derivk3(th,c1,1); !c1 = c1 * tmp1;
+       CALL derivk3(th,c1,1); 
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = c1(k,j,i) * tmp1;
+             END DO
+          END DO
+       END DO
        CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-       CALL derivk3(th,c1,2); !c1 = c1 * tmp1;
+       CALL derivk3(th,c1,2); 
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = c1(k,j,i) * tmp1;
+             END DO
+          END DO
+       END DO
        CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
-       CALL derivk3(th,c1,3); !c1 = c1 * tmp1;
+       CALL derivk3(th,c1,3); 
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = c1(k,j,i) * tmp1;
+             END DO
+          END DO
+       END DO
        CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
 
       ! Compute <Grad th^2>:
@@ -2187,7 +2214,7 @@ MODULE gutils
                            + r2(i,j,k)*r2(i,j,k) &
                            + r3(i,j,k)*r3(i,j,k) )
 !              if ( r4(i,j,k) .gt. 1.0e2*epsilon(tmp)) then
-                 r4(i,j,k) = 1.0 / r4(i,j,k) 
+!                r4(i,j,k) = 1.0 / r4(i,j,k) 
 !              else
 !                r4(i,j,k) = 0.0
 !              endif
@@ -2197,7 +2224,7 @@ MODULE gutils
       END DO
       CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
-      ui = 1.0 / (ui*tmp)
+      ui = 1.0 / (ui*tmp1)
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -2214,9 +2241,9 @@ MODULE gutils
                gij(3,2)  = gij(2,3)
                gij(3,3)  = ( r3(i,j,k)*r3(i,j,k) ) * ui - 1.0D0/3.0D0
                CALL invariant(gij, 2, invar)
-               gII (i,j,k) = abs(invar)**(1.0/2.0)
+               gII (i,j,k) = invar !abs(invar)**(1.0/2.0)
                CALL invariant(gij, 3, invar)
-               gIII(i,j,k) = abs(invar)**(1.0/3.0)
+               gIII(i,j,k) = invar !abs(invar)**(1.0/3.0)
             END DO
          END DO
       END DO
@@ -2270,25 +2297,25 @@ MODULE gutils
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
 
 
-       CALL derivk3(vx,c1,1); !c1 = c1 * tmp1;
+       CALL derivk3(vx,c1,1); c1 = c1 * tmp1;
        CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-       CALL derivk3(vx,c1,2); !c1 = c1 * tmp1;
+       CALL derivk3(vx,c1,2); c1 = c1 * tmp1;
        CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
-       CALL derivk3(vx,c1,3); !c1 = c1 * tmp1;
+       CALL derivk3(vx,c1,3); c1 = c1 * tmp1;
        CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
 
-       CALL derivk3(vy,c1,1); !c1 = c1 * tmp1;
+       CALL derivk3(vy,c1,1); c1 = c1 * tmp1;
        CALL fftp3d_complex_to_real(plancr,c1,r4,MPI_COMM_WORLD)
-       CALL derivk3(vy,c1,2); !c1 = c1 * tmp1;
+       CALL derivk3(vy,c1,2); c1 = c1 * tmp1;
        CALL fftp3d_complex_to_real(plancr,c1,r5,MPI_COMM_WORLD)
-       CALL derivk3(vy,c1,3); !c1 = c1 * tmp1;
+       CALL derivk3(vy,c1,3); c1 = c1 * tmp1;
        CALL fftp3d_complex_to_real(plancr,c1,r6,MPI_COMM_WORLD)
 
-       CALL derivk3(vz,c1,1); !c1 = c1 * tmp1;
+       CALL derivk3(vz,c1,1); c1 = c1 * tmp1;
        CALL fftp3d_complex_to_real(plancr,c1,r7,MPI_COMM_WORLD)
-       CALL derivk3(vz,c1,2); !c1 = c1 * tmp1;
+       CALL derivk3(vz,c1,2); c1 = c1 * tmp1;
        CALL fftp3d_complex_to_real(plancr,c1,r8,MPI_COMM_WORLD)
-       CALL derivk3(vz,c1,3); !c1 = c1 * tmp1;
+       CALL derivk3(vz,c1,3); c1 = c1 * tmp1;
        CALL fftp3d_complex_to_real(plancr,c1,r9,MPI_COMM_WORLD)
 
 
@@ -2310,7 +2337,7 @@ MODULE gutils
       END DO
       CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
-      ui = 1.0 / (ui*tmp)
+      ui = 1.0 / (ui*tmp2)
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -2336,9 +2363,9 @@ MODULE gutils
                dij(3,2)  = dij(2,3)
                dij(3,3)  = ( r7(i,j,k)**2 + r8(i,j,k)**2 + r9(i,j,k)**2) * ui - 1.0D0/3.0D0
                CALL invariant(dij, 2, invar)
-               dII (i,j,k) = abs(invar)**(1.0/2.0)
+               dII (i,j,k) = invar !abs(invar)**(1.0/2.0)
                CALL invariant(dij, 3, invar)
-               dIII(i,j,k) = abs(invar)**(1.0/3.0)
+               dIII(i,j,k) = invar !abs(invar)**(1.0/3.0)
             END DO
          END DO
       END DO
