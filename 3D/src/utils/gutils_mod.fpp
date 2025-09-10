@@ -1973,7 +1973,7 @@ MODULE gutils
       END DO
       CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
-      ui = 1.0 / ui
+      ui = 1.0 / (ui*tmp)
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -2100,7 +2100,7 @@ MODULE gutils
       END DO
       CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
-      ui = 1.0 / ui
+      ui = 1.0 / (ui*tmp)
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -2197,7 +2197,7 @@ MODULE gutils
       END DO
       CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
-      ui = 1.0 / ui
+      ui = 1.0 / (ui*tmp)
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -2310,7 +2310,7 @@ MODULE gutils
       END DO
       CALL MPI_ALLREDUCE(uloc, ui, 1, MPI_DOUBLE, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
-      ui = 1.0 / ui
+      ui = 1.0 / (ui*tmp)
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
