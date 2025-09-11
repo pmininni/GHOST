@@ -1,5 +1,5 @@
 !=================================================================
-      PROGRAM HERRING3D
+      PROGRAM COMPI3D
 !=================================================================
 ! GHOST code: Geophysical High Order Suite for Turbulence
 !
@@ -305,7 +305,7 @@
 #endif
       LOGICAL               :: bbenchexist
 
-      ! Data specific to HERRING3D:
+      ! Data specific to COMPI:
       DOUBLE PRECISION, DIMENSION(3,3) :: bij,dij,gij,vij
       DOUBLE PRECISION                 :: bden,dden,gden,vden
       REAL(kind=GP) sav,ssk,sku,sg5,sw6,ss2,ss3,ss4,ss5,ss6
@@ -1311,7 +1311,7 @@
 ! parameters that will be used to compute the transfer
 !     idir   : directory for unformatted input (field components)
 !     odir   : directory for unformatted output (prolongated data)
-!     sstat  : time index for which to compute HERRING, or a
+!     sstat  : time index for which to compute COMPI , or a
 !     ';--separated list
 !     btrunc : if == 1, truncate spectral range to [ktmin,ktmax]. Not used.
 !     ktmin  : min wavenumber for truncation if btrunc=1. Not used.
@@ -1567,7 +1567,7 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
              accum = .FALSE.
           ENDIF
 #if 1
-          CALL DoAniso(vx,vy,vz,th,istat(it),odir,C1,C2, &
+          CALL DoAniso(vx,vy,vz,th,istat(it),odir,planio,C1,C2, &
                        R1,R2,R3,R4,R5,R6,accum,bden,dden,gden,vden, &
                        bij,dij,gij,vij)
 #endif
@@ -1577,7 +1577,7 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
 
       CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 !
-! End of HERRING3D
+! End of COMPI3D
 
       CALL GTFree(ihcpu1)
       CALL GTFree(ihomp1)
@@ -1658,7 +1658,7 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
       DEALLOCATE( Rb1,Rb2,Rb3 )
       DEALLOCATE( Rj1,Rj2,Rj3 )
 #endif
-      END PROGRAM HERRING3D
+      END PROGRAM COMPI3D
 
 
       SUBROUTINE EigenValMax(S11,S12,S13,S22,S23,lamb)
@@ -3220,7 +3220,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !-----------------------------------------------------------------
 
 
-      SUBROUTINE DoAniso(vx,vy,vz,th,indtime,odir,C1,C2, &
+      SUBROUTINE DoAniso(vx,vy,vz,th,indtime,odir,planio,C1,C2, &
                          R1,R2,R3,R4,R5,R6,accum,bdenom,ddenom,&
                          gdenom,vdenom, bij,dij,gij,vij)
 !-----------------------------------------------------------------
@@ -3235,6 +3235,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !     th     : pot. temp
 !     indtime: integter time index
 !     odir   : output directory
+!     planio  : io plan
 !     accum  : if TRUE, continues to accumulate the aniso tensors and normalizations.
 !              If FALSE, final accumulation is done, and global sums are done to
 !              compute tensors
@@ -3267,11 +3268,13 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: C1,C2
 
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2,R3,R4, R5,R6
+      REAL   (KIND=GP)                                           :: rcmin,rcmax,rcloc,xmax
       DOUBLE PRECISION,                DIMENSION(4,3)            :: invar
       DOUBLE PRECISION, INTENT(INOUT), DIMENSION(3,3)            :: bij,vij,gij,dij
       DOUBLE PRECISION, INTENT(INOUT)                            :: bdenom,vdenom,gdenom,ddenom
       DOUBLE PRECISION                                           :: Ek(nmax/2+1)
 !     TYPE(PMAT)                                                 :: pm(4)
+      TYPE(IOPLAN)    , INTENT   (IN)                            :: planio
       LOGICAL                                                    :: bexist
       LOGICAL         , INTENT   (IN)                            :: accum
       INTEGER         , INTENT   (IN)                            :: indtime
@@ -3343,6 +3346,16 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'vIIspect.' // trim(sext) // '.txt'
       CALL pspectrum(C1, fnout, nn)
+      CALL MPI_ALLREDUCE(rcloc, xmax, 1, GC_REAL, &
+                      MPI_MAX, MPI_COMM_WORLD, ierr)
+      rcmin = 0.2 * xmax
+      rcmax = xmax
+      CALL condition_om(vx,vy,vz,indtime,odir,'om_cvII_hi',planio,&
+                        C1,C2,R1,R2,R3,rcmin,rcmax)
+      rcmin = 0.0
+      rcmax = 0.05*xmax
+      CALL condition_om(vx,vy,vz,indtime,odir,'om_cvII_lo',planio,&
+                        C1,C2,R1,R2,R3,rcmin,rcmax)
 
 
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
@@ -3371,4 +3384,122 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       RETURN
       END SUBROUTINE DoAniso
 
+      SUBROUTINE condition_om(vx,vy,vz,indtime,spref,odir,planio, &
+                         C1,C2,R1,R2,R3,Rc,rcmin,rcmax)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Conditions |curl v| on array Rc by thresholding 
+! on rcmin/max, and outputs it in file prefixed with spref
+!
+! Parameters
+!     vx,
+!     vy,
+!     vz      : complex velocities
+!     indtime : integter time index
+!     odir    : output directory
+!     planio  : io plan
+!     spref   : output file prefix
+!     C1,C2   : complex temp array
+!     R1,R2,R3: real temp arrays
+!     Rc      : 'conditioning' array
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE gutils
+      USE iovar
+      USE iompi
+      USE iovar
+      USE filefmt
+      USE boxsize
 
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend):: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: c1,c2
+
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: r1,r2,r3
+      REAL   (KIND=GP), INTENT   (IN), DIMENSION(nx,ny,ksta:kend):: rc
+      REAL   (KIND=GP), INTENT   (IN)                            :: rcmin,rcmax
+      TYPE(IOPLAN)    , INTENT   (IN)                            :: planio
+      INTEGER         , INTENT   (IN)                            :: indtime
+      INTEGER                                                    :: i,j,k
+      CHARACTER(len=1024), INTENT   (IN)                         :: odir
+      CHARACTER(len=1024), INTENT   (IN)                         :: spref
+      CHARACTER(len=64)                                          :: sext
+      DOUBLE PRECISION                                           :: tmp1
+      REAL   (KIND=GP)                                           :: tmp,xb
+
+
+      tmp  = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
+      tmp1 = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+
+       CALL rotor3(vy,vz,c2,1)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = c2(k,j,i) * tmp1;
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+
+      CALL rotor3(vx,vz,c2,2)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = c2(k,j,i) * tmp1;
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+
+      CALL rotor3(vx,vy,c2,3)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = c2(k,j,i) * tmp1;
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+
+      WRITE(sext, fmtext) indtime
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               xb = 1.0
+               if ( Rc(i,j,k) .lt. rcmin .or. Rc(i,j,k) .gt. rcmax ) &
+                 xb = 0.0
+               r3(i,j,k) = sqrt(         &
+                          + r1(i,j,k)**2 &
+                          + r2(i,j,k)**2 &
+                          + r3(i,j,k)**2 &
+                            ) * xb
+            END DO
+         END DO
+      END DO
+
+      CALL io_write(1,odir,trim(spref),sext,planio,r3)
+
+      RETURN
+      END SUBROUTINE condition_om
