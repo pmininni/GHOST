@@ -3346,16 +3346,17 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'vIIspect.' // trim(sext) // '.txt'
       CALL pspectrum(C1, fnout, nn)
+      rcloc = maxval(abs(R5))
       CALL MPI_ALLREDUCE(rcloc, xmax, 1, GC_REAL, &
                       MPI_MAX, MPI_COMM_WORLD, ierr)
       rcmin = 0.2 * xmax
       rcmax = xmax
-      CALL condition_om(vx,vy,vz,indtime,odir,'om_cvII_hi',planio,&
-                        C1,C2,R1,R2,R3,rcmin,rcmax)
+      CALL condition_om(vx,vy,vz,indtime,'om_cvII_hi',odir,planio,&
+                        C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.0
       rcmax = 0.05*xmax
-      CALL condition_om(vx,vy,vz,indtime,odir,'om_cvII_lo',planio,&
-                        C1,C2,R1,R2,R3,rcmin,rcmax)
+      CALL condition_om(vx,vy,vz,indtime,'om_cvII_lo',odir,planio,&
+                        C1,C2,R1,R2,R3,R5,rcmin,rcmax)
 
 
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
@@ -3432,9 +3433,9 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       TYPE(IOPLAN)    , INTENT   (IN)                            :: planio
       INTEGER         , INTENT   (IN)                            :: indtime
       INTEGER                                                    :: i,j,k
-      CHARACTER(len=1024), INTENT   (IN)                         :: odir
-      CHARACTER(len=1024), INTENT   (IN)                         :: spref
-      CHARACTER(len=64)                                          :: sext
+      CHARACTER(len=*), INTENT   (IN)                            :: odir
+      CHARACTER(len=*), INTENT   (IN)                            :: spref
+!     CHARACTER(len=64)                                          :: sext
       DOUBLE PRECISION                                           :: tmp1
       REAL   (KIND=GP)                                           :: tmp,xb
 
@@ -3443,6 +3444,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
       tmp1 = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+      write(*,*)'............................condition_om: enter:'
 
        CALL rotor3(vy,vz,c2,1)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -3455,6 +3457,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
           END DO
        END DO
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+      write(*,*)'............................condition_om: ffpc2r_1:'
 
       CALL rotor3(vx,vz,c2,2)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -3467,6 +3470,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
           END DO
        END DO
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+      write(*,*)'............................condition_om: ffpc2r_2:'
 
       CALL rotor3(vx,vy,c2,3)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -3479,8 +3483,8 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
           END DO
        END DO
       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+      write(*,*)'............................condition_om: ffpc2r_3:'
 
-      WRITE(sext, fmtext) indtime
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -3488,8 +3492,8 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
          DO j = 1,ny
             DO i = 1,nx
                xb = 1.0
-               if ( Rc(i,j,k) .lt. rcmin .or. Rc(i,j,k) .gt. rcmax ) &
-                 xb = 0.0
+               if ( abs(Rc(i,j,k)).lt.rcmin &
+               .or. abs(Rc(i,j,k)).gt.rcmax ) xb = 0.0
                r3(i,j,k) = sqrt(         &
                           + r1(i,j,k)**2 &
                           + r2(i,j,k)**2 &
@@ -3499,7 +3503,8 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
          END DO
       END DO
 
-      CALL io_write(1,odir,trim(spref),sext,planio,r3)
+      write(*,*)'............................condition_om: write file:'
+      CALL io_write(1,odir,trim(spref),ext,planio,r3)
 
       RETURN
       END SUBROUTINE condition_om
