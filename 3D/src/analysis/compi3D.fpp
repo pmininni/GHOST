@@ -3257,6 +3257,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       USE gutils
       USE iovar
       USE iompi
+      USE iovar
       USE filefmt
       USE boxsize
 
@@ -3336,10 +3337,13 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 
 #if 1
       CALL pw_anisovij(vx,vy,vz,C1,C2,R1,R2,R3,R4, R5,R6)
-      CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
       WRITE(sext, fmtext) indtime
+      CALL io_write(1,odir,'vII',ext,planio,R5)
+      CALL io_write(1,odir,'vIII',ext,planio,R6)
+      CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'vIIspect.' // trim(sext) // '.txt'
       CALL pspectrum(C1, fnout, nn)
+
 
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'vIIIspect.' // trim(sext) // '.txt'
@@ -3347,7 +3351,6 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 
       CALL pw_anisogij(th,C1,C2,R1,R2,R3,R4, R5,R6)
       CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
-      WRITE(sext, fmtext) indtime
       fnout = trim(odir) // '/' // 'gIIspect.' // trim(sext) // '.txt'
       CALL pspectrum(C1, fnout, nn)
 
@@ -3357,7 +3360,6 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 
       CALL pw_anisodij(vx,vy,vz,C1,C2,R1,R2,R3,R4, R5,R6)
       CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
-      WRITE(sext, fmtext) indtime
       fnout = trim(odir) // '/' // 'dIIspect.' // trim(sext) // '.txt'
       CALL pspectrum(C1, fnout, nn)
 
