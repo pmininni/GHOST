@@ -3461,7 +3461,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 
       tmp  = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
-      tmp1 = 1.0D/ &
+      tmp1 = 1.0D0/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
 
        IF ( itype .EQ. 0 ) THEN ! energy
