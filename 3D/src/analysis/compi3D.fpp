@@ -3349,6 +3349,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       rcloc = maxval(abs(R5))
       CALL MPI_ALLREDUCE(rcloc, xmax, 1, GC_REAL, &
                       MPI_MAX, MPI_COMM_WORLD, ierr)
+              write(*,*)'DoAniso: ext=', ext, 'vII_max=', xmax
       rcmin = 0.1 * xmax
       rcmax = xmax
       CALL condition_om(vx,vy,vz,indtime,'om_cvII_0.1_1',odir,planio,&
@@ -3448,7 +3449,6 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
       tmp1 = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
-      write(*,*)'............................condition_om: enter:'
 
        CALL rotor3(vy,vz,c2,1)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -3461,7 +3461,6 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
           END DO
        END DO
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-      write(*,*)'............................condition_om: ffpc2r_1:'
 
       CALL rotor3(vx,vz,c2,2)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -3474,7 +3473,6 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
           END DO
        END DO
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
-      write(*,*)'............................condition_om: ffpc2r_2:'
 
       CALL rotor3(vx,vy,c2,3)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -3487,7 +3485,6 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
           END DO
        END DO
       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
-      write(*,*)'............................condition_om: ffpc2r_3:'
 
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -3507,7 +3504,6 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
          END DO
       END DO
 
-      write(*,*)'............................condition_om: write file:'
       CALL io_write(1,odir,trim(spref),ext,planio,r3)
 
       RETURN
