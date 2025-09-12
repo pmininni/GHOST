@@ -3350,7 +3350,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL MPI_ALLREDUCE(rcloc, xmax, 1, GC_REAL, &
                       MPI_MAX, MPI_COMM_WORLD, ierr)
               write(*,*)'DoAniso: ext=', ext, ' vII_max=', xmax
-      rcmin = 0.05 * xmax
+      rcmin = 0.01 * xmax
       rcmax = xmax
       CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0.01_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
