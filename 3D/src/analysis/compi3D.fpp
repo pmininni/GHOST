@@ -3354,25 +3354,41 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       rcmax = xmax
       CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0.01_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(1,vx,vy,vz,indtime,'om_cvII_0.01_1',odir,planio,&
+      CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0.01_1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(2,vx,vy,vz,indtime,'om_cvII_0.01_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.1 * xmax
       rcmax = xmax
       CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0.1_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(1,vx,vy,vz,indtime,'om_cvII_0.1_1',odir,planio,&
+      CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0.1_1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(2,vx,vy,vz,indtime,'om_cvII_0.1_1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      rcmin = 0.5 * xmax
+      rcmax = xmax
+      CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0.5_1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0.5_1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(2,vx,vy,vz,indtime,'om_cvII_0.5_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.0
       rcmax = 0.05*xmax
       CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0_0.05',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(1,vx,vy,vz,indtime,'om_cvII_0_0.05',odir,planio,&
+      CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0_0.05',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(2,vx,vy,vz,indtime,'om_cvII_0_0.05',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.0
       rcmax = xmax
       CALL condition(0,vx,vy,vz,indtime,'ke',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(1,vx,vy,vz,indtime,'om',odir,planio,&
+      CALL condition(1,vx,vy,vz,indtime,'keperp',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(2,vx,vy,vz,indtime,'om',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
 
 
@@ -3412,7 +3428,8 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !
 ! Parameters
 !     itype   : =0, conditions energy
-!               =1, conditions vorticity magnitude
+!               =1, conditions perp energy
+!               =2, conditions vorticity magnitude
 !     vx,
 !     vy,
 !     vz      : complex velocities
@@ -3464,7 +3481,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       tmp1 = 1.0D0/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
 
-       IF ( itype .EQ. 0 ) THEN ! energy
+       IF ( itype .EQ. 0 .OR. itype.EQ.1 ) THEN ! energy
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
        DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -3497,7 +3514,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
           END DO
        END DO
       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
-       ELSE IF ( itype .EQ. 1 ) THEN ! vorticity
+       ELSE IF ( itype .EQ. 2 ) THEN ! vorticity
        CALL rotor3(vy,vz,c2,1)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
        DO i = ista,iend
@@ -3545,11 +3562,18 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
                xb = 1.0
                if ( abs(Rc(i,j,k)).lt.rcmin &
                .or. abs(Rc(i,j,k)).gt.rcmax ) xb = 0.0
-               r3(i,j,k) = sqrt(         &
+               if  ( itype .EQ. 0 .or. itype .eq. 2 ) then
+                 r3(i,j,k) = sqrt(         &
                           + r1(i,j,k)**2 &
                           + r2(i,j,k)**2 &
                           + r3(i,j,k)**2 &
                             ) * xb
+               else 
+                 r3(i,j,k) = sqrt(         &
+                          + r1(i,j,k)**2 &
+                          + r2(i,j,k)**2 &
+                            ) * xb
+               endif
             END DO
          END DO
       END DO
