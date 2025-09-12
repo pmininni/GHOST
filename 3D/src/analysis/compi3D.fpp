@@ -3350,18 +3350,30 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL MPI_ALLREDUCE(rcloc, xmax, 1, GC_REAL, &
                       MPI_MAX, MPI_COMM_WORLD, ierr)
               write(*,*)'DoAniso: ext=', ext, 'vII_max=', xmax
+      rcmin = 0.5 * xmax
+      rcmax = xmax
+      CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0.5_1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(1,vx,vy,vz,indtime,'om_cvII_0.5_1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.1 * xmax
       rcmax = xmax
-      CALL condition_om(vx,vy,vz,indtime,'om_cvII_0.1_1',odir,planio,&
-                        C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0.1_1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(1,vx,vy,vz,indtime,'om_cvII_0.1_1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.0
       rcmax = 0.05*xmax
-      CALL condition_om(vx,vy,vz,indtime,'om_cvII_0_0.05',odir,planio,&
-                        C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0_0.05',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(1,vx,vy,vz,indtime,'om_cvII_0_0.05',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.0
       rcmax = xmax
-      CALL condition_om(vx,vy,vz,indtime,'om',odir,planio,&
-                        C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(0,vx,vy,vz,indtime,'ke',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(1,vx,vy,vz,indtime,'om',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
 
 
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
@@ -3390,7 +3402,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       RETURN
       END SUBROUTINE DoAniso
 
-      SUBROUTINE condition_om(vx,vy,vz,indtime,spref,odir,planio, &
+      SUBROUTINE condition(itype,vx,vy,vz,indtime,spref,odir,planio, &
                          C1,C2,R1,R2,R3,Rc,rcmin,rcmax)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -3399,6 +3411,8 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 ! on rcmin/max, and outputs it in file prefixed with spref
 !
 ! Parameters
+!     itype   : =0, conditions energy
+!               =1, conditions vorticity magnitude
 !     vx,
 !     vy,
 !     vz      : complex velocities
@@ -3436,13 +3450,13 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       REAL   (KIND=GP), INTENT   (IN), DIMENSION(nx,ny,ksta:kend):: rc
       REAL   (KIND=GP), INTENT   (IN)                            :: rcmin,rcmax
       TYPE(IOPLAN)    , INTENT   (IN)                            :: planio
-      INTEGER         , INTENT   (IN)                            :: indtime
+      INTEGER         , INTENT   (IN)                            :: itype,indtime
       INTEGER                                                    :: i,j,k
       CHARACTER(len=*), INTENT   (IN)                            :: odir
       CHARACTER(len=*), INTENT   (IN)                            :: spref
 !     CHARACTER(len=64)                                          :: sext
       DOUBLE PRECISION                                           :: tmp1
-      REAL   (KIND=GP)                                           :: tmp,xb
+      REAL   (KIND=GP)                                           :: test,tmp,xb
 
 
       tmp  = 1.0_GP/ &
@@ -3450,6 +3464,41 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       tmp1 = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
 
+       IF ( itype .EQ. 0 ) THEN ! energy
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = vx(k,j,i) * tmp1;
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = vy(k,j,i) * tmp1;
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+
+      CALL rotor3(vx,vy,c2,3)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = vz(k,j,i) * tmp1;
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+       ELSE ! vorticity
        CALL rotor3(vy,vz,c2,1)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
        DO i = ista,iend
@@ -3485,7 +3534,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
           END DO
        END DO
       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
-
+      ENDIF ! end, itype check
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -3507,4 +3556,4 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL io_write(1,odir,trim(spref),ext,planio,r3)
 
       RETURN
-      END SUBROUTINE condition_om
+      END SUBROUTINE condition
