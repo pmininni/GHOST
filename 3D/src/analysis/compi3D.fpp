@@ -3349,7 +3349,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       rcloc = maxval(abs(R5))
       CALL MPI_ALLREDUCE(rcloc, xmax, 1, GC_REAL, &
                       MPI_MAX, MPI_COMM_WORLD, ierr)
-              write(*,*)'DoAniso: ext=', ext, 'vII_max=', xmax
+              write(*,*)'DoAniso: ext=', ext, ' vII_max=', xmax
       rcmin = 0.5 * xmax
       rcmax = xmax
       CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0.5_1',odir,planio,&
@@ -3456,12 +3456,12 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CHARACTER(len=*), INTENT   (IN)                            :: spref
 !     CHARACTER(len=64)                                          :: sext
       DOUBLE PRECISION                                           :: tmp1
-      REAL   (KIND=GP)                                           :: test,tmp,xb
+      REAL   (KIND=GP)                                           :: tmp,xb
 
 
       tmp  = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
-      tmp1 = 1.0_GP/ &
+      tmp1 = 1.0D/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
 
        IF ( itype .EQ. 0 ) THEN ! energy
@@ -3487,7 +3487,6 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
        END DO
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
 
-      CALL rotor3(vx,vy,c2,3)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
        DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -3498,7 +3497,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
           END DO
        END DO
       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
-       ELSE ! vorticity
+       ELSE IF ( itype .EQ. 1 ) THEN ! vorticity
        CALL rotor3(vy,vz,c2,1)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
        DO i = ista,iend
@@ -3534,6 +3533,8 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
           END DO
        END DO
       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+      ELSE 
+         STOP 'condition: Bad itype'
       ENDIF ! end, itype check
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
