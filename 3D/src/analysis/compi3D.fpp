@@ -3354,8 +3354,8 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL condition_om(vx,vy,vz,indtime,'om_cvII_0.1_1',odir,planio,&
                         C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.0
-      rcmax = 0.01*xmax
-      CALL condition_om(vx,vy,vz,indtime,'om_cvII_0_0.01',odir,planio,&
+      rcmax = 0.05*xmax
+      CALL condition_om(vx,vy,vz,indtime,'om_cvII_0_0.05',odir,planio,&
                         C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.0
       rcmax = xmax
