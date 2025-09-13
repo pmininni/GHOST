@@ -3375,12 +3375,12 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL condition(2,vx,vy,vz,indtime,'om_cvII_0.5_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.0
-      rcmax = 0.05*xmax
-      CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0_0.05',odir,planio,&
+      rcmax = 0.1*xmax
+      CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0_0.1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0_0.05',odir,planio,&
+      CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0_0.1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'om_cvII_0_0.05',odir,planio,&
+      CALL condition(2,vx,vy,vz,indtime,'om_cvII_0_0.1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.0
       rcmax = xmax
@@ -3392,23 +3392,28 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
 
       !! Condition square strain rate tensor:
+      rcmin = 0.0
+      rcmax = xmax
+      CALL StrainMag(vx,vy,vz,C1,C2,R1)
+      CALL conditionr(R1,indtime,'eps',odir,planio,&
+                      R2,R5,rcmin,rcmax)
       rcmin = 0.01 * xmax
       rcmax = xmax
       CALL StrainMag(vx,vy,vz,C1,C2,R1)
       CALL conditionr(R1,indtime,'eps_cvII_0.01_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
-      CALL conditionr(R1,indtime,'eps_cvII_0.01_1',odir,planio,&
-                      R2,R5,rcmin,rcmax)
-      CALL conditionr(R1,indtime,'eps_cvII_0.01_1',odir,planio,&
-                      R2,R5,rcmin,rcmax)
-
       rcmin = 0.1 * xmax
       rcmax = xmax
       CALL conditionr(R1,indtime,'eps_cvII_0.1_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
-      CALL conditionr(R1,indtime,'eps_cvII_0.1_1',odir,planio,&
+      rcmin = 0.5 * xmax
+      rcmax = xmax
+      CALL conditionr(R1,indtime,'eps_cvII_0.5_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
-      CALL conditionr(R1,indtime,'eps_cvII_0.1_1',odir,planio,&
+
+      rcmin = 0.0
+      rcmax = 0.1*xmax
+      CALL conditionr(R1,indtime,'eps_cvII_0_0.1',odir,planio,&
                       R2,R5,rcmin,rcmax)
 
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
