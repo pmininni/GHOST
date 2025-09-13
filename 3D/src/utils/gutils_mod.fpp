@@ -1045,16 +1045,15 @@ MODULE gutils
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-      SUBROUTINE StrainMag(vx,vy,vz,inorm,ctmp1,ctmp2,smag)
+      SUBROUTINE StrainMag(vx,vy,vz,ctmp1,ctmp2,smag)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
-! Computes the complex strain rate magnitude:
-!    sqrt(s_ij s^ij)
+! Computes the real strain rate magnitude:
+!    s_ij s^ij
 !
 ! Parameters
 !     vi    : input velocities
-!     inorm : normalize (1), or not (0)
 !     ctmp  : complex temp array
 !     sij   : complex tensor component, returned
 !
@@ -1070,33 +1069,33 @@ MODULE gutils
 
       COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp1,ctmp2
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: smag
-      INTEGER         , INTENT   (IN)                             :: inorm
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: smag
 !
       REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,j,k
       INTEGER                                                     :: ir,jc
 
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-        DO j = 1,ny
-          DO k = 1,nz
-            smag(k,j,i) = 0.0_GP
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+            smag(i,j,k) = 0.0_GP
           END DO
         END DO
       END DO
 
+
       DO ir = 1, 3
         DO jc = 1, 3
-          CALL Strain(vx,vy,vz, ir, jc, 1, ctmp1, ctmp2 )   
+          CALL Strain(vx,vy,vz, ir, jc, 1, ctmp1, ctmp2 )  
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
           DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,ny
               DO k = 1,nz
-                smag(k,j,i) = smag(k,j,i) + ctmp2(k,j,i) 
+                smag(k,j,i) = smag(k,j,i) + abs(ctmp2(k,j,i))**2 
               END DO
             END DO
           END DO
@@ -1104,6 +1103,7 @@ MODULE gutils
         ENDDO
       ENDDO
 
+#if 0
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -1113,6 +1113,7 @@ MODULE gutils
           END DO
         END DO
       END DO
+#endif
 
       RETURN
       END SUBROUTINE StrainMag

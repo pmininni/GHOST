@@ -3391,6 +3391,25 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL condition(2,vx,vy,vz,indtime,'om',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
 
+      !! Condition square strain rate tensor:
+      rcmin = 0.01 * xmax
+      rcmax = xmax
+      CALL StrainMag(vx,vy,vz,C1,C2,R1)
+      CALL conditionr(R1,indtime,'eps_cvII_0.01_1',odir,planio,&
+                      R2,R5,rcmin,rcmax)
+      CALL conditionr(R1,indtime,'eps_cvII_0.01_1',odir,planio,&
+                      R2,R5,rcmin,rcmax)
+      CALL conditionr(R1,indtime,'eps_cvII_0.01_1',odir,planio,&
+                      R2,R5,rcmin,rcmax)
+
+      rcmin = 0.1 * xmax
+      rcmax = xmax
+      CALL conditionr(R1,indtime,'eps_cvII_0.1_1',odir,planio,&
+                      R2,R5,rcmin,rcmax)
+      CALL conditionr(R1,indtime,'eps_cvII_0.1_1',odir,planio,&
+                      R2,R5,rcmin,rcmax)
+      CALL conditionr(R1,indtime,'eps_cvII_0.1_1',odir,planio,&
+                      R2,R5,rcmin,rcmax)
 
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'vIIIspect.' // trim(sext) // '.txt'
@@ -3417,6 +3436,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 
       RETURN
       END SUBROUTINE DoAniso
+
 
       SUBROUTINE condition(itype,vx,vy,vz,indtime,spref,odir,planio, &
                          C1,C2,R1,R2,R3,Rc,rcmin,rcmax)
@@ -3582,3 +3602,72 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 
       RETURN
       END SUBROUTINE condition
+
+
+      SUBROUTINE conditionr(ra,indtime,spref,odir,planio, &
+                         R1,Rc,rcmin,rcmax)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Conditions input real array, ra, by rc, and outputs the result
+!
+! Parameters
+!     ra      : inputarray
+!     indtime : integter time index
+!     odir    : output directory
+!     planio  : io plan
+!     spref   : output file prefix
+!     R1...   : real temp arrays
+!     Rc      : 'conditioning' array
+!     rcmin,
+!     rcmax   : 'conditioning' bounds, s.t. if rcmin < rc < rcmax, keep 
+!               that value of ra; else zero that ra value out
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE gutils
+      USE iovar
+      USE iompi
+      USE iovar
+      USE filefmt
+      USE boxsize
+
+      IMPLICIT NONE
+
+      REAL   (KIND=GP), INTENT   (IN), DIMENSION(nx,ny,ksta:kend):: ra
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: r1
+      REAL   (KIND=GP), INTENT   (IN), DIMENSION(nx,ny,ksta:kend):: rc
+      REAL   (KIND=GP), INTENT   (IN)                            :: rcmin,rcmax
+      TYPE(IOPLAN)    , INTENT   (IN)                            :: planio
+      INTEGER         , INTENT   (IN)                            :: indtime
+      INTEGER                                                    :: i,j,k
+      CHARACTER(len=*), INTENT   (IN)                            :: odir
+      CHARACTER(len=*), INTENT   (IN)                            :: spref
+      REAL   (KIND=GP)                                           :: xb
+
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               xb = 1.0
+               if ( abs(Rc(i,j,k)).lt.rcmin &
+               .or. abs(Rc(i,j,k)).gt.rcmax ) xb = 0.0
+               r1(i,j,k) = Ra(i,j,k) * xb
+            END DO
+         END DO
+      END DO
+
+      CALL io_write(1,odir,trim(spref),ext,planio,r1)
+
+      RETURN
+      END SUBROUTINE conditionr
