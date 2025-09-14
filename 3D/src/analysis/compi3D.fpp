@@ -3391,15 +3391,15 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL condition(2,vx,vy,vz,indtime,'om',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
 
+#if 1
       !! Condition square strain rate tensor:
       rcmin = 0.0
       rcmax = xmax
-      CALL StrainMag(vx,vy,vz,C1,C2,R1)
+      CALL StrainMag(vx,vy,vz,C1,C2,R2,R1)
       CALL conditionr(R1,indtime,'eps',odir,planio,&
                       R2,R5,rcmin,rcmax)
       rcmin = 0.01 * xmax
       rcmax = xmax
-      CALL StrainMag(vx,vy,vz,C1,C2,R1)
       CALL conditionr(R1,indtime,'eps_cvII_0.01_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
       rcmin = 0.1 * xmax
@@ -3415,6 +3415,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       rcmax = 0.1*xmax
       CALL conditionr(R1,indtime,'eps_cvII_0_0.1',odir,planio,&
                       R2,R5,rcmin,rcmax)
+#endif
 
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'vIIIspect.' // trim(sext) // '.txt'
@@ -3610,7 +3611,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 
 
       SUBROUTINE conditionr(ra,indtime,spref,odir,planio, &
-                         R1,Rc,rcmin,rcmax)
+                            R1,Rc,rcmin,rcmax)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -3658,6 +3659,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CHARACTER(len=*), INTENT   (IN)                            :: spref
       REAL   (KIND=GP)                                           :: xb
 
+      write(*,*)'conditionr: .................entering: 0'
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -3672,7 +3674,11 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
          END DO
       END DO
 
-      CALL io_write(1,odir,trim(spref),ext,planio,r1)
+      write(*,*)'conditionr: .................entering: 1, spref=',spref, &
+                ' odir=', trim(odir), ' ext=', ext
+      CALL io_write(20,trim(odir),trim(spref),ext,planio,r1)
+
+      write(*,*)'conditionr: .................entering: done.'
 
       RETURN
       END SUBROUTINE conditionr
