@@ -3420,7 +3420,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       rcmin = 0.0
       rcmax = xmax
       CALL pStrainMag(vx,vy,vz,C1,C2,R2,R1)
-      CALL conditionr(R1,indtime,'eps',odir,planio,&
+      CALL conditionr(R1,indtime,'epsp',odir,planio,&
                       R2,R5,rcmin,rcmax)
       rcmin = 0.01 * xmax
       rcmax = xmax
