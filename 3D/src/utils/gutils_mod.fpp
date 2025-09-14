@@ -1070,7 +1070,7 @@ MODULE gutils
 
       COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp1,ctmp2
-      REAL   (KIND=GP), INTENT  (OUT), DIMENSION(nx,ny,ksta:kend) :: r1
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1
       REAL   (KIND=GP), INTENT  (OUT), DIMENSION(nx,ny,ksta:kend) :: smag
 !
       REAL   (KIND=GP)                                            :: tmp
