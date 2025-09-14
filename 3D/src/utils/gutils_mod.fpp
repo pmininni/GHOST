@@ -1124,6 +1124,87 @@ MODULE gutils
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+      SUBROUTINE pStrainMag(vx,vy,vz,ctmp1,ctmp2,r1, smag)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Computes the real strain rate magnitude:
+!    s_ij s^ij
+! for directions perp to z only
+!
+! Parameters
+!     vi    : input velocities
+!     ctmp* : complex temp array
+!     r1    : real temp array
+!     sij   : complex tensor component, returned
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp1,ctmp2
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: r1
+      REAL   (KIND=GP), INTENT  (OUT), DIMENSION(nx,ny,ksta:kend) :: smag
+!
+      REAL   (KIND=GP)                                            :: fact,tmp
+      INTEGER                                                     :: i,j,k
+      INTEGER                                                     :: ir,jc
+
+      tmp = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+            smag(i,j,k) = 0.0_GP
+          END DO
+        END DO
+      END DO
+
+
+      DO ir = 1, 3
+          CALL Strain(vx,vy,vz, ir, 3, 1, ctmp1, ctmp2 )  
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+                   ctmp1(k,j,i) = ctmp2(k,j,i) * tmp;
+              END DO
+            END DO
+          END DO
+          CALL fftp3d_complex_to_real(plancr,ctmp1,r1,MPI_COMM_WORLD)
+
+          
+          fact = 1.0_GP
+          if ( ir.lt.3 ) fact = 2.0_GP
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+          DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+            DO j = 1,ny
+               DO i = 1,nx
+                 smag(i,j,k) = smag(i,j,k) + fact * abs(r1(i,j,k))**2 
+               END DO
+             ENDDO
+           ENDDO
+
+         ENDDO ! end, ir loop
+
+
+      RETURN
+      END SUBROUTINE pStrainMag
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
       SUBROUTINE StrainDiv(vx,vy,vz,ir,inorm,ctmp1,ctmp2,ds)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
