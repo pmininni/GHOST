@@ -360,15 +360,16 @@ MODULE class_GSGSmodel
     CALL this%omap_%insert(trim(this%modelTraits_%out_name), this%tout_wrapped_%c_ptr())
 
     ! Allocate C arrays 
-    nb = this%modelTraits_%nchannel * this%modelTraits_%nx * this%modelTraits_%ny * this%modelTraits_%nz * SIZEOF(1.0_GP)
+    nc = this%modelTraits_%nchannel
+    nn = this%ntot
+
+    nb = nc * nn * SIZEOF(1.0_GP)
     this%c_ptr_t_in_  = allocate_c_array(nb)
 
     nb = 3 * this%modelTraits_%nx * this%modelTraits_%ny * this%modelTraits_%nz * SIZEOF(1.0_GP)
     this%c_ptr_t_out_ = allocate_c_array(nb)
 
     ! Associate Fortran pointers with C memory:
-    nc = this%modelTraits_%nchannel
-    nn = this%ntot
     CALL C_F_POINTER(this%c_ptr_t_in_ , this%t_in_ , SHAPE=[nc, nn])
     CALL C_F_POINTER(this%c_ptr_t_out_, this%t_out_, SHAPE=[3 , nn])
 

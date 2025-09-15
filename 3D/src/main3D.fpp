@@ -1014,9 +1014,9 @@
       mlsgstraits%nz       = nz
       mlsgstraits%nchannel = 4
       mlsgstraits%model_path = './mymodel'
-      mlsgstraits%model_type = ''
-      mlsgstraits%in_name    = 'state_input'
-      mlsgstraits%out_name   = 'SGS_vecs'
+      mlsgstraits%model_type = 'CNN'
+      mlsgstraits%in_name    = 'state'
+      mlsgstraits%out_name   = 'SGS'
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
