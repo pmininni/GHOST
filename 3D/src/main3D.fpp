@@ -1032,14 +1032,15 @@
       CALL MPI_BCAST(sgs_in_name   ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sgs_out_name  ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
 
-      mlsgstraits%nx       = sgs_nx
-      mlsgstraits%ny       = sgs_ny
-      mlsgstraits%nz       = sgs_nz
-      mlsgstraits%nchannel = sgs_nchannel
+      mlsgstraits%nx         = sgs_nx
+      mlsgstraits%ny         = sgs_ny
+      mlsgstraits%nz         = sgs_nz
+      mlsgstraits%nchannel   = sgs_nchannel
       mlsgstraits%model_path = sgs_model_path
       mlsgstraits%model_type = sgs_model_type
       mlsgstraits%in_name    = sgs_in_name
       mlsgstraits%out_name   = sgs_out_name
+      write(*,*)'            main: sgs_nx=',sgs_nx,' sgs_ny=',sgs_ny, ' sgs_nz=', sgs_nz
 #endif
 
 #ifdef BOUSSINESQ_

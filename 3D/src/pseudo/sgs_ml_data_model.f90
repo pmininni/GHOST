@@ -142,7 +142,7 @@ MODULE class_GSGSmodel
     REAL(KIND=GP)    ,INTENT   (IN)     :: Dk(3)
     REAL(KIND=GP)                       :: rmp,rmq,rms
     TYPE(FFTPLAN)    ,INTENT   (IN), TARGET     :: plancr, planrc
-    TYPE(GSGSmodelTraits)               :: modtraits
+    TYPE(GSGSmodelTraits), INTENT(IN)   :: modtraits
 
     this%comm_   = MPI_COMM_NULL
     this%nprocs_ = 0
@@ -340,10 +340,12 @@ MODULE class_GSGSmodel
 
     this%modelTraits_ = modtraits
 
-    IF ( modtraits%nx .NE. this%nx &
-    .OR. modtraits%ny .NE. this%ny &
-    .OR. modtraits%nz .NE. this%nz ) THEN
-      WRITE(*,*) 'GSGS_init_infero: Incompatible grid sizes'
+    IF ( this%modelTraits_%nx .NE. this%nx &
+    .OR. this%modelTraits_%ny .NE. this%ny &
+    .OR. this%modelTraits_%nz .NE. this%nz ) THEN
+      WRITE(*,*) 'GSGS_init_infero: Incompatible grid sizes: '
+      WRITE(*,*) '      Model   =(', this%modelTraits_%nx, ',', this%modelTraits_%ny, ',', this%modelTraits_%nz, ');'
+      WRITE(*,*) '      Expected=(',  this%nx, ',', this%ny, ',', this%nz, ')'
       STOP 
     ENDIF
     
