@@ -20,9 +20,13 @@ MODULE class_GSGSmodel
       USE fprecision
       USE commtypes
       USE fftplans
-      USE inferof     , only: infero_model, &
-          infero_initialise, infero_finalise, infero_check
-      USE fckit_module, only: fckit_map, fckit_tensor_real32
+      USE inferof 
+      USE fckit_map_module, only : fckit_map
+      USE fckit_tensor_module, only : fckit_tensor_real32
+
+!     USE inferof     , only: infero_model, &
+!         infero_initialise, infero_finalise, infero_check
+!     USE fckit_module, only: fckit_map, fckit_tensor_real32
  !    USE, intrinsic :: iso_c_binding
       USE  iso_c_binding
 
@@ -81,8 +85,8 @@ MODULE class_GSGSmodel
         ! Infero data:
 !       REAL(KIND=GP), POINTER, DIMENSION(:,:)       :: t_in_
 !       REAL(KIND=GP), POINTER, DIMENSION(:,:)       :: t_out_
-        REAL(c_float), POINTER                       :: t_in_(:,:)
-        REAL(c_float), POINTER                       :: t_out_(:,:)
+        REAL(c_float), POINTER                       :: t_in_(:,:,:,:,:)
+        REAL(c_float), POINTER                       :: t_out_(:,:,:,:)
         TYPE(C_PTR)                                  :: c_ptr_t_in_
         TYPE(C_PTR)                                  :: c_ptr_t_out_
         ! fckit wrappers and name->tensor maps
@@ -387,7 +391,8 @@ MODULE class_GSGSmodel
     WRITE(*,*) 'GSGS_init_infero: associate C arrays... '
     WRITE(*,*) '.................... nc=', nc, '  nn=', nn
     ! Associate Fortran pointers with C memory:
-    CALL C_F_POINTER(this%c_ptr_t_in_ , this%t_in_ , [nc, nn])
+    CALL C_F_POINTER(this%c_ptr_t_in_ , this%t_in_ , &
+                     [1,nc,this%nx,this%ny,this%nz])
     IF( .NOT. ASSOCIATED(this%t_in_) ) THEN
       STOP 't_in_ not associated'
     ENDIF
@@ -395,7 +400,8 @@ MODULE class_GSGSmodel
       STOP 'Illegal size for t_in_'
     ENDIF
 
-    CALL C_F_POINTER(this%c_ptr_t_out_, this%t_out_, [3 , nn])
+    CALL C_F_POINTER(this%c_ptr_t_out_, this%t_out_, &
+                     [3,this%nx,this%ny,this%nz])
     IF( .NOT. ASSOCIATED(this%t_out_) ) THEN
       STOP 't_out_ not associated'
     ENDIF
@@ -482,11 +488,13 @@ MODULE class_GSGSmodel
 !   PRINT '(100(1x,f10.6))', this%t_out_(1, :)
 
     ! Unpack model output and compute FFTs:
+    WRITE(*,*) 'GSGS_compute_model: unpacking... '
     CALL GSGS_unpack(this, this%t_out_, 0, R1, SGS1)
     CALL GSGS_unpack(this, this%t_out_, 1, R1, SGS2)
     CALL GSGS_unpack(this, this%t_out_, 2, R1, SGS3)
     CALL GSGS_unpack(this, this%t_out_, 3, R1, SGSth)
 
+    WRITE(*,*) 'GSGS_compute_model: done. '
 
     RETURN
 
@@ -512,7 +520,7 @@ MODULE class_GSGSmodel
     COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: cvar
     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1
     REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
-    REAL(KIND=GP)   , INTENT  (OUT), DIMENSION(this%modelTraits_%nchannel,this%nx,this%ny,this%ksta:this%kend) :: itensor
+    REAL(KIND=GP)   , INTENT  (OUT), DIMENSION(1,this%modelTraits_%nchannel,this%nx,this%ny,this%ksta:this%kend) :: itensor
 
 !$omp parallel do if (this%iend-2.ge.nth) private (j,k)
     DO i = this%ista,this%iend
@@ -534,7 +542,7 @@ MODULE class_GSGSmodel
 !$omp parallel do if (this%kend-this%ksta.lt.nth) private (i)
        DO j = 1,this%ny
           DO i = 1,this%nx
-             itensor(ivar+1,i,j,k) = R1(i,j,k)
+             itensor(1,ivar+1,i,j,k) = R1(i,j,k)
           END DO
        END DO
     END DO
@@ -659,7 +667,7 @@ MODULE class_GSGSmodel
       class(GSGSmodel), INTENT(INOUT)     :: this
       INTEGER         , INTENT   (IN)     :: ivar
       REAL(KIND=GP)   , INTENT   (IN), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
-      REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%modelTraits_%nchannel,this%ntot):: t_in
+      REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(1,this%modelTraits_%nchannel,this%ntot):: t_in
 
       INTEGER                             :: iproc, irank, istrip, nstrip
       INTEGER                             :: isendTo, igetFrom
@@ -676,7 +684,7 @@ MODULE class_GSGSmodel
 
             igetFrom = this%myrank_ - irank
             if ( igetFrom .lt. 0 ) igetFrom = igetFrom + this%nprocs_
-            CALL MPI_IRECV(t_in(ivar+1,:),1,this%rcvtype_(igetFrom),igetFrom,      &
+            CALL MPI_IRECV(t_in(1,ivar+1,:),1,this%rcvtype_(igetFrom),igetFrom,      &
                           1,this%comm_,ireq2(irank),this%ierr_)
 
             CALL MPI_ISEND(R1,1,this%sndtype_(isendTo),isendTo, &
