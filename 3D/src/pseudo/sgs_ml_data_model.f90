@@ -85,7 +85,7 @@ MODULE class_GSGSmodel
         ! Infero data:
 !       REAL(KIND=GP), POINTER, DIMENSION(:,:)       :: t_in_
 !       REAL(KIND=GP), POINTER, DIMENSION(:,:)       :: t_out_
-        REAL(c_float), POINTER                       :: t_in_(:,:,:,:,:)
+        REAL(c_float), POINTER                       :: t_in_(:,:,:,:)
         REAL(c_float), POINTER                       :: t_out_(:,:,:,:)
         TYPE(C_PTR)                                  :: c_ptr_t_in_
         TYPE(C_PTR)                                  :: c_ptr_t_out_
@@ -392,7 +392,7 @@ MODULE class_GSGSmodel
     WRITE(*,*) '.................... nc=', nc, '  nn=', nn
     ! Associate Fortran pointers with C memory:
     CALL C_F_POINTER(this%c_ptr_t_in_ , this%t_in_ , &
-                     [1,nc,this%nx,this%ny,this%nz])
+                     [nc,this%nx,this%ny,this%nz])
     IF( .NOT. ASSOCIATED(this%t_in_) ) THEN
       STOP 't_in_ not associated'
     ENDIF
@@ -480,8 +480,8 @@ MODULE class_GSGSmodel
     CALL infero_check( this%infmodel_%infer(this%imap_, this%omap_) )
 
     ! (Optional) print stats/config
-    CALL infero_check( this%infmodel_%print_statistics() )
-    CALL infero_check( this%infmodel_%print_config() )
+!   CALL infero_check( this%infmodel_%print_statistics() )
+!   CALL infero_check( this%infmodel_%print_config() )
 
     ! Show output
 !   PRINT *, 'Inference output (first batch row):'
@@ -521,13 +521,17 @@ MODULE class_GSGSmodel
     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1
     REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
     REAL(KIND=GP)   , INTENT  (OUT), DIMENSION(1,this%modelTraits_%nchannel,this%nx,this%ny,this%ksta:this%kend) :: itensor
+    REAL(KIND=GP)                            :: tmp
+
+    tmp = 1.0_GP/ &
+            (real(this%nx,kind=GP)*real(this%ny,kind=GP)*real(this%nz,kind=GP))
 
 !$omp parallel do if (this%iend-2.ge.nth) private (j,k)
     DO i = this%ista,this%iend
 !$omp parallel do if (this%iend-2.lt.nth) private (k)
        DO j = 1,this%ny
           DO k = 1,this%nz
-             C1(k,j,i) = cvar(k,j,i)
+             C1(k,j,i) = cvar(k,j,i) * tmp
           END DO
        END DO
     END DO
@@ -582,7 +586,7 @@ MODULE class_GSGSmodel
 !$omp parallel do if (this%kend-this%ksta.lt.nth) private (i)
        DO j = 1,this%ny
           DO i = 1,this%nx
-             R1(i,j,k) = otensor(ivar+1,i,j,k) * tmp
+             R1(i,j,k) = otensor(ivar+1,i,j,k)
           END DO
        END DO
     END DO
@@ -667,7 +671,7 @@ MODULE class_GSGSmodel
       class(GSGSmodel), INTENT(INOUT)     :: this
       INTEGER         , INTENT   (IN)     :: ivar
       REAL(KIND=GP)   , INTENT   (IN), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
-      REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(1,this%modelTraits_%nchannel,this%ntot):: t_in
+      REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%modelTraits_%nchannel,this%nx,this%ny,this%nz):: t_in
 
       INTEGER                             :: iproc, irank, istrip, nstrip
       INTEGER                             :: isendTo, igetFrom
@@ -684,11 +688,17 @@ MODULE class_GSGSmodel
 
             igetFrom = this%myrank_ - irank
             if ( igetFrom .lt. 0 ) igetFrom = igetFrom + this%nprocs_
-            CALL MPI_IRECV(t_in(1,ivar+1,:),1,this%rcvtype_(igetFrom),igetFrom,      &
+            CALL MPI_IRECV(t_in(ivar+1,:,:,:),1,this%rcvtype_(igetFrom),igetFrom,      &
                           1,this%comm_,ireq2(irank),this%ierr_)
+            IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
+              STOP 'GSGS_real_exch: MPI_IRECV failed'
+            ENDIF
 
             CALL MPI_ISEND(R1,1,this%sndtype_(isendTo),isendTo, &
                           1,this%comm_,ireq1(irank),this%ierr_)
+            IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
+              STOP 'GSGS_real_exch: MPI_ISEND failed'
+            ENDIF
          enddo
 
          do istrip=0, nstrip-1
@@ -697,6 +707,10 @@ MODULE class_GSGSmodel
             CALL MPI_WAIT(ireq2(irank),istatus,this%ierr_)
          enddo
       enddo
+      if ( this%myrank_ .eq. 0 ) then
+      write(*,*) 'GSGS_real_exch: R1  =', R1  (5,1:10,10)
+      write(*,*) 'GSGS_real_exch: t_in=', t_in(ivar+1, 5,1:10,10)
+      endif
 
       RETURN
       END SUBROUTINE GSGS_real_exch
