@@ -31,10 +31,10 @@ MODULE class_GSGSmodel
 
 
       INTERFACE
-        TYPE(C_PTR) FUNCTION allocate_c_array(size_in_bytes) BIND(C, NAME='malloc')
+        FUNCTION allocate_c_array(size_in_bytes) BIND(C, NAME='malloc')
           USE iso_c_binding
           IMPLICIT NONE
-
+          TYPE(C_PTR)                       :: allocate_c_array
           INTEGER(C_INT), INTENT(IN), VALUE :: size_in_bytes
         END FUNCTION allocate_c_array
 
@@ -79,8 +79,10 @@ MODULE class_GSGSmodel
         TYPE(FFTPLAN), POINTER                       :: plancr, planrc
 
         ! Infero data:
-        REAL(KIND=GP), POINTER, DIMENSION(:,:)       :: t_in_
-        REAL(KIND=GP), POINTER, DIMENSION(:,:)       :: t_out_
+!       REAL(KIND=GP), POINTER, DIMENSION(:,:)       :: t_in_
+!       REAL(KIND=GP), POINTER, DIMENSION(:,:)       :: t_out_
+        REAL(c_float), POINTER                       :: t_in_(:,:)
+        REAL(c_float), POINTER                       :: t_out_(:,:)
         TYPE(C_PTR)                                  :: c_ptr_t_in_
         TYPE(C_PTR)                                  :: c_ptr_t_out_
         ! fckit wrappers and name->tensor maps
@@ -272,6 +274,10 @@ MODULE class_GSGSmodel
         END DO
      ENDIF 
 
+
+    ! Find send/recv types:
+    CALL GSGS_real_exch_types(ngrid, this%nprocs_, this%myrank_, &
+                              this%sndtype_, this%rcvtype_)
     CALL GSGS_init_infero(this, modtraits)
   !   write(*,*)this%myrank_, ' GSGS_ctor: ksta=', this%ksta, ' kend=', this%kend, ' ista=', this%ista, ' iend=', this%iend
 
@@ -296,6 +302,11 @@ MODULE class_GSGSmodel
     IF ( ALLOCATED    (this%kx)  ) DEALLOCATE   (this%kx)
     IF ( ALLOCATED    (this%ky)  ) DEALLOCATE   (this%ky)
     IF ( ALLOCATED    (this%kz)  ) DEALLOCATE   (this%kz)
+
+    DO j = 1, this%nprocs_
+      CALL MPI_Type_free(this%sndtype_(j), this%ierr_)
+      CALL MPI_Type_free(this%rcvtype_(j), this%ierr_)
+    ENDDO
     IF ( ALLOCATED(this%sndtype_)) DEALLOCATE   (this%sndtype_)
     IF ( ALLOCATED(this%rcvtype_)) DEALLOCATE   (this%rcvtype_)
 
@@ -349,32 +360,64 @@ MODULE class_GSGSmodel
       STOP 
     ENDIF
     
+    WRITE(*,*) 'GSGS_init_infero: call infero_check... '
     CALL infero_check( infero_initialise() )
   
-    ! Wrap Fortran arrays into fckit tensors and map them by layer names
-    this%tin_wrapped_  = fckit_tensor_real32(this%t_in_)
-    this%tout_wrapped_ = fckit_tensor_real32(this%t_out_)
-
-    this%imap_ = fckit_map()
-    CALL this%imap_%insert(trim(this%modelTraits_%in_name),  this%tin_wrapped_%c_ptr())
-
-    this%omap_ = fckit_map()
-    CALL this%omap_%insert(trim(this%modelTraits_%out_name), this%tout_wrapped_%c_ptr())
-
+    WRITE(*,*) 'GSGS_init_infero: allocate C arrays... '
     ! Allocate C arrays 
     nc = this%modelTraits_%nchannel
     nn = this%ntot
 
-    nb = nc * nn * SIZEOF(1.0_GP)
+    IF ( nc .LE. 0 .OR. nn .LE. 0 ) THEN
+      STOP 'Invalid nchannel or ntot!'
+    ENDIF
+
+    nb = nc * nn * SIZEOF(1.0_c_float)
     this%c_ptr_t_in_  = allocate_c_array(nb)
+    IF (.NOT. c_associated(this%c_ptr_t_in_)) THEN
+      STOP 'c_ptr_t_in_ not allocated!'
+    ENDIF
 
-    nb = 3 * this%modelTraits_%nx * this%modelTraits_%ny * this%modelTraits_%nz * SIZEOF(1.0_GP)
+    nb = 3  * nn * SIZEOF(1.0_c_float)
     this%c_ptr_t_out_ = allocate_c_array(nb)
+    IF (.NOT. c_associated(this%c_ptr_t_out_)) THEN
+      STOP 'c_ptr_t_out_ not allocated!'
+    ENDIF
 
+    WRITE(*,*) 'GSGS_init_infero: associate C arrays... '
+    WRITE(*,*) '.................... nc=', nc, '  nn=', nn
     ! Associate Fortran pointers with C memory:
-    CALL C_F_POINTER(this%c_ptr_t_in_ , this%t_in_ , SHAPE=[nc, nn])
-    CALL C_F_POINTER(this%c_ptr_t_out_, this%t_out_, SHAPE=[3 , nn])
+    CALL C_F_POINTER(this%c_ptr_t_in_ , this%t_in_ , [nc, nn])
+    IF( .NOT. ASSOCIATED(this%t_in_) ) THEN
+      STOP 't_in_ not associated'
+    ENDIF
+    IF( size(this%t_in_,1) .LE. 0 ) THEN
+      STOP 'Illegal size for t_in_'
+    ENDIF
 
+    CALL C_F_POINTER(this%c_ptr_t_out_, this%t_out_, [3 , nn])
+    IF( .NOT. ASSOCIATED(this%t_out_) ) THEN
+      STOP 't_out_ not associated'
+    ENDIF
+    IF( size(this%t_out_,1) .LE. 0 ) THEN
+      STOP 'Illegal size for t_out_'
+    ENDIF
+
+    WRITE(*,*) 'GSGS_init_infero: wrap input tensors... '
+    ! Wrap Fortran arrays into fckit tensors and map them by layer names
+    this%tin_wrapped_  = fckit_tensor_real32(this%t_in_)
+    this%tout_wrapped_ = fckit_tensor_real32(this%t_out_)
+
+    WRITE(*,*) 'GSGS_init_infero: create imap... '
+    this%imap_ = fckit_map()
+    CALL this%imap_%insert(trim(this%modelTraits_%in_name),  this%tin_wrapped_%c_ptr())
+
+    WRITE(*,*) 'GSGS_init_infero: create omap... '
+    this%omap_ = fckit_map()
+    CALL this%omap_%insert(trim(this%modelTraits_%out_name), this%tout_wrapped_%c_ptr())
+
+
+    WRITE(*,*) 'GSGS_init_infero: build YAML configuration... '
     ! Build a YAML config to point Infero at the 
     ! model and backend type:
     this%modelTraits_%yaml_config = &
@@ -382,9 +425,11 @@ MODULE class_GSGSmodel
         '  path: ' // trim(this%modelTraits_%model_path) // new_line('a') // &
         '  type: ' // trim(this%modelTraits_%model_type) // c_null_char
 
+    WRITE(*,*) 'GSGS_init_infero: initialize Infero model... '
     ! Initialize model from YAML string
     CALL infero_check( this%infmodel_%initialise_from_yaml_string(this%modelTraits_%yaml_config) )
 
+    WRITE(*,*) 'GSGS_init_infero: done. '
 
     RETURN
 
@@ -415,10 +460,15 @@ MODULE class_GSGSmodel
 
     ! Pack model input layer:
     ! shape = ("time", "channel", "x0", "x1", "x2")
+    WRITE(*,*) 'GSGS_compute_model: to pack vx... '
     CALL GSGS_pack(this, vx, 0, C1, R1, this%t_in_)
+    WRITE(*,*) 'GSGS_compute_model: to pack vy... '
     CALL GSGS_pack(this, vy, 1, C1, R1, this%t_in_)
+    WRITE(*,*) 'GSGS_compute_model: to pack vz... '
     CALL GSGS_pack(this, vz, 2, C1, R1, this%t_in_)
+    WRITE(*,*) 'GSGS_compute_model: to pack th... '
     CALL GSGS_pack(this, th, 3, C1, R1, this%t_in_)
+    WRITE(*,*) 'GSGS_compute_model: packing done. '
 
     ! Run inference
     CALL infero_check( this%infmodel_%infer(this%imap_, this%omap_) )
@@ -558,25 +608,33 @@ MODULE class_GSGSmodel
       INTEGER, INTENT(IN) :: n(3),nprocs
       INTEGER, INTENT(IN) :: myrank
 
-      INTEGER :: ista,iend
       INTEGER :: ksta,kend
       INTEGER :: irank,krank
       INTEGER :: itemp1,itemp2
 
       CALL range(1,n(3),nprocs,myrank,ksta,kend)
       DO irank = 0,nprocs-1
-         ista = 1
-         iend = n(1)
-         CALL block3d(1,n(1),1,n(2),ksta,ista,iend,1,n(2), &
+         CALL block3d(1,n(1),1,n(2),1,1,n(1),1,n(2), &
                      ksta,kend,GC_REAL,itemp1)
          sndtype(irank) = itemp1
       END DO
-      CALL range(1,n(3),nprocs,myrank,ksta,kend)
       DO krank = 0,nprocs-1
-         ista = 1
-         iend = n(1)
-         CALL block3d(1,n(1),1,n(2),ksta,ista,iend,1,n(2), &
-                     ksta,kend,GC_REAL,itemp1)
+         CALL range(1,n(3),nprocs,krank,ksta,kend)
+!     imin : the minimum value in the first dimension [IN]
+!     imax : the maximum value in the first dimension [IN]
+!     jmin : the minimum value in the second dimension [IN]
+!     jmax : the maximum value in the second dimension [IN]
+!     kmin : the minimum value in the third dimension [IN]
+!     ista : start value of the block in the first dimension [IN]
+!     iend : end value of the block in the first dimension [IN]
+!     jsta : start value of the block in the second dimension [IN]
+!     jend : end value of the block in the second dimension [IN]
+!     ksta : start value of the block in the third dimension [IN]
+!     kend : end value of the block in the third dimension [IN]
+!     ioldtype: data type of the elements in the block [IN]
+!     inewtype: the derived data type for the block [OUT]
+         CALL block3d(1,n(1),1,n(2),1,1,n(1),1,n(2), &
+                     ksta,kend,GC_REAL,itemp2)
          rcvtype(krank) = itemp2
       END DO
 
