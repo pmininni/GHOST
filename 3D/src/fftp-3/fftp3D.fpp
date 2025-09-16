@@ -609,14 +609,26 @@
       jlen = jend-jsta+1
       klen = kend-ksta+1
       CALL MPI_TYPE_VECTOR(jlen,ilen,imax-imin+1,ioldtype,itemp,ierr)
+      IF ( ierr .NE. MPI_SUCCESS ) THEN
+        STOP 'block3d: MPI_TYPE_VECTOR failed'
+      ENDIF
       idist = (imax-imin+1)*(jmax-jmin+1)*isize
       CALL MPI_TYPE_CREATE_HVECTOR(klen,1,idist,itemp,itemp2,ierr)
+      IF ( ierr .NE. MPI_SUCCESS ) THEN
+        STOP 'block3d: MPI_TYPE_CREATE_HVECTOR failed'
+      ENDIF
       CALL MPI_TYPE_FREE(itemp,ierr)
       idist = ((imax-imin+1)*(jmax-jmin+1)*(ksta-kmin) &
               +(imax-imin+1)*(jsta-jmin)+(ista-imin))*isize
       CALL MPI_TYPE_CREATE_STRUCT(1,1,idist,itemp2,inewtype,ierr)
+      IF ( ierr .NE. MPI_SUCCESS ) THEN
+        STOP 'block3d: MPI_TYPE_CREATE_STRUCT failed'
+      ENDIF
       CALL MPI_TYPE_FREE(itemp2,ierr)
       CALL MPI_TYPE_COMMIT(inewtype,ierr)
+      IF ( ierr .NE. MPI_SUCCESS ) THEN
+        STOP 'block3d: MPI_TYPE_COMMIT failed'
+      ENDIF
 
       RETURN
       END SUBROUTINE block3d
