@@ -488,10 +488,13 @@ MODULE class_GSGSmodel
 !   PRINT '(100(1x,f10.6))', this%t_out_(1, :)
 
     ! Unpack model output and compute FFTs:
-    WRITE(*,*) 'GSGS_compute_model: unpacking... '
+    WRITE(*,*) 'GSGS_compute_model: unpacking vx... '
     CALL GSGS_unpack(this, this%t_out_, 0, R1, SGS1)
+    WRITE(*,*) 'GSGS_compute_model: unpacking vy... '
     CALL GSGS_unpack(this, this%t_out_, 1, R1, SGS2)
+    WRITE(*,*) 'GSGS_compute_model: unpacking vz... '
     CALL GSGS_unpack(this, this%t_out_, 2, R1, SGS3)
+    WRITE(*,*) 'GSGS_compute_model: unpacking th... '
     CALL GSGS_unpack(this, this%t_out_, 3, R1, SGSth)
 
     WRITE(*,*) 'GSGS_compute_model: done. '
@@ -590,8 +593,15 @@ MODULE class_GSGSmodel
           END DO
        END DO
     END DO
+    if ( this%myrank_ .eq. 0 ) then
+    write(*,*) 'GSGS_unpack: R1   =', R1  (5,1:10,this%ksta)
+    write(*,*) 'GSGS_unpack: t_out=', otensor(ivar+1, 5,1:10,this%ksta)
+    endif
 
     CALL fftp3d_real_to_complex(this%planrc,R1,sgs)
+    if ( this%myrank_ .eq. 0 ) then
+    write(*,*) 'GSGS_unpack: sgs   =', sgs(5,1:10,this%ista)
+    endif
        
 
     RETURN
@@ -626,7 +636,7 @@ MODULE class_GSGSmodel
 
       CALL range(1,n(3),nprocs,myrank,ksta,kend)
       DO irank = 0,nprocs-1
-         CALL block3d(1,n(1),1,n(2),1,1,n(1),1,n(2), &
+         CALL block3d(1,n(1),1,n(2),ksta,1,n(1),1,n(2), &
                      ksta,kend,GC_REAL,itemp1)
          sndtype(irank) = itemp1
       END DO
@@ -708,8 +718,8 @@ MODULE class_GSGSmodel
          enddo
       enddo
       if ( this%myrank_ .eq. 0 ) then
-      write(*,*) 'GSGS_real_exch: R1  =', R1  (5,1:10,10)
-      write(*,*) 'GSGS_real_exch: t_in=', t_in(ivar+1, 5,1:10,10)
+      write(*,*) 'GSGS_real_exch: R1  =', R1  (5,1:10,this%ksta)
+      write(*,*) 'GSGS_real_exch: t_in=', t_in(ivar+1, 5,1:10,this%ksta)
       endif
 
       RETURN
