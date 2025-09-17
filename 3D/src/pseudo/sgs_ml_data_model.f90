@@ -466,15 +466,15 @@ MODULE class_GSGSmodel
 
     ! Pack model input layer:
     ! shape = ("time", "channel", "x0", "x1", "x2")
-    WRITE(*,*) 'GSGS_compute_model: to pack vx... '
+!   WRITE(*,*) 'GSGS_compute_model: to pack vx... '
     CALL GSGS_pack(this, vx, 0, C1, R1, this%t_in_)
-    WRITE(*,*) 'GSGS_compute_model: to pack vy... '
+!   WRITE(*,*) 'GSGS_compute_model: to pack vy... '
     CALL GSGS_pack(this, vy, 1, C1, R1, this%t_in_)
-    WRITE(*,*) 'GSGS_compute_model: to pack vz... '
+!   WRITE(*,*) 'GSGS_compute_model: to pack vz... '
     CALL GSGS_pack(this, vz, 2, C1, R1, this%t_in_)
-    WRITE(*,*) 'GSGS_compute_model: to pack th... '
+!   WRITE(*,*) 'GSGS_compute_model: to pack th... '
     CALL GSGS_pack(this, th, 3, C1, R1, this%t_in_)
-    WRITE(*,*) 'GSGS_compute_model: packing done. '
+!   WRITE(*,*) 'GSGS_compute_model: packing done. '
 
     ! Run inference
     CALL infero_check( this%infmodel_%infer(this%imap_, this%omap_) )
@@ -488,16 +488,16 @@ MODULE class_GSGSmodel
 !   PRINT '(100(1x,f10.6))', this%t_out_(1, :)
 
     ! Unpack model output and compute FFTs:
-    WRITE(*,*) 'GSGS_compute_model: unpacking vx... '
+!   WRITE(*,*) 'GSGS_compute_model: unpacking vx... '
     CALL GSGS_unpack(this, this%t_out_, 0, R1, SGS1)
-    WRITE(*,*) 'GSGS_compute_model: unpacking vy... '
+!   WRITE(*,*) 'GSGS_compute_model: unpacking vy... '
     CALL GSGS_unpack(this, this%t_out_, 1, R1, SGS2)
-    WRITE(*,*) 'GSGS_compute_model: unpacking vz... '
+!   WRITE(*,*) 'GSGS_compute_model: unpacking vz... '
     CALL GSGS_unpack(this, this%t_out_, 2, R1, SGS3)
-    WRITE(*,*) 'GSGS_compute_model: unpacking th... '
+!   WRITE(*,*) 'GSGS_compute_model: unpacking th... '
     CALL GSGS_unpack(this, this%t_out_, 3, R1, SGSth)
 
-    WRITE(*,*) 'GSGS_compute_model: done. '
+!   WRITE(*,*) 'GSGS_compute_model: done. '
 
     RETURN
 
@@ -523,7 +523,7 @@ MODULE class_GSGSmodel
     COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: cvar
     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1
     REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
-    REAL(KIND=GP)   , INTENT  (OUT), DIMENSION(1,this%modelTraits_%nchannel,this%nx,this%ny,this%ksta:this%kend) :: itensor
+    REAL(KIND=GP)   , INTENT  (OUT), DIMENSION(this%modelTraits_%nchannel,this%nx,this%ny,this%ksta:this%kend) :: itensor
     REAL(KIND=GP)                            :: tmp
 
     tmp = 1.0_GP/ &
@@ -549,7 +549,7 @@ MODULE class_GSGSmodel
 !$omp parallel do if (this%kend-this%ksta.lt.nth) private (i)
        DO j = 1,this%ny
           DO i = 1,this%nx
-             itensor(1,ivar+1,i,j,k) = R1(i,j,k)
+             itensor(ivar+1,i,j,k) = R1(i,j,k)
           END DO
        END DO
     END DO
@@ -593,15 +593,15 @@ MODULE class_GSGSmodel
           END DO
        END DO
     END DO
-    if ( this%myrank_ .eq. 0 ) then
-    write(*,*) 'GSGS_unpack: R1   =', R1  (5,1:10,this%ksta)
-    write(*,*) 'GSGS_unpack: t_out=', otensor(ivar+1, 5,1:10,this%ksta)
-    endif
+!   if ( this%myrank_ .eq. 0 ) then
+!   write(*,*) 'GSGS_unpack: R1   =', R1  (5,1:10,this%ksta)
+!   write(*,*) 'GSGS_unpack: t_out=', otensor(ivar+1, 5,1:10,this%ksta)
+!   endif
 
     CALL fftp3d_real_to_complex(this%planrc,R1,sgs)
-    if ( this%myrank_ .eq. 0 ) then
-    write(*,*) 'GSGS_unpack: sgs   =', sgs(5,1:10,this%ista)
-    endif
+!   if ( this%myrank_ .eq. 0 ) then
+!   write(*,*) 'GSGS_unpack: sgs   =', sgs(5,1:10,this%ista)
+!   endif
        
 
     RETURN
@@ -717,10 +717,10 @@ MODULE class_GSGSmodel
             CALL MPI_WAIT(ireq2(irank),istatus,this%ierr_)
          enddo
       enddo
-      if ( this%myrank_ .eq. 0 ) then
-      write(*,*) 'GSGS_real_exch: R1  =', R1  (5,1:10,this%ksta)
-      write(*,*) 'GSGS_real_exch: t_in=', t_in(ivar+1, 5,1:10,this%ksta)
-      endif
+!     if ( this%myrank_ .eq. 0 ) then
+!     write(*,*) 'GSGS_real_exch: R1  =', R1  (5,1:10,this%ksta)
+!     write(*,*) 'GSGS_real_exch: t_in=', t_in(ivar+1, 5,1:10,this%ksta)
+!     endif
 
       RETURN
       END SUBROUTINE GSGS_real_exch
