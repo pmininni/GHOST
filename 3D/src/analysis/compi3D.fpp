@@ -313,7 +313,7 @@
       INTEGER :: ic,ir,it,jc
       INTEGER :: bAniso,bHPDF,dolog,inorm,istat(4096),jpdf,nstat
       INTEGER :: nbinx,nbiny,nbins(2)
-      INTEGER :: btrunc,useaccum
+      INTEGER :: btrunc,proutII,useaccum
       LOGICAL :: accum
       CHARACTER(len=64) :: ext1
       CHARACTER(len=4096) :: sstat
@@ -415,7 +415,7 @@
       NAMELIST / ptestpart / gyrof,vtherm
 #endif
       NAMELIST / shear / iswap,jpdf
-      NAMELIST / shear / dolog,useaccum,bAniso,bHPDF,oswap,idir,odir,sstat
+      NAMELIST / shear / dolog,useaccum,proutII,bAniso,bHPDF,oswap,idir,odir,sstat
       NAMELIST / shear / btrunc,ktmin,ktmax,nbinx,nbiny
 
 !
@@ -1323,6 +1323,7 @@
 !              2: do joint pdfs only
 !              3: do both 1d and joint pdfs
 !     dolog  : compute PDFs in log=space?
+!     proutII: write II-invariant-conditioned quantities?
 !     useaccum: do accumulation over all specified time steps to 
 !               compute aniso tensors?
 !     bHPDF  : Do PDFs as in Herring m.s.
@@ -1336,6 +1337,7 @@
       oswap  = 0
       btrunc = 0
       dolog  = 1
+      proutII  = 0
       useaccum = 0
       bHPDF  = 1
       bAniso = 1
@@ -1358,6 +1360,7 @@ write(*,*)'main: compi.inp read.'
       CALL MPI_BCAST(sstat  ,4096,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(btrunc ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(dolog  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(proutII,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(useaccum,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(bHPDF  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(bAniso ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
@@ -1568,7 +1571,7 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
           ENDIF
 #if 1
           CALL DoAniso(vx,vy,vz,th,istat(it),odir,planio,C1,C2, &
-                       R1,R2,R3,R4,R5,R6,accum,bden,dden,gden,vden, &
+                       R1,R2,R3,R4,R5,R6,proutII,accum,bden,dden,gden,vden, &
                        bij,dij,gij,vij)
 #endif
         ENDIF
@@ -3221,7 +3224,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 
 
       SUBROUTINE DoAniso(vx,vy,vz,th,indtime,odir,planio,C1,C2, &
-                         R1,R2,R3,R4,R5,R6,accum,bdenom,ddenom,&
+                         R1,R2,R3,R4,R5,R6,proutII,accum,bdenom,ddenom,&
                          gdenom,vdenom, bij,dij,gij,vij)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -3236,6 +3239,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !     indtime: integter time index
 !     odir   : output directory
 !     planio  : io plan
+!     proutII: write II-invariant-conditioned quantities?
 !     accum  : if TRUE, continues to accumulate the aniso tensors and normalizations.
 !              If FALSE, final accumulation is done, and global sums are done to
 !              compute tensors
@@ -3277,7 +3281,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       TYPE(IOPLAN)    , INTENT   (IN)                            :: planio
       LOGICAL                                                    :: bexist
       LOGICAL         , INTENT   (IN)                            :: accum
-      INTEGER         , INTENT   (IN)                            :: indtime
+      INTEGER         , INTENT   (IN)                            :: proutII,indtime
       INTEGER                                                    :: i,j,nn
       CHARACTER(len=1024), INTENT   (IN)                         :: odir
       CHARACTER(len=1024)                                        :: fnout
@@ -3350,6 +3354,8 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL MPI_ALLREDUCE(rcloc, xmax, 1, GC_REAL, &
                       MPI_MAX, MPI_COMM_WORLD, ierr)
               write(*,*)'DoAniso: ext=', ext, ' vII_max=', xmax
+
+      IF ( proutII .gt. 0 ) THEN
       rcmin = 0.01 * xmax
       rcmax = xmax
       CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0.01_1',odir,planio,&
@@ -3440,6 +3446,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL conditionr(R1,indtime,'epsp_cvII_0_0.1',odir,planio,&
                       R2,R5,rcmin,rcmax)
 #endif
+      ENDIF ! print II-conditioned  binaries?
 
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'vIIIspect.' // trim(sext) // '.txt'
