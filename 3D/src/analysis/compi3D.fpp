@@ -3362,7 +3362,13 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0.01_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'om_cvII_0.01_1',odir,planio,&
+      CALL condition(2,vx,vy,vz,indtime,'kepara_cvII_0.01_1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(3,vx,vy,vz,indtime,'om_cvII_0.01_1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(4,vx,vy,vz,indtime,'omperp_cvII_0.01_1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(5,vx,vy,vz,indtime,'ompara_cvII_0.01_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.1 * xmax
       rcmax = xmax
@@ -3370,7 +3376,13 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0.1_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'om_cvII_0.1_1',odir,planio,&
+      CALL condition(2,vx,vy,vz,indtime,'kepara_cvII_0.1_1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(3,vx,vy,vz,indtime,'om_cvII_0.1_1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(4,vx,vy,vz,indtime,'omperp_cvII_0.1_1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(5,vx,vy,vz,indtime,'ompara_cvII_0.1_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.5 * xmax
       rcmax = xmax
@@ -3378,7 +3390,13 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0.5_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'om_cvII_0.5_1',odir,planio,&
+      CALL condition(2,vx,vy,vz,indtime,'kepara_cvII_0.5_1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(0,vx,vy,vz,indtime,'om_cvII_0.5_1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(1,vx,vy,vz,indtime,'omperp_cvII_0.5_1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(2,vx,vy,vz,indtime,'ompara_cvII_0.5_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.0
       rcmax = 0.1*xmax
@@ -3386,7 +3404,13 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0_0.1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'om_cvII_0_0.1',odir,planio,&
+      CALL condition(2,vx,vy,vz,indtime,'kepara_cvII_0_0.1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(0,vx,vy,vz,indtime,'om_cvII_0_0.1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(1,vx,vy,vz,indtime,'omperp_cvII_0_0.1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(2,vx,vy,vz,indtime,'ompara_cvII_0_0.1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.0
       rcmax = xmax
@@ -3394,7 +3418,13 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       CALL condition(1,vx,vy,vz,indtime,'keperp',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'om',odir,planio,&
+      CALL condition(2,vx,vy,vz,indtime,'kepara',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(0,vx,vy,vz,indtime,'om',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(1,vx,vy,vz,indtime,'omperp',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(2,vx,vy,vz,indtime,'ompara',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
 
 #if 1
@@ -3425,25 +3455,49 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       !! Condition square perpendicular strain rate tensor:
       rcmin = 0.0
       rcmax = xmax
-      CALL pStrainMag(vx,vy,vz,C1,C2,R2,R1)
-      CALL conditionr(R1,indtime,'epsp',odir,planio,&
+      CALL hStrainMag(vx,vy,vz,C1,C2,R2,R1)
+      CALL conditionr(R1,indtime,'epsperp',odir,planio,&
                       R2,R5,rcmin,rcmax)
       rcmin = 0.01 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'epsp_cvII_0.01_1',odir,planio,&
+      CALL conditionr(R1,indtime,'epsperp_cvII_0.01_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
       rcmin = 0.1 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'epsp_cvII_0.1_1',odir,planio,&
+      CALL conditionr(R1,indtime,'epsperp_cvII_0.1_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
       rcmin = 0.5 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'epsp_cvII_0.5_1',odir,planio,&
+      CALL conditionr(R1,indtime,'epsperp_cvII_0.5_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
 
       rcmin = 0.0
       rcmax = 0.1*xmax
-      CALL conditionr(R1,indtime,'epsp_cvII_0_0.1',odir,planio,&
+      CALL conditionr(R1,indtime,'epsperp_cvII_0_0.1',odir,planio,&
+                      R2,R5,rcmin,rcmax)
+
+      !! Condition square parallel strain rate tensor:
+      rcmin = 0.0
+      rcmax = xmax
+      CALL pStrainMag(vx,vy,vz,C1,C2,R2,R1)
+      CALL conditionr(R1,indtime,'epspara',odir,planio,&
+                      R2,R5,rcmin,rcmax)
+      rcmin = 0.01 * xmax
+      rcmax = xmax
+      CALL conditionr(R1,indtime,'epspara_cvII_0.01_1',odir,planio,&
+                      R2,R5,rcmin,rcmax)
+      rcmin = 0.1 * xmax
+      rcmax = xmax
+      CALL conditionr(R1,indtime,'epspara_cvII_0.1_1',odir,planio,&
+                      R2,R5,rcmin,rcmax)
+      rcmin = 0.5 * xmax
+      rcmax = xmax
+      CALL conditionr(R1,indtime,'epspara_cvII_0.5_1',odir,planio,&
+                      R2,R5,rcmin,rcmax)
+
+      rcmin = 0.0
+      rcmax = 0.1*xmax
+      CALL conditionr(R1,indtime,'epspara_cvII_0_0.1',odir,planio,&
                       R2,R5,rcmin,rcmax)
 #endif
       ENDIF ! print II-conditioned  binaries?
@@ -3484,9 +3538,12 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 ! on rcmin/max, and outputs it in file prefixed with spref
 !
 ! Parameters
-!     itype   : =0, conditions energy
+!     itype   : =0, conditions total kinetic energy
 !               =1, conditions perp energy
-!               =2, conditions vorticity magnitude
+!               =2, conditions parallel energy
+!               =3, conditions vorticity magnitude
+!               =4, conditions perp vorticity magnitude
+!               =5, conditions parallel vorticity magnitude
 !     vx,
 !     vy,
 !     vz      : complex velocities
@@ -3530,7 +3587,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CHARACTER(len=*), INTENT   (IN)                            :: spref
 !     CHARACTER(len=64)                                          :: sext
       DOUBLE PRECISION                                           :: tmp1
-      REAL   (KIND=GP)                                           :: tmp,xb
+      REAL   (KIND=GP)                                           :: tmp,xb,zz,zh
 
 
       tmp  = 1.0_GP/ &
@@ -3538,7 +3595,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       tmp1 = 1.0D0/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
 
-       IF ( itype .EQ. 0 .OR. itype.EQ.1 ) THEN ! energy
+       IF ( itype .EQ. 0 .OR. itype.EQ.1 .OR. itype.EQ.2 ) THEN ! energy
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
        DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -3571,7 +3628,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
           END DO
        END DO
       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
-       ELSE IF ( itype .EQ. 2 ) THEN ! vorticity
+       ELSE IF ( itype.EQ.3 .OR. itype.EQ.4 .OR. itype.EQ.5 ) THEN ! vorticity
        CALL rotor3(vy,vz,c2,1)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
        DO i = ista,iend
@@ -3619,18 +3676,14 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
                xb = 1.0
                if ( abs(Rc(i,j,k)).lt.rcmin &
                .or. abs(Rc(i,j,k)).gt.rcmax ) xb = 0.0
-               if  ( itype .EQ. 0 .or. itype .eq. 2 ) then
-                 r3(i,j,k) = sqrt(         &
-                          + r1(i,j,k)**2 &
-                          + r2(i,j,k)**2 &
-                          + r3(i,j,k)**2 &
-                            ) * xb
-               else 
-                 r3(i,j,k) = sqrt(         &
-                          + r1(i,j,k)**2 &
-                          + r2(i,j,k)**2 &
-                            ) * xb
-               endif
+               zz = 1.0; zh = 1.0
+               if  ( itype .EQ. 1 .or. itype .eq. 4 ) zz = 0.0
+               if  ( itype .EQ. 2 .or. itype .eq. 5 ) zh = 0.0
+               r3(i,j,k) = sqrt(         &
+                         + zh *(r1(i,j,k)**2 &
+                         +      r2(i,j,k)**2)&
+                         + zz * r3(i,j,k)**2 &
+                           ) * xb
             END DO
          END DO
       END DO
