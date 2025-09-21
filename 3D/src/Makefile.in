@@ -5,13 +5,13 @@
 # Spatial resolution (grid points in X,Y,Z)
 NX       = 512
 NY       = 512
-NZ       = 512
+NZ       = 256
 
 # ORD:     number of iterations in the Runge-Kutta method
 ORD      = 2
 
 # SOLVER:  (read the file SOLVERS for a list of options)
-SOLVER   = ROTBOUSS
+SOLVER   = COMPIHD
 
 # PRECISION: (SINGLE or DOUBLE)
 PRECISION= SINGLE
@@ -19,7 +19,7 @@ PRECISION= SINGLE
 # Box size:
 # ARBSIZE=yes  # Box size defined by the user
 # ARBSIZE=no   # 2.pi periodic box
-ARBSIZE  = no
+ARBSIZE  = yes
 
 # IOLIB:
 # posix    builds POSIX I/O
