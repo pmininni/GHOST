@@ -270,7 +270,7 @@
       CALL GTStart(htot)
       ALLOCATE( carr(plan%nx/2+1,plan%ny,ksta:kend) )
       CALL GTStart(hfft)
-      CALL C_F_POINTER(C_LOC(in), p_carr,shape=[plan%nx/2,plan%ny,ksta:kend])
+      CALL C_F_POINTER(C_LOC(in),p_carr,shape=[plan%nx/2,plan%ny,kend-ksta+1])
       carr(1:plan%nx/2,:,:) = p_carr
 #if defined(DO_HYBRIDoffl)
 !$omp target data map(to:plan%planr) map(tofrom:carr) device(targetdev)
@@ -482,7 +482,7 @@
 !$omp end target data
 #endif
       CALL C_F_POINTER(C_LOC(carr), rarr,                     &
-                       shape=[2*(plan%nx/2+1),plan%ny,ksta:kend])
+                       shape=[2*(plan%nx/2+1),plan%ny,kend-ksta+1])
       out = rarr(1:plan%nx,:,:)
       CALL GTStop(hfft); 
       
