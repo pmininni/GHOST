@@ -1670,35 +1670,29 @@ MODULE class_GPartComm
        END DO
     ENDIF
 
-    !
-    ! send data:
+    ! Pack data to send
     CALL GPartComm_PPackV(this,this%sbbuffp_,id,px,py,pz,this%ibot_,this%nbot_)
+    CALL GPartComm_PPackV(this,this%stbuffp_,id,px,py,pz,this%itop_,this%ntop_)
+    ! Send data:
     CALL GTStart(this%hcomm_)
     CALL MPI_ISEND(this%sbbuffp_,this%nbot_,MPI_GPDataPackType,ibrank, &
                    1,this%comm_,this%ibsh_(1),this%ierr_)
-    CALL GTAcc(this%hcomm_)
-
-    CALL GPartComm_PPackV(this,this%stbuffp_,id,px,py,pz,this%itop_,this%ntop_)
-    CALL GTStart(this%hcomm_)
     CALL MPI_ISEND(this%stbuffp_,this%ntop_,MPI_GPDataPackType,itrank, &
                    1,this%comm_,this%itsh_(1),this%ierr_)
-    CALL GTAcc(this%hcomm_)
-
-    ! Concatenate partcle list to remove particles sent away:
-    CALL GPartComm_ConcatV(this,id,px,py,pz,nparts,this%ibot_,this%nbot_,this%itop_,this%ntop_)
-
-    CALL GTStart(this%hcomm_)
-
+  
     CALL MPI_RECV(this%rbbuffp_,this%maxparts_,MPI_GPDataPackType,ibrank, &
                   1,this%comm_,this%ibrh_(1),this%ierr_)
-    CALL MPI_GET_COUNT(this%ibrh_,MPI_GPDataPackType,nrb)
+    CALL MPI_GET_COUNT(this%ibrh_(1),MPI_GPDataPackType,nrb,this%ierr_)
     CALL MPI_RECV(this%rtbuffp_,this%maxparts_,MPI_GPDataPackType,itrank, &
                   1,this%comm_,this%itrh_(1),this%ierr_)
-    CALL MPI_GET_COUNT(this%itrh_,MPI_GPDataPackType,nrt)
+    CALL MPI_GET_COUNT(this%itrh_(1),MPI_GPDataPackType,nrt,this%ierr_)
 
     CALL MPI_WAIT(this%ibsh_(1),this%istatus_,this%ierr_)
     CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
     CALL GTAcc(this%hcomm_)
+
+    ! Concatenate partcle list to remove particles sent away:
+    CALL GPartComm_ConcatV(this,id,px,py,pz,nparts,this%ibot_,this%nbot_,this%itop_,this%ntop_)
 
     ! Update particle list:
     CALL GPartComm_PUnpackV(this,id,px,py,pz,nparts,this%rbbuffp_,nrb)
@@ -2418,7 +2412,7 @@ MODULE class_GPartComm
         CALL GTStart(this%hcomm_)
         CALL MPI_RECV(this%rbbuffp_,this%maxparts_,MPI_GPDataPackType,t, &
                       t,this%comm_,this%ibrh_(1),this%ierr_)
-        CALL MPI_GET_COUNT(this%ibrh_,MPI_GPDataPackType,m)
+        CALL MPI_GET_COUNT(this%ibrh_,MPI_GPDataPackType,m,this%ierr_)
         CALL GTAcc(this%hcomm_)
 !        m = int(this%rbbuff_(1,1))
 !$omp parallel do
@@ -2549,7 +2543,7 @@ MODULE class_GPartComm
         CALL GTStart(this%hcomm_)
         CALL MPI_RECV(this%rbbuffp_,this%maxparts_,MPI_GPDataPackType,t, &
                       t,this%comm_,this%ibrh_(1),this%ierr_)
-        CALL MPI_GET_COUNT(this%ibrh_,MPI_GPDataPackType,m)
+        CALL MPI_GET_COUNT(this%ibrh_,MPI_GPDataPackType,m,this%ierr_)
 !        CALL MPI_WAIT(this%ibrh_(1),this%istatus_,this%ierr_)
         CALL GTAcc(this%hcomm_)
 !        m = int(this%rbbuff_(1,1))
@@ -2998,7 +2992,6 @@ MODULE class_GPartComm
     ! return data:
     DO j=1,this%nbret_  ! to bottom task:
       itask = this%ibretp_(j)
-!      PRINT *, 'Sending', j, this%myrank_, itask
       CALL GPartComm_PackRetSF(this,this%sbbuff_(:,j),vext,j,'b')
       CALL GTStart(this%hcomm_)
       CALL MPI_ISEND(this%sbbuff_,buffsize,GC_REAL,itask, &

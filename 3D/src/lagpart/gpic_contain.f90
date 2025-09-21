@@ -1856,21 +1856,16 @@ SUBROUTINE GPIC_LagToEuler(this,lag,nl,evar,doupdate)
                 (1+(ng-this%partbuff_)/this%partchunksize_)*this%partchunksize_
           CALL this%ResizeArrays(this%partbuff_,.true.)
         END IF
-        CALL MPI_BARRIER(this%comm_, this%ierr_)
         CALL this%gpcomm_%PartExchangeV(this%id_,this%px_,this%py_,this%pz_,  &
              this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_INIT)
-        CALL MPI_BARRIER(this%comm_, this%ierr_)
         CALL this%gpcomm_%PartExchangeV(this%id_,this%ptmp0_(1,:),            &
              this%ptmp0_(2,:),this%ptmp0_(3,:),this%nparts_,this%lxbnds_(3,1),&
              this%lxbnds_(3,2),GPEXCH_UPDT)
-        CALL MPI_BARRIER(this%comm_, this%ierr_)
         CALL this%gpcomm_%PartExchangeV(this%id_,this%ttmp0_(1,:),            &
              this%ttmp0_(2,:),this%ttmp0_(3,:),this%nparts_,                  &
              this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_UPDT)
-        CALL MPI_BARRIER(this%comm_, this%ierr_)
         CALL this%gpcomm_%PartExchangeV(this%id_,this%pvx_,this%pvy_,this%pvz_,&
              this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2),GPEXCH_UPDT)
-        CALL MPI_BARRIER(this%comm_, this%ierr_)
         CALL this%gpcomm_%PartExchangeV(this%id_,this%weight_,this%prop_, &
              this%prop_,this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), &
              GPEXCH_END)
