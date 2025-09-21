@@ -3343,74 +3343,74 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL pspectrum(C1, fnout, nn)
 
 #if 1
-      CALL pw_anisovij(vx,vy,vz,C1,C2,R1,R2,R3,R4, R5,R6)
+      CALL pw_anisodij(vx,vy,vz,C1,C2,R1,R2,R3,R4, R5,R6)
       WRITE(sext, fmtext) indtime
-      CALL io_write(1,odir,'vII',ext,planio,R5)
-      CALL io_write(1,odir,'vIII',ext,planio,R6)
+      CALL io_write(1,odir,'dII',ext,planio,R5)
+      CALL io_write(1,odir,'dIII',ext,planio,R6)
       CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
-      fnout = trim(odir) // '/' // 'vIIspect.' // trim(sext) // '.txt'
+      fnout = trim(odir) // '/' // 'dIIspect.' // trim(sext) // '.txt'
       CALL pspectrum(C1, fnout, nn)
       rcloc = maxval(abs(R5))
       CALL MPI_ALLREDUCE(rcloc, xmax, 1, GC_REAL, &
                       MPI_MAX, MPI_COMM_WORLD, ierr)
-              write(*,*)'DoAniso: ext=', ext, ' vII_max=', xmax
+              write(*,*)'DoAniso: ext=', ext, ' dII_max=', xmax
 
       IF ( proutII .gt. 0 ) THEN
       rcmin = 0.01 * xmax
       rcmax = xmax
-      CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0.01_1',odir,planio,&
+      CALL condition(0,vx,vy,vz,indtime,'ke_cdII_0.01_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0.01_1',odir,planio,&
+      CALL condition(1,vx,vy,vz,indtime,'keperp_cdII_0.01_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'kepara_cvII_0.01_1',odir,planio,&
+      CALL condition(2,vx,vy,vz,indtime,'kepara_cdII_0.01_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(3,vx,vy,vz,indtime,'om_cvII_0.01_1',odir,planio,&
+      CALL condition(3,vx,vy,vz,indtime,'om_cdII_0.01_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(4,vx,vy,vz,indtime,'omperp_cvII_0.01_1',odir,planio,&
+      CALL condition(4,vx,vy,vz,indtime,'omperp_cdII_0.01_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(5,vx,vy,vz,indtime,'ompara_cvII_0.01_1',odir,planio,&
+      CALL condition(5,vx,vy,vz,indtime,'ompara_cdII_0.01_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.1 * xmax
       rcmax = xmax
-      CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0.1_1',odir,planio,&
+      CALL condition(0,vx,vy,vz,indtime,'ke_cdII_0.1_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0.1_1',odir,planio,&
+      CALL condition(1,vx,vy,vz,indtime,'keperp_cdII_0.1_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'kepara_cvII_0.1_1',odir,planio,&
+      CALL condition(2,vx,vy,vz,indtime,'kepara_cdII_0.1_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(3,vx,vy,vz,indtime,'om_cvII_0.1_1',odir,planio,&
+      CALL condition(3,vx,vy,vz,indtime,'om_cdII_0.1_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(4,vx,vy,vz,indtime,'omperp_cvII_0.1_1',odir,planio,&
+      CALL condition(4,vx,vy,vz,indtime,'omperp_cdII_0.1_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(5,vx,vy,vz,indtime,'ompara_cvII_0.1_1',odir,planio,&
+      CALL condition(5,vx,vy,vz,indtime,'ompara_cdII_0.1_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.5 * xmax
       rcmax = xmax
-      CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0.5_1',odir,planio,&
+      CALL condition(0,vx,vy,vz,indtime,'ke_cdII_0.5_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0.5_1',odir,planio,&
+      CALL condition(1,vx,vy,vz,indtime,'keperp_cdII_0.5_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'kepara_cvII_0.5_1',odir,planio,&
+      CALL condition(2,vx,vy,vz,indtime,'kepara_cdII_0.5_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(0,vx,vy,vz,indtime,'om_cvII_0.5_1',odir,planio,&
+      CALL condition(0,vx,vy,vz,indtime,'om_cdII_0.5_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(1,vx,vy,vz,indtime,'omperp_cvII_0.5_1',odir,planio,&
+      CALL condition(1,vx,vy,vz,indtime,'omperp_cdII_0.5_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'ompara_cvII_0.5_1',odir,planio,&
+      CALL condition(2,vx,vy,vz,indtime,'ompara_cdII_0.5_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.0
       rcmax = 0.1*xmax
-      CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0_0.1',odir,planio,&
+      CALL condition(0,vx,vy,vz,indtime,'ke_cdII_0_0.1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0_0.1',odir,planio,&
+      CALL condition(1,vx,vy,vz,indtime,'keperp_cdII_0_0.1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'kepara_cvII_0_0.1',odir,planio,&
+      CALL condition(2,vx,vy,vz,indtime,'kepara_cdII_0_0.1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(0,vx,vy,vz,indtime,'om_cvII_0_0.1',odir,planio,&
+      CALL condition(0,vx,vy,vz,indtime,'om_cdII_0_0.1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(1,vx,vy,vz,indtime,'omperp_cvII_0_0.1',odir,planio,&
+      CALL condition(1,vx,vy,vz,indtime,'omperp_cdII_0_0.1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'ompara_cvII_0_0.1',odir,planio,&
+      CALL condition(2,vx,vy,vz,indtime,'ompara_cdII_0_0.1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.0
       rcmax = xmax
@@ -3436,20 +3436,20 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
                       R2,R5,rcmin,rcmax)
       rcmin = 0.01 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'eps_cvII_0.01_1',odir,planio,&
+      CALL conditionr(R1,indtime,'eps_cdII_0.01_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
       rcmin = 0.1 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'eps_cvII_0.1_1',odir,planio,&
+      CALL conditionr(R1,indtime,'eps_cdII_0.1_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
       rcmin = 0.5 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'eps_cvII_0.5_1',odir,planio,&
+      CALL conditionr(R1,indtime,'eps_cdII_0.5_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
 
       rcmin = 0.0
       rcmax = 0.1*xmax
-      CALL conditionr(R1,indtime,'eps_cvII_0_0.1',odir,planio,&
+      CALL conditionr(R1,indtime,'eps_cdII_0_0.1',odir,planio,&
                       R2,R5,rcmin,rcmax)
 
       !! Condition square perpendicular strain rate tensor:
@@ -3460,20 +3460,20 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
                       R2,R5,rcmin,rcmax)
       rcmin = 0.01 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'epsperp_cvII_0.01_1',odir,planio,&
+      CALL conditionr(R1,indtime,'epsperp_cdII_0.01_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
       rcmin = 0.1 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'epsperp_cvII_0.1_1',odir,planio,&
+      CALL conditionr(R1,indtime,'epsperp_cdII_0.1_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
       rcmin = 0.5 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'epsperp_cvII_0.5_1',odir,planio,&
+      CALL conditionr(R1,indtime,'epsperp_cdII_0.5_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
 
       rcmin = 0.0
       rcmax = 0.1*xmax
-      CALL conditionr(R1,indtime,'epsperp_cvII_0_0.1',odir,planio,&
+      CALL conditionr(R1,indtime,'epsperp_cdII_0_0.1',odir,planio,&
                       R2,R5,rcmin,rcmax)
 
       !! Condition square parallel strain rate tensor:
@@ -3484,20 +3484,20 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
                       R2,R5,rcmin,rcmax)
       rcmin = 0.01 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'epspara_cvII_0.01_1',odir,planio,&
+      CALL conditionr(R1,indtime,'epspara_cdII_0.01_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
       rcmin = 0.1 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'epspara_cvII_0.1_1',odir,planio,&
+      CALL conditionr(R1,indtime,'epspara_cdII_0.1_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
       rcmin = 0.5 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'epspara_cvII_0.5_1',odir,planio,&
+      CALL conditionr(R1,indtime,'epspara_cdII_0.5_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
 
       rcmin = 0.0
       rcmax = 0.1*xmax
-      CALL conditionr(R1,indtime,'epspara_cvII_0_0.1',odir,planio,&
+      CALL conditionr(R1,indtime,'epspara_cdII_0_0.1',odir,planio,&
                       R2,R5,rcmin,rcmax)
 #endif
       ENDIF ! print II-conditioned  binaries?
