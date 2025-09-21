@@ -3,7 +3,7 @@
 
          CALL prodre3(vx,vy,vz,C4,C5,C6)          ! om x v
          CALL gradpress(cp1,gam1,th,vx,vy,vz,C25,C26,C27) ! grad pressure term
-         CALL divrhov(th,vx,vy,vz,C7)             ! div(rho.v)
+         CALL divrhov(th,vx,vy,vz,0,C7)           ! div(rho.v)
          CALL vdiss(nu,nu2,vx,vy,vz)              ! viscous term
          CALL divide(th,vx,vy,vz)                 ! viscous term with rho
         

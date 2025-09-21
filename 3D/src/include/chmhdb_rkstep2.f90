@@ -42,7 +42,8 @@
          CALL laplak3(ay,ay)
          CALL laplak3(az,az)
          CALL gradpress(cp1,gam1,th,vx,vy,vz,C13,C14,C15) ! grad pressure term
-         CALL divrhov(th,vx,vy,vz,C16)            ! div(rho.v)
+         PRINT *, myrank, SHAPE(th), SHAPE(C16)
+         CALL divrhov(th,vx,vy,vz,0,C16)          ! div(rho.v)
          CALL vdiss(nu,nu2,vx,vy,vz)              ! viscous term
          CALL divide(th,vx,vy,vz)                 ! viscous term with rho
         
