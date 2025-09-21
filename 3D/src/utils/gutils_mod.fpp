@@ -1124,13 +1124,13 @@ MODULE gutils
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-      SUBROUTINE hStrainMag(vx,vy,vz,ctmp1,ctmp2,r1, smag)
+      SUBROUTINE pStrainMag(vx,vy,vz,ctmp1,ctmp2,r1, smag)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
 ! Computes the real strain rate magnitude:
 !    s_ij s^ij
-! for directions perp to z only
+! for directions parallel to z only
 !
 ! Parameters
 !     vi    : input velocities
@@ -1201,17 +1201,17 @@ MODULE gutils
 
 
       RETURN
-      END SUBROUTINE hStrainMag
+      END SUBROUTINE pStrainMag
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-      SUBROUTINE pStrainMag(vx,vy,vz,ctmp1,ctmp2,r1, smag)
+      SUBROUTINE hStrainMag(vx,vy,vz,ctmp1,ctmp2,r1, smag)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
 ! Computes the real strain rate magnitude:
 !    s_ij s^ij
-! for directions para to z only
+! for directions perp to z only
 !
 ! Parameters
 !     vi    : input velocities
@@ -1280,7 +1280,7 @@ MODULE gutils
 
 
       RETURN
-      END SUBROUTINE pStrainMag
+      END SUBROUTINE hStrainMag
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
