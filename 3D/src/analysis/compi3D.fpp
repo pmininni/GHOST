@@ -2170,6 +2170,8 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call compute_dissv...'
 if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call compute_dissp...'
       CALL compute_dissp(th,ctmp,R1,R2,R3,dissp)
 #endif
+
+#if 0
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
@@ -2181,6 +2183,7 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call compute_dissp...'
           ENDDO
         ENDDO
       ENDDO
+#endif
 
       ! Compute for flatness/skewness:
 #ifdef SCALAR_
@@ -2272,7 +2275,7 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
       ENDIF
 
       ! Compute statistics for v_\perp:
-      CALL compute_vperp(vx,vy,vz, ctmp,R2,R1)
+      CALL compute_perp(0,vx,vy,vz, ctmp,R2,R1)
       n = n + 1; sfld(n) = 'v_perp' 
 if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
       CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
@@ -2289,6 +2292,16 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
         fnout = trim(odir) // '/' // 'jpdf_vperp_PV.' // ext // '.txt'
         CALL dojpdfr(R1,'vz',pv,'PV',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
 #endif
+      ENDIF
+
+      ! Compute statistics for vort_\perp:
+      CALL compute_perp(1,vx,vy,vz, ctmp,R2,R1)
+      n = n + 1; sfld(n) = 'om_perp' 
+if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
+      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      If ( ibits(kin,0,1).EQ.1 ) THEN
+        fnout = trim(odir) // '/' // 'omperppdf.' // ext // '.txt'
+        CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ENDIF
 
 #ifdef SCALAR_
@@ -2309,6 +2322,28 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
         CALL dojpdfr(R2,'vz',dissv,'dissv',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
         fnout = trim(odir) // '/' // 'jpdf_th_PV.' // ext // '.txt'
         CALL dojpdfr(R2,'vz',pv,'PV',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+      ENDIF
+      CALL compute_gradmag(0, th, ctmp, R1, R2) ! all 3 comps
+      CALL skewflat(R2,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      n = n + 1; sfld(n) = 'thgrad' 
+      If ( ibits(kin,0,1).EQ.1 ) THEN
+        fnout = trim(odir) // '/' // 'thgradpdf.' // ext // '.txt'
+        CALL dopdfr(R2,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      ENDIF
+
+      CALL compute_gradmag(1, th, ctmp, R1, R2) ! perp comps only
+      CALL skewflat(R2,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      n = n + 1; sfld(n) = 'thgrad_z' 
+      If ( ibits(kin,0,1).EQ.1 ) THEN
+        fnout = trim(odir) // '/' // 'thgrad_perp_pdf.' // ext // '.txt'
+        CALL dopdfr(R2,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      ENDIF
+      CALL compute_gradmag(2, th, ctmp, R1, R2) ! para comp only
+      CALL skewflat(R2,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      n = n + 1; sfld(n) = 'thgrad_z' 
+      If ( ibits(kin,0,1).EQ.1 ) THEN
+        fnout = trim(odir) // '/' // 'thgrad_z_pdf.' // ext // '.txt'
+        CALL dopdfr(R2,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ENDIF
 #endif
 
@@ -3171,15 +3206,16 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-      SUBROUTINE compute_vperp(vx,vy,vz, ctmp1,R1,vp)
+      SUBROUTINE compute_perp(itype, vx,vy,vz, ctmp1,R1,vp)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
-! Computes real v_perp
+! Computes real v_perp or om_perp
 !
 ! Parameters
+!     itype: if 0, to velocity; else do vorticity
 !     vx,vy,
-!     vz     input field
+!     vz   : input field
 !     ctmp*: complex temp array
 !     R1-R3: real temp arrays
 !     vp   : real vperp field, returned
@@ -3196,12 +3232,22 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 
       COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp1
+      INTEGER         , INTENT   (IN)                             :: itype
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: R1
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: vp
 !
       INTEGER                                                     :: i,j,k
+      DOUBLE PRECISION                                            :: tmp1
+      REAL   (KIND=GP)                                            :: tmp
 
-      ! Compute gradient Richardson no. and its pdf:
+
+      tmp  = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
+      tmp1 = 1.0D0/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+
+      IF ( itype .EQ. 0 ) THEN
+      ! Compute perp velocity:
       ctmp1 = vx
       CALL fftp3d_complex_to_real(plancr,ctmp1,vp,MPI_COMM_WORLD)
       ctmp1 = vy
@@ -3212,15 +3258,118 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
         DO j = 1,ny
           DO i = 1,nx
-            vp(i,j,k) = sqrt(vp(i,j,k)*vp(i,j,k) + R1(i,j,k)*R1(i,j,k))
+            vp(i,j,k) = sqrt(vp(i,j,k)*vp(i,j,k) + R1(i,j,k)*R1(i,j,k))*tmp1
           ENDDO
         ENDDO
       ENDDO
+      ELSE IF ( itype .GT. 0 ) THEN
+      CALL rotor3(vy,vz,ctmp1,1)
+      CALL fftp3d_complex_to_real(plancr,ctmp1,vp,MPI_COMM_WORLD)
+      CALL rotor3(vx,vz,ctmp1,2)
+      CALL fftp3d_complex_to_real(plancr,ctmp1,R1,MPI_COMM_WORLD)
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+        DO j = 1,ny
+          DO i = 1,nx
+            vp(i,j,k) = sqrt(vp(i,j,k)*vp(i,j,k) + R1(i,j,k)*R1(i,j,k))*tmp1
+          ENDDO
+        ENDDO
+      ENDDO
+      ENDIF
 
       RETURN
-      END SUBROUTINE compute_vperp
+      END SUBROUTINE compute_perp
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
+
+      SUBROUTINE compute_gradmag(itype, th, ctmp1, R1, vp)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Computes real gradient magnitue of input scalar field:
+!       vp = sqrt( Sum_i (dc/dx^i)^2 )
+
+!
+! Parameters
+!     itype: 0 => all 3 comps; 1 => perp comps only; 2 => z comp only
+!     th   : input scalar field
+!     ctmp*: complex temp array
+!     R1-? : real temp arrays
+!     vp   : real mag field, returned
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend) :: th
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp1
+      INTEGER         , INTENT   (IN)                             :: itype
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: R1
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: vp
+!
+      INTEGER                                                    :: i,j,k
+      DOUBLE PRECISION                                           :: tmp1
+      REAL   (KIND=GP)                                           :: tmp
+
+      IF ( itype .LT. 0 .OR. itype .GT. 2 ) THEN
+        STOP 'compute_gradmag: Bad itype!'
+      ENDIF
+
+      tmp  = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
+      tmp1 = 1.0D0/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+
+      vp = 0.0
+      IF ( itype .EQ. 0 .OR. itype .EQ. 1 ) THEN ! all or perp components
+        CALL derivk3(th, ctmp1, 1)
+        CALL fftp3d_complex_to_real(plancr,ctmp1,vp,MPI_COMM_WORLD)
+
+        CALL derivk3(th, ctmp1, 2)
+        CALL fftp3d_complex_to_real(plancr,ctmp1,R1,MPI_COMM_WORLD)
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+          DO j = 1,ny
+            DO i = 1,nx
+              vp(i,j,k) = vp(i,j,k)*vp(i,j,k) + R1(i,j,k)*R1(i,j,k)
+            ENDDO
+          ENDDO
+        ENDDO
+
+      ENDIF
+
+      IF ( itype .EQ. 0 .OR. itype .EQ. 1 ) THEN ! all or para components
+        CALL derivk3(th, ctmp1, 3)
+        CALL fftp3d_complex_to_real(plancr,ctmp1,R1,MPI_COMM_WORLD)
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+          DO j = 1,ny
+            DO i = 1,nx
+              vp(i,j,k) = ( vp(i,j,k) + R1(i,j,k)*R1(i,j,k) ) * tmp
+              vp(i,j,k) = sqrt( vp(i,j,k) )
+            ENDDO
+          ENDDO
+        ENDDO
+      ENDIF
+
+
+      RETURN
+      END SUBROUTINE compute_gradmag
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
 
 
       SUBROUTINE DoAniso(vx,vy,vz,th,indtime,odir,planio,C1,C2, &
