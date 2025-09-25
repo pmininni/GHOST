@@ -2347,11 +2347,11 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
       ENDIF
 #endif
 
-      CALL compute_vort(vx,vy,vz,ctmp,R1,R2,R3,R4)
-      n = n + 1; sfld(n) = 'vort' 
+      CALL compute_vort_mag(vx,vy,vz,ctmp,R1,R2,R3,R4)
+      n = n + 1; sfld(n) = 'vort_mag' 
       CALL skewflat(R4,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
       If ( ibits(kin,0,1).EQ.1 ) THEN
-        fnout = trim(odir) // '/' // 'vortpdf.' // ext // '.txt'
+        fnout = trim(odir) // '/' // 'vortmagpdf.' // ext // '.txt'
         CALL dopdfr(R4,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       ENDIF
 
@@ -2956,11 +2956,11 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-      SUBROUTINE compute_vort(vx,vy,vz,ctmp1,R1,R2,R3,vort)
+      SUBROUTINE compute_vort_mag(vx,vy,vz,ctmp1,R1,R2,R3,vort)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
-! Computes the real |curl v|^2
+! Computes the real |curl v|
 !
 ! Parameters
 !     v*   : input velocity components
@@ -2983,6 +2983,14 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: R1,R2,R3
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: vort
       INTEGER                                                     :: i,j,k
+      DOUBLE PRECISION                                            :: tmp1
+      REAL   (KIND=GP)                                            :: tmp
+
+
+      tmp  = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
+      tmp1 = 1.0D0/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
 
 
       ! Compute gradient:
@@ -3004,12 +3012,13 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
             vort (i,j,k) =         R1(i,j,k)*R1(i,j,k) &
                             +      R2(i,j,k)*R2(i,j,k) &
                             +      R3(i,j,k)*R3(i,j,k) 
+            vort (i,j,k) = sqrt(vort(i,j,k)) * tmp1
           ENDDO
         ENDDO
       ENDDO
 
       RETURN
-      END SUBROUTINE compute_vort
+      END SUBROUTINE compute_vort_mag
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -3421,7 +3430,9 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: C1,C2
 
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2,R3,R4, R5,R6
+      REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: ommag
       REAL   (KIND=GP)                                           :: rcmin,rcmax,rcloc,xmax
+      REAL   (KIND=GP)                                           :: rc2min,rc2max,xmax2
       DOUBLE PRECISION,                DIMENSION(4,3)            :: invar
       DOUBLE PRECISION, INTENT(INOUT), DIMENSION(3,3)            :: bij,vij,gij,dij
       DOUBLE PRECISION, INTENT(INOUT)                            :: bdenom,vdenom,gdenom,ddenom
@@ -3492,91 +3503,106 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL pspectrum(C1, fnout, nn)
 
 #if 1
-      CALL pw_anisodij(vx,vy,vz,C1,C2,R1,R2,R3,R4, R5,R6)
+      CALL pw_anisovij(vx,vy,vz,C1,C2,R1,R2,R3,R4, R5,R6)
       WRITE(sext, fmtext) indtime
-      CALL io_write(1,odir,'dII',ext,planio,R5)
-      CALL io_write(1,odir,'dIII',ext,planio,R6)
+      CALL io_write(1,odir,'vII',ext,planio,R5)
+      CALL io_write(1,odir,'vIII',ext,planio,R6)
       CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
-      fnout = trim(odir) // '/' // 'dIIspect.' // trim(sext) // '.txt'
+      fnout = trim(odir) // '/' // 'vIIspect.' // trim(sext) // '.txt'
       CALL pspectrum(C1, fnout, nn)
       rcloc = maxval(abs(R5))
       CALL MPI_ALLREDUCE(rcloc, xmax, 1, GC_REAL, &
                       MPI_MAX, MPI_COMM_WORLD, ierr)
-              write(*,*)'DoAniso: ext=', ext, ' dII_max=', xmax
+      CALL compute_vort_mag(vx,vy,vz,C1,R1,R2,R3,ommag)
+      rcloc = maxval(abs(ommag))
+      CALL MPI_ALLREDUCE(rcloc, xmax2, 1, GC_REAL, &
+                      MPI_MAX, MPI_COMM_WORLD, ierr)
+              write(*,*)'DoAniso: ext=', ext, ' vII_max=', xmax, ' xmax2=',xmax2
 
       IF ( proutII .gt. 0 ) THEN
       rcmin = 0.01 * xmax
       rcmax = xmax
-      CALL condition(0,vx,vy,vz,indtime,'ke_cdII_0.01_1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(1,vx,vy,vz,indtime,'keperp_cdII_0.01_1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'kepara_cdII_0.01_1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(3,vx,vy,vz,indtime,'om_cdII_0.01_1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(4,vx,vy,vz,indtime,'omperp_cdII_0.01_1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(5,vx,vy,vz,indtime,'ompara_cdII_0.01_1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0.01_1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0.01_1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(2,vx,vy,vz,indtime,'kepara_cvII_0.01_1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(3,vx,vy,vz,indtime,'om_cvII_0.01_1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(4,vx,vy,vz,indtime,'omperp_cvII_0.01_1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(5,vx,vy,vz,indtime,'ompara_cvII_0.01_1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.1 * xmax
       rcmax = xmax
-      CALL condition(0,vx,vy,vz,indtime,'ke_cdII_0.1_1',odir,planio,&
+!     CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0.1_1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0.1_1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(2,vx,vy,vz,indtime,'kepara_cvII_0.1_1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(3,vx,vy,vz,indtime,'om_cvII_0.1_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(1,vx,vy,vz,indtime,'keperp_cdII_0.1_1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'kepara_cdII_0.1_1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(3,vx,vy,vz,indtime,'om_cdII_0.1_1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(4,vx,vy,vz,indtime,'omperp_cdII_0.1_1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(5,vx,vy,vz,indtime,'ompara_cdII_0.1_1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      rc2min = 0.1 * xmax2
+      rc2max = xmax2
+      CALL condition2(3,vx,vy,vz,indtime,'om_cvII_0.1_1_com_0.1_1',odir,planio,&
+                      C1,C2,R1,R2,R3,R5,rcmin,rcmax,ommag,rc2min,rc2max)
+      rcmin = 0.0
+      rcmax = xmax
+      CALL conditionr(R1,indtime,'eps',odir,planio,&
+                      R2,R5,rcmin,rcmax)
+!     CALL condition(4,vx,vy,vz,indtime,'omperp_cvII_0.1_1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(5,vx,vy,vz,indtime,'ompara_cvII_0.1_1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.5 * xmax
       rcmax = xmax
-      CALL condition(0,vx,vy,vz,indtime,'ke_cdII_0.5_1',odir,planio,&
+!     CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0.5_1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0.5_1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(2,vx,vy,vz,indtime,'kepara_cvII_0.5_1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(0,vx,vy,vz,indtime,'om_cvII_0.5_1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(1,vx,vy,vz,indtime,'keperp_cdII_0.5_1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'kepara_cdII_0.5_1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(0,vx,vy,vz,indtime,'om_cdII_0.5_1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(1,vx,vy,vz,indtime,'omperp_cdII_0.5_1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'ompara_cdII_0.5_1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(1,vx,vy,vz,indtime,'omperp_cvII_0.5_1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(2,vx,vy,vz,indtime,'ompara_cvII_0.5_1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.0
       rcmax = 0.1*xmax
-      CALL condition(0,vx,vy,vz,indtime,'ke_cdII_0_0.1',odir,planio,&
+!     CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0_0.1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0_0.1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(2,vx,vy,vz,indtime,'kepara_cvII_0_0.1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      CALL condition(3,vx,vy,vz,indtime,'om_cvII_0_0.1',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(1,vx,vy,vz,indtime,'keperp_cdII_0_0.1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'kepara_cdII_0_0.1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(0,vx,vy,vz,indtime,'om_cdII_0_0.1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(1,vx,vy,vz,indtime,'omperp_cdII_0_0.1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'ompara_cdII_0_0.1',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      rcmin = 0.0
-      rcmax = xmax
-      CALL condition(0,vx,vy,vz,indtime,'ke',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(1,vx,vy,vz,indtime,'keperp',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'kepara',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(4,vx,vy,vz,indtime,'omperp_cvII_0_0.1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(5,vx,vy,vz,indtime,'ompara_cvII_0_0.1',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      rc2min = 0.1 * xmax2
+      rc2max = xmax2
+      CALL condition2(3,vx,vy,vz,indtime,'om_cvII_0_0.1_com_0.1_1',odir,planio,&
+                      C1,C2,R1,R2,R3,R5,rcmin,rcmax,ommag,rc2min,rc2max)
+!     rcmin = 0.0
+!     rcmax = xmax
+!     CALL condition(0,vx,vy,vz,indtime,'ke',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(1,vx,vy,vz,indtime,'keperp',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(2,vx,vy,vz,indtime,'kepara',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       CALL condition(0,vx,vy,vz,indtime,'om',odir,planio,&
                      C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(1,vx,vy,vz,indtime,'omperp',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-      CALL condition(2,vx,vy,vz,indtime,'ompara',odir,planio,&
-                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(1,vx,vy,vz,indtime,'omperp',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+!     CALL condition(2,vx,vy,vz,indtime,'ompara',odir,planio,&
+!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
 
-#if 1
       !! Condition square strain rate tensor:
       rcmin = 0.0
       rcmax = xmax
@@ -3585,22 +3611,31 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
                       R2,R5,rcmin,rcmax)
       rcmin = 0.01 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'eps_cdII_0.01_1',odir,planio,&
+      CALL conditionr(R1,indtime,'eps_cvII_0.01_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
       rcmin = 0.1 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'eps_cdII_0.1_1',odir,planio,&
+      CALL conditionr(R1,indtime,'eps_cvII_0.1_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
+      rc2min = 0.1 * xmax2
+      rc2max = xmax2
+      CALL conditionr2(R1,indtime,'eps_cvII_0.1_1_com_0.1_1',odir,planio,&
+                      R2,R5,rcmin,rcmax,ommag,rc2min,rc2max)
       rcmin = 0.5 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'eps_cdII_0.5_1',odir,planio,&
+      CALL conditionr(R1,indtime,'eps_cvII_0.5_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
 
       rcmin = 0.0
       rcmax = 0.1*xmax
-      CALL conditionr(R1,indtime,'eps_cdII_0_0.1',odir,planio,&
+      CALL conditionr(R1,indtime,'eps_cvII_0_0.1',odir,planio,&
                       R2,R5,rcmin,rcmax)
+      rc2min = 0.1 * xmax2
+      rc2max = xmax2
+      CALL conditionr2(R1,indtime,'eps_cvII_0_0.1_com_0.1_1',odir,planio,&
+                      R2,R5,rcmin,rcmax,ommag,rc2min,rc2max)
 
+#if 0
       !! Condition square perpendicular strain rate tensor:
       rcmin = 0.0
       rcmax = xmax
@@ -3609,20 +3644,20 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
                       R2,R5,rcmin,rcmax)
       rcmin = 0.01 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'epsperp_cdII_0.01_1',odir,planio,&
+      CALL conditionr(R1,indtime,'epsperp_cvII_0.01_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
       rcmin = 0.1 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'epsperp_cdII_0.1_1',odir,planio,&
+      CALL conditionr(R1,indtime,'epsperp_cvII_0.1_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
       rcmin = 0.5 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'epsperp_cdII_0.5_1',odir,planio,&
+      CALL conditionr(R1,indtime,'epsperp_cvII_0.5_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
 
       rcmin = 0.0
       rcmax = 0.1*xmax
-      CALL conditionr(R1,indtime,'epsperp_cdII_0_0.1',odir,planio,&
+      CALL conditionr(R1,indtime,'epsperp_cvII_0_0.1',odir,planio,&
                       R2,R5,rcmin,rcmax)
 
       !! Condition square parallel strain rate tensor:
@@ -3633,20 +3668,20 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
                       R2,R5,rcmin,rcmax)
       rcmin = 0.01 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'epspara_cdII_0.01_1',odir,planio,&
+      CALL conditionr(R1,indtime,'epspara_cvII_0.01_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
       rcmin = 0.1 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'epspara_cdII_0.1_1',odir,planio,&
+      CALL conditionr(R1,indtime,'epspara_cvII_0.1_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
       rcmin = 0.5 * xmax
       rcmax = xmax
-      CALL conditionr(R1,indtime,'epspara_cdII_0.5_1',odir,planio,&
+      CALL conditionr(R1,indtime,'epspara_cvII_0.5_1',odir,planio,&
                       R2,R5,rcmin,rcmax)
 
       rcmin = 0.0
       rcmax = 0.1*xmax
-      CALL conditionr(R1,indtime,'epspara_cdII_0_0.1',odir,planio,&
+      CALL conditionr(R1,indtime,'epspara_cvII_0_0.1',odir,planio,&
                       R2,R5,rcmin,rcmax)
 #endif
       ENDIF ! print II-conditioned  binaries?
@@ -3683,7 +3718,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
-! Conditions |curl v| on array Rc by thresholding 
+! Conditions itype on array Rc by thresholding 
 ! on rcmin/max, and outputs it in file prefixed with spref
 !
 ! Parameters
@@ -3843,6 +3878,179 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       END SUBROUTINE condition
 
 
+      SUBROUTINE condition2(itype,vx,vy,vz,indtime,spref,odir,planio, &
+                            C1,C2,R1,R2,R3,Rc1,rc1min,rc1max,Rc2,rc2min,rc2max)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Conditions itype  on array Rc1 and Rc2 by thresholding 
+! on rc1min/max and rc2min/max, and outputs it in file prefixed 
+! with spref
+!
+! Parameters
+!     itype   : =0, conditions total kinetic energy
+!               =1, conditions perp energy
+!               =2, conditions parallel energy
+!               =3, conditions vorticity magnitude
+!               =4, conditions perp vorticity magnitude
+!               =5, conditions parallel vorticity magnitude
+!     vx,
+!     vy,
+!     vz      : complex velocities
+!     indtime : integter time index
+!     odir    : output directory
+!     planio  : io plan
+!     spref   : output file prefix
+!     C1,C2   : complex temp array
+!     R1,R2,R3: real temp arrays
+!     Rc1     : 1-'conditioning' array
+!     rc1min/max: 1-'conditioning' bounds
+!     Rc2     : 2-'conditioning' array
+!     rc2min/max: 2-'conditioning' bounds
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE gutils
+      USE iovar
+      USE iompi
+      USE iovar
+      USE filefmt
+      USE boxsize
+
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend):: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: c1,c2
+
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: r1,r2,r3
+      REAL   (KIND=GP), INTENT   (IN), DIMENSION(nx,ny,ksta:kend):: rc1,rc2
+      REAL   (KIND=GP), INTENT   (IN)                            :: rc1min,rc1max
+      REAL   (KIND=GP), INTENT   (IN)                            :: rc2min,rc2max
+      TYPE(IOPLAN)    , INTENT   (IN)                            :: planio
+      INTEGER         , INTENT   (IN)                            :: itype,indtime
+      INTEGER                                                    :: i,j,k
+      CHARACTER(len=*), INTENT   (IN)                            :: odir
+      CHARACTER(len=*), INTENT   (IN)                            :: spref
+!     CHARACTER(len=64)                                          :: sext
+      DOUBLE PRECISION                                           :: tmp1
+      REAL   (KIND=GP)                                           :: tmp,xb,zz,zh
+
+
+      tmp  = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
+      tmp1 = 1.0D0/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))
+
+       IF ( itype .EQ. 0 .OR. itype.EQ.1 .OR. itype.EQ.2 ) THEN ! energy
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = vx(k,j,i) * tmp1;
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = vy(k,j,i) * tmp1;
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = vz(k,j,i) * tmp1;
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+       ELSE IF ( itype.EQ.3 .OR. itype.EQ.4 .OR. itype.EQ.5 ) THEN ! vorticity
+       CALL rotor3(vy,vz,c2,1)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = c2(k,j,i) * tmp1;
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+
+      CALL rotor3(vx,vz,c2,2)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = c2(k,j,i) * tmp1;
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+
+      CALL rotor3(vx,vy,c2,3)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+       DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+             DO k = 1,nz
+                 c1(k,j,i) = c2(k,j,i) * tmp1;
+             END DO
+          END DO
+       END DO
+      CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+      ELSE 
+         STOP 'condition: Bad itype'
+      ENDIF ! end, itype check
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               xb = 0.0
+               if (  abs(Rc1(i,j,k)).lt.rc1min &
+               .and. abs(Rc1(i,j,k)).gt.rc1max &
+               .and. abs(Rc2(i,j,k)).gt.rc2max &
+               .and. abs(Rc2(i,j,k)).gt.rc2max &
+                  ) xb = 1.0
+               zz = 1.0; zh = 1.0
+               if  ( itype .EQ. 1 .or. itype .eq. 4 ) zz = 0.0
+               if  ( itype .EQ. 2 .or. itype .eq. 5 ) zh = 0.0
+               r3(i,j,k) = sqrt(         &
+                         + zh *(r1(i,j,k)**2 &
+                         +      r2(i,j,k)**2)&
+                         + zz * r3(i,j,k)**2 &
+                           ) * xb
+            END DO
+         END DO
+      END DO
+
+      CALL io_write(1,odir,trim(spref),ext,planio,r3)
+
+      RETURN
+      END SUBROUTINE condition2
+
+
       SUBROUTINE conditionr(ra,indtime,spref,odir,planio, &
                             R1,Rc,rcmin,rcmax)
 !-----------------------------------------------------------------
@@ -3911,3 +4119,81 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 
       RETURN
       END SUBROUTINE conditionr
+
+
+      SUBROUTINE conditionr2(ra,indtime,spref,odir,planio, &
+                            R1,Rc1,rc1min,rc1max, Rc2, rc2min, rc2max)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Conditions input real array, ra, by rc1 and rc2, and outputs the result
+!
+! Parameters
+!     ra      : inputarray
+!     indtime : integter time index
+!     odir    : output directory
+!     planio  : io plan
+!     spref   : output file prefix
+!     R1...   : real temp arrays
+!     Rc1     : 'conditioning' array
+!     Rc2     : 'conditioning' array
+!     rc1min,
+!     rc1max   : 1st 'conditioning' bounds, s.t. if rcmin < rc < rcmax, keep 
+!               that value of ra; else zero that ra value out
+!     rc2min,
+!     rc2max   : 2nd 'conditioning' bounds, s.t. if rcmin < rc < rcmax, keep 
+!               that value of ra; else zero that ra value out
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE gutils
+      USE iovar
+      USE iompi
+      USE iovar
+      USE filefmt
+      USE boxsize
+
+      IMPLICIT NONE
+
+      REAL   (KIND=GP), INTENT   (IN), DIMENSION(nx,ny,ksta:kend):: ra
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: r1
+      REAL   (KIND=GP), INTENT   (IN), DIMENSION(nx,ny,ksta:kend):: rc1,rc2
+      REAL   (KIND=GP), INTENT   (IN)                            :: rc1min,rc1max
+      REAL   (KIND=GP), INTENT   (IN)                            :: rc2min,rc2max
+      TYPE(IOPLAN)    , INTENT   (IN)                            :: planio
+      INTEGER         , INTENT   (IN)                            :: indtime
+      INTEGER                                                    :: i,j,k
+      CHARACTER(len=*), INTENT   (IN)                            :: odir
+      CHARACTER(len=*), INTENT   (IN)                            :: spref
+      REAL   (KIND=GP)                                           :: xb
+
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               xb = 0.0
+               if (  abs(Rc1(i,j,k)).ge.rc1min &
+               .and. abs(Rc1(i,j,k)).le.rc1max &
+               .and. abs(Rc2(i,j,k)).ge.rc2min &
+               .and. abs(Rc2(i,j,k)).le.rc2max &
+                  ) xb = 1.0
+               r1(i,j,k) = Ra(i,j,k) * xb
+            END DO
+         END DO
+      END DO
+
+      CALL io_write(1,odir,trim(spref),ext,planio,r1)
+
+
+      RETURN
+      END SUBROUTINE conditionr2
