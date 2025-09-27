@@ -3496,11 +3496,12 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !     write(*,*) ' DoAniso: C1=', C1(100, 100:110, ista)
       WRITE(sext, fmtext) indtime
       fnout = trim(odir) // '/' // 'bIIspect.' // trim(sext) // '.txt'
-      CALL pspectrum(C1, fnout, nn)
+      CALL pspecperp(C1, fnout)
+      
 
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'bIIIspect.' // trim(sext) // '.txt'
-      CALL pspectrum(C1, fnout, nn)
+      CALL pspecperp(C1, fnout)
 
 #if 1
       CALL pw_anisovij(vx,vy,vz,C1,C2,R1,R2,R3,R4, R5,R6)
@@ -3509,7 +3510,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL io_write(1,odir,'vIII',ext,planio,R6)
       CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'vIIspect.' // trim(sext) // '.txt'
-      CALL pspectrum(C1, fnout, nn)
+      CALL pspecperp(C1, fnout)
       rcloc = maxval(abs(R5))
       CALL MPI_ALLREDUCE(rcloc, xmax, 1, GC_REAL, &
                       MPI_MAX, MPI_COMM_WORLD, ierr)
@@ -3688,25 +3689,25 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'vIIIspect.' // trim(sext) // '.txt'
-      CALL pspectrum(C1, fnout, nn)
+      CALL pspecperp(C1, fnout)
 
       CALL pw_anisogij(th,C1,C2,R1,R2,R3,R4, R5,R6)
       CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'gIIspect.' // trim(sext) // '.txt'
-      CALL pspectrum(C1, fnout, nn)
+      CALL pspecperp(C1, fnout)
 
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'gIIIspect.' // trim(sext) // '.txt'
-      CALL pspectrum(C1, fnout, nn)
+      CALL pspecperp(C1, fnout)
 
       CALL pw_anisodij(vx,vy,vz,C1,C2,R1,R2,R3,R4, R5,R6)
       CALL fftp3d_real_to_complex(planrc,R5,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'dIIspect.' // trim(sext) // '.txt'
-      CALL pspectrum(C1, fnout, nn)
+      CALL pspecperp(C1, fnout)
 
       CALL fftp3d_real_to_complex(planrc,R6,C1,MPI_COMM_WORLD)
       fnout = trim(odir) // '/' // 'dIIIspect.' // trim(sext) // '.txt'
-      CALL pspectrum(C1, fnout, nn)
+      CALL pspecperp(C1, fnout)
 #endif
 
       RETURN
@@ -4197,3 +4198,35 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 
       RETURN
       END SUBROUTINE conditionr2
+
+
+      SUBROUTINE pspecperp(a, fnout)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+      IMPLICIT NONE
+
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+      USE boxsize
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ektot,Eptot
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
+      INTEGER                      :: j
+
+      CALL specscpec(a,Ektot,Eptot)
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file=fnout)
+         DO j = 1,nmaxperp/2+1
+            WRITE(1,FMT='(E23.15,E23.15,E23.15)') Dkk*(j-1), &
+                                 Ektot(j)/Dkk, Eptot(j)/Dkk
+         END DO
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE pspecperp
