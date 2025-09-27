@@ -95,6 +95,7 @@
 #define MOM_
 #define SCALAR_
 #define COMPRESSIBLE_
+#define ROTATION_
 #define COMPI_AUX_ARR_
 #define INCLUDEFNAME_ 'compihd_
 #endif
