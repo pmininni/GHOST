@@ -4204,8 +4204,6 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
-      IMPLICIT NONE
-
       USE kes
       USE grid
       USE mpivars
@@ -4215,6 +4213,8 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 
       DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ektot,Eptot
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
+      CHARACTER(len=*), INTENT(IN) :: fnout
+ 
       INTEGER                      :: j
 
       CALL specscpec(a,Ektot,Eptot)
