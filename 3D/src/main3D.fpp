@@ -468,7 +468,7 @@
       NAMELIST / velocity / fparam3,fparam4,fparam5,fparam6,fparam7
       NAMELIST / velocity / fparam8,fparam9,vparam0,vparam1,vparam2
       NAMELIST / velocity / vparam3,vparam4,vparam5,vparam6,vparam7
-      NAMELIST / velocity / vparam8,vparam9,use_voigt,voigt_alpha
+      NAMELIST / velocity / vparam8,vparam9,use_voigt,voigt_alphav,voigt_alphas
 #endif
 #ifdef SCALAR_
       NAMELIST / scalar / c0,s0,skdn,skup,kappa,cparam0,cparam1
@@ -634,8 +634,9 @@
 #endif
 #endif
 
-     use_voigt = .FALSE. ! Voigt flag
-     voigt_alpha = 0.0   ! truncation scale
+     use_voigt    = .FALSE. ! Voigt flag
+     voigt_alphav = 0.0   ! truncation scale, kinetic
+     voigt_alphas = 0.0   ! truncation scale, scalar
 
      CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
      CALL range(1,nz,nprocs,myrank,ksta,kend)
@@ -754,7 +755,8 @@
          kk2 => kn2
       ENDIF
 #endif
-      ALLOCATE( Hinv(nz,ny,ista:iend) ) ! Voigt inv. Helmholtz operator
+      ALLOCATE( Hvinv(nz,ny,ista:iend) ) ! Voigt inv. Helmholtz operator, kinetic
+      ALLOCATE( Hsinv(nz,ny,ista:iend) ) ! Voigt inv. Helmholtz operator, scalar
 
       ALLOCATE( R1(nx,ny,ksta:kend) )
       ALLOCATE( R2(nx,ny,ksta:kend) )
@@ -924,7 +926,8 @@
 !     kup  : maximum wave number in v/mechanical forcing
 !     nu   : kinematic viscosity
 !     use_voigt   : use Voigt regularization
-!     voigt_alpha : use Voigt regularization parameter (length scale in [0,1])
+!     voigt_alphav: use Voigt regularization parameter (length scale), kinetit 
+!     voigt_alphas: use Voigt regularization parameter (length scale), scalar
 !     fparam0-9   : ten real numbers to control properties of
 !                   the mechanical forcing
 !     vparam0-9   : ten real numbers to control properties of
@@ -941,7 +944,8 @@
       CALL MPI_BCAST(kup,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nu,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(use_voigt,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(voigt_alpha,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(voigt_alphav,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(voigt_alphas,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(fparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(fparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(fparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
@@ -1795,7 +1799,8 @@
          DO j = 1,ny
             DO k = 1,nz
                kn2 (k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
-               Hinv(k,j,i) = 1.0 / ( 1.0_GP + kn2(k,j,i) * voigt_alpha**2 )
+               Hvinv(k,j,i) = 1.0 / ( 1.0_GP + kn2(k,j,i) * voigt_alphav**2 )
+               Hsinv(k,j,i) = 1.0 / ( 1.0_GP + kn2(k,j,i) * voigt_alphas**2 )
 
 #ifdef PIC_
                C17( k,j,i) = EXP(-filstr*(kn2(k,j,i)/kmax)**2)
@@ -3575,7 +3580,7 @@
          NULLIFY( kk2 )
       ENDIF
       DEALLOCATE( kn2 )
-      DEALLOCATE( Hinv)
+      DEALLOCATE( Hvinv, Hsinv)
 #ifdef VELOC_
       DEALLOCATE( fx,fy,fz )
       IF (mean.eq.1) DEALLOCATE( M1,M2,M3 )

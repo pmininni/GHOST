@@ -95,8 +95,9 @@
 
   MODULE voigt
       USE fprecision
-      REAL(KIND=GP)                                 :: voigt_alpha
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: Hinv
+      REAL(KIND=GP)                                 :: voigt_alphav
+      REAL(KIND=GP)                                 :: voigt_alphas
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: Hvinv,Hsinv
       SAVE
 
   END MODULE voigt
