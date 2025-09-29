@@ -82,13 +82,13 @@
          DO k = 1,nz
             IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
                vx(k,j,i) = C1 (k,j,i)+dt*(nu   *vx(k,j,i)+C7(k,j,i) &
-              +fx(k,j,i))*rmp * Hinv(k,j,i)
+              +fx(k,j,i))*rmp * Hvinv(k,j,i)
                vy(k,j,i) = C2 (k,j,i)+dt*(nu   *vy(k,j,i)+C8(k,j,i) &
-              +fy(k,j,i))*rmp * Hinv(k,j,i)
+              +fy(k,j,i))*rmp * Hvinv(k,j,i)
                vz(k,j,i) = C3 (k,j,i)+dt*(nu   *vz(k,j,i)+C4(k,j,i) &
-              +fz(k,j,i))*rmp * Hinv(k,j,i)
+              +fz(k,j,i))*rmp * Hvinv(k,j,i)
                th(k,j,i) = C20(k,j,i)+dt*(kappa*th(k,j,i)+C5(k,j,i) &
-              +fs(k,j,i))*rmp
+              +fs(k,j,i))*rmp * Hsinv(k,j,i)
             ELSE IF (kn2(k,j,i).gt.kmax) THEN
                vx(k,j,i) = 0.0_GP
                vy(k,j,i) = 0.0_GP
