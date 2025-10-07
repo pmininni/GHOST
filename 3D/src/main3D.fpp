@@ -246,7 +246,7 @@
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)        :: Faux1,Faux2
 #endif
 #ifdef VELOCSGS_
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: CSGS,SGS1,SGS2,SGS3
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C1SGS,C2SGS,C3SGS,SGS1,SGS2,SGS3
 #endif
 #ifdef MAGFIELD_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: mxold,myold,mzold
@@ -456,6 +456,7 @@
 #if defined(VELOCSGS_) && defined(SCALARSGS_)
       TYPE (GSGSmodel)      :: mlsgs
       TYPE(GSGSmodelTraits) :: mlsgstraits
+      LOGICAL               :: sgs_doproj
       INTEGER               :: sgs_nx, sgs_ny, sgs_nz, sgs_nchannel
       CHARACTER(len=1024)   :: sgs_model_path, sgs_model_type
       CHARACTER(len=1024)   :: sgs_in_name, sgs_out_name
@@ -488,7 +489,7 @@
       NAMELIST / velocity / vparam8,vparam9,voigt_alpha,use_mlsgs,use_voigt
 #endif
 #if defined(VELOCSGS_) && defined(SCALARSGS_)
-      NAMELIST / mlsgsnml / sgs_nx, sgs_ny, sgs_nz
+      NAMELIST / mlsgsnml / sgs_doproj, sgs_nx, sgs_ny, sgs_nz
       NAMELIST / mlsgsnml / sgs_nchannel 
       NAMELIST / mlsgsnml / sgs_model_path, sgs_model_type
       NAMELIST / mlsgsnml / sgs_in_name, sgs_out_name
@@ -680,7 +681,9 @@
       ALLOCATE( SGS1(nz,ny,ista:iend) )
       ALLOCATE( SGS2(nz,ny,ista:iend) )
       ALLOCATE( SGS3(nz,ny,ista:iend) )
-      ALLOCATE( CSGS(nz,ny,ista:iend) )
+      ALLOCATE( C1SGS(nz,ny,ista:iend) )
+      ALLOCATE( C2SGS(nz,ny,ista:iend) )
+      ALLOCATE( C3SGS(nz,ny,ista:iend) )
 #endif
 
 #if defined(MOM_) 
@@ -1002,6 +1005,7 @@
 #if defined(VELOCSGS_) && defined(SCALARSGS_) 
 ! Reads parameters for the SGS ML model from the 
 ! namelist 'mlsgs' on the external file 'parameter.inp'
+!     do_projection: do SGS projection?
 !     nx,ny,nz   : sizes that model thinks it has
 !     nchannel   : no. channels/features
 !     model_path : path to model (+name)
@@ -1009,6 +1013,7 @@
 !     in_name    : input tensor name
 !     out_name   : output tensor name
        
+      mlsgstraits%do_projection = .true.
       mlsgstraits%nx       = nx
       mlsgstraits%ny       = ny
       mlsgstraits%nz       = nz
@@ -1023,6 +1028,7 @@
          READ(1,NML=mlsgsnml)
          CLOSE(1)
       ENDIF
+      CALL MPI_BCAST(sgs_doproj    ,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sgs_nx        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sgs_ny        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sgs_nz        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -1032,6 +1038,7 @@
       CALL MPI_BCAST(sgs_in_name   ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sgs_out_name  ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
 
+      mlsgstraits%do_projection = sgs_doproj
       mlsgstraits%nx         = sgs_nx
       mlsgstraits%ny         = sgs_ny
       mlsgstraits%nz         = sgs_nz
@@ -3682,7 +3689,8 @@
       DEALLOCATE( vx,vy,vz )
 #endif
 #ifdef VELOCSGS_
-      DEALLOCATE( SGS1,SGS2,SGS3,CSGS ) 
+      DEALLOCATE( SGS1 ,SGS2 ,SGS3 ) 
+      DEALLOCATE( C1SGS,C2SGS,C3SGS) 
 #endif
 #ifdef MOM_ 
       DEALLOCATE( sx,sy,sz )

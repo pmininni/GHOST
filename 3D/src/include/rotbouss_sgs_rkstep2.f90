@@ -46,7 +46,7 @@
 
          IF ( use_mlsgs ) THEN
             CALL mlsgs%sgs_model(C1, C2, C3, C20, &
-                                 CSGS1, CSGS2, CSGS3, R1, ...
+                                 C1SGS, C2SGS, C3SGS, R1, &
                                  SGS1 , SGS2 , SGS3 , SGSth)
          ENDIF
 
