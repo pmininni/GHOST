@@ -54,6 +54,7 @@ MODULE class_GSGSmodel
 
       TYPE, PUBLIC :: GSGSmodelTraits
 
+        LOGICAL            :: do_projection
         INTEGER            :: nx, ny, nz
         INTEGER            :: nchannel
 
@@ -108,6 +109,7 @@ MODULE class_GSGSmodel
 
       PRIVATE :: GSGS_compute_model, GSGS_init_infero, GSGS_pack, GSGS_unpack 
       PRIVATE :: GSGS_real_exch_types, GSGS_real_exch
+      PRIVATE :: GSGS_project3
 
 
 ! Methods:
@@ -392,7 +394,8 @@ MODULE class_GSGSmodel
     WRITE(*,*) '.................... nc=', nc, '  nn=', nn
     ! Associate Fortran pointers with C memory:
     CALL C_F_POINTER(this%c_ptr_t_in_ , this%t_in_ , &
-                     [nc,this%nx,this%ny,this%nz])
+                     [this%nx,this%ny,this%nz, nc])
+!                    [nc,this%nx,this%ny,this%nz])
     IF( .NOT. ASSOCIATED(this%t_in_) ) THEN
       STOP 't_in_ not associated'
     ENDIF
@@ -401,7 +404,8 @@ MODULE class_GSGSmodel
     ENDIF
 
     CALL C_F_POINTER(this%c_ptr_t_out_, this%t_out_, &
-                     [3,this%nx,this%ny,this%nz])
+                     [this%nx,this%ny,this%nz, 3])
+!                    [3,this%nx,this%ny,this%nz])
     IF( .NOT. ASSOCIATED(this%t_out_) ) THEN
       STOP 't_out_ not associated'
     ENDIF
@@ -444,7 +448,7 @@ MODULE class_GSGSmodel
 !-----------------------------------------------------------------
 
 
-  SUBROUTINE GSGS_compute_model(this, vx, vy, vz, th, C1, R1,  SGS1, SGS2, SGS3, SGSth)
+  SUBROUTINE GSGS_compute_model(this, vx, vy, vz, th, C1, C2, C3, R1,  SGS1, SGS2, SGS3, SGSth)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Performs inference of ML model and returns the SGS terms
@@ -452,7 +456,7 @@ MODULE class_GSGSmodel
 !    this    : 'this' class instance
 !    vx,vy,vz: input velocities
 !    th      : input pot'l temp
-!    C1      : complex tmp array(s)
+!    C1-C3   : complex tmp array(s)
 !    R1      : real tmp array(s)
 !    SGSi    : output SGS components
 !-----------------------------------------------------------------
@@ -460,7 +464,7 @@ MODULE class_GSGSmodel
     IMPLICIT NONE
     class(GSGSmodel),INTENT (INOUT)         :: this
     COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: vx,vy,vz,th
-    COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1
+    COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1,C2,C3
     REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
     COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: SGS1,SGS2,SGS3,SGSth
 
@@ -489,13 +493,18 @@ MODULE class_GSGSmodel
 
     ! Unpack model output and compute FFTs:
 !   WRITE(*,*) 'GSGS_compute_model: unpacking vx... '
-    CALL GSGS_unpack(this, this%t_out_, 0, R1, SGS1)
+    CALL GSGS_unpack(this, this%t_out_, 0, R1, C1)
 !   WRITE(*,*) 'GSGS_compute_model: unpacking vy... '
-    CALL GSGS_unpack(this, this%t_out_, 1, R1, SGS2)
+    CALL GSGS_unpack(this, this%t_out_, 1, R1, C2)
 !   WRITE(*,*) 'GSGS_compute_model: unpacking vz... '
-    CALL GSGS_unpack(this, this%t_out_, 2, R1, SGS3)
+    CALL GSGS_unpack(this, this%t_out_, 2, R1, C3)
 !   WRITE(*,*) 'GSGS_compute_model: unpacking th... '
     CALL GSGS_unpack(this, this%t_out_, 3, R1, SGSth)
+
+    ! Make sure SGS is div-free:
+    IF ( this%modelTraits_%do_projection ) THEN
+    CALL GSGS_project3(this, C1, C2, C3, SGS1, SGS2, SGS3)
+    ENDIF
 
 !   WRITE(*,*) 'GSGS_compute_model: done. '
 
@@ -727,6 +736,107 @@ MODULE class_GSGSmodel
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+
+      SUBROUTINE GSGS_project3(this,a,b,c,d,e,f)
+!-----------------------------------------------------------------
+!
+! Project 3D vector field, (a,b,c) to incompressible space,
+! returning projected components into input vector
+!
+! Parameters
+!     a,b,c : input vector field
+!     d,e,f : output field
+!
+      USE fprecision
+      USE commtypes
+!$    USE threads
+      IMPLICIT NONE
+
+      class(GSGSmodel), INTENT(INOUT) :: this
+      COMPLEX(KIND=GP), INTENT  (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT (OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: d,e,f
+      REAL(KIND=GP)    :: tmp
+      INTEGER :: i,j,k
+
+        ! vx:
+        IF (this%ista.eq.1) THEN
+!$omp parallel do private (k)
+            DO j = 1,this%ny
+               DO k = 1,this%nz
+                  d(k,j,1) = a(k,j,1)
+               END DO
+            END DO
+!$omp parallel do if (this%iend-2.ge.nth) private (j,k)
+            DO i = 2,this%iend
+!$omp parallel do if (this%iend-2.lt.nth) private (k)
+               DO j = 1,this%ny
+                  DO k = 1,this%nz
+                     d(k,j,i) = (1.0 - this%kx(i)*this%kx(i)/this%kk2(k,j,i) ) * a(k,j,i) &
+                                     - this%kx(i)*this%ky(j)/this%kk2(k,j,i)   * b(k,j,i) &
+                                     - this%kx(i)*this%kz(k)/this%kk2(k,j,i)   * c(k,j,i)  
+                  END DO
+               END DO
+            END DO
+         ELSE
+!$omp parallel do if (this%iend-this%ista.ge.nth) private (j,k)
+            DO i = this%ista,this%iend
+!$omp parallel do if (this%iend-this%ista.lt.nth) private (k)
+               DO j = 1,this%ny
+                  DO k = 1,this%nz
+                     d(k,j,i) = (1.0 - this%kx(i)*this%kx(i)/this%kk2(k,j,i) ) * a(k,j,i) &
+                                     - this%kx(i)*this%ky(j)/this%kk2(k,j,i)   * b(k,j,i) &
+                                     - this%kx(i)*this%kz(k)/this%kk2(k,j,i)   * c(k,j,i)  
+                  END DO
+               END DO
+            END DO
+         ENDIF
+
+         ! vy:
+!$omp parallel do if (this%iend-this%ista.ge.nth) private (k)
+         DO i = this%ista,this%iend
+!$omp parallel do if (this%iend-this%ista.lt.nth)
+            DO k = 1,this%nz
+               e(k,1,i) = b(k,1,i)
+            END DO
+         END DO
+!$omp parallel do if (this%iend-this%ista.ge.nth) private (j,k)
+         DO i = this%ista,this%iend
+!$omp parallel do if (this%iend-this%ista.lt.nth) private (k)
+            DO j = 2,this%ny
+               DO k = 1,this%nz
+                  e(k,j,i) =      - this%ky(j)*this%kx(i)/this%kk2(k,j,i)   * a(k,j,i) &
+                           + (1.0 - this%ky(j)*this%ky(j)/this%kk2(k,j,i) ) * b(k,j,i) &
+                                  - this%ky(j)*this%kz(k)/this%kk2(k,j,i)   * c(k,j,i)  
+               END DO
+            END DO
+         END DO
+
+
+         ! vz:
+!$omp parallel do if (this%iend-this%ista.ge.nth) private (j)
+         DO i = this%ista,this%iend
+!$omp parallel do if (this%iend-this%ista.lt.nth)
+            DO j = 1,this%ny
+               f(1,j,i) = c(1,j,i)
+            END DO
+         END DO
+!$omp parallel do if (this%iend-this%ista.ge.nth) private (j,k)
+         DO i = this%ista,this%iend
+!$omp parallel do if (this%iend-this%ista.lt.nth) private (k)
+            DO j = 1,this%ny
+               DO k = 2,this%nz
+                  f(k,j,i) =      - this%kz(k)*this%kx(i)/this%kk2(k,j,i)   * a(k,j,i) &
+                                  - this%kz(k)*this%ky(j)/this%kk2(k,j,i)   * b(k,j,i) &
+                           + (1.0 - this%kz(k)*this%kz(k)/this%kk2(k,j,i) ) * c(k,j,i) 
+               END DO
+            END DO
+         END DO
+
+
+      RETURN
+      END SUBROUTINE GSGS_project3
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 
 
 END MODULE class_GSGSmodel
