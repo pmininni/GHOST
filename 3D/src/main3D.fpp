@@ -1013,15 +1013,15 @@
 !     in_name    : input tensor name
 !     out_name   : output tensor name
        
-      mlsgstraits%do_projection = .true.
-      mlsgstraits%nx       = nx
-      mlsgstraits%ny       = ny
-      mlsgstraits%nz       = nz
-      mlsgstraits%nchannel = 4
-      mlsgstraits%model_path = './mymodel'
-      mlsgstraits%model_type = 'CNN'
-      mlsgstraits%in_name    = 'state'
-      mlsgstraits%out_name   = 'SGS'
+      sgs_doproj     = .true.
+      sgs_nx         = nx
+      sgs_ny         = ny
+      sgs_nz         = nz
+      sgs_nchannel   = 4
+      sgs_model_path = './mymodel'
+      sgs_model_type = 'CNN'
+      sgs_in_name    = 'state'
+      sgs_out_name   = 'SGS'
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
