@@ -101,7 +101,7 @@
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq)
+!$omp parallel do private (k,kmn,tmq,tmr)
             DO j = 1,ny
                DO k = 1,nz
                   kmn = int(abs(kz(k))*Lz+1)
@@ -116,9 +116,9 @@
                   ENDIF
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq,tmr)
             DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq,tmr)
                DO j = 1,ny
                   DO k = 1,nz
                      kmn = int(abs(kz(k))*Lz+1)
@@ -135,9 +135,9 @@
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq,tmr)
             DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq,tmr)
                DO j = 1,ny
                   DO k = 1,nz
                      kmn = int(abs(kz(k))*Lz+1)
@@ -159,7 +159,7 @@
 !
       ELSE IF (kin.eq.0) THEN
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq)
+!$omp parallel do private (k,kmn,tmq,tmr)
             DO j = 1,ny
                DO k = 1,nz
                   kmn = int(abs(kz(k))*Lz+1)
@@ -175,9 +175,9 @@
                   ENDIF
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq,tmr)
             DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq,tmr)
                DO j = 1,ny
                   DO k = 1,nz
                      kmn = int(abs(kz(k))*Lz+1)
@@ -194,9 +194,9 @@
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq,tmr)
             DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq,tmr)
                DO j = 1,ny
                   DO k = 1,nz
                      kmn = int(abs(kz(k))*Lz+1)
@@ -249,7 +249,7 @@
             Ekv(k) = 0.0D0
          END DO
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq)
+!$omp parallel do private (k,kmn,tmq,tmr)
             DO j = 1,ny
                DO k = 1,nz
                   kmn = int(abs(kz(k))*Lz+1)
@@ -265,9 +265,9 @@
                   ENDIF
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq,tmr)
             DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq,tmr)
                DO j = 1,ny
                   DO k = 1,nz
                      kmn = int(abs(kz(k))*Lz+1)
@@ -285,9 +285,9 @@
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq,tmr)
             DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq,tmr)
                DO j = 1,ny
                   DO k = 1,nz
                      kmn = int(abs(kz(k))*Lz+1)
