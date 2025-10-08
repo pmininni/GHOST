@@ -394,8 +394,7 @@ MODULE class_GSGSmodel
     WRITE(*,*) '.................... nc=', nc, '  nn=', nn
     ! Associate Fortran pointers with C memory:
     CALL C_F_POINTER(this%c_ptr_t_in_ , this%t_in_ , &
-                     [this%nx,this%ny,this%nz, nc])
-!                    [nc,this%nx,this%ny,this%nz])
+                     [nc,this%nx,this%ny,this%nz])
     IF( .NOT. ASSOCIATED(this%t_in_) ) THEN
       STOP 't_in_ not associated'
     ENDIF
@@ -404,8 +403,7 @@ MODULE class_GSGSmodel
     ENDIF
 
     CALL C_F_POINTER(this%c_ptr_t_out_, this%t_out_, &
-                     [this%nx,this%ny,this%nz, 3])
-!                    [3,this%nx,this%ny,this%nz])
+                     [3,this%nx,this%ny,this%nz])
     IF( .NOT. ASSOCIATED(this%t_out_) ) THEN
       STOP 't_out_ not associated'
     ENDIF
