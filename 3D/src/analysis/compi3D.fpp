@@ -3876,9 +3876,9 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               xb = 1.0
-               if ( abs(Rc(i,j,k)).lt.rcmin &
-               .or. abs(Rc(i,j,k)).gt.rcmax ) xb = 0.0
+               xb = 0.0
+               if ( abs(Rc(i,j,k)).ge.rcmin &
+               .and.abs(Rc(i,j,k)).le.rcmax ) xb = 1.0
                zz = 1.0; zh = 1.0
                if  ( itype .EQ. 1 .or. itype .eq. 4 ) zz = 0.0
                if  ( itype .EQ. 2 .or. itype .eq. 5 ) zh = 0.0
@@ -4047,10 +4047,10 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
          DO j = 1,ny
             DO i = 1,nx
                xb = 0.0
-               if (  abs(Rc1(i,j,k)).lt.rc1min &
-               .and. abs(Rc1(i,j,k)).gt.rc1max &
-               .and. abs(Rc2(i,j,k)).gt.rc2max &
-               .and. abs(Rc2(i,j,k)).gt.rc2max &
+               if (  abs(Rc1(i,j,k)).ge.rc1min &
+               .and. abs(Rc1(i,j,k)).le.rc1max &
+               .and. abs(Rc2(i,j,k)).ge.rc2min &
+               .and. abs(Rc2(i,j,k)).le.rc2max &
                   ) xb = 1.0
                zz = 1.0; zh = 1.0
                if  ( itype .EQ. 1 .or. itype .eq. 4 ) zz = 0.0
