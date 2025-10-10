@@ -3952,7 +3952,10 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !     CHARACTER(len=64)                                          :: sext
       DOUBLE PRECISION                                           :: tmp1
       REAL   (KIND=GP)                                           :: tmp,xb,zz,zh
+      INTEGER                                                    :: kb,ke
 
+      kb = 0
+      ke = 50
 
       tmp  = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
@@ -3969,6 +3972,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
              END DO
           END DO
        END DO
+      CALL perpfilter(c1, kb, ke)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -3980,6 +3984,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
              END DO
           END DO
        END DO
+      CALL perpfilter(c1, kb, ke)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -3991,6 +3996,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
              END DO
           END DO
        END DO
+      CALL perpfilter(c1, kb, ke)
       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
        ELSE IF ( itype.EQ.3 .OR. itype.EQ.4 .OR. itype.EQ.5 ) THEN ! vorticity
        CALL rotor3(vy,vz,c2,1)
@@ -4003,6 +4009,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
              END DO
           END DO
        END DO
+      CALL perpfilter(c1, kb, ke)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
 
       CALL rotor3(vx,vz,c2,2)
@@ -4015,6 +4022,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
              END DO
           END DO
        END DO
+      CALL perpfilter(c1, kb, ke)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
 
       CALL rotor3(vx,vy,c2,3)
@@ -4027,6 +4035,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
              END DO
           END DO
        END DO
+      CALL perpfilter(c1, kb, ke)
       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
       ELSE 
          STOP 'condition: Bad itype'
@@ -4131,6 +4140,72 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       END SUBROUTINE conditionr
 
 
+
+      SUBROUTINE pspecperp(a, fnout)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+      USE boxsize
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ektot,Eptot
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
+      CHARACTER(len=*), INTENT(IN) :: fnout
+ 
+      INTEGER                      :: j
+
+      CALL specscpec(a,Ektot,Eptot)
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file=fnout)
+         DO j = 1,nmaxperp/2+1
+            WRITE(1,FMT='(E23.15,E23.15,E23.15)') Dkk*(j-1), &
+                                 Ektot(j)/Dkk, Eptot(j)/Dkk
+         END DO
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE pspecperp
+
+
+      SUBROUTINE pspect(a, fnout)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+      USE boxsize
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ektot
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
+      CHARACTER(len=*), INTENT(IN) :: fnout
+ 
+      INTEGER                      :: j
+
+      CALL spectrscc(a,Ektot,0.0_GP)
+
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file=fnout)
+         DO j = 1,nmaxperp/2+1
+            WRITE(1,FMT='(E23.15,E23.15,E23.15)') Dkk*(j-1), &
+                                 Ektot(j)/Dkk
+         END DO
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE pspect
+
+
       SUBROUTINE conditionr2(ra,indtime,spref,odir,planio, &
                             R1,Rc1,rc1min,rc1max, Rc2, rc2min, rc2max)
 !-----------------------------------------------------------------
@@ -4209,66 +4284,74 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       END SUBROUTINE conditionr2
 
 
-      SUBROUTINE pspecperp(a, fnout)
+      SUBROUTINE perpfilter(a, kperp_beg, kperp_end)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
-      USE kes
-      USE grid
-      USE mpivars
-      USE filefmt
-      USE boxsize
-      IMPLICIT NONE
-
-      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ektot,Eptot
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
-      CHARACTER(len=*), INTENT(IN) :: fnout
- 
-      INTEGER                      :: j
-
-      CALL specscpec(a,Ektot,Eptot)
-
-      IF (myrank.eq.0) THEN
-         OPEN(1,file=fnout)
-         DO j = 1,nmaxperp/2+1
-            WRITE(1,FMT='(E23.15,E23.15,E23.15)') Dkk*(j-1), &
-                                 Ektot(j)/Dkk, Eptot(j)/Dkk
-         END DO
-         CLOSE(1)
-      ENDIF
-
-      RETURN
-      END SUBROUTINE pspecperp
-
-
-      SUBROUTINE pspect(a, fnout)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
+! Filters input complex array, a, by keeping only
+! 2d modes between kperp_beg and kperp_end.
 !
+! Parameters
+!     a        : input array
+!     kperp_beg: beginning kperp
+!     kperp_end: end kperp
+!
+      USE fprecision
+      USE commtypes
       USE kes
       USE grid
       USE mpivars
-      USE filefmt
       USE boxsize
+!$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ektot
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
-      CHARACTER(len=*), INTENT(IN) :: fnout
- 
-      INTEGER                      :: j
+      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: a
+!     REAL(KIND=GP)    :: tmp
+      INTEGER          :: i,j,k
+      INTEGER          :: kmn
 
-      CALL spectrscc(a,Ektot,0.0_GP)
-
-
-      IF (myrank.eq.0) THEN
-         OPEN(1,file=fnout)
-         DO j = 1,nmaxperp/2+1
-            WRITE(1,FMT='(E23.15,E23.15,E23.15)') Dkk*(j-1), &
-                                 Ektot(j)/Dkk
+!     tmp = 1.0_GP/ &
+!           (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+      IF (ista.eq.1) THEN
+!$omp parallel do private (k,kmn,tmq)
+         DO j = 1,ny
+            kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
+          ! IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+            IF ((kmn.le.kperp_beg).or.(kmn.gt.kperp_end)) THEN
+               DO k = 2,nz
+                 a(k,j,1) = 0.0_GP
+               END DO
+            ENDIF
          END DO
-         CLOSE(1)
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+         DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
+            DO j = 1,ny
+               kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+            !  IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+               IF ((kmn.le.kperp_beg).or.(kmn.gt.kperp_end)) THEN
+                  DO k = 2,nz
+                    a(k,j,i) = 0.0_GP
+                  END DO
+               ENDIF
+            END DO
+         END DO
+      ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
+            DO j = 1,ny
+               kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
+             ! IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
+               IF ((kmn.le.kperp_beg).or.(kmn.gt.kperp_end)) THEN
+                  DO k = 2,nz
+                    a(k,j,i) = 0.0_GP
+                  END DO
+               ENDIF
+            END DO
+         END DO
       ENDIF
 
       RETURN
-      END SUBROUTINE pspect
+      END SUBROUTINE perpfilter
+
