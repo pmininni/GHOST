@@ -4305,8 +4305,9 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: a
+      COMPLEX(KIND=GP), INTENT(INOUT),  DIMENSION(nz,ny,ista:iend) :: a
 !     REAL(KIND=GP)    :: tmp
+      INTEGER         , INTENT   (IN)                              :: kperp_beg,kperp_end
       INTEGER          :: i,j,k
       INTEGER          :: kmn
 
