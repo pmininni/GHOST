@@ -3513,27 +3513,18 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
               write(*,*)'DoAniso: ext=', ext, ' vII_max=', xmax, ' xmax2=',xmax2
 
       IF ( proutII .gt. 0 ) THEN
-!     rcmin = 0.01 * xmax
-!     rcmax = xmax
-!     CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0.01_1',odir,planio,&
-!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-!     CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0.01_1',odir,planio,&
-!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-!     CALL condition(2,vx,vy,vz,indtime,'kepara_cvII_0.01_1',odir,planio,&
-!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-!     CALL condition(3,vx,vy,vz,indtime,'om_cvII_0.01_1',odir,planio,&
-!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-!     CALL condition(4,vx,vy,vz,indtime,'omperp_cvII_0.01_1',odir,planio,&
-!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-!     CALL condition(5,vx,vy,vz,indtime,'ompara_cvII_0.01_1',odir,planio,&
-!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-!     rcmin = 0.1 * xmax
-!     rcmax = xmax
-!     CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0.1_1',odir,planio,&
-!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-!     CALL condition(1,vx,vy,vz,indtime,'keperp_cvII_0.1_1',odir,planio,&
-!                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
-!     CALL condition(2,vx,vy,vz,indtime,'kepara_cvII_0.1_1',odir,planio,&
+      rcmin = 0.1 * xmax
+      rcmax = xmax
+      CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0.1_1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      rcmin = 0.0
+      rcmax = 0.099*xmax
+      CALL condition(0,vx,vy,vz,indtime,'ke_cvII_0_0.1',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
+      rcmin = 0.0
+      rcmax = xmax
+      CALL condition(0,vx,vy,vz,indtime,'ke',odir,planio,&
+                     C1,C2,R1,R2,R3,R5,rcmin,rcmax)
 !                    C1,C2,R1,R2,R3,R5,rcmin,rcmax)
       rcmin = 0.1 * xmax
       rcmax = xmax
