@@ -3782,6 +3782,10 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !     CHARACTER(len=64)                                          :: sext
       DOUBLE PRECISION                                           :: tmp1
       REAL   (KIND=GP)                                           :: tmp,xb,zz,zh
+      INTEGER                                                    :: kb,ke
+
+      kb = 4
+      ke = 30
 
 
       tmp  = 1.0_GP/ &
@@ -3799,6 +3803,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
              END DO
           END DO
        END DO
+      CALL perpfilter(c1, kb, ke)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -3810,6 +3815,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
              END DO
           END DO
        END DO
+      CALL perpfilter(c1, kb, ke)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -3821,6 +3827,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
              END DO
           END DO
        END DO
+      CALL perpfilter(c1, kb, ke)
       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
        ELSE IF ( itype.EQ.3 .OR. itype.EQ.4 .OR. itype.EQ.5 ) THEN ! vorticity
        CALL rotor3(vy,vz,c2,1)
@@ -3833,6 +3840,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
              END DO
           END DO
        END DO
+      CALL perpfilter(c1, kb, ke)
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
 
       CALL rotor3(vx,vz,c2,2)
@@ -3845,6 +3853,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
              END DO
           END DO
        END DO
+      CALL perpfilter(c1, kb, ke)
       CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
 
       CALL rotor3(vx,vy,c2,3)
@@ -3857,6 +3866,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
              END DO
           END DO
        END DO
+      CALL perpfilter(c1, kb, ke)
       CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
       ELSE 
          STOP 'condition: Bad itype'
@@ -3954,8 +3964,8 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       REAL   (KIND=GP)                                           :: tmp,xb,zz,zh
       INTEGER                                                    :: kb,ke
 
-      kb = 0
-      ke = 50
+      kb = 4
+      ke = 30
 
       tmp  = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
