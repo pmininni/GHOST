@@ -537,14 +537,16 @@ MODULE class_GSGSmodel
     call mpi_allreduce(unpacktime, gunpacktime,1,MPI_DOUBLE_PRECISION,MPI_MAX,this%comm_,this%ierr_)
     call mpi_allreduce(inftime   , ginftime   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,this%comm_,this%ierr_)
 
-    inquire( file='sgs_bench.txt', exist=bexist )
-    OPEN(1,file='sgs_bench.txt',position='append')
-    IF ( .NOT. bexist ) THEN
-      WRITE(1,*) &
-        '# icycle     tpack      tunpack      tinference'
+    IF ( this%myrank_ .eq. 0 ) THEN
+      INQUIRE( file='sgs_bench.txt', exist=bexist )
+      OPEN(1,file='sgs_bench.txt',position='append')
+      IF ( .NOT. bexist ) THEN
+        WRITE(1,*) &
+          '# icycle     tpack      tunpack      tinference'
+      ENDIF
+      WRITE(1,*) this%icycle_, gpacktime, gunpacktime, ginftime
+      CLOSE(1)
     ENDIF
-    WRITE(1,*) this%icycle_, gpacktime, gunpacktime, ginftime
-    CLOSE(1)
 
     this%icycle_ = this%icycle_ + 1
 
