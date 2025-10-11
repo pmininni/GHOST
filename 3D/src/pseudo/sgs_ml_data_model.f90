@@ -20,6 +20,7 @@ MODULE class_GSGSmodel
       USE fprecision
       USE commtypes
       USE fftplans
+      USE gtimer
       USE inferof 
       USE fckit_map_module, only : fckit_map
       USE fckit_tensor_module, only : fckit_tensor_real32
@@ -76,7 +77,7 @@ MODULE class_GSGSmodel
         INTEGER                                      :: comm_
         INTEGER                                      :: ista,iend,ksta,kend
         INTEGER                                      :: ierr_, rlen_
-        INTEGER                                      :: hpack_,hunpack_,jinf_
+        INTEGER                                      :: hpack_,hunpack_,hinf_
         INTEGER(KIND=8)                              :: icycle_
         INTEGER, ALLOCATABLE, DIMENSION(:)           :: sndtype_, rcvtype_
         TYPE(GSGSmodelTraits)                        :: modelTraits_
