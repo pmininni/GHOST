@@ -3797,8 +3797,8 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       REAL   (KIND=GP)                                           :: tmp,xb,zz,zh
       INTEGER                                                    :: kb,ke
 
-      kb = 4
-      ke = 30
+      kb = 2
+      ke = 15
 
 
       tmp  = 1.0_GP/ &
@@ -3977,8 +3977,8 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       REAL   (KIND=GP)                                           :: tmp,xb,zz,zh
       INTEGER                                                    :: kb,ke
 
-      kb = 4
-      ke = 30
+      kb = 2
+      ke = 15
 
       tmp  = 1.0_GP/ &
             (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
