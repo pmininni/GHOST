@@ -76,6 +76,8 @@ MODULE class_GSGSmodel
         INTEGER                                      :: comm_
         INTEGER                                      :: ista,iend,ksta,kend
         INTEGER                                      :: ierr_, rlen_
+        INTEGER                                      :: hpack_,hunpack_,jinf_
+        INTEGER(KIND=8)                              :: icycle_
         INTEGER, ALLOCATABLE, DIMENSION(:)           :: sndtype_, rcvtype_
         TYPE(GSGSmodelTraits)                        :: modelTraits_
 
@@ -287,6 +289,13 @@ MODULE class_GSGSmodel
     CALL GSGS_init_infero(this, modtraits)
   !   write(*,*)this%myrank_, ' GSGS_ctor: ksta=', this%ksta, ' kend=', this%kend, ' ista=', this%ista, ' iend=', this%iend
 
+    ! Initialize timers:
+    CALL GTInitHandle(this%hpack_  ,GT_WTIME)
+    CALL GTInitHandle(this%hunpack_,GT_WTIME)
+    CALL GTInitHandle(this%hinf_   ,GT_WTIME)
+
+    this%icycle_ = 0
+
     RETURN
   END SUBROUTINE GSGS_ctor
 !-----------------------------------------------------------------
@@ -331,6 +340,10 @@ MODULE class_GSGSmodel
     CALL free_c_array(this%c_ptr_t_out_)
 
     CALL MPI_Comm_free(this%comm_, this%ierr_)
+
+    CALL GTFree(this%hpack_)
+    CALL GTFree(this%hunpack_)
+    CALL GTFree(this%hinf_)
 
     RETURN
   END SUBROUTINE GSGS_dtor
@@ -465,9 +478,13 @@ MODULE class_GSGSmodel
     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1,C2,C3
     REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
     COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: SGS1,SGS2,SGS3,SGSth
+    LOGICAL             :: bexist
+    DOUBLE PRECISION    :: packtime , unpacktime , inftime
+    DOUBLE PRECISION    :: gpacktime, gunpacktime, ginftime
 
     ! Pack model input layer:
     ! shape = ("time", "channel", "x0", "x1", "x2")
+    CALL GTStart(this%hpack_)
 !   WRITE(*,*) 'GSGS_compute_model: to pack vx... '
     CALL GSGS_pack(this, vx, 0, C1, R1, this%t_in_)
 !   WRITE(*,*) 'GSGS_compute_model: to pack vy... '
@@ -477,9 +494,12 @@ MODULE class_GSGSmodel
 !   WRITE(*,*) 'GSGS_compute_model: to pack th... '
     CALL GSGS_pack(this, th, 3, C1, R1, this%t_in_)
 !   WRITE(*,*) 'GSGS_compute_model: packing done. '
+    CALL GTStop(this%hpack_)
 
     ! Run inference
+    CALL GTStart(this%hinf_)
     CALL infero_check( this%infmodel_%infer(this%imap_, this%omap_) )
+    CALL GTStop(this%hinf_)
 
     ! (Optional) print stats/config
 !   CALL infero_check( this%infmodel_%print_statistics() )
@@ -490,6 +510,7 @@ MODULE class_GSGSmodel
 !   PRINT '(100(1x,f10.6))', this%t_out_(1, :)
 
     ! Unpack model output and compute FFTs:
+    CALL GTStart(this%hunpack_)
 !   WRITE(*,*) 'GSGS_compute_model: unpacking vx... '
     CALL GSGS_unpack(this, this%t_out_, 0, R1, C1)
 !   WRITE(*,*) 'GSGS_compute_model: unpacking vy... '
@@ -498,13 +519,33 @@ MODULE class_GSGSmodel
     CALL GSGS_unpack(this, this%t_out_, 2, R1, C3)
 !   WRITE(*,*) 'GSGS_compute_model: unpacking th... '
     CALL GSGS_unpack(this, this%t_out_, 3, R1, SGSth)
+    CALL GTStop(this%hunpack_)
 
     ! Make sure SGS is div-free:
     IF ( this%modelTraits_%do_projection ) THEN
     CALL GSGS_project3(this, C1, C2, C3, SGS1, SGS2, SGS3)
     ENDIF
-
+   
+    ! Write time stats:
 !   WRITE(*,*) 'GSGS_compute_model: done. '
+    packtime   = GTGetTime(this%hpack_)
+    unpacktime = GTGetTime(this%hunpack_)
+    inftime    = GTGetTime(this%hinf_)
+
+    call mpi_allreduce(packtime  , gpacktime  ,1,MPI_DOUBLE_PRECISION,MPI_MAX,this%comm_,this%ierr_)
+    call mpi_allreduce(unpacktime, gunpacktime,1,MPI_DOUBLE_PRECISION,MPI_MAX,this%comm_,this%ierr_)
+    call mpi_allreduce(inftime   , ginftime   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,this%comm_,this%ierr_)
+
+    inquire( file='sgs_bench.txt', exist=bexist )
+    OPEN(1,file='sgs_bench.txt',position='append')
+    IF ( .NOT. bexist ) THEN
+      WRITE(1,*) &
+        '# icycle     tpack      tunpack      tinference'
+    ENDIF
+    WRITE(1,*) this%icycle_, gpacktime, gunpacktime, ginftime
+    CLOSE(1)
+
+    this%icycle_ = this%icycle_ + 1
 
     RETURN
 
