@@ -87,8 +87,6 @@ MODULE class_GSGSmodel
         TYPE(FFTPLAN), POINTER                       :: plancr, planrc
 
         ! Infero data:
-!       REAL(KIND=GP), POINTER, DIMENSION(:,:)       :: t_in_
-!       REAL(KIND=GP), POINTER, DIMENSION(:,:)       :: t_out_
         REAL(c_float), POINTER                       :: t_in_(:,:,:,:)
         REAL(c_float), POINTER                       :: t_out_(:,:,:,:)
         TYPE(C_PTR)                                  :: c_ptr_t_in_
@@ -110,7 +108,8 @@ MODULE class_GSGSmodel
 
       END TYPE GSGSmodel
 
-      PRIVATE :: GSGS_compute_model, GSGS_init_infero, GSGS_pack, GSGS_unpack 
+      PRIVATE :: GSGS_compute_model, GSGS_init_infero, GSGS_destroy_infero
+      PRIVATE :: GSGS_pack, GSGS_unpack 
       PRIVATE :: GSGS_real_exch_types, GSGS_real_exch
       PRIVATE :: GSGS_project3
 
@@ -287,8 +286,10 @@ MODULE class_GSGSmodel
     ! Find send/recv types:
     CALL GSGS_real_exch_types(ngrid, this%nprocs_, this%myrank_, &
                               this%sndtype_, this%rcvtype_)
+
+    this%modelTraits_ = modtraits
+    ! Initialize Infero:
     CALL GSGS_init_infero(this, modtraits)
-  !   write(*,*)this%myrank_, ' GSGS_ctor: ksta=', this%ksta, ' kend=', this%kend, ' ista=', this%ista, ' iend=', this%iend
 
     ! Initialize timers:
     CALL GTInitHandle(this%hpack_  ,GT_WTIME)
@@ -329,16 +330,7 @@ MODULE class_GSGSmodel
 !   CALL fftp3d_destroy_plan(this%plancr)
 !   CALL fftp3d_destroy_plan(this%planrc)
 
-    ! Clean up Infero:
-    CALL infero_check( this%infmodel_%free() )
-    CALL this%tin_wrapped_%final()
-    CALL this%tout_wrapped_%final()
-    CALL this%imap_%final()
-    CALL this%omap_%final()
-    CALL infero_check( infero_finalise() )
-
-    CALL free_c_array(this%c_ptr_t_in_)
-    CALL free_c_array(this%c_ptr_t_out_)
+    CALL GSGS_destroy_infero(this)
 
     CALL MPI_Comm_free(this%comm_, this%ierr_)
 
@@ -352,11 +344,10 @@ MODULE class_GSGSmodel
 !-----------------------------------------------------------------
 
 
-
   SUBROUTINE GSGS_init_infero(this, modtraits)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!  Performs inference of ML model and returns the SGS terms
+!  Initializes Infero inference engine
 !  ARGUMENTS:
 !    this    : 'this' class instance
 !-----------------------------------------------------------------
@@ -380,9 +371,12 @@ MODULE class_GSGSmodel
       STOP 
     ENDIF
     
+    IF ( this%myrank_ .eq. 0 ) &
     WRITE(*,*) 'GSGS_init_infero: call infero_check... '
+    
     CALL infero_check( infero_initialise() )
   
+    IF ( this%myrank_ .eq. 0 ) &
     WRITE(*,*) 'GSGS_init_infero: allocate C arrays... '
     ! Allocate C arrays 
     nc = this%modelTraits_%nchannel
@@ -391,6 +385,8 @@ MODULE class_GSGSmodel
     IF ( nc .LE. 0 .OR. nn .LE. 0 ) THEN
       STOP 'Invalid nchannel or ntot!'
     ENDIF
+
+!   IF ( this%icycle_ .EQ. 0 ) THEN
 
     nb = nc * nn * SIZEOF(1.0_c_float)
     this%c_ptr_t_in_  = allocate_c_array(nb)
@@ -404,7 +400,10 @@ MODULE class_GSGSmodel
       STOP 'c_ptr_t_out_ not allocated!'
     ENDIF
 
+    IF ( this%myrank_ .eq. 0 ) &
     WRITE(*,*) 'GSGS_init_infero: associate C arrays... '
+
+    IF ( this%myrank_ .eq. 0 ) &
     WRITE(*,*) '.................... nc=', nc, '  nn=', nn
     ! Associate Fortran pointers with C memory:
     CALL C_F_POINTER(this%c_ptr_t_in_ , this%t_in_ , &
@@ -425,37 +424,88 @@ MODULE class_GSGSmodel
       STOP 'Illegal size for t_out_'
     ENDIF
 
+
+
+    IF ( this%myrank_ .eq. 0 ) &
     WRITE(*,*) 'GSGS_init_infero: wrap input tensors... '
     ! Wrap Fortran arrays into fckit tensors and map them by layer names
     this%tin_wrapped_  = fckit_tensor_real32(this%t_in_)
     this%tout_wrapped_ = fckit_tensor_real32(this%t_out_)
 
+
+    IF ( this%myrank_ .eq. 0 ) &
     WRITE(*,*) 'GSGS_init_infero: create imap... '
     this%imap_ = fckit_map()
     CALL this%imap_%insert(trim(this%modelTraits_%in_name),  this%tin_wrapped_%c_ptr())
 
+    IF ( this%myrank_ .eq. 0 ) &
     WRITE(*,*) 'GSGS_init_infero: create omap... '
     this%omap_ = fckit_map()
     CALL this%omap_%insert(trim(this%modelTraits_%out_name), this%tout_wrapped_%c_ptr())
 
+!   ENDIF ! end, icycle check
 
+    IF ( this%myrank_ .eq. 0 ) &
     WRITE(*,*) 'GSGS_init_infero: build YAML configuration... '
     ! Build a YAML config to point Infero at the 
     ! model and backend type:
     this%modelTraits_%yaml_config = &
-        '---'//new_line('a')                            // &
+        '---' // new_line('a')                            // &
         '  path: ' // trim(this%modelTraits_%model_path) // new_line('a') // &
-        '  type: ' // trim(this%modelTraits_%model_type) // c_null_char
+        '  type: ' // trim(this%modelTraits_%model_type) // c_null_char  
 
+!!      '---' // new_line('a')                            // &
+!!      '  path: ' // trim(this%modelTraits_%model_path) // new_line('a') // &
+!!      '  type: ' // trim(this%modelTraits_%model_type) // new_line('a') // &
+!!      '  optimization_level : ' // 'basic' // new_line('a') // &
+!!      'runtime_settings:' //  new_line('a') // &
+!!      '  auto_update: false ' // new_line('a') //  &
+!!      '  allow_external_connections: false ' // c_null_char
+
+
+    IF ( this%myrank_ .eq. 0 ) &
     WRITE(*,*) 'GSGS_init_infero: initialize Infero model... '
     ! Initialize model from YAML string
     CALL infero_check( this%infmodel_%initialise_from_yaml_string(this%modelTraits_%yaml_config) )
+
+
 
     WRITE(*,*) 'GSGS_init_infero: done. '
 
     RETURN
 
   END SUBROUTINE GSGS_init_infero
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+  SUBROUTINE GSGS_destroy_infero(this)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  Finalizes Infero inference engine objects
+!  ARGUMENTS:
+!    this    : 'this' class instance
+!-----------------------------------------------------------------
+    USE  iso_c_binding
+    IMPLICIT NONE
+    TYPE(GSGSmodel)      ,INTENT(INOUT)           :: this
+
+    ! Clean up Infero:
+    CALL infero_check( this%infmodel_%free() )
+    CALL this%tin_wrapped_%final()
+    CALL this%tout_wrapped_%final()
+    CALL this%imap_%final()
+    CALL this%omap_%final()
+    CALL infero_check( infero_finalise() )
+
+    CALL free_c_array(this%c_ptr_t_in_)
+    CALL free_c_array(this%c_ptr_t_out_)
+    nullify(this%t_in_)
+    nullify(this%t_out_)
+
+    RETURN
+
+  END SUBROUTINE GSGS_destroy_infero
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -480,31 +530,46 @@ MODULE class_GSGSmodel
     REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
     COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: SGS1,SGS2,SGS3,SGSth
     LOGICAL             :: bexist
+    INTEGER             :: iret
     DOUBLE PRECISION    :: packtime , unpacktime , inftime
     DOUBLE PRECISION    :: gpacktime, gunpacktime, ginftime
+
+    IF ( this%myrank_ .eq. 0 ) &
+    WRITE(*,*) 'GSGS_compute_model: entering...'
 
     ! Pack model input layer:
     ! shape = ("time", "channel", "x0", "x1", "x2")
     CALL GTStart(this%hpack_)
-!   WRITE(*,*) 'GSGS_compute_model: to pack vx... '
     CALL GSGS_pack(this, vx, 0, C1, R1, this%t_in_)
-!   WRITE(*,*) 'GSGS_compute_model: to pack vy... '
+      IF ( this%myrank_ .eq. 0 ) &
+      WRITE(*,*) 'GSGS_compute_model: vx packing done.'
     CALL GSGS_pack(this, vy, 1, C1, R1, this%t_in_)
-!   WRITE(*,*) 'GSGS_compute_model: to pack vz... '
+      IF ( this%myrank_ .eq. 0 ) &
+      WRITE(*,*) 'GSGS_compute_model: vy packing done.'
     CALL GSGS_pack(this, vz, 2, C1, R1, this%t_in_)
-!   WRITE(*,*) 'GSGS_compute_model: to pack th... '
+      IF ( this%myrank_ .eq. 0 ) &
+      WRITE(*,*) 'GSGS_compute_model: vz packing done.'
     CALL GSGS_pack(this, th, 3, C1, R1, this%t_in_)
-!   WRITE(*,*) 'GSGS_compute_model: packing done. '
+      IF ( this%myrank_ .eq. 0 ) &
+      WRITE(*,*) 'GSGS_compute_model: th packing done.'
     CALL GTStop(this%hpack_)
+
+    IF ( this%myrank_ .eq. 0 ) &
+    WRITE(*,*) 'GSGS_compute_model: packing done.'
+
 
     ! Run inference
     CALL GTStart(this%hinf_)
     CALL infero_check( this%infmodel_%infer(this%imap_, this%omap_) )
+!   iret = this%infmodel_%infer(this%imap_, this%omap_)
     CALL GTStop(this%hinf_)
 
+    IF ( this%myrank_ .eq. 0 ) &
+    WRITE(*,*) 'GSGS_compute_model: inference done.'
+
     ! (Optional) print stats/config
-!   CALL infero_check( this%infmodel_%print_statistics() )
-!   CALL infero_check( this%infmodel_%print_config() )
+    CALL infero_check( this%infmodel_%print_statistics() )
+    CALL infero_check( this%infmodel_%print_config() )
 
     ! Show output
 !   PRINT *, 'Inference output (first batch row):'
@@ -521,6 +586,9 @@ MODULE class_GSGSmodel
 !   WRITE(*,*) 'GSGS_compute_model: unpacking th... '
     CALL GSGS_unpack(this, this%t_out_, 3, R1, SGSth)
     CALL GTStop(this%hunpack_)
+
+    IF ( this%myrank_ .eq. 0 ) &
+    WRITE(*,*) 'GSGS_compute_model: unpacking done.'
 
     ! Make sure SGS is div-free:
     IF ( this%modelTraits_%do_projection ) THEN
@@ -539,14 +607,18 @@ MODULE class_GSGSmodel
 
     IF ( this%myrank_ .eq. 0 ) THEN
       INQUIRE( file='sgs_bench.txt', exist=bexist )
-      OPEN(1,file='sgs_bench.txt',position='append')
+      OPEN(4,file='sgs_bench.txt',position='append')
       IF ( .NOT. bexist ) THEN
-        WRITE(1,*) &
+        WRITE(4,*) &
           '# icycle     tpack      tunpack      tinference'
       ENDIF
-      WRITE(1,*) this%icycle_, gpacktime, gunpacktime, ginftime
-      CLOSE(1)
+      WRITE(4,*) this%icycle_, gpacktime, gunpacktime, ginftime
+      CLOSE(4)
     ENDIF
+    CALL MPI_BARRIER(this%comm_, this%ierr_)
+
+    IF ( this%myrank_ .eq. 0 ) &
+    WRITE(*,*) 'GSGS_compute_model: icycle=', this%icycle_, ' done.'
 
     this%icycle_ = this%icycle_ + 1
 
@@ -580,6 +652,8 @@ MODULE class_GSGSmodel
     tmp = 1.0_GP/ &
             (real(this%nx,kind=GP)*real(this%ny,kind=GP)*real(this%nz,kind=GP))
 
+    WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' entering...'
+
 !$omp parallel do if (this%iend-2.ge.nth) private (j,k)
     DO i = this%ista,this%iend
 !$omp parallel do if (this%iend-2.lt.nth) private (k)
@@ -590,22 +664,18 @@ MODULE class_GSGSmodel
        END DO
     END DO
 
+    IF ( this%myrank_ .eq. 0 ) &
+    WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' doing fft...'
+
     CALL fftp3d_complex_to_real(this%plancr,C1,R1)
 
-    CALL GSGS_real_exch(this, R1, ivar, itensor) 
+    IF ( this%myrank_ .eq. 0 ) &
+    WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' fft done'
 
-#if 0
-!$omp parallel do if (this%kend-this%ksta.ge.nth) private (j,i)
-    DO k = this%ksta,this%kend
-!$omp parallel do if (this%kend-this%ksta.lt.nth) private (i)
-       DO j = 1,this%ny
-          DO i = 1,this%nx
-             itensor(ivar+1,i,j,k) = R1(i,j,k)
-          END DO
-       END DO
-    END DO
-#endif
-       
+    CALL GSGS_real_exch(this, R1, ivar, itensor) 
+    IF ( this%myrank_ .eq. 0 ) &
+    WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' exchange done'
+
     RETURN
   END SUBROUTINE GSGS_pack
 !-----------------------------------------------------------------
@@ -749,19 +819,23 @@ MODULE class_GSGSmodel
 
             igetFrom = this%myrank_ - irank
             if ( igetFrom .lt. 0 ) igetFrom = igetFrom + this%nprocs_
+    WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' post IRECV...'
             CALL MPI_IRECV(t_in(ivar+1,:,:,:),1,this%rcvtype_(igetFrom),igetFrom,      &
                           1,this%comm_,ireq2(irank),this%ierr_)
+    WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' post done.'
             IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
               STOP 'GSGS_real_exch: MPI_IRECV failed'
             ENDIF
 
             CALL MPI_ISEND(R1,1,this%sndtype_(isendTo),isendTo, &
                           1,this%comm_,ireq1(irank),this%ierr_)
+    WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' ISEND done.'
             IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
               STOP 'GSGS_real_exch: MPI_ISEND failed'
             ENDIF
          enddo
 
+         WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' Do waits...'
          do istrip=0, nstrip-1
             irank = iproc + istrip
             CALL MPI_WAIT(ireq1(irank),istatus,this%ierr_)
@@ -773,6 +847,7 @@ MODULE class_GSGSmodel
 !     write(*,*) 'GSGS_real_exch: t_in=', t_in(ivar+1, 5,1:10,this%ksta)
 !     endif
 
+      WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' real_exhange done.'
       RETURN
       END SUBROUTINE GSGS_real_exch
 !-----------------------------------------------------------------
