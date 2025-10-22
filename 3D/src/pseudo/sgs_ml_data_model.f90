@@ -522,6 +522,7 @@ MODULE class_GSGSmodel
 !    R1      : real tmp array(s)
 !    SGSi    : output SGS components
 !-----------------------------------------------------------------
+    USE gtimer
 
     IMPLICIT NONE
     class(GSGSmodel),INTENT (INOUT)         :: this
@@ -534,28 +535,32 @@ MODULE class_GSGSmodel
     DOUBLE PRECISION    :: packtime , unpacktime , inftime
     DOUBLE PRECISION    :: gpacktime, gunpacktime, ginftime
 
-    IF ( this%myrank_ .eq. 0 ) &
-    WRITE(*,*) 'GSGS_compute_model: entering...'
+!   IF ( this%myrank_ .eq. 0 ) THEN
+!   WRITE(*,*) 'GSGS_compute_model: entering...'
+!   WRITE(*,*) 'nx=',this%nx, ' ny=',this%ny, ' nz=',this%nz, ' ista=', this%ista, &
+!              ' iend=',this%iend, ' ksta=',this%ksta, ' kend=',this%kend
+!   WRITE(*,*) 'map_size=s', this%imap_%map_size()
+1   ENDIF
 
     ! Pack model input layer:
     ! shape = ("time", "channel", "x0", "x1", "x2")
     CALL GTStart(this%hpack_)
     CALL GSGS_pack(this, vx, 0, C1, R1, this%t_in_)
-      IF ( this%myrank_ .eq. 0 ) &
-      WRITE(*,*) 'GSGS_compute_model: vx packing done.'
+!     IF ( this%myrank_ .eq. 0 ) &
+!     WRITE(*,*) 'GSGS_compute_model: vx packing done.'
     CALL GSGS_pack(this, vy, 1, C1, R1, this%t_in_)
-      IF ( this%myrank_ .eq. 0 ) &
-      WRITE(*,*) 'GSGS_compute_model: vy packing done.'
+!     IF ( this%myrank_ .eq. 0 ) &
+!     WRITE(*,*) 'GSGS_compute_model: vy packing done.'
     CALL GSGS_pack(this, vz, 2, C1, R1, this%t_in_)
-      IF ( this%myrank_ .eq. 0 ) &
-      WRITE(*,*) 'GSGS_compute_model: vz packing done.'
+!     IF ( this%myrank_ .eq. 0 ) &
+!     WRITE(*,*) 'GSGS_compute_model: vz packing done.'
     CALL GSGS_pack(this, th, 3, C1, R1, this%t_in_)
-      IF ( this%myrank_ .eq. 0 ) &
-      WRITE(*,*) 'GSGS_compute_model: th packing done.'
+!     IF ( this%myrank_ .eq. 0 ) &
+!     WRITE(*,*) 'GSGS_compute_model: th packing done.'
     CALL GTStop(this%hpack_)
 
-    IF ( this%myrank_ .eq. 0 ) &
-    WRITE(*,*) 'GSGS_compute_model: packing done.'
+!   IF ( this%myrank_ .eq. 0 ) &
+!   WRITE(*,*) 'GSGS_compute_model: packing done.'
 
 
     ! Run inference
@@ -564,8 +569,8 @@ MODULE class_GSGSmodel
 !   iret = this%infmodel_%infer(this%imap_, this%omap_)
     CALL GTStop(this%hinf_)
 
-    IF ( this%myrank_ .eq. 0 ) &
-    WRITE(*,*) 'GSGS_compute_model: inference done.'
+!   IF ( this%myrank_ .eq. 0 ) &
+!   WRITE(*,*) 'GSGS_compute_model: inference done.'
 
     ! (Optional) print stats/config
     CALL infero_check( this%infmodel_%print_statistics() )
@@ -587,8 +592,8 @@ MODULE class_GSGSmodel
     CALL GSGS_unpack(this, this%t_out_, 3, R1, SGSth)
     CALL GTStop(this%hunpack_)
 
-    IF ( this%myrank_ .eq. 0 ) &
-    WRITE(*,*) 'GSGS_compute_model: unpacking done.'
+!   IF ( this%myrank_ .eq. 0 ) &
+!   WRITE(*,*) 'GSGS_compute_model: unpacking done.'
 
     ! Make sure SGS is div-free:
     IF ( this%modelTraits_%do_projection ) THEN
@@ -597,9 +602,9 @@ MODULE class_GSGSmodel
    
     ! Write time stats:
 !   WRITE(*,*) 'GSGS_compute_model: done. '
-    packtime   = GTGetTime(this%hpack_)
-    unpacktime = GTGetTime(this%hunpack_)
-    inftime    = GTGetTime(this%hinf_)
+    packtime   = GTGetElapsed(this%hpack_)
+    unpacktime = GTGetElapsed(this%hunpack_)
+    inftime    = GTGetElapsed(this%hinf_)
 
     call mpi_allreduce(packtime  , gpacktime  ,1,MPI_DOUBLE_PRECISION,MPI_MAX,this%comm_,this%ierr_)
     call mpi_allreduce(unpacktime, gunpacktime,1,MPI_DOUBLE_PRECISION,MPI_MAX,this%comm_,this%ierr_)
@@ -617,8 +622,8 @@ MODULE class_GSGSmodel
     ENDIF
     CALL MPI_BARRIER(this%comm_, this%ierr_)
 
-    IF ( this%myrank_ .eq. 0 ) &
-    WRITE(*,*) 'GSGS_compute_model: icycle=', this%icycle_, ' done.'
+!   IF ( this%myrank_ .eq. 0 ) &
+!   WRITE(*,*) 'GSGS_compute_model: icycle=', this%icycle_, ' done.'
 
     this%icycle_ = this%icycle_ + 1
 
