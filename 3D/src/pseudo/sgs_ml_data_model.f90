@@ -540,7 +540,7 @@ MODULE class_GSGSmodel
 !   WRITE(*,*) 'nx=',this%nx, ' ny=',this%ny, ' nz=',this%nz, ' ista=', this%ista, &
 !              ' iend=',this%iend, ' ksta=',this%ksta, ' kend=',this%kend
 !   WRITE(*,*) 'map_size=s', this%imap_%map_size()
-1   ENDIF
+!   ENDIF
 
     ! Pack model input layer:
     ! shape = ("time", "channel", "x0", "x1", "x2")
