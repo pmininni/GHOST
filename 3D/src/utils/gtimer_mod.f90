@@ -24,7 +24,7 @@ MODULE gtimer
 !
 ! Methods:
       PUBLIC                            :: GTStop, GTStart, GTInitHandle, GTAcc, GTFree
-      PUBLIC                            :: GTGetTime, GTValidHandle, GTReset
+      PUBLIC                            :: GTGetElapsed, GTGetTime, GTValidHandle, GTReset
       PUBLIC                            :: GTGetHandle
 
 !
@@ -166,14 +166,16 @@ MODULE gtimer
 
       INTEGER, INTENT(IN)  :: ih
       INTEGER              :: ierr
+      DOUBLE PRECISION     :: tfinal
 
       ierr = GTValidHandle(ih)
       IF ( ierr.NE.GTERR_GOOD_HANDLE ) THEN
         CALL GTHandleCatch(ih,ierr,'GTAcc')
       ENDIF
 
-      t1_(ih) = t1_(ih) + (GTbasic(itype_(ih)) - t0_(ih))
-      t0_(ih) = GTbasic(itype_(ih))
+      tfinal  = GTbasic(itype_(ih))
+      t1_(ih) = t1_(ih) + (tfinal - t0_(ih))
+      t0_(ih) = tfinal
       
       RETURN
 
@@ -183,6 +185,30 @@ MODULE gtimer
 !
 !
       DOUBLE PRECISION FUNCTION GTGetTime(ih)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+! DESCRIPTION: Returns absolute running/current time time for 
+!              handle ih, after call to _either_ GTStop or GTAcc.
+!
+! ARGUMENTS  :
+!     ih : Input integer handle to timer level (checked for validity,
+!          but this won't affect elapsed time).
+!-----------------------------------------------------------------
+      INTEGER, INTENT(IN)  :: ih
+      INTEGER              :: ierr
+
+      ierr = GTValidHandle(ih)
+      IF ( ierr.NE.GTERR_GOOD_HANDLE ) THEN
+        CALL GTHandleCatch(ih,ierr,'GTGetTime')
+      ENDIF
+
+      GTGetTime = t1_(ih)
+
+      END FUNCTION GTGetTime
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+      DOUBLE PRECISION FUNCTION GTGetElapsed(ih)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 ! DESCRIPTION: Returns elapsed time for handle ih, after call to _either_ GTStop
@@ -197,12 +223,12 @@ MODULE gtimer
 
       ierr = GTValidHandle(ih)
       IF ( ierr.NE.GTERR_GOOD_HANDLE ) THEN
-        CALL GTHandleCatch(ih,ierr,'GTGetTime')
+        CALL GTHandleCatch(ih,ierr,'GTGetElapsed')
       ENDIF
 
-      GTGetTime = t1_(ih);
+      GTGetElapsed = t1_(ih) - t0_(ih)
 
-      END FUNCTION GTGetTime
+      END FUNCTION GTGetElapsed
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
