@@ -138,7 +138,7 @@ MODULE gtimer
         CALL GTHandleCatch(ih,ierr,'GTStop')
       ENDIF
 
-      t1_(ih) = t1_(ih) + GTbasic(itype_(ih)) - t0_(ih);
+      t1_(ih) = GTbasic(itype_(ih))
 
       RETURN
 
