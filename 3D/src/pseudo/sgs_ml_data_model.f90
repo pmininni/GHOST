@@ -522,8 +522,7 @@ MODULE class_GSGSmodel
 !    R1      : real tmp array(s)
 !    SGSi    : output SGS components
 !-----------------------------------------------------------------
-    USE gtimer
-
+    USE gtimer, only: GTStart, GTStop, GTGetElapsed
     IMPLICIT NONE
     class(GSGSmodel),INTENT (INOUT)         :: this
     COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: vx,vy,vz,th
@@ -602,23 +601,32 @@ MODULE class_GSGSmodel
    
     ! Write time stats:
 !   WRITE(*,*) 'GSGS_compute_model: done. '
-    packtime   = GTGetElapsed(this%hpack_)
+    packtime   = GTGetElapsed  (this%hpack_)
     unpacktime = GTGetElapsed(this%hunpack_)
-    inftime    = GTGetElapsed(this%hinf_)
+    inftime    = GTGetElapsed   (this%hinf_)
 
-    call mpi_allreduce(packtime  , gpacktime  ,1,MPI_DOUBLE_PRECISION,MPI_MAX,this%comm_,this%ierr_)
-    call mpi_allreduce(unpacktime, gunpacktime,1,MPI_DOUBLE_PRECISION,MPI_MAX,this%comm_,this%ierr_)
-    call mpi_allreduce(inftime   , ginftime   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,this%comm_,this%ierr_)
+    call mpi_allreduce(dabs(packtime)  , gpacktime  ,1,MPI_DOUBLE_PRECISION,MPI_MAX,this%comm_,this%ierr_)
+    call mpi_allreduce(dabs(unpacktime), gunpacktime,1,MPI_DOUBLE_PRECISION,MPI_MAX,this%comm_,this%ierr_)
+    call mpi_allreduce(dabs(inftime)   , ginftime   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,this%comm_,this%ierr_)
+
+!   if ( gpacktime.lt.0.0 .or. gunpacktime.lt.0.0 ) then
+!           write(*,*) ' pack: ', packtime, ' unpack: ', unpacktime
+!           write(*,*) 'gpack: ', gpacktime, ' gunpack: ', gunpacktime
+!   endif
 
     IF ( this%myrank_ .eq. 0 ) THEN
       INQUIRE( file='sgs_bench.txt', exist=bexist )
-      OPEN(4,file='sgs_bench.txt',position='append')
+      OPEN(1,file='sgs_bench.txt',position='append')
       IF ( .NOT. bexist ) THEN
-        WRITE(4,*) &
+        WRITE(1,*) &
           '# icycle     tpack      tunpack      tinference'
       ENDIF
-      WRITE(4,*) this%icycle_, gpacktime, gunpacktime, ginftime
-      CLOSE(4)
+      WRITE(1,10) this%icycle_, gpacktime, gunpacktime, ginftime
+   10   FORMAT( I7,E26.18,E26.18,E26.18 )
+      CLOSE(1)
+
+!     WRITE(*,*) this%icycle_, gpacktime, gunpacktime, ginftime
+
     ENDIF
     CALL MPI_BARRIER(this%comm_, this%ierr_)
 
@@ -657,7 +665,7 @@ MODULE class_GSGSmodel
     tmp = 1.0_GP/ &
             (real(this%nx,kind=GP)*real(this%ny,kind=GP)*real(this%nz,kind=GP))
 
-    WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' entering...'
+!   WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' entering...'
 
 !$omp parallel do if (this%iend-2.ge.nth) private (j,k)
     DO i = this%ista,this%iend
@@ -669,17 +677,17 @@ MODULE class_GSGSmodel
        END DO
     END DO
 
-    IF ( this%myrank_ .eq. 0 ) &
-    WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' doing fft...'
+!   IF ( this%myrank_ .eq. 0 ) &
+!   WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' doing fft...'
 
     CALL fftp3d_complex_to_real(this%plancr,C1,R1)
 
-    IF ( this%myrank_ .eq. 0 ) &
-    WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' fft done'
+!   IF ( this%myrank_ .eq. 0 ) &
+!   WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' fft done'
 
     CALL GSGS_real_exch(this, R1, ivar, itensor) 
-    IF ( this%myrank_ .eq. 0 ) &
-    WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' exchange done'
+!   IF ( this%myrank_ .eq. 0 ) &
+!   WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' exchange done'
 
     RETURN
   END SUBROUTINE GSGS_pack
@@ -824,23 +832,23 @@ MODULE class_GSGSmodel
 
             igetFrom = this%myrank_ - irank
             if ( igetFrom .lt. 0 ) igetFrom = igetFrom + this%nprocs_
-    WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' post IRECV...'
+!   WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' post IRECV...'
             CALL MPI_IRECV(t_in(ivar+1,:,:,:),1,this%rcvtype_(igetFrom),igetFrom,      &
                           1,this%comm_,ireq2(irank),this%ierr_)
-    WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' post done.'
+!   WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' post done.'
             IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
               STOP 'GSGS_real_exch: MPI_IRECV failed'
             ENDIF
 
             CALL MPI_ISEND(R1,1,this%sndtype_(isendTo),isendTo, &
                           1,this%comm_,ireq1(irank),this%ierr_)
-    WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' ISEND done.'
+!   WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' ISEND done.'
             IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
               STOP 'GSGS_real_exch: MPI_ISEND failed'
             ENDIF
          enddo
 
-         WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' Do waits...'
+!        WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' Do waits...'
          do istrip=0, nstrip-1
             irank = iproc + istrip
             CALL MPI_WAIT(ireq1(irank),istatus,this%ierr_)
@@ -852,7 +860,7 @@ MODULE class_GSGSmodel
 !     write(*,*) 'GSGS_real_exch: t_in=', t_in(ivar+1, 5,1:10,this%ksta)
 !     endif
 
-      WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' real_exhange done.'
+!     WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' real_exhange done.'
       RETURN
       END SUBROUTINE GSGS_real_exch
 !-----------------------------------------------------------------
