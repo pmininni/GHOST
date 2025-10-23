@@ -321,6 +321,8 @@ dist:
               $(BIN)/*PIC* $(BIN)/README_* \
               *HD* *MHD* *ROT* *BOUSS* *MOIST* \
               *GPE* *ARGL* *PIC* boots trunc vt shear wv
+	rm -f $(GTIMER) $(GUTILS) $(GREGRID)
+
 	$(MAKE) clean
 
 edit:
