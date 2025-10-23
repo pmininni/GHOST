@@ -76,6 +76,7 @@ MODULE gtimer
       ihandle_(ih) = ih
       itype_  (ih) = itype
       t0_     (ih) = GTbasic(itype_(ih))      
+      t1_     (ih) = t0_(ih)
 
       RETURN
 
@@ -99,21 +100,21 @@ MODULE gtimer
       INTEGER, INTENT(INOUT)                     :: ih
       INTEGER                                    :: ierr
 
-
 !     If handle is ok (currently in use), then just
 !     reset time (time type is checked)
       ierr = GTValidHandle(ih)
       IF ( ierr.NE.GTERR_GOOD_HANDLE ) THEN
         WRITE(*,*) 'GTStart: Invalide handle. Make sure GT'
       ENDIF
+
       t0_     (ih) = GTbasic(itype_(ih))
+      t1_     (ih) = t0_(ih)
 
       RETURN
 
       END SUBROUTINE GTStart
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-
 !
 !
       SUBROUTINE GTStop(ih)
@@ -129,10 +130,9 @@ MODULE gtimer
 !-----------------------------------------------------------------
       IMPLICIT NONE
 
-      INTEGER, INTENT(INOUT)                     :: ih
-      INTEGER                                    :: ierr
+      INTEGER, INTENT(INOUT)  :: ih
+      INTEGER                 :: ierr
 
-   
       ierr = GTValidHandle(ih)
       IF ( ierr.NE.GTERR_GOOD_HANDLE ) THEN
         CALL GTHandleCatch(ih,ierr,'GTStop')
@@ -174,7 +174,7 @@ MODULE gtimer
       ENDIF
 
       tfinal  = GTbasic(itype_(ih))
-      t1_(ih) = t1_(ih) + (tfinal - t0_(ih))
+      t1_(ih) = t1_(ih) + dabs(tfinal - t0_(ih))
       t0_(ih) = tfinal
       
       RETURN
@@ -187,13 +187,15 @@ MODULE gtimer
       DOUBLE PRECISION FUNCTION GTGetTime(ih)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-! DESCRIPTION: Returns absolute running/current time time for 
+! DESCRIPTION: Returns absolute end time for 
 !              handle ih, after call to _either_ GTStop or GTAcc.
 !
 ! ARGUMENTS  :
 !     ih : Input integer handle to timer level (checked for validity,
 !          but this won't affect elapsed time).
 !-----------------------------------------------------------------
+      IMPLICIT NONE
+
       INTEGER, INTENT(IN)  :: ih
       INTEGER              :: ierr
 
@@ -208,7 +210,7 @@ MODULE gtimer
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-      DOUBLE PRECISION FUNCTION GTGetElapsed(ih)
+      DOUBLE PRECISION FUNCTION GTGetElapsed(ih) 
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 ! DESCRIPTION: Returns elapsed time for handle ih, after call to _either_ GTStop
@@ -218,15 +220,20 @@ MODULE gtimer
 !     ih : Input integer handle to timer level (checked for validity,
 !          but this won't affect elapsed time).
 !-----------------------------------------------------------------
+      IMPLICIT NONE
+
       INTEGER, INTENT(IN)  :: ih
       INTEGER              :: ierr
+      DOUBLE PRECISION     :: d1
+
 
       ierr = GTValidHandle(ih)
       IF ( ierr.NE.GTERR_GOOD_HANDLE ) THEN
         CALL GTHandleCatch(ih,ierr,'GTGetElapsed')
       ENDIF
+      d1 = dabs(t1_(ih) - t0_(ih))
 
-      GTGetElapsed = t1_(ih) - t0_(ih)
+      GTGetElapsed = dabs(t1_(ih) - t0_(ih))
 
       END FUNCTION GTGetElapsed
 !-----------------------------------------------------------------
@@ -239,6 +246,7 @@ MODULE gtimer
 ! DESCRIPTION: Returns valid handle, or GTNULLHANDLE if unsuccessful
 !
 !-----------------------------------------------------------------
+      IMPLICIT NONE
 
       INTEGER  :: j
 
@@ -268,6 +276,7 @@ MODULE gtimer
 !          but this won't affect elapsed time).
 !
 !-----------------------------------------------------------------
+      IMPLICIT NONE
 
       INTEGER, INTENT(INOUT)  :: ih
 
@@ -298,6 +307,7 @@ MODULE gtimer
 !          but this won't affect elapsed time).
 !
 !-----------------------------------------------------------------
+      IMPLICIT NONE
 
       INTEGER, INTENT(IN)  :: ih
 
@@ -330,6 +340,7 @@ MODULE gtimer
 !     scaller: error message: should be caller method name
 !
 !-----------------------------------------------------------------
+      IMPLICIT NONE
 
       INTEGER, INTENT(IN)       :: ih
       INTEGER, INTENT(IN)       :: ierr
@@ -358,6 +369,8 @@ MODULE gtimer
 ! ARGUMENTS  :
 !     ih : input handle; must be valid 
 !-----------------------------------------------------------------
+      IMPLICIT NONE
+
       INTEGER, INTENT(INOUT)  :: ih
 
       IF ( GTValidHandle(ih).NE.GTERR_GOOD_HANDLE ) THEN
@@ -381,6 +394,7 @@ MODULE gtimer
 !     itype : time type
 !-----------------------------------------------------------------
       IMPLICIT NONE
+      
       INCLUDE 'mpif.h'
 !$    DOUBLE PRECISION, EXTERNAL :: omp_get_wtime
       INTEGER, INTENT(IN)  :: itype
