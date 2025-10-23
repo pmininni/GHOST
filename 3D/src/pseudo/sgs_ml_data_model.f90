@@ -614,7 +614,7 @@ MODULE class_GSGSmodel
 !           write(*,*) 'gpack: ', gpacktime, ' gunpack: ', gunpacktime
 !   endif
 
-    IF ( this%myrank_ .eq. 0 ) THEN
+    IF ( this%myrank_ .eq. 0 .and. mod(this%icycle_,10) .eq. 0 ) THEN
       INQUIRE( file='sgs_bench.txt', exist=bexist )
       OPEN(1,file='sgs_bench.txt',position='append')
       IF ( .NOT. bexist ) THEN
