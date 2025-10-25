@@ -1652,7 +1652,7 @@
         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
         if (myrank.eq.0) write(*,*) ' data loaded: index=', ext
 
-        CALL bouss_filter(vx,vy,vz,th,tr%C1,tr%C2,tr%C3,ftype,alpha)
+        CALL bouss_filter(vx,vy,vz,th,C1,C2,C3,ftype,fparam)
 
 #if defined(BOUSSINESQ_)
         IF ( dotraining ) THEN
