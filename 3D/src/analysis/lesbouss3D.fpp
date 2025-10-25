@@ -349,7 +349,7 @@
       COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: vxt,vyt,vzt,tht
       COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: CT1,CT2,CT3,CT4,CT5,CT6
       REAL(KIND=GP)   , ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: RT1,RT2,RT3
-      REAL(KIND=GP)       :: fparam ! filter parameter
+      REAL(KIND=GP)       :: filtparam ! filter parameter
       INTEGER             :: ftype, istat(4096), npkeep, nstat
       INTEGER             :: commtrunc, grouptrunc, n(3), nt(3)
       LOGICAL             :: dolabels, doprojection, dotraining
@@ -448,7 +448,7 @@
 #endif
 
       ! App NAMELIST
-      NAMELIST / regrid / idir, odir, sstat, iswap, nxt, nyt, nzt, dolabels, doprojection, dotraining, ftype, fparam
+      NAMELIST / regrid / idir, odir, sstat, iswap, nxt, nyt, nzt, dolabels, doprojection, dotraining, ftype, filtparam
 
 
 !
@@ -637,7 +637,7 @@
 !     nzt    : truncated linear size in z direction
 !     ftype  : filter type: Helmholz (0), Gaussian (1). 
 !              None, if ftype < 0.
-!     fparam : filter parameter (real cutoff length)
+!     filtparam : filter parameter (real cutoff length)
       idir   = '.'
       odir   = '.'
       sstat  = ''
@@ -649,7 +649,7 @@
       dotraining  = .true.
       doprojection= .false.
       ftype  = -1 
-      fparam = 0.0
+      filtparam = 0.0
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='lesml.inp',status='unknown')
@@ -669,7 +669,7 @@
       CALL MPI_BCAST(dotraining  ,1   ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(dotraining  ,1   ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ftype       ,1   ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam      ,1   ,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(filtparam   ,1   ,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
 
 
       ! Check input quantities:
@@ -1652,7 +1652,9 @@
         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
         if (myrank.eq.0) write(*,*) ' data loaded: index=', ext
 
-        CALL bouss_filter(vx,vy,vz,th,C1,C2,C3,ftype,fparam)
+        if (myrank.eq.0) write(*,*) ' calling filter...'
+        CALL bouss_filter(vx,vy,vz,th,ftype,filtparam,C1,C2,C3)
+        if (myrank.eq.0) write(*,*) ' filter done.', ext
 
 #if defined(BOUSSINESQ_)
         IF ( dotraining ) THEN
@@ -2090,7 +2092,7 @@
 !      ftype  : complex potential temperature: 0 (Helmholtz), or
 !               1 (Gaussian). A value of -1 means no filtering.
 !      alpha  : filter 'scale': if ftype==0 (Helholtz alpha), this
-!               is 2pi/k_filter; if ftype=1 (Gaussian), this is
+!               is 1/k_filter; if ftype=1 (Gaussian), this is
 !               s.t. alpha = pi/k_filter. See pseudo/pseudospec3D_filt
 !               module.
 !      Ci     : complex tmp arrays
@@ -2145,9 +2147,9 @@
            END DO
         END DO
       ELSE IF ( ftype.eq.1 ) THEN ! Gaussian
-        CALL gaussian(vx, c1, alpha)
-        CALL gaussian(vy, c2, alpha)
-        CALL gaussian(vz, c3, alpha)
+        CALL gaussian(vx, C1, alpha)
+        CALL gaussian(vy, C2, alpha)
+        CALL gaussian(vz, C3, alpha)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -2160,7 +2162,7 @@
            END DO
         END DO
 
-        CALL gaussian(th, c1, alpha)
+        CALL gaussian(th, C1, alpha)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
