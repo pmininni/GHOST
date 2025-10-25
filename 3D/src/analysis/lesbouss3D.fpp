@@ -349,7 +349,8 @@
       COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: vxt,vyt,vzt,tht
       COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: CT1,CT2,CT3,CT4,CT5,CT6
       REAL(KIND=GP)   , ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: RT1,RT2,RT3
-      INTEGER             :: istat(4096), npkeep, nstat
+      REAL(KIND=GP)       :: fparam ! filter parameter
+      INTEGER             :: ftype, istat(4096), npkeep, nstat
       INTEGER             :: commtrunc, grouptrunc, n(3), nt(3)
       LOGICAL             :: dolabels, doprojection, dotraining
       CHARACTER(len=1024) :: iidir, sparam
@@ -447,7 +448,7 @@
 #endif
 
       ! App NAMELIST
-      NAMELIST / regrid / idir, odir, sstat, iswap, nxt, nyt, nzt, dolabels, doprojection, dotraining
+      NAMELIST / regrid / idir, odir, sstat, iswap, nxt, nyt, nzt, dolabels, doprojection, dotraining, ftype, fparam
 
 
 !
@@ -634,6 +635,9 @@
 !     nxt    : truncated linear size in x direction
 !     nyt    : truncated linear size in y direction
 !     nzt    : truncated linear size in z direction
+!     ftype  : filter type: Helmholz (0), Gaussian (1). 
+!              None, if ftype < 0.
+!     fparam : filter parameter (real cutoff length)
       idir   = '.'
       odir   = '.'
       sstat  = ''
@@ -644,6 +648,8 @@
       dolabels    = .true.
       dotraining  = .true.
       doprojection= .false.
+      ftype  = -1 
+      fparam = 0.0
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='lesml.inp',status='unknown')
@@ -661,6 +667,9 @@
       CALL MPI_BCAST(dolabels    ,1   ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(doprojection,1   ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(dotraining  ,1   ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dotraining  ,1   ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ftype       ,1   ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(fparam      ,1   ,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
 
 
       ! Check input quantities:
@@ -1643,6 +1652,8 @@
         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
         if (myrank.eq.0) write(*,*) ' data loaded: index=', ext
 
+        CALL bouss_filter(vx,vy,vz,th,tr%C1,tr%C2,tr%C3,ftype,alpha)
+
 #if defined(BOUSSINESQ_)
         IF ( dotraining ) THEN
 !         CALL MPI_BARRIER(commtrunc, ierr)
@@ -1844,7 +1855,6 @@
       IMPLICIT NONE
 
       TYPE(TRUNCDAT)  , INTENT   (IN)                             :: tr
-      INTEGER         , INTENT   (IN)                             :: istat
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: th
 !     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: C1,C2,C3
@@ -1873,6 +1883,7 @@
 
       
       write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' staring th...'
+
 
       ! Truncate input vars, put to disk:
       if (iranktr.eq.0) write(*,*) ' compute th_T...'
@@ -2067,5 +2078,103 @@
 !     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
       END SUBROUTINE bouss_lescomp
+
+
+      SUBROUTINE bouss_filter(vx,vy,vz,th,ftype,alpha)
+!-----------------------------------------------------------------
+! Filter Boussinesq input data
+! ARGS:
+!      vi     : complex velocity components
+!      th     : complex potential temperature
+!      ftype  : complex potential temperature: 0 (Helmholtz), or
+!               1 (Gaussian). A value of -1 means no filtering.
+!      alpha  : filter 'scale': if ftype==0 (Helholtz alpha), this
+!               is 2pi/k_filter; if ftype=1 (Gaussian), this is
+!               s.t. alpha = pi/k_filter. See pseudo/pseudospec3D_filt
+!               module.
+!      Ci     : complex tmp arrays
+!-----------------------------------------------------------------
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+      USE fftplans
+      USE filefmt
+      USE gtrunc
+      USE gutils
+!$    USE threads
+      IMPLICIT NONE
+
+      INTEGER         , INTENT   (IN)                             :: ftype
+      REAL(KIND=GP)   , INTENT   (IN)                             :: alpha
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: th
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: C1,C2,C3
+!
+      INTEGER                                                     :: i,j,k
+
+      IF ( ftype .lt. 0 ) RETURN ! nothing to do
+
+      IF      ( ftype.eq.0 ) THEN ! Helmholtz
+        CALL smooth3(vx, vy, vz, C1, C2, C3, alpha)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+           DO j = 1,ny
+              DO k = 1,nz
+                 vx(k,j,i) = C1(k,j,i)
+                 vy(k,j,i) = C2(k,j,i)
+                 vz(k,j,i) = C3(k,j,i)
+              END DO
+           END DO
+        END DO
+
+        CALL smooth (th, C1, alpha)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+           DO j = 1,ny
+              DO k = 1,nz
+                 th(k,j,i) = C1(k,j,i)
+              END DO
+           END DO
+        END DO
+      ELSE IF ( ftype.eq.1 ) THEN ! Gaussian
+        CALL gaussian(vx, c1, alpha)
+        CALL gaussian(vy, c2, alpha)
+        CALL gaussian(vz, c3, alpha)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+           DO j = 1,ny
+              DO k = 1,nz
+                 vx(k,j,i) = C1(k,j,i)
+                 vy(k,j,i) = C2(k,j,i)
+                 vz(k,j,i) = C3(k,j,i)
+              END DO
+           END DO
+        END DO
+
+        CALL gaussian(th, c1, alpha)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+           DO j = 1,ny
+              DO k = 1,nz
+                 th(k,j,i) = C1(k,j,i)
+              END DO
+           END DO
+        END DO
+      ELSE
+        STOP 'bouss_filter: invalid filter type'
+      ENDIF
+
+      RETURN
+
+      END SUBROUTINE bouss_filter
 
 
