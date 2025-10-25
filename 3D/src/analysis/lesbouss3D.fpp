@@ -1855,6 +1855,7 @@
       IMPLICIT NONE
 
       TYPE(TRUNCDAT)  , INTENT   (IN)                             :: tr
+      INTEGER         , INTENT   (IN)                             :: istat
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: th
 !     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: C1,C2,C3
