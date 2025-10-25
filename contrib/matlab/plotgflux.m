@@ -3,14 +3,15 @@ function [kw favg] = plotgflux(sprefix,ncol,icol,trange,nwidth,do_cumsum)
 %
 % Reads ASCII data files produced by GHOST, computes fluxes, 
 % and plots them. Either a single time index or a range may be
-% specified. If the latter, averaging is done. 
+% specified. If the latter, averaging is done. This function
+% may also be used to plot spectra, for which do_cumsum = 0.
 %
 %           Usage:
 % 
 %           [k spect] = plotgflux('ktransfer',2,2,[1:10]);
 %
 %           Input:
-%  spref  : prefix of file set (e.g., 'ktransfer', 'hktransfer' from which to read transfers; required
+%  spref  : prefix of file set (e.g., 'ktransfer', 'hktransfer' from which to read transfers; required. See however 'do_cumsum' description.
 %  ncol   : no. columns in file; required 
 %  icol   : use this column of the file; reqired. 
 %  trange : array of indices over which to average. May be a single index; required.
@@ -40,6 +41,10 @@ if nargin < 5
 end
 if nargin < 6
    do_cumsum = 1;
+end
+
+if do_cumsum > 0
+  do_cumsum = 1;
 end
 
 if length(trange) == 0 
@@ -102,10 +107,16 @@ end
 
 
 figure;
-h = loglog(kw,favg,'k-', 'LineWidth',lwidth);
+if do_cumsum == 0
+  h = loglog(kw,favg,'k-', 'LineWidth',lwidth);
+  ylabel('Spectral density','FontSize',szfont,'FontWeight','Bold');
+else
+  h = semilogx(kw,favg,'k-', 'LineWidth',lwidth);
+  ylabel('Flux','FontSize',szfont,'FontWeight','Bold');
+end
+
 hold on;
 xlabel('k','FontSize',szfont,'FontWeight','Bold');
-ylabel('Spectral density','FontSize',szfont,'FontWeight','Bold');
 set(gca,'XMinorTick','on','YMinorTick','on','LineWidth',lwidth,'FontSize',szfont,'FontWeight','Bold');
 
 %set(hleg,'FontSize',szfont,'FontWeight','Bold');
