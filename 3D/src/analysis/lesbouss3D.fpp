@@ -2080,7 +2080,7 @@
       END SUBROUTINE bouss_lescomp
 
 
-      SUBROUTINE bouss_filter(vx,vy,vz,th,ftype,alpha)
+      SUBROUTINE bouss_filter(vx,vy,vz,th,ftype,alpha,C1,C2,C3)
 !-----------------------------------------------------------------
 ! Filter Boussinesq input data
 ! ARGS:
