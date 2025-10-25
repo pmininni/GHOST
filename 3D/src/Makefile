@@ -182,10 +182,10 @@ CHMHDB_OBJS    = $(CMHDB_OBJS)
 ROTH_OBJS      = $(HD_OBJS) pseudospec3D_rot.o
 PROTH_OBJS     = $(PHD_OBJS) pseudospec3D_rot.o pseudospec3D_prot.o
 MPROTH_OBJS    = $(PROTH_OBJS) 
-BOUSS_OBJS     = $(PROTH_OBJS) pseudospec3D_bouss.o lessgs_mod.o
+BOUSS_OBJS     = $(PROTH_OBJS) pseudospec3D_bouss.o lessgs_mod.o pseudospec3D_filt.o
 MPBOUSS_OBJS   = $(BOUSS_OBJS)
 ROTBOUSS_OBJS  = $(BOUSS_OBJS)
-ROTBOUSS_SGS_OBJS  = $(ROTBOUSS_OBJS) sgs_ml_data_model.o
+ROTBOUSS_SGS_OBJS  = $(ROTBOUSS_OBJS) sgs_ml_data_model.o pseudospec3D_filt.o
 ROTBOUMHDB_OBJS= $(BOUSS_OBJS) pseudospec3D_mhd.o
 MPROTBOUSS_OBJS= $(MPROTH_OBJS) pseudospec3D_bouss.o
 MOIST_OBJS     = $(BOUSS_OBJS)
@@ -218,7 +218,7 @@ SUBDIRS        = posix mpiio fftp-2 fftp-3 fftp-cu fftp-mkl \
                  $(CONTRIB)/nvidia $(LAGP)
 EXTRASDIR      = analysis
 GTIMER         = $(UTILS)/gtimer_mod.o
-GUTILS         = $(UTILS)/gutils_mod.o 
+GUTILS         = #$(UTILS)/gutils_mod.o 
 GREGRID        = $(UTILS)/gtrunc_mod.o $(UTILS)/regridutils.o
 GIO            = $(IOLIB)/binary_io.o 
 
