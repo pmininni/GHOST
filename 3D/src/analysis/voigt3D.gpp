@@ -2688,14 +2688,14 @@ endif
 
       COMPLEX(KIND=GP),                DIMENSION(nz,ny,ista:iend):: vx,vy,vz,th
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2,R3,R4
-      REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: ommag
+      REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: ommag,Rig
       REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: dissp,dissv
       REAL   (KIND=GP), INTENT   (IN)                            :: alpha
       DOUBLE PRECISION                                           :: Ek(nmax/2+1)
       TYPE(IOPLAN)    , INTENT   (IN)                            :: planio
       LOGICAL                                                    :: bexist
       INTEGER         , INTENT   (IN)                            :: ftype
-      INTEGER                                                    :: i,inorm,j,nn,n
+      INTEGER                                                    :: i,inorm,itypeRi,j,nn,n
       CHARACTER(len=1024), INTENT   (IN)                         :: odir
       CHARACTER(len=1024)                                        :: fnout
       CHARACTER(len=128)                                         :: hdrfmt, rowfmt
@@ -2727,28 +2727,91 @@ endif
       n = 0;
 
       inorm = 1;
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       CALL compute_dissv(vx,vy,vz,btrunc,ktmin,ktmax,inorm,ctmp,vtmp, &
                   R1,R2,R3,R4,R5,R6,dissv)
       CALL io_write(1,odir,'dissv',ext,planio,dissv)
-
-      CALL skewflat(dissv,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
       fnout = trim(odir) // '/' // 'dissvpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'dissv' 
+      CALL skewflat(dissv,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
       CALL dopdfr(dissv ,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
-      ! fnout = trim(odir) // '/' // 'jpdf_pv_dissv_log00.' // ext // '.txt'
-      ! CALL dojpdfr(pv,'PV',dissv,'dissv',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
-      ! fnout = trim(odir) // '/' // 'jpdf_pv_Ri_log00.' // ext // '.txt'
-      ! CALL dojpdfr(pv,'PV',dissv,'Ri',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
-      ! fnout = trim(odir) // '/' // 'jpdf_Ri_dissv_log00.' // ext // '.txt'
-      ! CALL dojpdfr(Ri,'Ri',pv,'PV',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+
+!     ! fnout = trim(odir) // '/' // 'jpdf_pv_dissv_log00.' // ext // '.txt'
+!     ! CALL dojpdfr(pv,'PV',dissv,'dissv',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+!     ! fnout = trim(odir) // '/' // 'jpdf_pv_Ri_log00.' // ext // '.txt'
+!     ! CALL dojpdfr(pv,'PV',dissv,'Ri',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+!     ! fnout = trim(odir) // '/' // 'jpdf_Ri_dissv_log00.' // ext // '.txt'
+!     ! CALL dojpdfr(Ri,'Ri',pv,'PV',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
 
 #ifdef SCALAR_
-      n = n + 1; sfld(n) = 'dissp' 
-      CALL skewflat(dissp,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      C1 = th;
+      CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+      CALL io_write(1,odir,'rth',ext,planio,R1)
+      fnout = trim(odir) // '/' // 'thpdf.' // ext // '.txt'
+      n = n + 1; sfld(n) = 'th' 
+      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       CALL compute_dissp(th,ctmp,R1,R2,R3,dissp)
       CALL io_write(1,odir,'dissp',ext,planio,dissp)
+      fnout = trim(odir) // '/' // 'dissppdf.' // ext // '.txt'
+      n = n + 1; sfld(n) = 'dissp' 
+      CALL skewflat(dissp,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL dopdfr(dissp,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      itypeRi = 1
+      CALL compute_Rig(vx,vy,vz,th,bvfreq,f,itypeRi,C1,R1,R2,R3,Rig)
+      CALL io_write(1,odir,'Rig',ext,planio,dissp)
+      fnout = trim(odir) // '/' // 'rigpdf.' // ext // '.txt'
+      n = n + 1; sfld(n) = 'Rig' 
+      CALL skewflat(Rig,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL dopdfr(Rig,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 #endif
 
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      CALL compute_vort_mag(vx,vy,vz,C1,R1,R2,R3,ommag)
+      CALL io_write(1,odir,'ommag',ext,planio,ommag)
+      fnout = trim(odir) // '/' // 'ommagpdf.' // ext // '.txt'
+      n = n + 1; sfld(n) = 'ommag' 
+      CALL skewflat(ommag,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL dopdfr(ommag,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      C1 = vx;
+      CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+      CALL io_write(1,odir,'rvx',ext,planio,R1)
+      fnout = trim(odir) // '/' // 'vxpdf.' // ext // '.txt'
+      n = n + 1; sfld(n) = 'vx' 
+      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL dopdfr(ommag,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      C1 = vz;
+      CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+      CALL io_write(1,odir,'rvz',ext,planio,R1)
+      fnout = trim(odir) // '/' // 'vzpdf.' // ext // '.txt'
+      n = n + 1; sfld(n) = 'vz' 
+      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL dopdfr(ommag,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      C1 = vz;
+      CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+      CALL io_write(1,odir,'rvz',ext,planio,R1)
+      fnout = trim(odir) // '/' // 'vzpdf.' // ext // '.txt'
+      n = n + 1; sfld(n) = 'vz' 
+      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL dopdfr(ommag,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+
+
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ! Write statistical data to files:
       IF ( myrank.EQ.0 ) THEN
         inquire( file='var.txt', exist=bexist )
