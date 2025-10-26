@@ -318,6 +318,14 @@
       CHARACTER(len=64) :: ext1
       CHARACTER(len=4096) :: sstat
 
+      TYPE :: GParamType
+        REAL(kind=GP) :: nu, kappa, bvfreq, rotf
+      END TYPE GParamType
+
+      TYPE(GParamType) gparams
+
+
+
 !
 ! Namelists for the input files
 
@@ -1470,6 +1478,11 @@
       ! Parse input index set, store in istat:
       CALL parseind(sstat,';', istat , 4096, nstat)
 
+      gparams%nu       = nu
+      gparams%kappa    = kappa
+      gparams%bvfreq   = bnfreq
+      gparams%rotf     = 2*omegaz
+
       tmp = 1.0_GP/REAL(nx*ny*nz,KIND=GP)
       DO it = 1,nstat
         WRITE(ext1, fmtext) istat(it)
@@ -1509,7 +1522,7 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
 
 
         ! Do analysis:
-        CALL DoVoigt(vx,vy,vz,th,istat(it),odir,planio,C1,C2,C3, &
+        CALL DoVoigt(vx,vy,vz,th,istat(it),gparams,odir,planio,C1,C2,C3, &
                      R1,R2,R3,R4,ftype,filtparam)
 
 
@@ -2693,6 +2706,7 @@ endif
       REAL   (KIND=GP), INTENT   (IN)                            :: alpha
       DOUBLE PRECISION                                           :: Ek(nmax/2+1)
       TYPE(IOPLAN)    , INTENT   (IN)                            :: planio
+      TYPE(GParamType), INTENT   (IN)                            :: gparams
       LOGICAL                                                    :: bexist
       INTEGER         , INTENT   (IN)                            :: ftype
       INTEGER                                                    :: i,inorm,itypeRi,j,nn,n
@@ -2731,6 +2745,7 @@ endif
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       CALL compute_dissv(vx,vy,vz,btrunc,ktmin,ktmax,inorm,ctmp,vtmp, &
                   R1,R2,R3,R4,R5,R6,dissv)
+      dissv = dissv * (2.0*gparams%nu)
       CALL io_write(1,odir,'dissv',ext,planio,dissv)
       fnout = trim(odir) // '/' // 'dissvpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'dissv' 
@@ -2757,6 +2772,7 @@ endif
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       CALL compute_dissp(th,ctmp,R1,R2,R3,dissp)
+      dissp = dissp * gparams%kappa
       CALL io_write(1,odir,'dissp',ext,planio,dissp)
       fnout = trim(odir) // '/' // 'dissppdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'dissp' 
@@ -2765,7 +2781,7 @@ endif
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       itypeRi = 1
-      CALL compute_Rig(vx,vy,vz,th,bvfreq,f,itypeRi,C1,R1,R2,R3,Rig)
+      CALL compute_Rig(vx,vy,vz,th,gparams%bvfreq,gparams%rotf,itypeRi,C1,R1,R2,R3,Rig)
       CALL io_write(1,odir,'Rig',ext,planio,dissp)
       fnout = trim(odir) // '/' // 'rigpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'Rig' 
