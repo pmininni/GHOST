@@ -313,7 +313,7 @@
       REAL(kind=GP) omega(3),xnormn
       REAL(kind=GP) filtparam
       INTEGER :: ic,ir,it,jc
-      INTEGER :: btrunc,inorm,istat(4096),nstat
+      INTEGER :: istat(4096),nstat,prtbin
       INTEGER :: nbinx,nbiny,nbins(2)
       INTEGER :: ftype ! filter type (0==Helm; 1==Gaussian)
       CHARACTER(len=64) :: ext1
@@ -421,7 +421,7 @@
 #endif
       NAMELIST / voigt / iswap,oswap
       NAMELIST / voigt / idir,odir,sstat
-      NAMELIST / voigt / nbinx,nbiny
+      NAMELIST / voigt / nbinx,nbiny,prtbin
       NAMELIST / voigt / ftype,filtparam
 
 !
@@ -1334,6 +1334,7 @@
       oswap  = 0
       nbinx  = 100
       nbiny  = 100
+      prtbin = 0   ! don't print binary data
       ftype  = -1  ! no filtering
       filtparam = 0.0 ! filter scale
 
@@ -1350,6 +1351,7 @@
       CALL MPI_BCAST(iswap  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nbinx  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nbiny  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(prtbin ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ftype  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(filtparam,1 ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
 ! Befor
@@ -1468,6 +1470,7 @@
       gparams%kappa    = kappa
       gparams%bvfreq   = bvfreq
       gparams%rotf     = 2*omegaz
+      gparams%prtbin   = prtbin
 
       tmp = 1.0_GP/REAL(nx*ny*nz,KIND=GP)
       DO it = 1,nstat
@@ -2746,7 +2749,9 @@ endif
       CALL compute_dissv(vx,vy,vz,btrunc,ktmin,ktmax,inorm,C1,C2, &
                   R1,R2,R3,R4,R5,R6,dissv)
       dissv = dissv * (2.0*gparams%nu)
+      if ( gparams%prtbin .eq.1 ) then
       CALL io_write(1,odir,'dissv',ext,planio,dissv)
+      endif
       fnout = trim(odir) // '/' // 'dissvpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'dissv' 
       CALL skewflat(dissv,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
@@ -2756,7 +2761,9 @@ endif
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       C1 = th;
       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+      if ( gparams%prtbin .eq.1 ) then
       CALL io_write(1,odir,'rth',ext,planio,R1)
+      endif
       fnout = trim(odir) // '/' // 'thpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'th' 
       CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
@@ -2766,7 +2773,9 @@ endif
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       CALL compute_dissp(th,C1,R1,R2,R3,dissp)
       dissp = dissp * gparams%kappa
+      if ( gparams%prtbin .eq.1 ) then
       CALL io_write(1,odir,'dissp',ext,planio,dissp)
+      endif
       fnout = trim(odir) // '/' // 'dissppdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'dissp' 
       CALL skewflat(dissp,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
@@ -2775,7 +2784,9 @@ endif
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       itypeRi = 1
       CALL compute_Rig(vx,vy,vz,th,gparams%bvfreq,gparams%rotf,itypeRi,C1,R1,R2,R3,Rig)
+      if ( gparams%prtbin .eq.1 ) then
       CALL io_write(1,odir,'Rig',ext,planio,dissp)
+      endif
       fnout = trim(odir) // '/' // 'rigpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'Rig' 
       CALL skewflat(Rig,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
@@ -2789,7 +2800,9 @@ endif
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       CALL compute_vort_mag(vx,vy,vz,C1,R1,R2,R3,ommag)
+      if ( gparams%prtbin .eq.1 ) then
       CALL io_write(1,odir,'ommag',ext,planio,ommag)
+      endif
       fnout = trim(odir) // '/' // 'ommagpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'ommag' 
       CALL skewflat(ommag,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
@@ -2798,7 +2811,9 @@ endif
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       C1 = vx;
       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+      if ( gparams%prtbin .eq.1 ) then
       CALL io_write(1,odir,'rvx',ext,planio,R1)
+      endif
       fnout = trim(odir) // '/' // 'vxpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'vx' 
       CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
@@ -2807,7 +2822,9 @@ endif
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       C1 = vz;
       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+      if ( gparams%prtbin .eq.1 ) then
       CALL io_write(1,odir,'rvz',ext,planio,R1)
+      endif
       fnout = trim(odir) // '/' // 'vzpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'vz' 
       CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
@@ -2816,7 +2833,9 @@ endif
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       C1 = vz;
       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+      if ( gparams%prtbin .eq.1 ) then
       CALL io_write(1,odir,'rvz',ext,planio,R1)
+      endif
       fnout = trim(odir) // '/' // 'vzpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'vz' 
       CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
@@ -2901,6 +2920,7 @@ endif
       INTEGER                                                     :: i,j,k
 
       IF ( ftype .lt. 0 ) RETURN ! nothing to do
+
 
       IF      ( ftype.eq.0 ) THEN ! Helmholtz
         CALL smooth3(vx, vy, vz, C1, C2, C3, alpha)
