@@ -1346,12 +1346,12 @@
       CALL MPI_BCAST(idir   ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(odir   ,1024 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sstat  ,4096,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(ftype  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(oswap  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iswap  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(filtparam,1 ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nbinx  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nbiny  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(oswap  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ftype  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(filtparam,1 ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
 ! Befor
 ! options are compatible with the SOLVER being used
 
