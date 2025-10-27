@@ -2584,7 +2584,7 @@ endif
       REAL   (KIND=GP), INTENT   (IN)                             :: bvfreq,f
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: R1,R2,R3
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: ri
-      REAL   (KIND=GP)                                            :: alpha, den, xnormn
+      REAL   (KIND=GP)                                            :: alpha, den,tmp 
 !
       INTEGER         , INTENT   (IN)                             :: itype
       INTEGER                                                     :: i,j,k
@@ -2598,7 +2598,7 @@ endif
       CALL fftp3d_complex_to_real(plancr,ctmp1,R3,MPI_COMM_WORLD)
 
       alpha  = bvfreq/sqrt(f**2 + bvfreq**2)
-      xnormn = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
+      tmp    = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
 
       IF ( itype .EQ. 1 ) THEN
         ! NOTE: no normalization required as vx, vy, vz, and theta were
@@ -2608,9 +2608,9 @@ endif
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
           DO j = 1,ny
             DO i = 1,nx
-              den = R1(i,j,k)**2 + R2(i,j,k)**2
+              den = (R1(i,j,k)**2 + R2(i,j,k)**2) * tmp**2
               den = 1.0 / (den + 1.0e-15)
-              ri(i,j,k) = bvfreq*(bvfreq-R3(i,j,k)) * den
+              ri(i,j,k) = bvfreq*(bvfreq-R3(i,j,k)*tmp) * den
             ENDDO
           ENDDO
         ENDDO
@@ -2620,7 +2620,7 @@ endif
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
           DO j = 1,ny
             DO i = 1,nx
-              den = sqrt( R1(i,j,k)**2 + R2(i,j,k)**2 ) 
+              den = sqrt( R1(i,j,k)**2 + R2(i,j,k)**2 ) * tmp
               den = 1.0 / (den + 1.0e-15)
               ri(i,j,k) = bvfreq * den
             ENDDO
@@ -2632,9 +2632,9 @@ endif
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
           DO j = 1,ny
             DO i = 1,nx
-              den = R1(i,j,k)**2 + R2(i,j,k)**2 
+              den = ( R1(i,j,k)**2 + R2(i,j,k)**2 ) * tmp**2
               den = 1.0 / (den + 1.0e-15)
-              ri(i,j,k) = bvfreq*alpha*(bvfreq*alpha-R3(i,j,k)) * den
+              ri(i,j,k) = bvfreq*alpha*(bvfreq*alpha-R3(i,j,k)*tmp) * den
             ENDDO
           ENDDO
         ENDDO
@@ -2782,7 +2782,7 @@ endif
       CALL dopdfr(dissp,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      itypeRi = 1
+      itypeRi = 1 ! N (N - dtheta/dz) / (du/dz^2 + dv/dz^2)
       CALL compute_Rig(vx,vy,vz,th,gparams%bvfreq,gparams%rotf,itypeRi,C1,R1,R2,R3,Rig)
       if ( gparams%prtbin .eq.1 ) then
       CALL io_write(1,odir,'Rig',ext,planio,dissp)
