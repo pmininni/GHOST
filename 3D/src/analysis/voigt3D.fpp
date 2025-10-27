@@ -2908,7 +2908,7 @@ endif
       USE fft
       USE fftplans
       USE filefmt
-      USE gtrunc
+!     USE gtrunc
       USE gutils
 !$    USE threads
       IMPLICIT NONE
