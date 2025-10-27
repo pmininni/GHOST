@@ -28,6 +28,7 @@
       USE boxsize
       USE gutils
       USE gtimer
+      USE voigt_params
       USE fftplans
 #ifdef DNS_
       USE dns
@@ -93,7 +94,7 @@
 !
 ! Temporal data storage arrays
 
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C1,C2
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C1,C2,C3
 #ifdef VELOC_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M1,M2,M3
 #endif
@@ -305,24 +306,20 @@
 #endif
       LOGICAL               :: bbenchexist
 
-      ! Data specific to COMPI:
+      ! Data specific to VOIGT:
       DOUBLE PRECISION, DIMENSION(3,3) :: bij,dij,gij,vij
       DOUBLE PRECISION                 :: bden,dden,gden,vden
       REAL(kind=GP) sav,ssk,sku,sg5,sw6,ss2,ss3,ss4,ss5,ss6
-      REAL(kind=GP) ktmin,ktmax,omega(3),xnormn
+      REAL(kind=GP) omega(3),xnormn
       REAL(kind=GP) filtparam
       INTEGER :: ic,ir,it,jc
-      INTEGER :: dolog,inorm,istat(4096),nstat
+      INTEGER :: btrunc,inorm,istat(4096),nstat
       INTEGER :: nbinx,nbiny,nbins(2)
       INTEGER :: ftype ! filter type (0==Helm; 1==Gaussian)
       CHARACTER(len=64) :: ext1
       CHARACTER(len=4096) :: sstat
 
-      TYPE :: GParamType
-        REAL(kind=GP) :: nu, kappa, bvfreq, rotf
-      END TYPE GParamType
-
-      TYPE(GParamType) gparams
+      TYPE(GVoigtParamType) gparams
 
 
 
@@ -422,10 +419,10 @@
 #if defined(TESTPART_) && defined(MAGFIELD_)
       NAMELIST / ptestpart / gyrof,vtherm
 #endif
-      NAMELIST / shear / iswap,oswap
-      NAMELIST / shear / dolog,idir,odir,sstat
-      NAMELIST / shear / btrunc,ktmin,ktmax,nbinx,nbiny
-      NAMELIST / shear / ftype,filtparam
+      NAMELIST / voigt / iswap,oswap
+      NAMELIST / voigt / idir,odir,sstat
+      NAMELIST / voigt / nbinx,nbiny
+      NAMELIST / voigt / ftype,filtparam
 
 !
 ! Initialization
@@ -481,6 +478,7 @@
 ! Allocates memory for distributed blocks
 
       ALLOCATE( C1(nz,ny,ista:iend),  C2(nz,ny,ista:iend) )
+      ALLOCATE( C3(nz,ny,ista:iend) )
       ALLOCATE( th (nz,ny,ista:iend) )
 #if defined(VELOC_) || defined(ADVECT_)
       ALLOCATE( vx(nz,ny,ista:iend) )
@@ -1320,14 +1318,10 @@
 ! parameters that will be used to compute the transfer
 !     idir   : directory for unformatted input (field components)
 !     odir   : directory for unformatted output (prolongated data)
-!     sstat  : time index for which to compute COMPI , or a
+!     sstat  : time index for which to compute VOIGT, or a
 !     ';--separated list
-!     btrunc : if == 1, truncate spectral range to [ktmin,ktmax]. Not used.
-!     ktmin  : min wavenumber for truncation if btrunc=1. Not used.
-!     ktmax  : max wavenumber for truncation if btrunc=1. Not used.
 !     iswap  : do endian swap on input?
 !     oswap  : do endian swap on output? Not used.
-!     dolog  : compute PDFs in log=space?
 !     ftype  : filter type (0==Helm; 1==Gaussian)
 !     filtparam
 !            : filter scale
@@ -1338,30 +1332,22 @@
       sstat  = '0'
       iswap  = 0
       oswap  = 0
-      btrunc = 0
-      dolog  = 1
       nbinx  = 100
       nbiny  = 100
-      ktmin  = tiny
-      ktmax  = tiny
       ftype  = -1  ! no filtering
       filtparam = 0.0 ! filter scale
 
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='voigt.inp',status='unknown',form="formatted")
-         READ(1,NML=shear)
+         READ(1,NML=voigt)
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(idir   ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(odir   ,1024 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sstat  ,4096,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(btrunc ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(dolog  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ftype  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iswap  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(ktmin  ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(ktmax  ,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(filtparam,1 ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nbinx  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nbiny  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
@@ -1480,7 +1466,7 @@
 
       gparams%nu       = nu
       gparams%kappa    = kappa
-      gparams%bvfreq   = bnfreq
+      gparams%bvfreq   = bvfreq
       gparams%rotf     = 2*omegaz
 
       tmp = 1.0_GP/REAL(nx*ny*nz,KIND=GP)
@@ -1522,8 +1508,9 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
 
 
         ! Do analysis:
+        nbins(1) = nbinx ; nbins(2) = nbiny
         CALL DoVoigt(vx,vy,vz,th,istat(it),gparams,odir,planio,C1,C2,C3, &
-                     R1,R2,R3,R4,ftype,filtparam)
+                     R1,R2,R3,R4,ftype,filtparam,nbins)
 
 
       ENDDO ! end, it-loop
@@ -1531,7 +1518,7 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
 
       CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 !
-! End of COMPI3D
+! End of VOIGT
 
       CALL GTFree(ihcpu1)
       CALL GTFree(ihomp1)
@@ -1612,7 +1599,7 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
       DEALLOCATE( Rb1,Rb2,Rb3 )
       DEALLOCATE( Rj1,Rj2,Rj3 )
 #endif
-      END PROGRAM COMPI3D
+      END PROGRAM VOIGT3D
 
 
       SUBROUTINE EigenValMax(S11,S12,S13,S22,S23,lamb)
@@ -2285,7 +2272,7 @@ endif
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: S11,S12,S13,S22,S23,S33
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: diss
       REAL   (KIND=GP), INTENT   (IN)                             :: ktmin,ktmax
-      REAL   (KIND=GP)                                            :: ktmin2,ktmax2,tmp
+      REAL   (KIND=GP)                                            :: tmp
 !
       INTEGER         , INTENT   (IN)                             :: btrunc,inorm
       INTEGER                                                     :: i,j,k
@@ -2657,8 +2644,8 @@ endif
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-      SUBROUTINE DoVoigt(vx_in,vy_in,vz_in,th_in,indtime,odir,planio,C1,C2,C3, &
-                         R1,R2,R3,R4,ftype,alpha)
+      SUBROUTINE DoVoigt(vx_in,vy_in,vz_in,th_in,indtime,gparams,odir,planio,C1,C2,C3, &
+                      R1,R2,R3,R4,ftype,alpha,nbins)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -2693,6 +2680,7 @@ endif
       USE iovar
       USE filefmt
       USE boxsize
+      USE voigt_params
 
       IMPLICIT NONE
 
@@ -2703,18 +2691,34 @@ endif
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2,R3,R4
       REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: ommag,Rig
       REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: dissp,dissv
+      REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: r5,R6
       REAL   (KIND=GP), INTENT   (IN)                            :: alpha
       DOUBLE PRECISION                                           :: Ek(nmax/2+1)
       TYPE(IOPLAN)    , INTENT   (IN)                            :: planio
-      TYPE(GParamType), INTENT   (IN)                            :: gparams
+      TYPE(GVoigtParamType), INTENT   (IN)                       :: gparams
       LOGICAL                                                    :: bexist
+      INTEGER         , INTENT   (IN)                            :: indtime
+      INTEGER         , INTENT   (IN)                            :: nbins(2)
       INTEGER         , INTENT   (IN)                            :: ftype
-      INTEGER                                                    :: i,inorm,itypeRi,j,nn,n
+      INTEGER                                                    :: btrunc
+      INTEGER                                                    :: i,inorm,itypeRi,j,k,knz,nn,n
+      REAL   (KIND=GP)                                           :: fact,fmin(2),fmax(2),xnorm,xnormi,xnormn
+      REAL   (KIND=GP)                                           :: omegax,omegay,omegaz
+      REAL   (KIND=GP)                                           :: ktmin,ktmax
+      REAL   (KIND=GP)                                           :: av(100),sk(100),ku(100),g5(100),w6(100)
+      REAL   (KIND=GP)                                           :: s2,s3,s4,s5,s6
+
       CHARACTER(len=1024), INTENT   (IN)                         :: odir
       CHARACTER(len=1024)                                        :: fnout
       CHARACTER(len=128)                                         :: hdrfmt, rowfmt
       CHARACTER(len=16)                                          :: sfld(100)
 !!    CHARACTER(len=64)                                          :: sext
+
+      btrunc = 0
+      ktmin  = 0.0
+      ktmax  = 0.0
+
+      knz    = kend - ksta + 1
 
       ! Create format for statistical data:
       WRITE(rowfmt,'(A, I4, A)') '(I4,',n,'(2X,E14.6))'
@@ -2743,7 +2747,7 @@ endif
       inorm = 1;
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      CALL compute_dissv(vx,vy,vz,btrunc,ktmin,ktmax,inorm,ctmp,vtmp, &
+      CALL compute_dissv(vx,vy,vz,btrunc,ktmin,ktmax,inorm,C1,C2, &
                   R1,R2,R3,R4,R5,R6,dissv)
       dissv = dissv * (2.0*gparams%nu)
       CALL io_write(1,odir,'dissv',ext,planio,dissv)
@@ -2751,13 +2755,6 @@ endif
       n = n + 1; sfld(n) = 'dissv' 
       CALL skewflat(dissv,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
       CALL dopdfr(dissv ,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
-
-!     ! fnout = trim(odir) // '/' // 'jpdf_pv_dissv_log00.' // ext // '.txt'
-!     ! CALL dojpdfr(pv,'PV',dissv,'dissv',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
-!     ! fnout = trim(odir) // '/' // 'jpdf_pv_Ri_log00.' // ext // '.txt'
-!     ! CALL dojpdfr(pv,'PV',dissv,'Ri',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
-!     ! fnout = trim(odir) // '/' // 'jpdf_Ri_dissv_log00.' // ext // '.txt'
-!     ! CALL dojpdfr(Ri,'Ri',pv,'PV',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
 
 #ifdef SCALAR_
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -2771,7 +2768,7 @@ endif
 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      CALL compute_dissp(th,ctmp,R1,R2,R3,dissp)
+      CALL compute_dissp(th,C1,R1,R2,R3,dissp)
       dissp = dissp * gparams%kappa
       CALL io_write(1,odir,'dissp',ext,planio,dissp)
       fnout = trim(odir) // '/' // 'dissppdf.' // ext // '.txt'
