@@ -2787,6 +2787,11 @@ endif
       n = n + 1; sfld(n) = 'Rig' 
       CALL skewflat(Rig,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
       CALL dopdfr(Rig,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+
+      fnout = trim(odir) // '/' // 'jpdf_dissv_Ri_log00.' // ext // '.txt'
+      CALL dojpdfr(dissv,'dissv',Rig,'Rig',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+      fnout = trim(odir) // '/' // 'jpdf_dissp_Ri_log00.' // ext // '.txt'
+      CALL dojpdfr(dissp,'dissp',Rig,'Rig',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
 #endif
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
