@@ -2543,6 +2543,79 @@ endif
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+      SUBROUTINE compute_bflux(vz,th,bvfreq,C1,R1,bf)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Computes the real point-wise buoyancy flux:
+!       N w' theta'
+
+! Parameters
+!     vz,th: compled input field
+!     bvfreq: Brunt-Vaisalla frequency
+!     C1   : complex temp array
+!     R1   : real temp array
+!     bf   : real buoyancy flux field, returned
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend) :: vz,th
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: C1
+      REAL   (KIND=GP), INTENT   (IN)                             :: bvfreq
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: R1
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: bf
+      REAL   (KIND=GP)                                            :: tmp 
+!
+      INTEGER                                                     :: i,j,k
+      tmp  = 1.0_GP/ &
+            (REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP))**2
+
+      ! Compute buoyancy flux
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+           DO j = 1,ny
+              DO k = 1,nz
+                 C1(k,j,i) = vz(k,j,i)
+              END DO
+           END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,C1,bf,MPI_COMM_WORLD)
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+           DO j = 1,ny
+              DO k = 1,nz
+                 C1(k,j,i) = th(k,j,i)
+              END DO
+           END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+          DO j = 1,ny
+            DO i = 1,nx
+              bf(i,j,k) = bvfreq * bf(i,j,k) * R1(i,j,k)* tmp
+            ENDDO
+          ENDDO
+        ENDDO
+
+      RETURN
+      END SUBROUTINE compute_bflux
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
       SUBROUTINE compute_Rig(vx,vy,vz,th,bvfreq,f,itype,ctmp1,R1,R2,R3,ri)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -2692,7 +2765,7 @@ endif
 
       COMPLEX(KIND=GP),                DIMENSION(nz,ny,ista:iend):: vx,vy,vz,th
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2,R3,R4
-      REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: ommag,Rig
+      REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: ommag,Rig,bf
       REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: dissp,dissv
       REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: r5,R6
       REAL   (KIND=GP), INTENT   (IN)                            :: alpha
@@ -2798,6 +2871,21 @@ endif
       CALL dojpdfr(dissv,'dissv',Rig,'Rig',nx,ny,knz,fnout,nbins,[0,1],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_dissp_Ri_log00.' // ext // '.txt'
       CALL dojpdfr(dissp,'dissp',Rig,'Rig',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      CALL compute_bflux(vz,th, gparams%bvfreq,C1,R1,bf)
+      if ( gparams%prtbin .eq.1 ) then
+      CALL io_write(1,odir,'bf',ext,planio,dissp)
+      endif
+      fnout = trim(odir) // '/' // 'bfpdf.' // ext // '.txt'
+      n = n + 1; sfld(n) = 'bflux' 
+      CALL skewflat(bf,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL dopdfr(bf,nx,ny,knz,fnout,nbins(1),1,fmin(1),fmax(1),0) 
+
+      fnout = trim(odir) // '/' // 'jpdf_dissv_bf_log00.' // ext // '.txt'
+      CALL dojpdfr(dissv,'dissv',bf,'bf',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+      fnout = trim(odir) // '/' // 'jpdf_dissp_bf_log00.' // ext // '.txt'
+      CALL dojpdfr(dissp,'dissp',bf,'bf',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
 #endif
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
