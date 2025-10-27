@@ -169,7 +169,7 @@ CHMHDB_OBJS    = $(CMHDB_OBJS)
 ROTH_OBJS      = $(HD_OBJS) pseudospec3D_rot.o
 PROTH_OBJS     = $(PHD_OBJS) pseudospec3D_rot.o pseudospec3D_prot.o
 MPROTH_OBJS    = $(PROTH_OBJS) 
-BOUSS_OBJS     = $(PROTH_OBJS) pseudospec3D_bouss.o lessgs_mod.o
+BOUSS_OBJS     = $(PROTH_OBJS) pseudospec3D_bouss.o lessgs_mod.o pseudospec3D_filt.o
 MPBOUSS_OBJS   = $(BOUSS_OBJS)
 ROTBOUSS_OBJS  = $(BOUSS_OBJS)
 ROTBOUMHDB_OBJS= $(BOUSS_OBJS) pseudospec3D_mhd.o
@@ -267,15 +267,6 @@ sgsbouss: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o  \
 	   $(GTIMER) $(GUTILS) $(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
-voigt: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o  \
-      $(OBJS) $(GUTILS) $(GIO) $(GREGRID)
-	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
-	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
-	$(COMPILE) $@.f90 -o $@.o
-	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o  \
-	   $(GTIMER) $(GUTILS) $(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
-	$(MAKE) undo
-
 vt:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o \
 	   $(OBJS) $(GIO)
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
@@ -285,13 +276,23 @@ vt:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o \
 	   $(GTIMER) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
-compi:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GMIS) \
+compi:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o \
 	   $(OBJS) $(GIO) $(GUTILS)
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
 	   -I$(GHOME) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o \
 	   $(GTIMER) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
+	$(MAKE) undo
+
+voigt:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o  analysis/voigt_params_mod.o\
+	   $(OBJS) $(GIO) $(GUTILS)
+	$(COMPILE) analysis/voigt_params_mod.f90 -o analysis/voigt_params_mod.o
+	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
+	   -I$(GHOME) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
+	$(COMPILE) $@.f90 -o $@.o
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o \
+	   $(GTIMER) $(OBJS) analysis/voigt_params_mod.o $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
 wv:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) $(GIO) $(GUTILS) 
@@ -407,6 +408,9 @@ struc$(SOLVER):
 
 $(FFTPDIR)/fftp3D.o: 
 	cd $(FFTPDIR) && $(MAKE) COMPILE='$(COMPILE)' CUCOMPILE='$(CUCOMPILE)'
+
+analysis/voigt_params_mod.o:
+	cd $(IOLIB) && $(MAKE) COMPILE='$(COMPILE)' 
 
 $(IOLIB)/binary_io.o:
 	cd $(IOLIB) && $(MAKE) COMPILE='$(COMPILE)' 
