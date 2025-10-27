@@ -2968,6 +2968,16 @@ endif
         CLOSE(2)
       ENDIF
 
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      CALL spectrum(vx,vy,vz,ext,1,1)
+      CALL specpara(vx,vy,vz,ext,1,1)
+      CALL specperp(vx,vy,vz,ext,1,1)
+      CALL spectrsc(th,ext,0)
+      CALL specscpa(th,ext,0)
+      CALL specscpe(th,ext,0)
+      CALL spec2D(vx,vy,vz,ext,odir,1,1)
+      CALL specsc2D(th,ext,odir,0)
+
       RETURN
       END SUBROUTINE DoVoigt
 
