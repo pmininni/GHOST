@@ -2720,10 +2720,6 @@ endif
 
       knz    = kend - ksta + 1
 
-      ! Create format for statistical data:
-      WRITE(rowfmt,'(A, I4, A)') '(I4,',n,'(2X,E14.6))'
-      WRITE(hdrfmt,'(A, I4, A)') '(A,',n,'(2X,A))'
-
       ! Copy input data to new arrays:
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend
@@ -2834,6 +2830,10 @@ endif
       IF ( myrank.EQ.0 ) THEN
         inquire( file='var.txt', exist=bexist )
         
+        ! Create format for statistical data:
+        WRITE(rowfmt,'(A, I4, A)') '(I4,',n,'(2X,E14.6))'
+        WRITE(hdrfmt,'(A, I4, A)') '(A,',n,'(2X,A))'
+
         fnout = trim(odir) // '/' // 'var.txt'
         OPEN(2,file=trim(fnout),position='append')
         if ( .NOT. bexist ) THEN
