@@ -214,7 +214,7 @@ MODULE class_GSGS
        this%kz = this%kz*Dk(3)
      ENDIF
      this%nmax = int(max(this%nx*Dkx,this%ny*Dky,this%nz*Dkz)/Dkk)
-     this%tiny = min(1e-5_GP ,.1_GP/(real(nmax,kind=GP)**2))
+     this%tiny = min(1e-5_GP ,.1_GP/(real(this%nmax,kind=GP)**2))
 
      IF (aniso.eq.1) THEN
 !$omp parallel do if (this%iend-this%ista.ge.nth) private (j,k)
@@ -1009,7 +1009,7 @@ MODULE class_GSGS
       SUBROUTINE GSGS_dealias(this,a,ktr2)
 !-----------------------------------------------------------------
 !
-! Do dealiasing to specified kmaxtr
+! Do dealiasing to specified ktr2
 ! returning projected components into input vector
 !
 ! Parameters
@@ -1023,6 +1023,7 @@ MODULE class_GSGS
         
       CLASS(GSGS)   ,INTENT(INOUT)   :: this  
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: a
+      REAL   (KIND=GP), INTENT(IN)   :: ktr2
       INTEGER :: i,j,k
        
 !$omp parallel do if (this%iend-this%ista.ge.nth) private (j,k)
@@ -1030,7 +1031,7 @@ MODULE class_GSGS
 !$omp parallel do if (this%iend-this%ista.lt.nth) private (k)
             DO j = 2,this%ny
                DO k = 1,this%nz           
-                 IF (kk2(k,j,i).gt.ktr2 .or kk2(k,j,i).lt.this%tiny) THEN
+                 IF (kk2(k,j,i).gt.ktr2 .or. kk2(k,j,i).lt.this%tiny) THEN
                    a(k,j,i) = 0.0_GP      
                  ENDIF
                ENDDO
