@@ -1602,10 +1602,10 @@
 
       
        write(*,*) myrank, ' instantiate sgs  ...'
-      CALL sgs  %GSGS_ctor(MPI_COMM_WORLD, (/nx ,ny ,nz /), (/ista,iend,ksta,kend/), arbsz, (/Dkx,Dky,Dkz/), Dkk, plancr, planrc )
+      CALL sgs  %GSGS_ctor(MPI_COMM_WORLD, (/nx ,ny ,nz /), (/ista,iend,ksta,kend/), arbsz, (/Dkx,Dky,Dkz/), plancr, planrc )
 
        write(*,*) myrank, ' instantiate sgstr  ...'
-      CALL sgstr%GSGS_ctor(commtrunc, (/nxt,nyt,nzt/), (/itsta,itend,ktsta,ktend/), arbsz, (/Dkx,Dky,Dkz/), Dkk, plancrt, planrct )
+      CALL sgstr%GSGS_ctor(commtrunc, (/nxt,nyt,nzt/), (/itsta,itend,ktsta,ktend/), arbsz, (/Dkx,Dky,Dkz/), plancrt, planrct )
       DO k = 1,3
         IF ( doprojection ) THEN
           write(sfpref(k),"(A3,I1,A)") "SGS", k,"_TP"
@@ -1667,7 +1667,6 @@
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,1, C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,1, CT4)
-          CALL sgstr%dealias(CT4,trtraits%ktrunc)
 !         write(*,*) '       lesbouss: x-sgsvtr done.'
           CT4 = CT4 - CT1
 
@@ -1675,7 +1674,6 @@
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,2, C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,2, CT5)
-          CALL sgstr%dealias(CT5,trtraits%ktrunc)
 !         write(*,*) '       lesbouss: y-sgsvtr done.'
 !         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CT5 = CT5 - CT1
@@ -1684,7 +1682,6 @@
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,3, C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,3, CT6)
-          CALL sgstr%dealias(CT6,trtraits%ktrunc)
 !         write(*,*) '       lesbouss: z-sgsvtr done.'
           CT6 = CT6 - CT1
 
