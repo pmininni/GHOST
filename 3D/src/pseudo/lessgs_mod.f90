@@ -22,12 +22,14 @@ MODULE class_GSGS
         INTEGER, DIMENSION(MPI_STATUS_SIZE)          :: istatus_
         INTEGER                                      :: myrank_,nprocs_
         INTEGER                                      :: nx,ny,nz
+        INTEGER                                      :: nmax
         INTEGER                                      :: comm_
         INTEGER                                      :: ista,iend,ksta,kend
         INTEGER                                      :: ierr_, rlen_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:,:) :: kk2
 !       REAL(KIND=GP), TARGET     , ALLOCATABLE, DIMENSION(:,:,:) :: kn2
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: kx,ky,kz
+        REAL(KIND=GP)                                :: tiny
         TYPE(FFTPLAN), POINTER                       :: plancr, planrc
 
         CHARACTER(len=MPI_MAX_ERROR_STRING)          :: serr_
@@ -44,6 +46,7 @@ MODULE class_GSGS
         PROCEDURE,PUBLIC :: prodre3           => GSGS_prodre3
         PROCEDURE,PUBLIC :: advect3           => GSGS_advect3
         PROCEDURE,PUBLIC :: project3          => GSGS_project3
+        PROCEDURE,PUBLIC :: dealias           => GSGS_dealias
       END TYPE GSGS
 
       PRIVATE :: GSGS_derivk3             , GSGS_rotor3
@@ -56,7 +59,7 @@ MODULE class_GSGS
 ! Methods:
   CONTAINS
 
-  SUBROUTINE GSGS_ctor(this, comm, ngrid, bnds, arbsz, Dk, plancr, planrc)
+  SUBROUTINE GSGS_ctor(this, comm, ngrid, bnds, arbsz, Dk, Dkk, plancr, planrc)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Main explicit constructor
@@ -67,6 +70,7 @@ MODULE class_GSGS
 !    bnds    : array of [ista, iend, ksta, kend]
 !    arbsz   : arbitrary size flag (0, 1)
 !    Dk      : array of size 3 giving Fourier shell widths
+!    Dkk     : shell width for speherical spectra
 !    plancr,
 !     planrc : FFT plans
 !-----------------------------------------------------------------
@@ -87,8 +91,9 @@ MODULE class_GSGS
     INTEGER                             :: aniso,i,j,k,n(3)
     INTEGER                             :: ierr
     INTEGER                             :: nprocs, myrank
-    REAL(KIND=GP)    ,INTENT   (IN)     :: Dk(3)
+    REAL(KIND=GP)    ,INTENT   (IN)     :: Dk(3),Dkk
     REAL(KIND=GP)                       :: rmp,rmq,rms
+    REAL(KIND=GP)                       :: Dkx,Dky,Dkz
     TYPE(FFTPLAN)    ,INTENT   (IN), TARGET     :: plancr, planrc
 
     this%comm_   = MPI_COMM_NULL
@@ -199,11 +204,17 @@ MODULE class_GSGS
         END DO
      END DO
 
+     Dkx = Dk(1)
+     Dky = Dk(2)
+     Dkz = Dk(3)
+      
      IF ( arbsz .eq. 1 ) THEN
        this%kx = this%kx*Dk(1)
        this%ky = this%ky*Dk(2)
        this%kz = this%kz*Dk(3)
      ENDIF
+     this%nmax = int(max(this%nx*Dkx,this%ny*Dky,this%nz*Dkz)/Dkk)
+     this%tiny = min(1e-5_GP ,.1_GP/(real(nmax,kind=GP)**2))
 
      IF (aniso.eq.1) THEN
 !$omp parallel do if (this%iend-this%ista.ge.nth) private (j,k)
@@ -993,5 +1004,42 @@ MODULE class_GSGS
 
       RETURN
       END SUBROUTINE GSGS_project3
+
+!*****************************************************************
+      SUBROUTINE GSGS_dealias(this,a,ktr2)
+!-----------------------------------------------------------------
+!
+! Do dealiasing to specified kmaxtr
+! returning projected components into input vector
+!
+! Parameters
+!     a     : input vector field
+!     ktr2  : specified kmax^2
+!       
+      USE fprecision
+!     USE commtypes      
+!$    USE threads
+      IMPLICIT NONE
+        
+      CLASS(GSGS)   ,INTENT(INOUT)   :: this  
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: a
+      INTEGER :: i,j,k
+       
+!$omp parallel do if (this%iend-this%ista.ge.nth) private (j,k)
+         DO i = this%ista,this%iend           
+!$omp parallel do if (this%iend-this%ista.lt.nth) private (k)
+            DO j = 2,this%ny
+               DO k = 1,this%nz           
+                 IF (kk2(k,j,i).gt.ktr2 .or kk2(k,j,i).lt.this%tiny) THEN
+                   a(k,j,i) = 0.0_GP      
+                 ENDIF
+               ENDDO
+            ENDDO
+         ENDDO
+
+      RETURN
+      END SUBROUTINE GSGS_dealias
+
+
   
 END MODULE class_GSGS
