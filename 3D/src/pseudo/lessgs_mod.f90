@@ -1029,7 +1029,7 @@ MODULE class_GSGS
 !$omp parallel do if (this%iend-this%ista.ge.nth) private (j,k)
          DO i = this%ista,this%iend           
 !$omp parallel do if (this%iend-this%ista.lt.nth) private (k)
-            DO j = 2,this%ny
+            DO j = 1,this%ny
                DO k = 1,this%nz           
                  IF (this%kk2(k,j,i).gt.ktr2 .or. this%kk2(k,j,i).lt.this%tiny) THEN
                    a(k,j,i) = 0.0_GP      
