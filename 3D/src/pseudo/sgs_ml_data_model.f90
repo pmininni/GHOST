@@ -71,6 +71,7 @@ MODULE class_GSGSmodel
       TYPE, PUBLIC :: GSGSmodel
         PRIVATE
         ! Member data:
+        LOGICAL                                      :: demean_
         INTEGER, DIMENSION(MPI_STATUS_SIZE)          :: istatus_
         INTEGER                                      :: myrank_,nprocs_
         INTEGER                                      :: nx,ny,nz,ntot
@@ -111,7 +112,7 @@ MODULE class_GSGSmodel
       PRIVATE :: GSGS_compute_model, GSGS_init_infero, GSGS_destroy_infero
       PRIVATE :: GSGS_pack, GSGS_unpack 
       PRIVATE :: GSGS_real_exch_types, GSGS_real_exch
-      PRIVATE :: GSGS_project3
+      PRIVATE :: GSGS_project3, GSGS_demean
 
 
 ! Methods:
@@ -166,6 +167,7 @@ MODULE class_GSGSmodel
     this%iend = bnds(2)
     this%ksta = bnds(3)
     this%kend = bnds(4)
+    this%demean_ = .true. ! do demeaning of SGS on input by default
 
     IF ( comm .NE. MPI_COMM_NULL ) THEN
 
@@ -614,7 +616,7 @@ MODULE class_GSGSmodel
 !           write(*,*) 'gpack: ', gpacktime, ' gunpack: ', gunpacktime
 !   endif
 
-    IF ( this%myrank_ .eq. 0 .and. mod(this%icycle_,10) .eq. 0 ) THEN
+    IF ( this%myrank_ .eq. 0 .and. mod(this%icycle_,1) .eq. 0 ) THEN
       INQUIRE( file='sgs_bench.txt', exist=bexist )
       OPEN(1,file='sgs_bench.txt',position='append')
       IF ( .NOT. bexist ) THEN
@@ -731,6 +733,11 @@ MODULE class_GSGSmodel
 !   write(*,*) 'GSGS_unpack: R1   =', R1  (5,1:10,this%ksta)
 !   write(*,*) 'GSGS_unpack: t_out=', otensor(ivar+1, 5,1:10,this%ksta)
 !   endif
+     
+    ! De-mean if necessary:
+    IF ( this%demean_ ) THEN
+      CALL GSGS_demean(R1)
+    ENDIF
 
     CALL fftp3d_real_to_complex(this%planrc,R1,sgs)
 !   if ( this%myrank_ .eq. 0 ) then
@@ -968,5 +975,52 @@ MODULE class_GSGSmodel
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
+      SUBROUTINE GSGS_demean(this, Rin)
+!-----------------------------------------------------------------
+!
+! Parameters
+!     Riin     : Real field that is demeaned on exit
+!-----------------------------------------------------------------
+
+      USE commtypes
+      IMPLICIT NONE
+
+      class(GSGSmodel), INTENT(INOUT)     :: this
+      REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: Rin
+      REAL(KIND=GP)                       :: sl,sg,tmp
+
+      INTEGER                             :: i,j,k
+
+    tmp = 1.0_GP/ &
+            (real(this%nx,kind=GP)*real(this%ny,kind=GP)*real(this%nz,kind=GP))
+      sl = 0.0_GP
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+        DO j = 1,ny
+          DO i = 1,nx
+!$omp atomic
+            sl = sl + Rin(i,j,k)
+           ENDDO
+         ENDDO
+       ENDDO
+       call MPI_ALLREDUCE(sl,sg,1,GC_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
+       sg = sg * tmp
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+       DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,n
+            DO i = 1,n
+!$omp atomic
+               Rin(i,j,k) = Rin(i,j,k) - sg
+
+            ENDDO
+          ENDDO
+        ENDDO
+
+      END SUBROUTINE GSGS_demean
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 
 END MODULE class_GSGSmodel
