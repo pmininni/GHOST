@@ -2556,7 +2556,6 @@ endif
 !     C1   : complex temp array
 !     R1   : real temp array
 !     bf   : real buoyancy flux field, returned
-!
       USE fprecision
       USE commtypes
       USE kes
@@ -2613,6 +2612,53 @@ endif
 
       RETURN
       END SUBROUTINE compute_bflux
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+      SUBROUTINE compute_fluxRich(Bf,epsv,Rf,Gamf)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Computes the real point-wise flux Richardson number, Rf:
+!       Rf   = Bf / (Bf + epsv), and its efficiency:
+!       Gamf = Bf / epsv
+
+! Parameters
+!     Bf   : buoyancy flux
+!     epsv : pointwise dissipation rate
+!     Rf   : flux Richardson number
+!     Gamf : efficiency
+!-----------------------------------------------------------------
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      REAL   (KIND=GP), INTENT   (IN), DIMENSION(nx,ny,ksta:kend) :: Bf,epsv
+      REAL   (KIND=GP), INTENT  (OUT), DIMENSION(nx,ny,ksta:kend) :: Rf,Gamf
+      REAL   (KIND=GP)                                            :: gtiny,tmp 
+!
+      INTEGER                                                     :: i,j,k
+      
+        gtiny = tiny(1.0_GP)
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+          DO j = 1,ny
+            DO i = 1,nx
+              Rf  (i,j,k) = Bf(i,j,k) / (Bf(i,j,k) + epsv(i,j,k) + gtiny)
+              Gamf(i,j,k) = Bf(i,j,k) / (epsv(i,j,k) + gtiny)
+            ENDDO
+          ENDDO
+        ENDDO
+
+      RETURN
+      END SUBROUTINE compute_fluxRich
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
@@ -2765,6 +2811,7 @@ endif
 
       COMPLEX(KIND=GP),                DIMENSION(nz,ny,ista:iend):: vx,vy,vz,th
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2,R3,R4
+      REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: Gamf
       REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: ommag,Rig,bf
       REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: dissp,dissv
       REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: r5,R6
@@ -2782,13 +2829,15 @@ endif
       REAL   (KIND=GP)                                           :: omegax,omegay,omegaz
       REAL   (KIND=GP)                                           :: ktmin,ktmax
       REAL   (KIND=GP)                                           :: av(100),sk(100),ku(100),g5(100),w6(100)
-      REAL   (KIND=GP)                                           :: s2,s3,s4,s5,s6
+      REAL   (KIND=GP)                                           :: s2,s3,s4,s5,s6,tmp
 
       CHARACTER(len=1024), INTENT   (IN)                         :: odir
       CHARACTER(len=1024)                                        :: fnout
       CHARACTER(len=128)                                         :: hdrfmt, rowfmt
       CHARACTER(len=16)                                          :: sfld(100)
 !!    CHARACTER(len=64)                                          :: sext
+
+      tmp    = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
 
       btrunc = 0
       ktmin  = 0.0
@@ -2842,6 +2891,17 @@ endif
       CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
       CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      CALL derivk3(th, C1, 3)  ! z-deriv
+      C1 = C1 * tmp
+      CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+      if ( gparams%prtbin .eq.1 ) then
+      CALL io_write(1,odir,'dthdz',ext,planio,dissp)
+      endif
+      fnout = trim(odir) // '/' // 'dthdzpdf.' // ext // '.txt'
+      n = n + 1; sfld(n) = 'dthdz' 
+      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       CALL compute_dissp(th,C1,R1,R2,R3,dissp)
@@ -2886,6 +2946,21 @@ endif
       CALL dojpdfr(dissv,'dissv',bf,'bf',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_dissp_bf_log00.' // ext // '.txt'
       CALL dojpdfr(dissp,'dissp',bf,'bf',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      CALL compute_fluxRich(bf,v,Rf,Gamf)
+      if ( gparams%prtbin .eq.1 ) then
+      CALL io_write(1,odir,'gamf',ext,planio,dissp)
+      endif
+      fnout = trim(odir) // '/' // 'gamfpdf.' // ext // '.txt'
+      n = n + 1; sfld(n) = 'gamf' 
+      CALL skewflat(Gamf,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL dopdfr(Gamf,nx,ny,knz,fnout,nbins(1),1,fmin(1),fmax(1),0) 
+
+      fnout = trim(odir) // '/' // 'jpdf_dissv_gamf_log00.' // ext // '.txt'
+      CALL dojpdfr(dissv,'dissv',bf,'Gamf',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+      fnout = trim(odir) // '/' // 'jpdf_dissp_gamf_log00.' // ext // '.txt'
+      CALL dojpdfr(dissp,'dissp',gamf,'Gamf',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
 #endif
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -2900,6 +2975,7 @@ endif
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       C1 = vx;
+      C1 = C1 * tmp
       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
       if ( gparams%prtbin .eq.1 ) then
       CALL io_write(1,odir,'rvx',ext,planio,R1)
@@ -2911,6 +2987,7 @@ endif
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       C1 = vz;
+      C1 = C1 * tmp
       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
       if ( gparams%prtbin .eq.1 ) then
       CALL io_write(1,odir,'rvz',ext,planio,R1)
@@ -2921,15 +2998,16 @@ endif
       CALL dopdfr(ommag,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      C1 = vz;
+      CALL derivk3(vz, C1, 3)  ! z-deriv
+      C1 = C1 * tmp
       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
       if ( gparams%prtbin .eq.1 ) then
-      CALL io_write(1,odir,'rvz',ext,planio,R1)
+      CALL io_write(1,odir,'rdvzdz',ext,planio,R1)
       endif
-      fnout = trim(odir) // '/' // 'vzpdf.' // ext // '.txt'
-      n = n + 1; sfld(n) = 'vz' 
+      fnout = trim(odir) // '/' // 'dvzdzpdf.' // ext // '.txt'
+      n = n + 1; sfld(n) = 'dvzdz' 
       CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
-      CALL dopdfr(ommag,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
 
 
