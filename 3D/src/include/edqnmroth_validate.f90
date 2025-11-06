@@ -10,7 +10,7 @@
         STOP
       ENDIF
      
-      IF ( (abs(omegax).gt.tiny).or.(abs(omegay).gt.tiny ) ) THEN
+      IF ( (abs(omegax).gt.tinyd).or.(abs(omegay).gt.tinyd ) ) THEN
         IF (myrank.eq.0) THEN
            PRINT *,'This solver has rotation only in the z-direction.'
            PRINT *,'Please set omegax and omegay = 0, or remove them'

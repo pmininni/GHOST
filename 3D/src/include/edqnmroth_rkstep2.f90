@@ -53,7 +53,7 @@
          DO i = ista,iend 
          DO j = 1,n
          DO k = 1,n
-            IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
+            IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tinyd)) THEN
                ki = int(sqrt(kk2(k,j,i)) + 0.501)
                vx(k,j,i) = C1(k,j,i)+dt*((nu+tve(ki))*vx(k,j,i)+C7(k,j,i) &
               +tvh(ki)*C5(k,j,i)+fx(k,j,i))*rmp

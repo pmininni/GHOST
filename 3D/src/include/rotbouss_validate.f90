@@ -2,7 +2,7 @@
 ! are compatible with the solver used. If empty, the solver is
 ! compatible with all possible configurations of GHOST.
 
-      IF ( (abs(omegax).gt.tinyf).or.(abs(omegay).gt.tinyf ) ) THEN
+      IF ( (abs(omegax).gt.tinydf).or.(abs(omegay).gt.tinydf ) ) THEN
         IF (myrank.eq.0) THEN
            PRINT *,'This solver has rotation only in the z-direction.'
            PRINT *,'Please set omegax and omegay = 0, or remove them'

@@ -48,7 +48,7 @@
                sz (k,j,i) = 0.0_GP
                rho(k,j,i) = 0.0_GP
                th (k,j,i) = 0.0_GP
-!           ELSE IF (kn2(k,j,i).lt.tiny) THEN
+!           ELSE IF (kn2(k,j,i).lt.tinyd) THEN
 !              sx (k,j,i) = 0.0_GP
 !              sy (k,j,i) = 0.0_GP
 !              sz (k,j,i) = 0.0_GP

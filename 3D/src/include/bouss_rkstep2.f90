@@ -49,7 +49,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,ny
          DO k = 1,nz
-            IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
+            IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tinyd)) THEN
                vx(k,j,i) = C1 (k,j,i)+dt*(nu   *vx(k,j,i)+C7(k,j,i) &
               +fx(k,j,i))*rmp
                vy(k,j,i) = C2 (k,j,i)+dt*(nu   *vy(k,j,i)+C8(k,j,i) &
@@ -63,7 +63,7 @@
                vy(k,j,i) = 0.0_GP
                vz(k,j,i) = 0.0_GP
                th(k,j,i) = 0.0_GP
-            ELSE IF (kn2(k,j,i).lt.tiny) THEN
+            ELSE IF (kn2(k,j,i).lt.tinyd) THEN
                vx(k,j,i) = 0.0_GP
                vy(k,j,i) = 0.0_GP
                vz(k,j,i) = 0.0_GP
@@ -80,7 +80,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,ny
          DO k = 1,nz
-            IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
+            IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tinyd)) THEN
                vx(k,j,i) = C1 (k,j,i)+dt*(nu   *vx(k,j,i)+C7(k,j,i) &
               +fx(k,j,i))*rmp * Hvinv(k,j,i)
                vy(k,j,i) = C2 (k,j,i)+dt*(nu   *vy(k,j,i)+C8(k,j,i) &
@@ -94,7 +94,7 @@
                vy(k,j,i) = 0.0_GP
                vz(k,j,i) = 0.0_GP
                th(k,j,i) = 0.0_GP
-            ELSE IF (kn2(k,j,i).lt.tiny) THEN
+            ELSE IF (kn2(k,j,i).lt.tinyd) THEN
                vx(k,j,i) = 0.0_GP
                vy(k,j,i) = 0.0_GP
                vz(k,j,i) = 0.0_GP
@@ -138,7 +138,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,ny
              DO k = 1,nz
-              IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
+              IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tinyd)) THEN
                  C1 (k,j,i) = C1 (k,j,i)+C7(k,j,i)
                  C2 (k,j,i) = C2 (k,j,i)+C8(k,j,i)
                  C3 (k,j,i) = C3 (k,j,i)+C4(k,j,i)

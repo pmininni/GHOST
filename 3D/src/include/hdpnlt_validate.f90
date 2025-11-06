@@ -15,7 +15,7 @@
         STOP
       ENDIF
 
-      IF ((u0.lt.tiny).or.(vparam8.lt.tiny)) THEN
+      IF ((u0.lt.tinyd).or.(vparam8.lt.tinyd)) THEN
         IF (myrank.eq.0) THEN
            PRINT *,'Penalty requires setting a mean velocity (u0),'
            PRINT *,'and a rate at which the flow mean velocity is'
