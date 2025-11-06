@@ -56,7 +56,7 @@
   MODULE ali
       USE fprecision
       REAL(KIND=GP) :: kmax
-      REAL(KIND=GP) :: tiny
+      REAL(KIND=GP) :: tinyd
       REAL(KIND=GP) :: tinyf
       SAVE
 
