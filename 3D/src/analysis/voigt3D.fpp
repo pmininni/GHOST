@@ -94,7 +94,7 @@
 !
 ! Temporal data storage arrays
 
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C1,C2,C3
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C1,C2,C3,C4
 #ifdef VELOC_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M1,M2,M3
 #endif
@@ -479,6 +479,7 @@
 
       ALLOCATE( C1(nz,ny,ista:iend),  C2(nz,ny,ista:iend) )
       ALLOCATE( C3(nz,ny,ista:iend) )
+      ALLOCATE( C4(nz,ny,ista:iend) )
       ALLOCATE( th (nz,ny,ista:iend) )
 #if defined(VELOC_) || defined(ADVECT_)
       ALLOCATE( vx(nz,ny,ista:iend) )
@@ -1512,8 +1513,9 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
 
         ! Do analysis:
         nbins(1) = nbinx ; nbins(2) = nbiny
-        CALL DoVoigt(vx,vy,vz,th,istat(it),gparams,odir,planio,C1,C2,C3, &
-                     R1,R2,R3,R4,ftype,filtparam,nbins)
+        CALL DoVoigt(vx,vy,vz,th,istat(it),gparams,odir,planio, &
+                     C1,C2,C3, C4,R1,R2,R3,R4, &
+                     ftype,filtparam,nbins)
 
 
       ENDDO ! end, it-loop
@@ -1536,6 +1538,7 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
       DEALLOCATE( R1,R2,R3,R4,R5,R6,R7,R8,R9,R10 )
 
       DEALLOCATE( C1,C2 )
+      DEALLOCATE( C3,C4 )
       DEALLOCATE( kx,ky,kz )
       IF (anis.eq.1) THEN
          DEALLOCATE( kk2 )
@@ -2765,8 +2768,9 @@ endif
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-      SUBROUTINE DoVoigt(vx_in,vy_in,vz_in,th_in,indtime,gparams,odir,planio,C1,C2,C3, &
-                      R1,R2,R3,R4,ftype,alpha,nbins)
+      SUBROUTINE DoVoigt(vx_in,vy_in,vz_in,th_in,indtime, &
+                          gparams,odir,planio,C1,C2,C3,C4, &
+                          R1,R2,R3,R4,ftype,alpha,nbins)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -2806,7 +2810,7 @@ endif
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend):: vx_in,vy_in,vz_in,th_in
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: C1,C2,C3
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: C1,C2,C3,C4
 
       COMPLEX(KIND=GP),                DIMENSION(nz,ny,ista:iend):: vx,vy,vz,th
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2,R3,R4
@@ -3046,6 +3050,7 @@ endif
       ENDIF
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !  ... energies:
       CALL spectrum(vx,vy,vz,ext,1,1)
       CALL specpara(vx,vy,vz,ext,1,1)
       CALL specperp(vx,vy,vz,ext,1,1)
@@ -3056,6 +3061,21 @@ endif
       CALL specscpe(th,ext,0)
       CALL specsc2D(th,ext,odir,0)
 #endif
+      !  ... transfers:
+      CALL nonlhd3(vx,vy,vz,C1,1)
+      CALL nonlhd3(vx,vy,vz,C2,2)
+      CALL nonlhd3(vx,vy,vz,C3,3)
+      CALL advect3(vx,vy,vz,th,C4)
+
+      CALL entrans (vx,vy,vz,C1,C2,C3,ext,1)
+      CALL entpara (vx,vy,vz,C1,C2,C3,ext,1)
+      CALL entperp (vx,vy,vz,C1,C2,C3,ext,1)
+      CALL heltrans(vx,vy,vz,C1,C2,C3,ext,1)
+      CALL heltpara(vx,vy,vz,C1,C2,C3,ext,1)
+      CALL heltperp(vx,vy,vz,C1,C2,C3,ext,1)
+      CALL sctrans (th,C4,ext,0)
+      CALL sctpara (th,C4,ext,0)
+      CALL sctperp (th,C4,ext,0)
 
       RETURN
       END SUBROUTINE DoVoigt
