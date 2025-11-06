@@ -600,10 +600,10 @@
       REAL(KIND=GP)                 :: csq, tmp1, tmp2, tmp3, vsq
       DOUBLE PRECISION              :: tot_ekin,tot_eint,tot_mass,tot_mach
       DOUBLE PRECISION              :: tot_c,tot_v
-      DOUBLE PRECISION              :: tiny,v2,vloc(5),vtot(5)
+      DOUBLE PRECISION              :: gtiny,v2,vloc(5),vtot(5)
       INTEGER                       :: i,j,k
 
-      tiny = 100.0*epsilon(tot_mach)
+      gtiny = 100.0*epsilon(tot_mach)
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
@@ -641,7 +641,7 @@
                          r2(i,j,k)*r2(i,j,k)   + &
                          r3(i,j,k)*r3(i,j,k) 
                vsq     = v2 * tmp2
-               csq     = gam1*(gam1+1.0_GP) * r5(i,j,k) / (r4(i,j,k)+tiny)
+               csq     = gam1*(gam1+1.0_GP) * r5(i,j,k) / (r4(i,j,k)+gtiny)
                vloc(1) = vloc(1) + (r4(i,j,k) * v2 * tmp3)
                vloc(2) = vloc(2) + (r5(i,j,k)*tmp1)
                vloc(3) = vloc(3) + (r4(i,j,k)*tmp1)
@@ -665,7 +665,7 @@
       tot_mass = vtot(3)
       tot_v    = sqrt(vtot(4))
       tot_c    = sqrt(vtot(5))
-      tot_mach = tot_v/(tot_c+tiny)
+      tot_mach = tot_v/(tot_c+gtiny)
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='compi_massenergy.txt',position='append')
