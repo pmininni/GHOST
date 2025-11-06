@@ -48,7 +48,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,ny
             DO k = 1,nz
-               IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
+               IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tinyd)) THEN
                   tmp = 1./(1.+alp**2*kk2(k,j,i))
                   d(k,j,i) = a(k,j,i)*tmp
                   e(k,j,i) = b(k,j,i)*tmp
@@ -95,7 +95,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,ny
             DO k = 1,nz
-               IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
+               IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tinyd)) THEN
                   tmp = 1./(1.+alp**2*kk2(k,j,i))
                   b(k,j,i) = a(k,j,i)*tmp
                ELSE

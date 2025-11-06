@@ -1362,8 +1362,8 @@
 ! Initializes arrays and constants for the pseudospectral method
 
 ! Some constants for the FFT
-!     kmax: maximum truncation for dealiasing
-!     tiny: minimum truncation for dealiasing
+!     kmax  : maximum truncation for dealiasing
+!     tinyd : minimum truncation for dealiasing
 
       kmax =     1.0_GP/9.0_GP
       nmax =     int(max(nx*Dkx,ny*Dky,nz*Dkz)/Dkk)
@@ -1374,7 +1374,7 @@
 #ifdef EDQNM_
       kmax = (real(n,kind=GP)/2.0_GP-0.5_GP)**2 !!!!!! CHECK !!!!!!!
 #endif
-      tiny  = min(1e-5_GP,.1_GP/real(nmax,kind=GP))
+      tinyd = min(1e-5_GP,.1_GP/real(nmax,kind=GP))
       tinyf = min(1e-15_GP,.1_GP/real(nmax,kind=GP))
 
 ! Builds arrays with the wavenumbers and the 
@@ -1796,7 +1796,7 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
         cmag = cmag + w(j)*w(j)
       ENDDO
       cmag = sqrt(cmag) 
-      IF ( cmag.GT.tiny ) cmag = 1.0_GP/cmag
+      IF ( cmag.GT.tiny(1.0_GP) ) cmag = 1.0_GP/cmag
       DO j = 1,3
         w(j) = w(j)*cmag
       ENDDO
@@ -1838,7 +1838,7 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
         ENDDO
       ENDDO
 
-      IF ( fmax .LT. tiny ) THEN
+      IF ( fmax .LT. tiny(fmax) ) THEN
         GetRank = 0 ! e-value has multiplicity three
         RETURN
       ENDIF
@@ -1860,7 +1860,7 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
 
       ! scale row 1 to generate a 1-valued pivot:
       fmaxi = 0.0_GP
-      IF ( abs(m(1,maxcol)).GT.tiny ) fmaxi = 1.0_GP / m(1,maxcol)
+      IF ( abs(m(1,maxcol)).GT.tiny(fmaxi) ) fmaxi = 1.0_GP / m(1,maxcol)
       m(1,1) = m(1,1)*fmaxi
       m(1,2) = m(1,2)*fmaxi
       m(1,3) = m(1,3)*fmaxi
@@ -1906,7 +1906,7 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
         ENDDO
       ENDDO
 
-      IF ( fmax .lt. tiny ) THEN
+      IF ( fmax .lt. tiny(fmax) ) THEN
         GetRank = 1 ! e-value has multiplicity 2
         RETURN
       ENDIF
@@ -1923,7 +1923,7 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
 
       ! scale row 1 to generate a 1-vaued point:
       fmaxi = 0.0_GP
-      IF ( abs(m(2,maxcol)).GT.tiny ) fmaxi = 1.0_GP / m(2,maxcol)
+      IF ( abs(m(2,maxcol)).GT.tiny(fmaxi) ) fmaxi = 1.0_GP / m(2,maxcol)
       m(2,1) = m(2,1)*fmaxi
       m(2,2) = m(2,2)*fmaxi
       m(2,3) = m(2,3)*fmaxi
@@ -2639,11 +2639,10 @@ endif
 !$    USE threads
       IMPLICIT NONE
 
-      REAL   (KIND=GP), INTENT   (IN), DIMENSION(nx,ny,ksta:kend) :: Bf,epsv
-      REAL   (KIND=GP), INTENT  (OUT), DIMENSION(nx,ny,ksta:kend) :: Rf,Gamf
-      REAL   (KIND=GP)                                            :: gtiny,tmp 
-!
-      INTEGER                                                     :: i,j,k
+      REAL   (KIND=GP), INTENT (IN), DIMENSION(nx,ny,ksta:kend) :: Bf,epsv
+      REAL   (KIND=GP), INTENT(OUT), DIMENSION(nx,ny,ksta:kend) :: Rf,Gamf
+      REAL   (KIND=GP)                                          :: gtiny,tmp
+      INTEGER                                                   :: i,j,k
       
         gtiny = tiny(1.0_GP)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -2811,7 +2810,7 @@ endif
 
       COMPLEX(KIND=GP),                DIMENSION(nz,ny,ista:iend):: vx,vy,vz,th
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2,R3,R4
-      REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: Gamf
+      REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: Gamf,Rf
       REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: ommag,Rig,bf
       REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: dissp,dissv
       REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: r5,R6
@@ -2948,7 +2947,7 @@ endif
       CALL dojpdfr(dissp,'dissp',bf,'bf',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      CALL compute_fluxRich(bf,v,Rf,Gamf)
+      CALL compute_fluxRich(bf,dissv,Rf,Gamf)
       if ( gparams%prtbin .eq.1 ) then
       CALL io_write(1,odir,'gamf',ext,planio,dissp)
       endif

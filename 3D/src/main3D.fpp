@@ -1744,8 +1744,8 @@
 ! Initializes arrays and constants for the pseudospectral method
 
 ! Some constants for the FFT
-!     kmax: maximum truncation for dealiasing
-!     tiny: minimum truncation for dealiasing
+!     kmax : maximum truncation for dealiasing
+!     tinyd: minimum truncation for dealiasing
 
       kmax =     1.0_GP/9.0_GP
       nmax =     int(max(nx*Dkx,ny*Dky,nz*Dkz)/Dkk)
@@ -1756,7 +1756,7 @@
 #ifdef EDQNM_
       kmax = (real(n,kind=GP)/2.0_GP-0.5_GP)**2
 #endif
-      tiny  = min(1e-5_GP ,.1_GP/(real(nmax,kind=GP)**2))
+      tinyd = min(1e-5_GP ,.1_GP/(real(nmax,kind=GP)**2))
       tinyf = min(1e-15_GP,.1_GP/(real(nmax,kind=GP)**2))
 
 ! Builds arrays with the wavenumbers and the

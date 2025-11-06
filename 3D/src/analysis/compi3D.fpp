@@ -1344,8 +1344,8 @@
       jpdf   = 3
       nbinx  = 100
       nbiny  = 100
-      ktmin  = tiny
-      ktmax  = tiny
+      ktmin  = 0
+      ktmax  = 0
 
 
       IF (myrank.eq.0) THEN
@@ -1389,8 +1389,8 @@ write(*,*)'main: compi.inp read.'
 ! Initializes arrays and constants for the pseudospectral method
 
 ! Some constants for the FFT
-!     kmax: maximum truncation for dealiasing
-!     tiny: minimum truncation for dealiasing
+!     kmax : maximum truncation for dealiasing
+!     tinyd: minimum truncation for dealiasing
 
       kmax =     1.0_GP/9.0_GP
       nmax =     int(max(nx*Dkx,ny*Dky,nz*Dkz)/Dkk)
@@ -1401,7 +1401,7 @@ write(*,*)'main: compi.inp read.'
 #ifdef EDQNM_
       kmax = (real(n,kind=GP)/2.0_GP-0.5_GP)**2 !!!!!! CHECK !!!!!!!
 #endif
-      tiny  = min(1e-5_GP,.1_GP/real(nmax,kind=GP))
+      tinyd = min(1e-5_GP,.1_GP/real(nmax,kind=GP))
       tinyf = min(1e-15_GP,.1_GP/real(nmax,kind=GP))
 
 ! Builds arrays with the wavenumbers and the 
@@ -1839,7 +1839,7 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
         cmag = cmag + w(j)*w(j)
       ENDDO
       cmag = sqrt(cmag) 
-      IF ( cmag.GT.tiny ) cmag = 1.0_GP/cmag
+      IF ( cmag.GT.tiny(cmag) ) cmag = 1.0_GP/cmag
       DO j = 1,3
         w(j) = w(j)*cmag
       ENDDO
@@ -1881,7 +1881,7 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
         ENDDO
       ENDDO
 
-      IF ( fmax .LT. tiny ) THEN
+      IF ( fmax .LT. tiny(fmax) ) THEN
         GetRank = 0 ! e-value has multiplicity three
         RETURN
       ENDIF
@@ -1903,7 +1903,7 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
 
       ! scale row 1 to generate a 1-valued pivot:
       fmaxi = 0.0_GP
-      IF ( abs(m(1,maxcol)).GT.tiny ) fmaxi = 1.0_GP / m(1,maxcol)
+      IF ( abs(m(1,maxcol)).GT.tiny(fmaxi) ) fmaxi = 1.0_GP / m(1,maxcol)
       m(1,1) = m(1,1)*fmaxi
       m(1,2) = m(1,2)*fmaxi
       m(1,3) = m(1,3)*fmaxi
@@ -1949,7 +1949,7 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
         ENDDO
       ENDDO
 
-      IF ( fmax .lt. tiny ) THEN
+      IF ( fmax .lt. tiny(fmax) ) THEN
         GetRank = 1 ! e-value has multiplicity 2
         RETURN
       ENDIF
@@ -1966,7 +1966,7 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
 
       ! scale row 1 to generate a 1-vaued point:
       fmaxi = 0.0_GP
-      IF ( abs(m(2,maxcol)).GT.tiny ) fmaxi = 1.0_GP / m(2,maxcol)
+      IF ( abs(m(2,maxcol)).GT.tiny(fmaxi) ) fmaxi = 1.0_GP / m(2,maxcol)
       m(2,1) = m(2,1)*fmaxi
       m(2,2) = m(2,2)*fmaxi
       m(2,3) = m(2,3)*fmaxi
