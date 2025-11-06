@@ -19,7 +19,7 @@
 !     aparam3: index of spectral fall off of noise, fixed here
 !     aparam4: noise level as fraction of mag. energy
 
-      IF ( (abs(Lx-Ly).gt.tiny).or.(abs(Ly-Lz).gt.tiny) ) THEN
+      IF ( (abs(Lx-Ly).gt.tinyd).or.(abs(Ly-Lz).gt.tinyd) ) THEN
         IF (myrank.eq.0) &
            PRINT *,'ABC initial conditions require Lx=Ly=Lz'
         STOP

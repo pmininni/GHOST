@@ -15,7 +15,7 @@
 !     kdn : minimum wave number (rounded to next integer)
 !     kup : maximum wave number (rounded to next integer)
 
-      IF ( abs(Lx-Ly).gt.tiny ) THEN
+      IF ( abs(Lx-Ly).gt.tinyd ) THEN
         IF (myrank.eq.0) &
            PRINT *,'TG initial conditions require at least Lx=Ly'
         STOP

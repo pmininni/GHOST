@@ -41,7 +41,7 @@
            fs    (1,j,1) = 0.0_GP
            fs(1,ny-j+2,1) = 0.0_GP
            tmp = kx(1)**2+ky(j)**2
-           IF (tmp.gt.tiny) THEN
+           IF (tmp.gt.tinyd) THEN
               C2    (1,j,1) = -2.0*(omegaz/tmp)*C4(1,j,1) ! balanced pressure
               fs    (1,j,1) = -cdump*kz(k)*C2(1,j,1)     ! theta
               fs(1,ny-j+2,1) = conjg(fs(1,j,1))
@@ -52,7 +52,7 @@
            fs     (k,1,1) = 0.0_GP
            fs(nz-k+2,1,1) = 0.0_GP
            tmp = kx(1)**2+ky(1)**2
-           IF (tmp.gt.tiny) THEN
+           IF (tmp.gt.tinyd) THEN
               C2    (k,1,1) = -2.0*(omegaz/tmp)*C4(k,1,1) ! balanced pressure
               fs    (k,1,1) = -cdump*kz(k)*C2(k,1,1)     ! theta
               fs(nz-k+2,1,1) = conjg(fs(k,1,1))
@@ -64,7 +64,7 @@
               fs          (k,j,1) = 0.0_GP
               fs(nz-k+2,ny-j+2,1) = 0.0_GP
               tmp = kx(1)**2+ky(j)**2
-              IF (tmp.gt.tiny) THEN
+              IF (tmp.gt.tinyd) THEN
                   C2    (k,j,1) = -2.0*(omegaz/tmp)*C4(k,j,1) ! balanced pressure
                   fs    (k,j,1) = -cdump*kz(k)*C2(k,j,1)     ! theta
                   fs(nz-k+2,ny-j+2,1) = conjg(fs(k,j,1))
@@ -77,7 +77,7 @@
               DO k = 1,nz
                 fs(k,j,i) = 0.0_GP
                 tmp = kx(i)**2+ky(j)**2
-                IF (tmp.gt.tiny) THEN
+                IF (tmp.gt.tinyd) THEN
                   C2    (k,j,i) = -2.0*(omegaz/tmp)*C4(k,j,i) ! balanced pressure
                   fs    (k,j,i) = -cdump*kz(k)*C2(k,j,i)     ! theta
                 ENDIF
@@ -92,7 +92,7 @@
                DO k = 1,nz
                  tmp = kx(i)**2+ky(j)**2
                   C2(k,j,i) = 0.0_GP
-                  IF ( tmp.gt.tiny ) then
+                  IF ( tmp.gt.tinyd ) then
                     C2(k,j,i) = -2.0*(omegaz/tmp)*C4(k,j,i) ! balanced pressure
                     fs(k,j,i) = -cdump*kz(k)*C2(k,j,i)     ! theta
                   ENDIF

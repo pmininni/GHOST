@@ -10,7 +10,7 @@
 
 ! Array of vortices for the ABC flow
 
-      IF ( (abs(Lx-Ly).gt.tiny).or.(abs(Lx-Lz).gt.tiny) ) THEN
+      IF ( (abs(Lx-Ly).gt.tinyd).or.(abs(Lx-Lz).gt.tinyd) ) THEN
         IF (myrank.eq.0) &
            PRINT *,'ABC initial conditions require Lx=Ly=Lz'
         STOP

@@ -16,7 +16,7 @@
          fim(1,1,1) = rmq
          DO j = 2,ny/2+1
 
-            IF ((kn2(1,j,1).le.kmax).and.(kn2(1,j,1).ge.tiny)) THEN
+            IF ((kn2(1,j,1).le.kmax).and.(kn2(1,j,1).ge.tinyd)) THEN
                CALL randn_cmplx(rmp,rmq,seed)
                fre(1,j,1) = (rmp+im*rmq)
                fre(1,ny-j+2,1) = conjg(fre(1,j,1))
@@ -33,7 +33,7 @@
          END DO
          DO k = 2,nz/2+1
 
-            IF ((kn2(k,1,1).le.kmax).and.(kn2(k,1,1).ge.tiny)) THEN
+            IF ((kn2(k,1,1).le.kmax).and.(kn2(k,1,1).ge.tinyd)) THEN
                CALL randn_cmplx(rmp,rmq,seed)
                fre(k,1,1) = (rmp+im*rmq)
                fre(nz-k+2,1,1) = conjg(fre(k,1,1))
@@ -51,7 +51,7 @@
          DO j = 2,ny
             DO k = 2,nz/2+1
      
-            IF ((kn2(k,j,1).le.kmax).and.(kn2(k,j,1).ge.tiny)) THEN
+            IF ((kn2(k,j,1).le.kmax).and.(kn2(k,j,1).ge.tinyd)) THEN
                CALL randn_cmplx(rmp,rmq,seed)
                fre(k,j,1) = (rmp+im*rmq)
                fre(nz-k+2,ny-j+2,1) = conjg(fre(k,j,1))
@@ -71,7 +71,7 @@
             DO j = 1,ny
                DO k = 1,nz
 
-               IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
+               IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tinyd)) THEN
                   CALL randn_cmplx(rmp,rmq,seed)
                   fre(k,j,i) = 2*(rmp+im*rmq)
                   CALL randn_cmplx(rmp,rmq,seed)
@@ -89,7 +89,7 @@
             DO j = 1,ny
                DO k = 1,nz
 
-               IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
+               IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tinyd)) THEN
                   CALL randn_cmplx(rmp,rmq,seed)
                   fre(k,j,i) = 2*(rmp+im*rmq)
                   CALL randn_cmplx(rmp,rmq,seed)

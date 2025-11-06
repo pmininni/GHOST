@@ -14,7 +14,7 @@
 !     kdn : minimum wave number
 !     kup : maximum wave number
 
-      IF ( (abs(Lx-Ly).gt.tiny).or.(abs(Lx-Lz).gt.tiny) ) THEN
+      IF ( (abs(Lx-Ly).gt.tinyd).or.(abs(Lx-Lz).gt.tinyd) ) THEN
         IF (myrank.eq.0) &
            PRINT *,'Orszag-Tang initial conditions require Lx=Ly=Lz'
         STOP

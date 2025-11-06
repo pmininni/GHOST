@@ -31,7 +31,7 @@
            fx(1,ny-j+2,1) = 0.0_GP
            fy     (1,j,1) = 0.0_GP
            fy(1,ny-j+2,1) = 0.0_GP
-           IF (ky(j).gt.tiny.and.(kk2(1,j,1).le.kup**2).and.(kk2(1,j,1).ge.kdn**2)) THEN
+           IF (ky(j).gt.tinyd.and.(kk2(1,j,1).le.kup**2).and.(kk2(1,j,1).ge.kdn**2)) THEN
               dump = 1.0_GP  !1./sqrt(kk2(1,j,1))**5
               phase = 2*pi*randu(seed)
               fx     (1,j,1) = (COS(phase)+im*SIN(phase))*dump
@@ -47,7 +47,7 @@
            fx(nz-k+2,1,1) = 0.0_GP
            fy     (k,1,1) = 0.0_GP
            fy(nz-k+2,1,1) = 0.0_GP
-           IF (ky(1).gt.tiny.and.(kk2(k,1,1).le.kup**2).and.(kk2(k,1,1).ge.kdn**2)) THEN
+           IF (ky(1).gt.tinyd.and.(kk2(k,1,1).le.kup**2).and.(kk2(k,1,1).ge.kdn**2)) THEN
               dump = 1.0_GP  !1./sqrt(kk2(k,1,1))**5
               phase = 2*pi*randu(seed)
               fx     (k,1,1) = (COS(phase)+im*SIN(phase))*dump
@@ -79,7 +79,7 @@
               DO k = 1,nz
                 fx(k,j,i) = 0.0_GP
                 fy(k,j,i) = 0.0_GP
-                IF (ky(j).gt.tiny.and.(kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+                IF (ky(j).gt.tinyd.and.(kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
                   dump = 1.0_GP  !1./sqrt(kk2(k,j,i))**5
                   phase = 2*pi*randu(seed)
                   fx(k,j,i) = (COS(phase)+im*SIN(phase))*dump
@@ -96,7 +96,7 @@
                DO k = 1,nz
                  fx(k,j,i) = 0.
                  fy(k,j,i) = 0.
-                 IF (ky(j).gt.tiny.and.(kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+                 IF (ky(j).gt.tinyd.and.(kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
                    dump = 1.0_GP !1./sqrt(kk2(k,j,i))**5
                    phase = 2*pi*randu(seed)
                    fx(k,j,i) = (COS(phase)+im*SIN(phase))*dump

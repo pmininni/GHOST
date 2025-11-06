@@ -14,7 +14,7 @@
 !     kup : maximum wave number (rounded to next integer)
 !     corr: correlation coefficient
 
-      IF ( (abs(Lx-Ly).gt.tiny).or.(abs(Ly-Lz).gt.tiny) ) THEN
+      IF ( (abs(Lx-Ly).gt.tinyd).or.(abs(Ly-Lz).gt.tinyd) ) THEN
         IF (myrank.eq.0) &
            PRINT *,'OT initial conditions require Lx=Ly=Lz'
         STOP

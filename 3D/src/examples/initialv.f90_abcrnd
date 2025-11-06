@@ -19,7 +19,7 @@
 !     vparam3: spectral fall off of noise, fixed here
 !     vparam4: noise amplitude as fraction of energy
 
-      IF ( (anis.eq.1).or.(abs(Lx-Ly).gt.tiny).or.(abs(Lx-Lz).gt.tiny) ) THEN
+      IF ( (anis.eq.1).or.(abs(Lx-Ly).gt.tinyd).or.(abs(Lx-Lz).gt.tinyd) ) THEN
         IF (myrank.eq.0) &
            PRINT *,'These ABC initial conditions require Lx=Ly=Lz=2.pi'
         STOP

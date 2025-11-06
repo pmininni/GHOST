@@ -47,7 +47,7 @@
           dump = 1.0_GP
           phase = 2.0*pi*randu(seed);
           cdump = (cos(phase)+im*sin(phase))*dump
-          IF ( kz(1).GT.tiny ) THEN
+          IF ( kz(1).GT.tinyd ) THEN
           C1    (1,j,1) = cdump
           C1(1,ny-j+2,1) = conjg(C1(1,j,1))
           phase = 2.0*pi*randu(seed);
@@ -75,7 +75,7 @@
           dump = 1.0_GP
           phase = 2.0*pi*randu(seed);
           cdump = (cos(phase)+im*sin(phase))*dump
-          IF ( kz(k).GT.tiny ) THEN
+          IF ( kz(k).GT.tinyd ) THEN
           C1    (k,1,1) = cdump
           C1(nz-k+2,1,1) = conjg(C1(k,1,1))
           phase = 2.0*pi*randu(seed);
@@ -104,7 +104,7 @@
             dump = 1.0_GP
             phase = 2.0*pi*randu(seed);
             cdump = (cos(phase)+im*sin(phase))*dump
-            IF ( kz(k).GT.tiny ) THEN
+            IF ( kz(k).GT.tinyd ) THEN
             C1        (k,j,1) = cdump
             C1(nz-k+2,ny-j+2,1) = conjg(C1(k,j,1))
             phase = 2.0*pi*randu(seed);
@@ -136,7 +136,7 @@
               dump = 1.0_GP              
               phase = 2.0*pi*randu(seed);
               cdump = (cos(phase)+im*sin(phase))*dump
-              IF ( kz(k).GT.tiny ) THEN
+              IF ( kz(k).GT.tinyd ) THEN
               C1(k,j,i) = cdump
               phase = 2.0*pi*randu(seed);
               cdump = (cos(phase)+im*sin(phase))*dump
@@ -164,7 +164,7 @@
               dump = 1.0_GP
               phase = 2.0*pi*randu(seed);
               cdump = (cos(phase)+im*sin(phase))*dump
-              IF ( kz(k).GT.tiny ) THEN
+              IF ( kz(k).GT.tinyd ) THEN
               C1(k,j,i) = cdump
               phase = 2.0*pi*randu(seed);
               cdump = (cos(phase)+im*sin(phase))*dump
@@ -192,7 +192,7 @@
           !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
           phase = 2.0*pi*randu(seed);
           cdump = (cos(phase)+im*sin(phase))*dump
-          IF ( kz(1).GT.tiny ) THEN
+          IF ( kz(1).GT.tinyd ) THEN
           C4    (1,j,1) = cdump
           C4(1,ny-j+2,1) = conjg(C4(1,j,1))
           phase = 2.0*pi*randu(seed);
@@ -219,7 +219,7 @@
           !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
           phase = 2.0*pi*randu(seed);
           cdump = (cos(phase)+im*sin(phase))*dump
-          IF ( kz(k).GT.tiny ) THEN
+          IF ( kz(k).GT.tinyd ) THEN
           C4    (k,1,1) = cdump
           C4(nz-k+2,1,1) = conjg(C4(k,1,1))
           phase = 2.0*pi*randu(seed);
@@ -247,7 +247,7 @@
             !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
             phase = 2.0*pi*randu(seed);
             cdump = (cos(phase)+im*sin(phase))*dump
-            IF ( kz(k).GT.tiny ) THEN
+            IF ( kz(k).GT.tinyd ) THEN
             C4        (k,j,1) = cdump
             C4(nz-k+2,ny-j+2,1) = conjg(C4(k,j,1))
             phase = 2.0*pi*randu(seed);
@@ -278,7 +278,7 @@
               !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
               phase = 2.0*pi*randu(seed);
               cdump = (cos(phase)+im*sin(phase))*dump
-              IF ( kz(k).GT.tiny ) THEN
+              IF ( kz(k).GT.tinyd ) THEN
               C4(k,j,i) = cdump
               phase = 2.0*pi*randu(seed);
               cdump = (cos(phase)+im*sin(phase))*dump
@@ -305,7 +305,7 @@
               !dump = rmq * exp(-rmq**2.0_GP/(2.0_GP*mparam2))
               phase = 2.0*pi*randu(seed);
               cdump = (cos(phase)+im*sin(phase))*dump
-              IF ( kz(k).GT.tiny ) THEN
+              IF ( kz(k).GT.tinyd ) THEN
               C4(k,j,i) = cdump
               phase = 2.0*pi*randu(seed);
               cdump = (cos(phase)+im*sin(phase))*dump
@@ -406,7 +406,7 @@
       DO i = ista,iend
           DO j = 1,ny
              DO k = 1,nz
-                IF ( kk2(k,j,i).GT.tiny ) THEN
+                IF ( kk2(k,j,i).GT.tinyd ) THEN
                 fx(k,j,i) = fparam4*C1(k,j,i)+fparam3*C4(k,j,i)+ &
                             C7(k,j,i)/sqrt(kk2(k,j,i))
                 ENDIF
@@ -426,7 +426,7 @@
       DO i = ista,iend
           DO j = 1,ny
              DO k = 1,nz
-                IF ( kk2(k,j,i).GT.tiny ) THEN
+                IF ( kk2(k,j,i).GT.tinyd ) THEN
                 fy(k,j,i) = fparam4*C2(k,j,i)+fparam3*C5(k,j,i)+ &
                             C7(k,j,i)/sqrt(kk2(k,j,i))
                 ENDIF
@@ -446,7 +446,7 @@
       DO i = ista,iend
           DO j = 1,ny
              DO k = 1,nz
-                IF ( kk2(k,j,i).GT.tiny ) THEN
+                IF ( kk2(k,j,i).GT.tinyd ) THEN
                 fz(k,j,i) = fparam4*C3(k,j,i)+fparam3*C6(k,j,i)+ &
                             C7(k,j,i)/sqrt(kk2(k,j,i))
                 END IF

@@ -50,7 +50,7 @@
          DO j = 1,ny
             DO k = 1,nz
                IF (kn2(k,j,i).LE.kmax) THEN
-                  C1(k,j,i) = C1(k,j,i)/(kk2(k,j,i)+tiny)
+                  C1(k,j,i) = C1(k,j,i)/(kk2(k,j,i)+tinyd)
                   ux(k,j,i) = im*kx(i)*C1(k,j,i)
                   uy(k,j,i) = im*ky(j)*C1(k,j,i)
                   uz(k,j,i) = im*kz(k)*C1(k,j,i)

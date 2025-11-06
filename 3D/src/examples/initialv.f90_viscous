@@ -17,7 +17,7 @@
            DO j = 1,ny
               DO k = 1,nz
 
-              IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) &
+              IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tinyd)) &
               THEN
                  vx(k,j,i) = fx(k,j,i)/(nu*kk2(k,j,i))
                  vy(k,j,i) = fy(k,j,i)/(nu*kk2(k,j,i))

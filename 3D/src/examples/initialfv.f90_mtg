@@ -14,7 +14,7 @@
 !     kup : maximum wave number
 !     f0  : velocity magnitude
 
-      IF ( abs(Lx-Ly).gt.tiny ) THEN
+      IF ( abs(Lx-Ly).gt.tinyd ) THEN
         IF (myrank.eq.0) &
            PRINT *,'TG forcing requires at least Lx=Ly'
         STOP
