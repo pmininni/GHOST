@@ -736,7 +736,7 @@ MODULE class_GSGSmodel
      
     ! De-mean if necessary:
     IF ( this%demean_ ) THEN
-      CALL GSGS_demean(R1)
+      CALL GSGS_demean(this,R1)
     ENDIF
 
     CALL fftp3d_real_to_complex(this%planrc,R1,sgs)
@@ -995,23 +995,23 @@ MODULE class_GSGSmodel
             (real(this%nx,kind=GP)*real(this%ny,kind=GP)*real(this%nz,kind=GP))
       sl = 0.0_GP
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-      DO k = ksta,kend
+      DO k = this%ksta,this%kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-        DO j = 1,ny
-          DO i = 1,nx
+        DO j = 1,this%ny
+          DO i = 1,this%nx
 !$omp atomic
             sl = sl + Rin(i,j,k)
            ENDDO
          ENDDO
        ENDDO
-       call MPI_ALLREDUCE(sl,sg,1,GC_REAL,MPI_SUM,MPI_COMM_WORLD,ierr)
+       call MPI_ALLREDUCE(sl,sg,1,GC_REAL,MPI_SUM,MPI_COMM_WORLD,this%ierr_)
        sg = sg * tmp
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-       DO k = ksta,kend
+       DO k = this%ksta,this%kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,n
-            DO i = 1,n
+         DO j = 1,this%ny
+            DO i = 1,this%nx
 !$omp atomic
                Rin(i,j,k) = Rin(i,j,k) - sg
 
