@@ -773,32 +773,36 @@ MODULE class_GSGSmodel
 
       INTEGER :: ksta,kend
       INTEGER :: irank,krank
-      INTEGER :: itemp1,itemp2
+      INTEGER :: ierr,itemp1,itemp2
+      INTEGER :: szarray(3),subszarray(3),disparray(3)
 
       CALL range(1,n(3),nprocs,myrank,ksta,kend)
+
+      ! Send types:
+      szarray  (1) = n(1); szarray   (2) = n(2); szarray  (3) = n(3)
+      subzarray(1) = n(1); subszarray(2) = n(2); subzarray(3) = kend-ksta+1
+      disparray(1) = 1   ; disparray (2) = 1   ; disparray(3) = ksta
+
+!     MPI_Type_create_subarray(int ndims, const int array_of_sizes[],
+!                              const int array_of_subsizes[],
+!                              const int array_of_starts[], int order,
+!                              MPI_Datatype oldtype, MPI_Datatype *newtype)
       DO irank = 0,nprocs-1
-         CALL block3d(1,n(1),1,n(2),ksta,1,n(1),1,n(2), &
-                     ksta,kend,GC_REAL,itemp1)
-         sndtype(irank) = itemp1
+         MPI_Type_create_subarray(3, szarray, subszarray, disparray, &
+                                  MPI_ORDER_FORTRAN, GC_REAL, & 
+                                  sndtype(irank) ierr)
+  
       END DO
+
+      ! Receive types:
       DO krank = 0,nprocs-1
          CALL range(1,n(3),nprocs,krank,ksta,kend)
-!     imin : the minimum value in the first dimension [IN]
-!     imax : the maximum value in the first dimension [IN]
-!     jmin : the minimum value in the second dimension [IN]
-!     jmax : the maximum value in the second dimension [IN]
-!     kmin : the minimum value in the third dimension [IN]
-!     ista : start value of the block in the first dimension [IN]
-!     iend : end value of the block in the first dimension [IN]
-!     jsta : start value of the block in the second dimension [IN]
-!     jend : end value of the block in the second dimension [IN]
-!     ksta : start value of the block in the third dimension [IN]
-!     kend : end value of the block in the third dimension [IN]
-!     ioldtype: data type of the elements in the block [IN]
-!     inewtype: the derived data type for the block [OUT]
-         CALL block3d(1,n(1),1,n(2),1,1,n(1),1,n(2), &
-                     ksta,kend,GC_REAL,itemp2)
-         rcvtype(krank) = itemp2
+         szarray  (1) = n(1); szarray   (2) = n(2); szarray  (3) = n(3)
+         subzarray(1) = n(1); subszarray(2) = n(2); subzarray(3) = kend-ksta+1
+         disparray(1) = 1   ; disparray (2) = 1   ; disparray(3) = ksta
+         MPI_Type_create_subarray(3, szarray, subszarray, disparray, &
+                                  MPI_ORDER_FORTRAN, GC_REAL, & 
+                                  rcvndtype(irank) ierr)
       END DO
 
       RETURN
