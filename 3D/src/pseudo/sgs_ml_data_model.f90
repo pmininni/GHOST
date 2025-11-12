@@ -667,7 +667,7 @@ MODULE class_GSGSmodel
     tmp = 1.0_GP/ &
             (real(this%nx,kind=GP)*real(this%ny,kind=GP)*real(this%nz,kind=GP))
 
-!   WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' entering...'
+    WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' entering...'
 
 !$omp parallel do if (this%iend-2.ge.nth) private (j,k)
     DO i = this%ista,this%iend
@@ -684,12 +684,12 @@ MODULE class_GSGSmodel
 
     CALL fftp3d_complex_to_real(this%plancr,C1,R1)
 
-!   IF ( this%myrank_ .eq. 0 ) &
-!   WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' fft done'
+    IF ( this%myrank_ .eq. 0 ) &
+    WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' fft done'
 
     CALL GSGS_real_exch(this, R1, ivar, itensor) 
-!   IF ( this%myrank_ .eq. 0 ) &
-!   WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' exchange done'
+    IF ( this%myrank_ .eq. 0 ) &
+    WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' exchange done'
 
     RETURN
   END SUBROUTINE GSGS_pack
@@ -788,14 +788,11 @@ MODULE class_GSGSmodel
 !                              const int array_of_starts[], int order,
 !                              MPI_Datatype oldtype, MPI_Datatype *newtype)
       DO irank = 0,nprocs-1
-         write(*,*) 'GSGS_real_exch_types: sndtype ', irank
          CALL MPI_Type_create_subarray( &
                                   3, szarray, subszarray, disparray, &
                                   MPI_ORDER_FORTRAN, GC_REAL, & 
                                   sndtype(irank), ierr)
          CALL MPI_Type_commit(sndtype(irank), ierr)
-         write(*,*) 'GSGS_real_exch_types: sndtype ',irank, ' done.'
-  
       END DO
 
       ! Receive types:
@@ -804,13 +801,11 @@ MODULE class_GSGSmodel
          szarray   (1) = n(1); szarray   (2) = n(2); szarray   (3) = n(3)
          subszarray(1) = n(1); subszarray(2) = n(2); subszarray(3) = kend-ksta+1
          disparray(1) = 0   ; disparray (2) = 0   ; disparray(3) = ksta-1
-         write(*,*) 'GSGS_real_exch_types: rcvtype ', irank
          CALL MPI_Type_create_subarray( &
                                   3, szarray, subszarray, disparray, &
                                   MPI_ORDER_FORTRAN, GC_REAL, & 
                                   rcvtype(irank), ierr)
          CALL MPI_Type_commit(rcvtype(irank), ierr)
-         write(*,*) 'GSGS_real_exch_types: rcvtype ',irank, ' done.'
       END DO
 
       RETURN
@@ -851,23 +846,23 @@ MODULE class_GSGSmodel
 
             igetFrom = this%myrank_ - irank
             if ( igetFrom .lt. 0 ) igetFrom = igetFrom + this%nprocs_
-!   WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' post IRECV...'
+    WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' post IRECV...'
             CALL MPI_IRECV(t_in(ivar+1,:,:,:),1,this%rcvtype_(igetFrom),igetFrom,      &
                           1,this%comm_,ireq2(irank),this%ierr_)
-!   WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' post done.'
+    WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' post done.'
             IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
               STOP 'GSGS_real_exch: MPI_IRECV failed'
             ENDIF
 
             CALL MPI_ISEND(R1,1,this%sndtype_(isendTo),isendTo, &
                           1,this%comm_,ireq1(irank),this%ierr_)
-!   WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' ISEND done.'
+    WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' ISEND done.'
             IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
               STOP 'GSGS_real_exch: MPI_ISEND failed'
             ENDIF
          enddo
 
-!        WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' Do waits...'
+         WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' Do waits...'
          do istrip=0, nstrip-1
             irank = iproc + istrip
             CALL MPI_WAIT(ireq1(irank),istatus,this%ierr_)
@@ -879,7 +874,7 @@ MODULE class_GSGSmodel
 !     write(*,*) 'GSGS_real_exch: t_in=', t_in(ivar+1, 5,1:10,this%ksta)
 !     endif
 
-!     WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' real_exhange done.'
+      WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' real_exhange done.'
       RETURN
       END SUBROUTINE GSGS_real_exch
 !-----------------------------------------------------------------
