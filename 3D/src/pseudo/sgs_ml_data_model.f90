@@ -805,7 +805,7 @@ MODULE class_GSGSmodel
          CALL MPI_Type_create_subarray( &
                                   3, szarray, subszarray, disparray, &
                                   MPI_ORDER_FORTRAN, GC_REAL, & 
-                                  rcvndtype(irank), ierr)
+                                  rcvtype(irank), ierr)
          CALL MPI_Type_commit(rcvtype(irank), ierr)
       END DO
 
