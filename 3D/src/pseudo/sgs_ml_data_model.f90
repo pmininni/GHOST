@@ -779,16 +779,17 @@ MODULE class_GSGSmodel
       CALL range(1,n(3),nprocs,myrank,ksta,kend)
 
       ! Send types:
-      szarray  (1) = n(1); szarray   (2) = n(2); szarray  (3) = n(3)
-      subzarray(1) = n(1); subszarray(2) = n(2); subzarray(3) = kend-ksta+1
-      disparray(1) = 1   ; disparray (2) = 1   ; disparray(3) = ksta
+      szarray   (1) = n(1); szarray   (2) = n(2); szarray   (3) = n(3)
+      subszarray(1) = n(1); subszarray(2) = n(2); subszarray(3) = kend-ksta+1
+      disparray (1) = 1   ; disparray (2) = 1   ; disparray (3) = ksta
 
 !     MPI_Type_create_subarray(int ndims, const int array_of_sizes[],
 !                              const int array_of_subsizes[],
 !                              const int array_of_starts[], int order,
 !                              MPI_Datatype oldtype, MPI_Datatype *newtype)
       DO irank = 0,nprocs-1
-         MPI_Type_create_subarray(3, szarray, subszarray, disparray, &
+         CALL MPI_Type_create_subarray( &
+                                  3, szarray, subszarray, disparray, &
                                   MPI_ORDER_FORTRAN, GC_REAL, & 
                                   sndtype(irank) ierr)
          CALL MPI_Type_commit(sndtype(irank), ierr)
