@@ -781,7 +781,7 @@ MODULE class_GSGSmodel
       ! Send types:
       szarray   (1) = n(1); szarray   (2) = n(2); szarray   (3) = n(3)
       subszarray(1) = n(1); subszarray(2) = n(2); subszarray(3) = kend-ksta+1
-      disparray (1) = 1   ; disparray (2) = 1   ; disparray (3) = ksta
+      disparray (1) = 0   ; disparray (2) = 0   ; disparray (3) = ksta-1
 
 !     MPI_Type_create_subarray(int ndims, const int array_of_sizes[],
 !                              const int array_of_subsizes[],
@@ -803,7 +803,7 @@ MODULE class_GSGSmodel
          CALL range(1,n(3),nprocs,irank,ksta,kend)
          szarray   (1) = n(1); szarray   (2) = n(2); szarray   (3) = n(3)
          subszarray(1) = n(1); subszarray(2) = n(2); subszarray(3) = kend-ksta+1
-         disparray(1) = 1   ; disparray (2) = 1   ; disparray(3) = ksta
+         disparray(1) = 0   ; disparray (2) = 0   ; disparray(3) = ksta-1
          write(*,*) 'GSGS_real_exch_types: rcvtype ', irank
          CALL MPI_Type_create_subarray( &
                                   3, szarray, subszarray, disparray, &
