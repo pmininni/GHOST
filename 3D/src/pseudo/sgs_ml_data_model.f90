@@ -758,7 +758,7 @@ MODULE class_GSGSmodel
 ! types are used to transpose the matrix during the FFT.
 !
 ! Parameters
-!     n      : the size of the dimensions of the input array [IN]
+!     n      : the size of the entire grid
 !     nprocs : the number of processors [IN]
 !     myrank : the rank of the processor [IN]
 !     sndtype: contains a derived data type for sending [OUT]
@@ -788,11 +788,13 @@ MODULE class_GSGSmodel
 !                              const int array_of_starts[], int order,
 !                              MPI_Datatype oldtype, MPI_Datatype *newtype)
       DO irank = 0,nprocs-1
+         write(*,*) 'GSGS_real_exch_types: sndtype ', irank
          CALL MPI_Type_create_subarray( &
                                   3, szarray, subszarray, disparray, &
                                   MPI_ORDER_FORTRAN, GC_REAL, & 
                                   sndtype(irank), ierr)
          CALL MPI_Type_commit(sndtype(irank), ierr)
+         write(*,*) 'GSGS_real_exch_types: sndtype ',irank, ' done.'
   
       END DO
 
@@ -802,11 +804,13 @@ MODULE class_GSGSmodel
          szarray   (1) = n(1); szarray   (2) = n(2); szarray   (3) = n(3)
          subszarray(1) = n(1); subszarray(2) = n(2); subszarray(3) = kend-ksta+1
          disparray(1) = 1   ; disparray (2) = 1   ; disparray(3) = ksta
+         write(*,*) 'GSGS_real_exch_types: rcvtype ', irank
          CALL MPI_Type_create_subarray( &
                                   3, szarray, subszarray, disparray, &
                                   MPI_ORDER_FORTRAN, GC_REAL, & 
                                   rcvtype(irank), ierr)
          CALL MPI_Type_commit(rcvtype(irank), ierr)
+         write(*,*) 'GSGS_real_exch_types: rcvtype ',irank, ' done.'
       END DO
 
       RETURN
