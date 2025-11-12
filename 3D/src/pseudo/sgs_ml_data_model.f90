@@ -333,7 +333,7 @@ MODULE class_GSGSmodel
 !   CALL fftp3d_destroy_plan(this%planrc)
 
     CALL GSGS_destroy_infero(this)
-
+    
     CALL MPI_Comm_free(this%comm_, this%ierr_)
 
     CALL GTFree(this%hpack_)
@@ -772,7 +772,7 @@ MODULE class_GSGSmodel
       INTEGER, INTENT(IN) :: myrank
 
       INTEGER :: ksta,kend
-      INTEGER :: irank,krank
+      INTEGER :: irank
       INTEGER :: ierr,itemp1,itemp2
       INTEGER :: szarray(3),subszarray(3),disparray(3)
 
@@ -791,18 +791,20 @@ MODULE class_GSGSmodel
          MPI_Type_create_subarray(3, szarray, subszarray, disparray, &
                                   MPI_ORDER_FORTRAN, GC_REAL, & 
                                   sndtype(irank) ierr)
+         CALL MPI_Type_commit(sndtype(irank), ierr)
   
       END DO
 
       ! Receive types:
-      DO krank = 0,nprocs-1
-         CALL range(1,n(3),nprocs,krank,ksta,kend)
+      DO irank = 0,nprocs-1
+         CALL range(1,n(3),nprocs,irank,ksta,kend)
          szarray  (1) = n(1); szarray   (2) = n(2); szarray  (3) = n(3)
          subzarray(1) = n(1); subszarray(2) = n(2); subzarray(3) = kend-ksta+1
          disparray(1) = 1   ; disparray (2) = 1   ; disparray(3) = ksta
          MPI_Type_create_subarray(3, szarray, subszarray, disparray, &
                                   MPI_ORDER_FORTRAN, GC_REAL, & 
                                   rcvndtype(irank) ierr)
+         CALL MPI_Type_commit(rcvtype(irank), ierr)
       END DO
 
       RETURN
