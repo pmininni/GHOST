@@ -225,7 +225,7 @@ GIO            = $(IOLIB)/binary_io.o
 #all: edit $(CONTRIBOBJS) $(GTIMER) $(GUTILS) $(FFTPDIR)/fftp3D.o  \
 #	  $(OBJS) $(GUTILS) $(GIO) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
 all: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o  \
-	  $(OBJS) $(GUTILS) $(GIO) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
+	  $(GIO) $(OBJS) $(GUTILS) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
 
 main: all
 
@@ -384,7 +384,7 @@ undo:
 	 done ; \
 	fi
 
-$(SOLVER): 
+$(SOLVER): $(GIO)
 	$(PREPROCESS) main3D.fpp -o $(SOLVER).f90
 	$(COMPILE) $(SOLVER).f90
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(DO_HYBRID$(P_HYBRID)) \
