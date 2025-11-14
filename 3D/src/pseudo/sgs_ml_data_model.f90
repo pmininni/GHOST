@@ -20,6 +20,8 @@ MODULE class_GSGSmodel
       USE fprecision
       USE commtypes
       USE fftplans
+      USE filefmt
+      USE iovar
       USE gtimer
       USE inferof 
       USE fckit_map_module, only : fckit_map
@@ -62,6 +64,9 @@ MODULE class_GSGSmodel
         CHARACTER(len=1024) :: model_path, model_type
         CHARACTER(len=1024) :: in_name, out_name
         CHARACTER(len=:), ALLOCATABLE :: yaml_config
+        CHARACTER(len=100)  :: odir,idir
+
+        TYPE(IOPLAN), pointer :: planio
 
       END TYPE GSGSmodelTraits
 !-----------------------------------------------------------------
@@ -88,7 +93,7 @@ MODULE class_GSGSmodel
         TYPE(FFTPLAN), POINTER                       :: plancr, planrc
 
         ! Infero data:
-        REAL(c_float), POINTER                       :: t_in_(:,:,:,:)
+        REAL(c_float), POINTER                       :: t_in_ (:,:,:,:)
         REAL(c_float), POINTER                       :: t_out_(:,:,:,:)
         TYPE(C_PTR)                                  :: c_ptr_t_in_
         TYPE(C_PTR)                                  :: c_ptr_t_out_
@@ -113,6 +118,7 @@ MODULE class_GSGSmodel
       PRIVATE :: GSGS_pack, GSGS_unpack 
       PRIVATE :: GSGS_real_exch_types, GSGS_real_exch
       PRIVATE :: GSGS_project3, GSGS_demean
+      PRIVATE :: GSGS_ccopy, GSGS_rcopy
 
 
 ! Methods:
@@ -287,6 +293,7 @@ MODULE class_GSGSmodel
 
     ! Find send/recv types:
     CALL GSGS_real_exch_types(ngrid, this%nprocs_, this%myrank_, &
+                              this%modelTraits_%nchannel, &
                               this%sndtype_, this%rcvtype_)
 
     this%modelTraits_ = modtraits
@@ -535,6 +542,10 @@ MODULE class_GSGSmodel
     INTEGER             :: iret
     DOUBLE PRECISION    :: packtime , unpacktime , inftime
     DOUBLE PRECISION    :: gpacktime, gunpacktime, ginftime
+    REAL(KIND=GP)                            :: tmp
+
+    tmp = 1.0_GP/ &
+            (real(this%nx,kind=GP)*real(this%ny,kind=GP)*real(this%nz,kind=GP))
 
 !   IF ( this%myrank_ .eq. 0 ) THEN
 !   WRITE(*,*) 'GSGS_compute_model: entering...'
@@ -546,16 +557,23 @@ MODULE class_GSGSmodel
     ! Pack model input layer:
     ! shape = ("time", "channel", "x0", "x1", "x2")
     CALL GTStart(this%hpack_)
-    CALL GSGS_pack(this, vx, 0, C1, R1, this%t_in_)
+    CALL GSGS_pack(this, vx, 0, C1, R1, this%t_in_(1,:,:,:))
+
+      ! Write outputs for first cycle:
+      IF ( this%icycle_ .EQ. 0 ) THEN
+        R1 = this%t_in_(1,:,:,this%ksta:this%kend)
+        CALL io_write(1,this%modelTraits_%odir,'vx_check',ext,this%modelTraits_%planio,R1)
+      ENDIF
+
 !     IF ( this%myrank_ .eq. 0 ) &
 !     WRITE(*,*) 'GSGS_compute_model: vx packing done.'
-    CALL GSGS_pack(this, vy, 1, C1, R1, this%t_in_)
+    CALL GSGS_pack(this, vy, 1, C1, R1, this%t_in_(2,:,:,:))
 !     IF ( this%myrank_ .eq. 0 ) &
 !     WRITE(*,*) 'GSGS_compute_model: vy packing done.'
-    CALL GSGS_pack(this, vz, 2, C1, R1, this%t_in_)
+    CALL GSGS_pack(this, vz, 2, C1, R1, this%t_in_(3,:,:,:))
 !     IF ( this%myrank_ .eq. 0 ) &
 !     WRITE(*,*) 'GSGS_compute_model: vz packing done.'
-    CALL GSGS_pack(this, th, 3, C1, R1, this%t_in_)
+    CALL GSGS_pack(this, th, 3, C1, R1, this%t_in_(4,:,:,:))
 !     IF ( this%myrank_ .eq. 0 ) &
 !     WRITE(*,*) 'GSGS_compute_model: th packing done.'
     CALL GTStop(this%hpack_)
@@ -585,6 +603,15 @@ MODULE class_GSGSmodel
     CALL GTStart(this%hunpack_)
 !   WRITE(*,*) 'GSGS_compute_model: unpacking vx... '
     CALL GSGS_unpack(this, this%t_out_, 0, R1, C1)
+ 
+      ! Write outputs for first cycle:
+      IF ( this%icycle_ .EQ. 0 ) THEN
+        CALL GSGS_ccopy(this, C1, C2)
+        C2 = C2 * tmp
+        CALL fftp3d_complex_to_real(this%plancr,C2,R1)
+        CALL io_write(1,this%modelTraits_%odir,'SGS1_check',ext,this%modelTraits_%planio,R1)
+      ENDIF
+
 !   WRITE(*,*) 'GSGS_compute_model: unpacking vy... '
     CALL GSGS_unpack(this, this%t_out_, 1, R1, C2)
 !   WRITE(*,*) 'GSGS_compute_model: unpacking vz... '
@@ -661,7 +688,8 @@ MODULE class_GSGSmodel
     COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: cvar
     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1
     REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
-    REAL(KIND=GP)   , INTENT  (OUT), DIMENSION(this%modelTraits_%nchannel,this%nx,this%ny,this%ksta:this%kend) :: itensor
+!   REAL(KIND=GP)   , INTENT  (OUT), DIMENSION(this%modelTraits_%nchannel,this%nx,this%ny,this%ksta:this%kend) :: itensor
+    REAL(KIND=GP)   , INTENT  (OUT), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: itensor
     REAL(KIND=GP)                            :: tmp
 
     tmp = 1.0_GP/ &
@@ -712,9 +740,9 @@ MODULE class_GSGSmodel
     class(GSGSmodel), INTENT(INOUT)         :: this
     INTEGER         , INTENT   (IN)         :: ivar
     INTEGER                                 :: i, j, k
-    COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: sgs
+    COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: sgs
     REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
-    REAL(KIND=GP)   , INTENT  (OUT), DIMENSION(3, this%nx,this%ny,this%ksta:this%kend) :: otensor
+    REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(3, this%nx,this%ny,this%ksta:this%kend) :: otensor
     REAL(KIND=GP)                            :: tmp
 
     tmp = 1.0_GP/ &
@@ -739,6 +767,10 @@ MODULE class_GSGSmodel
       CALL GSGS_demean(this,R1)
     ENDIF
 
+      IF ( this%icycle_ .EQ. 0 .and. ivar .eq. 0 ) THEN
+        CALL io_write(1,this%modelTraits_%odir,'SGS1_otensor',ext,this%modelTraits_%planio,R1)
+      ENDIF
+
     CALL fftp3d_real_to_complex(this%planrc,R1,sgs)
 !   if ( this%myrank_ .eq. 0 ) then
 !   write(*,*) 'GSGS_unpack: sgs   =', sgs(5,1:10,this%ista)
@@ -750,7 +782,7 @@ MODULE class_GSGSmodel
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-      SUBROUTINE GSGS_real_exch_types(n,nprocs,myrank,sndtype,rcvtype)
+      SUBROUTINE GSGS_real_exch_types(n,nprocs,myrank,nchan,sndtype,rcvtype)
 !-----------------------------------------------------------------
 !
 ! Defines derived data types for sending and receiving 
@@ -761,27 +793,29 @@ MODULE class_GSGSmodel
 !     n      : the size of the entire grid
 !     nprocs : the number of processors [IN]
 !     myrank : the rank of the processor [IN]
+!     nchan  : no. channels
 !     sndtype: contains a derived data type for sending [OUT]
 !     rcvtype: contains a derived data type for receiving [OUT]
 !-----------------------------------------------------------------
       USE commtypes
       IMPLICIT NONE
 
-      INTEGER, INTENT(OUT), DIMENSION(0:nprocs-1) :: sndtype,rcvtype
       INTEGER, INTENT(IN) :: n(3),nprocs
-      INTEGER, INTENT(IN) :: myrank
+      INTEGER, INTENT(IN) :: myrank,nchan
+      INTEGER, INTENT(OUT), DIMENSION(0:nprocs-1) :: sndtype,rcvtype
 
       INTEGER :: ksta,kend
       INTEGER :: irank
-      INTEGER :: ierr,itemp1,itemp2
-      INTEGER :: szarray(3),subszarray(3),disparray(3)
+      INTEGER :: ierr
+      INTEGER :: szarrays(3),subszarrays(3),disparrays(3)
+      INTEGER :: szarrayr(3),subszarrayr(3),disparrayr(3)
 
       CALL range(1,n(3),nprocs,myrank,ksta,kend)
 
       ! Send types:
-      szarray   (1) = n(1); szarray   (2) = n(2); szarray   (3) = n(3)
-      subszarray(1) = n(1); subszarray(2) = n(2); subszarray(3) = kend-ksta+1
-      disparray (1) = 0   ; disparray (2) = 0   ; disparray (3) = ksta-1
+      szarrays    = (/n(1), n(2), n(3)/)
+      subszarrays = (/n(1), n(2), kend-ksta+1/)
+      disparrays  = (/0   , 0   , ksta-1/)
 
 !     MPI_Type_create_subarray(int ndims, const int array_of_sizes[],
 !                              const int array_of_subsizes[],
@@ -789,20 +823,28 @@ MODULE class_GSGSmodel
 !                              MPI_Datatype oldtype, MPI_Datatype *newtype)
       DO irank = 0,nprocs-1
          CALL MPI_Type_create_subarray( &
-                                  3, szarray, subszarray, disparray, &
+                                  3, szarrays, subszarrays, disparrays, &
                                   MPI_ORDER_FORTRAN, GC_REAL, & 
                                   sndtype(irank), ierr)
+         IF ( ierr .ne. MPI_SUCCESS ) THEN
+           WRITE(*,*) myrank, ': GSGS_real_exch_types: irank=', irank
+           stop 'Bad type'
+         ENDIF
          CALL MPI_Type_commit(sndtype(irank), ierr)
+         IF  ( ierr .ne. MPI_SUCCESS ) THEN
+           WRITE(*,*) myrank, ': GSGS_real_exch_types: irank=', irank, ' Type_commit failed'
+           stop 
+           ENDIF
       END DO
 
       ! Receive types:
       DO irank = 0,nprocs-1
          CALL range(1,n(3),nprocs,irank,ksta,kend)
-         szarray   (1) = n(1); szarray   (2) = n(2); szarray   (3) = n(3)
-         subszarray(1) = n(1); subszarray(2) = n(2); subszarray(3) = kend-ksta+1
-         disparray(1) = 0   ; disparray (2) = 0   ; disparray(3) = ksta-1
+         szarrayr    = (/n(1), n(2), n(3)/)
+         subszarrayr = (/n(1), n(2), kend-ksta+1/)
+         disparrayr  = (/0   , 0   , ksta-1/)
          CALL MPI_Type_create_subarray( &
-                                  3, szarray, subszarray, disparray, &
+                                  3, szarrayr, subszarrayr, disparrayr, &
                                   MPI_ORDER_FORTRAN, GC_REAL, & 
                                   rcvtype(irank), ierr)
          CALL MPI_Type_commit(rcvtype(irank), ierr)
@@ -829,45 +871,48 @@ MODULE class_GSGSmodel
       class(GSGSmodel), INTENT(INOUT)     :: this
       INTEGER         , INTENT   (IN)     :: ivar
       REAL(KIND=GP)   , INTENT   (IN), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
-      REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%modelTraits_%nchannel,this%nx,this%ny,this%nz):: t_in
+!     REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%modelTraits_%nchannel,this%nx,this%ny,this%nz):: t_in
+      REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%nz):: t_in
 
       INTEGER                             :: iproc, irank, istrip, nstrip
       INTEGER                             :: isendTo, igetFrom
       INTEGER, DIMENSION(0:this%nprocs_-1) :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
+!     REAL(KIND=GP), DIMENSION(this%nx,this%ny,this%nz) :: ttmp
+!     REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: rbuff
+
+!     rbuff => this%t_in_(:,:,:,ivar+1)
 
       nstrip = 1
-      do iproc = 0, this%nprocs_-1, nstrip
-         do istrip=0, nstrip-1
-            irank = iproc + istrip
+      do irank = 0, this%nprocs_-1
 
             isendTo = this%myrank_ + irank
             if ( isendTo .ge. this%nprocs_ ) isendTo = isendTo - this%nprocs_
 
             igetFrom = this%myrank_ - irank
             if ( igetFrom .lt. 0 ) igetFrom = igetFrom + this%nprocs_
-    WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' post IRECV...'
-            CALL MPI_IRECV(t_in(ivar+1,:,:,:),1,this%rcvtype_(igetFrom),igetFrom,      &
+!   WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' post IRECV...'
+    WRITE(*,*) this%myrank_, ': GSGS_real_exch: post IRECV from ', igetFrom
+            CALL MPI_IRECV(t_in,1,this%rcvtype_(igetFrom),igetFrom,      &
                           1,this%comm_,ireq2(irank),this%ierr_)
     WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' post done.'
             IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
               STOP 'GSGS_real_exch: MPI_IRECV failed'
             ENDIF
 
+    WRITE(*,*) this%myrank_, ': GSGS_real_exch: sending to',isendTo
+
             CALL MPI_ISEND(R1,1,this%sndtype_(isendTo),isendTo, &
-                          1,this%comm_,ireq1(irank),this%ierr_)
+                           1,this%comm_,ireq1(irank),this%ierr_)
     WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' ISEND done.'
             IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
               STOP 'GSGS_real_exch: MPI_ISEND failed'
             ENDIF
-         enddo
 
          WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' Do waits...'
-         do istrip=0, nstrip-1
-            irank = iproc + istrip
-            CALL MPI_WAIT(ireq1(irank),istatus,this%ierr_)
-            CALL MPI_WAIT(ireq2(irank),istatus,this%ierr_)
-         enddo
+         CALL MPI_WAIT(ireq1(irank),istatus,this%ierr_)
+         CALL MPI_WAIT(ireq2(irank),istatus,this%ierr_)
+
       enddo
 !     if ( this%myrank_ .eq. 0 ) then
 !     write(*,*) 'GSGS_real_exch: R1  =', R1  (5,1:10,this%ksta)
@@ -1027,6 +1072,70 @@ MODULE class_GSGSmodel
         ENDDO
 
       END SUBROUTINE GSGS_demean
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+      SUBROUTINE GSGS_rcopy(this, Rin, Rout)
+!-----------------------------------------------------------------
+!
+! Parameters
+!     Rin     : input real field
+!     Rout    : output real field
+!-----------------------------------------------------------------
+
+      USE commtypes
+      IMPLICIT NONE
+
+      class(GSGSmodel), INTENT(INOUT)     :: this
+      REAL(KIND=GP)   , INTENT (IN), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: Rin
+      REAL(KIND=GP)   , INTENT(OUT), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: Rout
+
+      INTEGER                             :: i,j,k
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = this%ksta,this%kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+        DO j = 1,this%ny
+          DO i = 1,this%nx
+!$omp atomic
+            Rout(i,j,k) = Rin(i,j,k)
+           ENDDO
+         ENDDO
+       ENDDO
+
+      END SUBROUTINE GSGS_rcopy
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+      SUBROUTINE GSGS_ccopy(this, Cin, Cout)
+!-----------------------------------------------------------------
+!
+! Parameters
+!     Cin     : input complex field
+!     Cout    : output complex field
+!-----------------------------------------------------------------
+
+      USE commtypes
+      IMPLICIT NONE
+
+      class(GSGSmodel), INTENT(INOUT)     :: this
+      COMPLEX(KIND=GP), INTENT  (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: Cin
+      COMPLEX(KIND=GP), INTENT (OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: Cout
+
+      INTEGER                             :: i,j,k
+
+!$omp parallel do if (this%iend-2.ge.nth) private (j,k)
+       DO i = 1,this%iend
+!$omp parallel do if (this%iend-2.lt.nth) private (k)
+         DO j = 1,this%ny
+           DO k = 1,this%nz
+             Cout(k,j,i) = Cin(k,j,i)
+           ENDDO
+         ENDDO
+       ENDDO
+
+      END SUBROUTINE GSGS_ccopy
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
