@@ -462,7 +462,7 @@
       CHARACTER(len=1024)   :: sgs_in_name, sgs_out_name
         
 #endif
-      TYPE(IOPLAN)          :: planio
+      TYPE(IOPLAN),TARGET   :: planio
       CHARACTER(len=100)    :: odir,idir
 #if defined(PART_)
       CHARACTER(len=1024)   :: lgseedfile,slgfpfile
@@ -1047,6 +1047,9 @@
       mlsgstraits%model_type = sgs_model_type
       mlsgstraits%in_name    = sgs_in_name
       mlsgstraits%out_name   = sgs_out_name
+      mlsgstraits%odir       = odir
+      mlsgstraits%idir       = idir
+      mlsgstraits%planio     => planio
       write(*,*)'            main: sgs_nx=',sgs_nx,' sgs_ny=',sgs_ny, ' sgs_nz=', sgs_nz
 #endif
 
