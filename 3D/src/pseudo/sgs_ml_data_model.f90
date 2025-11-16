@@ -557,23 +557,36 @@ MODULE class_GSGSmodel
     ! Pack model input layer:
     ! shape = ("time", "channel", "x0", "x1", "x2")
     CALL GTStart(this%hpack_)
-    CALL GSGS_pack(this, vx, 0, C1, R1, this%t_in_(1,:,:,:))
+    CALL GSGS_pack(this, vx, C1, R1, this%t_in_(:,:,:,1))
 
       ! Write outputs for first cycle:
       IF ( this%icycle_ .EQ. 0 ) THEN
-        R1 = this%t_in_(1,:,:,this%ksta:this%kend)
+        R1 = this%t_in_(:,:,this%ksta:this%kend,1)
         CALL io_write(1,this%modelTraits_%odir,'vx_check',ext,this%modelTraits_%planio,R1)
       ENDIF
 
 !     IF ( this%myrank_ .eq. 0 ) &
 !     WRITE(*,*) 'GSGS_compute_model: vx packing done.'
-    CALL GSGS_pack(this, vy, 1, C1, R1, this%t_in_(2,:,:,:))
+    CALL GSGS_pack(this, vy, C1, R1, this%t_in_(:,:,:,2))
+
+      ! Write outputs for first cycle:
+      IF ( this%icycle_ .EQ. 0 ) THEN
+        R1 = this%t_in_(:,:,this%ksta:this%kend,2)
+        CALL io_write(1,this%modelTraits_%odir,'vy_check',ext,this%modelTraits_%planio,R1)
+      ENDIF
+
 !     IF ( this%myrank_ .eq. 0 ) &
 !     WRITE(*,*) 'GSGS_compute_model: vy packing done.'
-    CALL GSGS_pack(this, vz, 2, C1, R1, this%t_in_(3,:,:,:))
+    CALL GSGS_pack(this, vz, C1, R1, this%t_in_(:,:,:,3))
+
+      ! Write outputs for first cycle:
+      IF ( this%icycle_ .EQ. 0 ) THEN
+        R1 = this%t_in_(:,:,this%ksta:this%kend,3)
+        CALL io_write(1,this%modelTraits_%odir,'vz_check',ext,this%modelTraits_%planio,R1)
+      ENDIF
 !     IF ( this%myrank_ .eq. 0 ) &
 !     WRITE(*,*) 'GSGS_compute_model: vz packing done.'
-    CALL GSGS_pack(this, th, 3, C1, R1, this%t_in_(4,:,:,:))
+    CALL GSGS_pack(this, th, C1, R1, this%t_in_(:,:,:,4))
 !     IF ( this%myrank_ .eq. 0 ) &
 !     WRITE(*,*) 'GSGS_compute_model: th packing done.'
     CALL GTStop(this%hpack_)
@@ -581,6 +594,8 @@ MODULE class_GSGSmodel
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_compute_model: packing done.'
 
+    IF ( this%myrank_ .eq. 0 ) &
+    WRITE(*,*) 'GSGS_compute_model: do inference...'
 
     ! Run inference
     CALL GTStart(this%hinf_)
@@ -588,8 +603,8 @@ MODULE class_GSGSmodel
 !   iret = this%infmodel_%infer(this%imap_, this%omap_)
     CALL GTStop(this%hinf_)
 
-!   IF ( this%myrank_ .eq. 0 ) &
-!   WRITE(*,*) 'GSGS_compute_model: inference done.'
+    IF ( this%myrank_ .eq. 0 ) &
+    WRITE(*,*) 'GSGS_compute_model: inference done.'
 
     ! (Optional) print stats/config
     CALL infero_check( this%infmodel_%print_statistics() )
@@ -602,7 +617,7 @@ MODULE class_GSGSmodel
     ! Unpack model output and compute FFTs:
     CALL GTStart(this%hunpack_)
 !   WRITE(*,*) 'GSGS_compute_model: unpacking vx... '
-    CALL GSGS_unpack(this, this%t_out_, 0, R1, C1)
+    CALL GSGS_unpack(this, this%t_out_(:,:,:,1), R1, C1)
  
       ! Write outputs for first cycle:
       IF ( this%icycle_ .EQ. 0 ) THEN
@@ -613,11 +628,11 @@ MODULE class_GSGSmodel
       ENDIF
 
 !   WRITE(*,*) 'GSGS_compute_model: unpacking vy... '
-    CALL GSGS_unpack(this, this%t_out_, 1, R1, C2)
+    CALL GSGS_unpack(this, this%t_out_(:,:,:,2), R1, C1)
 !   WRITE(*,*) 'GSGS_compute_model: unpacking vz... '
-    CALL GSGS_unpack(this, this%t_out_, 2, R1, C3)
+    CALL GSGS_unpack(this, this%t_out_(:,:,:,3), R1, C1)
 !   WRITE(*,*) 'GSGS_compute_model: unpacking th... '
-    CALL GSGS_unpack(this, this%t_out_, 3, R1, SGSth)
+    CALL GSGS_unpack(this, this%t_out_(:,:,:,4), R1, C1)
     CALL GTStop(this%hunpack_)
 
 !   IF ( this%myrank_ .eq. 0 ) &
@@ -638,12 +653,7 @@ MODULE class_GSGSmodel
     call mpi_allreduce(dabs(unpacktime), gunpacktime,1,MPI_DOUBLE_PRECISION,MPI_MAX,this%comm_,this%ierr_)
     call mpi_allreduce(dabs(inftime)   , ginftime   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,this%comm_,this%ierr_)
 
-!   if ( gpacktime.lt.0.0 .or. gunpacktime.lt.0.0 ) then
-!           write(*,*) ' pack: ', packtime, ' unpack: ', unpacktime
-!           write(*,*) 'gpack: ', gpacktime, ' gunpack: ', gunpacktime
-!   endif
-
-    IF ( this%myrank_ .eq. 0 .and. mod(this%icycle_,1) .eq. 0 ) THEN
+    IF ( this%myrank_ .eq. 0 .and. mod(this%icycle_,10) .eq. 0 ) THEN
       INQUIRE( file='sgs_bench.txt', exist=bexist )
       OPEN(1,file='sgs_bench.txt',position='append')
       IF ( .NOT. bexist ) THEN
@@ -670,20 +680,18 @@ MODULE class_GSGSmodel
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-  SUBROUTINE GSGS_pack(this, cvar, ivar, C1, R1, itensor)
+  SUBROUTINE GSGS_pack(this, cvar, C1, R1, itensor)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Packs tensor argument for inference
 !  ARGUMENTS:
 !    cvar    : channel/feature to pack into itensor
-!    ivar    : channel/feature  id (0, nchannel-1)
 !    C1      : complex tmp array
 !    R1      : real tmp array
 !    itensor : input tensor to pack into
 !-----------------------------------------------------------------
     IMPLICIT NONE
     class(GSGSmodel), INTENT(INOUT)         :: this
-    INTEGER         , INTENT   (IN)         :: ivar
     INTEGER                                 :: i, j, k
     COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: cvar
     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1
@@ -715,7 +723,7 @@ MODULE class_GSGSmodel
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' fft done'
 
-    CALL GSGS_real_exch(this, R1, ivar, itensor) 
+    CALL GSGS_real_exch(this, R1, itensor) 
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' exchange done'
 
@@ -725,24 +733,22 @@ MODULE class_GSGSmodel
 !-----------------------------------------------------------------
 
 
-  SUBROUTINE GSGS_unpack(this, otensor, ivar, R1, sgs)
+  SUBROUTINE GSGS_unpack(this, otensor, R1, sgs)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Packs tensor argument for inference
 !  ARGUMENTS:
-!    otensor : tensor output to read
-!    ivar    : channel/feature  id (0, nchannel-1)
+!    otensor : tensor output to read from
 !    C1      : complex tmp array
 !    R1      : real tmp array
 !    sgs     : return complex SGS data
 !-----------------------------------------------------------------
     IMPLICIT NONE      
     class(GSGSmodel), INTENT(INOUT)         :: this
-    INTEGER         , INTENT   (IN)         :: ivar
     INTEGER                                 :: i, j, k
     COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: sgs
     REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
-    REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(3, this%nx,this%ny,this%ksta:this%kend) :: otensor
+    REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: otensor
     REAL(KIND=GP)                            :: tmp
 
     tmp = 1.0_GP/ &
@@ -753,23 +759,19 @@ MODULE class_GSGSmodel
 !$omp parallel do if (this%kend-this%ksta.lt.nth) private (i)
        DO j = 1,this%ny
           DO i = 1,this%nx
-             R1(i,j,k) = otensor(ivar+1,i,j,k)
+             R1(i,j,k) = otensor(i,j,k)
           END DO
        END DO
     END DO
-!   if ( this%myrank_ .eq. 0 ) then
-!   write(*,*) 'GSGS_unpack: R1   =', R1  (5,1:10,this%ksta)
-!   write(*,*) 'GSGS_unpack: t_out=', otensor(ivar+1, 5,1:10,this%ksta)
-!   endif
      
     ! De-mean if necessary:
     IF ( this%demean_ ) THEN
       CALL GSGS_demean(this,R1)
     ENDIF
 
-      IF ( this%icycle_ .EQ. 0 .and. ivar .eq. 0 ) THEN
-        CALL io_write(1,this%modelTraits_%odir,'SGS1_otensor',ext,this%modelTraits_%planio,R1)
-      ENDIF
+ !    IF ( this%icycle_ .EQ. 0 ) THEN
+ !      CALL io_write(1,this%modelTraits_%odir,'SGS1_otensor',ext,this%modelTraits_%planio,R1)
+ !    ENDIF
 
     CALL fftp3d_real_to_complex(this%planrc,R1,sgs)
 !   if ( this%myrank_ .eq. 0 ) then
@@ -855,21 +857,19 @@ MODULE class_GSGSmodel
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-      SUBROUTINE GSGS_real_exch(this, R1, ivar, t_in)
+      SUBROUTINE GSGS_real_exch(this, R1, t_in)
 !-----------------------------------------------------------------
 !
 ! Parameters
 !     R1     : Real field
-!     ivar   : which channel/feature (0, ... nchannel-1)
-!     t_in   : input tensor that will contain all other
-!              tasks' field data
+!     t_in   : input tensor that will contain variable's
+!              input field data
 !-----------------------------------------------------------------
 
       USE commtypes
       IMPLICIT NONE
 
       class(GSGSmodel), INTENT(INOUT)     :: this
-      INTEGER         , INTENT   (IN)     :: ivar
       REAL(KIND=GP)   , INTENT   (IN), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
 !     REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%modelTraits_%nchannel,this%nx,this%ny,this%nz):: t_in
       REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%nz):: t_in
@@ -878,10 +878,6 @@ MODULE class_GSGSmodel
       INTEGER                             :: isendTo, igetFrom
       INTEGER, DIMENSION(0:this%nprocs_-1) :: ireq1,ireq2
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
-!     REAL(KIND=GP), DIMENSION(this%nx,this%ny,this%nz) :: ttmp
-!     REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: rbuff
-
-!     rbuff => this%t_in_(:,:,:,ivar+1)
 
       nstrip = 1
       do irank = 0, this%nprocs_-1
@@ -914,10 +910,6 @@ MODULE class_GSGSmodel
          CALL MPI_WAIT(ireq2(irank),istatus,this%ierr_)
 
       enddo
-!     if ( this%myrank_ .eq. 0 ) then
-!     write(*,*) 'GSGS_real_exch: R1  =', R1  (5,1:10,this%ksta)
-!     write(*,*) 'GSGS_real_exch: t_in=', t_in(ivar+1, 5,1:10,this%ksta)
-!     endif
 
 !   WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' real_exhange done.'
       RETURN
