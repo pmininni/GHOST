@@ -2,7 +2,7 @@
 ! Workspace object, TmpPool3D, to checkout, and free
 ! real and complex tmp arrays. 
 ! ===================================================================
-CLASS TmpPool3D
+MODULE TmpPool3D
   USE fprecision
   USE mpivars
   USE grid
@@ -270,131 +270,136 @@ CONTAINS
   END FUNCTION get_complex_tmp_size
 
   ! ===================================================================
-  ! Checkout/get methods
+  ! Checkout/get and free methods
   ! ===================================================================
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! Function to check out a free Real array from the pool.
+  ! Function to check out a free real array from the pool.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  FUNCTION get_real_tmp(this, success) RESULT(array_ptr)
+  FUNCTION get_real_tmp(this, success) RESULT(ret_ptr)
     TYPE(TmpPool3D), INTENT(INOUT) :: this
     LOGICAL, INTENT(OUT) :: success
-    REAL(KIND=GP), POINTER :: array_ptr(:, :, :)
+    REAL(KIND=GP), POINTER :: ret_ptr(:, :, :)
 
     INTEGER :: i
     TYPE(RealEntry), POINTER :: real_ptr
 
-    array_ptr => NULL()
+    ret_ptr => NULL()
     success = .FALSE.
 
     DO i = 1, this%size
       ! Check if the entry is of the correct dynamic type (RealEntry)
-      IF (IS_SAME_TYPE(this%entries(i), real_ptr)) THEN
+      IF ( IS_SAME_TYPE(this%entries(i), real_ptr) ) THEN
         ! Downcast the base pointer to the specific derived type
         real_ptr => this%entries(i)
-        IF (real_ptr%is_free == 1) THEN
+        IF ( real_ptr%is_free == 1 ) THEN
           real_ptr%is_free = 0  ! Mark as in use
-          array_ptr => real_ptr%array
+          ret_ptr => real_ptr%array
           success = .TRUE.
           RETURN
-        END IF
-      END IF
-    END DO
+        ENDIF
+      ENDIF
+    ENDDO
 
   END FUNCTION get_real_tmp
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Function to check out a free Complex array from the pool.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  FUNCTION get_complex_tmp(this, success) RESULT(array_ptr)
+  FUNCTION get_complex_tmp(this, success) RESULT(ret_ptr)
     TYPE(TmpPool3D), INTENT(INOUT) :: this
     LOGICAL, INTENT(OUT) :: success
-    COMPLEX(KIND=GP), POINTER :: array_ptr(:, :, :)
+    COMPLEX(KIND=GP), POINTER :: ret_ptr(:, :, :)
 
     INTEGER :: i
     TYPE(ComplexEntry), POINTER :: complex_ptr
 
-    array_ptr => NULL()
+    ret_ptr => NULL()
     success = .FALSE.
 
-    DO i = 1, this%size
+    DO i = 1, this%complex_size_
       ! Check if the entry is of the correct dynamic type (ComplexEntry)
-      IF (IS_SAME_TYPE(this%entries(i), complex_ptr)) THEN
-        ! Downcast the base pointer to the specific derived type
+      IF ( IS_SAME_TYPE(this%entries(i), complex_ptr) ) THEN
+        ! Downcast the base pointer to specific derived type
         complex_ptr => this%entries(i)
-        IF (complex_ptr%is_free == 1) THEN
+        IF ( complex_ptr%is_free == 1 ) THEN
           complex_ptr%is_free = 0  ! Mark as in use
-          array_ptr => complex_ptr%array
+          ret_ptr => complex_ptr%array
           success = .TRUE.
           RETURN
-        END IF
-      END IF
-    END DO
+        ENDIF
+      ENDIF
+    ENDDO
 
   END FUNCTION get_complex_tmp
 
-  ! ===================================================================
-  ! CHECK-IN ROUTINES
-  ! ===================================================================
 
-  !> Subroutine to check in a Real array, making it available again.
-  SUBROUTINE free_real_tmp(this, array_ptr)
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !  Subroutine to check-in/free a real tmp array, making it 
+  !  available again.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SUBROUTINE free_real_tmp(this, in_ptr)
     TYPE(TmpPool3D), INTENT(INOUT) :: this
-    REAL(KIND=GP), POINTER, INTENT(IN) :: array_ptr(:, :, :)
+    REAL(KIND=GP), POINTER, INTENT(IN) :: in_ptr(:, :, :)
 
     INTEGER :: i
     TYPE(RealEntry), POINTER :: real_ptr
 
-    DO i = 1, this%size
+    DO i = 1, this%real_size_
       ! Check if the entry is of the correct dynamic type (RealEntry)
-      IF (IS_SAME_TYPE(this%entries(i), real_ptr)) THEN
+      IF ( IS_SAME_TYPE(this%entries(i), real_ptr) ) THEN
         real_ptr => this%entries(i)
         ! Check if the array pointer matches
-        IF (ASSOCIATED(real_ptr%array, array_ptr)) THEN
-          IF (real_ptr%is_free == 0) THEN
+        IF ( ASSOCIATED(real_ptr%array, in_ptr) ) THEN
+          IF ( real_ptr%is_free == 0 ) THEN
             real_ptr%is_free = 1  ! Mark as free
             ! Optional: Zero the array data for safety/initialization
-            real_ptr%array = 0.0_DP
+            real_ptr%array = 0.0_GP
             RETURN
           ELSE
-            WRITE(*,*) 'Error: Real array already marked as free. Check-in ignored.'
+            WRITE(*,*) 'free_real_tmp: Real array already marked as free. Check-in ignored'
             RETURN
-          END IF
-        END IF
-      END IF
-    END DO
+          ENDIF
+        ENDIF
+      ENDIF
+    ENDDO
 
-    WRITE(*,*) 'Error: Real array not found in pool. Check-in failed.'
+    STOP 'free_real_tmp: Real array not found in pool. Check-in failed'
+
   END SUBROUTINE free_real_tmp
 
-  !> Subroutine to check in a Complex array, making it available again.
-  SUBROUTINE free_complex_tmp(this, array_ptr)
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Subroutine to free a Complex array, making it 
+  ! available again.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SUBROUTINE free_complex_tmp(this, in_ptr)
     TYPE(TmpPool3D), INTENT(INOUT) :: this
-    COMPLEX(KIND=GP), POINTER, INTENT(IN) :: array_ptr(:, :, :)
+    COMPLEX(KIND=GP), POINTER, INTENT(IN) :: in_ptr(:, :, :)
 
     INTEGER :: i
     TYPE(ComplexEntry), POINTER :: complex_ptr
 
-    DO i = 1, this%size
+    DO i = 1, this%complex_size_
       ! Check if the entry is of the correct dynamic type (ComplexEntry)
-      IF (IS_SAME_TYPE(this%entries(i), complex_ptr)) THEN
+      IF ( IS_SAME_TYPE(this%entries(i), complex_ptr) ) THEN
         complex_ptr => this%entries(i)
         ! Check if the array pointer matches
-        IF (ASSOCIATED(complex_ptr%array, array_ptr)) THEN
-          IF (complex_ptr%is_free == 0) THEN
+        IF ( ASSOCIATED(complex_ptr%array, in_ptr) ) THEN
+          IF ( complex_ptr%is_free == 0 ) THEN
             complex_ptr%is_free = 1  ! Mark as free
             ! Optional: Zero the array data for safety/initialization
-            complex_ptr%array = (0.0_DP, 0.0_DP)
+            complex_ptr%array = (0.0_GP, 0.0_GP)
             RETURN
           ELSE
-            WRITE(*,*) 'Error: Complex array already marked as free. Check-in ignored.'
+            WRITE(*,*) 'free_complex_tmp: Complex array already marked as free. Check-in ignored.'
             RETURN
-          END IF
-        END IF
-      END IF
-    END DO
+          ENDIF
+        ENDIF
+      ENDIF
+    ENDDO
 
-    WRITE(*,*) 'Error: Complex array not found in pool. Check-in failed.'
+    STOP 'free_complex_tmp: Complex array not found in pool. Check-in failed'
   END SUBROUTINE free_complex_tmp
 
-END CLASS TmpPool3D
+END MODULE TmpPool3D
