@@ -1,4 +1,8 @@
-MODULE TmpPool3D
+! ===================================================================
+! Workspace object, TmpPool3D, to checkout, and free
+! real and complex tmp arrays. 
+! ===================================================================
+CLASS TmpPool3D
   USE fprecision
   USE mpivars
   USE grid
@@ -6,10 +10,6 @@ MODULE TmpPool3D
   IMPLICIT NONE
   PRIVATE
 
-
-  ! ===================================================================
-  ! TYPE DEFINITIONS
-  ! ===================================================================
 
   ! Abstract base type for array pool entries
   TYPE, ABSTRACT :: ArrayEntry_Base
@@ -45,7 +45,8 @@ MODULE TmpPool3D
   ! ===================================================================
 
   PUBLIC :: initialize_pool, get_real_tmp_tmp, get_complex_tmp_tmp, free_real_tmp_tmp, free_complex_tmp_tmp cleanup_pool
-  PRIVAT :: get_real_tmp_size, get_complex_tmp_size, add_real_entries, add_complex_entries
+
+  PRIVATE:: get_real_tmp_size, get_complex_tmp_size, add_real_entries, add_complex_entries
 
 ! INTERFACE get_real_tmp_tmp
 !   MODULE PROCEDURE get_real_tmp, get_complex_tmp
@@ -396,74 +397,4 @@ CONTAINS
     WRITE(*,*) 'Error: Complex array not found in pool. Check-in failed.'
   END SUBROUTINE free_complex_tmp
 
-END MODULE 3D
-Example Program: main.f90
-This program demonstrates how to use the 3D module.
-
-Fortran
-
-PROGRAM _Test
-  USE 3D
-  IMPLICIT NONE
-
-  TYPE() :: my_pool
-  REAL(KIND=GP), POINTER :: real_array_1(:, :, :), real_array_2(:, :, :)
-  COMPLEX(KIND=GP), POINTER :: complex_array_1(:, :, :)
-  LOGICAL :: success
-
-  ! 1. Initialize the pool with 2 real and 1 complex array
-  CALL initialize_pool(my_pool, 2, 1)
-
-  ! 2. Check out the first real array
-  real_array_1 => get_real_tmp_tmp(my_pool, success)
-  IF (success) THEN
-    WRITE(*,*) 'Checked out Real Array 1. Setting value...'
-    real_array_1 = 1.0_DP
-    WRITE(*,*) 'real_array_1(1,1,1) = ', real_array_1(1,1,1)
-  END IF
-
-  ! 3. Check out the complex array
-  complex_array_1 => get_real_tmp_tmp(my_pool, success)
-  IF (success) THEN
-    WRITE(*,*) 'Checked out Complex Array 1. Setting value...'
-    complex_array_1 = (2.0_DP, 3.0_DP)
-    WRITE(*,*) 'complex_array_1(1,1,1) = ', complex_array_1(1,1,1)
-  END IF
-
-  ! 4. Check out the second real array
-  real_array_2 => get_real_tmp_tmp(my_pool, success)
-  IF (success) THEN
-    WRITE(*,*) 'Checked out Real Array 2. Setting value...'
-    real_array_2 = 5.0_DP
-    WRITE(*,*) 'real_array_2(1,1,1) = ', real_array_2(1,1,1)
-  END IF
-
-  ! 5. Attempt to check out a third real array (should fail)
-  WRITE(*,*) 'Attempting to check out third Real Array...'
-  real_array_1 => get_real_tmp_tmp(my_pool, success) ! Overwriting pointer, but it will be NULL() if failed
-  IF (.NOT. success) THEN
-    WRITE(*,*) '✅ Correctly failed to check out a third Real Array.'
-  END IF
-
-  ! 6. Check in the first real array
-  CALL check_in_array(my_pool, real_array_2)
-
-  ! 7. Check out the now-free second real array (should succeed)
-  real_array_1 => get_real_tmp_tmp(my_pool, success) ! Re-using the pointer
-  IF (success) THEN
-    WRITE(*,*) 'Checked out Real Array 2 again. Data is now zero (reset on check-in):'
-    WRITE(*,*) 'real_array_1(1,1,1) = ', real_array_1(1,1,1)
-  END IF
-
-  ! 8. Clean up all arrays
-  CALL cleanup_pool(my_pool)
-
-END PROGRAM _Test
-Key Fortran Features Used
-Derived Types and Inheritance (EXTENDS): The RealEntry and ComplexEntry types inherit from the abstract base type ArrayEntry_Base. This allows them to be stored in a single list of base-type pointers.
-
-Polymorphism (CLASS(ArrayEntry_Base)): The this%entries is an array of pointers to CLASS(ArrayEntry_Base). This allows a single list to hold both RealEntry and ComplexEntry objects.
-
-Type-Bound Procedures (INTERFACE get_real_tmp_tmp): The generic interfaces allow you to call get_real_tmp_tmp(my_pool, success) and Fortran automatically calls the correct specific routine (get_real_tmp or get_complex_tmp) based on the type of array you are assigning the result to.
-
-Runtime Type Checking (IS_SAME_TYPE): Used in the check-out and check-in routines to ensure the loop only considers entries of the correct data type (e.g., only looking at RealEntry objects when checking out a REAL array).
+END CLASS TmpPool3D
