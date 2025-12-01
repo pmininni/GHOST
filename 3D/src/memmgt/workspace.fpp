@@ -1,8 +1,8 @@
 ! ===================================================================
-! Workspace object, TmpPool3D, to checkout, and free
+! Workspace object, GWorkspace3D, to checkout, and free
 ! real and complex tmp arrays. 
 ! ===================================================================
-MODULE TmpPool3D
+MODULE class_GWorkspace3D
   USE fprecision
   USE mpivars
   USE grid
@@ -27,7 +27,7 @@ MODULE TmpPool3D
   END TYPE ComplexEntry
 
   ! Type to hold the collection of arrays (the pool)
-  TYPE 
+  TYPE, PUBLIC :: GWorkspace 
     ! Use a list of array entries. Note: For a very large pool, a more
     ! sophisticated data structure (like a linked list) might be better,
     ! but an allocatable array of pointers is sufficient for moderate size.
@@ -38,13 +38,13 @@ MODULE TmpPool3D
     INTEGER :: nreserve_     = 10
     INTEGER :: ncurr_realreserve_   = 10
     INTEGER :: ncurr_complexreserve_= 10
-  END TYPE 
 
-  ! ===================================================================
-  ! INTERFACE BLOCK AND PUBLIC ROUTINES
-  ! ===================================================================
+  CONTAINS
+    PROCEDURE PUBLIC :: initialize_pool, get_real_tmp_tmp, get_complex_tmp_tmp, free_real_tmp_tmp, free_complex_tmp_tmp 
+    PROCEDURE FINAL  :: cleanup_pool
 
-  PUBLIC :: initialize_pool, get_real_tmp_tmp, get_complex_tmp_tmp, free_real_tmp_tmp, free_complex_tmp_tmp cleanup_pool
+  
+  END TYPE GWorkspace
 
   PRIVATE:: get_real_tmp_size, get_complex_tmp_size, add_real_entries, add_complex_entries
 
@@ -402,4 +402,4 @@ CONTAINS
     STOP 'free_complex_tmp: Complex array not found in pool. Check-in failed'
   END SUBROUTINE free_complex_tmp
 
-END MODULE TmpPool3D
+END MODULE class_GWorkspace3D
