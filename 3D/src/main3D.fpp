@@ -223,6 +223,11 @@
 #ifdef COMPI_AUX_ARR_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C31,C32,C33
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C34,C35,C36
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: KVX1,KVX2,KVX3
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: KVY1,KVY2,KVY3
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: KVZ1,KVZ2,KVZ3
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: KD1,KD2,KD3
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: KE1,KE2,KE3
 #endif
 #ifdef PENALTY_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C37,C38
@@ -276,7 +281,7 @@
       DOUBLE PRECISION :: tmp,tmq,tmr
       DOUBLE PRECISION :: eps,epm
 
-      REAL(KIND=GP)    :: dt,nu,mu
+      REAL(KIND=GP)    :: dt,nu,mu,ttime
       REAL(KIND=GP)    :: kup,kdn
       REAL(KIND=GP)    :: rmp,rmq,rms
       REAL(KIND=GP)    :: rmt,rm1,rm2
@@ -729,6 +734,21 @@
       ALLOCATE( C34(nz,ny,ista:iend) )
       ALLOCATE( C35(nz,ny,ista:iend) )
       ALLOCATE( C36(nz,ny,ista:iend) )
+      ALLOCATE( KVX1(nz,ny,ista:iend) )
+      ALLOCATE( KVX2(nz,ny,ista:iend) )
+      ALLOCATE( KVX3(nz,ny,ista:iend) )
+      ALLOCATE( KVY1(nz,ny,ista:iend) )
+      ALLOCATE( KVY2(nz,ny,ista:iend) )
+      ALLOCATE( KVY3(nz,ny,ista:iend) )
+      ALLOCATE( KVZ1(nz,ny,ista:iend) )
+      ALLOCATE( KVZ2(nz,ny,ista:iend) )
+      ALLOCATE( KVZ3(nz,ny,ista:iend) )
+      ALLOCATE( KD1 (nz,ny,ista:iend) )
+      ALLOCATE( KD2 (nz,ny,ista:iend) )
+      ALLOCATE( KD3 (nz,ny,ista:iend) )
+      ALLOCATE( KE1 (nz,ny,ista:iend) )
+      ALLOCATE( KE2 (nz,ny,ista:iend) )
+      ALLOCATE( KE3 (nz,ny,ista:iend) )
 #endif
 #ifdef PENALTY_
       ALLOCATE( C37(nz,ny,ista:iend),  C38(nz,ny,ista:iend) )
@@ -2563,6 +2583,7 @@
       ENDIF
 
  RK : DO t = ini,step
+         ttime = (t-1)*dt ! current evol. time
 
 ! Updates the external forcing. Every 'fsteps'
 ! the phase or amplitude is changed according
@@ -3251,6 +3272,9 @@
 
 ! Runge-Kutta step 2
 ! Evolves the system in time
+#ifdef COMPIHD_SOL
+         ord = 1
+#endif
 
          DO o = ord,1,-1
         
@@ -3640,6 +3664,11 @@
 #endif
 #ifdef COMPI_AUX_ARR_
       DEALLOCATE( C31,C32,C33,C34,C35,C36 )
+      DEALLOCATE( KVX1,KVX2,KVX3 )
+      DEALLOCATE( KVY1,KVY2,KVY3 )
+      DEALLOCATE( KVZ1,KVZ2,KVZ3 )
+      DEALLOCATE( KD1,KD2,KD3 )
+      DEALLOCATE( KE1,KE2,KE3 )
 #endif
 #ifdef WAVEFUNCTION_
       DEALLOCATE( zre,zim )
@@ -3665,3 +3694,95 @@
       DEALLOCATE( Rj1,Rj2,Rj3 )
 #endif
       END PROGRAM MAIN3D
+
+
+#ifdef COMPI_AUX_ARR_
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      SUBROUTINE COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th,t,nu,nu2,gam1,c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,KVX,KVY,KVX,KD,KE)
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE gutils
+      USE iovar
+      USE iompi
+      USE boxsize
+
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: sx,sy,sz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend):: fx,fy,fz
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend):: fs
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: th,rho
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: c1,c2
+      REAL(KIND=GP), INTENT(IN):: nu,nu2,gam1
+
+
+         CALL mom2vel(rho,sx,sy,sz,0,vx,vy,vz)    ! compute velocity
+         CALL divrhov(rho,vx,vy,vz,0,C7)          ! div(rho.v)
+
+         CALL divrhov(th,vx,vy,vz,0,C8)           ! div(e.v)
+         CALL pdVwork(gam1,th,vx,vy,vz,0,C34)     ! p.div(v) = (gamma-1) e.div(v)
+     !   CALL viscHeatRayleigh(vx,vy,vz,C36)      ! phi/mu, visc. heat
+
+         CALL divrhov(sx,vx,vy,vz,0,C4)           ! div(rho vx.v)
+         CALL divrhov(sy,vx,vy,vz,0,C5)           ! div(rho vy.v)
+         CALL divrhov(sz,vx,vy,vz,0,C6)           ! div(rho vz.v)
+     !   CALL gradre3(vx,vy,vz,C4,C5,C6)          ! v.Grad v
+         CALL gradpressi(gam1,th,C31,C32,C33)     ! Grad p term
+     !   CALL divide(rho,C31,C32,C33)             ! divide Grad p by rho
+         ! Note: th, si overwritten, so make these calls last:
+         CALL vdiss(nu,nu2,sx,sy,sz)              ! viscous term
+     !   CALL divide(rho,sx,sy,sz)                ! divide viscous term by rho
+         CALL laplak3(th,th)                      ! laplacian(e)
+
+         rmp = 1./real(o,kind=GP)
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+         DO k = 1,nz
+
+            IF (kn2(k,j,i).le.kmax) THEN
+               KVX (k,j,i) = (-C4(k,j,i)-C31(k,j,i) &
+              +fx(k,j,i))*rmp
+               KVY (k,j,i) = (-C5(k,j,i)-C32(k,j,i) &
+              +fy(k,j,i))*rmp
+               uKVZ (k,j,i) = (-C6(k,j,i)-C33(k,j,i) &
+              +fz(k,j,i))*rmp
+               KD   (k,j,i) = -C7(k,j,i)*rmp
+!              th (k,j,i) = C35(k,j,i)+dt*(nu*C36(k,j,i)-C8(k,j,i)-C34(k,j,i) &
+               KE   (k,j,i) = (kappa*th(k,j,i)-C8(k,j,i)-C34(k,j,i) &
+              +fs(k,j,i))*rmp
+!           ELSE IF (kn2(k,j,i).gt.kmax) THEN
+            ELSE
+               sx (k,j,i) = 0.0_GP
+               sy (k,j,i) = 0.0_GP
+               sz (k,j,i) = 0.0_GP
+               rho(k,j,i) = 0.0_GP
+               th (k,j,i) = 0.0_GP
+!           ELSE IF (kn2(k,j,i).lt.tinyd) THEN
+!              sx (k,j,i) = 0.0_GP
+!              sy (k,j,i) = 0.0_GP
+!              sz (k,j,i) = 0.0_GP
+!              rho(k,j,i) = C20(k,j,i)
+!              th (k,j,i) = C35(k,j,i)
+            ENDIF
+
+
+         END DO
+         END DO
+         END DO
+
+
+      END SUBROUTINE COMPIRHS
+#endif

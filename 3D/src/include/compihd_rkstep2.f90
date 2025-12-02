@@ -2,6 +2,8 @@
 ! Computes the nonlinear terms and evolves the equations in dt/o.
 ! Remember: we evolve the momentum *density* (rho v) here:
 
+#ifndef COMPI_AUX_ARR_
+
          CALL mom2vel(rho,sx,sy,sz,0,vx,vy,vz)    ! compute velocity
          CALL divrhov(rho,vx,vy,vz,0,C7)          ! div(rho.v)
 
@@ -93,3 +95,36 @@
          ENDIF ! Voigt check
 !
          CALL mom2vel(rho,sx,sy,sz,0,vx,vy,vz)    ! compute velocity update
+
+#else 
+! Using COMPIHD solver
+         IF ( o .NE. 1 ) THEN
+           STOP 'ord must equal 1'
+         ENDIF
+ 
+!     SUBROUTINE COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th,t,nu,nu2,gam1,c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,KVX,KVY,KVX,KD,KE)
+
+         CALL COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th,ttime,c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,KVX1,KVY1,KVZ1,KD1,KE1)
+        
+         sx  = C1  + ( KVX1 * dt * 0.5 ) 
+         sy  = C2  + ( KVY1 * dt * 0.5 ) 
+         sz  = C3  + ( KVZ1 * dt * 0.5 ) 
+         rho = C20 + ( KD1  * dt * 0.5 ) 
+         th  = C35 + ( KE1  * dt * 0.5 ) 
+         CALL COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th,ttime+0.5*dt,c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,KVX1,KVY2,KVZ2,KD2,KE2)
+
+         sx  = C1  - ( KVX1 * dt ) + ( KVX2 * 2.0 * dt )
+         sy  = C2  - ( KVY1 * dt ) + ( KVY2 * 2.0 * dt )
+         sz  = C3  - ( KVZ1 * dt ) + ( KVZ2 * 2.0 * dt )
+         rho = C20 - ( KD1  * dt ) + ( KD2  * 2.0 * dt )
+         th  = C35 - ( KE1  * dt ) + ( KE2  * 2.0 * dt )
+         CALL COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th,ttime+dt,c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,KVX3,KVY3,KVZ3,KD3,KE3)
+
+         sx  = C1  + ( KVX1 + 4.0* KVX2 + KVX3 ) * ( dt / 6.0 ) 
+         sy  = C2  + ( KVY1 + 4.0* KVY2 + KVX3 ) * ( dt / 6.0 ) 
+         sz  = C3  + ( KVZ1 + 4.0* KVZ2 + KVX3 ) * ( dt / 6.0 ) 
+         rho = C20 + ( KD1  + 4.0* KD2  + KD3  ) * ( dt / 6.0 ) 
+         th  = C35 + ( KE1  + 4.0* KE2  + KE3  ) * ( dt / 6.0 ) 
+
+         CALL mom2vel(rho,sx,sy,sz,0,vx,vy,vz)    ! compute velocity update
+#endif
