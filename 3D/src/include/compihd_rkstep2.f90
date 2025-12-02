@@ -97,7 +97,7 @@
          CALL mom2vel(rho,sx,sy,sz,0,vx,vy,vz)    ! compute velocity update
 
 #else 
-! Using COMPIHD solver
+! Using COMPIHD solver: do RK3 step:
          IF ( o .NE. 1 ) THEN
            STOP 'ord must equal 1'
          ENDIF

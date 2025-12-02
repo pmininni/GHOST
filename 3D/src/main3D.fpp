@@ -3753,11 +3753,11 @@
          DO k = 1,nz
 
             IF (kn2(k,j,i).le.kmax) THEN
-               KVX (k,j,i) = (-C4(k,j,i)-C31(k,j,i) &
+               KVX (k,j,i) = (sx(k,j,i)-C4(k,j,i)-C31(k,j,i) &
               +fx(k,j,i))*rmp
-               KVY (k,j,i) = (-C5(k,j,i)-C32(k,j,i) &
+               KVY (k,j,i) = (sy(k,j,i)-C5(k,j,i)-C32(k,j,i) &
               +fy(k,j,i))*rmp
-               uKVZ (k,j,i) = (-C6(k,j,i)-C33(k,j,i) &
+               KVZ (k,j,i) = (sz(k,j,i)-C6(k,j,i)-C33(k,j,i) &
               +fz(k,j,i))*rmp
                KD   (k,j,i) = -C7(k,j,i)*rmp
 !              th (k,j,i) = C35(k,j,i)+dt*(nu*C36(k,j,i)-C8(k,j,i)-C34(k,j,i) &
