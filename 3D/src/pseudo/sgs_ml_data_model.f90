@@ -416,7 +416,7 @@ MODULE class_GSGSmodel
 !   WRITE(*,*) '.................... nc=', nc, '  nn=', nn
     ! Associate Fortran pointers with C memory:
     CALL C_F_POINTER(this%c_ptr_t_in_ , this%t_in_ , &
-                     [nc,this%nx,this%ny,this%nz])
+                     [this%nx,this%ny,this%nz,nc])
     IF( .NOT. ASSOCIATED(this%t_in_) ) THEN
       STOP 't_in_ not associated'
     ENDIF
@@ -425,7 +425,7 @@ MODULE class_GSGSmodel
     ENDIF
 
     CALL C_F_POINTER(this%c_ptr_t_out_, this%t_out_, &
-                     [3,this%nx,this%ny,this%nz])
+                     [ this%nx,this%ny,this%nz,3])
     IF( .NOT. ASSOCIATED(this%t_out_) ) THEN
       STOP 't_out_ not associated'
     ENDIF
@@ -539,7 +539,7 @@ MODULE class_GSGSmodel
     REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
     COMPLEX(KIND=GP), INTENT  (OUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: SGS1,SGS2,SGS3,SGSth
     LOGICAL             :: bexist
-    INTEGER             :: iret
+    INTEGER             :: iostatus,iret
     DOUBLE PRECISION    :: packtime , unpacktime , inftime
     DOUBLE PRECISION    :: gpacktime, gunpacktime, ginftime
     REAL(KIND=GP)                            :: tmp
@@ -590,6 +590,19 @@ MODULE class_GSGSmodel
 !     IF ( this%myrank_ .eq. 0 ) &
 !     WRITE(*,*) 'GSGS_compute_model: th packing done.'
     CALL GTStop(this%hpack_)
+
+!   Write t_in to disc:
+    IF ( this%icycle_ .EQ. 0 ) THEN
+      open(unit=10, file='t_in.bin', form='UNFORMATTED', &
+           status='REPLACE', iostat=iostatus)
+      if (iostatus /= 0) then
+        print *, 'ERROR: Could not open file (Status: ', iostatus, ')'
+        stop
+      end if
+      write(10) this%t_in_
+      close(2);
+    ENDIF
+
 
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_compute_model: packing done.'
