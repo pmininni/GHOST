@@ -3700,7 +3700,7 @@
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       SUBROUTINE COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th,fx,fy,fz,fs,&
-                          t,nu,nu2,gam1,&
+                          time,nu,nu2,gam1,&
                           c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,&
                           KVX,KVY,KVZ,KD,KE)
       USE fprecision
@@ -3727,7 +3727,7 @@
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: th,rho
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: KVX,KVY,KVZ,KD,KE
-      REAL(KIND=GP), INTENT(IN):: nu,nu2,gam1
+      REAL(KIND=GP), INTENT(IN):: time,nu,nu2,gam1
       INTEGER                  :: i,j,k
 
 
@@ -3749,7 +3749,6 @@
      !   CALL divide(rho,sx,sy,sz)                ! divide viscous term by rho
          CALL laplak3(th,th)                      ! laplacian(e)
 
-         rmp = 1./real(o,kind=GP)
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
@@ -3758,16 +3757,16 @@
          DO k = 1,nz
 
             IF (kn2(k,j,i).le.kmax) THEN
-               KVX (k,j,i) = (sx(k,j,i)-C4(k,j,i)-C31(k,j,i) &
-              +fx(k,j,i))*rmp
-               KVY (k,j,i) = (sy(k,j,i)-C5(k,j,i)-C32(k,j,i) &
-              +fy(k,j,i))*rmp
-               KVZ (k,j,i) = (sz(k,j,i)-C6(k,j,i)-C33(k,j,i) &
-              +fz(k,j,i))*rmp
-               KD   (k,j,i) = -C7(k,j,i)*rmp
+               KVX (k,j,i) = sx(k,j,i)-C4(k,j,i)-C31(k,j,i) &
+              +fx(k,j,i)
+               KVY (k,j,i) = sy(k,j,i)-C5(k,j,i)-C32(k,j,i) &
+              +fy(k,j,i)
+               KVZ (k,j,i) = sz(k,j,i)-C6(k,j,i)-C33(k,j,i) &
+              +fz(k,j,i)
+               KD   (k,j,i) = -C7(k,j,i)
 !              th (k,j,i) = C35(k,j,i)+dt*(nu*C36(k,j,i)-C8(k,j,i)-C34(k,j,i) &
-               KE   (k,j,i) = (kappa*th(k,j,i)-C8(k,j,i)-C34(k,j,i) &
-              +fs(k,j,i))*rmp
+               KE   (k,j,i) = kappa*th(k,j,i)-C8(k,j,i)-C34(k,j,i) &
+              +fs(k,j,i)
 !           ELSE IF (kn2(k,j,i).gt.kmax) THEN
             ELSE
                sx (k,j,i) = 0.0_GP
