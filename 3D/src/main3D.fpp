@@ -3725,7 +3725,7 @@
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: KVX,KVY,KVZ,KD,KE
       REAL(KIND=GP), INTENT(IN):: nu,nu2,gam1
-
+      INTEGER                  : i,j,k
 
 
          CALL mom2vel(rho,sx,sy,sz,0,vx,vy,vz)    ! compute velocity
