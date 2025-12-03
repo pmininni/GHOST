@@ -103,21 +103,30 @@
          ENDIF
  
 
-         CALL COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th,fx,fy,fz,fs,ttim,ec4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,KVX1,KVY1,KVZ1,KD1,KE1)
+         CALL COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th, &
+                       fx,fy,fz,fs,ttime,nu,nu2,gam1, &
+                       c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,&
+                       KVX1,KVY1,KVZ1,KD1,KE1)
         
          sx  = C1  + ( KVX1 * dt * 0.5 ) 
          sy  = C2  + ( KVY1 * dt * 0.5 ) 
          sz  = C3  + ( KVZ1 * dt * 0.5 ) 
          rho = C20 + ( KD1  * dt * 0.5 ) 
          th  = C35 + ( KE1  * dt * 0.5 ) 
-         CALL COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th,ttime+0.5*dt,c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,KVX1,KVY2,KVZ2,KD2,KE2)
+         CALL COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th, &
+                       fx,fy,fz,fs,ttime+0.5*dt,nu,nu2,gam1, &
+                       c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,&
+                       KVX2,KVY2,KVZ2,KD2,KE2)
 
          sx  = C1  - ( KVX1 * dt ) + ( KVX2 * 2.0 * dt )
          sy  = C2  - ( KVY1 * dt ) + ( KVY2 * 2.0 * dt )
          sz  = C3  - ( KVZ1 * dt ) + ( KVZ2 * 2.0 * dt )
          rho = C20 - ( KD1  * dt ) + ( KD2  * 2.0 * dt )
          th  = C35 - ( KE1  * dt ) + ( KE2  * 2.0 * dt )
-         CALL COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th,ttime+dt,c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,KVX3,KVY3,KVZ3,KD3,KE3)
+         CALL COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th, &
+                       fx,fy,fz,fs,ttime+dt,nu,nu2,gam1, &
+                       c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,&
+                       KVX3,KVY3,KVZ3,KD3,KE3)
 
          sx  = C1  + ( KVX1 + 4.0* KVX2 + KVX3 ) * ( dt / 6.0 ) 
          sy  = C2  + ( KVY1 + 4.0* KVY2 + KVX3 ) * ( dt / 6.0 ) 
