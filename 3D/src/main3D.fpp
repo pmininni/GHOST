@@ -3699,7 +3699,7 @@
 #ifdef COMPI_AUX_ARR_
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      SUBROUTINE COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th,t,nu,nu2,gam1,c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,KVX,KVY,KVZ,KD,KE)
+      SUBROUTINE COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th,fx,fy,fz,fs,t,nu,nu2,gam1,c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,KVX,KVY,KVZ,KD,KE)
       USE fprecision
       USE commtypes
       USE kes

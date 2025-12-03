@@ -102,9 +102,8 @@
            STOP 'ord must equal 1'
          ENDIF
  
-!     SUBROUTINE COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th,t,nu,nu2,gam1,c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,KVX,KVY,KVX,KD,KE)
 
-         CALL COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th,ttime,c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,KVX1,KVY1,KVZ1,KD1,KE1)
+         CALL COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th,fx,fy,fz,fs,ttim,ec4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,KVX1,KVY1,KVZ1,KD1,KE1)
         
          sx  = C1  + ( KVX1 * dt * 0.5 ) 
          sy  = C2  + ( KVY1 * dt * 0.5 ) 
