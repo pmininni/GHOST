@@ -3699,7 +3699,7 @@
 #ifdef COMPI_AUX_ARR_
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      SUBROUTINE COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th,t,nu,nu2,gam1,c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,KVX,KVY,KVX,KD,KE)
+      SUBROUTINE COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th,t,nu,nu2,gam1,c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,KVX,KVY,KVZ,KD,KE)
       USE fprecision
       USE commtypes
       USE kes
@@ -3722,8 +3722,10 @@
       COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend):: fx,fy,fz
       COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend):: fs
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: th,rho
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: c1,c2
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: KVX,KVY,KVZ,KD,KE
       REAL(KIND=GP), INTENT(IN):: nu,nu2,gam1
+
 
 
          CALL mom2vel(rho,sx,sy,sz,0,vx,vy,vz)    ! compute velocity
