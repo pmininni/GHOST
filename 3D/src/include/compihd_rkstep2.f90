@@ -104,7 +104,7 @@
  
 
          CALL COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th, &
-                       fx,fy,fz,fs,ttime,nu,nu2,gam1, &
+                       fx,fy,fz,fs,ttime,nu,nu2,kappa,gam1, &
                        c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,&
                        KVX1,KVY1,KVZ1,KD1,KE1)
         
@@ -114,7 +114,7 @@
          rho = C20 + ( KD1  * dt * 0.5 ) 
          th  = C35 + ( KE1  * dt * 0.5 ) 
          CALL COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th, &
-                       fx,fy,fz,fs,ttime+0.5*dt,nu,nu2,gam1, &
+                       fx,fy,fz,fs,ttime+0.5*dt,nu,nu2,kappa,gam1, &
                        c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,&
                        KVX2,KVY2,KVZ2,KD2,KE2)
 
@@ -124,7 +124,7 @@
          rho = C20 - ( KD1  * dt ) + ( KD2  * 2.0 * dt )
          th  = C35 - ( KE1  * dt ) + ( KE2  * 2.0 * dt )
          CALL COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th, &
-                       fx,fy,fz,fs,ttime+dt,nu,nu2,gam1, &
+                       fx,fy,fz,fs,ttime+dt,nu,nu2,kappa,gam1, &
                        c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,&
                        KVX3,KVY3,KVZ3,KD3,KE3)
 
