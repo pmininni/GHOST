@@ -8,6 +8,7 @@ OBJS = fprecision_mod.o fftp_mod.o fftp.o fftp3D.o
 all: $(OBJS)
 
 $(OBJS):
+	$(COMPILE) ../utils/gtimer_mod.f90 -o ../utils/gtimer_mod.o
 	$(COMPILE) $(@:.o=.f90)
 
 edit:
