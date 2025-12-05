@@ -9,22 +9,7 @@
 cmake_minimum_required(VERSION 3.12)
 project(GHOST LANGUAGES Fortran C)
 
-# ----------------------- Numeric/grid params ------------------------
-set(NX 64    CACHE STRING "Grid size in X")
-set(NY 64    CACHE STRING "Grid size in Y")
-set(NZ 64    CACHE STRING "Grid size in Z")
-set(ORD 2    CACHE STRING "Order")
-set(IKIND 8  CACHE STRING "Integer kind")
-set(CSIZE 8  CACHE STRING "Cache size")
-set(NSTRIP 1 CACHE STRING "Strip mining")
-
-# ----------------------- Options / variants -------------------------
-option(ARBSIZE  "Enable arbitrary box sizes" OFF)
-option(P_HYBRID "Enable hybrid OpenMP"       OFF)
-set(SOLVER "HD"        CACHE STRING "Solver type (HD, MHD)")
-set(PRECISION "SINGLE" CACHE STRING "Precision (SINGLE or DOUBLE)")
-set(FFTP "fftp-3"      CACHE STRING "FFT library (fftp-3, fftp-mkl)")
-set(IOLIB "mpiio"      CACHE STRING "IO library (mpiio)")
+include(UserConfig.cmake)
 
 # -------------------------- Directories -----------------------------
 set(SRC_DIR "${CMAKE_SOURCE_DIR}/src")
