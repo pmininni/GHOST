@@ -9,74 +9,90 @@ module neutralhydro_mod
     implicit none
 
     ! Define an abstract base class
-    type, extends(EquationBase) :: NeutHydro 
+    type, extends(EquationBase) :: NeutralHydro 
     contains
-        procedure         (step), deferred ::          step_impl ! step method
-        procedure     (tmp_size), deferred ::      tmp_size_impl ! tmp size
-        procedure   (state_size), deferred ::    state_size_impl ! state size
-        procedure(sstate2istate), deferred :: sstate2istate_impl ! state names
-        procedure   (get_sstate), deferred ::    get_sstate_impl ! get list of state names
-        procedure         (init), deferred ::          init_impl ! init method
-        procedure         (dudt), deferred ::          dudt_impl ! RHS method
-    end type pde
+        type, public  :: NHTraits
+          integer       :: dorot        = 0     ; ! rotation flag
+          integer       :: dobouss      = 0     ; ! Boussinesq flag
+          integer       :: domoistbouss = 0     ; ! moist Boussinesq flag
+          integer       :: numpassive   = 0     ; ! num passive scalars
+          real(kind=GP) :: nu           = 0.0_GP; ! dissipation
+          real(kind=GP) :: kappa        = 0.0_GP; ! temp/den diffisuvity 
+          real(kind=GP), allocatable :: passive_diff(:); ! diffusivities
+        end type
 
-    ! Abstract interface for deferred (virtual) methods:
-    abstract interface
-        subroutine step(self, time, uin, uf, dt, workspace, uout) 
-            import :: pde
-            class       (pde), intent   (in) :: self
-            real    (kind=GP), intent   (in) :: time, dt
-            type (GStateComp), intent(inout) :: uin(:)
-            type (GWorkspace), intent(inout) :: workspace
-            type (GStateComp), intent   (in) :: uout(:)
-        end subroutine step
+        procedure,public  ::  NeutralHydro_ctor ! constructor
+        final             ::  NeutralHydro_dtor ! desutructor
+        procedure,public  ::          init_impl ! init method
+        procedure,public  ::          step_impl ! step method
+        procedure,public  ::          dudt_impl ! RHS method
+        procedure,public  ::      tmp_size_impl ! tmp size
+        procedure,public  ::    state_size_impl ! state size
+        procedure,public  :: sstate2istate_impl ! state names
+        procedure,public  ::    get_sstate_impl ! get list of state names
+    end type NeutralHydro
 
-        subroutine sstate2istate(self, sstate, istate) 
-            import :: pde
-            class       (pde), intent   (in) :: self
-            character (len=:), intent   (in) :: sstate(:)
-            integer          , allocatable &
+    contains
+
+    !! Concrete method available to all derived classes here:
+    subroutine NeutralHydro_ctor(this, traits, workspace) 
+      class        (NeutralHydro), intent   (in) :: this
+      real    (kind=GP), intent   (in) :: time, dt
+      type   (NHTraits), intent   (in) :: traits
+      type         (GWorkspace), intent(inout) :: workspace
+      type (GStateComp), intent   (in) :: uout(:)
+    end subroutine NeutralHydro_ctor
+    subroutine step(this, time, uin, uf, dt, workspace, uout) 
+      class       (NeutralHydro), intent   (in) :: this
+      real    (kind=GP), intent   (in) :: time, dt
+      type (GStateComp), intent(inout) :: uin(:)
+      type (GWorkspace), intent(inout) :: workspace
+      type (GStateComp), intent   (in) :: uout(:)
+    end subroutine step
+
+    subroutine sstate2istate(this, sstate, istate) 
+      class       (NeutralHydro), intent   (in) :: this
+      character (len=:), intent   (in) :: sstate(:)
+      integer          , allocatable &
                              , intent(inout) :: istate(:)
-        end subroutine sstate2istate
+    end subroutine sstate2istate
 
-        subroutine get_sstate(self, sstate) 
-            import :: pde
-            class       (pde), intent   (in) :: self
-            character (len=:), allocatable, &
+    subroutine get_sstate(this, sstate) 
+      class       (NeutralHydro), intent   (in) :: this
+      character (len=:), allocatable, &
                              , intent(inout) :: sstate(:)
-        end subroutine get_sstate
+    end subroutine get_sstate
 
-        function state_size(self) result(num)
-            import :: pde
-            class    (pde), intent   (in) :: self
-            integer :: num
-        end function state_size
+    !! Function to compute number of state members (equations)
+    function state_size(this) result(num)
+      class    (NeutralHydro), intent   (in) :: this
+      integer :: num
+      !   integer       :: dorot        = 0     ; ! rotation flag
+      !   integer       :: dobouss      = 0     ; ! Boussinesq flag
+      !   integer       :: domoistbouss = 0     ; ! moist Boussinesq flag
+      !   integer       :: numpassive   = 0     ; ! num passive scalars
+      num = 0;
+      if ( dbouss .eq. 1 ) num = num + 1
+    end function state_size
 
-        function tmp_size(self) result(num)
-            import :: pde
-            class    (pde), intent   (in) :: self
-            integer :: num
-        end function tmp_size
+    function tmp_size(this) result(num)
+      class    (NeutralHydro), intent   (in) :: this
+      integer :: num
+    end function tmp_size
 
-        subroutine init(self) 
-            import :: pde
-            class    (pde), intent   (in) :: self
-        end subroutine init
+    subroutine init(this) 
+      class    (NeutralHydro), intent   (in) :: this
+    end subroutine init
 
-        subroutine dudt(self, time, uin, uf, dt, dudt) 
-            import :: pde
-            class       (pde), intent   (in) :: self
-            real    (kind=GP), intent   (in) :: time, dt
-            type (GStateComp), intent(inout) :: uin(:)
-            type (GWorkspace), intent(inout) :: workspace
-            type (GStateComp), intent   (in) :: dudt(:) 
-        end subroutine dudt
-    end interface
+    subroutine dudt(this, time, uin, uf, dt, dudt) 
+      class       (NeutralHydro), intent   (in) :: this
+      real    (kind=GP), intent   (in) :: time, dt
+      type (GStateComp), intent(inout) :: uin(:)
+      type (GWorkspace), intent(inout) :: workspace
+      type (GStateComp), intent   (in) :: dudt(:) 
+    end subroutine dudt
 
-contains
 
-    ! Concrete method available to all derived classes here:
-
-end module EquationBase
+end module neutralhydro_mod
 
 
