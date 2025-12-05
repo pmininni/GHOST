@@ -63,11 +63,8 @@
 ! just by sine, cosine with amplitude 1
       CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
 
-#if !defined(DENSITY_)
-#error "DENSITY_ not defined"
-#endif
 
-#if defined(MOM_)
+
       ! Dealias:
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
@@ -107,4 +104,4 @@
       CALL fftp3d_real_to_complex(planrc,R1,sx,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R2,sy,MPI_COMM_WORLD)
 
-#endif
+
