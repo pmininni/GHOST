@@ -326,6 +326,7 @@
       REAL(KIND=GP)    :: s3param5,s3param6,s3param7,s3param8,s3param9
 #endif
 #ifdef COMPRESSIBLE_
+      INTEGER          :: useRK3
       INTEGER          :: Stokeshyp
       REAL(KIND=GP)    :: smach, gam1, cp1, nu2, rho0
 #endif
@@ -587,6 +588,7 @@
 !
 ! Initialization
 
+      useRK3 = 0
 
 ! Initializes the MPI and I/O libraries
       CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
@@ -1757,6 +1759,9 @@
        write(*,*) 'main: Voigt regularization may not be used with this solver'
        STOP
      ENDIF
+#endif
+#if defined(COMPIHD_SOL) 
+     useRK3 = 1
 #endif
 
       INCLUDE SOLVERCHECK_

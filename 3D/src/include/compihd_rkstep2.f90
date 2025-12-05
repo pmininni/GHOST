@@ -2,7 +2,7 @@
 ! Computes the nonlinear terms and evolves the equations in dt/o.
 ! Remember: we evolve the momentum *density* (rho v) here:
 
-#ifndef COMPI_AUX_ARR_
+       if ( useRK3 .eq. 0 ) THEN
 
          CALL mom2vel(rho,sx,sy,sz,0,vx,vy,vz)    ! compute velocity
          CALL divrhov(rho,vx,vy,vz,0,C7)          ! div(rho.v)
@@ -96,7 +96,8 @@
 !
          CALL mom2vel(rho,sx,sy,sz,0,vx,vy,vz)    ! compute velocity update
 
-#else 
+      else ! useRK3 != 0: 
+
 ! Using COMPIHD solver: do RK3 step:
          IF ( o .NE. 1 ) THEN
            STOP 'ord must equal 1'
@@ -135,4 +136,5 @@
          th  = C35 + ( KE1  + 4.0* KE2  + KE3  ) * ( dt / 6.0 ) 
 
          CALL mom2vel(rho,sx,sy,sz,0,vx,vy,vz)    ! compute velocity update
-#endif
+
+      endif ! end, useRK3 check
