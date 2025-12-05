@@ -1,0 +1,15 @@
+Directory for GHOST builds using CMake
+
+To compile from this directory, do:
+cmake ..
+make
+
+If libraries are not in the path, use -DCMAKE_PREFIX_PATH
+and -DFFTW3_ROOT to set paths, e.g., from this directory do
+
+cmake .. -DCMAKE_PREFIX_PATH=/foo/openmpi-5.0.8 -DFFTW3_ROOT=/foo/fftw-3.3.10
+make
+
+For a clean build, you can do (only in this directory)
+
+rm -rf *
