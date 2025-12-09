@@ -18,6 +18,7 @@ module neutralhydro_mod
           integer       :: numpassive   = 0     ; ! num passive scalars
           real(kind=GP) :: nu           = 0.0_GP; ! dissipation
           real(kind=GP) :: kappa        = 0.0_GP; ! temp/den diffisuvity 
+          real(kind=GP) :: NBV          = 0.0_GP; ! temp/den diffisuvity 
           real(kind=GP), allocatable :: passive_diff(:); ! diffusivities
         end type
 
