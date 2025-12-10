@@ -2,7 +2,7 @@
 ! Workspace object, GWorkspace3D, to checkout, and free
 ! real and complex tmp arrays. 
 ! ===================================================================
-MODULE class_GWorkspace3D
+module class_GWorkspace3D
   USE fprecision
   USE mpivars
   USE grid
@@ -27,7 +27,7 @@ MODULE class_GWorkspace3D
   end type ComplexEntry
 
   ! Type to hold the collection of arrays (the pool)
-  type, PUBLIC :: GWorkspace 
+  type, public :: GWorkspace 
     ! Use a list of array entries. Note: For a very large pool, a more
     ! sophisticated data structure (like a linked list) might be better,
     ! but an allocatable array of pointers is sufficient for moderate size.
@@ -40,21 +40,21 @@ MODULE class_GWorkspace3D
     integer :: ncurr_complexreserve_= 10
 
   CONTAinS
-    PROCEDURE PUBLIC :: initialize_pool, get_real_tmp_tmp, get_complex_tmp_tmp, free_real_tmp_tmp, free_complex_tmp_tmp 
-    PROCEDURE FinAL  :: cleanup_pool
+    procedure public :: initialize_pool, get_real_tmp, get_complex_tmp, free_real_tmp, free_complex_tmp 
+    procedure final :: cleanup_pool
 
   
   end type GWorkspace
 
   PRIVATE:: get_real_tmp_size, get_complex_tmp_size, add_real_entries, add_complex_entries
 
-! inTERFACE get_real_tmp_tmp
-!   MODULE PROCEDURE get_real_tmp, get_complex_tmp
-! end inTERFACE get_real_tmp_tmp
+! interface get_real_tmp
+!   module procedure get_real_tmp, get_complex_tmp
+! end interface get_real_tmp
 
-! inTERFACE check_in_array
-!   MODULE PROCEDURE free_real_tmp, free_complex_tmp
-! end inTERFACE check_in_array
+! interface check_in_array
+!   module procedure free_real_tmp, free_complex_tmp
+! end interface check_in_array
 
 CONTAinS
 
@@ -140,7 +140,7 @@ CONTAinS
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !  Subroutine to initialize the array pool with a 
+  !  Subroutine to initialize the real array pool with a 
   !  specified number of arrays.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine add_real_entries(this, num_new)
@@ -402,4 +402,4 @@ CONTAinS
     stop 'free_complex_tmp: Complex array not found in pool. Check-in failed'
   end subroutine free_complex_tmp
 
-end MODULE class_GWorkspace3D
+end module class_GWorkspace3D
