@@ -278,13 +278,13 @@ module hd_mod
       c7= this%workspace_=>get_complex_tmp(bret)
       c8= this%workspace_=>get_complex_tmp(bret)
 
-      vx => uin  (VELOCITY)%ccomp
-      vy => uin(VELOCITY+1)%ccomp
-      vz => uin(VELOCITY+2)%ccomp
+      vx => uin  (this%VELOCITY)%ccomp
+      vy => uin(this%VELOCITY+1)%ccomp
+      vz => uin(this%VELOCITY+2)%ccomp
 
-      fx => uf  (VELOCITY)%ccomp
-      fy => uf(VELOCITY+1)%ccomp
-      fz => uf(VELOCITY+2)%ccomp
+      fx => uf  (this%VELOCITY)%ccomp
+      fy => uf(this%VELOCITY+1)%ccomp
+      fz => uf(this%VELOCITY+2)%ccomp
       
       call prodre3(vx,vy,vz,C4,C5,C6)
       call saxpby_c(C4, 1.0_GP, vy, -2.0*omegaz) 
@@ -303,20 +303,25 @@ module hd_mod
       do j = 1,ny
       do k = 1,nz
          if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
-            dudt  (VELOCITY)=>ccomp(k,j,i) = &
+            dudt  (this%VELOCITY)=>ccomp(k,j,i) = &
                nu*vx(k,j,i)+C7(k,j,i) + fx(k,j,i))
-            dudt(VELOCITY+1)=>ccomp(k,j,i) = &
+            dudt(this%VELOCITY+1)=>ccomp(k,j,i) = &
                nu*vy(k,j,i)+C8(k,j,i) + fy(k,j,i))
-            dudt(VELOCITY+2)=>ccomp(k,j,i) = &
+            dudt(this%VELOCITY+2)=>ccomp(k,j,i) = &
                nu*vz(k,j,i)+C4(k,j,i) + fz(k,j,i))
          else
-            dudt  (VELOCITY)=>ccomp(k,j,i) = 0.0_GP
-            dudt(VELOCITY+1)=>ccomp(k,j,i) = 0.0_GP
-            dudt(VELOCITY+2)=>ccomp(k,j,i) = 0.0_GP
+            dudt  (this%VELOCITY)=>ccomp(k,j,i) = 0.0_GP
+            dudt(this%VELOCITY+1)=>ccomp(k,j,i) = 0.0_GP
+            dudt(this%VELOCITY+2)=>ccomp(k,j,i) = 0.0_GP
          endif
       enddo
       enddo
       enddo
+
+      ! Compute passive scalars:
+      call this%rhs_passibe(this, uin, uf, this%traits_%kappa, &
+              this%VELOCITY, this%nc_, this%PASSIVE, &
+              this%numpassive, dudt)
 
       this%workspace_=>free_complex_tmp(c1)
       this%workspace_=>free_complex_tmp(c2)
@@ -366,13 +371,13 @@ module hd_mod
       c7= this%workspace_=>get_complex_tmp(bret)
       c8= this%workspace_=>get_complex_tmp(bret)
 
-      vx => uin  (VELOCITY)%ccomp
-      vy => uin(VELOCITY+1)%ccomp
-      vz => uin(VELOCITY+2)%ccomp
+      vx => uin  (this%VELOCITY)%ccomp
+      vy => uin(this%VELOCITY+1)%ccomp
+      vz => uin(this%VELOCITY+2)%ccomp
 
-      fx => uf  (VELOCITY)%ccomp
-      fy => uf(VELOCITY+1)%ccomp
-      fz => uf(VELOCITY+2)%ccomp
+      fx => uf  (this%VELOCITY)%ccomp
+      fy => uf(this%VELOCITY+1)%ccomp
+      fz => uf(this%VELOCITY+2)%ccomp
       
       call prodre3(vx,vy,vz,C4,C5,C6)
       call nonlhd3(C4,C5,C6,C7,1)
@@ -388,20 +393,26 @@ module hd_mod
       do j = 1,ny
       do k = 1,nz
          if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
-            dudt  (VELOCITY)=>ccomp(k,j,i) = &
+            dudt  (this%VELOCITY)=>ccomp(k,j,i) = &
                nu*vx(k,j,i)+C7(k,j,i) + fx(k,j,i))
-            dudt(VELOCITY+1)=>ccomp(k,j,i) = &
+            dudt(this%VELOCITY+1)=>ccomp(k,j,i) = &
                nu*vy(k,j,i)+C8(k,j,i) + fy(k,j,i))
-            dudt(VELOCITY+2)=>ccomp(k,j,i) = &
+            dudt(this%VELOCITY+2)=>ccomp(k,j,i) = &
                nu*vz(k,j,i)+C4(k,j,i) + fz(k,j,i))
          else
-            dudt  (VELOCITY)=>ccomp(k,j,i) = 0.0_GP
-            dudt(VELOCITY+1)=>ccomp(k,j,i) = 0.0_GP
-            dudt(VELOCITY+2)=>ccomp(k,j,i) = 0.0_GP
+            dudt  (this%VELOCITY)=>ccomp(k,j,i) = 0.0_GP
+            dudt(this%VELOCITY+1)=>ccomp(k,j,i) = 0.0_GP
+            dudt(this%VELOCITY+2)=>ccomp(k,j,i) = 0.0_GP
          endif
       enddo
       enddo
       enddo
+
+      ! Compute passive scalars:
+      call this%rhs_passibe(this, uin, uf, this%traits_%kappa, &
+              this%VELOCITY, this%nc_, this%PASSIVE, &
+              this%numpassive, dudt)
+
 
       this%workspace_=>free_complex_tmp(c1)
       this%workspace_=>free_complex_tmp(c2)
