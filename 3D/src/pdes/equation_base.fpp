@@ -124,6 +124,7 @@ contains
             type     (GState), intent  (out) :: dudt(:) 
 
             logical                          :: bret
+            integer                          :: i,j,k
             complex, pointer, dimension(nz,ny,ista:iend)::ctmp
  
             ctmp = workspace=>get_complex_tmp(bret)
@@ -165,13 +166,13 @@ contains
                 do j = 1,ny
                 do k = 1,nz
                    if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
-                     dudt(n)=>ccomp(k,j,i) = &
+                     dudt(n+isstart)=>ccomp(k,j,i) = &
                       kappa(n)*uin(isstart+n-1)(k,j,i)+ctmp(k,j,i) &
                      +f(isstart)=>ccomp(k,j,i)
                    else if (kn2(k,j,i).gt.kmax) then
-                      dudt(n)=>ccomp(k,j,i) = 0.0_GP
+                      dudt(n+isstart)=>ccomp(k,j,i) = 0.0_GP
                    else if (kn2(k,j,i).lt.tiny) then
-                      dudt(n)=>ccomp(k,j,i) = 0.0_GP
+                      dudt(n+isstart)=>ccomp(k,j,i) = 0.0_GP
                    endif
                 enddo
                 enddo
