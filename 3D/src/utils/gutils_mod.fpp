@@ -1857,4 +1857,60 @@ MODULE gutils
 
       END SUBROUTINE invariant
 
+      FUNCTION to_lower(instr) result(outstr)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+! Convert input string to lower case
+! Parameters:
+!   instr : input string
+!   outstr: output string, lower case
+!    
+      implicit none 
+      character(len=*), intent(in) :: instr
+      character(len=len(str)) :: outstr
+      integer :: i, code
+
+      do i = 1, len(instr)
+        code = iachar(instr(i:i))
+
+        ! ASCII uppercase A-Z is 65–90
+        if (code >= iachar('A') .and. code <= iachar('Z')) then
+          outstr(i:i) = achar(code + 32)  ! Convert to lowercase
+        else
+          outstr(i:i) = instr(i:i)
+        end if
+      enddo
+
+    end function to_lower
+
+      END SUBROUTINE to_lower
+
+      FUNCTION to_upper(instr) result(outstr)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+! Convert input string to upper case
+! Parameters:
+!   instr : input string
+!   outstr: output string, lower case
+!    
+      implicit none 
+      character(len=*), intent(in) :: instr
+      character(len=len(str)) :: outstr
+      integer :: i, code
+
+      do i = 1, len(instr)
+        code = iachar(instr(i:i))
+
+        ! ASCII: 'a'=97 to 'z'=122, 'A'=65
+        if (code >= iachar('a') .and. code <= iachar('z')) then
+          outstr(i:i) = achar(code - 32)  ! Convert to lowercase
+        else
+          outstr(i:i) = instr(i:i)
+        end if
+      enddo
+
+    end function to_lower
+
+      END SUBROUTINE to_lower
+
 END MODULE gutils
