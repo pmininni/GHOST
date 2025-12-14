@@ -215,7 +215,7 @@ module hd_mod
       npassive = 0
       kappa    = 0.0_GP
       omegax   = 0.0_GP; omegay = 0.0_GP; omegaz = 0.0_GP
-      IF (this%myrank_.eq.0) THEN 
+      if ( this%myrank_ .eq. 0 ) then
          open(1,file=this%infile_,status='unknown',form="formatted")
          read(1,NML=ksize)
          close(1)
@@ -230,7 +230,7 @@ module hd_mod
          open(1,file=this%infile_,status='unknown',form="formatted")
          read(1,NML=rotation)
          close(1)
-      ENDIF
+      endif
       call mpi_bcast(nu       ,1 ,GC_REAL,0,MPI_COMM_WORLD,ierr)
       call mpi_bcast(dorot    ,1 ,INTEGER,0,MPI_COMM_WORLD,ierr)
       call mpi_bcast(npassive ,1 ,INTEGER,0,MPI_COMM_WORLD,ierr)
