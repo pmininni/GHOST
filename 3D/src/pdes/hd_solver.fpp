@@ -29,12 +29,14 @@ module hd_mod
           integer       :: numpassive   = 0     ; ! num passive scalars
           real(kind=GP) :: nu           = 0.0_GP; ! dissipation
           real(kind=GP), allocatable :: kappa(:); ! diffusivities
-          real(kind=GP), allocatable :: omega(3);! rotation vector
+          real(kind=GP)              :: omega(3);! rotation vector
         end type
 
         ! Member data:
         logical                      :: binit_=.false. 
                                                  ! is initialized?
+        integer                      :: myrank_  ! MPI rank
+        integer                      :: nprocs_  ! MPI rank
         integer                      :: VELOCITY ! start of velocity sector
         integer                      :: PASSIVE  ! start of scalar sector
         integer                      :: numpassive_ ! # passive scalars
@@ -189,6 +191,7 @@ module hd_mod
     subroutine init_impl(this) 
       class  (HDSolver), intent   (in) :: this
 
+      ! Temporary data to read from namelists:
       logical         :: dorot
       integer         :: npassive
       integer         :: ierr
@@ -197,19 +200,22 @@ module hd_mod
       real(kind=GP),allocatable
                       :: kappa
 
+      ! Required namelists:
       namelist/ ksize    / npassive
       namelist/ solver   / nu, npassive, dorot, kappa
       namelist/ rotation / omegax, omegay, omegaz
+
+      call MPI_COMM_SIZE(MPI_COMM_WORLD,this%nprocs_,ierr)
+      call MPI_COMM_RANK(MPI_COMM_WORLD,this%myrank_,ierr)
+
 
       ! Get trait variables from input file:
       dorot    = .false.
       nu       = 0.0
       npassive = 0
       kappa    = 0.0_GP
-      omegax   = 0.0_GP
-      omegay   = 0.0_GP
-      omegaz   = 0.0_GP
-      IF (myrank.eq.0) THEN 
+      omegax   = 0.0_GP; omegay = 0.0_GP; omegaz = 0.0_GP
+      IF (this%myrank_.eq.0) THEN 
          open(1,file=this%infile_,status='unknown',form="formatted")
          read(1,NML=ksize)
          close(1)
@@ -227,7 +233,7 @@ module hd_mod
       ENDIF
       call mpi_bcast(nu       ,1 ,GC_REAL,0,MPI_COMM_WORLD,ierr)
       call mpi_bcast(dorot    ,1 ,INTEGER,0,MPI_COMM_WORLD,ierr)
-      call mpi_bcast(npassice ,1 ,INTEGER,0,MPI_COMM_WORLD,ierr)
+      call mpi_bcast(npassive ,1 ,INTEGER,0,MPI_COMM_WORLD,ierr)
       call mpi_bcast(omegax   ,1 ,GC_REAL,0,MPI_COMM_WORLD,ierr)
       call mpi_bcast(omegay   ,1 ,GC_REAL,0,MPI_COMM_WORLD,ierr)
       call mpi_bcast(omegaz   ,1 ,GC_REAL,0,MPI_COMM_WORLD,ierr)
@@ -248,6 +254,7 @@ module hd_mod
         endif
         allocate(this%traits_%kappa(npassive))
         this%traits_%kappa = kappa
+        deallocate(kappa)
       endif
 
       this%VELOCITY = 1 ! start of vel sector
@@ -265,8 +272,6 @@ module hd_mod
       endif
       this%get_sstate(this, this%sstate_)
 
-      ! Deallocate local tmp data:
-      deallocate(kappa)
 
       binit_ = .true.
       
