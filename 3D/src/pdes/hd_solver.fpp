@@ -21,13 +21,14 @@ module hd_mod
 
     implicit none
 
-    ! Define an abstract base class
+    integer,parameter,public     :: MAXPASSIVE = 20 ! max # passive scalars
+    ! Define class:
     type, extends(EquationBase) :: HDSolver 
         type, public  :: NHTraits
           integer       :: dorot        = 0     ; ! rotation flag
           integer       :: numpassive   = 0     ; ! num passive scalars
           real(kind=GP) :: nu           = 0.0_GP; ! dissipation
-          real(kind=GP), allocatable :: passive_diff(:); ! diffusivities
+          real(kind=GP), allocatable :: kappa(:); ! diffusivities
           real(kind=GP), allocatable :: omega(3);! rotation vector
         end type
 
@@ -42,6 +43,7 @@ module hd_mod
         type (GWorkspace), pointer   :: workspace_
         type   (NHTraits)            :: traits_
         character(len=8), allocatable:: sstate_(:) 
+        character(len=*)             :: infile_
         
 
     contains
@@ -64,27 +66,19 @@ module hd_mod
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !! Constructor
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    subroutine HDSolver_ctor(this, traits, workspace, nc) 
+    subroutine HDSolver_ctor(this, infile, workspace, nc) 
       class  (HDSolver), intent   (in) :: this
       integer          , intent   (in) :: nc
       real    (kind=GP), intent   (in) :: time, dt
       type   (NHTraits), intent   (in) :: traits
+      charaxter(len=*) , intent   (in) :: infile
       type         (GWorkspace), intent(inout), target
                                        :: workspace
       this%workspace_ => workspace
       this%nc_        = nc ! # vel. components (usefiul if ny=1)
+      this%infile_    = infile ! input file
 
-      ! Make deep copy of traits:
-      this%traits_%     dorot = traits%dorot
-      this%traits_%numpassive = traits%numpassive
-      this%traits_%        nu = traits%nu
-      this%traits_%     omega = traits%omega
-      if ( traits%numpassive .ne. size(traits%kappa) ) then
-        stop 'HDSolver_ctor: inconsistent kappa array size'
-      endif
-      allocate(this%traits_%kappa(traits%numpassive))
-      this%traits_%kappa = traits%kappa
-      
+      call this%init();
     end subroutine HDSolver_ctor
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -113,8 +107,9 @@ module hd_mod
       type (GWorkspace), intent(inout) :: workspace
       type (GState), intent   (in) :: uout(:)
 
-      if ( .not. binit_ ) then
-        stop 'HDSolver::step_impl: Solver not initialized'
+      if ( .not. this%binit_ ) then
+        call init(this)
+        this%binit_ = .true.
       endif
 
     end subroutine step_impl
@@ -194,6 +189,67 @@ module hd_mod
     subroutine init_impl(this) 
       class  (HDSolver), intent   (in) :: this
 
+      logical         :: dorot
+      integer         :: npassive
+      integer         :: ierr
+      real(kind=GP)   :: nu, omegax, omegay, omegaz
+      real(kind=GP)   :: omega(3)
+      real(kind=GP),allocatable
+                      :: kappa
+
+      namelist/ ksize    / npassive
+      namelist/ solver   / nu, npassive, dorot, kappa
+      namelist/ rotation / omegax, omegay, omegaz
+
+      ! Get trait variables from input file:
+      dorot    = .false.
+      nu       = 0.0
+      npassive = 0
+      kappa    = 0.0_GP
+      omegax   = 0.0_GP
+      omegay   = 0.0_GP
+      omegaz   = 0.0_GP
+      IF (myrank.eq.0) THEN 
+         open(1,file=this%infile_,status='unknown',form="formatted")
+         read(1,NML=ksize)
+         close(1)
+         if ( npassive .gt. MAXPASSIVE ) then
+           stop 'Max # of passive scalars exceeded'
+         endif
+
+         open(1,file=this%infile_,status='unknown',form="formatted")
+         read(1,NML=solver)
+         close(1)
+
+         open(1,file=this%infile_,status='unknown',form="formatted")
+         read(1,NML=rotation)
+         close(1)
+      ENDIF
+      call mpi_bcast(nu       ,1 ,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      call mpi_bcast(dorot    ,1 ,INTEGER,0,MPI_COMM_WORLD,ierr)
+      call mpi_bcast(npassice ,1 ,INTEGER,0,MPI_COMM_WORLD,ierr)
+      call mpi_bcast(omegax   ,1 ,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      call mpi_bcast(omegay   ,1 ,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      call mpi_bcast(omegaz   ,1 ,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      if ( npassive .gt. 0 ) then
+        allocate(kappa(npassive))
+        call mpi_bcast(kappa    ,npassive,GC_REAL,0,MPI_COMM_WORLD,ierr)
+      endif
+      omega =(/omegax,omegay,omegaz/)
+
+      ! Set traits from inputfile data:
+      this%traits_%     dorot = dorot
+      this%traits_%numpassive = npassive
+      this%traits_%        nu = nu
+      this%traits_%     omega = omega
+      if ( npassive .gt. 0 ) then
+        if ( allocated(this%traits_%kappa) ) then
+          deallocate(this%traits_%kappa);
+        endif
+        allocate(this%traits_%kappa(npassive))
+        this%traits_%kappa = kappa
+      endif
+
       this%VELOCITY = 1 ! start of vel sector
       if ( ny .eq. 1 ) then
         this%nd_ =  2 ! 2d
@@ -209,7 +265,11 @@ module hd_mod
       endif
       this%get_sstate(this, this%sstate_)
 
+      ! Deallocate local tmp data:
+      deallocate(kappa)
+
       binit_ = .true.
+      
 
     end subroutine init
 
