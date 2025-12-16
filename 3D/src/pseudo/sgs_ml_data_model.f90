@@ -94,7 +94,9 @@ MODULE class_GSGSmodel
 
         ! Infero data:
         REAL(c_float), POINTER                       :: t_in_ (:,:,:,:)
+        REAL(c_float), POINTER                       :: t_in_r_ (:,:,:,:)
         REAL(c_float), POINTER                       :: t_out_(:,:,:,:)
+        REAL(c_float), POINTER                       :: t_out_r_(:,:,:,:)
         TYPE(C_PTR)                                  :: c_ptr_t_in_
         TYPE(C_PTR)                                  :: c_ptr_t_out_
         ! fckit wrappers and name->tensor maps
@@ -417,6 +419,12 @@ MODULE class_GSGSmodel
     ! Associate Fortran pointers with C memory:
     CALL C_F_POINTER(this%c_ptr_t_in_ , this%t_in_ , &
                      [this%nx,this%ny,this%nz,nc])
+
+    CALL C_F_POINTER(this%c_ptr_t_in_ , this%t_in_r_ , &
+                     [nc,this%nz,this%ny,this%nx])
+
+    WRITE(*,*) 'size(t_in_)=', size(this%t_in_,1),',',size(this%t_in_,2),',',size(this%t_in_,3),',',size(this%t_in_,4),')'
+
     IF( .NOT. ASSOCIATED(this%t_in_) ) THEN
       STOP 't_in_ not associated'
     ENDIF
@@ -426,6 +434,9 @@ MODULE class_GSGSmodel
 
     CALL C_F_POINTER(this%c_ptr_t_out_, this%t_out_, &
                      [ this%nx,this%ny,this%nz,3])
+
+    CALL C_F_POINTER(this%c_ptr_t_out_, this%t_out_r_, &
+                     [ 3, this%nz,this%ny,this%nx])
     IF( .NOT. ASSOCIATED(this%t_out_) ) THEN
       STOP 't_out_ not associated'
     ENDIF
@@ -544,6 +555,10 @@ MODULE class_GSGSmodel
     DOUBLE PRECISION    :: gpacktime, gunpacktime, ginftime
     REAL(KIND=GP)                            :: tmp
 
+    INTEGER       :: c_i, x_i, y_i, z_i
+    REAL(KIND=GP) :: x_inc, y_inc, z_inc, coordinate
+    
+
     tmp = 1.0_GP/ &
             (real(this%nx,kind=GP)*real(this%ny,kind=GP)*real(this%nz,kind=GP))
 
@@ -555,54 +570,56 @@ MODULE class_GSGSmodel
 !   ENDIF
 
     ! Pack model input layer:
-    ! shape = ("time", "channel", "x0", "x1", "x2")
     CALL GTStart(this%hpack_)
     CALL GSGS_pack(this, vx, C1, R1, this%t_in_(:,:,:,1))
-
-      ! Write outputs for first cycle:
-      IF ( this%icycle_ .EQ. 0 ) THEN
-        R1 = this%t_in_(:,:,this%ksta:this%kend,1)
-        CALL io_write(1,this%modelTraits_%odir,'vx_check',ext,this%modelTraits_%planio,R1)
-      ENDIF
-
 !     IF ( this%myrank_ .eq. 0 ) &
 !     WRITE(*,*) 'GSGS_compute_model: vx packing done.'
     CALL GSGS_pack(this, vy, C1, R1, this%t_in_(:,:,:,2))
-
-      ! Write outputs for first cycle:
-      IF ( this%icycle_ .EQ. 0 ) THEN
-        R1 = this%t_in_(:,:,this%ksta:this%kend,2)
-        CALL io_write(1,this%modelTraits_%odir,'vy_check',ext,this%modelTraits_%planio,R1)
-      ENDIF
-
 !     IF ( this%myrank_ .eq. 0 ) &
 !     WRITE(*,*) 'GSGS_compute_model: vy packing done.'
     CALL GSGS_pack(this, vz, C1, R1, this%t_in_(:,:,:,3))
-
-      ! Write outputs for first cycle:
-      IF ( this%icycle_ .EQ. 0 ) THEN
-        R1 = this%t_in_(:,:,this%ksta:this%kend,3)
-        CALL io_write(1,this%modelTraits_%odir,'vz_check',ext,this%modelTraits_%planio,R1)
-      ENDIF
 !     IF ( this%myrank_ .eq. 0 ) &
 !     WRITE(*,*) 'GSGS_compute_model: vz packing done.'
     CALL GSGS_pack(this, th, C1, R1, this%t_in_(:,:,:,4))
 !     IF ( this%myrank_ .eq. 0 ) &
 !     WRITE(*,*) 'GSGS_compute_model: th packing done.'
     CALL GTStop(this%hpack_)
+#if 0
+
+    X_INC = 1e-5
+    Y_INC = 1e-3
+    Z_INC = 1e-1
+
+    do c_i = 0,3 
+        do x_i = 0, this%nx-1
+            do y_i = 0, this%ny-1
+               do z_i = 0, this%nz-1
+                  coordinate = ((X_INC * x_i) + (Y_INC * y_i) + (Z_INC * z_i)) * (c_i + 1.0)
+                ! option_A[c_i, z_i, y_i, x_i] = coordinate
+                ! option_B[z_i, y_i, x_i, c_i] = coordinate
+                ! option_C[x_i, y_i, z_i, c_i] = coordinate
+                this%t_in_  (x_i+1,y_i+1,z_i+1,c_i+1) = coordinate
+              ! this%t_in_r_(c_i+1,z_i+1,y_i+1,x_i+1) = coordinate
+                enddo
+            enddo
+        enddo
+    enddo
+
 
 !   Write t_in to disc:
     IF ( this%icycle_ .EQ. 0 ) THEN
-      open(unit=10, file='t_in.bin', form='UNFORMATTED', &
-           status='REPLACE', iostat=iostatus)
+!     open(unit=10, file='t_in.bin', form='UNFORMATTED', &
+!          status='REPLACE', iostat=iostatus)
+      open(unit=10, file="t_in.bin", access="stream", &
+         form="unformatted", status="replace", action="write")
       if (iostatus /= 0) then
         print *, 'ERROR: Could not open file (Status: ', iostatus, ')'
         stop
       end if
       write(10) this%t_in_
-      close(2);
+      close(10);
     ENDIF
-
+#endif
 
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_compute_model: packing done.'
@@ -627,32 +644,52 @@ MODULE class_GSGSmodel
 !   PRINT *, 'Inference output (first batch row):'
 !   PRINT '(100(1x,f10.6))', this%t_out_(1, :)
 
+#if 0
+!   Write t_out to disc:
+    IF ( this%icycle_ .EQ. 0 ) THEN
+      open(unit=10, file="t_out.bin", access="stream", &
+         form="unformatted", status="replace", action="write")
+      if (iostatus /= 0) then
+        print *, 'ERROR: Could not open file (Status: ', iostatus, ')'
+        stop
+      end if
+      write(10) this%t_out_
+      close(10);
+    ENDIF
+#endif
+
+
     ! Unpack model output and compute FFTs:
     CALL GTStart(this%hunpack_)
 !   WRITE(*,*) 'GSGS_compute_model: unpacking vx... '
-    CALL GSGS_unpack(this, this%t_out_(:,:,:,1), R1, C1)
+    CALL GSGS_unpack(this, this%t_out_(:,:,:,1), R1, SGS1)
  
       ! Write outputs for first cycle:
       IF ( this%icycle_ .EQ. 0 ) THEN
-        CALL GSGS_ccopy(this, C1, C2)
+        CALL GSGS_ccopy(this, SGS1, C2)
         C2 = C2 * tmp
         CALL fftp3d_complex_to_real(this%plancr,C2,R1)
         CALL io_write(1,this%modelTraits_%odir,'SGS1_check',ext,this%modelTraits_%planio,R1)
       ENDIF
 
 !   WRITE(*,*) 'GSGS_compute_model: unpacking vy... '
-    CALL GSGS_unpack(this, this%t_out_(:,:,:,2), R1, C1)
+    CALL GSGS_unpack(this, this%t_out_(:,:,:,2), R1, SGS2)
 !   WRITE(*,*) 'GSGS_compute_model: unpacking vz... '
-    CALL GSGS_unpack(this, this%t_out_(:,:,:,3), R1, C1)
+    CALL GSGS_unpack(this, this%t_out_(:,:,:,3), R1, SGS3)
+#if 0
 !   WRITE(*,*) 'GSGS_compute_model: unpacking th... '
-    CALL GSGS_unpack(this, this%t_out_(:,:,:,4), R1, C1)
+    CALL GSGS_unpack(this, this%t_out_(:,:,:,4), R1, SGSth)
     CALL GTStop(this%hunpack_)
+#else
+    SGSth = 0.0_GP
+#endif
 
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_compute_model: unpacking done.'
 
     ! Make sure SGS is div-free:
     IF ( this%modelTraits_%do_projection ) THEN
+    C1 = SGS1; C2 = SGS2; C3 = SGS3
     CALL GSGS_project3(this, C1, C2, C3, SGS1, SGS2, SGS3)
     ENDIF
    
@@ -782,9 +819,9 @@ MODULE class_GSGSmodel
       CALL GSGS_demean(this,R1)
     ENDIF
 
- !    IF ( this%icycle_ .EQ. 0 ) THEN
- !      CALL io_write(1,this%modelTraits_%odir,'SGS1_otensor',ext,this%modelTraits_%planio,R1)
- !    ENDIF
+      IF ( this%icycle_ .EQ. 0 ) THEN
+        CALL io_write(1,this%modelTraits_%odir,'SGS1_otensor',ext,this%modelTraits_%planio,R1)
+      ENDIF
 
     CALL fftp3d_real_to_complex(this%planrc,R1,sgs)
 !   if ( this%myrank_ .eq. 0 ) then
