@@ -457,7 +457,8 @@
       TYPE (GSGSmodel)      :: mlsgs
       TYPE(GSGSmodelTraits) :: mlsgstraits
       LOGICAL               :: sgs_doproj
-      INTEGER               :: sgs_nx, sgs_ny, sgs_nz, sgs_nchannel
+      INTEGER               :: sgs_nx, sgs_ny, sgs_nz
+      INTEGER               :: sgs_nichannel, sgs_nochannel
       CHARACTER(len=1024)   :: sgs_model_path, sgs_model_type
       CHARACTER(len=1024)   :: sgs_in_name, sgs_out_name
         
@@ -490,7 +491,7 @@
 #endif
 #if defined(VELOCSGS_) && defined(SCALARSGS_)
       NAMELIST / mlsgsnml / sgs_doproj, sgs_nx, sgs_ny, sgs_nz
-      NAMELIST / mlsgsnml / sgs_nchannel 
+      NAMELIST / mlsgsnml / sgs_nichannel, sgs_nochannel 
       NAMELIST / mlsgsnml / sgs_model_path, sgs_model_type
       NAMELIST / mlsgsnml / sgs_in_name, sgs_out_name
 #endif
@@ -1017,7 +1018,8 @@
       sgs_nx         = nx
       sgs_ny         = ny
       sgs_nz         = nz
-      sgs_nchannel   = 4
+      sgs_nichannel  = 4
+      sgs_nochannel  = 4
       sgs_model_path = './mymodel'
       sgs_model_type = 'CNN'
       sgs_in_name    = 'state'
@@ -1032,7 +1034,8 @@
       CALL MPI_BCAST(sgs_nx        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sgs_ny        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sgs_nz        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(sgs_nchannel  ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sgs_nichannel ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sgs_nochannel ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sgs_model_path,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sgs_model_type,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sgs_in_name   ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
@@ -1042,7 +1045,8 @@
       mlsgstraits%nx         = sgs_nx
       mlsgstraits%ny         = sgs_ny
       mlsgstraits%nz         = sgs_nz
-      mlsgstraits%nchannel   = sgs_nchannel
+      mlsgstraits%nichannel  = sgs_nichannel
+      mlsgstraits%nochannel  = sgs_nochannel
       mlsgstraits%model_path = sgs_model_path
       mlsgstraits%model_type = sgs_model_type
       mlsgstraits%in_name    = sgs_in_name
