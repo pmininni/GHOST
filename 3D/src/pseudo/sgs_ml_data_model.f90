@@ -923,9 +923,9 @@ MODULE class_GSGSmodel
 !                              MPI_Datatype oldtype, MPI_Datatype *newtype)
       DO irank = 0,nprocs-1
          CALL MPI_Type_create_subarray( &
-                                  3, szarrays, subszarrays, disparrays, &
-                                  MPI_ORDER_FORTRAN, GC_REAL, & 
-                                  sndtype(irank), ierr)
+                     3, szarrays, subszarrays, disparrays, &
+                     MPI_ORDER_FORTRAN, GC_REAL, & 
+                     sndtype(irank), ierr)
          IF ( ierr .ne. MPI_SUCCESS ) THEN
            WRITE(*,*) myrank, ': GSGS_real_exch_types: irank=', irank
            stop 'Bad type'
@@ -940,14 +940,13 @@ MODULE class_GSGSmodel
       ! Receive types:
       DO irank = 0,nprocs-1
          CALL range(1,n(3),nprocs,irank,ksta,kend)
-         szarrayr    = (/n(1)* n(2)* n(3)/)
-         subszarrayr = (/n(1)* n(2)* (kend-ksta+1)/)
-!        disparrayr  = (/0   , 0   , ksta-1/)
+         szarrayr    = (/n(1) * n(2) * n(3)/)
+         subszarrayr = (/n(1) * n(2) * (kend-ksta+1)/)
          disparrayr  = (/nperp*(ksta-1)/)
          CALL MPI_Type_create_subarray( &
-                                  1, szarrayr, subszarrayr, disparrayr, &
-                                  MPI_ORDER_FORTRAN, GC_REAL, & 
-                                  rcvtype(irank), ierr)
+                     1, szarrayr, subszarrayr, disparrayr, &
+                     MPI_ORDER_FORTRAN, GC_REAL, & 
+                     rcvtype(irank), ierr)
          CALL MPI_Type_commit(rcvtype(irank), ierr)
       END DO
 
