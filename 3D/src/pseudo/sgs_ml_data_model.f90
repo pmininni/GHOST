@@ -295,6 +295,7 @@ MODULE class_GSGSmodel
     ! Find send/recv types:
     CALL GSGS_real_exch_types(ngrid, this%nprocs_, this%myrank_, &
                               this%modelTraits_%nichannel, &
+                              this%modelTraits_%nochannel, &
                               this%sndtype_, this%rcvtype_)
 
     this%modelTraits_ = modtraits
@@ -601,9 +602,9 @@ MODULE class_GSGSmodel
     enddo
 
 #else
-    open(10,file='OPTION_Flat_IN.BIN',FORM="UNFORMATTED", ACCESS="STREAM", STATUS="OLD")
-    read(10) this%t_in_
-    close(10)
+!   open(10,file='OPTION_Flat_IN.BIN',FORM="UNFORMATTED", ACCESS="STREAM", STATUS="OLD")
+!   read(10) this%t_in_
+!   close(10)
 #endif
 
 !   Write t_in to disc:
@@ -781,7 +782,7 @@ MODULE class_GSGSmodel
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' fft done'
 
-    CALL GSGS_real_exch(this, R1, itensor((ivar-1)*nsp+1)) 
+    CALL GSGS_real_exch(this, R1, ivar, itensor )
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_pack: icycle=', this%icycle_, ' exchange done'
 
@@ -924,63 +925,71 @@ MODULE class_GSGSmodel
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
-      SUBROUTINE GSGS_real_exch(this, R1, t_in)
+      SUBROUTINE GSGS_real_exch(this, R1, ivar, t_in)
 !-----------------------------------------------------------------
 !
 ! Parameters
 !     R1     : Real field
+!     ivar   : input channel variable in [1,this%nichannel]
 !     t_in   : input tensor that will contain variable's
 !              input field data
 !-----------------------------------------------------------------
 
-      USE commtypes
-      IMPLICIT NONE
+    USE commtypes
+    IMPLICIT NONE
 
-      class(GSGSmodel), INTENT(INOUT)     :: this
-      REAL(KIND=GP)   , INTENT   (IN), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
-!     REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%modelTraits_%nichannel,this%nx,this%ny,this%nz):: t_in
-      REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%nz):: t_in
+    class(GSGSmodel), INTENT(INOUT)     :: this
+    REAL(KIND=GP)   , INTENT   (IN), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
+!   REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%modelTraits_%nichannel,this%nx,this%ny,this%nz):: t_in
+    REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(:):: t_in
 
-      INTEGER                             :: iproc, irank, istrip, nstrip
-      INTEGER                             :: isendTo, igetFrom
-      INTEGER, DIMENSION(0:this%nprocs_-1) :: ireq1,ireq2
-      INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
+    INTEGER         , INTENT   (IN)     :: ivar
+    INTEGER                             :: iproc, irank, istrip, nsp, nstrip
+    INTEGER                             :: isendTo, igetFrom
+    INTEGER, DIMENSION(0:this%nprocs_-1):: ireq1,ireq2
+    INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus
 
-      nstrip = 1
-      do irank = 0, this%nprocs_-1
+    IF ( ivar .lt. 1 .or. ivar .gt. this%modelTraits_%nichannel ) THEN
+      STOP 'GSGS_real_exch: Invalid ivar'
+    ENDIF
 
-            isendTo = this%myrank_ + irank
-            if ( isendTo .ge. this%nprocs_ ) isendTo = isendTo - this%nprocs_
+    nsp = this%nx * this%ny *this%nz
 
-            igetFrom = this%myrank_ - irank
-            if ( igetFrom .lt. 0 ) igetFrom = igetFrom + this%nprocs_
-!   WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' post IRECV...'
-!   WRITE(*,*) this%myrank_, ': GSGS_real_exch: post IRECV from ', igetFrom
-            CALL MPI_IRECV(t_in,1,this%rcvtype_(igetFrom),igetFrom,      &
-                          1,this%comm_,ireq2(irank),this%ierr_)
-!   WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' post done.'
-            IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
-              STOP 'GSGS_real_exch: MPI_IRECV failed'
-            ENDIF
+    nstrip = 1
+    do irank = 0, this%nprocs_-1
 
-!   WRITE(*,*) this%myrank_, ': GSGS_real_exch: sending to',isendTo
+          isendTo = this%myrank_ + irank
+          if ( isendTo .ge. this%nprocs_ ) isendTo = isendTo - this%nprocs_
 
-            CALL MPI_ISEND(R1,1,this%sndtype_(isendTo),isendTo, &
-                           1,this%comm_,ireq1(irank),this%ierr_)
-!   WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' ISEND done.'
-            IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
-              STOP 'GSGS_real_exch: MPI_ISEND failed'
-            ENDIF
+          igetFrom = this%myrank_ - irank
+          if ( igetFrom .lt. 0 ) igetFrom = igetFrom + this%nprocs_
+!  WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' post IRECV...'
+!  WRITE(*,*) this%myrank_, ': GSGS_real_exch: post IRECV from ', igetFrom
+          CALL MPI_IRECV(t_in(ivar*nsp),1,this%rcvtype_(igetFrom),igetFrom,      &
+                        1,this%comm_,ireq2(irank),this%ierr_)
+!  WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' post done.'
+          IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
+            STOP 'GSGS_real_exch: MPI_IRECV failed'
+          ENDIF
 
-!   WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' Do waits...'
-         CALL MPI_WAIT(ireq1(irank),istatus,this%ierr_)
-         CALL MPI_WAIT(ireq2(irank),istatus,this%ierr_)
+!  WRITE(*,*) this%myrank_, ': GSGS_real_exch: sending to',isendTo
 
-      enddo
+          CALL MPI_ISEND(R1,1,this%sndtype_(isendTo),isendTo, &
+                         1,this%comm_,ireq1(irank),this%ierr_)
+!  WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' ISEND done.'
+          IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
+            STOP 'GSGS_real_exch: MPI_ISEND failed'
+          ENDIF
+
+!  WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' Do waits...'
+       CALL MPI_WAIT(ireq1(irank),istatus,this%ierr_)
+       CALL MPI_WAIT(ireq2(irank),istatus,this%ierr_)
+
+    enddo
 
 !   WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' real_exhange done.'
-      RETURN
-      END SUBROUTINE GSGS_real_exch
+     RETURN
+     END SUBROUTINE GSGS_real_exch
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 
