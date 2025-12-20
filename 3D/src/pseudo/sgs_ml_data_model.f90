@@ -394,7 +394,7 @@ MODULE class_GSGSmodel
     no = this%modelTraits_%nochannel
     nn = this%ntot
 
-    IF ( nc .LE. 0 .OR. nn .LE. 0 ) THEN
+    IF ( nc .LE. 0 .OR. no .LE. 0 .OR. nn .LE. 0 ) THEN
       STOP 'Invalid nichannel or ntot!'
     ENDIF
 
@@ -566,40 +566,38 @@ MODULE class_GSGSmodel
     ! Pack model input layer:
     CALL GTStart(this%hpack_)
     CALL GSGS_pack(this, vx, C1, R1, 1, this%t_in_)
-!     IF ( this%myrank_ .eq. 0 ) &
-!     WRITE(*,*) 'GSGS_compute_model: vx packing done.'
+    WRITE(*,*) this%myrank_, ' GSGS_compute_model: vx pack done.. '
     CALL GSGS_pack(this, vy, C1, R1, 2, this%t_in_)
-!     IF ( this%myrank_ .eq. 0 ) &
-!     WRITE(*,*) 'GSGS_compute_model: vy packing done.'
+    WRITE(*,*) this%myrank_, ' GSGS_compute_model: vy pack done.. '
     CALL GSGS_pack(this, vz, C1, R1, 3, this%t_in_)
-!     IF ( this%myrank_ .eq. 0 ) &
-!     WRITE(*,*) 'GSGS_compute_model: vz packing done.'
+    WRITE(*,*) this%myrank_, ' GSGS_compute_model: vz pack done.. '
     CALL GSGS_pack(this, th, C1, R1, 4, this%t_in_)
-!     IF ( this%myrank_ .eq. 0 ) &
-!     WRITE(*,*) 'GSGS_compute_model: th packing done.'
+    WRITE(*,*) this%myrank_, ' GSGS_compute_model: th pack done.. '
     CALL GTStop(this%hpack_)
 
-#if 0
-    X_INC = 1e-5
-    Y_INC = 1e-3
-    Z_INC = 1e-1
+    WRITE(*,*) this%myrank_, ' GSGS_compute_model: packing done. '
 
-    nn = 1
-    do c_i = 0,3 
-        do z_i = 0, this%nx-1
-            do y_i = 0, this%ny-1
-               do x_i = 0, this%nz-1
-                  coordinate = ((X_INC * x_i) + (Y_INC * y_i) + (Z_INC * z_i)) * (c_i + 1.0)
-                ! option_A[c_i, z_i, y_i, x_i] = coordinate
-                ! option_B[z_i, y_i, x_i, c_i] = coordinate
-                ! option_C[x_i, y_i, z_i, c_i] = coordinate
-              ! this%t_in_r_(c_i+1,z_i+1,y_i+1,x_i+1) = coordinate
-                this%t_in_(nn) = coordinate
-                nn = nn + 1
-                enddo
-            enddo
-        enddo
-    enddo
+#if 0
+!   X_INC = 1e-5
+!   Y_INC = 1e-3
+!   Z_INC = 1e-1
+
+!   nn = 1
+!   do c_i = 0,3 
+!       do z_i = 0, this%nx-1
+!           do y_i = 0, this%ny-1
+!              do x_i = 0, this%nz-1
+!                 coordinate = ((X_INC * x_i) + (Y_INC * y_i) + (Z_INC * z_i)) * (c_i + 1.0)
+!               ! option_A[c_i, z_i, y_i, x_i] = coordinate
+!               ! option_B[z_i, y_i, x_i, c_i] = coordinate
+!               ! option_C[x_i, y_i, z_i, c_i] = coordinate
+!             ! this%t_in_r_(c_i+1,z_i+1,y_i+1,x_i+1) = coordinate
+!               this%t_in_(nn) = coordinate
+!               nn = nn + 1
+!               enddo
+!           enddo
+!       enddo
+!   enddo
 
 #else
 !   open(10,file='OPTION_Flat_IN.BIN',FORM="UNFORMATTED", ACCESS="STREAM", STATUS="OLD")
@@ -607,6 +605,7 @@ MODULE class_GSGSmodel
 !   close(10)
 #endif
 
+#if 1
 !   Write t_in to disc:
     IF ( this%icycle_ .EQ. 0 ) THEN
 !     open(unit=10, file='t_in.bin', form='UNFORMATTED', &
@@ -620,12 +619,17 @@ MODULE class_GSGSmodel
       write(10) this%t_in_
       close(10);
     ENDIF
+#endif
 
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_compute_model: packing done.'
 
-    IF ( this%myrank_ .eq. 0 ) &
-    WRITE(*,*) 'GSGS_compute_model: do inference...'
+!   IF ( this%myrank_ .eq. 0 ) &
+!   WRITE(*,*) 'GSGS_compute_model: do inference...'
+
+    WRITE(*,*) this%myrank_, ' GSGS_compute_model: do inference... '
+
+    CALL MPI_BARRIER(this%comm_, this%ierr_)
 
     ! Run inference
     CALL GTStart(this%hinf_)
@@ -633,8 +637,10 @@ MODULE class_GSGSmodel
 !   iret = this%infmodel_%infer(this%imap_, this%omap_)
     CALL GTStop(this%hinf_)
 
-    IF ( this%myrank_ .eq. 0 ) &
-    WRITE(*,*) 'GSGS_compute_model: inference done.'
+!   IF ( this%myrank_ .eq. 0 ) &
+!   WRITE(*,*) 'GSGS_compute_model: inference done.'
+
+    WRITE(*,*) this%myrank_, ' GSGS_compute_model: inference done. '
 
     ! (Optional) print stats/config
     CALL infero_check( this%infmodel_%print_statistics() )
@@ -643,6 +649,8 @@ MODULE class_GSGSmodel
     ! Show output
 !   PRINT *, 'Inference output (first batch row):'
 !   PRINT '(100(1x,f10.6))', this%t_out_(1, :)
+
+    CALL MPI_BARRIER(this%comm_, this%ierr_)
 
 #if 1
 !   Write t_out to disc:
@@ -661,9 +669,10 @@ MODULE class_GSGSmodel
 
     ! Unpack model output and compute FFTs:
     CALL GTStart(this%hunpack_)
-!   WRITE(*,*) 'GSGS_compute_model: unpacking vx... '
+    WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vx... '
     CALL GSGS_unpack(this, this%t_out_, 1, R1, SGS1)
  
+#if 0
       ! Write outputs for first cycle:
       IF ( this%icycle_ .EQ. 0 ) THEN
         CALL GSGS_ccopy(this, SGS1, C2)
@@ -671,13 +680,14 @@ MODULE class_GSGSmodel
         CALL fftp3d_complex_to_real(this%plancr,C2,R1)
         CALL io_write(1,this%modelTraits_%odir,'SGS1_check',ext,this%modelTraits_%planio,R1)
       ENDIF
+#endif
 
-!   WRITE(*,*) 'GSGS_compute_model: unpacking vy... '
+    WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vy... '
     CALL GSGS_unpack(this, this%t_out_, 2, R1, SGS2)
-!   WRITE(*,*) 'GSGS_compute_model: unpacking vz... '
+    WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vz... '
     CALL GSGS_unpack(this, this%t_out_, 3, R1, SGS3)
 
-!   WRITE(*,*) 'GSGS_compute_model: unpacking th... '
+    WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking th... '
     IF ( this%modelTraits_%nochannel .eq. 4 ) THEN
       CALL GSGS_unpack(this, this%t_out_, 4, R1, SGSth)
       CALL GTStop(this%hunpack_)
@@ -687,15 +697,19 @@ MODULE class_GSGSmodel
 
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_compute_model: unpacking done.'
+    WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking done. '
 
     ! Make sure SGS is div-free:
     IF ( this%modelTraits_%do_projection ) THEN
     C1 = SGS1; C2 = SGS2; C3 = SGS3
     CALL GSGS_project3(this, C1, C2, C3, SGS1, SGS2, SGS3)
     ENDIF
+    WRITE(*,*) this%myrank_, ' GSGS_compute_model: proj done. '
    
     ! Write time stats:
-!   WRITE(*,*) 'GSGS_compute_model: done. '
+!   IF ( this%myrank_ .eq. 0 ) &
+!   WRITE(*,*) 'GSGS_compute_model: done. Compute times... '
+    WRITE(*,*) this%myrank_, ' GSGS_compute_model: compute times... '
     packtime   = GTGetElapsed  (this%hpack_)
     unpacktime = GTGetElapsed(this%hunpack_)
     inftime    = GTGetElapsed   (this%hinf_)
@@ -722,6 +736,8 @@ MODULE class_GSGSmodel
 
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_compute_model: icycle=', this%icycle_, ' done.'
+
+    WRITE(*,*) this%myrank_, ' GSGS_compute_model: done. '
 
     this%icycle_ = this%icycle_ + 1
 
@@ -819,6 +835,9 @@ MODULE class_GSGSmodel
       STOP 'GSGS_unpack: Invalid ivar'
     ENDIF
 
+    IF ( this%myrank_ .eq. 0 ) &
+    WRITE(*,*) 'GSGS_unpack: do unpacking... '
+
 !$omp parallel do if (this%kend-this%ksta.ge.nth) private (j,i)
     DO k = this%ksta,this%kend
 !$omp parallel do if (this%kend-this%ksta.lt.nth) private (i)
@@ -833,8 +852,11 @@ MODULE class_GSGSmodel
        END DO
     END DO
      
+
     ! De-mean if necessary:
     IF ( this%demean_ ) THEN
+      IF ( this%myrank_ .eq. 0 ) &
+      WRITE(*,*) 'GSGS_unpack: do demeaning... '
       CALL GSGS_demean(this,R1)
     ENDIF
 
@@ -844,7 +866,13 @@ MODULE class_GSGSmodel
     ENDIF
 #endif
 
+    IF ( this%myrank_ .eq. 0 ) &
+    WRITE(*,*) 'GSGS_unpack: do r2c... '
+
     CALL fftp3d_real_to_complex(this%planrc,R1,sgs)
+
+    IF ( this%myrank_ .eq. 0 ) &
+    WRITE(*,*) 'GSGS_unpack: done. '
 
     RETURN
   END SUBROUTINE GSGS_unpack
@@ -876,11 +904,13 @@ MODULE class_GSGSmodel
 
       INTEGER :: ksta,kend
       INTEGER :: irank
-      INTEGER :: ierr
+      INTEGER :: ierr, nperp
       INTEGER :: szarrays(3),subszarrays(3),disparrays(3)
-      INTEGER :: szarrayr(3),subszarrayr(3),disparrayr(3)
+      INTEGER :: szarrayr(1),subszarrayr(1),disparrayr(1)
 
       CALL range(1,n(3),nprocs,myrank,ksta,kend)
+
+      nperp = n(1) * n(2)
 
       ! Send types:
       szarrays    = (/n(1), n(2), n(3)/)
@@ -910,11 +940,12 @@ MODULE class_GSGSmodel
       ! Receive types:
       DO irank = 0,nprocs-1
          CALL range(1,n(3),nprocs,irank,ksta,kend)
-         szarrayr    = (/n(1), n(2), n(3)/)
-         subszarrayr = (/n(1), n(2), kend-ksta+1/)
-         disparrayr  = (/0   , 0   , ksta-1/)
+         szarrayr    = (/n(1)* n(2)* n(3)/)
+         subszarrayr = (/n(1)* n(2)* (kend-ksta+1)/)
+!        disparrayr  = (/0   , 0   , ksta-1/)
+         disparrayr  = (/nperp*(ksta-1)/)
          CALL MPI_Type_create_subarray( &
-                                  3, szarrayr, subszarrayr, disparrayr, &
+                                  1, szarrayr, subszarrayr, disparrayr, &
                                   MPI_ORDER_FORTRAN, GC_REAL, & 
                                   rcvtype(irank), ierr)
          CALL MPI_Type_commit(rcvtype(irank), ierr)
@@ -965,7 +996,7 @@ MODULE class_GSGSmodel
           if ( igetFrom .lt. 0 ) igetFrom = igetFrom + this%nprocs_
 !  WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' post IRECV...'
 !  WRITE(*,*) this%myrank_, ': GSGS_real_exch: post IRECV from ', igetFrom
-          CALL MPI_IRECV(t_in(ivar*nsp),1,this%rcvtype_(igetFrom),igetFrom,      &
+          CALL MPI_IRECV(t_in((ivar-1)*nsp+1),1,this%rcvtype_(igetFrom),igetFrom,      &
                         1,this%comm_,ireq2(irank),this%ierr_)
 !  WRITE(*,*) 'GSGS_real_exch: icycle=', this%icycle_, ' post done.'
           IF ( this%ierr_ .NE. MPI_SUCCESS ) THEN
@@ -1113,6 +1144,7 @@ MODULE class_GSGSmodel
 
     tmp = 1.0_GP/ &
             (real(this%nx,kind=GP)*real(this%ny,kind=GP)*real(this%nz,kind=GP))
+        WRITE(*,*) this%myrank_, ': GSGS_demean: 0'
       sl = 0.0_GP
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = this%ksta,this%kend
@@ -1124,7 +1156,9 @@ MODULE class_GSGSmodel
            ENDDO
          ENDDO
        ENDDO
+        WRITE(*,*) this%myrank_, ': GSGS_demean: 1'
        call MPI_ALLREDUCE(sl,sg,1,GC_REAL,MPI_SUM,MPI_COMM_WORLD,this%ierr_)
+        WRITE(*,*) this%myrank_, ': GSGS_demean: 2'
        sg = sg * tmp
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -1138,6 +1172,7 @@ MODULE class_GSGSmodel
             ENDDO
           ENDDO
         ENDDO
+        WRITE(*,*) this%myrank_, ': GSGS_demean: done.'
 
       END SUBROUTINE GSGS_demean
 !-----------------------------------------------------------------
