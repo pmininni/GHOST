@@ -566,16 +566,16 @@ MODULE class_GSGSmodel
     ! Pack model input layer:
     CALL GTStart(this%hpack_)
     CALL GSGS_pack(this, vx, C1, R1, 1, this%t_in_)
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: vx pack done.. '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: vx pack done.. '
     CALL GSGS_pack(this, vy, C1, R1, 2, this%t_in_)
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: vy pack done.. '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: vy pack done.. '
     CALL GSGS_pack(this, vz, C1, R1, 3, this%t_in_)
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: vz pack done.. '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: vz pack done.. '
     CALL GSGS_pack(this, th, C1, R1, 4, this%t_in_)
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: th pack done.. '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: th pack done.. '
     CALL GTStop(this%hpack_)
 
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: packing done. '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: packing done. '
 
 #if 0
 !   X_INC = 1e-5
@@ -611,8 +611,9 @@ MODULE class_GSGSmodel
 !     open(unit=10, file='t_in.bin', form='UNFORMATTED', &
 !          status='REPLACE', iostat=iostatus)
       open(unit=10, file="t_in.bin", access="stream", &
-         form="unformatted", status="replace", action="write")
-      if (iostatus /= 0) then
+         form="unformatted", status="replace", action="write", &
+         iostat=iostatus)
+      if ( iostatus .ne. 0 ) then
         print *, 'ERROR: Could not open file (Status: ', iostatus, ')'
         stop
       end if
@@ -627,20 +628,21 @@ MODULE class_GSGSmodel
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_compute_model: do inference...'
 
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: do inference... '
-
-    CALL MPI_BARRIER(this%comm_, this%ierr_)
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: do inference... '
 
     ! Run inference
     CALL GTStart(this%hinf_)
+!!! IF ( this%myrank_ .eq. 0 ) THEN
     CALL infero_check( this%infmodel_%infer(this%imap_, this%omap_) )
-!   iret = this%infmodel_%infer(this%imap_, this%omap_)
+!!  iret = this%infmodel_%infer(this%imap_, this%omap_)
+!!! CALL MPI_BCAST(this%t_out_,size(this%t_out_),GC_REAL,0,MPI_COMM_WORLD,this%ierr_)
+!!! ENDIF
     CALL GTStop(this%hinf_)
 
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_compute_model: inference done.'
 
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: inference done. '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: inference done. '
 
     ! (Optional) print stats/config
     CALL infero_check( this%infmodel_%print_statistics() )
@@ -656,7 +658,8 @@ MODULE class_GSGSmodel
 !   Write t_out to disc:
     IF ( this%icycle_ .EQ. 0 ) THEN
       open(unit=10, file="t_out.bin", access="stream", &
-         form="unformatted", status="replace", action="write")
+         form="unformatted", status="replace", action="write", &
+         iostat=iostatus)
       if (iostatus /= 0) then
         print *, 'ERROR: Could not open file (Status: ', iostatus, ')'
         stop
@@ -669,7 +672,7 @@ MODULE class_GSGSmodel
 
     ! Unpack model output and compute FFTs:
     CALL GTStart(this%hunpack_)
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vx... '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vx... '
     CALL GSGS_unpack(this, this%t_out_, 1, R1, SGS1)
  
 #if 0
@@ -682,12 +685,12 @@ MODULE class_GSGSmodel
       ENDIF
 #endif
 
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vy... '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vy... '
     CALL GSGS_unpack(this, this%t_out_, 2, R1, SGS2)
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vz... '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vz... '
     CALL GSGS_unpack(this, this%t_out_, 3, R1, SGS3)
 
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking th... '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking th... '
     IF ( this%modelTraits_%nochannel .eq. 4 ) THEN
       CALL GSGS_unpack(this, this%t_out_, 4, R1, SGSth)
       CALL GTStop(this%hunpack_)
@@ -697,19 +700,20 @@ MODULE class_GSGSmodel
 
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_compute_model: unpacking done.'
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking done. '
+
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking done. '
 
     ! Make sure SGS is div-free:
     IF ( this%modelTraits_%do_projection ) THEN
     C1 = SGS1; C2 = SGS2; C3 = SGS3
     CALL GSGS_project3(this, C1, C2, C3, SGS1, SGS2, SGS3)
     ENDIF
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: proj done. '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: proj done. '
    
     ! Write time stats:
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_compute_model: done. Compute times... '
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: compute times... '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: compute times... '
     packtime   = GTGetElapsed  (this%hpack_)
     unpacktime = GTGetElapsed(this%hunpack_)
     inftime    = GTGetElapsed   (this%hinf_)
@@ -737,7 +741,7 @@ MODULE class_GSGSmodel
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_compute_model: icycle=', this%icycle_, ' done.'
 
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: done. '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: done. '
 
     this%icycle_ = this%icycle_ + 1
 
