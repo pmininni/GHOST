@@ -112,7 +112,7 @@ MODULE class_GSGSmodel
         PROCEDURE,PUBLIC :: GSGS_ctor
         FINAL            :: GSGS_dtor
         PROCEDURE,PUBLIC :: sgs_model         => GSGS_compute_model
-        PROCEDURE,PUBLIC :: GSGS_prtspectra
+        PROCEDURE,PUBLIC :: prtspectra        => GSGS_prtspectra
 
       END TYPE GSGSmodel
 
@@ -557,7 +557,7 @@ MODULE class_GSGSmodel
     tmp = 1.0_GP/ &
             (real(this%nx,kind=GP)*real(this%ny,kind=GP)*real(this%nz,kind=GP))
 
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: entering... '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: entering... '
 !   IF ( this%myrank_ .eq. 0 ) THEN
 !   WRITE(*,*) 'GSGS_compute_model: entering...'
 !   WRITE(*,*) 'nx=',this%nx, ' ny=',this%ny, ' nz=',this%nz, ' ista=', this%ista, &
@@ -565,7 +565,7 @@ MODULE class_GSGSmodel
 !   WRITE(*,*) 'map_size=s', this%imap_%map_size()
 !   ENDIF
 
-WRITE(*,*) this%myrank_, ' GSGS_compute_model: do pack... '
+!  WRITE(*,*) this%myrank_, ' GSGS_compute_model: do pack... '
 
     ! Pack model input layer:
     CALL GTStart(this%hpack_)
@@ -602,7 +602,7 @@ WRITE(*,*) this%myrank_, ' GSGS_compute_model: do pack... '
 !   read(10) this%t_in_
 !   close(10)
 #endif
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: write t_in... '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: write t_in... '
 
 #if 1
 !   Write t_in to disc:
@@ -627,7 +627,7 @@ WRITE(*,*) this%myrank_, ' GSGS_compute_model: do pack... '
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_compute_model: do inference...'
 
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: do inference... '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: do inference... '
 
     ! Run inference
     CALL GTStart(this%hinf_)
@@ -669,25 +669,25 @@ WRITE(*,*) this%myrank_, ' GSGS_compute_model: do pack... '
 #endif
     CALL MPI_BARRIER(this%comm_, this%ierr_)
 
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: do unpack ... '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: do unpack ... '
     ! Unpack model output and compute FFTs:
     CALL GTStart(this%hunpack_)
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vx... '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vx... '
     CALL GSGS_unpack(this, this%t_out_, 1, R1, SGS1)
  
 #if 0
-      ! Write outputs for first cycle:
-      IF ( this%icycle_ .EQ. 0 ) THEN
-        CALL GSGS_ccopy(this, SGS1, C2)
-        C2 = C2 * tmp
-        CALL fftp3d_complex_to_real(this%plancr,C2,R1)
-        CALL io_write(1,this%modelTraits_%odir,'SGS1_check',ext,this%modelTraits_%planio,R1)
-      ENDIF
+!     ! Write outputs for first cycle:
+!     IF ( this%icycle_ .EQ. 0 ) THEN
+!       CALL GSGS_ccopy(this, SGS1, C2)
+!       C2 = C2 * tmp
+!       CALL fftp3d_complex_to_real(this%plancr,C2,R1)
+!       CALL io_write(1,this%modelTraits_%odir,'SGS1_check',ext,this%modelTraits_%planio,R1)
+!     ENDIF
 #endif
 
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vy... '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vy... '
     CALL GSGS_unpack(this, this%t_out_, 2, R1, SGS2)
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vz... '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vz... '
     CALL GSGS_unpack(this, this%t_out_, 3, R1, SGS3)
 
 !   WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking th... '
@@ -699,14 +699,36 @@ WRITE(*,*) this%myrank_, ' GSGS_compute_model: do pack... '
     ENDIF
 
 !   WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking done. '
+#if 1
+    open(10,file='SGS1_T.0500.out',FORM="UNFORMATTED", ACCESS="STREAM", STATUS="OLD")
+    read(10) R1
+    close(10)
+    CALL fftp3d_real_to_complex(this%planrc,R1,SGS1,MPI_COMM_WORLD)
 
-WRITE(*,*) this%myrank_, ' GSGS_compute_model: do projection... '
+    open(10,file='SGS2_T.0500.out',FORM="UNFORMATTED", ACCESS="STREAM", STATUS="OLD")
+    read(10) R1
+    close(10)
+    CALL fftp3d_real_to_complex(this%planrc,R1,SGS2,MPI_COMM_WORLD)
+
+    open(10,file='SGS3_T.0500.out',FORM="UNFORMATTED", ACCESS="STREAM", STATUS="OLD")
+    read(10) R1
+    close(10)
+    CALL fftp3d_real_to_complex(this%planrc,R1,SGS3,MPI_COMM_WORLD)
+
+    open(10,file='SGSth_T.0500.out',FORM="UNFORMATTED", ACCESS="STREAM", STATUS="OLD")
+    read(10) R1
+    close(10)
+    CALL fftp3d_real_to_complex(this%planrc,R1,SGSth,MPI_COMM_WORLD)
+#endif
+
+
     ! Make sure SGS is div-free:
     IF ( this%modelTraits_%do_projection ) THEN
+      !WRITE(*,*) this%myrank_, ' GSGS_compute_model: do projection... '
     C1 = SGS1; C2 = SGS2; C3 = SGS3
     CALL GSGS_project3(this, C1, C2, C3, SGS1, SGS2, SGS3)
     ENDIF
-    WRITE(*,*) this%myrank_, ' GSGS_compute_model: proj done. '
+!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: proj done. '
    
     ! Write time stats:
 !   IF ( this%myrank_ .eq. 0 ) &
@@ -1301,7 +1323,7 @@ WRITE(*,*) this%myrank_, ' GSGS_compute_model: do projection... '
       !! Isotropic potential energy rate:
       CALL spectrscc(SGSth,Ektot,0.0_GP)
       IF (myrank.eq.0) THEN
-        OPEN(1,file='sgs_kspectrum.' // nmb // '.txt')
+        OPEN(1,file='sgs_thspectrum.' // nmb // '.txt')
         DO i=1,nmax/2+1
            WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Ektot(i)/Dkk
         END DO
@@ -1312,7 +1334,7 @@ WRITE(*,*) this%myrank_, ' GSGS_compute_model: do projection... '
       CALL specscpec(SGSth,Ektot,Ekhtot )
 
       IF (myrank.eq.0) THEN
-        OPEN(1,file='sgs_kspecperp.' // nmb // '.txt')
+        OPEN(1,file='sgs_thspecperp.' // nmb // '.txt')
         DO j = 1,nmaxperp/2+1
           WRITE(1,FMT='(E23.15,E23.15,E23.15)') Dkk*(j-1), &
                   Ektot(j)/Dkk, Ekhtot(j)/Dkk
@@ -1324,7 +1346,7 @@ WRITE(*,*) this%myrank_, ' GSGS_compute_model: do projection... '
       CALL specscpac(SGSth, Ektot)
 
       IF (myrank.eq.0) THEN
-        OPEN(1,file='sgs_sspecpara.' // nmb // '.txt')
+        OPEN(1,file='sgs_thspecpara.' // nmb // '.txt')
         DO k = 1,nz/2+1
            WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Ektot(k)*Lz
         END DO
