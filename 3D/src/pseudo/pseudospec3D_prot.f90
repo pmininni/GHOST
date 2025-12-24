@@ -54,15 +54,67 @@
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(nz/2+1) :: Ek,Ektot
+      DOUBLE PRECISION, DIMENSION(nz/2+1) :: Ektot
+      DOUBLE PRECISION :: tmq
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
+      INTEGER,          INTENT(IN)                           :: isc
+      INTEGER          :: k
+      CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=1)             :: si
+
+      CALL specscpac(a,Ektot)
+
+      IF (myrank.eq.0) THEN
+         IF ( isc.gt.0 ) THEN
+           WRITE(si,'(i1.1)') isc
+           OPEN(1,file='s' // si // 'specpara.' // nmb // '.txt')
+         ELSE
+           OPEN(1,file='sspecpara.' // nmb // '.txt')
+         ENDIF
+         DO k = 1,nz/2+1
+            WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Ektot(k)*Lz
+         END DO
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE specscpa
+
+!*****************************************************************
+      SUBROUTINE specscpac(a,Ektot)
+!-----------------------------------------------------------------
+!
+! Computes the reduced power spectrum of the passive scalar in
+! the direction parallel to the preferred direction (rotation
+! or uniform magnetic field). As a result, the k-shells 
+! are planes with normal (0,0,kz), kz = Dkz*(0,...,nz/2).
+! Normalization of the reduced spectrum is such that
+! E = sum[E(kz).Dkz], where Dkz is the width of the Fourier shells
+! in kz. The output is written to a file by the first node.
+!
+! Parameters
+!     a    : input matrix with the passive scalar
+!     Ektot: total energy
+! 
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+      USE boxsize
+!$    USE threads
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, INTENT(OUT), &
+                        DIMENSION(nz/2+1) :: Ektot
+      DOUBLE PRECISION, DIMENSION(nz/2+1) :: Ek
       DOUBLE PRECISION :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
       REAL(KIND=GP)    :: tmp
-      INTEGER,          INTENT(IN)                           :: isc
       INTEGER          :: i,j,k
       INTEGER          :: kmn
-      CHARACTER(len=*), INTENT(IN) :: nmb
-      CHARACTER(len=1)             :: si
 
 !
 ! Sets Ek to zero
@@ -123,21 +175,8 @@
 !
       CALL MPI_REDUCE(Ek,Ektot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
-      IF (myrank.eq.0) THEN
-         IF ( isc.gt.0 ) THEN
-           WRITE(si,'(i1.1)') isc
-           OPEN(1,file='s' // si // 'specpara.' // nmb // '.txt')
-         ELSE
-           OPEN(1,file='sspecpara.' // nmb // '.txt')
-         ENDIF
-         DO k = 1,nz/2+1
-            WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Ektot(k)*Lz
-         END DO
-         CLOSE(1)
-      ENDIF
-
       RETURN
-      END SUBROUTINE specscpa
+      END SUBROUTINE specscpac
 
 !*****************************************************************
  SUBROUTINE specscpe(a,nmb,isc)

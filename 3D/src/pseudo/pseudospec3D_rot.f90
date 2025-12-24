@@ -66,9 +66,106 @@
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(nz/2+1) :: Ek,Ektot
-      DOUBLE PRECISION, DIMENSION(nz/2+1) :: Ekh,Ekhtot
-      DOUBLE PRECISION, DIMENSION(nz/2+1) :: Ekv,Ekvtot
+      DOUBLE PRECISION, DIMENSION(nz/2+1) :: Ektot , Hktot
+      DOUBLE PRECISION, DIMENSION(nz/2+1) :: Ekhtot, Hkhtot
+      DOUBLE PRECISION, DIMENSION(nz/2+1) :: Ekvtot, Hkvtot
+      DOUBLE PRECISION    :: tmq,tmr
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
+      INTEGER, INTENT(IN) :: kin,hel
+      INTEGER             :: k
+      CHARACTER(len=*), INTENT(IN) :: nmb
+
+      CALL specparac(a,b,c,kin,hel, &
+                     Ektot,Ekhtot,Ekvtot, &
+                     Hktot,Hkhtot,Hkvtot)
+      IF (kin.le.1) THEN
+         IF (myrank.eq.0) THEN
+            IF (kin.eq.1) THEN
+               OPEN(1,file='kspecpara.' // nmb // '.txt')
+            ELSE
+               OPEN(1,file='mspecpara.' // nmb // '.txt')
+            ENDIF
+            DO k = 1,nz/2+1
+               WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') &
+                              Dkz*(k-1),.5_GP*Ektot(k)*Lz, &
+                    .5_GP*Ekhtot(k)*Lz,.5_GP*Ekvtot(k)*Lz
+            END DO
+            CLOSE(1)
+         ENDIF
+      END IF
+!
+! Computes the helicity spectrum
+!
+      IF (hel.eq.1) THEN
+         IF (myrank.eq.0) THEN
+            IF (kin.eq.1) THEN
+               OPEN(1,file='khelipara.' // nmb // '.txt')
+            ELSE IF (kin.eq.0) THEN
+               OPEN(1,file='mhelipara.' // nmb // '.txt')
+            ELSE
+               OPEN(1,file='ghelipara.' // nmb // '.txt')
+            ENDIF
+            DO k = 1,nz/2+1
+               WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') &
+                     Dkz*(k-1),Ektot(k)*Lz,Ekhtot(k)*Lz,Ekvtot(k)*Lz
+            ENDDO
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+      RETURN
+      END SUBROUTINE specpara
+
+!*****************************************************************
+      SUBROUTINE specparac(a,b,c,kin,hel,&
+                           Ektot,Ekhtot,Ekvtot, &
+                           Hktot,Hkhtot,Hkvtot)
+!-----------------------------------------------------------------
+!
+! Computes the reduced energy and helicity power spectrum 
+! in the direction parallel to the preferred direction 
+! (rotation, gravity, or uniform magnetic field, assumed
+! to be in the z-direction). As a result, the k-shells
+! are planes with normal (0,0,kz), kz = Dkz*(0,...,nz/2).
+! Normalization of the reduced spectrum is such that
+! E = sum[E(kz).Dkz], where Dkz is the width of the Fourier
+! shells in kz. The output is written to a file by the
+! first node.        
+!
+!
+! Parameters
+!    a     : input matrix in the x-direction
+!    b     : input matrix in the y-direction
+!    c     : input matrix in the z-direction
+!    kin   : =2 skips energy spectrum computation
+!            =1 computes the kinetic spectrum
+!            =0 computes the magnetic spectrum
+!    hel   : =1 computes the helicity spectrum
+!            =0 skips helicity spectrum computation
+!    Ektot : total energy
+!    Ekhtot: total horizontal energy
+!    Ekvtot: total vertical energy
+!    Hktot : total helicity
+!    Hkhtot: total horizontal helicity
+!    Hkvtot: total vertical helicity
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+      USE boxsize
+!$    USE threads
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, DIMENSION(nz/2+1) :: Ek
+      DOUBLE PRECISION, INTENT(OUT), & 
+                        DIMENSION(nz/2+1) :: Ektot, Ekhtot, Ekvtot
+      DOUBLE PRECISION, INTENT(OUT), & 
+                        DIMENSION(nz/2+1) :: Hktot, Hkhtot, Hkvtot
+      DOUBLE PRECISION, DIMENSION(nz/2+1) :: Ekh,Ekv
       DOUBLE PRECISION    :: tmq,tmr
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
@@ -76,15 +173,19 @@
       INTEGER, INTENT(IN) :: kin,hel
       INTEGER             :: i,j,k
       INTEGER             :: kmn
-      CHARACTER(len=*), INTENT(IN) :: nmb
-
 !
 ! Sets Ek to zero
 !
       DO k = 1,nz/2+1
-         Ek (k) = 0.0D0
-         Ekh(k) = 0.0D0
-         Ekv(k) = 0.0D0
+         Ek    (k) = 0.0D0
+         Ekh   (k) = 0.0D0
+         Ekv   (k) = 0.0D0
+         Ektot (k) = 0.0D0
+         Ekhtot(k) = 0.0D0
+         Ekvtot(k) = 0.0D0
+         Hktot (k) = 0.0D0
+         Hkhtot(k) = 0.0D0
+         Hkvtot(k) = 0.0D0
       END DO
 !
 ! Computes the curl of the field if needed
@@ -225,19 +326,6 @@
                          MPI_COMM_WORLD,ierr)
          CALL MPI_REDUCE(Ekv,Ekvtot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                          MPI_COMM_WORLD,ierr)
-         IF (myrank.eq.0) THEN
-            IF (kin.eq.1) THEN
-               OPEN(1,file='kspecpara.' // nmb // '.txt')
-            ELSE
-               OPEN(1,file='mspecpara.' // nmb // '.txt')
-            ENDIF
-            DO k = 1,nz/2+1
-               WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') &
-                              Dkz*(k-1),.5_GP*Ektot(k)*Lz, &
-                    .5_GP*Ekhtot(k)*Lz,.5_GP*Ekvtot(k)*Lz
-            END DO
-            CLOSE(1)
-         ENDIF
       END IF
 !
 ! Computes the helicity spectrum
@@ -309,30 +397,16 @@
 ! Computes the reduction between nodes
 ! and exports the result to a file
 !
-         CALL MPI_REDUCE(Ek ,Ektot ,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM, &
+         CALL MPI_REDUCE(Ek ,Hktot ,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM, &
                          0,MPI_COMM_WORLD,ierr)
-         CALL MPI_REDUCE(Ekh,Ekhtot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM, &
+         CALL MPI_REDUCE(Ekh,Hkhtot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM, &
                          0,MPI_COMM_WORLD,ierr)
-         CALL MPI_REDUCE(Ekv,Ekvtot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM, &
+         CALL MPI_REDUCE(Ekv,Hkvtot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM, &
                          0,MPI_COMM_WORLD,ierr)
-         IF (myrank.eq.0) THEN
-            IF (kin.eq.1) THEN
-               OPEN(1,file='khelipara.' // nmb // '.txt')
-            ELSE IF (kin.eq.0) THEN
-               OPEN(1,file='mhelipara.' // nmb // '.txt')
-            ELSE
-               OPEN(1,file='ghelipara.' // nmb // '.txt')
-            ENDIF
-            DO k = 1,nz/2+1
-               WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') &
-                     Dkz*(k-1),Ektot(k)*Lz,Ekhtot(k)*Lz,Ekvtot(k)*Lz
-            ENDDO
-            CLOSE(1)
-         ENDIF
       ENDIF
 
       RETURN
-      END SUBROUTINE specpara
+      END SUBROUTINE specparac
 
 !*****************************************************************
       SUBROUTINE specperp(a,b,c,nmb,kin,hel)
@@ -379,9 +453,102 @@
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ek,Ektot
-      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ekp,Eptot
-      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ekz,Eztot
+      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ektot,Eptot,Eztot
+      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Hktot,Hptot,Hztot
+      DOUBLE PRECISION    :: tmq,tmr
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
+      INTEGER, INTENT(IN) :: kin,hel
+      INTEGER             :: j
+      CHARACTER(len=*), INTENT(IN) :: nmb
+
+      CALL specperpc(a,b,c,kin,hel,&
+                     Ektot,Eptot,Eztot, &
+                     Hktot,Hptot,Hztot )
+
+      IF (kin.le.1) THEN
+         IF (myrank.eq.0) THEN
+            IF (kin.eq.1) THEN
+               OPEN(1,file='kspecperp.' // nmb // '.txt')
+            ELSE
+               OPEN(1,file='mspecperp.' // nmb // '.txt')
+            ENDIF
+            DO j = 1,nmaxperp/2+1
+               WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') &
+                             Dkk*(j-1),.5_GP*Ektot(j)/Dkk, &
+                    .5_GP*Eptot(j)/Dkk,.5_GP*Eztot(j)/Dkk
+            END DO
+            CLOSE(1)
+         ENDIF
+      END IF
+!
+! Computes the helicity spectrum
+!
+      IF (hel.eq.1) THEN
+         IF (myrank.eq.0) THEN
+            IF (kin.eq.1) THEN
+               OPEN(1,file='kheliperp.' // nmb // '.txt')
+            ELSE IF (kin.eq.0) THEN
+               OPEN(1,file='mheliperp.' // nmb // '.txt')
+            ELSE
+               OPEN(1,file='gheliperp.' // nmb // '.txt')
+            ENDIF
+            DO j = 1,nmaxperp/2+1
+               WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') Dkk*(j-1),   &
+                              Hktot(j)/Dkk,Hptot(j)/Dkk,Hztot(j)/Dkk
+            END DO
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+      RETURN
+      END SUBROUTINE specperp
+
+!*****************************************************************
+      SUBROUTINE specperpc(a,b,c,kin,hel,Ektot,Eptot,Eztot,Hktot,Hptot,Hztot)
+!-----------------------------------------------------------------
+!
+! Computes the reduced energy and helicity power spectrum 
+! in the direction perpendicular to the preferred direction 
+! (rotation, gravity, or uniform magnetic field, assumed to
+! be in the z-direction. The k-shells are cylindrical
+! surfaces with kperp = Dkk*(0,...,max{nx*Dkx/Dkk,nyDky/Dkk}/2).
+! It also computes the spectrum of 2D modes with kz = 0 of
+! (x,y)-field components and the z-field component separately.
+! Normalization of the reduced spectrum is such that
+! E = sum[E(kperp).Dkk], where Dkk is the width of the Fourier
+! shells. The output is written to a file with three columns
+! by the first node.
+!
+! Parameters
+!    a     : input matrix in the x-direction
+!    b     : input matrix in the y-direction
+!    c     : input matrix in the z-direction
+!    kin   : =2 skips energy spectrum computation
+!            =1 computes the kinetic spectrum
+!            =0 computes the magnetic spectrum
+!    hel   : =1 computes the helicity spectrum
+!            =0 skips helicity spectrum computation
+!    Ektot : total energy
+!    Eptot : total horizontal energy
+!    Eztot : total vertical energy
+!    Hktot : total helicity
+!    Hptot : total horizontal helicity
+!    Hztot : total vertical helicity
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+      USE boxsize
+!$    USE threads
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ek,Ektot,Hktot
+      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ekp,Eptot,Hptot
+      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ekz,Eztot,Hztot
       DOUBLE PRECISION    :: tmq,tmr
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
@@ -389,15 +556,20 @@
       INTEGER, INTENT(IN) :: kin,hel
       INTEGER             :: i,j,k
       INTEGER             :: kmn
-      CHARACTER(len=*), INTENT(IN) :: nmb
 
 !
 ! Sets Ek to zero
 !
       DO i = 1,nmaxperp/2+1
-         Ek(i) = 0.0D0
-         Ekp(i) = 0.0D0
-         Ekz(i) = 0.0D0
+         Ek    (i) = 0.0D0
+         Ekp   (i) = 0.0D0
+         Ekz   (i) = 0.0D0
+         Ektot (i) = 0.0D0
+         Eptot (i) = 0.0D0
+         Eztot (i) = 0.0D0
+         Hktot (i) = 0.0D0
+         Hptot (i) = 0.0D0
+         Hztot (i) = 0.0D0
       END DO
 !
 ! Computes the curl of the field if needed
@@ -561,19 +733,6 @@
                          MPI_SUM,0,MPI_COMM_WORLD,ierr)
          CALL MPI_REDUCE(Ekz,Eztot,nmaxperp/2+1,MPI_DOUBLE_PRECISION,   &
                          MPI_SUM,0,MPI_COMM_WORLD,ierr)
-         IF (myrank.eq.0) THEN
-            IF (kin.eq.1) THEN
-               OPEN(1,file='kspecperp.' // nmb // '.txt')
-            ELSE
-               OPEN(1,file='mspecperp.' // nmb // '.txt')
-            ENDIF
-            DO j = 1,nmaxperp/2+1
-               WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') &
-                             Dkk*(j-1),.5_GP*Ektot(j)/Dkk, &
-                    .5_GP*Eptot(j)/Dkk,.5_GP*Eztot(j)/Dkk
-            END DO
-            CLOSE(1)
-         ENDIF
       END IF
 !
 ! Computes the helicity spectrum
@@ -660,30 +819,16 @@
 ! Computes the reduction between nodes
 ! and exports the result to a file
 !
-         CALL MPI_REDUCE(Ek,Ektot,nmaxperp/2+1,MPI_DOUBLE_PRECISION,   &
+         CALL MPI_REDUCE(Ek,Hktot,nmaxperp/2+1,MPI_DOUBLE_PRECISION,   &
                          MPI_SUM,0,MPI_COMM_WORLD,ierr)
-         CALL MPI_REDUCE(Ekp,Eptot,nmaxperp/2+1,MPI_DOUBLE_PRECISION,  &
+         CALL MPI_REDUCE(Ekp,Hptot,nmaxperp/2+1,MPI_DOUBLE_PRECISION,  &
                          MPI_SUM,0,MPI_COMM_WORLD,ierr)
-         CALL MPI_REDUCE(Ekz,Eztot,nmaxperp/2+1,MPI_DOUBLE_PRECISION,  &
+         CALL MPI_REDUCE(Ekz,Hztot,nmaxperp/2+1,MPI_DOUBLE_PRECISION,  &
                          MPI_SUM,0,MPI_COMM_WORLD,ierr)
-         IF (myrank.eq.0) THEN
-            IF (kin.eq.1) THEN
-               OPEN(1,file='kheliperp.' // nmb // '.txt')
-            ELSE IF (kin.eq.0) THEN
-               OPEN(1,file='mheliperp.' // nmb // '.txt')
-            ELSE
-               OPEN(1,file='gheliperp.' // nmb // '.txt')
-            ENDIF
-            DO j = 1,nmaxperp/2+1
-               WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') Dkk*(j-1),   &
-                              Ektot(j)/Dkk,Eptot(j)/Dkk,Eztot(j)/Dkk
-            END DO
-            CLOSE(1)
-         ENDIF
       ENDIF
 
       RETURN
-      END SUBROUTINE specperp
+      END SUBROUTINE specperpc
 
 !****************************************************************
       SUBROUTINE entpara(a,b,c,d,e,f,nmb,kin)
