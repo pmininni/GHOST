@@ -211,6 +211,7 @@
 #endif
 #ifdef SCALARSGS_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: SGSth
+      CHARACTER(len=len(ext)) sgsext
 #endif
 #ifdef MULTISCALAR_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C21,C22,C23,C24
@@ -395,8 +396,10 @@
       INTEGER :: i,j,k
       INTEGER :: ki,kj,kk
       INTEGER :: pind,tind,sind
+      INTEGER :: sindsgs
       INTEGER :: timet,timec
       INTEGER :: times,timef
+      INTEGER :: timessgs
       INTEGER :: timep,pstep,lgmult
       INTEGER :: ihcpu1,ihcpu2
       INTEGER :: ihomp1,ihomp2
@@ -2152,11 +2155,13 @@
 
       ini  = 1
       sind = 0                          ! index for the spectrum
+      sindsgs = 0
       tind = 0                          ! index for the binaries
       pind = 0                          ! index for the particles
       timet = tstep
       timec = cstep
       times = sstep
+      timessgs = times
       timep = pstep
 #ifdef DENSITY_
       INCLUDE 'initialrho.f90'          ! initial mass density
@@ -2276,11 +2281,13 @@
       ini = int((stat-1)*tstep) + 1
       tind = int(stat)
       sind = int(real(ini,kind=GP)/real(sstep,kind=GP)+1)
+      sindsgs = sind
       pind = int((stat-1)*lgmult+1)
       WRITE(ext, fmtext) tind
       timet = 0
       timep = 0
       times = int(modulo(float(ini-1),float(sstep)))
+      timessgs = times
       timec = int(modulo(float(ini-1),float(cstep)))
       timef = int(modulo(float(ini-1),float(fstep)))
 
@@ -2362,11 +2369,13 @@
          IF (creset.ne.0) THEN
          ini = 1                     ! resets all counters (the
          sind = 0                    ! run starts at t=0)
+         sindsgs = sind
          tind = 0
          pind = 0
          timet = tstep
          timec = cstep
          times = sstep
+         timessgs = times
          timep = pstep
          ENDIF
       ENDIF INJ
@@ -2395,11 +2404,13 @@
          IF (creset.ne.0) THEN
          ini = 1                     ! resets all counters (the
          sind = 0                    ! run starts at t=0)
+         sindsgs = sind
          tind = 0
          pind = 0
          timet = tstep
          timec = cstep
          times = sstep
+         timessgs = times
          timep = pstep
          ENDIF
       ENDIF INRHO
@@ -2438,11 +2449,13 @@
          IF (creset.ne.0) THEN
          ini = 1                     ! resets all counters (the
          sind = 0                    ! run starts at t=0)
+         sindsgs = sind
          tind = 0
          pind = 0
          timet = tstep
          timec = cstep
          times = sstep
+         timesgs = sstep
          timep = pstep
          ENDIF
       ENDIF INJM
@@ -2503,11 +2516,13 @@
          INCLUDE 'initialb.f90'      ! initial vector potential
          ini = 1                     ! resets all counters (the
          sind = 0                    ! dynamo run starts at t=0)
+         sindsgs = sind
          tind = 0
          pind = 0
          timet = tstep
          timec = cstep
          times = sstep
+         timessgs = times
          timep = pstep
       ENDIF DYN
 #endif
@@ -2576,11 +2591,13 @@
           IF (cresetp.ne.0) THEN
             ini = 1                   ! resets all counters (the
             sind = 0                  ! particle run starts at t=0)
+            sindsgs = sind
             tind = 0
             pind = 0
             timet = tstep
             timec = cstep
             times = sstep
+            timessgs = times
             timep = pstep
           ENDIF
         ENDIF
@@ -3540,6 +3557,7 @@
 
          timet = timet+1
          times = times+1
+         timessgs = timessgs+1
          timec = timec+1
          timef = timef+1
          timep = timep+1
