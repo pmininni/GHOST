@@ -699,27 +699,25 @@ MODULE class_GSGSmodel
     ENDIF
 
 !   WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking done. '
-#if 1
-    open(10,file='SGS1_T.0500.out',FORM="UNFORMATTED", ACCESS="STREAM", STATUS="OLD")
-    read(10) R1
-    close(10)
-    CALL fftp3d_real_to_complex(this%planrc,R1,SGS1,MPI_COMM_WORLD)
+!   open(10,file='SGS1_T.0500.out',FORM="UNFORMATTED", ACCESS="STREAM", STATUS="OLD")
+!   read(10) R1
+!   close(10)
+!   CALL fftp3d_real_to_complex(this%planrc,R1,SGS1,MPI_COMM_WORLD)
 
-    open(10,file='SGS2_T.0500.out',FORM="UNFORMATTED", ACCESS="STREAM", STATUS="OLD")
-    read(10) R1
-    close(10)
-    CALL fftp3d_real_to_complex(this%planrc,R1,SGS2,MPI_COMM_WORLD)
+!   open(10,file='SGS2_T.0500.out',FORM="UNFORMATTED", ACCESS="STREAM", STATUS="OLD")
+!   read(10) R1
+!   close(10)
+!   CALL fftp3d_real_to_complex(this%planrc,R1,SGS2,MPI_COMM_WORLD)
 
-    open(10,file='SGS3_T.0500.out',FORM="UNFORMATTED", ACCESS="STREAM", STATUS="OLD")
-    read(10) R1
-    close(10)
-    CALL fftp3d_real_to_complex(this%planrc,R1,SGS3,MPI_COMM_WORLD)
+!   open(10,file='SGS3_T.0500.out',FORM="UNFORMATTED", ACCESS="STREAM", STATUS="OLD")
+!   read(10) R1
+!   close(10)
+!   CALL fftp3d_real_to_complex(this%planrc,R1,SGS3,MPI_COMM_WORLD)
 
-    open(10,file='SGSth_T.0500.out',FORM="UNFORMATTED", ACCESS="STREAM", STATUS="OLD")
-    read(10) R1
-    close(10)
-    CALL fftp3d_real_to_complex(this%planrc,R1,SGSth,MPI_COMM_WORLD)
-#endif
+!   open(10,file='SGSth_T.0500.out',FORM="UNFORMATTED", ACCESS="STREAM", STATUS="OLD")
+!   read(10) R1
+!   close(10)
+!   CALL fftp3d_real_to_complex(this%planrc,R1,SGSth,MPI_COMM_WORLD)
 
 
     ! Make sure SGS is div-free:
