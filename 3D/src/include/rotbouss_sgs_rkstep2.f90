@@ -31,6 +31,13 @@
          CALL laplak3(vz,vz)
          CALL laplak3(th,th)
 
+         ! Compute SGS terms:
+         IF ( use_mlsgs ) THEN
+            CALL mlsgs%sgs_model(C1, C2, C3, C20, &
+                                 C1SGS, C2SGS, C3SGS, R1, &
+                                 SGS1 , SGS2 , SGS3 , SGSth)
+         ENDIF
+
          IF ((trans.eq.1).and.(times.eq.0).and.(bench.eq.0).and.(o.eq.ord)) &
             THEN
             CALL entrans (C1,C2,C3,C7,C8,C4,ext,1)
@@ -44,10 +51,11 @@
             CALL sctperp (C20,C5,ext,0)
          ENDIF
 
-         IF ( use_mlsgs ) THEN
-            CALL mlsgs%sgs_model(C1, C2, C3, C20, &
-                                 C1SGS, C2SGS, C3SGS, R1, &
-                                 SGS1 , SGS2 , SGS3 , SGSth)
+         IF (use_mlsgs.and.(timessgs.eq.sstep).and.(bench.eq.0).and.(o.eq.ord)) THEN
+           timessgs = 0
+           WRITE(sgsext, fmtext) sindsgs
+           CALL mlsgs%prtspectra(SGS1,SGS2,SGS3,SGSth,sgsext)
+           sindsgs  = sindsgs + 1
          ENDIF
 
          rmp = 1.0_GP/(real(o,kind=GP))
