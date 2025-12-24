@@ -1010,7 +1010,6 @@ MODULE class_GSGS
 !-----------------------------------------------------------------
 !
 ! Do dealiasing to specified ktr2
-! returning projected components into input vector
 !
 ! Parameters
 !     a     : input vector field
