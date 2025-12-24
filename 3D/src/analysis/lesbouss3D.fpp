@@ -1679,6 +1679,7 @@
 !         write(*,*) 'lesbouss: calling sgsvx...'
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,1, C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
+          CALL sgstr%dealias(CT1,trtraits%ktrunc)
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,1, CT4)
           CALL sgstr%dealias(CT4,trtraits%ktrunc)
 !         write(*,*) '       lesbouss: x-sgsvtr done.'
@@ -1688,6 +1689,7 @@
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,2, C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,2, CT5)
+          CALL sgstr%dealias(CT1,trtraits%ktrunc)
           CALL sgstr%dealias(CT5,trtraits%ktrunc)
 !         write(*,*) '       lesbouss: y-sgsvtr done.'
 !         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
@@ -1697,6 +1699,7 @@
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,3, C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,3, CT6)
+          CALL sgstr%dealias(CT1,trtraits%ktrunc)
           CALL sgstr%dealias(CT6,trtraits%ktrunc)
 !         write(*,*) '       lesbouss: z-sgsvtr done.'
           CT6 = CT6 - CT1
@@ -1725,6 +1728,8 @@
           CALL sgs  %sgsth(vx,vy,vz,th,C1,C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
           CALL sgstr%sgsth(vxt,vyt,vzt,tht,CT2,CT3)
+          CALL sgstr%dealias(CT1,trtraits%ktrunc)
+          CALL sgstr%dealias(CT3,trtraits%ktrunc)
           CT3 = CT3 - CT1
           CALL fftp3d_complex_to_real(plancrt,CT4,RT1)
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
