@@ -57,7 +57,8 @@ MODULE class_GSGSmodel
 
       TYPE, PUBLIC :: GSGSmodelTraits
 
-        LOGICAL            :: do_projection
+        LOGICAL            :: do_projection=.true.
+        LOGICAL            :: do_dealias=.true.
         INTEGER            :: nx, ny, nz
         INTEGER            :: nichannel
         INTEGER            :: nochannel
@@ -85,12 +86,14 @@ MODULE class_GSGSmodel
         INTEGER                                      :: ista,iend,ksta,kend
         INTEGER                                      :: ierr_, rlen_
         INTEGER                                      :: hpack_,hunpack_,hinf_
+        INTEGER                                      :: nmax, nmaxperp
         INTEGER(KIND=8)                              :: icycle_
         INTEGER, ALLOCATABLE, DIMENSION(:)           :: sndtype_, rcvtype_
         TYPE(GSGSmodelTraits)                        :: modelTraits_
 
         REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:,:) :: kk2
         REAL(KIND=GP), ALLOCATABLE, DIMENSION    (:) :: kx,ky,kz
+        REAL(KIND=GP)                                :: k2max,tiny
         TYPE(FFTPLAN), POINTER                       :: plancr, planrc
 
         ! Infero data:
@@ -121,6 +124,7 @@ MODULE class_GSGSmodel
       PRIVATE :: GSGS_real_exch_types, GSGS_real_exch
       PRIVATE :: GSGS_project3, GSGS_demean
       PRIVATE :: GSGS_ccopy, GSGS_rcopy
+      PRIVATE :: GSGS_dealias
 
 
 ! Methods:
@@ -141,9 +145,8 @@ MODULE class_GSGSmodel
 !     planrc : FFT plans
 !    modraits: GSGSmodelTraits structure
 !-----------------------------------------------------------------
- !  USE var
- !  USE grid
- !  USE boxsize
+    USE var
+    USE boxsize
  !  USE mpivars
  !  USE random
     USE commtypes
@@ -176,6 +179,7 @@ MODULE class_GSGSmodel
     this%ksta = bnds(3)
     this%kend = bnds(4)
     this%demean_ = .true. ! do demeaning of SGS on input by default
+
 
     IF ( comm .NE. MPI_COMM_NULL ) THEN
 
@@ -229,6 +233,8 @@ MODULE class_GSGSmodel
     ALLOCATE( this%kk2(this%nz,this%ny,this%ista:this%iend) )
     ALLOCATE( this%sndtype_(0:nprocs-1) )
     ALLOCATE( this%rcvtype_(0:nprocs-1) )
+
+    this%k2max =     1.0_GP/9.0_GP
     if ( arbsz .EQ. 1 ) THEN
       aniso = 1
     ELSE
@@ -238,6 +244,14 @@ MODULE class_GSGSmodel
          aniso = 0
       ENDIF
     ENDIF
+    IF (aniso.eq.0)  this%k2max = this%k2max*real(this%nx,kind=GP)**2
+
+    this%nmax =     int(max(this%nx*Dkx,this%ny*Dky,this%nz*Dkz)/Dkk)
+    this%nmaxperp = int(max(this%nx*Dkx,this%ny*Dky)/Dkk)
+
+
+    this%tiny = min(1e-5_GP ,.1_GP/(real(this%nmax,kind=GP)**2))
+
 
     DO i = 1,this%nx/2
        this%kx(i) = real(i-1,kind=GP)
@@ -675,20 +689,33 @@ MODULE class_GSGSmodel
 !   WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vx... '
     CALL GSGS_unpack(this, this%t_out_, 1, R1, SGS1)
  
-#if 0
-!     ! Write outputs for first cycle:
-!     IF ( this%icycle_ .EQ. 0 ) THEN
-!       CALL GSGS_ccopy(this, SGS1, C2)
-!       C2 = C2 * tmp
-!       CALL fftp3d_complex_to_real(this%plancr,C2,R1)
-!       CALL io_write(1,this%modelTraits_%odir,'SGS1_check',ext,this%modelTraits_%planio,R1)
-!     ENDIF
-#endif
+      ! Write outputs for first cycle:
+      IF ( this%icycle_ .EQ. 0 ) THEN
+        CALL GSGS_ccopy(this, SGS1, C2)
+        C2 = C2 * tmp
+        CALL fftp3d_complex_to_real(this%plancr,C2,R1)
+        CALL io_write(1,this%modelTraits_%odir,'SGS1_check',ext,this%modelTraits_%planio,R1)
+      ENDIF
 
 !   WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vy... '
     CALL GSGS_unpack(this, this%t_out_, 2, R1, SGS2)
+
 !   WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vz... '
+      IF ( this%icycle_ .EQ. 0 ) THEN
+        CALL GSGS_ccopy(this, SGS2, C2)
+        C2 = C2 * tmp
+        CALL fftp3d_complex_to_real(this%plancr,C2,R1)
+        CALL io_write(1,this%modelTraits_%odir,'SGS2_check',ext,this%modelTraits_%planio,R1)
+      ENDIF
+
     CALL GSGS_unpack(this, this%t_out_, 3, R1, SGS3)
+
+      IF ( this%icycle_ .EQ. 0 ) THEN
+        CALL GSGS_ccopy(this, SGS3, C2)
+        C2 = C2 * tmp
+        CALL fftp3d_complex_to_real(this%plancr,C2,R1)
+        CALL io_write(1,this%modelTraits_%odir,'SGS3_check',ext,this%modelTraits_%planio,R1)
+      ENDIF
 
 !   WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking th... '
     IF ( this%modelTraits_%nochannel .eq. 4 ) THEN
@@ -697,6 +724,13 @@ MODULE class_GSGSmodel
     ELSE
       SGSth = 0.0_GP
     ENDIF
+
+      IF ( this%icycle_ .EQ. 0 ) THEN
+        CALL GSGS_ccopy(this, SGSth, C2)
+        C2 = C2 * tmp
+        CALL fftp3d_complex_to_real(this%plancr,C2,R1)
+        CALL io_write(1,this%modelTraits_%odir,'SGSth_check',ext,this%modelTraits_%planio,R1)
+      ENDIF
 
 !   WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking done. '
 !   open(10,file='SGS1_T.0500.out',FORM="UNFORMATTED", ACCESS="STREAM", STATUS="OLD")
@@ -727,6 +761,13 @@ MODULE class_GSGSmodel
     CALL GSGS_project3(this, C1, C2, C3, SGS1, SGS2, SGS3)
     ENDIF
 !   WRITE(*,*) this%myrank_, ' GSGS_compute_model: proj done. '
+
+    IF ( this%modelTraits_%do_dealias ) THEN
+      CALL GSGS_dealias(this, SGS1, this%k2max)
+      CALL GSGS_dealias(this, SGS2, this%k2max)
+      CALL GSGS_dealias(this, SGS3, this%k2max)
+      CALL GSGS_dealias(this, SGSth, this%k2max)
+    ENDIF
    
     ! Write time stats:
 !   IF ( this%myrank_ .eq. 0 ) &
@@ -1278,6 +1319,7 @@ MODULE class_GSGSmodel
       !! Isotropic kinetic energy rate:
       CALL spectrumc(SGS1,SGS2,SGS3,1,0,Ektot,Hktot)
       IF (myrank.eq.0) THEN
+              write(*,*)'GSGS_prtspectra: Ek=', Ektot(1:10)
         OPEN(1,file='sgs_kspectrum.' // nmb // '.txt')
         DO i=1,nmax/2+1
           WRITE(1,FMT='(E13.6,E23.15)') Dkk*i,.5_GP*Ektot(i)/Dkk
@@ -1352,7 +1394,43 @@ MODULE class_GSGSmodel
      ENDIF
 
      END SUBROUTINE GSGS_prtspectra
+
+!*****************************************************************
+      SUBROUTINE GSGS_dealias(this,a,ktr2)
+!-----------------------------------------------------------------
+!
+! Do dealiasing to specified ktr2
+!
+! Parameters
+!     a     : input vector field
+!     ktr2  : specified kmax^2
+!
+      USE fprecision
+!     USE commtypes
+!$    USE threads
+      IMPLICIT NONE
+
+      class(GSGSmodel),INTENT (INOUT)         :: this
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: a
+      REAL   (KIND=GP), INTENT(IN)   :: ktr2
+      INTEGER :: i,j,k
+
+!$omp parallel do if (this%iend-this%ista.ge.nth) private (j,k)
+         DO i = this%ista,this%iend
+!$omp parallel do if (this%iend-this%ista.lt.nth) private (k)
+            DO j = 1,this%ny
+               DO k = 1,this%nz
+                 IF (this%kk2(k,j,i).gt.ktr2 .or. this%kk2(k,j,i).lt.this%tiny) THEN
+                   a(k,j,i) = 0.0_GP
+                 ENDIF
+               ENDDO
+            ENDDO
+         ENDDO
+
+      RETURN
+      END SUBROUTINE GSGS_dealias
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
+
 
 END MODULE class_GSGSmodel

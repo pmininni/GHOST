@@ -459,7 +459,7 @@
 #if defined(VELOCSGS_) && defined(SCALARSGS_)
       TYPE (GSGSmodel)      :: mlsgs
       TYPE(GSGSmodelTraits) :: mlsgstraits
-      LOGICAL               :: sgs_doproj
+      LOGICAL               :: sgs_doproj, sgs_dodealias
       INTEGER               :: sgs_nx, sgs_ny, sgs_nz
       INTEGER               :: sgs_nichannel, sgs_nochannel
       CHARACTER(len=1024)   :: sgs_model_path, sgs_model_type
@@ -493,7 +493,7 @@
       NAMELIST / velocity / vparam8,vparam9,voigt_alpha,use_mlsgs,use_voigt
 #endif
 #if defined(VELOCSGS_) && defined(SCALARSGS_)
-      NAMELIST / mlsgsnml / sgs_doproj, sgs_nx, sgs_ny, sgs_nz
+      NAMELIST / mlsgsnml / sgs_doproj, sgs_dodealias, sgs_nx, sgs_ny, sgs_nz
       NAMELIST / mlsgsnml / sgs_nichannel, sgs_nochannel 
       NAMELIST / mlsgsnml / sgs_model_path, sgs_model_type
       NAMELIST / mlsgsnml / sgs_in_name, sgs_out_name
@@ -1010,6 +1010,7 @@
 ! Reads parameters for the SGS ML model from the 
 ! namelist 'mlsgs' on the external file 'parameter.inp'
 !     do_projection: do SGS projection?
+!     do_dealias : do explicit dealiasing of SGS terms?
 !     nx,ny,nz   : sizes that model thinks it has
 !     nchannel   : no. channels/features
 !     model_path : path to model (+name)
@@ -1018,6 +1019,7 @@
 !     out_name   : output tensor name
        
       sgs_doproj     = .true.
+      sgs_dodealias   = .true.
       sgs_nx         = nx
       sgs_ny         = ny
       sgs_nz         = nz
@@ -1034,6 +1036,7 @@
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(sgs_doproj    ,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sgs_dodealias ,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sgs_nx        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sgs_ny        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sgs_nz        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
@@ -1045,6 +1048,7 @@
       CALL MPI_BCAST(sgs_out_name  ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
 
       mlsgstraits%do_projection = sgs_doproj
+      mlsgstraits%do_dealias = sgs_dodealias
       mlsgstraits%nx         = sgs_nx
       mlsgstraits%ny         = sgs_ny
       mlsgstraits%nz         = sgs_nz
