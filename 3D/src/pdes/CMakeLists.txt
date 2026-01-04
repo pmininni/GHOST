@@ -1,0 +1,19 @@
+add_library(pdes_lib STATIC
+  gstate_mod.f90
+  equation_base.f90
+  hd_solver.f90
+)
+
+target_include_directories(pdes_lib PUBLIC
+  ${CMAKE_BINARY_DIR}/src/${FFTP}
+  ${CMAKE_BINARY_DIR}/src/memmgt
+  )
+
+# Make sure dependencies are satisfied
+add_dependencies(pdes_lib
+  fftp_lib
+  memmgt_lib
+  )
+
+# Link MPI if needed
+target_link_libraries(pdes_lib PUBLIC project_mpi)
