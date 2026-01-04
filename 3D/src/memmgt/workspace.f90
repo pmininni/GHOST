@@ -10,7 +10,6 @@ module class_GWorkspace3D
   IMPLICIT NONE
   PRIVATE
 
-
   ! Abstract base type for array pool entries
   type, abstract :: ArrayEntry_Base
     integer :: is_free = 1  ! 1: free, 0: in use
@@ -40,13 +39,12 @@ module class_GWorkspace3D
     integer :: ncurr_complexreserve_= 10
 
   CONTAinS
-    procedure public :: initialize_pool, get_real_tmp, get_complex_tmp, free_real_tmp, free_complex_tmp 
-    procedure final :: cleanup_pool
+    procedure, public :: initialize_pool, get_real_tmp, get_complex_tmp, free_real_tmp, free_complex_tmp 
+    final             :: cleanup_pool
 
-  
   end type GWorkspace
 
-  PRIVATE:: get_real_tmp_size, get_complex_tmp_size, add_real_entries, add_complex_entries
+  PRIVATE :: get_real_tmp_size, get_complex_tmp_size, add_real_entries, add_complex_entries
 
 ! interface get_real_tmp
 !   module procedure get_real_tmp, get_complex_tmp
@@ -67,9 +65,9 @@ CONTAinS
   ! number of arrays.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine initialize_pool(this, num_real, num_complex)
-    type(TmpPool3D), intent(inout) :: this
-    integer        , intent(in) :: num_real
-    integer        , intent(in) :: num_complex
+    type(GWorkspace), intent(inout) :: this
+    integer            , intent(in) :: num_real
+    integer            , intent(in) :: num_complex
 
     integer                     :: i, total_size
     type   (RealEntry), pointer :: real_ptr
@@ -116,7 +114,7 @@ CONTAinS
   !  pool.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine cleanup_pool(this)
-    type(TmpPool3D), intent(inout) :: this
+    type(GWorkspace), intent(inout) :: this
     integer :: i
 
     if (associated(this%real_entries_)) THEN
@@ -144,8 +142,8 @@ CONTAinS
   !  specified number of arrays.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine add_real_entries(this, num_new)
-    type(TmpPool3D), intent(inout) :: this
-    type(RealEntry), intent(inout), pointer :: real_ptr
+    type(GWorkspace), intent(inout)          :: this
+    type(RealEntry),  intent(inout), pointer :: real_ptr
 
     integer                     :: i
     type(RealEntry), pointer    :: ptr_copy(this%real_size_)
@@ -178,7 +176,7 @@ CONTAinS
         real_ptr%is_free = 1
         this%real_entries_(i) => real_ptr
       end do
-      this%ncurr_realreserve_ = this%nresrve_
+      this%ncurr_realreserve_ = this%nreserve_
     else   
       ! Have enough ptr reserves left to fill:
       do i = 1, num_new
@@ -201,8 +199,8 @@ CONTAinS
   !  specified number of arrays.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine add_complex_entries(this, num_new)
-    type   (TmpPool3D), intent(inout) :: this
-    type(ComplexEntry), intent(inout), pointer :: complex_ptr
+    type   (GWorkspace), intent(inout) :: this
+    type(ComplexEntry),  intent(inout), pointer :: complex_ptr
 
     integer                        :: i
     type(ComplexEntry), pointer    :: ptr_copy(this%complex_size_)
@@ -234,7 +232,7 @@ CONTAinS
         complex_ptr%is_free = 1
         this%complex_entries_(i) => complex_ptr
       end do
-      this%ncurr_complexreserve_ = this%nresrve_
+      this%ncurr_complexreserve_ = this%nreserve_
     else   
       ! Have enough ptr reserves left to fill:
       do i = 1, num_new
@@ -255,8 +253,8 @@ CONTAinS
   ! Function to return current number of real entries
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   function get_real_tmp_size(this, num_new) return(num)
-    type   (TmpPool3D), intent(inout) :: this
-    integer                           :: num
+    type   (GWorkspace), intent(inout) :: this
+    integer                            :: num
     num = this%real_size_
   end function get_real_tmp_size
 
@@ -264,8 +262,8 @@ CONTAinS
   ! Function to return current number of complex entries
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   function get_complex_tmp_size(this, num_new) return(num)
-    type   (TmpPool3D), intent(inout) :: this
-    integer                           :: num
+    type   (GWorkspace), intent(inout) :: this
+    integer                            :: num
     num = this%complex_size_
   end function get_complex_tmp_size
 
@@ -277,7 +275,7 @@ CONTAinS
   ! Function to check out a free real array from the pool.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   function get_real_tmp(this, success) result(ret_ptr)
-    type(TmpPool3D), intent(inout) :: this
+    type(GWorkspace), intent(inout) :: this
     logical, intent(out) :: success
     real(kind=GP), pointer :: ret_ptr(:, :, :)
 
@@ -307,7 +305,7 @@ CONTAinS
   ! Function to check out a free Complex array from the pool.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   function get_complex_tmp(this, success) result(ret_ptr)
-    type(TmpPool3D), intent(inout) :: this
+    type(GWorkspace), intent(inout) :: this
     logical, intent(out) :: success
     complex(kind=GP), pointer :: ret_ptr(:, :, :)
 
@@ -339,7 +337,7 @@ CONTAinS
   !  available again.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine free_real_tmp(this, in_ptr)
-    type(TmpPool3D), intent(inout) :: this
+    type(GWorkspace), intent(inout) :: this
     real(kind=GP), pointer, intent(in) :: in_ptr(:, :, :)
 
     integer :: i
@@ -374,7 +372,7 @@ CONTAinS
   ! available again.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine free_complex_tmp(this, in_ptr)
-    type(TmpPool3D), intent(inout) :: this
+    type(GWorkspace), intent(inout) :: this
     complex(kind=GP), pointer, intent(in) :: in_ptr(:, :, :)
 
     integer :: i
