@@ -1867,7 +1867,7 @@ MODULE gutils
 !    
       implicit none 
       character(len=*), intent(in) :: instr
-      character(len=len(str)) :: outstr
+      character(len=len(instr)   ) :: outstr
       integer :: i, code
 
       do i = 1, len(instr)
@@ -1881,9 +1881,7 @@ MODULE gutils
         end if
       enddo
 
-    end function to_lower
-
-      END SUBROUTINE to_lower
+      END FUNCTION to_lower
 
       FUNCTION to_upper(instr) result(outstr)
 !-----------------------------------------------------------------
@@ -1895,7 +1893,7 @@ MODULE gutils
 !    
       implicit none 
       character(len=*), intent(in) :: instr
-      character(len=len(str)) :: outstr
+      character(len=len(instr))    :: outstr
       integer :: i, code
 
       do i = 1, len(instr)
@@ -1909,8 +1907,6 @@ MODULE gutils
         end if
       enddo
 
-    end function to_lower
-
-      END SUBROUTINE to_lower
+      END FUNCTION to_upper
 
 END MODULE gutils
