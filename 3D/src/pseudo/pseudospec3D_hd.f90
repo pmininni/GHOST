@@ -2325,7 +2325,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
         DO j = 1,ny
           DO k = 1,nz
-            x(k,j,i) = a * (k,j,i) + b * y(k,j,i)
+            x(k,j,i) = a * x(k,j,i) + b * y(k,j,i)
           END DO
         END DO
       END DO
@@ -2334,10 +2334,10 @@
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !*****************************************************************
-      SUBROUTINE saxpby_c(x,a,y,b) 
+      SUBROUTINE saxpby_r(x,a,y,b) 
 !-----------------------------------------------------------------
 !
-! Computes x = ax + by for complex x, y
+! Computes x = ax + by for real x, y
 !
 ! Parameters
 !     x,y   : input arrays
