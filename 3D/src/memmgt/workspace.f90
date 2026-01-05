@@ -46,14 +46,6 @@ module class_GWorkspace3D
 
   PRIVATE :: get_real_tmp_size, get_complex_tmp_size, add_real_entries, add_complex_entries
 
-! interface get_real_tmp
-!   module procedure get_real_tmp, get_complex_tmp
-! end interface get_real_tmp
-
-! interface check_in_array
-!   module procedure free_real_tmp, free_complex_tmp
-! end interface check_in_array
-
 CONTAinS
 
   ! ===================================================================
@@ -153,7 +145,6 @@ CONTAinS
     end if
 
     ! Resize this%real_entries array, necessary:
-   
     
     if ( num_new .GT. this%ncurr_realreserve_ ) THEN
       ! Need to extend arrays:
@@ -190,7 +181,6 @@ CONTAinS
     endif
 
     this%real_size_    = this%real_size_ + num_new
-
   end subroutine add_real_entries
 
 
@@ -239,34 +229,36 @@ CONTAinS
         ! Allocate the derived type and the contained array
         ALLOCATE(complex_ptr)
         ALLOCATE(complex_ptr%array(nx, ny, ksta:kend))
-        real_ptr%is_free = 1
+        complex_ptr%is_free = 1
         this%complex_entries_(i) => complex_ptr
         this%ncurr_complexreserve_ = this%ncurr_complexreserve_ - 1
       end do
     endif
 
     this%complex_size_    = this%complex_size_ + num_new
-
   end subroutine add_complex_entries
+
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Function to return current number of real entries
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  function get_real_tmp_size(this, num_new) return(num)
+  function get_real_tmp_size(this, num_new) result(num)
     type   (GWorkspace), intent(inout) :: this
     integer                            :: num
     num = this%real_size_
   end function get_real_tmp_size
 
+  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Function to return current number of complex entries
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  function get_complex_tmp_size(this, num_new) return(num)
+  function get_complex_tmp_size(this, num_new) result(num)
     type   (GWorkspace), intent(inout) :: this
     integer                            :: num
     num = this%complex_size_
   end function get_complex_tmp_size
 
+  
   ! ===================================================================
   ! Checkout/get and free methods
   ! ===================================================================
@@ -298,9 +290,9 @@ CONTAinS
         endif
       endif
     enddo
-
   end function get_real_tmp
 
+  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Function to check out a free Complex array from the pool.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -328,7 +320,6 @@ CONTAinS
         endif
       endif
     enddo
-
   end function get_complex_tmp
 
 
@@ -361,9 +352,7 @@ CONTAinS
         endif
       endif
     enddo
-
     stop 'free_real_tmp: Real array not found in pool. Check-in failed'
-
   end subroutine free_real_tmp
 
 
@@ -396,7 +385,6 @@ CONTAinS
         endif
       endif
     enddo
-
     stop 'free_complex_tmp: Complex array not found in pool. Check-in failed'
   end subroutine free_complex_tmp
 
