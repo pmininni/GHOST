@@ -12,16 +12,16 @@ module class_GWorkspace3D
 
   ! Abstract base type for array pool entries
   type, abstract :: ArrayEntry_Base
-    integer :: is_free = 1  ! 1: free, 0: in use
+    integer      :: is_free = 1      ! 1: free, 0: in use
   end type ArrayEntry_Base
 
   ! Derived type for Real (GP) 3D array entry
   type, EXTendS(ArrayEntry_Base) :: RealEntry
-    real(kind=GP), ALLOCATABLE :: array(:, :, :)
+    real(kind=GP), ALLOCATABLE   :: array(:, :, :)
   end type RealEntry
 
   ! Derived type for Complex (GP) 3D array entry
-  type, EXTendS(ArrayEntry_Base) :: ComplexEntry
+  type, EXTendS(ArrayEntry_Base)  :: ComplexEntry
     complex(kind=GP), ALLOCATABLE :: array(:, :, :)
   end type ComplexEntry
 
@@ -32,9 +32,9 @@ module class_GWorkspace3D
     ! but an allocatable array of pointers is sufficient for moderate size.
     CLASS   (RealEntry), pointer :: real_entries_   (:) => NULL()
     CLASS(ComplexEntry), pointer :: complex_entries_(:) => NULL()
-    integer :: real_size_    = 0
-    integer :: complex_size_ = 0
-    integer :: nreserve_     = 10
+    integer :: real_size_           = 0
+    integer :: complex_size_        = 0
+    integer :: nreserve_            = 10
     integer :: ncurr_realreserve_   = 10
     integer :: ncurr_complexreserve_= 10
 
@@ -61,9 +61,9 @@ CONTAinS
     integer            , intent(in) :: num_real
     integer            , intent(in) :: num_complex
 
-    integer                     :: i, total_size
-    type   (RealEntry), pointer :: real_ptr
-    type(ComplexEntry), pointer :: complex_ptr
+    integer                         :: i, total_size
+    type   (RealEntry), pointer     :: real_ptr
+    type(ComplexEntry), pointer     :: complex_ptr
 
     if (num_real <= 0) THEN
       stop 'initialize_pool: real pool size must be positive.'
@@ -76,7 +76,7 @@ CONTAinS
     ! Allocate the pool of pointers
     this%real_size_    = num_real
     this%complex_size_ = num_complex
-    ALLOCATE(this%real_entries_   (this%real_size_) )
+    ALLOCATE(this%real_entries_   (this%real_size_   ) )
     ALLOCATE(this%complex_entries_(this%complex_size_) )
 
     ! Initialize Real entries
@@ -121,9 +121,9 @@ CONTAinS
         end if
       end do
       ! Deallocate the array of pointers
-      DEALLOCATE(this%real_entries_)
+      DEALLOCATE(this%real_entries_   )
       DEALLOCATE(this%complex_entries_)
-      this%real_size_ = 0
+      this%real_size_    = 0
       this%complex_size_ = 0
     end if
   end subroutine cleanup_pool
@@ -136,7 +136,8 @@ CONTAinS
   subroutine add_real_entries(this, num_new)
     type(GWorkspace), intent(inout)          :: this
     type(RealEntry),  intent(inout), pointer :: real_ptr
-
+    integer,          intent(in)             :: num_new
+    
     integer                     :: i
     type(RealEntry), pointer    :: ptr_copy(this%real_size_)
 
@@ -144,7 +145,7 @@ CONTAinS
       stop 'add_real_entries: real pool size must be positive.'
     end if
 
-    ! Resize this%real_entries array, necessary:
+    ! Resize this%real_entries_ array, if necessary:
     
     if ( num_new .GT. this%ncurr_realreserve_ ) THEN
       ! Need to extend arrays:
@@ -189,8 +190,9 @@ CONTAinS
   !  specified number of arrays.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine add_complex_entries(this, num_new)
-    type   (GWorkspace), intent(inout) :: this
+    type   (GWorkspace), intent(inout)          :: this
     type(ComplexEntry),  intent(inout), pointer :: complex_ptr
+    integer,             intent(in)             :: num_new
 
     integer                        :: i
     type(ComplexEntry), pointer    :: ptr_copy(this%complex_size_)
@@ -199,7 +201,7 @@ CONTAinS
       stop 'add_complex_entries: real pool size must be positive.'
     end if
 
-    ! Resize this%complex_entries array, if necessary:
+    ! Resize this%complex_entries_ array, if necessary:
     
     if ( num_new .GT. this%ncurr_complexreserve_ ) THEN
       ! Need to extend arrays:
@@ -242,7 +244,7 @@ CONTAinS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Function to return current number of real entries
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  function get_real_tmp_size(this, num_new) result(num)
+  function get_real_tmp_size(this) result(num)
     type   (GWorkspace), intent(inout) :: this
     integer                            :: num
     num = this%real_size_
@@ -252,7 +254,7 @@ CONTAinS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Function to return current number of complex entries
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  function get_complex_tmp_size(this, num_new) result(num)
+  function get_complex_tmp_size(this) result(num)
     type   (GWorkspace), intent(inout) :: this
     integer                            :: num
     num = this%complex_size_
@@ -268,20 +270,20 @@ CONTAinS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   function get_real_tmp(this, success) result(ret_ptr)
     type(GWorkspace), intent(inout) :: this
-    logical, intent(out) :: success
-    real(kind=GP), pointer :: ret_ptr(:, :, :)
+    logical,          intent(out)   :: success
+    real(kind=GP),    pointer       :: ret_ptr(:, :, :)
 
-    integer :: i
-    type(RealEntry), pointer :: real_ptr
+    integer                         :: i
+    type(RealEntry),  pointer       :: real_ptr
 
     ret_ptr => NULL()
     success = .FALSE.
 
-    do i = 1, this%size
+    do i = 1, this%real_size_
       ! Check if the entry is of the correct dynamic type (RealEntry)
-      if ( is_same_type(this%entries(i), real_ptr) ) THEN
+      if ( is_same_type(this%real_entries_(i), real_ptr) ) THEN
         ! Downcast the base pointer to the specific derived type
-        real_ptr => this%entries(i)
+        real_ptr => this%real_entries_(i)
         if ( real_ptr%is_free == 1 ) THEN
           real_ptr%is_free = 0  ! Mark as in use
           ret_ptr => real_ptr%array
@@ -298,10 +300,10 @@ CONTAinS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   function get_complex_tmp(this, success) result(ret_ptr)
     type(GWorkspace), intent(inout) :: this
-    logical, intent(out) :: success
-    complex(kind=GP), pointer :: ret_ptr(:, :, :)
+    logical,          intent(out)   :: success
+    complex(kind=GP), pointer       :: ret_ptr(:, :, :)
 
-    integer :: i
+    integer                     :: i
     type(ComplexEntry), pointer :: complex_ptr
 
     ret_ptr => NULL()
@@ -309,9 +311,9 @@ CONTAinS
 
     do i = 1, this%complex_size_
       ! Check if the entry is of the correct dynamic type (ComplexEntry)
-      if ( is_same_type(this%entries(i), complex_ptr) ) THEN
+      if ( is_same_type(this%complex_entries_(i), complex_ptr) ) THEN
         ! Downcast the base pointer to specific derived type
-        complex_ptr => this%entries(i)
+        complex_ptr => this%complex_entries_(i)
         if ( complex_ptr%is_free == 1 ) THEN
           complex_ptr%is_free = 0  ! Mark as in use
           ret_ptr => complex_ptr%array
@@ -328,16 +330,16 @@ CONTAinS
   !  available again.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine free_real_tmp(this, in_ptr)
-    type(GWorkspace), intent(inout) :: this
+    type(GWorkspace),    intent(inout) :: this
     real(kind=GP), pointer, intent(in) :: in_ptr(:, :, :)
 
-    integer :: i
+    integer                  :: i
     type(RealEntry), pointer :: real_ptr
 
     do i = 1, this%real_size_
       ! Check if the entry is of the correct dynamic type (RealEntry)
-      if ( is_same_type(this%entries(i), real_ptr) ) THEN
-        real_ptr => this%entries(i)
+      if ( is_same_type(this%real_entries_(i), real_ptr) ) THEN
+        real_ptr => this%real_entries_(i)
         ! Check if the array pointer matches
         if ( associated(real_ptr%array, in_ptr) ) THEN
           if ( real_ptr%is_free == 0 ) THEN
@@ -361,16 +363,16 @@ CONTAinS
   ! available again.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine free_complex_tmp(this, in_ptr)
-    type(GWorkspace), intent(inout) :: this
+    type(GWorkspace),       intent(inout) :: this
     complex(kind=GP), pointer, intent(in) :: in_ptr(:, :, :)
 
-    integer :: i
+    integer                     :: i
     type(ComplexEntry), pointer :: complex_ptr
 
     do i = 1, this%complex_size_
       ! Check if the entry is of the correct dynamic type (ComplexEntry)
-      if ( is_same_type(this%entries(i), complex_ptr) ) THEN
-        complex_ptr => this%entries(i)
+      if ( is_same_type(this%complex_entries_(i), complex_ptr) ) THEN
+        complex_ptr => this%complex_entries_(i)
         ! Check if the array pointer matches
         if ( associated(complex_ptr%array, in_ptr) ) THEN
           if ( complex_ptr%is_free == 0 ) THEN
