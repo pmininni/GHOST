@@ -967,9 +967,9 @@ MODULE class_GSGSmodel
       nperp = n(1) * n(2)
 
       ! Send types:
-      szarrays    = (/n(1), n(2), n(3)/)
-      subszarrays = (/n(1), n(2), kend-ksta+1/)
-      disparrays  = (/0   , 0   , ksta-1/)
+      szarrayr    = (/n(1) * n(2) * n(3)/)
+      subszarrayr = (/n(1) * n(2) * (kend-ksta+1)/)
+      disparrayr  = (/nperp*(ksta-1)/)
 
 !     MPI_Type_create_subarray(int ndims, const int array_of_sizes[],
 !                              const int array_of_subsizes[],
@@ -977,7 +977,7 @@ MODULE class_GSGSmodel
 !                              MPI_Datatype oldtype, MPI_Datatype *newtype)
       DO irank = 0,nprocs-1
          CALL MPI_Type_create_subarray( &
-                     3, szarrays, subszarrays, disparrays, &
+                     1, szarrays, subszarrays, disparrays, &
                      MPI_ORDER_FORTRAN, GC_REAL, & 
                      sndtype(irank), ierr)
          IF ( ierr .ne. MPI_SUCCESS ) THEN
