@@ -967,9 +967,9 @@ MODULE class_GSGSmodel
       nperp = n(1) * n(2)
 
       ! Send types:
-      szarrayr    = (/n(1) * n(2) * n(3)/)
-      subszarrayr = (/n(1) * n(2) * (kend-ksta+1)/)
-      disparrayr  = (/nperp*(ksta-1)/)
+      szarrays    = (/n(1) * n(2) * n(3)/)
+      subszarrays = (/n(1) * n(2) * (kend-ksta+1)/)
+      disparrays  = (/nperp*(ksta-1)/)
 
 !     MPI_Type_create_subarray(int ndims, const int array_of_sizes[],
 !                              const int array_of_subsizes[],
