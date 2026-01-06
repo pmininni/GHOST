@@ -959,7 +959,7 @@ MODULE class_GSGSmodel
       INTEGER :: ksta,kend
       INTEGER :: irank
       INTEGER :: ierr, nperp
-      INTEGER :: szarrays(3),subszarrays(3),disparrays(3)
+      INTEGER :: szarrays(1),subszarrays(1),disparrays(1)
       INTEGER :: szarrayr(1),subszarrayr(1),disparrayr(1)
 
       CALL range(1,n(3),nprocs,myrank,ksta,kend)
