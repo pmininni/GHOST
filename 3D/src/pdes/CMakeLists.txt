@@ -5,14 +5,16 @@ add_library(pdes_lib STATIC
 )
 
 target_include_directories(pdes_lib PUBLIC
-  ${CMAKE_BINARY_DIR}/src/${FFTP}
+  ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/src/memmgt
+  ${CMAKE_BINARY_DIR}/src/${FFTP}
   )
 
 # Make sure dependencies are satisfied
 add_dependencies(pdes_lib
   fftp_lib
   memmgt_lib
+  pseudo_lib
   )
 
 # Link MPI if needed

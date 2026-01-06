@@ -1,21 +1,19 @@
 module gstate_mod
-    use fprecision
-    use ali
-    use kes
-    use var
-    use grid
-    use mpivars
-!$  use threads
+  USE fprecision
+  USE grid
+  USE mpivars
 
-    implicit none
+  IMPLICIT NONE
 
-    type, public :: GStateComp 
-      complex(kind=GP), pointer, dimension(nz,ny,ista:iend) :: ccomp ! complex component
-      real   (kind=GP), pointer, dimension(nx,ny,ksta_kend) :: rcomp ! real component
-    end type GStateComp
+  ! ================= Base field data types =========================
+  ! Derived type for complex (Fourier transformed) field components
+  type, public :: GState
+    complex(kind=GP), allocatable :: ccomp(:,:,:) ! complex component      
+  end type GState
 
-  contains
+  ! Derived type for real space field components
+  type, public :: GStateReal
+    complex(kind=GP), allocatable :: ccomp(:,:,:) ! complex component
+  end type GStateReal
 
 end module gstate_mod
-
-
