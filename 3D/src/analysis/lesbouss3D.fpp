@@ -1668,13 +1668,15 @@
         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 
         IF ( dolabels ) THEN
+
+          rmp = 1.0_GP/(real(nx,kind=GP)* &
+                real(ny,kind=GP)*real(nz,kind=GP))
           CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 !         CALL MPI_BARRIER(commtrunc, ierr)
           if (myrank.eq.0) write(*,*) ' starting SGS terms...'
           CALL trunc(vx, n, nt, trtraits%ktrunc, 1, C1, vxt) 
           CALL trunc(vy, n, nt, trtraits%ktrunc, 1, C1, vyt) 
           CALL trunc(vz, n, nt, trtraits%ktrunc, 1, C1, vzt) 
-
           ! Momentum components:
 !         write(*,*) 'lesbouss: calling sgsvx...'
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,1, C4)
@@ -1682,6 +1684,7 @@
           CALL sgstr%dealias(CT1,trtraits%ktrunc)
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,1, CT4)
           CALL sgstr%dealias(CT4,trtraits%ktrunc)
+          CT4 = CT4 * rmp ! normalize
 !         write(*,*) '       lesbouss: x-sgsvtr done.'
           CT4 = CT4 - CT1
 
@@ -1691,6 +1694,7 @@
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,2, CT5)
           CALL sgstr%dealias(CT1,trtraits%ktrunc)
           CALL sgstr%dealias(CT5,trtraits%ktrunc)
+          CT5 = CT5 * rmp ! normalize
 !         write(*,*) '       lesbouss: y-sgsvtr done.'
 !         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
           CT5 = CT5 - CT1
@@ -1701,6 +1705,7 @@
           CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,3, CT6)
           CALL sgstr%dealias(CT1,trtraits%ktrunc)
           CALL sgstr%dealias(CT6,trtraits%ktrunc)
+          CT6 = CT6 * rmp ! normalize
 !         write(*,*) '       lesbouss: z-sgsvtr done.'
           CT6 = CT6 - CT1
 
@@ -1730,6 +1735,7 @@
           CALL sgstr%sgsth(vxt,vyt,vzt,tht,CT2,CT3)
           CALL sgstr%dealias(CT1,trtraits%ktrunc)
           CALL sgstr%dealias(CT3,trtraits%ktrunc)
+          CT3 = CT3 * rmp ! normalize
           CT3 = CT3 - CT1
           CALL fftp3d_complex_to_real(plancrt,CT4,RT1)
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
@@ -2050,7 +2056,7 @@
       write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' divSz  done.'
 
       CALL rotor3(vy,vz,tr%C1,1)                        ! omega_x=(curl v)_x
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
       IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
         CALL io_write(1,tr%odir,'omx_T',ext,tr%planiot,tr%RT1)
@@ -2058,7 +2064,7 @@
       write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' omx  done.'
 
       CALL rotor3(vz,vx,tr%C1,2)                        ! omega_y=(curl v)_y
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
       IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
         CALL io_write(1,tr%odir,'omy_T',ext,tr%planiot,tr%RT1)
@@ -2066,7 +2072,7 @@
       write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' omy  done.'
 
       CALL rotor3(vx,vy,tr%C1,3)                        ! omega_z=(curl v)_z
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
       IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
         CALL io_write(1,tr%odir,'omz_T',ext,tr%planiot,tr%RT1)
