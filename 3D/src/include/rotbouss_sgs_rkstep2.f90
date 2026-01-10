@@ -1,6 +1,23 @@
 ! Step 2 of Runge-Kutta for the Boussinesq equations 
 ! Computes the nonlinear terms and evolves the equations in dt/o
 
+         ! Compute SGS terms:
+         IF ( use_mlsgs ) THEN
+            CALL mlsgs%sgs_model(vx, vy, vz, th, &
+                                 C1SGS, C2SGS, C3SGS, R1, &
+                                 SGS1 , SGS2 , SGS3 , SGSth)
+!                        write(*,*)' call energy on SGS...'
+!           CALL energy(SGS1,SGS2,SGS3,tmp,1)
+!           CALL energy(fx,fy,fz,tmq,1)
+!                        write(*,*)' call energy on f...'
+!           SGS1 = SGS1 * (-sqrt(tmq/tmp))
+!           SGS2 = SGS2 * (-sqrt(tmq/tmp))
+!           SGS3 = SGS3 * (-sqrt(tmq/tmp))
+!           CALL variance(SGSth,tmq,1)
+!           CALL variance(fs,tmq,1)
+!           SGSth = SGSth * (-sqrt(tmq/tmp))
+         ENDIF
+
          CALL prodre3(vx,vy,vz,C4,C5,C6)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend               ! Coriolis force
@@ -31,12 +48,6 @@
          CALL laplak3(vz,vz)
          CALL laplak3(th,th)
 
-         ! Compute SGS terms:
-         IF ( use_mlsgs ) THEN
-            CALL mlsgs%sgs_model(C1, C2, C3, C20, &
-                                 C1SGS, C2SGS, C3SGS, R1, &
-                                 SGS1 , SGS2 , SGS3 , SGSth)
-         ENDIF
 
          IF ((trans.eq.1).and.(times.eq.0).and.(bench.eq.0).and.(o.eq.ord)) &
             THEN
@@ -61,8 +72,8 @@
          rmp = 1.0_GP/(real(o,kind=GP))
 
 !        write(*,*) 'rkstep2: sgs1=',sgs1(4,1:10,ista)
-         write(*,*) 'rkstep2: sgs2=',sgs2(4,1:10,ista)
-         write(*,*) 'rkstep2: f2  =',fy  (4,1:10,ista)
+!        write(*,*) 'rkstep2: sgs2=',sgs2(4,1:10,ista)
+!        write(*,*) 'rkstep2: f2  =',fy  (4,1:10,ista)
 !        write(*,*) 'rkstep2: sgs3=',sgs3(4,1:10,ista)
 !        write(*,*) 'rkstep2: sgst=',sgsth(4,1:10,ista)
 
