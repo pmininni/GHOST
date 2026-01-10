@@ -1,6 +1,9 @@
 ! Global quantities computed in BOUSS runs
 
             CALL hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,1)
+            IF ( use_mlsgs ) THEN
+            CALL mlsgs%prtinject(vx,vy,vz,SGS1,SGS2,SGS3,t,dt,'sgs_inject.txt')
+            ENDIF
             CALL pscheck(th,fs,t,dt)
             CALL tbouss(vx,vy,vz,th,t,dt,omegaz,bvfreq)
             CALL maxabs(vx,vy,vz,rmp,0)

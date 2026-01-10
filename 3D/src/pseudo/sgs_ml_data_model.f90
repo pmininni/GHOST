@@ -116,6 +116,7 @@ MODULE class_GSGSmodel
         FINAL            :: GSGS_dtor
         PROCEDURE,PUBLIC :: sgs_model         => GSGS_compute_model
         PROCEDURE,PUBLIC :: prtspectra        => GSGS_prtspectra
+        PROCEDURE,PUBLIC :: prtinject         => GSGS_prtinject
 
       END TYPE GSGSmodel
 
@@ -1395,6 +1396,47 @@ MODULE class_GSGSmodel
      ENDIF
 
      END SUBROUTINE GSGS_prtspectra
+
+
+!*****************************************************************
+     SUBROUTINE GSGS_prtinject(this, v1, v2, v3, SGS1, SGS2, SGS3, t, dt, fname)
+!-----------------------------------------------------------------
+! Print energy injection rate to file
+! Parameters
+!     SGSi    : SGS terms
+!     nmb     : character cycle number
+!-----------------------------------------------------------------
+
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+      USE boxsize
+!$    USE threads
+      IMPLICIT NONE
+
+      class(GSGSmodel), INTENT(INOUT)     :: this
+      COMPLEX(KIND=GP), INTENT  (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: v1, v2, v3
+      COMPLEX(KIND=GP), INTENT  (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: SGS1,SGS2,SGS3
+      DOUBLE PRECISION             :: pot
+      REAL(KIND=GP)                :: dt
+      INTEGER, INTENT(IN)          :: t
+      CHARACTER(len=*), INTENT(IN) :: fname
+
+      CALL cross(v1,v2,v3,SGS1,SGS2,SGS3,pot,1)
+      IF (myrank.eq.0) THEN
+         OPEN(1,file=fname,position='append')
+         WRITE(1,10) (t-1)*dt,pot
+   10    FORMAT( E13.6,E26.18 )
+         CLOSE(1)
+      ENDIF
+
+
+      END SUBROUTINE GSGS_prtinject
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 
 !*****************************************************************
       SUBROUTINE GSGS_dealias(this,a,ktr2)
