@@ -119,11 +119,11 @@
                        c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,&
                        KVX2,KVY2,KVZ2,KD2,KE2)
 
-         sx  = C1  - ( KVX1 * dt ) + ( KVX2 * 2.0 * dt )
-         sy  = C2  - ( KVY1 * dt ) + ( KVY2 * 2.0 * dt )
-         sz  = C3  - ( KVZ1 * dt ) + ( KVZ2 * 2.0 * dt )
-         rho = C20 - ( KD1  * dt ) + ( KD2  * 2.0 * dt )
-         th  = C35 - ( KE1  * dt ) + ( KE2  * 2.0 * dt )
+         sx  = C1  + ( KVX2 * 1.0 * dt )
+         sy  = C2  + ( KVY2 * 1.0 * dt )
+         sz  = C3  + ( KVZ2 * 1.0 * dt )
+         rho = C20 + ( KD2  * 1.0 * dt )
+         th  = C35 + ( KE2  * 1.0 * dt )
          CALL COMPIRHS(sx,sy,sz,vx,vy,vz,rho,th, &
                        fx,fy,fz,fs,ttime+dt,nu,nu2,kappa,gam1, &
                        c4,c5,c6,c7,c8,c20,c31,c32,c33,c34,c35,&
