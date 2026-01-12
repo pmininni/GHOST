@@ -139,6 +139,7 @@ set(HD_SRC
     "${PSEUDO3D_SRC}"
     "${SRC_DIR}/pseudo/module_dns.f90"
     "${SRC_DIR}/pseudo/pseudospec3D_hd.f90"
+    "${SRC_DIR}/pseudo/pseudospec3D_phd.f90"
     "${MAIN_SRC}"
 )
 

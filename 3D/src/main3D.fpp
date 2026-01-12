@@ -60,6 +60,7 @@
 ! Arrays for the fields and external forcings
       
 #ifdef VELOC_
+      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fx,fy,fz
 #endif
 
@@ -67,7 +68,7 @@
 ! Temporal data storage arrays
 
       TYPE(GWorkspace) :: workspace
-      TYPE(HDSolver)   :: pdes
+      TYPE(HDSolver)   :: pde
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C1,C2,C3
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: R1,R2,R3
 
@@ -112,7 +113,9 @@
       INTEGER :: ihcpu1,ihcpu2
       INTEGER :: ihomp1,ihomp2
       INTEGER :: ihwtm1,ihwtm2
-      LOGICAL :: bbenchexist
+      TYPE(IOPLAN)          :: planio
+      CHARACTER(len=100)    :: odir,idir
+      LOGICAL               :: bbenchexist
 
 !
 ! Namelists for the input files
@@ -153,7 +156,7 @@
       CALL io_init(myrank,(/nx,ny,nz/),ksta,kend,planio)
 
 ! Initialization of the PDE method
-     CALL workspace%initialize_pool(6,6)
+     CALL workspace%initialize_pool(3,8)
      CALL pde%HDSolver_ctor('parameter.inp',workspace,3)
 
 !
@@ -161,6 +164,9 @@
 
       ALLOCATE( C1(nz,ny,ista:iend), C2(nz,ny,ista:iend), C3(nz,ny,ista:iend) )
 #ifdef VELOC_
+      ALLOCATE( vx(nz,ny,ista:iend) )
+      ALLOCATE( vy(nz,ny,ista:iend) )
+      ALLOCATE( vz(nz,ny,ista:iend) )
       ALLOCATE( fx(nz,ny,ista:iend) )
       ALLOCATE( fy(nz,ny,ista:iend) )
       ALLOCATE( fz(nz,ny,ista:iend) )
@@ -536,17 +542,6 @@
                   END DO
                END DO
             END DO
-            IF (outs.ge.1) THEN
-               CALL rotor3(C2,C3,C4,1)
-               CALL rotor3(C1,C3,C5,2)
-               CALL rotor3(C1,C2,C6,3)
-               CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
-               CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
-               CALL io_write(1,odir,'wx',ext,planio,R1)
-               CALL io_write(1,odir,'wy',ext,planio,R2)
-               CALL io_write(1,odir,'wz',ext,planio,R3)
-            ENDIF
             CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
             CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
             CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
@@ -554,6 +549,7 @@
             CALL io_write(1,odir,'vy',ext,planio,R2)
             CALL io_write(1,odir,'vz',ext,planio,R3)
 #endif
+         ENDIF
 
 ! Every 'cstep' steps, generates external files 
 ! with global quantities. If mean=1 also updates 
@@ -578,21 +574,21 @@
 ! Copies the fields into auxiliary arrays
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
-         DO i = ista,iend
+!         DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,ny
-         DO k = 1,nz
-            INCLUDE RKSTEP1_
-         END DO
-         END DO
-         END DO
+!         DO j = 1,ny
+!         DO k = 1,nz
+!            INCLUDE RKSTEP1_
+!         END DO
+!         END DO
+!         END DO
 
 ! Runge-Kutta step 2
 ! Evolves the system in time
 
-         DO o = ord,1,-1        
-            INCLUDE RKSTEP2_
-         END DO
+!         DO o = ord,1,-1        
+!            INCLUDE RKSTEP2_
+!         END DO
 
          timet = timet+1
          times = times+1
