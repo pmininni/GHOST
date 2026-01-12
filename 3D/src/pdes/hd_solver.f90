@@ -16,14 +16,11 @@
 ! DATE       : 11/30/25 (DLR)
 ! ===================================================================
 module hd_mod
-    use equationbase_mod
-    use gstate_mod
+  USE equationbase_mod
+  USE gstate_mod
 
-    implicit none
+  IMPLICIT NONE
 
-    integer,parameter,public     :: MAXPASSIVE = 20 ! max # passive scalars
-    ! Define class:
-    type, extends(EquationBase) :: HDSolver 
         type, public  :: NHTraits
           integer       :: dorot        = 0     ; ! rotation flag
           integer       :: numpassive   = 0     ; ! num passive scalars
@@ -31,6 +28,10 @@ module hd_mod
           real(kind=GP), allocatable :: kappa(:); ! diffusivities
           real(kind=GP)              :: omega(3);! rotation vector
         end type
+
+  integer,parameter,public     :: MAXPASSIVE = 20 ! max # passive scalars
+  ! Define class:
+  type, extends(EquationBase) :: HDSolver 
 
         ! Member data:
         logical                      :: binit_=.false. 
@@ -45,10 +46,10 @@ module hd_mod
         type (GWorkspace), pointer   :: workspace_
         type   (NHTraits)            :: traits_
         character(len=8), allocatable:: sstate_(:) 
-        character(len=*)             :: infile_
+        character(len=128)           :: infile_
         
 
-    contains
+    CONTAINS
         procedure,public  ::      HDSolver_ctor ! constructor
         final             ::      HDSolver_dtor ! desutructor
         procedure,public  ::          init_impl ! init method
@@ -61,7 +62,7 @@ module hd_mod
 
         procedure,private ::    dudt_norot       ! RHS with no rot
         procedure,private ::    dudt_rot         ! RHS with rot
-    end type HDSolver
+  end type HDSolver
 
     contains
 
@@ -69,28 +70,27 @@ module hd_mod
     !! Constructor
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     subroutine HDSolver_ctor(this, infile, workspace, nc) 
-      class  (HDSolver), intent   (in) :: this
+      class  (HDSolver), intent(inout) :: this
       integer          , intent   (in) :: nc
-      real    (kind=GP), intent   (in) :: time, dt
-      type   (NHTraits), intent   (in) :: traits
-      charaxter(len=*) , intent   (in) :: infile
-      type         (GWorkspace), intent(inout), target
-                                       :: workspace
+!     real    (kind=GP), intent   (in) :: time, dt
+!     type   (NHTraits), intent   (in) :: traits
+      character(len=*) , intent   (in) :: infile
+      type         (GWorkspace), intent(inout), target :: workspace
       this%workspace_ => workspace
-      this%nc_        = nc ! # vel. components (usefiul if ny=1)
+      this%nc_        = nc     ! # vel. components (useful if ny=1)
       this%infile_    = infile ! input file
 
-      call this%init();
+      call this%init_impl();
     end subroutine HDSolver_ctor
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !! Destructor
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     subroutine HDSolver_dtor(this) 
-      class  (HDSolver), intent   (in) :: this
+      type  (HDSolver), intent(inout) :: this
 
       deallocate(this%traits_%kappa)
-      deallocate(this%traits_%sstate_)
+!      deallocate(this%traits_%sstate_)
 
       ! If we use persistent workspace, free it here:
       ! this%workspace_%free_complex_tmp(ctmp1)
@@ -103,14 +103,14 @@ module hd_mod
     !! Concrete method to take one time step
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     subroutine step_impl(this, time, uin, uf, dt, uout) 
-      class  (HDSolver), intent   (in) :: this
+      class  (HDSolver), intent   (inout) :: this
       real    (kind=GP), intent   (in) :: time, dt
-      type (GState), intent(inout) :: uin(:)
-      type (GWorkspace), intent(inout) :: workspace
+      type (GState), intent(inout) :: uin(:), uf(:)
+!     type (GWorkspace), intent(inout) :: workspace
       type (GState), intent   (in) :: uout(:)
 
       if ( .not. this%binit_ ) then
-        call init(this)
+        call init_impl(this)
         this%binit_ = .true.
       endif
 
@@ -122,8 +122,7 @@ module hd_mod
     subroutine sstate2istate_impl(this, sstate, istate) 
       class  (HDSolver), intent   (in) :: this
       character (len=8), intent   (in) :: sstate(:)
-      integer          , allocatable &
-                       , intent(inout) :: istate(:)
+      integer          , allocatable , intent(inout) :: istate(:)
       integer                          :: i,j
 
       if ( size(sstate) .ne. size(istate) ) then
@@ -146,15 +145,14 @@ module hd_mod
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     subroutine get_sstate_impl(this, sstate) 
       class  (HDSolver), intent   (in) :: this
-      character (len=8), allocatable, &
-                       , intent(inout) :: sstate(:)
+      character (len=8), allocatable, intent(inout) :: sstate(:)
       character(len=100)               :: snum
       integer                          :: j
       if ( allocated(sstate) ) then
         deallocate(sstate);
-        allocate(sstate(this%state_size()))
+!        allocate(sstate(this%state_size()))
       endif
-        do j = 1:this%nc_
+        do j = 1,this%nc_
            write(snum,'(I0)') j
            sstate(j) = 'v' // trim(snum)
         enddo
@@ -162,7 +160,6 @@ module hd_mod
            write(snum,'(I0)') j
            sstate(j) = 's' // trim(snum)
         enddo
-      endif
     end subroutine get_sstate_impl
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -173,7 +170,7 @@ module hd_mod
       integer :: num
 
       num = this%nc_ ! # vel. components
-      num = num + traits_%numpassive ! # scalars
+      num = num + this%traits_%numpassive ! # scalars
 
     end function state_size_impl
 
@@ -188,8 +185,9 @@ module hd_mod
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !! Function to initialize solver
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    subroutine init_impl(this) 
-      class  (HDSolver), intent   (in) :: this
+    subroutine init_impl(this)
+      USE commtypes
+      class  (HDSolver), intent   (inout) :: this
 
       ! Temporary data to read from namelists:
       logical         :: dorot
@@ -197,8 +195,7 @@ module hd_mod
       integer         :: ierr
       real(kind=GP)   :: nu, omegax, omegay, omegaz
       real(kind=GP)   :: omega(3)
-      real(kind=GP),allocatable
-                      :: kappa
+      real(kind=GP),allocatable :: kappa
 
       ! Required namelists:
       namelist/ ksize    / npassive
@@ -232,15 +229,15 @@ module hd_mod
          close(1)
       endif
       call mpi_bcast(nu       ,1 ,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      call mpi_bcast(dorot    ,1 ,INTEGER,0,MPI_COMM_WORLD,ierr)
-      call mpi_bcast(npassive ,1 ,INTEGER,0,MPI_COMM_WORLD,ierr)
+      call mpi_bcast(dorot    ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call mpi_bcast(npassive ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       call mpi_bcast(omegax   ,1 ,GC_REAL,0,MPI_COMM_WORLD,ierr)
       call mpi_bcast(omegay   ,1 ,GC_REAL,0,MPI_COMM_WORLD,ierr)
       call mpi_bcast(omegaz   ,1 ,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      if ( npassive .gt. 0 ) then
-        allocate(kappa(npassive))
-        call mpi_bcast(kappa    ,npassive,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      endif
+!      if ( npassive .gt. 0 ) then
+!        allocate(kappa(npassive))
+!        call mpi_bcast(kappa    ,npassive,GC_REAL,0,MPI_COMM_WORLD,ierr)
+!      endif
       omega =(/omegax,omegay,omegaz/)
 
       ! Set traits from inputfile data:
@@ -266,17 +263,15 @@ module hd_mod
 
       this%PASSIVE = this%VELOCITY + 1 ! start of scalar sector
 
-      if ( allocated(this%sstate_) ) then
-        deallocate(this%sstate_);
-        allocate(this%sstate_(this%get_size()))
-      endif
-      this%get_sstate(this, this%sstate_)
+!      if ( allocated(this%sstate_) ) then
+!        deallocate(this%sstate_);
+!        allocate(this%sstate_(this%get_size()))
+!      endif
+!      this%get_sstate_impl(this, this%sstate_)
 
-
-      binit_ = .true.
+      this%binit_ = .true.
       
-
-    end subroutine init
+    end subroutine init_impl
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     !! Function to compute RHS
@@ -293,11 +288,11 @@ module hd_mod
 
       class  (HDSolver), intent   (in) :: this
       real    (kind=GP), intent   (in) :: time, dt
-      type     (GState), intent(inout) :: uin(:)
-      type (GWorkspace), intent(inout) :: workspace
-      type     (GState), intent   (in) :: dudt(:) 
+      type     (GState), intent(inout) :: uin(:),uf(:)
+!      type (GWorkspace), intent(inout) :: workspace
+      type     (GState), intent   (inout) :: dudt(:) 
 
-      if ( this%traits_%dorot ) then
+      if ( this%traits_%dorot.eq.1 ) then
         call dudt_rot  (this, time, uin, uf, dt, dudt) 
       else
         call dudt_norot(this, time, uin, uf, dt, dudt) 
@@ -321,27 +316,26 @@ module hd_mod
 
       class  (HDSolver), intent   (in) :: this
       real    (kind=GP), intent   (in) :: time, dt
-      type     (GState), intent(inout) :: uin(:)
-      type (GWorkspace), intent(inout) :: workspace
-      type     (GState), intent   (in) :: dudt(:) 
-      complex, pointer, dimension(nz,ny,ista:iend)
-                                       :: fx,fy,fz,vx,vy,vz
+      type     (GState), intent(inout), target :: uin(:),uf(:)
+!      type (GWorkspace), intent(inout) :: workspace
+      type     (GState), intent   (inout) :: dudt(:) 
+      complex, pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
       integer                          :: i,j,k
+      logical                     :: bret
       real (kind=GP)                   :: nu,omegaz
-      complex, pointer, dimension(nz,ny,ista:iend)
-                                       :: c1,c2,c3,c4,c5,c6,c7,c8
+      complex, pointer, dimension(:,:,:) :: c1,c2,c3,c4,c5,c6,c7,c8
        
-      nu     = this%traits_.nu
-      omegaz = this%traits_.omega(3)
+      nu     = this%traits_%nu
+      omegaz = this%traits_%omega(3)
 
-      c1= this%workspace_=>get_complex_tmp(bret)
-      c2= this%workspace_=>get_complex_tmp(bret)
-      c3= this%workspace_=>get_complex_tmp(bret)
-      c4= this%workspace_=>get_complex_tmp(bret)
-      c5= this%workspace_=>get_complex_tmp(bret)
-      c6= this%workspace_=>get_complex_tmp(bret)
-      c7= this%workspace_=>get_complex_tmp(bret)
-      c8= this%workspace_=>get_complex_tmp(bret)
+      CALL this%workspace_%get_complex_tmp(c1,bret)
+      CALL this%workspace_%get_complex_tmp(c2,bret)
+      CALL this%workspace_%get_complex_tmp(c3,bret)
+      CALL this%workspace_%get_complex_tmp(c4,bret)
+      CALL this%workspace_%get_complex_tmp(c5,bret)
+      CALL this%workspace_%get_complex_tmp(c6,bret)
+      CALL this%workspace_%get_complex_tmp(c7,bret)
+      CALL this%workspace_%get_complex_tmp(c8,bret)
 
       vx => uin  (this%VELOCITY)%ccomp
       vy => uin(this%VELOCITY+1)%ccomp
@@ -368,34 +362,34 @@ module hd_mod
       do j = 1,ny
       do k = 1,nz
          if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
-            dudt  (this%VELOCITY)=>ccomp(k,j,i) = &
-               nu*vx(k,j,i)+C7(k,j,i) + fx(k,j,i))
-            dudt(this%VELOCITY+1)=>ccomp(k,j,i) = &
-               nu*vy(k,j,i)+C8(k,j,i) + fy(k,j,i))
-            dudt(this%VELOCITY+2)=>ccomp(k,j,i) = &
-               nu*vz(k,j,i)+C4(k,j,i) + fz(k,j,i))
+            dudt(this%VELOCITY  )%ccomp(k,j,i) = &
+               nu*vx(k,j,i) + C7(k,j,i) + fx(k,j,i)
+            dudt(this%VELOCITY+1)%ccomp(k,j,i) = &
+               nu*vy(k,j,i) + C8(k,j,i) + fy(k,j,i)
+            dudt(this%VELOCITY+2)%ccomp(k,j,i) = &
+               nu*vz(k,j,i) + C4(k,j,i) + fz(k,j,i)
          else
-            dudt  (this%VELOCITY)=>ccomp(k,j,i) = 0.0_GP
-            dudt(this%VELOCITY+1)=>ccomp(k,j,i) = 0.0_GP
-            dudt(this%VELOCITY+2)=>ccomp(k,j,i) = 0.0_GP
+            dudt  (this%VELOCITY)%ccomp(k,j,i) = 0.0_GP
+            dudt(this%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
+            dudt(this%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
          endif
       enddo
       enddo
       enddo
 
       ! Compute passive scalars:
-      call this%rhs_passibe(this, uin, uf, this%traits_%kappa, &
-              this%VELOCITY, this%nc_, this%PASSIVE, &
-              this%numpassive, dudt)
+!      call rhs_passive(this, uin, uf, this%traits_%kappa, &
+!              this%VELOCITY, this%nc_, this%PASSIVE, &
+!              this%numpassive, dudt)
 
-      this%workspace_=>free_complex_tmp(c1)
-      this%workspace_=>free_complex_tmp(c2)
-      this%workspace_=>free_complex_tmp(c3)
-      this%workspace_=>free_complex_tmp(c4)
-      this%workspace_=>free_complex_tmp(c5)
-      this%workspace_=>free_complex_tmp(c6)
-      this%workspace_=>free_complex_tmp(c7)
-      this%workspace_=>free_complex_tmp(c8)
+      CALL this%workspace_%free_complex_tmp(c1)
+      CALL this%workspace_%free_complex_tmp(c2)
+      CALL this%workspace_%free_complex_tmp(c3)
+      CALL this%workspace_%free_complex_tmp(c4)
+      CALL this%workspace_%free_complex_tmp(c5)
+      CALL this%workspace_%free_complex_tmp(c6)
+      CALL this%workspace_%free_complex_tmp(c7)
+      CALL this%workspace_%free_complex_tmp(c8)
 
     end subroutine dudt_rot
 
@@ -415,26 +409,26 @@ module hd_mod
 
       class  (HDSolver), intent   (in) :: this
       real    (kind=GP), intent   (in) :: time, dt
-      type     (GState), intent(inout) :: uin(:)
-      type (GWorkspace), intent(inout) :: workspace
-      type     (GState), intent   (in) :: dudt(:) 
-      complex, pointer, dimension(nz,ny,ista:iend)
-                                       :: fx,fy,fz,vx,vy,vz
+      type     (GState), intent(inout), target :: uin(:),uf(:)
+!      type (GWorkspace), intent(inout) :: workspace
+      type     (GState), intent   (inout) :: dudt(:) 
+      complex, pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
       integer                          :: i,j,k
+      logical                     :: bret
       real (kind=GP)                   :: nu
-      complex, pointer, dimension(nz,ny,ista:iend)
-                                       :: c1,c2,c3,c4,c5,c6,c7,c8
+      complex, pointer, dimension(:,:,:) :: c1,c2,c3,c4,c5,c6,c7,c8
+      
        
-      nu = this%traits_.nu
+      nu = this%traits_%nu
 
-      c1= this%workspace_=>get_complex_tmp(bret)
-      c2= this%workspace_=>get_complex_tmp(bret)
-      c3= this%workspace_=>get_complex_tmp(bret)
-      c4= this%workspace_=>get_complex_tmp(bret)
-      c5= this%workspace_=>get_complex_tmp(bret)
-      c6= this%workspace_=>get_complex_tmp(bret)
-      c7= this%workspace_=>get_complex_tmp(bret)
-      c8= this%workspace_=>get_complex_tmp(bret)
+      CALL this%workspace_%get_complex_tmp(c1,bret)
+      CALL this%workspace_%get_complex_tmp(c2,bret)
+      CALL this%workspace_%get_complex_tmp(c3,bret)
+      CALL this%workspace_%get_complex_tmp(c4,bret)
+      CALL this%workspace_%get_complex_tmp(c5,bret)
+      CALL this%workspace_%get_complex_tmp(c6,bret)
+      CALL this%workspace_%get_complex_tmp(c7,bret)
+      CALL this%workspace_%get_complex_tmp(c8,bret)
 
       vx => uin  (this%VELOCITY)%ccomp
       vy => uin(this%VELOCITY+1)%ccomp
@@ -448,7 +442,7 @@ module hd_mod
       call nonlhd3(C4,C5,C6,C7,1)
       call nonlhd3(C4,C5,C6,C8,2)
       call nonlhd3(C4,C5,C6,C4,3)
-      call laplak3(vx,vx)
+      call laplak3(vx,vx)   
       call laplak3(vy,vy)
       call laplak3(vz,vz)
 
@@ -458,35 +452,34 @@ module hd_mod
       do j = 1,ny
       do k = 1,nz
          if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
-            dudt  (this%VELOCITY)=>ccomp(k,j,i) = &
-               nu*vx(k,j,i)+C7(k,j,i) + fx(k,j,i))
-            dudt(this%VELOCITY+1)=>ccomp(k,j,i) = &
-               nu*vy(k,j,i)+C8(k,j,i) + fy(k,j,i))
-            dudt(this%VELOCITY+2)=>ccomp(k,j,i) = &
-               nu*vz(k,j,i)+C4(k,j,i) + fz(k,j,i))
+            dudt(this%VELOCITY  )%ccomp(k,j,i) = &
+               nu*vx(k,j,i)+C7(k,j,i) + fx(k,j,i)
+            dudt(this%VELOCITY+1)%ccomp(k,j,i) = &
+               nu*vy(k,j,i)+C8(k,j,i) + fy(k,j,i)
+            dudt(this%VELOCITY+2)%ccomp(k,j,i) = &
+               nu*vz(k,j,i)+C4(k,j,i) + fz(k,j,i)
          else
-            dudt  (this%VELOCITY)=>ccomp(k,j,i) = 0.0_GP
-            dudt(this%VELOCITY+1)=>ccomp(k,j,i) = 0.0_GP
-            dudt(this%VELOCITY+2)=>ccomp(k,j,i) = 0.0_GP
+            dudt(this%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
+            dudt(this%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
+            dudt(this%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
          endif
       enddo
       enddo
       enddo
 
       ! Compute passive scalars:
-      call this%rhs_passibe(this, uin, uf, this%traits_%kappa, &
-              this%VELOCITY, this%nc_, this%PASSIVE, &
-              this%numpassive, dudt)
-
-
-      this%workspace_=>free_complex_tmp(c1)
-      this%workspace_=>free_complex_tmp(c2)
-      this%workspace_=>free_complex_tmp(c3)
-      this%workspace_=>free_complex_tmp(c4)
-      this%workspace_=>free_complex_tmp(c5)
-      this%workspace_=>free_complex_tmp(c6)
-      this%workspace_=>free_complex_tmp(c7)
-      this%workspace_=>free_complex_tmp(c8)
+!      call rhs_passive(this, uin, uf, this%traits_%kappa, &
+!              this%VELOCITY, this%nc_, this%PASSIVE, &
+!              this%numpassive, dudt)
+      
+      CALL this%workspace_%free_complex_tmp(c1)
+      CALL this%workspace_%free_complex_tmp(c2)
+      CALL this%workspace_%free_complex_tmp(c3)
+      CALL this%workspace_%free_complex_tmp(c4)
+      CALL this%workspace_%free_complex_tmp(c5)
+      CALL this%workspace_%free_complex_tmp(c6)
+      CALL this%workspace_%free_complex_tmp(c7)
+      CALL this%workspace_%free_complex_tmp(c8)
 
     end subroutine dudt_norot
 

@@ -6,14 +6,14 @@ module gstate_mod
   IMPLICIT NONE
 
   ! ================= Base field data types =========================
-  ! Derived type for complex (Fourier transformed) field components
+  ! Derived types for complex (Fourier transformed) field components
   type, public :: GState
     complex(kind=GP), allocatable :: ccomp(:,:,:) ! complex component      
   end type GState
-
+  
   ! Derived type for real space field components
   type, public :: GStateReal
-    complex(kind=GP), allocatable :: ccomp(:,:,:) ! complex component
+    complex(kind=GP), allocatable :: rcomp(:,:,:) ! real component
   end type GStateReal
 
 end module gstate_mod

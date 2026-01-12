@@ -5,6 +5,7 @@ add_library(pdes_lib STATIC
 )
 
 target_include_directories(pdes_lib PUBLIC
+  "$<TARGET_PROPERTY:project_fft,INTERFACE_INCLUDE_DIRECTORIES>"
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/src/memmgt
   ${CMAKE_BINARY_DIR}/src/${FFTP}

@@ -14,24 +14,21 @@ module equationbase_mod
   ! Define an abstract base class
   type, abstract :: EquationBase
     contains
-    procedure         (step), deferred ::          step ! step method
+
+!    procedure         (step), deferred ::          step ! step method
 !          generic :: step           => step_impl
-    procedure     (tmp_size), deferred ::      tmp_size ! tmp size
+!    procedure     (tmp_size), deferred ::      tmp_size ! tmp size
 !          generic :: tmp_size       => tmp_size_impl
-    procedure   (state_size), deferred ::    state_size ! state size
+!    procedure   (state_size), deferred ::    state_size ! state size
 !          generic :: state_size     => state_size_impl
-    procedure(sstate2istate), deferred :: sstate2istate ! state names
+!    procedure(sstate2istate), deferred :: sstate2istate ! state names
 !          generic :: sstate2istate  => sstate2istate_impl
-    procedure   (get_sstate), deferred ::    get_sstate ! get list of state names
+!    procedure   (get_sstate), deferred ::    get_sstate ! get list of state names
 !          generic :: get_sstate     => get_sstate_impl
-    procedure         (init), deferred ::          init ! init method
+!    procedure         (init), deferred ::          init ! init method
 !          generic :: init           => get_sstate_impl
-    procedure         (dudt), deferred ::          dudt ! RHS method
+!    procedure         (dudt), deferred ::          dudt ! RHS method
 !          generic :: dudt           => dudt_impl
-  end type EquationBase
-
-contains
-
 !!$    ! Concrete method available to all derived classes here:
 !!$    ! Abstract interface for deferred (virtual) methods:
 !!$    ! NOTE: do WE NEED THESE?:
@@ -90,6 +87,10 @@ contains
 !!$
 !!$  contains
 
+  end type EquationBase
+
+contains
+
   ! ==== Concrete method to compute RHS for all passive scalars =====
   subroutine rhs_passive(this, uin, f, &
                     kappa, ivstart, numv, isstart, npassive, dudt)
@@ -113,22 +114,22 @@ contains
             use var
             use grid
             use mpivars
+            USE gstate_mod
 !$          use threads
             implicit none
 
             class (EquationBase), intent(in) :: this
             integer          , intent   (in) :: isstart, npassive
             integer          , intent   (in) :: ivstart, numv
-            real    (kind=GP), intent   (in) :: time, dt
+!           real    (kind=GP), intent   (in) :: time, dt
             real    (kind=GP), intent   (in) :: kappa(:)
             type     (GState), intent(inout) :: uin(:)
             type     (GState), intent(inout) :: f(:)
-            type (GWorkspace), intent(inout), pointer &
-                                             :: workspace
+            type (GWorkspace), pointer       :: workspace
             type     (GState), intent  (out) :: dudt(:) 
 
             logical                          :: bret
-            integer                          :: i,j,k
+            integer                          :: i,j,k,n
             complex, pointer                 :: ctmp(:,:,:)
  
             CALL workspace%get_complex_tmp(ctmp,bret)
@@ -138,7 +139,7 @@ contains
 
             if ( numv .eq. 3 ) then ! 3d advection
               do n = 1, npassive
-                call advect3(uin(ivstart),uin(kvstart+1),uin(ivstart+2),&
+                call advect3(uin(ivstart),uin(ivstart+1),uin(ivstart+2),&
                              uin(isstart+n-1),ctmp)
                 call laplak3(uin(isstart+n-1),uin(isstart+n-1))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -147,8 +148,8 @@ contains
                 do j = 1,ny
                 do k = 1,nz
                    if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
-                     dudt(n)%ccomp(k,j,i) = &
-                      kappa(n)*uin(isstart+n-1)(k,j,i)+ctmp(k,j,i) &
+                      dudt(n)%ccomp(k,j,i) = &
+                           kappa(n)*uin(isstart+n-1)%ccomp(k,j,i)+ctmp(k,j,i) &
                      +f(isstart)%ccomp(k,j,i)
                    else if (kn2(k,j,i).gt.kmax) then
                       dudt(n)%ccomp(k,j,i) = 0.0_GP
@@ -161,7 +162,7 @@ contains
               enddo ! end, loop over scalars
             else ! 2d advection:
               do n = 1, npassive
-                call advect3(uin(ivstart),uin(kvstart+1),uin(ivstart+2),&
+                call advect3(uin(ivstart),uin(ivstart+1),uin(ivstart+2),&
                              uin(isstart+n-1),ctmp)
                 call laplak3(uin(isstart+n-1),uin(isstart+n-1))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -171,7 +172,7 @@ contains
                 do k = 1,nz
                    if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
                      dudt(n+isstart)%ccomp(k,j,i) = &
-                      kappa(n)*uin(isstart+n-1)(k,j,i)+ctmp(k,j,i) &
+                      kappa(n)*uin(isstart+n-1)%ccomp(k,j,i)+ctmp(k,j,i) &
                      +f(isstart)%ccomp(k,j,i)
                    else if (kn2(k,j,i).gt.kmax) then
                       dudt(n+isstart)%ccomp(k,j,i) = 0.0_GP
