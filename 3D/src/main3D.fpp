@@ -51,7 +51,7 @@
       USE gtimer
       USE fftplans
       USE dns
-      USE hd_mod
+      USE equation_factory
 !     USE class_GPart
 
       IMPLICIT NONE
@@ -71,8 +71,8 @@
 !
 ! Temporal data storage arrays
 
-      TYPE(GWorkspace) :: workspace
-      TYPE(HDSolver)   :: pde
+      TYPE(GWorkspace)                 :: workspace
+      CLASS(EquationBase), ALLOCATABLE :: pde
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C1,C2,C3
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: R1,R2,R3
 
@@ -160,15 +160,16 @@
       CALL io_init(myrank,(/nx,ny,nz/),ksta,kend,planio)
 
 ! Initialization of the PDE method
+     pde = init_pdes_from_file('parameter.inp')
      CALL workspace%initialize_pool(3,8)
-     CALL pde%HDSolver_ctor('parameter.inp',workspace,3)
+     CALL pde%Solver_ctor('parameter.inp',workspace,3)
 
 !
 ! Allocates memory for distributed blocks
 
       ALLOCATE( C1(nz,ny,ista:iend), C2(nz,ny,ista:iend), C3(nz,ny,ista:iend) )
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!! A method to allocate main data tyles is still missing !!!
+!!! A method to allocate main data types is still missing !!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #ifdef VELOC_
       ALLOCATE( uin(3),uf(3),dudt(3) )
@@ -603,7 +604,7 @@
 ! Evolves the system in time
           time = t*dt
           DO o = ord,1,-1
-            CALL pde%dudt_impl(time, uin, uf, dt, dudt)
+            CALL pde%dudt(time, uin, uf, dt, dudt)
 	    rmp = 1./real(o,kind=GP)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
             DO i = ista,iend

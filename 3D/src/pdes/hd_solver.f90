@@ -3,7 +3,6 @@
 ! DESCRIPTION: Forms class for incompressible HD solver, computing:
 !
 !              dv/dt + v.Grad v + 2*Omega x v = -Grad p + nu Del^2 v
-!
 !              ds_i/dt + v.Grad s_i = kappa_i Del^2 s_i 
 !                                             i = 1, ..., numpassive
 !              State ordering is:
@@ -35,143 +34,32 @@ module hd_mod
   ! ================= Solver ==========================================
   ! Define class:
   type, extends(EquationBase) :: HDSolver 
-        ! Member data:
-        logical                      :: binit_=.false. 
-                                                 ! is initialized?
-        integer                      :: myrank_  ! MPI rank
-        integer                      :: nprocs_  ! MPI rank
-        integer                      :: VELOCITY ! start of velocity sector
-        integer                      :: PASSIVE  ! start of scalar sector
-        integer                      :: numpassive_ ! # passive scalars
-        integer                      :: nd_      ! problem dimension
-        integer                      :: nc_      ! # velocity components
-        type(GWorkspace), pointer    :: workspace_
-        type  (NHTraits)             :: traits_
-        character(len=8), allocatable:: sstate_(:) 
-        character(len=128)           :: infile_
-    CONTAINS
-        procedure, public  ::      HDSolver_ctor ! constructor
-        final              ::      HDSolver_dtor ! destructor
-        procedure, public  ::          init_impl ! init method
-        procedure, public  ::          step_impl ! step method
-        procedure, public  ::          dudt_impl ! RHS method
-        procedure, public  ::    state_size_impl ! state size
-        procedure, public  :: sstate2istate_impl ! state names
-        procedure, public  ::    get_sstate_impl ! get list of state names
-        procedure, private ::         dudt_norot ! RHS without rot
-        procedure, private ::           dudt_rot ! RHS with rot
+    ! Member data:
+    logical                      :: binit_=.false. 
+                                             ! is initialized?
+    integer                      :: myrank_  ! MPI rank
+    integer                      :: nprocs_  ! MPI rank
+    integer                      :: VELOCITY ! start of velocity sector
+    integer                      :: PASSIVE  ! start of scalar sector
+    integer                      :: numpassive_ ! # passive scalars
+    integer                      :: nd_      ! problem dimension
+    integer                      :: nc_      ! # velocity components
+    type(GWorkspace), pointer    :: workspace_
+    type  (NHTraits)             :: traits_
+    character(len=8), allocatable:: sstate_(:) 
+    character(len=128)           :: infile_
+  CONTAINS
+    procedure, public :: init          =>          init_impl ! init method
+    procedure, public :: step          =>          step_impl ! step method
+    procedure, public :: dudt          =>          dudt_impl ! RHS method
+    procedure, public :: state_size    =>    state_size_impl ! state size
+    procedure, public :: sstate2istate => sstate2istate_impl ! state names
+    procedure, public :: get_sstate    =>    get_sstate_impl ! get state name list
+    procedure, public :: Solver_ctor   =>      HDSolver_ctor ! constructor
+    final             :: HDSolver_dtor
   end type HDSolver
 
 CONTAINS
-
-  ! ===================================================================
-  ! Solver methods
-  ! ===================================================================
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Constructor
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine HDSolver_ctor(this, infile, workspace, nc) 
-    class  (HDSolver), intent(inout)         :: this
-    integer          , intent   (in)         :: nc
-    type(GWorkspace) , intent(inout), target :: workspace
-    character(len=*) , intent   (in)         :: infile
-    this%workspace_ => workspace
-    this%nc_        = nc     ! # vel. components (useful if ny=1)
-    this%infile_    = infile ! input file
-    call this%init_impl();
-  end subroutine HDSolver_ctor
-
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Destructor
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine HDSolver_dtor(this) 
-    type  (HDSolver), intent(inout) :: this
-    deallocate(this%traits_%kappa)
-!   deallocate(this%traits_%sstate_)
-    ! If we use persistent workspace, free it here:
-    ! this%workspace_%free_complex_tmp(ctmp1)
-    ! this%workspace_%free_complex_tmp(ctmp2) ...    
-  end subroutine HDSolver_dtor
-
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Convert input state name to index in state vector
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine sstate2istate_impl(this, sstate, istate) 
-    class (HDSolver)              , intent   (in) :: this
-    character(len=8)              , intent   (in) :: sstate(:)
-    integer         , allocatable , intent(inout) :: istate(:)
-    integer                                       :: i,j
-
-    if ( size(sstate) .ne. size(istate) ) then
-      stop 'HDSolver::sstate2istate_impl: Incompatible sstate and istate'
-    endif
-  
-    do i = 1, size(sstate)
-      istate(i) = -1 ! return unusable index
-      do j = 1, size(this%sstate_)
-        if ( sstate(i) .eq. this%sstate_(j) ) then
-          istate(i) = j
-        endif
-      enddo
-    enddo
-  end subroutine sstate2istate_impl
-  
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Get state variable names
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine get_sstate_impl(this, sstate) 
-    class  (HDSolver)             , intent   (in) :: this
-    character (len=8), allocatable, intent(inout) :: sstate(:)
-    character(len=100)                            :: snum
-    integer                                       :: j
-    if ( allocated(sstate) ) then
-        deallocate(sstate);
-!       allocate(sstate(this%state_size()))
-    endif
-    do j = 1,this%nc_
-       write(snum,'(I0)') j
-       sstate(j) = 'v' // trim(snum)
-    enddo
-    do j = 1, this%traits_%numpassive
-       write(snum,'(I0)') j
-       sstate(j) = 's' // trim(snum)
-    enddo
-  end subroutine get_sstate_impl
-  
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Function to compute number of state members (equations)
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  PURE function state_size_impl(this) result(num)
-    class(HDSolver), intent(in) :: this
-    integer                     :: num
-    num = this%nc_                      ! # vel. components
-    num = num + this%traits_%numpassive ! # scalars
-  end function state_size_impl
-
-
-  ! ===================================================================
-  ! Time stepping methods
-  ! ===================================================================
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Concrete method to take one time step using Runge-Kutta
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine step_impl(this, time, uin, uf, dt, uout) 
-    class  (HDSolver), intent   (inout) :: this
-    real    (kind=GP), intent   (in) :: time, dt
-    type (GState), intent(inout) :: uin(:), uf(:)
-    type (GState), intent   (in) :: uout(:)
-
-      if ( .not. this%binit_ ) then
-        call init_impl(this)
-      endif
-  end subroutine step_impl
-
 
   ! ===================================================================
   ! Solver initialization, this is where parameter files are read
@@ -262,29 +150,11 @@ CONTAINS
   ! ===================================================================
   ! Computation of RHS, the solver equations are defined here
   ! ===================================================================
-  
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Function to compute RHS
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine dudt_impl(this, time, uin, uf, dt, dudt) 
-    implicit none
-
-    class(HDSolver), intent   (in) :: this
-    real  (kind=GP), intent   (in) :: time, dt
-    type   (GState), intent(inout) :: uin(:),uf(:)
-    type   (GState), intent(inout) :: dudt(:) 
-
-    if ( this%traits_%dorot.eq.1 ) then
-      call dudt_rot  (this, time, uin, uf, dt, dudt) 
-    else
-      call dudt_norot(this, time, uin, uf, dt, dudt) 
-    endif
-  end subroutine dudt_impl
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Function to compute RHS with rotation
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine dudt_rot(this, time, uin, uf, dt, dudt) 
+  subroutine dudt_impl(this, time, uin, uf, dt, dudt) 
     use fprecision
     use ali
     use kes
@@ -302,10 +172,9 @@ CONTAINS
     complex, pointer, dimension(:,:,:)     :: C1,C2,C3,C4,C5,C6
     integer                                :: i,j,k
     logical                                :: bret
-    real (kind=GP)                         :: nu,omegaz
+    real (kind=GP)                         :: nu,omegax,omegay,omegaz
        
     nu     = this%traits_%nu
-    omegaz = this%traits_%omega(3)
 
     CALL this%workspace_%get_complex_tmp(C1,bret)
     CALL this%workspace_%get_complex_tmp(C2,bret)
@@ -322,9 +191,25 @@ CONTAINS
     fz => uf (this%VELOCITY+2)%ccomp
       
     call prodre3(vx,vy,vz,C4,C5,C6)
-    call saxpby_c(C4, 1.0_GP, vy, -2.0*omegaz) 
-    call saxpby_c(C5, 1.0_GP, vx,  2.0*omegaz) 
-
+    if ( this%traits_%dorot.eq.1 ) then
+      omegax = this%traits_%omega(1)
+      omegay = this%traits_%omega(2)
+      omegaz = this%traits_%omega(3)
+      call saxpby_c(C1, vz, 2*omegay, vy, -2.0*omegaz)
+      call saxpby_c(C2, vx, 2*omegaz, vz, -2.0*omegax)
+      call saxpby_c(C3, vy, 2*omegax, vx, -2.0*omegay)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      do i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+      do j = 1,ny
+      do k = 1,nz
+         C4(k,j,i) = C4(k,j,i) + C1(k,j,i)
+         C5(k,j,i) = C5(k,j,i) + C2(k,j,i)
+         C6(k,j,i) = C6(k,j,i) + C3(k,j,i)
+      end do
+      end do
+      end do
+    endif
     call nonlhd3(C4,C5,C6,C1,1)
     call nonlhd3(C4,C5,C6,C2,2)
     call nonlhd3(C4,C5,C6,C3,3)
@@ -361,86 +246,115 @@ CONTAINS
     CALL this%workspace_%free_complex_tmp(C4)
     CALL this%workspace_%free_complex_tmp(C5)
     CALL this%workspace_%free_complex_tmp(C6)
-  end subroutine dudt_rot
+  end subroutine dudt_impl
+
+
+  ! ===================================================================
+  ! Time stepping methods
+  ! ===================================================================
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Function to compute RHS when there's no rotation
+  !! Concrete method to take one time step using Runge-Kutta
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine dudt_norot(this, time, uin, uf, dt, dudt) 
-    use fprecision
-    use ali
-    use kes
-    use var
-    use grid
-    use mpivars
-!$  use threads
-    implicit none
+  subroutine step_impl(this, time, uin, uf, dt, uout) 
+    class  (HDSolver), intent   (inout) :: this
+    real    (kind=GP), intent   (in) :: time, dt
+    type (GState), intent(inout) :: uin(:), uf(:)
+    type (GState), intent   (in) :: uout(:)
 
-    class(HDSolver), intent   (in)         :: this
-    real  (kind=GP), intent   (in)         :: time, dt
-    type   (GState), intent(inout), target :: uin(:),uf(:)
-    type   (GState), intent(inout)         :: dudt(:) 
-    complex, pointer, dimension(:,:,:)     :: fx,fy,fz,vx,vy,vz
-    complex, pointer, dimension(:,:,:)     :: C1,C2,C3,C4,C5,C6
-    integer                                :: i,j,k
-    logical                                :: bret
-    real (kind=GP)                         :: nu,omegaz
+      if ( .not. this%binit_ ) then
+        call this%init()
+      endif
+  end subroutine step_impl
+
   
-    nu = this%traits_%nu
+  ! ===================================================================
+  ! Solver specific methods
+  ! ===================================================================
 
-    CALL this%workspace_%get_complex_tmp(C1,bret)
-    CALL this%workspace_%get_complex_tmp(C2,bret)
-    CALL this%workspace_%get_complex_tmp(C3,bret)
-    CALL this%workspace_%get_complex_tmp(C4,bret)
-    CALL this%workspace_%get_complex_tmp(C5,bret)
-    CALL this%workspace_%get_complex_tmp(C6,bret)
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Constructor
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine HDSolver_ctor(this, infile, workspace, nc)
+    class  (HDSolver), intent(inout)         :: this
+    integer          , intent   (in)         :: nc
+    type(GWorkspace) , intent(inout), target :: workspace
+    character(len=*) , intent   (in)         :: infile
+    this%workspace_ => workspace
+    this%nc_        = nc     ! # vel. components (useful if ny=1)
+    this%infile_    = infile ! input file
+    call this%init();
+  end subroutine HDSolver_ctor
 
-    vx => uin(this%VELOCITY  )%ccomp
-    vy => uin(this%VELOCITY+1)%ccomp
-    vz => uin(this%VELOCITY+2)%ccomp
-    fx => uf (this%VELOCITY  )%ccomp
-    fy => uf (this%VELOCITY+1)%ccomp
-    fz => uf (this%VELOCITY+2)%ccomp
 
-    call prodre3(vx,vy,vz,C4,C5,C6)
-    call nonlhd3(C4,C5,C6,C1,1)
-    call nonlhd3(C4,C5,C6,C2,2)
-    call nonlhd3(C4,C5,C6,C3,3)
-    call laplak3(vx,C4)
-    call laplak3(vy,C5)
-    call laplak3(vz,C6)
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Destructor
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine HDSolver_dtor(this) 
+    type  (HDSolver), intent(inout) :: this
+!    deallocate(this%traits_%kappa)
+!   deallocate(this%traits_%sstate_)
+    ! If we use persistent workspace, free it here:
+    ! this%workspace_%free_complex_tmp(ctmp1)
+    ! this%workspace_%free_complex_tmp(ctmp2) ...    
+  end subroutine HDSolver_dtor
 
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-    do i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-    do j = 1,ny
-    do k = 1,nz
-      if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
-        dudt(this%VELOCITY  )%ccomp(k,j,i) = nu*C4(k,j,i) + C1(k,j,i) + fx(k,j,i)
-        dudt(this%VELOCITY+1)%ccomp(k,j,i) = nu*C5(k,j,i) + C2(k,j,i) + fy(k,j,i)
-        dudt(this%VELOCITY+2)%ccomp(k,j,i) = nu*C6(k,j,i) + C3(k,j,i) + fz(k,j,i)
-      else
-        dudt(this%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
-        dudt(this%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
-        dudt(this%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
-      endif
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Convert input state name to index in state vector
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine sstate2istate_impl(this, sstate, istate) 
+    class (HDSolver)              , intent   (in) :: this
+    character(len=8)              , intent   (in) :: sstate(:)
+    integer         , allocatable , intent(inout) :: istate(:)
+    integer                                       :: i,j
+
+    if ( size(sstate) .ne. size(istate) ) then
+      stop 'HDSolver::sstate2istate_impl: Incompatible sstate and istate'
+    endif
+  
+    do i = 1, size(sstate)
+      istate(i) = -1 ! return unusable index
+      do j = 1, size(this%sstate_)
+        if ( sstate(i) .eq. this%sstate_(j) ) then
+          istate(i) = j
+        endif
+      enddo
     enddo
-    enddo
-    enddo
+  end subroutine sstate2istate_impl
+  
 
-    ! Compute passive scalars:
-!      call rhs_passive(this, uin, uf, this%traits_%kappa, &
-!              this%VELOCITY, this%nc_, this%PASSIVE, &
-!              this%numpassive, dudt)
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Get state variable names
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine get_sstate_impl(this, sstate) 
+    class  (HDSolver)             , intent   (in) :: this
+    character (len=8), allocatable, intent(inout) :: sstate(:)
+    character(len=100)                            :: snum
+    integer                                       :: j
+    if ( allocated(sstate) ) then
+        deallocate(sstate);
+!       allocate(sstate(this%state_size()))
+    endif
+    do j = 1,this%nc_
+       write(snum,'(I0)') j
+       sstate(j) = 'v' // trim(snum)
+    enddo
+    do j = 1, this%traits_%numpassive
+       write(snum,'(I0)') j
+       sstate(j) = 's' // trim(snum)
+    enddo
+  end subroutine get_sstate_impl
+  
 
-    CALL this%workspace_%free_complex_tmp(C1)
-    CALL this%workspace_%free_complex_tmp(C2)
-    CALL this%workspace_%free_complex_tmp(C3)
-    CALL this%workspace_%free_complex_tmp(C4)
-    CALL this%workspace_%free_complex_tmp(C5)
-    CALL this%workspace_%free_complex_tmp(C6)
-  end subroutine dudt_norot
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Function to compute number of state members (equations)
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  PURE function state_size_impl(this) result(num)
+    class(HDSolver), intent(in) :: this
+    integer                     :: num
+    num = this%nc_                      ! # vel. components
+    num = num + this%traits_%numpassive ! # scalars
+  end function state_size_impl
 
 end module hd_mod
-
-

@@ -2,6 +2,7 @@ add_library(pdes_lib STATIC
   gstate_mod.f90
   equation_base.f90
   hd_solver.f90
+  equation_factory.f90
 )
 
 target_include_directories(pdes_lib PUBLIC

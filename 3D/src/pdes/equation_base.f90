@@ -14,25 +14,36 @@ module equationbase_mod
   ! Define an abstract base class
   type, abstract :: EquationBase
     contains
+      procedure(Solver_ctor_interface), deferred ::  Solver_ctor ! Constructor
+      procedure(init_interface),        deferred ::  init        ! init method
+      procedure(dudt_interface),        deferred ::  dudt        ! RHS method
+  end type EquationBase
 
-!    procedure         (step), deferred ::          step ! step method
-!          generic :: step           => step_impl
-!    procedure     (tmp_size), deferred ::      tmp_size ! tmp size
-!          generic :: tmp_size       => tmp_size_impl
-!    procedure   (state_size), deferred ::    state_size ! state size
-!          generic :: state_size     => state_size_impl
-!    procedure(sstate2istate), deferred :: sstate2istate ! state names
-!          generic :: sstate2istate  => sstate2istate_impl
-!    procedure   (get_sstate), deferred ::    get_sstate ! get list of state names
-!          generic :: get_sstate     => get_sstate_impl
-!    procedure         (init), deferred ::          init ! init method
-!          generic :: init           => get_sstate_impl
-!    procedure         (dudt), deferred ::          dudt ! RHS method
-!          generic :: dudt           => dudt_impl
-!!$    ! Concrete method available to all derived classes here:
-!!$    ! Abstract interface for deferred (virtual) methods:
-!!$    ! NOTE: do WE NEED THESE?:
-!!$    abstract interface
+  abstract interface
+     subroutine Solver_ctor_interface(this, infile, workspace, nc)
+       USE class_GWorkspace3D
+       import :: EquationBase
+       class(EquationBase), intent(inout)         :: this
+       integer            , intent   (in)         :: nc
+       type(GWorkspace)   , intent(inout), target :: workspace
+       character(len=*)   , intent   (in)         :: infile  
+     end subroutine Solver_ctor_interface
+
+     subroutine init_interface(this) 
+       import :: EquationBase
+       class (EquationBase), intent (inout) :: this
+     end subroutine init_interface
+
+     subroutine dudt_interface(this, time, uin, uf, dt, dudt) 
+       USE gstate_mod
+       import :: EquationBase
+       class(EquationBase), intent   (in)         :: this
+       real      (kind=GP), intent   (in)         :: time, dt
+       type       (GState), intent(inout), target :: uin(:),uf(:)
+       type       (GState), intent(inout)         :: dudt(:) 
+     end subroutine dudt_interface
+  end interface
+     
 !!$        subroutine step(this, time, uin, uf, dt, workspace, uout) 
 !!$            import :: EquationBase
 !!$            class (EquationBase), intent   (in) :: this
@@ -70,27 +81,9 @@ module equationbase_mod
 !!$            integer :: num
 !!$        end function tmp_size
 !!$
-!!$        subroutine init(this) 
-!!$            import :: EquationBase
-!!$            class (EquationBase), intent   (in) :: this
-!!$        end subroutine init
-!!$
-!!$        subroutine dudt(this, time, uin, uf, dt, dudt) 
-!!$            import :: EquationBase
-!!$            class (EquationBase), intent   (in) :: this
-!!$            real       (kind=GP), intent   (in) :: time, dt
-!!$            type        (GState), intent(inout) :: uin(:)
-!!$            type    (GWorkspace), intent(inout) :: workspace
-!!$            type        (GState), intent   (in) :: dudt(:) 
-!!$        end subroutine dudt
-!!$    end interface
-!!$
-!!$  contains
 
-  end type EquationBase
-
-contains
-
+CONTAINS
+  
   ! ==== Concrete method to compute RHS for all passive scalars =====
   subroutine rhs_passive(this, uin, f, &
                     kappa, ivstart, numv, isstart, npassive, dudt)
