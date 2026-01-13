@@ -58,10 +58,14 @@
 
 !
 ! Arrays for the fields and external forcings
-      
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!! A method to allocate main data tyles is still missing !!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #ifdef VELOC_
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vx,vy,vz
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fx,fy,fz
+      type(GState), ALLOCATABLE, TARGET :: uin(:),uf(:),dudt(:)
+      COMPLEX(KIND=GP), POINTER, DIMENSION (:,:,:) :: vx,vy,vz
+      COMPLEX(KIND=GP), POINTER, DIMENSION (:,:,:) :: fx,fy,fz
 #endif
 
 !
@@ -88,7 +92,7 @@
       REAL(KIND=GP)    :: dump
       REAL(KIND=GP)    :: stat
       REAL(KIND=GP)    :: f0,u0
-      REAL(KIND=GP)    :: phase,ampl,cort
+      REAL(KIND=GP)    :: phase,ampl,cort,time
       REAL(KIND=GP)    :: fparam0,fparam1,fparam2,fparam3,fparam4
       REAL(KIND=GP)    :: fparam5,fparam6,fparam7,fparam8,fparam9
       REAL(KIND=GP)    :: vparam0,vparam1,vparam2,vparam3,vparam4
@@ -163,13 +167,22 @@
 ! Allocates memory for distributed blocks
 
       ALLOCATE( C1(nz,ny,ista:iend), C2(nz,ny,ista:iend), C3(nz,ny,ista:iend) )
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!! A method to allocate main data tyles is still missing !!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 #ifdef VELOC_
-      ALLOCATE( vx(nz,ny,ista:iend) )
-      ALLOCATE( vy(nz,ny,ista:iend) )
-      ALLOCATE( vz(nz,ny,ista:iend) )
-      ALLOCATE( fx(nz,ny,ista:iend) )
-      ALLOCATE( fy(nz,ny,ista:iend) )
-      ALLOCATE( fz(nz,ny,ista:iend) )
+      ALLOCATE( uin(3),uf(3),dudt(3) )
+      DO i = 1,3
+         ALLOCATE( uin (i)%ccomp(nz,ny,ista:iend) )
+         ALLOCATE( uf  (i)%ccomp(nz,ny,ista:iend) )
+         ALLOCATE( dudt(i)%ccomp(nz,ny,ista:iend) )
+      END DO
+      vx => uin(1)%ccomp
+      vy => uin(2)%ccomp
+      vz => uin(3)%ccomp
+      fx => uf(1)%ccomp
+      fy => uf(2)%ccomp
+      fz => uf(3)%ccomp
 #endif
       ALLOCATE( R1(nx,ny,ksta:kend), R2(nx,ny,ksta:kend), R3(nx,ny,ksta:kend) )
 
@@ -572,23 +585,38 @@
 
 ! Runge-Kutta step 1
 ! Copies the fields into auxiliary arrays
-
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!! The time step algorithm is still missing !!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
-!         DO i = ista,iend
+         DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-!         DO j = 1,ny
-!         DO k = 1,nz
-!            INCLUDE RKSTEP1_
-!         END DO
-!         END DO
-!         END DO
-
+         DO j = 1,ny
+         DO k = 1,nz
+	    C1(k,j,i) = vx(k,j,i)
+            C2(k,j,i) = vy(k,j,i)
+            C3(k,j,i) = vz(k,j,i)
+         END DO
+         END DO
+         END DO
 ! Runge-Kutta step 2
 ! Evolves the system in time
-
-!         DO o = ord,1,-1        
-!            INCLUDE RKSTEP2_
-!         END DO
+          time = t*dt
+          DO o = ord,1,-1
+            CALL pde%dudt_impl(time, uin, uf, dt, dudt)
+	    rmp = 1./real(o,kind=GP)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+            DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+            DO k = 1,nz
+               vx(k,j,i) = C1(k,j,i)+dt*rmp*dudt(1)%ccomp(k,j,i)
+               vy(k,j,i) = C2(k,j,i)+dt*rmp*dudt(2)%ccomp(k,j,i)
+               vz(k,j,i) = C3(k,j,i)+dt*rmp*dudt(3)%ccomp(k,j,i)
+            END DO
+            END DO
+            END DO
+         END DO
 
          timet = timet+1
          times = times+1

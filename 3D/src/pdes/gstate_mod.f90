@@ -1,7 +1,7 @@
 module gstate_mod
   USE fprecision
-  USE grid
   USE mpivars
+  USE grid
 
   IMPLICIT NONE
 
