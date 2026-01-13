@@ -2294,10 +2294,10 @@
 !-----------------------------------------------------------------
 
 !*****************************************************************
-      SUBROUTINE saxpby_c(x,a,y,b) 
+      SUBROUTINE saxpby_c(z,x,a,y,b) 
 !-----------------------------------------------------------------
 !
-! Computes x = ax + by for complex x, y
+! Computes z = ax + by for complex x, y
 !
 ! Parameters
 !     x,y   : input arrays
@@ -2313,8 +2313,8 @@
 !$    USE threads
       IMPLICIT NONE
 
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: x
-      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend) :: y
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: z
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend) :: x,y
       REAL   (KIND=GP), INTENT   (IN)                             :: a,b
 !
       REAL   (KIND=GP)                                            :: ktmin2,ktmax2,tmp
@@ -2325,7 +2325,7 @@
 !$omp parallel do if (iend-ista.lt.nth) private (k)
         DO j = 1,ny
           DO k = 1,nz
-            x(k,j,i) = a * x(k,j,i) + b * y(k,j,i)
+            z(k,j,i) = a * x(k,j,i) + b * y(k,j,i)
           END DO
         END DO
       END DO
@@ -2334,10 +2334,10 @@
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !*****************************************************************
-      SUBROUTINE saxpby_r(x,a,y,b) 
+      SUBROUTINE saxpby_r(z,x,a,y,b) 
 !-----------------------------------------------------------------
 !
-! Computes x = ax + by for real x, y
+! Computes z = ax + by for real x, y
 !
 ! Parameters
 !     x,y   : input arrays
@@ -2353,19 +2353,19 @@
 !$    USE threads
       IMPLICIT NONE
 
-      REAL(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: x
-      REAL(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend) :: y
+      REAL(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: z
+      REAL(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend) :: x,y
       REAL(KIND=GP), INTENT   (IN)                             :: a,b
 !
-      REAL   (KIND=GP)                                            :: ktmin2,ktmax2,tmp
-      INTEGER                                                     :: i,j,k
+      REAL   (KIND=GP)                                         :: ktmin2,ktmax2,tmp
+      INTEGER                                                  :: i,j,k
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
         DO j = 1,ny
           DO i = 1,nx
-            x(i,j,k) = a * x(i,j,k) + b * y(i,j,k)
+            z(i,j,k) = a * x(i,j,k) + b * y(i,j,k)
           ENDDO
         ENDDO
       ENDDO
