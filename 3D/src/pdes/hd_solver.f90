@@ -14,12 +14,14 @@
 !
 ! DATE       : 11/30/25 (DLR)
 ! =====================================================================
+
 module hd_mod
   USE equationbase_mod
   USE gstate_mod
 
   IMPLICIT NONE
-  ! ================= Traits type =====================================
+
+  ! ================= Solver traits ===================================
   type, public  :: NHTraits
     integer       :: dorot        = 0      ! rotation flag
     integer       :: numpassive   = 0      ! num passive scalars
@@ -50,7 +52,6 @@ module hd_mod
     character(len=128)           :: infile_
   CONTAINS
     procedure, public :: init          =>          init_impl ! init method
-    procedure, public :: step          =>          step_impl ! step method
     procedure, public :: dudt          =>          dudt_impl ! RHS method
     procedure, public :: state_size    =>    state_size_impl ! state size
     procedure, public :: sstate2istate => sstate2istate_impl ! state names
@@ -66,7 +67,7 @@ CONTAINS
   ! ===================================================================
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Function to initialize solver
+  !! Subroutine to initialize the solver
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_impl(this)
     USE commtypes
@@ -190,12 +191,12 @@ CONTAINS
     fy => uf (this%VELOCITY+1)%ccomp
     fz => uf (this%VELOCITY+2)%ccomp
       
-    call prodre3(vx,vy,vz,C4,C5,C6)
+    call prodre3(vx,vy,vz,C4,C5,C6)                    ! w x v
     if ( this%traits_%dorot.eq.1 ) then
       omegax = this%traits_%omega(1)
       omegay = this%traits_%omega(2)
       omegaz = this%traits_%omega(3)
-      call saxpby_c(C1, vz, 2*omegay, vy, -2.0*omegaz)
+      call saxpby_c(C1, vz, 2*omegay, vy, -2.0*omegaz) ! 2 Omega x v
       call saxpby_c(C2, vx, 2*omegaz, vz, -2.0*omegax)
       call saxpby_c(C3, vy, 2*omegax, vx, -2.0*omegay)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -203,19 +204,19 @@ CONTAINS
 !$omp parallel do if (iend-ista.lt.nth) private (k)
       do j = 1,ny
       do k = 1,nz
-         C4(k,j,i) = C4(k,j,i) + C1(k,j,i)
-         C5(k,j,i) = C5(k,j,i) + C2(k,j,i)
-         C6(k,j,i) = C6(k,j,i) + C3(k,j,i)
+         C4(k,j,i) = C4(k,j,i) + C1(k,j,i) ! (w x v + 2 Omega x v)_x
+         C5(k,j,i) = C5(k,j,i) + C2(k,j,i) ! (w x v + 2 Omega x v)_y
+         C6(k,j,i) = C6(k,j,i) + C3(k,j,i) ! (w x v + 2 Omega x v)_z
       end do
       end do
       end do
     endif
-    call nonlhd3(C4,C5,C6,C1,1)
-    call nonlhd3(C4,C5,C6,C2,2)
-    call nonlhd3(C4,C5,C6,C3,3)
-    call laplak3(vx,C4)
-    call laplak3(vy,C5)
-    call laplak3(vz,C6)
+    call nonlhd3(C4,C5,C6,C1,1)  ! -(w x v + 2 Omega x v + Grad p)_x
+    call nonlhd3(C4,C5,C6,C2,2)  ! -(w x v + 2 Omega x v + Grad p)_y
+    call nonlhd3(C4,C5,C6,C3,3)  ! -(w x v + 2 Omega x v + Grad p)_z
+    call laplak3(vx,C4)          ! Del^2 vx
+    call laplak3(vy,C5)          ! Del^2 vy
+    call laplak3(vz,C6)          ! Del^2 vz
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
     do i = ista,iend
@@ -249,25 +250,6 @@ CONTAINS
   end subroutine dudt_impl
 
 
-  ! ===================================================================
-  ! Time stepping methods
-  ! ===================================================================
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Concrete method to take one time step using Runge-Kutta
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine step_impl(this, time, uin, uf, dt, uout) 
-    class  (HDSolver), intent   (inout) :: this
-    real    (kind=GP), intent   (in) :: time, dt
-    type (GState), intent(inout) :: uin(:), uf(:)
-    type (GState), intent   (in) :: uout(:)
-
-      if ( .not. this%binit_ ) then
-        call this%init()
-      endif
-  end subroutine step_impl
-
-  
   ! ===================================================================
   ! Solver specific methods
   ! ===================================================================

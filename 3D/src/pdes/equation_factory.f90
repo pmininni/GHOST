@@ -2,7 +2,9 @@
 ! Factory for all PDEs.
 !
 ! To add a new solver, "USE" the corresponding module, and add a new
-! case clause in the init_pdes_from_file function.
+! case clause in the init_pdes_from_file function. The clause should
+! allocate the solver class, and declare the number of field
+! components the solver needs ( 
 !
 ! DATE : 01/13/26 (PDM)
 ! ===================================================================
@@ -10,10 +12,15 @@
 module equation_factory
   USE equationbase_mod
   USE hd_mod
-! USE userdefinedpdes_mod
+! USE userdefinedpde_mod
   
   IMPLICIT NONE
 
+  ! ================= Global parameters ===============================
+  integer, public :: NUMFIELDS  = 0 ! Number of field components
+  integer, public :: NUMTMPCOMP = 0 ! Number of cmplx tmp arrays
+  integer, public :: NUMTMPREAL = 0 ! Number of real tmp arrays
+  
 CONTAINS
   
   ! ================= Factory function ==============================
@@ -41,9 +48,11 @@ CONTAINS
     select case (trim(adjustl(solver)))
       case ('HD')
         allocate(HDsolver :: new_object)
+        NUMFIELDS = 3; NUMTMPCOMP = 8; NUMTMPREAL = 3
 !     case ('UserDefined')
 !       allocate(UserDefinedsolver :: new_object)
-     case default
+!       NUMFIELDS = 3; NUMTMPCOMP = 8; NUMTMPREAL = 3
+      case default
         stop 'Unknown solver name'
     end select
   end function init_pdes_from_file

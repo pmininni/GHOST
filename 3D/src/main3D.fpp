@@ -59,20 +59,20 @@
 !
 ! Arrays for the fields and external forcings
 
+      TYPE(GState), ALLOCATABLE, TARGET :: field(:),field_nxt(:),force(:)
+      TYPE(GWorkspace)                  :: workspace
+      CLASS(EquationBase), ALLOCATABLE  :: pde
+
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!! A method to allocate main data tyles is still missing !!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!! Hack to initialize fields, should be removed later
 #ifdef VELOC_
-      type(GState), ALLOCATABLE, TARGET :: uin(:),uf(:),dudt(:)
       COMPLEX(KIND=GP), POINTER, DIMENSION (:,:,:) :: vx,vy,vz
       COMPLEX(KIND=GP), POINTER, DIMENSION (:,:,:) :: fx,fy,fz
 #endif
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !
 ! Temporal data storage arrays
-
-      TYPE(GWorkspace)                 :: workspace
-      CLASS(EquationBase), ALLOCATABLE :: pde
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C1,C2,C3
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: R1,R2,R3
 
@@ -100,12 +100,12 @@
 
       INTEGER :: idevice, iret, ncuda, ngcuda, ppn
       INTEGER :: ini,step
+      INTEGER :: num_components
       INTEGER :: tstep,cstep
       INTEGER :: sstep,fstep
       INTEGER :: bench,trans
       INTEGER :: outs,mean
       INTEGER :: seed,rand
-      INTEGER :: anis
       INTEGER :: mult
       INTEGER :: t,o
       INTEGER :: i,j,k
@@ -124,11 +124,11 @@
 !
 ! Namelists for the input files
 
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!! Status, parameter should be read by some init that could be part of a module (grid?)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       NAMELIST / status / idir,odir,stat,mult,bench,outs,mean,trans,iswap
       NAMELIST / parameter / dt,step,tstep,sstep,cstep,rand,cort,seed
-#ifdef DEF_ARBSIZE_
-      NAMELIST / boxparams / Lx,Ly,Lz,Dkk
-#endif
 #if defined(VELOC_) || defined(ADVECT_)
       NAMELIST / velocity / f0,u0,kdn,kup,nu,fparam0,fparam1,fparam2
       NAMELIST / velocity / fparam3,fparam4,fparam5,fparam6,fparam7
@@ -145,6 +145,9 @@
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
 
+! Initializes the grid. This must be done early to have nx, ny, nz.
+      CALL grid_init('parameter.inp')
+
 ! Initialization of offloading to GPUs using OpenMP (this is independent
 ! of CUDA initialization in systems with NVIDIA GPUs). GHOST
 ! assumes the number of MPI jobs in each node is equal to the
@@ -159,52 +162,39 @@
       CALL range(1,nz,nprocs,myrank,ksta,kend)
       CALL io_init(myrank,(/nx,ny,nz/),ksta,kend,planio)
 
-! Initialization of the PDE method
+! Now we can initialize the PDE method
      pde = init_pdes_from_file('parameter.inp')
-     CALL workspace%initialize_pool(3,8)
-     CALL pde%Solver_ctor('parameter.inp',workspace,3)
+     CALL workspace%initialize_pool(NUMTMPREAL,NUMTMPCOMP)
+     CALL pde%Solver_ctor('parameter.inp',workspace,NUMFIELDS)
+     num_components = pde%state_size()
+     CALL GState_alloc(field    , num_components)
+     CALL GState_alloc(field_nxt, num_components)
+     CALL GState_alloc(force    , num_components)
 
-!
-! Allocates memory for distributed blocks
+! Initialization of the numerical domain
+     CALL box_init('parameter.inp')
 
-      ALLOCATE( C1(nz,ny,ista:iend), C2(nz,ny,ista:iend), C3(nz,ny,ista:iend) )
+     ALLOCATE( C1(nz,ny,ista:iend), C2(nz,ny,ista:iend), C3(nz,ny,ista:iend) )
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!! A method to allocate main data types is still missing !!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!! Temporary hack to initialize fields
 #ifdef VELOC_
-      ALLOCATE( uin(3),uf(3),dudt(3) )
-      DO i = 1,3
-         ALLOCATE( uin (i)%ccomp(nz,ny,ista:iend) )
-         ALLOCATE( uf  (i)%ccomp(nz,ny,ista:iend) )
-         ALLOCATE( dudt(i)%ccomp(nz,ny,ista:iend) )
-      END DO
-      vx => uin(1)%ccomp
-      vy => uin(2)%ccomp
-      vz => uin(3)%ccomp
-      fx => uf(1)%ccomp
-      fy => uf(2)%ccomp
-      fz => uf(3)%ccomp
+      vx => field(1)%ccomp
+      vy => field(2)%ccomp
+      vz => field(3)%ccomp
+      fx => force(1)%ccomp
+      fy => force(2)%ccomp
+      fz => force(3)%ccomp
 #endif
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       ALLOCATE( R1(nx,ny,ksta:kend), R2(nx,ny,ksta:kend), R3(nx,ny,ksta:kend) )
-
-! Allocates arrays with wavenumbers
-      ALLOCATE( kx(nx), ky(ny), kz(nz) )
-      ALLOCATE( kn2(nz,ny,ista:iend) )
-#ifdef DEF_ARBSIZE_
-      anis = 1
-      ALLOCATE( kk2(nz,ny,ista:iend) )
-#else
-      IF ((nx.ne.ny).or.(ny.ne.nz)) THEN
-         anis = 1
-         ALLOCATE( kk2(nz,ny,ista:iend) )
-      ELSE
-         anis = 0
-         kk2 => kn2
-      ENDIF
-#endif
 
 !
 ! The following lines read the file 'parameter.inp'
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!! Status, parameter and maybe the resolution (in boxparams) should
+!!! be read by some init that could be part of a module (grid?)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 ! Reads general configuration flags from the namelist
 ! 'status' on the external file 'parameter.inp'
@@ -284,28 +274,6 @@
       Dky = 1.0_GP
       Dkz = 1.0_GP
       Dkk = 0.0_GP
-#ifdef DEF_ARBSIZE_
-! Reads parameters to set the box size
-!     Lx  : Length in x (in units of 2.pi, =1 gives a side of length 2.pi)
-!     Ly  : Length in y
-!     Lz  : Length in z
-!     Dkk : Width of Fourier shells for 2D and 3D spectra
-!           Default = min(1/Lx, 1/Ly, 1/Lz)
-
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
-         READ(1,NML=boxparams)
-         CLOSE(1)
-      ENDIF
-      CALL MPI_BCAST(Lx,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(Ly,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(Lz,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(Dkk,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      Dkx = 1.0_GP/Lx
-      Dky = 1.0_GP/Ly
-      Dkz = 1.0_GP/Lz
-#endif
-      IF (Dkk.lt.1e-5) Dkk = min(Dkx,Dky,Dkz)
 
 #if defined(VELOC_) || defined(ADVECT_)
 ! Reads parameters for the velocity field from the
@@ -362,7 +330,7 @@
       nmax =     int(max(nx*Dkx,ny*Dky,nz*Dkz)/Dkk)
       nmaxperp = int(max(nx*Dkx,ny*Dky)/Dkk)
 #ifndef DEF_ARBSIZE_
-      IF (anis.eq.0)  kmax = kmax*real(nx,kind=GP)**2
+      IF ( .NOT. anis )  kmax = kmax*real(nx,kind=GP)**2
 #endif
 #ifdef EDQNM_
       kmax = (real(n,kind=GP)/2.0_GP-0.5_GP)**2
@@ -395,7 +363,7 @@
          kz(k) = real(k-1,kind=GP)
          kz(k+nz/2) = real(k-nz/2-1,kind=GP)
       END DO
-      IF (anis.eq.1) THEN
+      IF ( anis ) THEN
          rmp = 1.0_GP/real(nx,kind=GP)**2
          rmq = 1.0_GP/real(ny,kind=GP)**2
          rms = 1.0_GP/real(nz,kind=GP)**2
@@ -418,7 +386,7 @@
       ky = ky*Dky
       kz = kz*Dkz
 #endif
-      IF (anis.eq.1) THEN
+      IF ( anis ) THEN
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -435,7 +403,6 @@
 ! be properly initialized.
 ! Use FFTW_ESTIMATE or FFTW_MEASURE in short runs
 ! Use FFTW_PATIENT or FFTW_EXHAUSTIVE in long runs
-! FFTW 2.x only supports FFTW_ESTIMATE or FFTW_MEASURE
 
       nth = 1
 !$    nth = omp_get_max_threads()
@@ -584,46 +551,9 @@
             INCLUDE SPECTROUTPUT_
          ENDIF
 
-! Runge-Kutta step 1
-! Copies the fields into auxiliary arrays
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!! The time step algorithm is still missing !!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,ny
-         DO k = 1,nz
-	    C1(k,j,i) = vx(k,j,i)
-            C2(k,j,i) = vy(k,j,i)
-            C3(k,j,i) = vz(k,j,i)
-         END DO
-         END DO
-         END DO
-! Runge-Kutta step 2
-! Evolves the system in time
-          time = t*dt
-          DO o = ord,1,-1
-            CALL pde%dudt(time, uin, uf, dt, dudt)
-	    rmp = 1./real(o,kind=GP)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,ny
-            DO k = 1,nz
-               vx(k,j,i) = C1(k,j,i)+dt*rmp*dudt(1)%ccomp(k,j,i)
-               vy(k,j,i) = C2(k,j,i)+dt*rmp*dudt(2)%ccomp(k,j,i)
-               vz(k,j,i) = C3(k,j,i)+dt*rmp*dudt(3)%ccomp(k,j,i)
-            END DO
-            END DO
-            END DO
-         END DO
-
-         timet = timet+1
-         times = times+1
-         timec = timec+1
-         timef = timef+1
-         timep = timep+1
+! Runge-Kutta
+         CALL pde%timestep(time, field, force, dt, field_nxt)
+         field = field_nxt
 
       END DO RK
 
@@ -702,7 +632,7 @@
       DEALLOCATE( R1,R2,R3 )
       DEALLOCATE( C1,C2,C3 )
       DEALLOCATE( kx,ky,kz )
-      IF (anis.eq.1) THEN
+      IF ( anis ) THEN
          DEALLOCATE( kk2 )
       ELSE
          NULLIFY( kk2 )

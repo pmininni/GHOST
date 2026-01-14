@@ -13,7 +13,44 @@ module gstate_mod
   
   ! Derived type for real space field components
   type, public :: GStateReal
-    complex(kind=GP), allocatable :: rcomp(:,:,:) ! real component
+    real(kind=GP)   , allocatable :: rcomp(:,:,:) ! real component
   end type GStateReal
 
+CONTAINS
+
+  ! ================= Allocation routines ===========================
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Method to allocate complex GState data types
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine GState_alloc(state, nc)
+    use grid
+    use mpivars
+    implicit none
+    type (GState), allocatable, intent(inout) :: state(:)
+    integer                   , intent   (in) :: nc
+    integer                                   :: i
+    ALLOCATE( state(nc) )
+    DO i = 1,nc
+      ALLOCATE( state(i)%ccomp(nz,ny,ista:iend) )
+    END DO
+  end subroutine GState_alloc
+
+  
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Method to allocate real GState data types
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine GStateReal_alloc(state, nc)
+    use grid
+    use mpivars
+    implicit none
+    type (GStateReal), allocatable, intent(inout) :: state(:)
+    integer                       , intent   (in) :: nc
+    integer                                       :: i
+    ALLOCATE( state(nc) )
+    DO i = 1,nc
+      ALLOCATE( state(i)%rcomp(nx,ny,ksta:kend) )
+    END DO
+  end subroutine GStateReal_alloc
+  
 end module gstate_mod
