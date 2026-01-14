@@ -1,5 +1,5 @@
 !=================================================================
-! MODULES for 3D codes
+! General MODULES for pseudospectral methods
 !
 ! 2003 Pablo D. Mininni.
 !      Department of Physics, 
@@ -12,15 +12,115 @@
 
   MODULE grid
 !
-! n: number of points in the spatial grid
-      INTEGER :: nx = NX_
-      INTEGER :: ny = NY_
-      INTEGER :: nz = NZ_
-      SAVE
+! ni: number of points in the spatial grid in each direction
+      INTEGER :: nx
+      INTEGER :: ny
+      INTEGER :: nz
+    CONTAINS
+!-----------------------------------------------------------------
+      SUBROUTINE grid_init(infile_)
+!
+! Initializes the grid spatial resolution.
+      USE commtypes
+      USE mpivars
+      IMPLICIT NONE
+
+      CHARACTER(len=128), INTENT(IN)      :: infile_
+      NAMELIST/ grid / nx,ny,nz
+      IF ( myrank .EQ. 0 ) THEN
+         OPEN(1,file=infile_,status='unknown',form="formatted")
+         READ(1,NML=grid)
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(nx,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ny,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(nz,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      END SUBROUTINE grid_init
 
   END MODULE grid
 !=================================================================
 
+  MODULE kes
+      USE fprecision
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)        :: kx,ky,kz
+      REAL(KIND=GP), TARGET, ALLOCATABLE, DIMENSION (:,:,:) :: kn2
+      REAL(KIND=GP), POINTER, DIMENSION (:,:,:)             :: kk2
+      INTEGER :: nmax,nmaxperp
+      SAVE
+
+  END MODULE kes
+!=================================================================
+
+  MODULE boxsize
+!
+! Lx, Ly, Lz, and Dk are the lengths of the sides of the box,
+! and the width of Fourier shells.
+!  Lx  : Length in x (in units of 2.pi, =1 gives a side of length 2.pi)
+!  Ly  : Length in y
+!  Lz  : Length in z
+!  Dkk : Width of Fourier shells for 2D and 3D spectra
+!        Default = min(1/Lx, 1/Ly, 1/Lz)
+      USE fprecision
+      REAL(KIND=GP)    :: Lx,Ly,Lz
+      REAL(KIND=GP)    :: Dkx,Dky,Dkz,Dkk
+      LOGICAL          :: anis   ! .TRUE. if in an anisotropic box
+    CONTAINS
+!-----------------------------------------------------------------
+      SUBROUTINE box_init(infile_)
+!
+! Initializes the box size. If no parameters are present, the
+! code attempts to initialize a cubic box with Lx=Ly=Lz=2.pi
+      USE fprecision
+      USE commtypes
+      USE mpivars
+      USE grid
+      USE kes
+      IMPLICIT NONE
+
+      CHARACTER(len=128), INTENT(IN)      :: infile_
+      CHARACTER(len=256)                  :: iomsg
+      INTEGER                             :: ios
+      NAMELIST / boxparams / Lx,Ly,Lz,Dkk
+
+      Lx  = 1.0_GP; Ly  = 1.0_GP; Lz  = 1.0_GP
+      Dkx = 1.0_GP; Dky = 1.0_GP; Dkz = 1.0_GP
+      Dkk = 0.0_GP; anis= .FALSE.
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file=infile_,status='unknown',form="formatted")
+         READ(1,NML=boxparams,iostat=ios,iomsg=iomsg)
+	 IF (ios .eq. 0) THEN
+	    anis = .TRUE.      ! Domain size defined in infile_
+	 ELSE
+	    PRINT *,'boxparams not found, attempting to use a 2.pi cubic box'
+            IF ((nx.ne.ny).or.(ny.ne.nz)) anis = .TRUE.
+	 ENDIF
+         CLOSE(1)
+      ENDIF
+      CALL MPI_BCAST(Lx  ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(Ly  ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(Lz  ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(Dkk ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(anis,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
+      IF ( anis ) THEN
+         Dkx = 1.0_GP/Lx
+         Dky = 1.0_GP/Ly
+         Dkz = 1.0_GP/Lz
+      ENDIF
+      IF (Dkk.lt.1e-5) Dkk = min(Dkx,Dky,Dkz)
+      ! Allocates arrays with wavenumbers
+      ALLOCATE( kx(nx), ky(ny), kz(nz) )
+      ALLOCATE( kn2(nz,ny,ista:iend) )
+      IF ( anis ) THEN
+         ALLOCATE( kk2(nz,ny,ista:iend) )
+      ELSE
+         kk2 => kn2
+      ENDIF
+      END SUBROUTINE box_init
+
+  END MODULE boxsize
+!=================================================================
+      
   MODULE order
 !
 ! ord: number of iterations in the Runge-Kutta method
@@ -60,18 +160,6 @@
   END MODULE ali
 !=================================================================
 
-  MODULE boxsize
-!
-! Lx, Ly, Lz, and Dk are the lengths of the sides
-! of the box, and the width of Fourier shells
-      USE fprecision
-      REAL(KIND=GP)    :: Lx,Ly,Lz
-      REAL(KIND=GP)    :: Dkx,Dky,Dkz,Dkk
-      SAVE
-
-  END MODULE boxsize
-!=================================================================
-      
   MODULE var
       USE fprecision
       REAL(KIND=GP)    :: pi = 3.14159265358979323846_GP
@@ -109,156 +197,109 @@
   END MODULE newtmod
 !=================================================================
 
-  MODULE kes
-      USE fprecision
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)        :: kx,ky,kz
-      REAL(KIND=GP), TARGET, ALLOCATABLE, DIMENSION (:,:,:) :: kn2
-      REAL(KIND=GP), POINTER, DIMENSION (:,:,:)             :: kk2
-      INTEGER :: nmax,nmaxperp
-      SAVE
-
-  END MODULE kes
-!=================================================================
-
   MODULE random
       USE var
       USE fprecision
       CONTAINS
 !-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-       REAL(KIND=GP) FUNCTION randu(idum)
+      REAL(KIND=GP) FUNCTION randu(idum)
 !
 ! Uniform distributed random numbers between -1 and 
 ! 1. The seed idum must be between 0 and the value 
 ! of mask
+      INTEGER, PARAMETER :: iq=127773,ir=2836,mask=123459876
+      INTEGER, PARAMETER :: ia=16807,im=2147483647
+      INTEGER            :: k,idum
+      
+      REAL(KIND=GP), PARAMETER :: am=1./im
+      idum = ieor(idum,mask)
+      k = idum/iq
+      idum = ia*(idum-k*iq)-ir*k
+      IF (idum.lt.0) idum = idum+im
+      randu = am*idum
+      randu = (randu-.5)*2
+      idum = ieor(idum,mask)
+      END FUNCTION randu
 
-       INTEGER, PARAMETER :: iq=127773,ir=2836,mask=123459876
-       INTEGER, PARAMETER :: ia=16807,im=2147483647
-       INTEGER            :: k,idum
-       REAL(KIND=GP), PARAMETER :: am=1./im
-
-       idum = ieor(idum,mask)
-       k = idum/iq
-       idum = ia*(idum-k*iq)-ir*k
-       IF (idum.lt.0) idum = idum+im
-       randu = am*idum
-       randu = (randu-.5)*2
-       idum = ieor(idum,mask)
-       END FUNCTION randu
 !-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-       REAL(KIND=GP) FUNCTION randn(idum)
+      REAL(KIND=GP) FUNCTION randn(idum)
 !
 ! Normally distributed random numbers with zero mean 
 ! and unit variance. The seed idum must be between 0 
 ! and the value of mask in randu.
+      REAL(KIND=GP)      :: v1,v2,ran1
+      REAL(KIND=GP)      :: fac,rsq
+      REAL(KIND=GP),SAVE :: gset
+      INTEGER       :: idum
+      INTEGER, SAVE :: iset
 
-       REAL(KIND=GP)      :: v1,v2,ran1
-       REAL(KIND=GP)      :: fac,rsq
-       REAL(KIND=GP),SAVE :: gset
-       INTEGER       :: idum
-       INTEGER, SAVE :: iset
+      IF ((iset.ne.0).or.(iset.ne.1)) iset=0
+      IF (idum.lt.0) iset=0
+      IF (iset.eq.0) THEN
+         rsq = 2.
+         DO WHILE ((rsq.ge.1.).or.(rsq.eq.0.))
+            v1 = randu(idum)
+            v2 = randu(idum)
+            rsq = v1**2+v2**2
+         END DO
+         fac = sqrt(-2.*log(rsq)/rsq)
+         gset = v1*fac
+         randn = v2*fac
+         iset = 1
+      ELSE
+         randn = gset
+         iset = 0
+      ENDIF
+      END FUNCTION randn
 
-       IF ((iset.ne.0).or.(iset.ne.1)) iset=0
-       IF (idum.lt.0) iset=0
-       IF (iset.eq.0) THEN
-          rsq = 2.
-          DO WHILE ((rsq.ge.1.).or.(rsq.eq.0.))
-             v1 = randu(idum)
-             v2 = randu(idum)
-             rsq = v1**2+v2**2
-          END DO
-          fac = sqrt(-2.*log(rsq)/rsq)
-          gset = v1*fac
-          randn = v2*fac
-          iset = 1
-       ELSE
-          randn = gset
-          iset = 0
-       ENDIF
-       END FUNCTION randn
 !-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-       SUBROUTINE randn_cmplx(x,y,idum)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
+      SUBROUTINE randn_cmplx(x,y,idum)
 !
 ! Normally distributed complex random numbers with 
 ! unit variance. The seed idum must be between 0 
 ! and the value of mask in randu.
-!-----------------------------------------------------------------
+      REAL(KIND=GP), INTENT (OUT) :: x,y
+      REAL(KIND=GP)       :: fac,phi
+      INTEGER, INTENT(IN) :: idum
 
-       REAL(KIND=GP), INTENT (OUT) :: x,y
-       REAL(KIND=GP)       :: fac,phi
-       INTEGER, INTENT(IN) :: idum
+      x = randu(idum)
+      y = randu(idum)
+      do while (y.eq.0)
+         y = randu(idum)
+      end do
+      phi = 2.*pi*abs(x)
+      fac = sqrt(-2.*log(abs(y)))
+      x = fac*cos(phi)
+      y = fac*sin(phi)
+      END SUBROUTINE randn_cmplx
 
-       x = randu(idum)
-       y = randu(idum)
-       do while (y.eq.0)
-          y = randu(idum)
-       end do
-       phi = 2.*pi*abs(x)
-       fac = sqrt(-2.*log(abs(y)))
-       x = fac*cos(phi)
-       y = fac*sin(phi)
-
-       END SUBROUTINE randn_cmplx
 !-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-       SUBROUTINE prandom_seed(iseed)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
+      SUBROUTINE prandom_seed(iseed)
 !
-! Computes unique seed for each MPI task. Note: there is a limit
-! of 2^(size(integer)) for number of tasks that can have a unique
-! seed
-!
-! Parameters
-!     iseed : integer seed
-!-----------------------------------------------------------------
-       USE fprecision
-       USE commtypes
-       USE mpivars
+! Computes a unique seed for each MPI task. Note: there is a limit
+! of 2^(size(integer)) for the number of tasks that can have a
+! unique seed. iseed must be an integer seed.
+      USE mpivars
+      INTEGER, INTENT(INOUT)   :: iseed
+      INTEGER, ALLOCATABLE     :: iseed1(:)
+      INTEGER                  :: j,k
 
-       INTEGER, INTENT(INOUT)   :: iseed
-       INTEGER, ALLOCATABLE     :: iseed1(:)
-       INTEGER                  :: j,k
+      iseed     = mod(iseed+myrank,abs(huge(0)-iseed)-1)
+      CALL random_seed(size=k)
+      ALLOCATE (iseed1(k), source = iseed*[(j, j=0, k-1)])
+      CALL random_seed(put=iseed1)
+      DEALLOCATE(iseed1)
+      END SUBROUTINE prandom_seed
 
-       iseed     = mod(iseed+myrank,abs(huge(0)-iseed)-1)
-       CALL random_seed(size=k)
-       ALLOCATE (iseed1(k), source = iseed*[(j, j=0, k-1)])
-       CALL random_seed(put=iseed1)
-       DEALLOCATE(iseed1)
-
-       END SUBROUTINE prandom_seed
 !-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-       SUBROUTINE prandom_number(r)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
+      SUBROUTINE prandom_number(r)
 !
 ! Generates a random number for this MPI task on the interval [0,1]. 
 ! Seed for this must be generated by using prandom_seed call.
-!
-! Parameters
-!     iseed : integer seed
-!-----------------------------------------------------------------
-       USE fprecision
-       USE commtypes
-       USE mpivars
-
-       REAL(KIND=GP), INTENT(OUT)   :: r
-
-       CALL random_number(r)
-
-       END SUBROUTINE prandom_number
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
+! iseed must be an integer seed.
+      REAL(KIND=GP), INTENT(OUT)   :: r
+      CALL random_number(r)
+      END SUBROUTINE prandom_number
 
   END MODULE random
 !=================================================================
