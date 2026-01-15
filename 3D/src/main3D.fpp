@@ -456,12 +456,13 @@
 #if defined(DEF_GHOST_CUDA_)
       TYPE(cudaDevicePropG) :: devprop
 #endif
-#if defined(VELOCSGS_) && defined(SCALARSGS_)
+#if defined(VELOCSGS_) || defined(SCALARSGS_)
       TYPE (GSGSmodel)      :: mlsgs
       TYPE(GSGSmodelTraits) :: mlsgstraits
       LOGICAL               :: sgs_doproj, sgs_dodealias
       INTEGER               :: sgs_nx, sgs_ny, sgs_nz
       INTEGER               :: sgs_nichannel, sgs_nochannel
+      REAL(KIND=GP)         :: sgs_vfactor, sgs_thfactor
       CHARACTER(len=1024)   :: sgs_model_path, sgs_model_type
       CHARACTER(len=1024)   :: sgs_in_name, sgs_out_name
         
@@ -493,7 +494,8 @@
       NAMELIST / velocity / vparam8,vparam9,voigt_alpha,use_mlsgs,use_voigt
 #endif
 #if defined(VELOCSGS_) && defined(SCALARSGS_)
-      NAMELIST / mlsgsnml / sgs_doproj, sgs_dodealias, sgs_nx, sgs_ny, sgs_nz
+      NAMELIST / mlsgsnml / sgs_doproj, sgs_dodealias, sgs_nx, sgs_ny, &
+                            sgs_nz, sgs_vfactor, sgs_thfactor
       NAMELIST / mlsgsnml / sgs_nichannel, sgs_nochannel 
       NAMELIST / mlsgsnml / sgs_model_path, sgs_model_type
       NAMELIST / mlsgsnml / sgs_in_name, sgs_out_name
@@ -1023,6 +1025,8 @@
       sgs_nx         = nx
       sgs_ny         = ny
       sgs_nz         = nz
+      sgs_vfactor    = 1.0
+      sgs_thfactor   = 1.0
       sgs_nichannel  = 4
       sgs_nochannel  = 4
       sgs_model_path = './mymodel'
@@ -1042,6 +1046,8 @@
       CALL MPI_BCAST(sgs_nz        ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sgs_nichannel ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sgs_nochannel ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sgs_vfactor   ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sgs_thfactor  ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sgs_model_path,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sgs_model_type,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sgs_in_name   ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
@@ -1052,6 +1058,8 @@
       mlsgstraits%nx         = sgs_nx
       mlsgstraits%ny         = sgs_ny
       mlsgstraits%nz         = sgs_nz
+      mlsgstraits%vfactor    = sgs_vfactor
+      mlsgstraits%thfactor   = sgs_thfactor
       mlsgstraits%nichannel  = sgs_nichannel
       mlsgstraits%nochannel  = sgs_nochannel
       mlsgstraits%model_path = sgs_model_path
