@@ -62,6 +62,8 @@ MODULE class_GSGSmodel
         INTEGER            :: nx, ny, nz
         INTEGER            :: nichannel
         INTEGER            :: nochannel
+        REAL(KIND=GP)      :: vfactor=1.0
+        REAL(KIND=GP)      :: thfactor=1.0
 
         CHARACTER(len=1024) :: model_path, model_type
         CHARACTER(len=1024) :: in_name, out_name
@@ -689,7 +691,8 @@ MODULE class_GSGSmodel
     CALL GTStart(this%hunpack_)
 !   WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vx... '
     CALL GSGS_unpack(this, this%t_out_, 1, R1, SGS1)
- 
+    SGS1 = SGS1 * this%modelTraits_%vfactor
+
       ! Write outputs for first cycle:
       IF ( this%icycle_ .EQ. 0 ) THEN
         CALL GSGS_ccopy(this, SGS1, C2)
@@ -700,6 +703,7 @@ MODULE class_GSGSmodel
 
 !   WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vy... '
     CALL GSGS_unpack(this, this%t_out_, 2, R1, SGS2)
+    SGS2 = SGS2 * this%modelTraits_%vfactor
 
 !   WRITE(*,*) this%myrank_, ' GSGS_compute_model: unpacking vz... '
       IF ( this%icycle_ .EQ. 0 ) THEN
@@ -710,6 +714,7 @@ MODULE class_GSGSmodel
       ENDIF
 
     CALL GSGS_unpack(this, this%t_out_, 3, R1, SGS3)
+    SGS3 = SGS3 * this%modelTraits_%vfactor
 
       IF ( this%icycle_ .EQ. 0 ) THEN
         CALL GSGS_ccopy(this, SGS3, C2)
@@ -725,6 +730,7 @@ MODULE class_GSGSmodel
     ELSE
       SGSth = 0.0_GP
     ENDIF
+    SGSth = SGSth * this%modelTraits_%thfactor
 
       IF ( this%icycle_ .EQ. 0 ) THEN
         CALL GSGS_ccopy(this, SGSth, C2)
