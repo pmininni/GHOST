@@ -2122,7 +2122,6 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
       ktmin  = 0.0
       ktmax  = 0.0
 
-    
       WRITE(ext, fmtext) indtime
 
       omegax = omega(1)
@@ -2208,10 +2207,10 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
       If ( ibits(kin,1,1).EQ.1 ) THEN ! joint pdfs for pv:
         fnout = trim(odir) // '/' // 'jpdf_pv_dissv_log00.' // ext // '.txt'
         CALL dojpdfr(pv,'PV',dissv,'dissv',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
-        fnout = trim(odir) // '/' // 'jpdf_pv_Ri_log00.' // ext // '.txt'
-        CALL dojpdfr(pv,'PV',dissv,'Ri',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
-        fnout = trim(odir) // '/' // 'jpdf_Ri_dissv_log00.' // ext // '.txt'
-        CALL dojpdfr(Ri,'Ri',pv,'PV',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+        fnout = trim(odir) // '/' // 'jpdf_pv_Rig_log00.' // ext // '.txt'
+        CALL dojpdfr(pv,'PV',dissv,'Rig',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+        fnout = trim(odir) // '/' // 'jpdf_Rig_dissv_log00.' // ext // '.txt'
+        CALL dojpdfr(Ri,'Rig',pv,'PV',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
       ENDIF
 
 #endif
@@ -2231,7 +2230,7 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
         CALL dojpdfr(R1,'omz',dissv,'dissv',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
 #ifdef SCALAR_
         fnout = trim(odir) // '/' // 'jpdf_omz_Ri.' // ext // '.txt'
-        CALL dojpdfr(R1,'omz',Ri,'Ri',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+        CALL dojpdfr(R1,'omz',Ri,'Rig',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
         fnout = trim(odir) // '/' // 'jpdf_omz_PV.' // ext // '.txt'
         CALL dojpdfr(R1,'omz',pv,'PV',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
 #endif
@@ -2252,7 +2251,7 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
         CALL dojpdfr(R1,'vz',dissv,'dissv',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
 #ifdef SCALAR_
         fnout = trim(odir) // '/' // 'jpdf_vz_Ri.' // ext // '.txt'
-        CALL dojpdfr(R1,'vz',Ri,'Ri',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+        CALL dojpdfr(R1,'vz',Ri,'Rig',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
         fnout = trim(odir) // '/' // 'jpdf_vz_PV.' // ext // '.txt'
         CALL dojpdfr(R1,'vz',pv,'PV',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
 #endif
@@ -2272,7 +2271,7 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
         CALL dojpdfr(R1,'vz',dissv,'dissv',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
 #ifdef SCALAR_
         fnout = trim(odir) // '/' // 'jpdf_vperp_Ri.' // ext // '.txt'
-        CALL dojpdfr(R1,'vz',Ri,'Ri',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+        CALL dojpdfr(R1,'vz',Ri,'Rig',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
         fnout = trim(odir) // '/' // 'jpdf_vperp_PV.' // ext // '.txt'
         CALL dojpdfr(R1,'vz',pv,'PV',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
 #endif
@@ -2301,7 +2300,7 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
       ENDIF
       If ( ibits(kin,1,1).EQ.1 ) THEN ! joint pdfs for theta:
         fnout = trim(odir) // '/' // 'jpdf_th_Ri.' // ext // '.txt'
-        CALL dojpdfr(R2,'vz',Ri,'Ri',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+        CALL dojpdfr(R2,'vz',Ri,'Rig',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
         fnout = trim(odir) // '/' // 'jpdf_th_dissv.' // ext // '.txt'
         CALL dojpdfr(R2,'vz',dissv,'dissv',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
         fnout = trim(odir) // '/' // 'jpdf_th_PV.' // ext // '.txt'
@@ -2363,7 +2362,7 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
       ENDIF
       If ( ibits(kin,1,1).EQ.1 ) THEN ! joint pdfs for theta:
         fnout = trim(odir) // '/' // 'jpdf_Bf_Ri.' // ext // '.txt'
-        CALL dojpdfr(R2,'Bf',Ri,'Ri',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+        CALL dojpdfr(R2,'Bf',Ri,'Rig',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
         fnout = trim(odir) // '/' // 'jpdf_Bf_dissv.' // ext // '.txt'
         CALL dojpdfr(R2,'Bf',dissv,'dissv',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
         fnout = trim(odir) // '/' // 'jpdf_Bf_PV.' // ext // '.txt'
@@ -2391,7 +2390,7 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
       ENDIF
       If ( ibits(kin,1,1).EQ.1 ) THEN ! joint pdfs for theta:
         fnout = trim(odir) // '/' // 'jpdf_Gamf_Ri.' // ext // '.txt'
-        CALL dojpdfr(R3,'Gamf',Ri,'Ri',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+        CALL dojpdfr(R3,'Gamf',Ri,'Rig',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
         fnout = trim(odir) // '/' // 'jpdf_Gamf_dissv.' // ext // '.txt'
         CALL dojpdfr(R3,'Gamf',dissv,'dissv',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
         fnout = trim(odir) // '/' // 'jpdf_Gamf_PV.' // ext // '.txt'
@@ -2417,7 +2416,7 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
       ENDIF
       If ( ibits(kin,1,1).EQ.1 ) THEN ! joint pdfs for theta:
         fnout = trim(odir) // '/' // 'jpdf_Gamr_Ri.' // ext // '.txt'
-        CALL dojpdfr(R4,'Gamr',Ri,'Ri',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+        CALL dojpdfr(R4,'Gamr',Ri,'Rig',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
         fnout = trim(odir) // '/' // 'jpdf_Gamr_dissv.' // ext // '.txt'
         CALL dojpdfr(R4,'Gamr',dissv,'dissv',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
         fnout = trim(odir) // '/' // 'jpdf_Gamr_PV.' // ext // '.txt'
@@ -2438,7 +2437,7 @@ if ( myrank.eq.0 ) write(*,*) 'DoHPDF: call stat ', sfld(n)
       ENDIF
       If ( ibits(kin,1,1).EQ.1 ) THEN ! joint pdfs for theta:
         fnout = trim(odir) // '/' // 'jpdf_dthdz_Ri.' // ext // '.txt'
-        CALL dojpdfr(R1,'vz',Ri,'Ri',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+        CALL dojpdfr(R1,'vz',Ri,'Rig',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
         fnout = trim(odir) // '/' // 'jpdf_dthdz_dissv.' // ext // '.txt'
         CALL dojpdfr(R1,'vz',dissv,'dissv',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
         fnout = trim(odir) // '/' // 'jpdf_dthdz_PV.' // ext // '.txt'
@@ -2494,6 +2493,7 @@ endif
         WRITE(2,rowfmt,advance='no') indtime, (av(j), j=1,n)
         CLOSE(2)
 
+        inquire( file='skew.txt', exist=bexist )
         fnout = trim(odir) // '/' // 'skew.txt'
         OPEN(2,file=trim(fnout),position='append')
         if ( .NOT. bexist ) THEN
@@ -2502,6 +2502,7 @@ endif
         WRITE(2,rowfmt,advance='no') indtime, (sk(j), j=1,n)
         CLOSE(2)
 
+        inquire( file='flat.txt', exist=bexist )
         fnout = trim(odir) // '/' // 'flat.txt'
         OPEN(2,file=trim(fnout),position='append')
         if ( .NOT. bexist ) THEN
@@ -2510,6 +2511,7 @@ endif
         WRITE(2,rowfmt,advance='no') indtime, (ku(j), j=1,n)
         CLOSE(2)
 
+        inquire( file='glop.txt', exist=bexist )
         fnout = trim(odir) // '/' // 'glop.txt'
         OPEN(2,file=trim(fnout),position='append')
         if ( .NOT. bexist ) THEN
@@ -2518,6 +2520,7 @@ endif
         WRITE(2,rowfmt,advance='no') indtime, (g5(j), j=1,n)
         CLOSE(2)
 
+        inquire( file='whoa.txt', exist=bexist )
         fnout = trim(odir) // '/' // 'whoa.txt'
         OPEN(2,file=trim(fnout),position='append')
         if ( .NOT. bexist ) THEN
@@ -2828,8 +2831,9 @@ endif
       INTEGER         , INTENT   (IN)                             :: btrunc,inorm
       INTEGER                                                     :: i,j,k
 
+      tmp = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
 #if 1
-S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
+      S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL Strain(vx,vy,vz,1,1,btrunc,ktmin,ktmax,inorm,ctmp1,ctmp2)
       CALL fftp3d_complex_to_real(plancr,ctmp2,diss,MPI_COMM_WORLD)
       CALL Strain(vx,vy,vz,1,2,btrunc,ktmin,ktmax,inorm,ctmp1,ctmp2)
@@ -2858,6 +2862,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       ENDDO
 #endif
 
+      
 
       ! Compute normalized energy dissipation field/2nu, store in ! S11:
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
@@ -2865,16 +2870,13 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
         DO j = 1,ny
           DO i = 1,nx
-#if 1
             diss(i,j,k) =          S11(i,j,k)*S11(i,j,k) &
                             +      S22(i,j,k)*S22(i,j,k) &
                             +      S33(i,j,k)*S33(i,j,k) &
                             +  2.0*S12(i,j,k)*S12(i,j,k) &
                             +  2.0*S13(i,j,k)*S13(i,j,k) &
                             +  2.0*S23(i,j,k)*S23(i,j,k)  
-#else
-            diss(i,j,k) =   0.01*(2*j+k+i)
-#endif
+            diss(i,j,k) =   diss(i,j,k) * tmp * tmp
           ENDDO
         ENDDO
       ENDDO
@@ -2910,8 +2912,10 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: ctmp1
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: R1,R2,R3
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: diss
+      REAL   (KIND=GP)                                            :: tmp
       INTEGER                                                     :: i,j,k
 
+      tmp = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
 
       ! Compute gradient:
       CALL derivk3(th, ctmp1, 1)  ! x-deriv
@@ -2931,6 +2935,7 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
             diss(i,j,k) =          R1(i,j,k)*R1(i,j,k) &
                             +      R2(i,j,k)*R2(i,j,k) &
                             +      R3(i,j,k)*R3(i,j,k) 
+            diss(i,j,k) =   diss(i,j,k) * tmp * tmp
           ENDDO
         ENDDO
       ENDDO
@@ -3039,16 +3044,21 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       REAL   (KIND=GP), INTENT   (IN)                             :: bvfreq,f
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: R1,R2
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: omgth,pv
+      REAL   (KIND=GP)                                            :: tmp
 !
       INTEGER         , INTENT   (IN)                             :: inorm
       INTEGER                                                     :: i,j,k
+
+      tmp = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
 
       !! Compute stats for PV quantities:
       !! ...First, omega .Grad theta:
 !!    xnormn = 1.0_GP/ real(nx*ny*nz,kind=GP)**2
       CALL derivk3(th, ctmp1, 1)  ! x-deriv
+      ctmp1 = ctmp1 * tmp
       CALL fftp3d_complex_to_real(plancr,ctmp1,R1,MPI_COMM_WORLD)
       CALL rotor3(vy,vz,ctmp1,1)
+      ctmp1 = ctmp1 * tmp
       CALL fftp3d_complex_to_real(plancr,ctmp1,R2,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -3061,8 +3071,10 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       ENDDO
 
       CALL derivk3(th, ctmp1, 2)  ! y-deriv
+      ctmp1 = ctmp1 * tmp
       CALL fftp3d_complex_to_real(plancr,ctmp1,R1,MPI_COMM_WORLD)
       CALL rotor3(vz,vx,ctmp1,2)
+      ctmp1 = ctmp1 * tmp
       CALL fftp3d_complex_to_real(plancr,ctmp1,R2,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -3075,8 +3087,10 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       ENDDO
 
       CALL derivk3(th, ctmp1, 3)  ! z-deriv
+      ctmp1 = ctmp1 * tmp
       CALL fftp3d_complex_to_real(plancr,ctmp1,R1,MPI_COMM_WORLD) ! dtheta/dz
       CALL rotor3(vx,vy,ctmp1,3)
+      ctmp1 = ctmp1 * tmp
       CALL fftp3d_complex_to_real(plancr,ctmp1,R2,MPI_COMM_WORLD) ! omega_z
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
@@ -3136,21 +3150,25 @@ S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       REAL   (KIND=GP), INTENT   (IN)                             :: bvfreq,f
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: R1,R2,R3
       REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: ri
-      REAL   (KIND=GP)                                            :: alpha, den, xnormn
+      REAL   (KIND=GP)                                            :: alpha, den, tmp
 !
       INTEGER         , INTENT   (IN)                             :: itype
       INTEGER                                                     :: i,j,k
 
+      tmp = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
+
       ! Compute gradient Richardson no. and its pdf:
       CALL derivk3(vx, ctmp1, 3)
+        ctmp1 = ctmp1 * tmp
       CALL fftp3d_complex_to_real(plancr,ctmp1,R1,MPI_COMM_WORLD)
       CALL derivk3(vy, ctmp1, 3)
+        ctmp1 = ctmp1 * tmp
       CALL fftp3d_complex_to_real(plancr,ctmp1,R2,MPI_COMM_WORLD)
       CALL derivk3(th, ctmp1, 3)
+        ctmp1 = ctmp1 * tmp
       CALL fftp3d_complex_to_real(plancr,ctmp1,R3,MPI_COMM_WORLD)
 
       alpha  = bvfreq/sqrt(f**2 + bvfreq**2)
-      xnormn = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
 
       IF ( itype .EQ. 1 ) THEN
         ! NOTE: no normalization required as vx, vy, vz, and theta were
