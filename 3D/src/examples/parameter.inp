@@ -43,9 +43,9 @@ seed = 1000      ! seed for the random number generator
 
 ! Boz size, if not present GHOST uses a 2.pi cubic box
 &boxparams
-Lx = 2.00        ! Length of the box in x
+Lx = 1.00        ! Length of the box in x
 Ly = 1.00        ! Length of the box in y
-Lz = 3.00        ! Length of the box in z
+Lz = 1.00        ! Length of the box in z
 /
 
 ! Parameters for the velocity field
