@@ -10,7 +10,18 @@
 !
 !              State sector ids are:
 !                VELOCITY (VELOCITY+1, VELOCITY+2)
-!                PASSIVE  (PASSSIVE+1, PASSIVE+2, ...)
+!                PASSIVE  ( PASSIVE+1,  PASSIVE+2, ...)
+!
+! INPUT FILE : For solver='HD', looks for a "&HD" namelist with:
+!              nu      : fluid kinematic viscosity
+!              dorot   : do rotation, = .TRUE. or .FALSE.
+!              omegax  : amplitude of the uniform rotation along x
+!              omegay  : amplitude of the uniform rotation along y
+!              omegaz  : amplitude of the uniform rotation along z
+!              npassive: number of passive scalars (default=0)
+!
+!              For npassive > 0, looks for a "&passive" namelist with:
+!              kappa   : vector with npassive diffusivities
 !
 ! DATE       : 11/30/25 (DLR)
 ! =====================================================================
