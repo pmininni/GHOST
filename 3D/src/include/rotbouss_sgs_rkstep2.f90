@@ -6,16 +6,6 @@
             CALL mlsgs%sgs_model(vx, vy, vz, th, &
                                  C1SGS, C2SGS, C3SGS, R1, &
                                  SGS1 , SGS2 , SGS3 , SGSth)
-!                        write(*,*)' call energy on SGS...'
-!           CALL energy(SGS1,SGS2,SGS3,tmp,1)
-!           CALL energy(fx,fy,fz,tmq,1)
-!                        write(*,*)' call energy on f...'
-!           SGS1 = SGS1 * (-sqrt(tmq/tmp))
-!           SGS2 = SGS2 * (-sqrt(tmq/tmp))
-!           SGS3 = SGS3 * (-sqrt(tmq/tmp))
-!           CALL variance(SGSth,tmq,1)
-!           CALL variance(fs,tmq,1)
-!           SGSth = SGSth * (-sqrt(tmq/tmp))
          ENDIF
 
          CALL prodre3(vx,vy,vz,C4,C5,C6)
