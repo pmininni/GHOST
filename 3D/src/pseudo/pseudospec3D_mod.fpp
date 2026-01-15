@@ -10,6 +10,18 @@
 
 !=================================================================
 
+  MODULE filefmt
+!
+! Change the length of the string 'ext' to change the number 
+! of characters used to number the binary files and files with 
+! the spectra. The format fmtext should be consistent with the 
+! length of the string, e.g. if len=5 then fmtext = '(i5.5)'.
+      CHARACTER(len=4)      :: ext
+      CHARACTER(len=6),SAVE :: fmtext = '(i4.4)'
+
+  END MODULE filefmt
+!=================================================================
+
   MODULE grid
 !
 ! ni: number of points in the spatial grid in each direction
@@ -45,10 +57,20 @@
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)        :: kx,ky,kz
       REAL(KIND=GP), TARGET, ALLOCATABLE, DIMENSION (:,:,:) :: kn2
       REAL(KIND=GP), POINTER, DIMENSION (:,:,:)             :: kk2
-      INTEGER :: nmax,nmaxperp
+      INTEGER                                     :: nmax,nmaxperp
       SAVE
 
   END MODULE kes
+!=================================================================
+
+  MODULE ali
+      USE fprecision
+      REAL(KIND=GP) :: kmax
+      REAL(KIND=GP) :: tiny
+      REAL(KIND=GP) :: tinyf
+      SAVE
+
+  END MODULE ali
 !=================================================================
 
   MODULE boxsize
@@ -68,18 +90,22 @@
 !-----------------------------------------------------------------
       SUBROUTINE box_init(infile_)
 !
-! Initializes the box size. If no parameters are present, the
-! code attempts to initialize a cubic box with Lx=Ly=Lz=2.pi
+! Initializes the box size, and arrays with wavenumbers. If no
+! parameters are present, the code attempts to initialize a cubic
+! box with Lx=Ly=Lz=2.pi
       USE fprecision
       USE commtypes
       USE mpivars
       USE grid
       USE kes
+      USE ali
+!$    USE threads
       IMPLICIT NONE
 
       CHARACTER(len=128), INTENT(IN)      :: infile_
       CHARACTER(len=256)                  :: iomsg
-      INTEGER                             :: ios
+      REAL(KIND=GP)                       :: rmp,rmq,rms
+      INTEGER                             :: i,j,k,ios
       NAMELIST / boxparams / Lx,Ly,Lz,Dkk
 
       Lx  = 1.0_GP; Ly  = 1.0_GP; Lz  = 1.0_GP
@@ -116,6 +142,68 @@
       ELSE
          kk2 => kn2
       ENDIF
+      ! Sets constants for the pseudospectral method
+      !   kmax: maximum truncation for dealiasing
+      !   tiny: minimum truncation for dealiasing
+      kmax =     1.0_GP/9.0_GP
+      nmax =     int(max(nx*Dkx,ny*Dky,nz*Dkz)/Dkk)
+      nmaxperp = int(max(nx*Dkx,ny*Dky)/Dkk)
+      IF ( .NOT. anis ) kmax = kmax*real(nx,kind=GP)**2
+      tiny  = min(1e-5_GP ,.1_GP/(real(nmax,kind=GP)**2))
+      tinyf = min(1e-15_GP,.1_GP/(real(nmax,kind=GP)**2))
+      ! Initializez arrays with the wavenumbers and the
+      ! square wavenumbers. At the end, kx, ky, and kz
+      ! have wavenumbers with dimensions, kk2 has the
+      ! squared wavenumbers with dimensions, and kn2 has
+      ! the dimensionless and normalized squared
+      ! wavenumbers used for dealiasing.
+      DO i = 1,nx/2
+         kx(i) = real(i-1,kind=GP)
+         kx(i+nx/2) = real(i-nx/2-1,kind=GP)
+      END DO
+      IF (nx.eq.1) kx(1) = 0.0_GP ! Case with no extension in x
+      DO j = 1,ny/2
+         ky(j) = real(j-1,kind=GP)
+         ky(j+ny/2) = real(j-ny/2-1,kind=GP)
+      END DO
+      IF (ny.eq.1) ky(1) = 0.0_GP ! Case with no extension in y
+      DO k = 1,nz/2
+         kz(k) = real(k-1,kind=GP)
+         kz(k+nz/2) = real(k-nz/2-1,kind=GP)
+      END DO
+      IF (nz.eq.1) kz(1) = 0.0_GP ! Case with no extension in z
+      IF ( anis ) THEN
+         rmp = 1.0_GP/real(nx,kind=GP)**2
+         rmq = 1.0_GP/real(ny,kind=GP)**2
+         rms = 1.0_GP/real(nz,kind=GP)**2
+      ELSE
+         rmp = 1.0_GP
+	 rmq = 1.0_GP
+	 rms = 1.0_GP
+      ENDIF
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
+            END DO
+         END DO
+      END DO
+      IF ( anis ) THEN
+         kx = kx*Dkx
+         ky = ky*Dky
+         kz = kz*Dkz
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+                  kk2(k,j,i) = kx(i)**2+ky(j)**2+kz(k)**2
+               END DO
+            END DO
+         END DO
+      ENDIF
       END SUBROUTINE box_init
 
   END MODULE boxsize
@@ -130,34 +218,12 @@
   END MODULE order
 !=================================================================
 
-  MODULE filefmt
-!
-! Change the length of the string 'ext' to change the number 
-! of characters used to number the binary files and files with 
-! the spectra. The format fmtext should be consistent with the 
-! length of the string, e.g. if len=5 then fmtext = '(i5.5)'.
-      CHARACTER(len=4)      :: ext
-      CHARACTER(len=6),SAVE :: fmtext = '(i4.4)'
-
-  END MODULE filefmt
-!=================================================================
-
   MODULE fft
       USE fftplans
       TYPE(FFTPLAN) :: planrc, plancr
       SAVE
 
   END MODULE fft
-!=================================================================
-
-  MODULE ali
-      USE fprecision
-      REAL(KIND=GP) :: kmax
-      REAL(KIND=GP) :: tiny
-      REAL(KIND=GP) :: tinyf
-      SAVE
-
-  END MODULE ali
 !=================================================================
 
   MODULE var

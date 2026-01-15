@@ -267,14 +267,6 @@
       CALL MPI_BCAST(rand,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(seed,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
-      Lx  = 1.0_GP
-      Ly  = 1.0_GP
-      Lz  = 1.0_GP
-      Dkx = 1.0_GP
-      Dky = 1.0_GP
-      Dkz = 1.0_GP
-      Dkk = 0.0_GP
-
 #if defined(VELOC_) || defined(ADVECT_)
 ! Reads parameters for the velocity field from the
 ! namelist 'velocity' on the external file 'parameter.inp'
@@ -319,84 +311,6 @@
       CALL MPI_BCAST(vparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(vparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
 #endif
-
-! Initializes arrays and constants for the pseudospectral method
-
-! Some constants for the FFT
-!     kmax: maximum truncation for dealiasing
-!     tiny: minimum truncation for dealiasing
-
-      kmax =     1.0_GP/9.0_GP
-      nmax =     int(max(nx*Dkx,ny*Dky,nz*Dkz)/Dkk)
-      nmaxperp = int(max(nx*Dkx,ny*Dky)/Dkk)
-#ifndef DEF_ARBSIZE_
-      IF ( .NOT. anis )  kmax = kmax*real(nx,kind=GP)**2
-#endif
-#ifdef EDQNM_
-      kmax = (real(n,kind=GP)/2.0_GP-0.5_GP)**2
-#endif
-      tiny  = min(1e-5_GP ,.1_GP/(real(nmax,kind=GP)**2))
-      tinyf = min(1e-15_GP,.1_GP/(real(nmax,kind=GP)**2))
-
-! Builds arrays with the wavenumbers and the
-! square wavenumbers. At the end, kx, ky, and kz
-! have wavenumbers with dimensions, kk2 has the
-! squared wavenumbers with dimensions, and kn2 has
-! the dimensionless and normalized squared
-! wavenumbers used for dealiasing.
-
-      DO i = 1,nx/2
-         kx(i) = real(i-1,kind=GP)
-         kx(i+nx/2) = real(i-nx/2-1,kind=GP)
-      END DO
-      IF (nx.eq.1) THEN
-         kx(1) = 0.0_GP
-      END IF
-      DO j = 1,ny/2
-         ky(j) = real(j-1,kind=GP)
-         ky(j+ny/2) = real(j-ny/2-1,kind=GP)
-      END DO
-      IF (ny.eq.1) THEN
-         ky(1) = 0.0_GP
-      ENDIF
-      DO k = 1,nz/2
-         kz(k) = real(k-1,kind=GP)
-         kz(k+nz/2) = real(k-nz/2-1,kind=GP)
-      END DO
-      IF ( anis ) THEN
-         rmp = 1.0_GP/real(nx,kind=GP)**2
-         rmq = 1.0_GP/real(ny,kind=GP)**2
-         rms = 1.0_GP/real(nz,kind=GP)**2
-      ELSE
-         rmp = 1.0_GP
-	 rmq = 1.0_GP
-	 rms = 1.0_GP
-      ENDIF
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,ny
-            DO k = 1,nz
-               kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
-            END DO
-         END DO
-      END DO
-#ifdef DEF_ARBSIZE_
-      kx = kx*Dkx
-      ky = ky*Dky
-      kz = kz*Dkz
-#endif
-      IF ( anis ) THEN
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,ny
-               DO k = 1,nz
-                  kk2(k,j,i) = kx(i)**2+ky(j)**2+kz(k)**2
-               END DO
-            END DO
-         END DO
-      ENDIF
 
 ! Initializes the FFT library. This must be done at
 ! this stage as it requires the variable "bench" to
