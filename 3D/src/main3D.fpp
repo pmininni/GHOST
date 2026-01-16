@@ -21,9 +21,7 @@
 !
 ! References:
 ! Mininni PD, Rosenberg DL, Reddy R, Pouquet A.; P.Comp.37, 123 (2011)
-! Mininni PD, Gomez DO, Mahajan SM; Astrophys. J. 619, 1019 (2005)
-! Gomez DO, Mininni PD, Dmitruk P; Phys. Scripta T116, 123 (2005)
-! Gomez DO, Mininni PD, Dmitruk P; Adv. Sp. Res. 35, 899 (2005)
+! Rosenberg DL, Mininni PD, Reddy R, Pouquet A.: Atmosph.11, 178 (2020)
 !=================================================================
 
 !
@@ -33,7 +31,6 @@
 !
 ! Modules
 
-      USE fprecision
       USE commtypes
       USE mpivars
       USE filefmt
@@ -48,6 +45,7 @@
       USE threads
       USE offloading
       USE boxsize
+      USE status
       USE gtimer
       USE fftplans
       USE dns
@@ -57,10 +55,11 @@
       IMPLICIT NONE
 
 !
-! Arrays for the fields and external forcings
+! Arrays for the field states, workspace, I/O, and PDE solver class
 
       TYPE(GState), ALLOCATABLE, TARGET :: field(:),field_nxt(:),force(:)
       TYPE(GWorkspace)                  :: workspace
+      TYPE(IOPLAN)                      :: planio
       CLASS(EquationBase), ALLOCATABLE  :: pde
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -85,41 +84,29 @@
       DOUBLE PRECISION :: tmp,tmq,tmr
       DOUBLE PRECISION :: eps,epm
 
-      REAL(KIND=GP)    :: dt,nu,mu
+      REAL(KIND=GP)    :: nu,mu
       REAL(KIND=GP)    :: kup,kdn
       REAL(KIND=GP)    :: rmp,rmq,rms
       REAL(KIND=GP)    :: rmt,rm1,rm2
       REAL(KIND=GP)    :: dump
-      REAL(KIND=GP)    :: stat
       REAL(KIND=GP)    :: f0,u0
-      REAL(KIND=GP)    :: phase,ampl,cort,time
+      REAL(KIND=GP)    :: phase,ampl,cort
       REAL(KIND=GP)    :: fparam0,fparam1,fparam2,fparam3,fparam4
       REAL(KIND=GP)    :: fparam5,fparam6,fparam7,fparam8,fparam9
       REAL(KIND=GP)    :: vparam0,vparam1,vparam2,vparam3,vparam4
       REAL(KIND=GP)    :: vparam5,vparam6,vparam7,vparam8,vparam9
 
       INTEGER :: idevice, iret, ncuda, ngcuda, ppn
-      INTEGER :: ini,step
       INTEGER :: num_components
-      INTEGER :: tstep,cstep
-      INTEGER :: sstep,fstep
-      INTEGER :: bench,trans
-      INTEGER :: outs,mean
-      INTEGER :: seed,rand
-      INTEGER :: mult
-      INTEGER :: t,o
-      INTEGER :: i,j,k
-      INTEGER :: ki,kj,kk
-      INTEGER :: pind,tind,sind
-      INTEGER :: timet,timec
-      INTEGER :: times,timef
+      INTEGER :: trans,mean
+      INTEGER :: seed,rand,fstep
+      INTEGER :: t
+      INTEGER :: i,j,k,ki
       INTEGER :: timep,pstep,lgmult
       INTEGER :: ihcpu1,ihcpu2
       INTEGER :: ihomp1,ihomp2
       INTEGER :: ihwtm1,ihwtm2
-      TYPE(IOPLAN)          :: planio
-      CHARACTER(len=100)    :: odir,idir
-      LOGICAL               :: bbenchexist
+      LOGICAL :: bbenchexist
 
 !
 ! Namelists for the input files
@@ -127,8 +114,7 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!! Status, parameter should be read by some init that could be part of a module (grid?)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      NAMELIST / status / idir,odir,stat,mult,bench,outs,mean,trans,iswap
-      NAMELIST / parameter / dt,step,tstep,sstep,cstep,rand,cort,seed
+      NAMELIST / parameter / rand,cort,seed
 #if defined(VELOC_) || defined(ADVECT_)
       NAMELIST / velocity / f0,u0,kdn,kup,nu,fparam0,fparam1,fparam2
       NAMELIST / velocity / fparam3,fparam4,fparam5,fparam6,fparam7
@@ -156,6 +142,9 @@
 #if defined(DO_HYBRIDoffl)
       CALL init_offload(myrank,numdev,hostdev,targetdev)
 #endif
+
+! Initialization of time integration parameters
+      CALL status_init('parameter.inp')
 
 ! Initialization of I/O
       CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
@@ -196,49 +185,9 @@
 !!! be read by some init that could be part of a module (grid?)
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-! Reads general configuration flags from the namelist
-! 'status' on the external file 'parameter.inp'
-!     idir : directory for unformatted input
-!     odir : directory for unformatted output
-!     stat : = 0 starts a new run
-!            OR  gives the number of the file used to continue a run
-!     mult : time step multiplier
-!     bench: = 0 production run
-!            = 1 benchmark run (no I/O)
-!            = 2 higher level benchmark run (+time to create plans)
-!     outs : = 0 writes velocity [and vect potential (MAGFIELD_)]
-!            = 1 writes vorticity [and magnetic field (MAGFIELD_)]
-!            = 2 writes current density (MAGFIELD_)
-!     mean : = 0 skips mean field computation
-!            = 1 performs mean field computation
-!     trans: = 0 skips energy transfer computation
-!            = 1 performs energy transfer computation
-!     iswap  = 0 does nothing to restart binary data
-!            = 1 does a byte swap of restart binary data
-
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
-         READ(1,NML=status)
-         CLOSE(1)
-      ENDIF
-      CALL MPI_BCAST(idir,100,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(odir,100,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(stat,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(mult,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(bench,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(outs,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(mean,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(trans,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(iswap,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-
 ! Reads parameters that will be used to control the
 ! time integration from the namelist 'parameter' on
 ! the external file 'parameter.inp'
-!     dt   : time step size
-!     step : total number of time steps to compute
-!     tstep: number of steps between binary output
-!     sstep: number of steps between power spectrum output
-!     cstep: number of steps between output of global quantities
 !     rand : = 0 constant force
 !            = 1 random phases
 !            = 2 slowly varying random phases (only for the velocity and
@@ -251,18 +200,8 @@
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
          READ(1,NML=parameter)
          CLOSE(1)
-         dt = dt/real(mult,kind=GP)
-         step = step*mult
-         tstep = tstep*mult
-         sstep = sstep*mult
-         cstep = cstep*mult
          fstep = int(cort/dt)
       ENDIF
-      CALL MPI_BCAST(dt,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(step,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(tstep,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(sstep,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(cstep,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(fstep,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(rand,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(seed,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)

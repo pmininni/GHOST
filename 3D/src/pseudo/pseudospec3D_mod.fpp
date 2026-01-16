@@ -93,7 +93,6 @@
 ! Initializes the box size, and arrays with wavenumbers. If no
 ! parameters are present, the code attempts to initialize a cubic
 ! box with Lx=Ly=Lz=2.pi
-      USE fprecision
       USE commtypes
       USE mpivars
       USE grid
@@ -208,7 +207,87 @@
 
   END MODULE boxsize
 !=================================================================
-      
+
+  MODULE status
+!
+! General status flags for all time integrators
+!  idir : directory for unformatted input
+!  odir : directory for unformatted output
+!  stat : = 0 starts a new run
+!         OR  gives the number of the file used to continue a run
+!  mult : time step multiplier
+!  bench: = 0 production run
+!         = 1 benchmark run (no I/O)
+!         = 2 higher level benchmark run (+time to create plans)
+!  outs : Level of binary output (default=0 writes fields needed for restart)
+!  iswap: .FALSE. does nothing to restart binary data
+!         .TRUE.  does a byte swap of restart binary data
+!  dt   : time step size
+!  step : total number of time steps to compute
+!  tstep: number of steps between binary output
+!  sstep: number of steps between power spectrum output
+!  cstep: number of steps between output of global quantities
+      USE fprecision
+      REAL(KIND=GP)      :: dt
+      REAL(KIND=GP)      :: time
+      INTEGER            :: stat ,ini
+      INTEGER            :: step ,tstep
+      INTEGER            :: cstep,sstep
+      INTEGER            :: bench = 0
+      INTEGER            :: outs
+      INTEGER            :: mult
+      INTEGER            :: pind,tind,sind
+      INTEGER            :: timet,timec
+      INTEGER            :: times,timef
+      LOGICAL            :: iswap = .FALSE.
+      CHARACTER(len=128) :: odir,idir
+    CONTAINS
+!-----------------------------------------------------------------
+      SUBROUTINE status_init(infile_)
+!
+! Initializes the box size, and arrays with wavenumbers. If no
+! parameters are present, the code attempts to initialize a cubic
+! box with Lx=Ly=Lz=2.pi
+      USE commtypes
+      USE mpivars
+      USE grid
+      USE kes
+      USE ali
+!$    USE threads
+      IMPLICIT NONE
+
+      CHARACTER(len=128), INTENT(IN)      :: infile_
+      NAMELIST / status / idir,odir,stat,mult,bench,outs,iswap
+      NAMELIST / status / dt,step,tstep,sstep,cstep
+
+      IF (myrank.eq.0) THEN
+         OPEN(1,file=infile_,status='unknown',form="formatted")
+         READ(1,NML=status)
+         CLOSE(1)
+         dt = dt/real(mult,kind=GP)
+         step = step*mult
+         tstep = tstep*mult
+         sstep = sstep*mult
+         cstep = cstep*mult
+      ENDIF
+      CALL MPI_BCAST(idir ,100,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(odir ,100,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(stat ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(mult ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(bench,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(outs ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(iswap,1  ,MPI_LOGICAL  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dt   ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(step ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(tstep,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sstep,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(cstep,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      END SUBROUTINE status_init
+
+  END MODULE status
+
+!=================================================================
+
   MODULE order
 !
 ! ord: number of iterations in the Runge-Kutta method
@@ -266,7 +345,7 @@
   MODULE random
       USE var
       USE fprecision
-      CONTAINS
+    CONTAINS
 !-----------------------------------------------------------------
       REAL(KIND=GP) FUNCTION randu(idum)
 !
