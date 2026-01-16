@@ -25,17 +25,15 @@ stat = 0         ! last binary file if restarting an old run
 mult = 1         ! decreases the time step
 bench = 1        ! benchmark mode if 1
 outs = 0         ! controls the amount of output
-mean = 0         ! computes mean fields if 1
-trans = 1        ! computes energy transfer if 1
+dt = 7.5e-4      ! time step
+step = 500       ! total number of steps
+tstep = 500      ! number of steps between binary output
+sstep = 250      ! number of steps between spectrum output
+cstep = 10       ! number of steps between writing global quantities
 /
 
 ! Parameters for time integration
 &parameter
-dt = 7.5e-4      ! time step
-step = 500     ! total number of steps
-tstep = 500      ! number of steps between binary output
-sstep = 250      ! number of steps between spectrum output
-cstep = 10       ! number of steps between writing global quantities
 rand = 1         ! random phases if 1
 cort = 7.5e-4    ! correlation time of the external forcing
 seed = 1000      ! seed for the random number generator
