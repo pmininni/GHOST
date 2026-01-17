@@ -1,13 +1,35 @@
-! Solver
-&pdes
-solver = "HD"
-/
-
 ! Grid resolution
 &grid
 nx = 64
 ny = 64
 nz = 64
+/
+
+! Boz size, if not present GHOST uses a 2.pi cubic box
+&boxparams
+Lx = 1.00        ! Length of the box in x
+Ly = 1.00        ! Length of the box in y
+Lz = 1.00        ! Length of the box in z
+/
+
+! General configuration flags
+&status
+idir = "outs"
+odir = "outs"
+stat = 0         ! last binary file if restarting an old run
+mult = 1         ! decreases the time step
+bench = 0        ! benchmark mode if 1
+outs = 0         ! controls the amount of output
+dt = 1e-3        ! time step
+step = 500       ! total number of steps
+tstep = 250      ! number of steps between binary output
+sstep = 250      ! number of steps between spectrum output
+cstep = 5        ! number of steps between writing global quantities
+/
+
+! Solver
+&pdes
+solver = "HD"
 /
 
 ! Solver specific parameters
@@ -17,19 +39,9 @@ dorot = .false.
 npassive = 0
 /
 
-! General configuration flags
-&status
-idir = "/ptmp/run"
-odir = "/ptmp/run"
-stat = 0         ! last binary file if restarting an old run
-mult = 1         ! decreases the time step
-bench = 1        ! benchmark mode if 1
-outs = 0         ! controls the amount of output
-dt = 7.5e-4      ! time step
-step = 500       ! total number of steps
-tstep = 500      ! number of steps between binary output
-sstep = 250      ! number of steps between spectrum output
-cstep = 10       ! number of steps between writing global quantities
+! Initial conditions
+&initial_conditions
+iclist = "null_v"
 /
 
 ! Parameters for time integration
@@ -37,13 +49,6 @@ cstep = 10       ! number of steps between writing global quantities
 rand = 1         ! random phases if 1
 cort = 7.5e-4    ! correlation time of the external forcing
 seed = 1000      ! seed for the random number generator
-/
-
-! Boz size, if not present GHOST uses a 2.pi cubic box
-&boxparams
-Lx = 1.00        ! Length of the box in x
-Ly = 1.00        ! Length of the box in y
-Lz = 1.00        ! Length of the box in z
 /
 
 ! Parameters for the velocity field
