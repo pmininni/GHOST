@@ -239,7 +239,6 @@
       INTEGER            :: pind,tind,sind
       INTEGER            :: timet,timec
       INTEGER            :: times,timef
-      LOGICAL            :: iswap = .FALSE.
       CHARACTER(len=128) :: odir,idir
     CONTAINS
 !-----------------------------------------------------------------
@@ -257,7 +256,7 @@
       IMPLICIT NONE
 
       CHARACTER(len=128), INTENT(IN)      :: infile_
-      NAMELIST / status / idir,odir,stat,mult,bench,outs,iswap
+      NAMELIST / status / idir,odir,stat,mult,bench,outs
       NAMELIST / status / dt,step,tstep,sstep,cstep
 
       IF (myrank.eq.0) THEN
@@ -276,7 +275,6 @@
       CALL MPI_BCAST(mult ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(bench,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(outs ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(iswap,1  ,MPI_LOGICAL  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(dt   ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(step ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(tstep,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)

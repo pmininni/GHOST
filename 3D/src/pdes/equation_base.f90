@@ -17,10 +17,24 @@ module equationbase_mod
       procedure(Solver_ctor_interface), deferred :: Solver_ctor ! Constructor
       procedure(init_interface),        deferred :: init        ! init method
       procedure(dudt_interface),        deferred :: dudt        ! RHS method
+      procedure(global_interface),      deferred :: global      ! Global qtys
+      procedure(spectra_interface),     deferred :: spectra     ! Spectra
       procedure(state_size_interface),  deferred :: state_size  ! Number of states
       procedure, public                          :: timestep
   end type EquationBase
 
+  type, abstract, extends(EquationBase) :: VelocityBase
+  end type VelocityBase
+
+  type, abstract, extends(EquationBase) :: ActiveScalarBase
+  end type ActiveScalarBase
+
+  type, abstract, extends(EquationBase) :: MagneticBase
+  end type MagneticBase
+
+  type, abstract, extends(EquationBase) :: QuantumBase
+  end type QuantumBase
+  
   abstract interface
      subroutine Solver_ctor_interface(this, infile, workspace, nc)
        USE class_GWorkspace3D
@@ -45,40 +59,32 @@ module equationbase_mod
        type       (GState), intent(inout)         :: dudt(:) 
      end subroutine dudt_interface
 
+     subroutine global_interface(this, uin, uf, t) 
+       USE gstate_mod
+       USE fprecision
+       USE status
+       import :: EquationBase
+       class(EquationBase), intent(in)            :: this
+       type       (GState), intent(in), target    :: uin(:),uf(:)
+       integer            , intent(in)            :: t
+     end subroutine global_interface
+       
+     subroutine spectra_interface(this, uin) 
+       USE gstate_mod
+       USE fprecision
+       USE filefmt
+       USE status
+       import :: EquationBase
+       class(EquationBase), intent(in)            :: this
+       type       (GState), intent(in), target    :: uin(:)
+     end subroutine spectra_interface
+
      function state_size_interface(this) result(num)
        import :: EquationBase
        class(EquationBase), intent   (in)         :: this
        integer                                    :: num
      end function state_size_interface
   end interface
-     
-!!$        subroutine sstate2istate(this, sstate, istate) 
-!!$            import :: EquationBase
-!!$            class (EquationBase), intent   (in) :: this
-!!$            character (len=:)   , intent   (in) :: sstate(:)
-!!$            integer             , allocatable &
-!!$                                , intent(inout) :: istate(:)
-!!$        end subroutine sstate2istate
-!!$
-!!$        subroutine get_sstate(this, sstate) 
-!!$            import :: EquationBase
-!!$            class (EquationBase), intent   (in) :: this
-!!$            class (EquationBase), intent   (in) :: this
-!!$            character (len=:)   , allocatable, &
-!!$                                , intent(inout) :: sstate(:)
-!!$        end subroutine get_sstate
-!!$
-!!$        function state_size(this) result(num)
-!!$            import :: EquationBase
-!!$            class (EquationBase), intent   (in) :: this
-!!$            integer :: num
-!!$        end function state_size
-!!$
-!!$        function tmp_size(this) result(num)
-!!$            import :: EquationBase
-!!$            class (EquationBase), intent   (in) :: this
-!!$            integer :: num
-!!$        end function tmp_size
 
 CONTAINS
 
@@ -214,6 +220,43 @@ CONTAINS
     CALL workspace%free_complex_tmp(ctmp)
 
   end subroutine rhs_passive
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Concrete method to write field states
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine write_states(this, uin, planio)
+    use fprecision
+    use grid
+    use iovar
+    use status
+    use filefmt
+    use fft
+    use commtypes
+!$  use threads
+    implicit none
+
+    class (EquationBase), intent   (in) :: this
+    type        (GState), intent(inout) :: uin(:)
+    type        (ioplan), intent   (in) :: planio
+    integer                             :: i,j,k,o,state_size,nc
+
+    WRITE(ext, fmtext) tind
+!    state_size = this%state_size()
+!    do nc = 1,state_size
+!      rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+!        DO j = 1,ny
+!          DO k = 1,nz
+!            C1(k,j,i) = uin(nc)%ccomp(k,j,i)*rmp
+!          END DO
+!        END DO
+!      END DO
+!      CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+!      CALL io_write(1,odir,'vx',ext,planio,R1)
+!    end do
+  end subroutine write_states
 
 end module equationbase_mod
 

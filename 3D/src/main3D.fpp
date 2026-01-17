@@ -40,7 +40,6 @@
       USE ali
       USE var
       USE kes
-      USE order
       USE random
       USE threads
       USE offloading
@@ -361,29 +360,8 @@
          IF ((timet.eq.tstep).and.(bench.eq.0)) THEN
             timet = 0
             tind = tind+1
-            WRITE(ext, fmtext) tind
-#ifdef VELOC_
-            rmp = 1.0_GP/ &
-	          (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     C1(k,j,i) = vx(k,j,i)*rmp
-                     C2(k,j,i) = vy(k,j,i)*rmp
-                     C3(k,j,i) = vz(k,j,i)*rmp
-                  END DO
-               END DO
-            END DO
-            CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
-            CALL fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
-            CALL fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
-            CALL io_write(1,odir,'vx',ext,planio,R1)
-            CALL io_write(1,odir,'vy',ext,planio,R2)
-            CALL io_write(1,odir,'vz',ext,planio,R3)
-#endif
-         ENDIF
+	    !!!! CALL WRITE !!!!
+	 ENDIF
 
 ! Every 'cstep' steps, generates external files 
 ! with global quantities. If mean=1 also updates 
@@ -391,7 +369,7 @@
 
          IF ((timec.eq.cstep).and.(bench.eq.0)) THEN
             timec = 0
-            INCLUDE GLOBALOUTPUT_
+	    CALL pde%global(field, force, t)
          ENDIF
 
 ! Every 'sstep' steps, generates external files 
@@ -400,8 +378,7 @@
          IF ((times.eq.sstep).and.(bench.eq.0)) THEN
             times = 0
             sind = sind+1
-            WRITE(ext, fmtext) sind
-            INCLUDE SPECTROUTPUT_
+            CALL pde%spectra(field)
          ENDIF
 
 ! Runge-Kutta

@@ -34,11 +34,11 @@ module hd_mod
 
   ! ================= Solver traits ===================================
   type, public  :: NHTraits
-    integer       :: dorot        = 0      ! rotation flag
-    integer       :: numpassive   = 0      ! num passive scalars
-    real(kind=GP) :: nu           = 0.0_GP ! dissipation
-    real(kind=GP), allocatable :: kappa(:) ! diffusivities
-    real(kind=GP)              :: omega(3) ! rotation vector
+    logical       :: dorot        = .FALSE. ! rotation flag
+    integer       :: numpassive   = 0       ! num passive scalars
+    real(kind=GP) :: nu           = 0.0_GP  ! dissipation
+    real(kind=GP), allocatable :: kappa(:)  ! diffusivities
+    real(kind=GP)              :: omega(3)  ! rotation vector
   end type
 
   ! ================= Global parameters ===============================
@@ -46,17 +46,17 @@ module hd_mod
 
   ! ================= Solver ==========================================
   ! Define class:
-  type, extends(EquationBase) :: HDSolver 
+  type, extends(VelocityBase) :: HDSolver 
     ! Member data:
     logical                      :: binit_=.false. 
-                                             ! is initialized?
-    integer                      :: myrank_  ! MPI rank
-    integer                      :: nprocs_  ! MPI rank
-    integer                      :: VELOCITY ! start of velocity sector
-    integer                      :: PASSIVE  ! start of scalar sector
+                                              ! is initialized?
+    integer                      :: myrank_   ! MPI rank
+    integer                      :: nprocs_   ! MPI rank
+    integer                      :: VELOCITY  ! start of velocity sector
+    integer                      :: PASSIVE   ! start of scalar sector
     integer                      :: numpassive_ ! # passive scalars
-    integer                      :: nd_      ! problem dimension
-    integer                      :: nc_      ! # velocity components
+    integer                      :: nd_       ! problem dimension
+    integer                      :: nc_       ! # velocity components
     type(GWorkspace), pointer    :: workspace_
     type  (NHTraits)             :: traits_
     character(len=8), allocatable:: sstate_(:) 
@@ -64,6 +64,8 @@ module hd_mod
   CONTAINS
     procedure, public :: init          =>          init_impl ! init method
     procedure, public :: dudt          =>          dudt_impl ! RHS method
+    procedure, public :: global        =>        global_impl ! Writes global qtys
+    procedure, public :: spectra       =>       spectra_impl ! Writes spectra
     procedure, public :: state_size    =>    state_size_impl ! state size
     procedure, public :: sstate2istate => sstate2istate_impl ! state names
     procedure, public :: get_sstate    =>    get_sstate_impl ! get state name list
@@ -176,15 +178,16 @@ CONTAINS
 !$  use threads
     implicit none
 
-    class(HDSolver), intent   (in)         :: this
-    real  (kind=GP), intent   (in)         :: time, dt
-    type   (GState), intent(inout), target :: uin(:),uf(:)
-    type   (GState), intent(inout)         :: dudt(:) 
-    complex, pointer, dimension(:,:,:)     :: fx,fy,fz,vx,vy,vz
-    complex, pointer, dimension(:,:,:)     :: C1,C2,C3,C4,C5,C6
-    integer                                :: i,j,k
-    logical                                :: bret
-    real (kind=GP)                         :: nu,omegax,omegay,omegaz
+    class (HDSolver), intent   (in)             :: this
+    real   (kind=GP), intent   (in)             :: time, dt
+    type    (GState), intent(inout), target     :: uin(:),uf(:)
+    type    (GState), intent(inout)             :: dudt(:) 
+    complex(kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
+    complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4,C5,C6
+    integer                                     :: i,j,k
+    logical                                     :: bret
+    real   (kind=GP)                            :: nu
+    real   (kind=GP)                            :: omegax,omegay,omegaz
        
     nu     = this%traits_%nu
 
@@ -203,7 +206,7 @@ CONTAINS
     fz => uf (this%VELOCITY+2)%ccomp
       
     call prodre3(vx,vy,vz,C4,C5,C6)                    ! w x v
-    if ( this%traits_%dorot.eq.1 ) then
+    if ( this%traits_%dorot ) then
       omegax = this%traits_%omega(1)
       omegay = this%traits_%omega(2)
       omegaz = this%traits_%omega(3)
@@ -260,6 +263,61 @@ CONTAINS
     CALL this%workspace_%free_complex_tmp(C6)
   end subroutine dudt_impl
 
+
+  ! ===================================================================
+  ! Computation of global quantities and spectra
+  ! ===================================================================
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Function to compute and write global quantities
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine global_impl(this, uin, uf, t) 
+    use fprecision
+    use status
+    implicit none
+
+    class (HDSolver), intent(in)                :: this
+    type    (GState), intent(in), target        :: uin(:), uf(:)
+    integer         , intent(in)                :: t
+    complex(kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
+    real   (kind=GP)                            :: rmp
+
+    vx => uin(this%VELOCITY  )%ccomp
+    vy => uin(this%VELOCITY+1)%ccomp
+    vz => uin(this%VELOCITY+2)%ccomp
+    fx => uf (this%VELOCITY  )%ccomp
+    fy => uf (this%VELOCITY+1)%ccomp
+    fz => uf (this%VELOCITY+2)%ccomp
+    CALL hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,0)
+    CALL maxabs(vx,vy,vz,rmp,0)
+    IF (myrank.eq.0) THEN
+       OPEN(1,file='maximum.txt',position='append')
+       WRITE(1,FMT='(E13.6,E13.6)') (t-1)*dt,rmp
+       CLOSE(1)
+    ENDIF
+  end subroutine global_impl
+
+  
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Function to compute and write spectra
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine spectra_impl(this, uin) 
+    use fprecision
+    use filefmt
+    use status
+    implicit none
+
+    class (HDSolver), intent(in)                :: this
+    type    (GState), intent(in), target        :: uin(:)
+    complex(kind=GP), pointer, dimension(:,:,:) :: vx,vy,vz
+
+    WRITE(ext, fmtext) sind
+    vx => uin(this%VELOCITY  )%ccomp
+    vy => uin(this%VELOCITY+1)%ccomp
+    vz => uin(this%VELOCITY+2)%ccomp
+    CALL spectrum(vx,vy,vz,ext,1,1)
+  end subroutine spectra_impl
+  
 
   ! ===================================================================
   ! Solver specific methods
