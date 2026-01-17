@@ -48,19 +48,8 @@ module hd_mod
   ! Define class:
   type, extends(VelocityBase) :: HDSolver 
     ! Member data:
-    logical                      :: binit_=.false. 
-                                              ! is initialized?
-    integer                      :: myrank_   ! MPI rank
-    integer                      :: nprocs_   ! MPI rank
-    integer                      :: VELOCITY  ! start of velocity sector
-    integer                      :: PASSIVE   ! start of scalar sector
-    integer                      :: numpassive_ ! # passive scalars
-    integer                      :: nd_       ! problem dimension
-    integer                      :: nc_       ! # velocity components
-    type(GWorkspace), pointer    :: workspace_
+    logical                      :: binit_=.false. ! is initialized?
     type  (NHTraits)             :: traits_
-    character(len=8), allocatable:: sstate_(:) 
-    character(len=128)           :: infile_
   CONTAINS
     procedure, public :: init          =>          init_impl ! init method
     procedure, public :: dudt          =>          dudt_impl ! RHS method
@@ -143,19 +132,18 @@ CONTAINS
       deallocate(kappa)
     endif
 
-    this%VELOCITY = 1 ! start of vel sector
-    if ( ny .eq. 1 ) then
-      this%nd_ =  2 ! 2d
-    else 
-      this%nd_ =  3 ! 3d
-    endif
+    this%VELOCITY = 1  ! start of vel sector
+    this%nd_      = 3  ! 3d
+!   if ( ny .eq. 1 ) then ! 2D works but 2 comp may need another solver
+!     this%nd_ =  2 ! 2d
+!   else 
+!     this%nd_ =  3 ! 3d
+!   endif
 
     this%PASSIVE = this%VELOCITY + 1 ! start of scalar sector
-!   if ( allocated(this%sstate_) ) then
-!     deallocate(this%sstate_);
-!     allocate(this%sstate_(this%get_size()))
-!   endif
-!   this%get_sstate_impl(this, this%sstate_)
+
+    allocate(this%sstate_(this%state_size()))
+    call this%get_sstate(this%sstate_)
 
     this%binit_ = .true.  
   end subroutine init_impl
@@ -184,10 +172,10 @@ CONTAINS
     type    (GState), intent(inout)             :: dudt(:) 
     complex(kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
     complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4,C5,C6
-    integer                                     :: i,j,k
-    logical                                     :: bret
     real   (kind=GP)                            :: nu
     real   (kind=GP)                            :: omegax,omegay,omegaz
+    integer                                     :: i,j,k
+    logical                                     :: bret
        
     nu     = this%traits_%nu
 
@@ -332,7 +320,7 @@ CONTAINS
     type(GWorkspace) , intent(inout), target :: workspace
     character(len=*) , intent   (in)         :: infile
     this%workspace_ => workspace
-    this%nc_        = nc     ! # vel. components (useful if ny=1)
+    this%nc_        = nc     ! # vel. components (useful for 2D solvers)
     this%infile_    = infile ! input file
     call this%init();
   end subroutine HDSolver_ctor
@@ -343,11 +331,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine HDSolver_dtor(this) 
     type  (HDSolver), intent(inout) :: this
-!    deallocate(this%traits_%kappa)
-!   deallocate(this%traits_%sstate_)
-    ! If we use persistent workspace, free it here:
-    ! this%workspace_%free_complex_tmp(ctmp1)
-    ! this%workspace_%free_complex_tmp(ctmp2) ...    
+!   deallocate( this%sstate_ )
   end subroutine HDSolver_dtor
 
 
@@ -359,11 +343,9 @@ CONTAINS
     character(len=8)              , intent   (in) :: sstate(:)
     integer         , allocatable , intent(inout) :: istate(:)
     integer                                       :: i,j
-
     if ( size(sstate) .ne. size(istate) ) then
       stop 'HDSolver::sstate2istate_impl: Incompatible sstate and istate'
-    endif
-  
+    endif  
     do i = 1, size(sstate)
       istate(i) = -1 ! return unusable index
       do j = 1, size(this%sstate_)
@@ -382,16 +364,13 @@ CONTAINS
     class  (HDSolver)             , intent   (in) :: this
     character (len=8), allocatable, intent(inout) :: sstate(:)
     character(len=100)                            :: snum
+    character(len=1)                              :: comp(3)
     integer                                       :: j
-    if ( allocated(sstate) ) then
-        deallocate(sstate);
-!       allocate(sstate(this%state_size()))
-    endif
+    comp = ['x', 'y', 'z']
     do j = 1,this%nc_
-       write(snum,'(I0)') j
-       sstate(j) = 'v' // trim(snum)
+       sstate(j) = 'v' // comp(j)
     enddo
-    do j = 1, this%traits_%numpassive
+    do j = this%nc_+1, this%traits_%numpassive
        write(snum,'(I0)') j
        sstate(j) = 's' // trim(snum)
     enddo

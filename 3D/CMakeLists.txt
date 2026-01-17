@@ -111,6 +111,7 @@ target_include_directories(project_includes INTERFACE
     "${CMAKE_BINARY_DIR}/src/mpiio"
     "${CMAKE_BINARY_DIR}/src/memmgt"
     "${CMAKE_BINARY_DIR}/src/pdes"
+    "${CMAKE_BINARY_DIR}/src/ic"
     "${CMAKE_BINARY_DIR}/src/${FFTP}"
 )
 
@@ -119,6 +120,7 @@ add_subdirectory("${SRC_DIR}/utils")
 add_subdirectory("${SRC_DIR}/mpiio")
 add_subdirectory("${SRC_DIR}/memmgt")
 add_subdirectory("${SRC_DIR}/pdes")
+add_subdirectory("${SRC_DIR}/ic")
 add_subdirectory("${SRC_DIR}/${FFTP}")
 
 # ---------------------- Preprocess FPP sources ----------------------
@@ -164,7 +166,7 @@ target_include_directories(pseudo_lib PUBLIC
 )
 add_executable(${SOLVER} ${SOLVER_SRC})
 add_dependencies(${SOLVER} project_preprocess timer_lib fftp_lib
-    utils_lib pseudo_lib mpiio_lib memmgt_lib pdes_lib
+    utils_lib pseudo_lib mpiio_lib memmgt_lib pdes_lib ic_lib
 )
 target_link_libraries(${SOLVER}
     PRIVATE
@@ -178,6 +180,7 @@ target_link_libraries(${SOLVER}
 	mpiio_lib
 	memmgt_lib
 	pdes_lib
+	ic_lib
 )
 
 set_target_properties(${SOLVER} PROPERTIES

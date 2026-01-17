@@ -49,6 +49,7 @@
       USE fftplans
       USE dns
       USE equation_factory
+      USE ic_factory
 !     USE class_GPart
 
       IMPLICIT NONE
@@ -60,19 +61,18 @@
       TYPE(GWorkspace)                  :: workspace
       TYPE(IOPLAN)                      :: planio
       CLASS(EquationBase), ALLOCATABLE  :: pde
+      CLASS(icBase),       ALLOCATABLE  :: ics
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!! Hack to initialize fields, should be removed later
 #ifdef VELOC_
-      COMPLEX(KIND=GP), POINTER, DIMENSION (:,:,:) :: vx,vy,vz
       COMPLEX(KIND=GP), POINTER, DIMENSION (:,:,:) :: fx,fy,fz
 #endif
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
 !
 ! Temporal data storage arrays
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C1,C2,C3
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: R1,R2,R3
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 !
 ! Auxiliary variables
@@ -158,6 +158,7 @@
      CALL GState_alloc(field    , num_components)
      CALL GState_alloc(field_nxt, num_components)
      CALL GState_alloc(force    , num_components)
+     ics  = init_ic_from_file('parameter.inp')
 
 ! Initialization of the numerical domain
      CALL box_init('parameter.inp')
@@ -166,9 +167,6 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!! Temporary hack to initialize fields
 #ifdef VELOC_
-      vx => field(1)%ccomp
-      vy => field(2)%ccomp
-      vz => field(3)%ccomp
       fx => force(1)%ccomp
       fy => force(2)%ccomp
       fz => force(3)%ccomp
@@ -300,9 +298,7 @@
       timec = cstep
       times = sstep
       timep = pstep
-#if defined(VELOC_) || defined (ADVECT_)
-      INCLUDE 'initialv.f90'            ! initial velocity
-#endif
+      CALL ics%init_GState(pde,field)
 
       ELSE
 
@@ -318,13 +314,7 @@
       times = int(modulo(float(ini-1),float(sstep)))
       timec = int(modulo(float(ini-1),float(cstep)))
       timef = int(modulo(float(ini-1),float(fstep)))
-
-      CALL io_read(1,idir,'vx',ext,planio,R1)
-      CALL io_read(1,idir,'vy',ext,planio,R2)
-      CALL io_read(1,idir,'vz',ext,planio,R3)
-      CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
-      CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
-      CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
+      CALL pde%read_states(field,planio)
 
       ENDIF IC
 
@@ -360,7 +350,7 @@
          IF ((timet.eq.tstep).and.(bench.eq.0)) THEN
             timet = 0
             tind = tind+1
-	    !!!! CALL WRITE !!!!
+	    CALL pde%write_states(field, planio)
 	 ENDIF
 
 ! Every 'cstep' steps, generates external files 
@@ -384,6 +374,11 @@
 ! Runge-Kutta
          CALL pde%timestep(time, field, force, dt, field_nxt)
          field = field_nxt
+         timet = timet+1
+         times = times+1
+         timec = timec+1
+         timef = timef+1
+         timep = timep+1
 
       END DO RK
 

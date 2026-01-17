@@ -13,6 +13,11 @@ module equationbase_mod
   ! ================= Base class for all PDEs =======================
   ! Define an abstract base class
   type, abstract :: EquationBase
+      type(GWorkspace), pointer     :: workspace_
+      integer                       :: myrank_   ! MPI rank
+      integer                       :: nprocs_   ! MPI rank 
+      character(len=8), allocatable :: sstate_(:)
+      character(len=128)            :: infile_
     contains
       procedure(Solver_ctor_interface), deferred :: Solver_ctor ! Constructor
       procedure(init_interface),        deferred :: init        ! init method
@@ -21,15 +26,23 @@ module equationbase_mod
       procedure(spectra_interface),     deferred :: spectra     ! Spectra
       procedure(state_size_interface),  deferred :: state_size  ! Number of states
       procedure, public                          :: timestep
+      procedure, public                          :: read_states
+      procedure, public                          :: write_states
   end type EquationBase
 
   type, abstract, extends(EquationBase) :: VelocityBase
+      integer :: VELOCITY    ! start of velocity sector
+      integer :: PASSIVE     ! start of scalar sector
+      integer :: numpassive_ ! # passive scalars
+      integer :: nd_         ! problem dimension
+      integer :: nc_         ! # vector field components
+
   end type VelocityBase
 
-  type, abstract, extends(EquationBase) :: ActiveScalarBase
+  type, abstract, extends(VelocityBase) :: ActiveScalarBase
   end type ActiveScalarBase
 
-  type, abstract, extends(EquationBase) :: MagneticBase
+  type, abstract, extends(VelocityBase) :: MagneticBase
   end type MagneticBase
 
   type, abstract, extends(EquationBase) :: QuantumBase
@@ -50,7 +63,7 @@ module equationbase_mod
        class (EquationBase), intent (inout) :: this
      end subroutine init_interface
 
-     subroutine dudt_interface(this, time, uin, uf, dt, dudt) 
+      subroutine dudt_interface(this, time, uin, uf, dt, dudt) 
        USE gstate_mod
        import :: EquationBase
        class(EquationBase), intent   (in)         :: this
@@ -126,6 +139,7 @@ CONTAINS
 
   end subroutine timestep
 
+  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Concrete method to compute RHS for all passive scalars
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -221,6 +235,7 @@ CONTAINS
 
   end subroutine rhs_passive
 
+  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Concrete method to write field states
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -235,29 +250,72 @@ CONTAINS
 !$  use threads
     implicit none
 
-    class (EquationBase), intent   (in) :: this
-    type        (GState), intent(inout) :: uin(:)
-    type        (ioplan), intent   (in) :: planio
-    integer                             :: i,j,k,o,state_size,nc
+    class (EquationBase), intent   (in)             :: this
+    type        (GState), intent(inout)             :: uin(:)
+    type        (ioplan), intent   (in)             :: planio
+    complex    (kind=GP), pointer, dimension(:,:,:) :: C1
+    real       (kind=GP), pointer, dimension(:,:,:) :: R1
+    real       (kind=GP)                            :: rmp
+    integer                          :: i,j,k,o,state_size,nc
+    logical                          :: bret
 
     WRITE(ext, fmtext) tind
-!    state_size = this%state_size()
-!    do nc = 1,state_size
-!      rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+    call this%workspace_%get_complex_tmp(C1,bret)
+    call this%workspace_%get_real_tmp   (R1,bret)
+    state_size = this%state_size()
+    do nc = 1,state_size
+      rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
-!      DO i = ista,iend
+      DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-!        DO j = 1,ny
-!          DO k = 1,nz
-!            C1(k,j,i) = uin(nc)%ccomp(k,j,i)*rmp
-!          END DO
-!        END DO
-!      END DO
-!      CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
-!      CALL io_write(1,odir,'vx',ext,planio,R1)
-!    end do
+        DO j = 1,ny
+          DO k = 1,nz
+            C1(k,j,i) = uin(nc)%ccomp(k,j,i)*rmp
+          END DO
+        END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+      CALL io_write(1,odir,trim(this%sstate_(nc)),ext,planio,R1)
+    end do
   end subroutine write_states
 
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Concrete method to read field states
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine read_states(this, uin, planio)
+    use fprecision
+    use grid
+    use iovar
+    use status
+    use filefmt
+    use fft
+    use commtypes
+!$  use threads
+    implicit none
+
+    class (EquationBase), intent   (in)             :: this
+    type        (GState), intent(inout)             :: uin(:)
+    type        (ioplan), intent   (in)             :: planio
+    complex    (kind=GP), pointer, dimension(:,:,:) :: C1
+    real       (kind=GP), pointer, dimension(:,:,:) :: R1
+    integer                          :: i,j,k,o,state_size,nc
+    logical                          :: bret
+
+    WRITE(ext, fmtext) tind
+    call this%workspace_%get_complex_tmp(C1,bret)
+    call this%workspace_%get_real_tmp(   R1,bret)
+    state_size = this%state_size()
+    do nc = 1,state_size
+      call io_read(1,idir,trim(this%sstate_(nc)),ext,planio,R1)
+      call fftp3d_real_to_complex(planrc,R1,uin(nc)%ccomp(k,j,i), &
+                                  MPI_COMM_WORLD)
+   end do
+   call this%workspace_%free_complex_tmp(C1)
+   call this%workspace_%free_real_tmp(   R1)
+   
+  end subroutine read_states
+  
 end module equationbase_mod
 
 
