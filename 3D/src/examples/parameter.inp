@@ -18,7 +18,7 @@ idir = "outs"
 odir = "outs"
 stat = 0         ! last binary file if restarting an old run
 mult = 1         ! decreases the time step
-bench = 0        ! benchmark mode if 1
+bench = 1        ! benchmark mode if 1
 outs = 0         ! controls the amount of output
 dt = 1e-3        ! time step
 step = 500       ! total number of steps
@@ -44,20 +44,15 @@ npassive = 0
 iclist = "null_v"
 /
 
-! Parameters for time integration
-&parameter
-rand = 1         ! random phases if 1
-cort = 7.5e-4    ! correlation time of the external forcing
-seed = 1000      ! seed for the random number generator
+! Forcing
+&forcing
+forces = "tg_fv"
+updates = "none"
 /
 
-! Parameters for the velocity field
-&velocity
+! Parameters for Taylor-Green forcing
+&tg_fv
 f0 = 0.37714265  ! amplitude of the mechanical forcing
-u0 = 1.00        ! amplitude of the initial velocity field
 kdn = 2.00       ! minimum wavenumber
 kup = 2.00       ! maximum wavenumber
-nu = 3.e-4       ! kinematic viscosity
-fparam0 = 0.90   ! fparam0-9 can be used to control the forcing
-vparam0 = 0.10   ! idem for the initial velocity field
 /
