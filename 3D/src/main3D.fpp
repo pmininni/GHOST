@@ -32,24 +32,17 @@
 ! Modules
 
       USE commtypes
-      USE mpivars
       USE filefmt
       USE iovar
-      USE grid
       USE fft
-      USE ali
-      USE var
-      USE kes
-      USE random
       USE threads
       USE offloading
       USE boxsize
       USE status
       USE gtimer
-      USE fftplans
-      USE dns
-      USE equation_factory
       USE ic_factory
+      USE force_factory
+      USE equation_factory
 !     USE class_GPart
 
       IMPLICIT NONE
@@ -62,69 +55,21 @@
       TYPE(IOPLAN)                      :: planio
       CLASS(EquationBase), ALLOCATABLE  :: pde
       CLASS(icBase),       ALLOCATABLE  :: ics
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!! Hack to initialize fields, should be removed later
-#ifdef VELOC_
-      COMPLEX(KIND=GP), POINTER, DIMENSION (:,:,:) :: fx,fy,fz
-#endif
-!
-! Temporal data storage arrays
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C1,C2,C3
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: R1,R2,R3
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      CLASS(forceBase),    ALLOCATABLE  :: forcemethod
 
 !
 ! Auxiliary variables
 
-      COMPLEX(KIND=GP) :: cdump,jdump
-      COMPLEX(KIND=GP) :: cdumq,jdumq
-      COMPLEX(KIND=GP) :: cdumr,jdumr
-      DOUBLE PRECISION :: tmp,tmq,tmr
-      DOUBLE PRECISION :: eps,epm
-
-      REAL(KIND=GP)    :: nu,mu
-      REAL(KIND=GP)    :: kup,kdn
-      REAL(KIND=GP)    :: rmp,rmq,rms
-      REAL(KIND=GP)    :: rmt,rm1,rm2
-      REAL(KIND=GP)    :: dump
-      REAL(KIND=GP)    :: f0,u0
-      REAL(KIND=GP)    :: phase,ampl,cort
-      REAL(KIND=GP)    :: fparam0,fparam1,fparam2,fparam3,fparam4
-      REAL(KIND=GP)    :: fparam5,fparam6,fparam7,fparam8,fparam9
-      REAL(KIND=GP)    :: vparam0,vparam1,vparam2,vparam3,vparam4
-      REAL(KIND=GP)    :: vparam5,vparam6,vparam7,vparam8,vparam9
-
       INTEGER :: idevice, iret, ncuda, ngcuda, ppn
       INTEGER :: num_components
-      INTEGER :: trans,mean
-      INTEGER :: seed,rand,fstep
-      INTEGER :: t
-      INTEGER :: i,j,k,ki
-      INTEGER :: timep,pstep,lgmult
+      INTEGER :: t,timep,pstep,lgmult
       INTEGER :: ihcpu1,ihcpu2
       INTEGER :: ihomp1,ihomp2
       INTEGER :: ihwtm1,ihwtm2
       LOGICAL :: bbenchexist
 
 !
-! Namelists for the input files
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!! Status, parameter should be read by some init that could be part of a module (grid?)
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      NAMELIST / parameter / rand,cort,seed
-#if defined(VELOC_) || defined(ADVECT_)
-      NAMELIST / velocity / f0,u0,kdn,kup,nu,fparam0,fparam1,fparam2
-      NAMELIST / velocity / fparam3,fparam4,fparam5,fparam6,fparam7
-      NAMELIST / velocity / fparam8,fparam9,vparam0,vparam1,vparam2
-      NAMELIST / velocity / vparam3,vparam4,vparam5,vparam6,vparam7
-      NAMELIST / velocity / vparam8,vparam9
-#endif
-
-!
 ! Initialization
-
 ! Initializes the MPI and I/O libraries
       CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
@@ -151,102 +96,18 @@
       CALL io_init(myrank,(/nx,ny,nz/),ksta,kend,planio)
 
 ! Now we can initialize the PDE method
-     pde = init_pdes_from_file('parameter.inp')
+     pde          = init_pdes_from_file(   'parameter.inp')
      CALL workspace%initialize_pool(NUMTMPREAL,NUMTMPCOMP)
      CALL pde%Solver_ctor('parameter.inp',workspace,NUMFIELDS)
      num_components = pde%state_size()
      CALL GState_alloc(field    , num_components)
      CALL GState_alloc(field_nxt, num_components)
      CALL GState_alloc(force    , num_components)
-     ics  = init_ic_from_file('parameter.inp')
+     ics          = init_ic_from_file(     'parameter.inp')
+     forcemethod  = init_forcing_from_file('parameter.inp')
 
 ! Initialization of the numerical domain
      CALL box_init('parameter.inp')
-
-     ALLOCATE( C1(nz,ny,ista:iend), C2(nz,ny,ista:iend), C3(nz,ny,ista:iend) )
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!! Temporary hack to initialize fields
-#ifdef VELOC_
-      fx => force(1)%ccomp
-      fy => force(2)%ccomp
-      fz => force(3)%ccomp
-#endif
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      ALLOCATE( R1(nx,ny,ksta:kend), R2(nx,ny,ksta:kend), R3(nx,ny,ksta:kend) )
-
-!
-! The following lines read the file 'parameter.inp'
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!! Status, parameter and maybe the resolution (in boxparams) should
-!!! be read by some init that could be part of a module (grid?)
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-! Reads parameters that will be used to control the
-! time integration from the namelist 'parameter' on
-! the external file 'parameter.inp'
-!     rand : = 0 constant force
-!            = 1 random phases
-!            = 2 slowly varying random phases (only for the velocity and
-!                magnetic forcings)
-!            = 3 user-defined forcing scheme
-!     cort : time correlation of the external forcing
-!     seed : seed for the random number generator
-
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
-         READ(1,NML=parameter)
-         CLOSE(1)
-         fstep = int(cort/dt)
-      ENDIF
-      CALL MPI_BCAST(fstep,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(rand,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(seed,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-
-#if defined(VELOC_) || defined(ADVECT_)
-! Reads parameters for the velocity field from the
-! namelist 'velocity' on the external file 'parameter.inp'
-!     f0   : amplitude of the mechanical forcing
-!     u0   : amplitude of the initial velocity field
-!     kdn  : minimum wave number in v/mechanical forcing
-!     kup  : maximum wave number in v/mechanical forcing
-!     nu   : kinematic viscosity
-!     fparam0-9 : ten real numbers to control properties of
-!            the mechanical forcing
-!     vparam0-9 : ten real numbers to control properties of
-!            the initial conditions for the velocity field
-
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
-         READ(1,NML=velocity)
-         CLOSE(1)
-      ENDIF
-      CALL MPI_BCAST(f0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(u0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(kdn,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(kup,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(nu,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam0,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam1,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam2,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam3,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam4,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam5,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam6,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam7,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam8,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(vparam9,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-#endif
 
 ! Initializes the FFT library. This must be done at
 ! this stage as it requires the variable "bench" to
@@ -282,9 +143,7 @@
 !
 ! Sets the external forcing
 
-#ifdef VELOC_
-      INCLUDE 'initialfv.f90'           ! mechanical forcing
-#endif
+      CALL forcemethod%init_GForce(pde,force)
 
 ! If stat=0 we start a new run.
 ! Generates initial conditions for the fields and particles.
@@ -313,15 +172,13 @@
       timep = 0
       times = int(modulo(float(ini-1),float(sstep)))
       timec = int(modulo(float(ini-1),float(cstep)))
-      timef = int(modulo(float(ini-1),float(fstep)))
       CALL pde%read_states(field,planio)
 
       ENDIF IC
 
 !
 ! Time integration scheme starts here.
-! Does ord iterations of Runge-Kutta. If
-! we are doing a benchmark, we measure
+! If we are doing a benchmark, we measure
 ! cputime before starting.
 
       IF (bench.eq.1) THEN
@@ -344,8 +201,7 @@
 
  RK : DO t = ini,step
 
-! Every 'tstep' steps, stores the fields
-! in binary files
+! Every 'tstep' steps, stores the fields in binary files
 
          IF ((timet.eq.tstep).and.(bench.eq.0)) THEN
             timet = 0
@@ -353,17 +209,14 @@
 	    CALL pde%write_states(field, planio)
 	 ENDIF
 
-! Every 'cstep' steps, generates external files 
-! with global quantities. If mean=1 also updates 
-! the mean fields.
+! Every 'cstep' steps writes global quantities
 
          IF ((timec.eq.cstep).and.(bench.eq.0)) THEN
             timec = 0
 	    CALL pde%global(field, force, t)
          ENDIF
 
-! Every 'sstep' steps, generates external files 
-! with the power spectrum.
+! Every 'sstep' steps writes spectra
 
          IF ((times.eq.sstep).and.(bench.eq.0)) THEN
             times = 0
@@ -371,13 +224,13 @@
             CALL pde%spectra(field)
          ENDIF
 
-! Runge-Kutta
+! Time evolution
+         CALL forcemethod%update_GForce(pde,force) ! Update forcing?
          CALL pde%timestep(time, field, force, dt, field_nxt)
          field = field_nxt
          timet = timet+1
          times = times+1
          timec = timec+1
-         timef = timef+1
          timep = timep+1
 
       END DO RK
@@ -454,14 +307,5 @@
       CALL MPI_FINALIZE(ierr)
       CALL fftp3d_destroy_plan(plancr)
       CALL fftp3d_destroy_plan(planrc)
-      DEALLOCATE( R1,R2,R3 )
-      DEALLOCATE( C1,C2,C3 )
-      DEALLOCATE( kx,ky,kz )
-      IF ( anis ) THEN
-         DEALLOCATE( kk2 )
-      ELSE
-         NULLIFY( kk2 )
-      ENDIF
-      DEALLOCATE( kn2 )
       
       END PROGRAM MAIN
