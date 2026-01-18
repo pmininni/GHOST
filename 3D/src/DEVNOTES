@@ -1,0 +1,36 @@
+Now we have a working code that can do HD with TG forcing, null initial conditions.
+To run:
+
+* GHOST/3D/src/examples/parameter.inp has a working input file.
+* To compile, do:
+  cd GHOST/3D/build
+  cmake .. -DCMAKE_PREFIX_PATH=/path/to/your/mpi -DFFTW3_ROOT=/path/to/your/fftw
+  make
+
+Things to discuss:
+
+INITIAL CONDITIONS AND FORCING:
+* The initial condition (IC) factory now allows us to set only one IC. It's ready
+(but the lists are commented out) to loop through a list of ICs and apply them as
+an operator. The same should be done for the forcing. This is relatively 
+straightforward.
+
+* The forcing factory needs two methods: one to set up the forcing, one to update.
+What we have can work but we must find a way to reuse the update to multiple 
+initial forcings.
+
+GSTATES:
+* The GState now is complex by default, as all our field states are complex. 
+However, for the forcing some solvers need a mix of complex and real arrays. Maybe 
+the forcing should be a different type?
+
+* The IC and forcing classes are not aware of the structure of the GStates (e.g.,
+they don't have access to the field mask (solver%VELOCITY, solver%SCALAR, etc.). 
+Should this mask be defined by the IC and be a property of GState instead of by 
+the solver? This can simplify some things (right now we have to pass the solver 
+class to the IC and forcing factories), but may affect other choices.
+
+PARTICLES:
+* Should particles be initialized and evolved in "main", or by each solver? The
+former choice allows us to do "active" particles in the future (now we can, as we
+do in the PIC solver, but it is not optimal). 
