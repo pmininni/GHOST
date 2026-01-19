@@ -91,7 +91,7 @@ CONTAINS
     real(kind=GP), allocatable :: kappa(:)
 
     ! Required namelists:
-    namelist/ MHD      / nu, eta, doB0, B0x, B0y, B0z, npassive
+    namelist/ MHD      / nu, eta, doB0, dohall, B0x, B0y, B0z, npassive
     namelist/ passive  / kappa
 
     call MPI_COMM_SIZE(MPI_COMM_WORLD,this%nprocs_,ierr)

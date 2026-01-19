@@ -2,7 +2,7 @@
 ! NAME       : hd_solver.f90
 ! DESCRIPTION: Forms class for incompressible HD solver, computing:
 !
-!              dv/dt + v.Grad v + 2*Omega x v = -Grad p + nu Del^2 v
+!              dv/dt + (w + 2 Omega) x v = - Grad p + nu Del^2 v
 !              ds_i/dt + v.Grad s_i = kappa_i Del^2 s_i 
 !                                             i = 1, ..., numpassive
 !              State ordering is:
@@ -132,15 +132,15 @@ CONTAINS
       deallocate(kappa)
     endif
 
-    this%VELOCITY = 1  ! start of vel sector
     this%nd_      = 3  ! 3d
+    this%VELOCITY = 1  ! start of vel sector
 !   if ( ny .eq. 1 ) then ! 2D works but 2 comp may need another solver
 !     this%nd_ =  2 ! 2d
 !   else 
 !     this%nd_ =  3 ! 3d
 !   endif
 
-    this%PASSIVE = this%VELOCITY + 1 ! start of scalar sector
+    this%PASSIVE = this%VELOCITY + this%nc_ ! start of scalar sector
 
     allocate(this%sstate_(this%state_size()))
     call this%get_sstate(this%sstate_)
@@ -214,9 +214,9 @@ CONTAINS
       end do
       end do
     endif
-    call nonlhd3(C4,C5,C6,C1,1)  ! -(w x v + 2 Omega x v + Grad p)_x
-    call nonlhd3(C4,C5,C6,C2,2)  ! -(w x v + 2 Omega x v + Grad p)_y
-    call nonlhd3(C4,C5,C6,C3,3)  ! -(w x v + 2 Omega x v + Grad p)_z
+    call nonlhd3(C4,C5,C6,C1,1)  ! -[(w + 2 Omega) x v + Grad p]_x
+    call nonlhd3(C4,C5,C6,C2,2)  ! -[(w + 2 Omega) x v + Grad p]_y
+    call nonlhd3(C4,C5,C6,C3,3)  ! -[(w + 2 Omega) x v + Grad p]_z
     call laplak3(vx,C4)          ! Del^2 vx
     call laplak3(vy,C5)          ! Del^2 vy
     call laplak3(vz,C6)          ! Del^2 vz
@@ -281,9 +281,9 @@ CONTAINS
     CALL hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,0)
     CALL maxabs(vx,vy,vz,rmp,0)
     IF (myrank.eq.0) THEN
-       OPEN(1,file='maximum.txt',position='append')
-       WRITE(1,FMT='(E13.6,E13.6)') (t-1)*dt,rmp
-       CLOSE(1)
+      OPEN(1,file='maximum.txt',position='append')
+      WRITE(1,FMT='(E13.6,E13.6)') (t-1)*dt,rmp
+      CLOSE(1)
     ENDIF
   end subroutine global_impl
 
@@ -370,10 +370,10 @@ CONTAINS
     character(len=1)                              :: comp(3)
     integer                                       :: j
     comp = ['x', 'y', 'z']
-    do j = 1,this%nc_
+    do j = this%VELOCITY,this%VELOCITY+this%nc_
        sstate(j) = 'v' // comp(j)
     enddo
-    do j = this%nc_+1, this%traits_%numpassive
+    do j = this%PASSIVE,this%PASSIVE+this%traits_%numpassive
        write(snum,'(I0)') j
        sstate(j) = 's' // trim(snum)
     enddo

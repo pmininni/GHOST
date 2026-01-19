@@ -12,6 +12,7 @@
 module equation_factory
   USE equationbase_mod
   USE hd_mod
+  USE mhd_mod
 ! USE userdefinedpde_mod
   
   IMPLICIT NONE
@@ -48,10 +49,13 @@ CONTAINS
     select case (trim(adjustl(solver)))
       case ('HD')
         allocate(HDsolver :: new_object)
-        NUMFIELDS = 3; NUMTMPCOMP = 8; NUMTMPREAL = 3
+        NUMFIELDS = 3; NUMTMPCOMP =  8; NUMTMPREAL = 3
+      case ('MHD')
+        allocate(MHDsolver :: new_object)
+        NUMFIELDS = 6; NUMTMPCOMP = 12; NUMTMPREAL = 3
 !     case ('UserDefined')
 !       allocate(UserDefinedsolver :: new_object)
-!       NUMFIELDS = 3; NUMTMPCOMP = 8; NUMTMPREAL = 3
+!       NUMFIELDS = 3; NUMTMPCOMP =  8; NUMTMPREAL = 3
       case default
         stop 'Unknown solver name'
     end select

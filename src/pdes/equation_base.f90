@@ -36,7 +36,6 @@ module equationbase_mod
       integer :: numpassive_ ! # passive scalars
       integer :: nd_         ! problem dimension
       integer :: nc_         ! # vector field components
-
   end type VelocityBase
 
   type, abstract, extends(VelocityBase) :: ActiveScalarBase
