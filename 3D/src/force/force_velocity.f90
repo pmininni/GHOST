@@ -87,7 +87,7 @@ CONTAINS
     use fft
     use ali
     use var
-    use dns
+    use pseudospec_norm
 !$  use threads
     implicit none
     
@@ -150,9 +150,9 @@ CONTAINS
        END DO
     END DO
     CALL fftp3d_real_to_complex(planrc,R1, & !vx
-                    state(solver%VELOCITY  )%ccomp,MPI_COMM_WORLD)
+                   state(solver%VELOCITY  )%ccomp,MPI_COMM_WORLD)
     CALL fftp3d_real_to_complex(planrc,R2, & !vy
-                    state(solver%VELOCITY+1)%ccomp,MPI_COMM_WORLD)
+                   state(solver%VELOCITY+1)%ccomp,MPI_COMM_WORLD)
     CALL normalize(state(solver%VELOCITY  )%ccomp, &
                    state(solver%VELOCITY+1)%ccomp, &
                    state(solver%VELOCITY+2)%ccomp, &

@@ -10,6 +10,7 @@ target_include_directories(ic_lib PUBLIC
   ${CMAKE_BINARY_DIR}/src/mpiio
   ${CMAKE_BINARY_DIR}/src/memmgt
   ${CMAKE_BINARY_DIR}/src/pdes
+  ${CMAKE_BINARY_DIR}/src/pseudo
   ${CMAKE_BINARY_DIR}/src/${FFTP}
   )
 

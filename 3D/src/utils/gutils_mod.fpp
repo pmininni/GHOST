@@ -934,6 +934,7 @@ MODULE gutils
 !     ctmp  : complex temp array
 !     sij   : complex tensor component, returned
 !
+      USE pseudospec_hd
       USE fprecision
       USE commtypes
       USE kes
@@ -1134,6 +1135,7 @@ MODULE gutils
 !     ctmp  : complex temp array
 !     ds    : complex tensor component, returned
 !
+      USE pseudospec_hd
       USE fprecision
       USE commtypes
       USE kes
@@ -1196,6 +1198,7 @@ MODULE gutils
 !     ctmp  : complex temp array
 !     divv  : divergence field, returned
 !
+      USE pseudospec_hd
       USE fprecision
       USE commtypes
       USE kes
@@ -1390,6 +1393,7 @@ MODULE gutils
 !     denom : tensor normalization. First time in, should be initialized to 0
 !     gij   : 3x3 tensor, returned. First time in, should be initialized to 0
 !
+      USE pseudospec_hd
       USE fprecision
       USE commtypes
       USE kes
@@ -1494,6 +1498,7 @@ MODULE gutils
 !     denom : tensor normalization. First time in, should be initialized to 0
 !     vij   : 3x3 tensor, returned. First time in, should be initialized to 0
 !
+      USE pseudospec_hd
       USE fprecision
       USE commtypes
       USE kes
@@ -1630,6 +1635,7 @@ MODULE gutils
 !     denom : tensor normalization. First time in, should be initialized to 0
 !     dij   : 3x3 tensor, returned
 !
+      USE pseudospec_hd
       USE fprecision
       USE commtypes
       USE kes

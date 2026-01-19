@@ -1,5 +1,10 @@
 !=================================================================
-! PSEUDOSPECTRAL subroutines
+! PSEUDOSPECTRAL modules
+!
+! CONTAINS:
+!      MODULE pseudospec_fluid
+!      MODULE pseudospec_hd
+!      MODULE pseudospec_strain
 !
 ! Subroutines to compute spatial derivatives and nonlinear 
 ! terms in Navier-Stokes, MHD and Hall-MHD equations in 3D 
@@ -18,8 +23,8 @@
 !      e-mail: mininni@df.uba.ar 
 !=================================================================
 
-!MODULE pseudospec_fluid
-!   CONTAINS
+MODULE pseudospec_fluid
+   CONTAINS
 
 !*****************************************************************
       SUBROUTINE derivk3(a,b,dir)
@@ -512,6 +517,84 @@
       END SUBROUTINE nonlhd3
 
 !*****************************************************************
+      SUBROUTINE saxpby_c(z,x,a,y,b) 
+!-----------------------------------------------------------------
+!
+! Computes z = ax + by for complex x, y
+!
+! Parameters
+!     z     : output
+!     x,y   : input arrays
+!     a, b  : constants
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: z
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend) :: x,y
+      REAL   (KIND=GP), INTENT   (IN)                             :: a,b
+!
+      REAL   (KIND=GP)                                            :: ktmin2,ktmax2,tmp
+      INTEGER                                                     :: i,j,k
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,ny
+          DO k = 1,nz
+            z(k,j,i) = a * x(k,j,i) + b * y(k,j,i)
+          END DO
+        END DO
+      END DO
+      END SUBROUTINE saxpby_c
+
+!*****************************************************************
+      SUBROUTINE saxpby_r(z,x,a,y,b) 
+!-----------------------------------------------------------------
+!
+! Computes z = ax + by for real x, y
+!
+! Parameters
+!     z     : output
+!     x,y   : input arrays
+!     a, b  : constants
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+!$    USE threads
+      IMPLICIT NONE
+
+      REAL(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: z
+      REAL(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend) :: x,y
+      REAL(KIND=GP), INTENT   (IN)                             :: a,b
+!
+      REAL   (KIND=GP)                                         :: ktmin2,ktmax2,tmp
+      INTEGER                                                  :: i,j,k
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+        DO j = 1,ny
+          DO i = 1,nx
+            z(i,j,k) = a * x(i,j,k) + b * y(i,j,k)
+          ENDDO
+        ENDDO
+      ENDDO
+      END SUBROUTINE saxpby_r
+
+!*****************************************************************
       SUBROUTINE energy(a,b,c,d,kin)
 !-----------------------------------------------------------------
 !
@@ -982,130 +1065,6 @@
 
       RETURN
       END SUBROUTINE maxabs
-
-!*****************************************************************
-      SUBROUTINE hdcheck(a,b,c,d,e,f,t,dt,hel,chk)
-!-----------------------------------------------------------------
-!
-! Consistency check for the conservation of energy, 
-! helicity, and null divergency of the velocity field
-!
-! Output files contain:
-! 'balance.txt':  time, <v^2>, <omega^2>, mechanic injection rate
-! 'helicity.txt': time, kinetic helicity
-! 'divergence.txt' [OPTIONAL]: time, <(div.v)^2>
-!
-! Parameters
-!     a  : velocity field in the x-direction
-!     b  : velocity field in the y-direction
-!     c  : velocity field in the z-direction
-!     d  : force in the x-direction
-!     e  : force in the y-direction
-!     f  : force in the z-direction
-!     t  : number of time steps made
-!     dt : time step
-!     hel: =0 skips kinetic helicity computation
-!          =1 computes the kinetic helicity
-!     chk: =0 skips divergency check
-!          =1 performs divergency check
-!
-      USE fprecision
-      USE commtypes
-      USE grid
-      USE mpivars
-!$    USE threads
-      IMPLICIT NONE
-
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
-      DOUBLE PRECISION    :: eng,ens,pot,khe
-      DOUBLE PRECISION    :: div,tmp
-      REAL(KIND=GP)       :: dt
-      REAL(KIND=GP)       :: tmq
-      INTEGER, INTENT(IN) :: hel,chk
-      INTEGER, INTENT(IN) :: t
-      INTEGER             :: i,j,k
-
-      div = 0.0D0
-      tmp = 0.0D0
-      tmq = 1.0_GP/ &
-            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
-
-!
-! Computes the mean square value of
-! the divergence of the vector field
-!
-      IF (chk.eq.1) THEN
-
-      CALL derivk3(a,c1,1)
-      CALL derivk3(b,c2,2)
-      CALL derivk3(c,c3,3)
-      IF (ista.eq.1) THEN
-!$omp parallel do private (k) reduction(+:tmp)
-         DO j = 1,ny
-            DO k = 1,nz
-               tmp = tmp+abs(c1(k,j,1)+c2(k,j,1)+c3(k,j,1))**2*tmq
-            END DO
-         END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:tmp)
-         DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:tmp)
-            DO j = 1,ny
-               DO k = 1,nz
-                  tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
-               END DO
-            END DO
-         END DO
-      ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:tmp)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:tmp)
-            DO j = 1,ny
-               DO k = 1,nz
-                  tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
-               END DO
-            END DO
-         END DO
-      ENDIF
-      CALL MPI_REDUCE(tmp,div,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
-                      MPI_COMM_WORLD,ierr)
-
-      ENDIF
-!
-! Computes the mean energy, enstrophy, and kinetic helicity
-!
-      CALL energy(a,b,c,eng,1)
-      CALL energy(a,b,c,ens,0)
-      IF (hel.eq.1) THEN
-         CALL helicity(a,b,c,khe)
-      ENDIF
-!
-! Computes the energy injection rate
-!
-      CALL cross(a,b,c,d,e,f,pot,1)
-!
-! Creates external files to store the results
-!
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='balance.txt',position='append')
-         WRITE(1,10) (t-1)*dt,eng,ens,pot
-   10    FORMAT( E13.6,E26.18,E26.18,E26.18 )
-         CLOSE(1)
-         IF (hel.eq.1) THEN
-            OPEN(1,file='helicity.txt',position='append')
-            WRITE(1,FMT='(E13.6,E26.18)') (t-1)*dt,khe
-            CLOSE(1)
-         ENDIF
-         IF (chk.eq.1) THEN
-            OPEN(1,file='divergence.txt',position='append')
-            WRITE(1,FMT='(E13.6,E26.18)') (t-1)*dt,div
-            CLOSE(1)
-         ENDIF
-      ENDIF
-
-      RETURN
-      END SUBROUTINE hdcheck
 
 !*****************************************************************
       SUBROUTINE spectrum(a,b,c,nmb,kin,hel)
@@ -2150,6 +2109,146 @@
       RETURN
       END SUBROUTINE phaseshift
 
+END MODULE pseudospec_fluid
+
+!=================================================================
+
+MODULE pseudospec_hd
+   USE pseudospec_fluid
+   CONTAINS
+
+!*****************************************************************
+      SUBROUTINE hdcheck(a,b,c,d,e,f,t,dt,hel,chk)
+!-----------------------------------------------------------------
+!
+! Consistency check for the conservation of energy, 
+! helicity, and null divergency of the velocity field
+!
+! Output files contain:
+! 'balance.txt':  time, <v^2>, <omega^2>, mechanic injection rate
+! 'helicity.txt': time, kinetic helicity
+! 'divergence.txt' [OPTIONAL]: time, <(div.v)^2>
+!
+! Parameters
+!     a  : velocity field in the x-direction
+!     b  : velocity field in the y-direction
+!     c  : velocity field in the z-direction
+!     d  : force in the x-direction
+!     e  : force in the y-direction
+!     f  : force in the z-direction
+!     t  : number of time steps made
+!     dt : time step
+!     hel: =0 skips kinetic helicity computation
+!          =1 computes the kinetic helicity
+!     chk: =0 skips divergency check
+!          =1 performs divergency check
+!
+      USE fprecision
+      USE commtypes
+      USE grid
+      USE mpivars
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
+      DOUBLE PRECISION    :: eng,ens,pot,khe
+      DOUBLE PRECISION    :: div,tmp
+      REAL(KIND=GP)       :: dt
+      REAL(KIND=GP)       :: tmq
+      INTEGER, INTENT(IN) :: hel,chk
+      INTEGER, INTENT(IN) :: t
+      INTEGER             :: i,j,k
+
+      div = 0.0D0
+      tmp = 0.0D0
+      tmq = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+
+!
+! Computes the mean square value of
+! the divergence of the vector field
+!
+      IF (chk.eq.1) THEN
+
+      CALL derivk3(a,c1,1)
+      CALL derivk3(b,c2,2)
+      CALL derivk3(c,c3,3)
+      IF (ista.eq.1) THEN
+!$omp parallel do private (k) reduction(+:tmp)
+         DO j = 1,ny
+            DO k = 1,nz
+               tmp = tmp+abs(c1(k,j,1)+c2(k,j,1)+c3(k,j,1))**2*tmq
+            END DO
+         END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:tmp)
+         DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:tmp)
+            DO j = 1,ny
+               DO k = 1,nz
+                  tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
+               END DO
+            END DO
+         END DO
+      ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:tmp)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:tmp)
+            DO j = 1,ny
+               DO k = 1,nz
+                  tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
+               END DO
+            END DO
+         END DO
+      ENDIF
+      CALL MPI_REDUCE(tmp,div,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+                      MPI_COMM_WORLD,ierr)
+
+      ENDIF
+!
+! Computes the mean energy, enstrophy, and kinetic helicity
+!
+      CALL energy(a,b,c,eng,1)
+      CALL energy(a,b,c,ens,0)
+      IF (hel.eq.1) THEN
+         CALL helicity(a,b,c,khe)
+      ENDIF
+!
+! Computes the energy injection rate
+!
+      CALL cross(a,b,c,d,e,f,pot,1)
+!
+! Creates external files to store the results
+!
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='balance.txt',position='append')
+         WRITE(1,10) (t-1)*dt,eng,ens,pot
+   10    FORMAT( E13.6,E26.18,E26.18,E26.18 )
+         CLOSE(1)
+         IF (hel.eq.1) THEN
+            OPEN(1,file='helicity.txt',position='append')
+            WRITE(1,FMT='(E13.6,E26.18)') (t-1)*dt,khe
+            CLOSE(1)
+         ENDIF
+         IF (chk.eq.1) THEN
+            OPEN(1,file='divergence.txt',position='append')
+            WRITE(1,FMT='(E13.6,E26.18)') (t-1)*dt,div
+            CLOSE(1)
+         ENDIF
+      ENDIF
+
+      RETURN
+      END SUBROUTINE hdcheck
+
+END MODULE pseudospec_hd
+
+!=================================================================
+
+MODULE pseudospec_strain
+   USE pseudospec_fluid
+   CONTAINS
+
 !*****************************************************************
       SUBROUTINE Strain(vx,vy,vz,ir,jc,btrunc,ktmin,ktmax,inorm,ctmp,sij)
 !-----------------------------------------------------------------
@@ -2293,83 +2392,4 @@
       ENDIF
       END SUBROUTINE Strain
 
-!*****************************************************************
-      SUBROUTINE saxpby_c(z,x,a,y,b) 
-!-----------------------------------------------------------------
-!
-! Computes z = ax + by for complex x, y
-!
-! Parameters
-!     z     : output
-!     x,y   : input arrays
-!     a, b  : constants
-!
-      USE fprecision
-      USE commtypes
-      USE kes
-      USE grid
-      USE mpivars
-      USE ali
-      USE fft
-!$    USE threads
-      IMPLICIT NONE
-
-      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: z
-      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend) :: x,y
-      REAL   (KIND=GP), INTENT   (IN)                             :: a,b
-!
-      REAL   (KIND=GP)                                            :: ktmin2,ktmax2,tmp
-      INTEGER                                                     :: i,j,k
-
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-        DO j = 1,ny
-          DO k = 1,nz
-            z(k,j,i) = a * x(k,j,i) + b * y(k,j,i)
-          END DO
-        END DO
-      END DO
-      END SUBROUTINE saxpby_c
-
-!*****************************************************************
-      SUBROUTINE saxpby_r(z,x,a,y,b) 
-!-----------------------------------------------------------------
-!
-! Computes z = ax + by for real x, y
-!
-! Parameters
-!     z     : output
-!     x,y   : input arrays
-!     a, b  : constants
-!
-      USE fprecision
-      USE commtypes
-      USE kes
-      USE grid
-      USE mpivars
-      USE ali
-      USE fft
-!$    USE threads
-      IMPLICIT NONE
-
-      REAL(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: z
-      REAL(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend) :: x,y
-      REAL(KIND=GP), INTENT   (IN)                             :: a,b
-!
-      REAL   (KIND=GP)                                         :: ktmin2,ktmax2,tmp
-      INTEGER                                                  :: i,j,k
-
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-      DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-        DO j = 1,ny
-          DO i = 1,nx
-            z(i,j,k) = a * x(i,j,k) + b * y(i,j,k)
-          ENDDO
-        ENDDO
-      ENDDO
-      END SUBROUTINE saxpby_r
-
-!END MODULE pseudospec_fluid
-
+END MODULE pseudospec_strain

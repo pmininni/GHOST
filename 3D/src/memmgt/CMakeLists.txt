@@ -3,6 +3,7 @@ add_library(memmgt_lib STATIC
 
 target_include_directories(memmgt_lib PUBLIC
   ${CMAKE_BINARY_DIR}
+  ${CMAKE_BINARY_DIR}/src/pseudo
   ${CMAKE_BINARY_DIR}/src/${FFTP}
   )
 

@@ -1,5 +1,9 @@
 !=================================================================
-! PSEUDOSPECTRAL subroutines
+! PSEUDOSPECTRAL modules
+!
+! CONTAINS:
+!      MODULE pseudospec_scalar
+!      MODULE pseudospec_phd
 !
 ! Extra subroutines to compute the passive/active scalar 
 ! spectrum, transfer function, and associated global quantities 
@@ -18,6 +22,10 @@
 !      Universidad de Buenos Aires.
 !      e-mail: mininni@df.uba.ar 
 !=================================================================
+
+MODULE pseudospec_scalar
+   USE pseudospec_fluid
+   CONTAINS
 
 !*****************************************************************
       SUBROUTINE advect3(a,b,c,d,e)
@@ -281,170 +289,6 @@
 
       RETURN
       END SUBROUTINE product
-
-!*****************************************************************
-      SUBROUTINE pscheck(a,b,t,dt)
-!-----------------------------------------------------------------
-!
-! Consistency check for the conservation of energy, 
-! helicity, and null divergency of the velocity field
-!
-! Output file contains:
-! 'scalar.txt':  time, <theta^2>, <|grad(theta)|^2>, injection rate
-!
-! Parameters
-!     a : scalar concentration
-!     b : source of the scalar
-!     t : number of time steps made
-!     dt: time step
-!
-      USE fprecision
-      USE grid
-      USE mpivars
-      IMPLICIT NONE
-
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
-      DOUBLE PRECISION    :: eng,ens,pot
-      REAL(KIND=GP), INTENT(IN)    :: dt
-      INTEGER, INTENT(IN) :: t
-      INTEGER             :: i,j,k
-
-!
-! Computes the variance and the variance of k^2 times the scalar
-!
-      CALL variance(a,eng,1)
-      CALL variance(a,ens,0)
-!
-! Computes the scalar injection rate
-!
-      CALL product(a,b,pot)
-!
-! Creates external files to store the results
-!
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='scalar.txt',position='append')
-         WRITE(1,10) (t-1)*dt,eng,ens,pot
-   10    FORMAT( E13.6,E22.14,E22.14,E22.14 )
-         CLOSE(1)
-      ENDIF
-
-      RETURN
-      END SUBROUTINE pscheck
-
-!*****************************************************************
-      SUBROUTINE mpscheck2(a1,b1,a2,b2,t,dt)
-!-----------------------------------------------------------------
-!
-! Consistency check for the conservation of 2 'multiscalar' energies
-!
-! Output file contains:
-! 'mscalar.txt':  time,
-!     [FIRST SCALAR:]  <theta^2>, <|grad(theta)|^2>, injection rate,
-!     [SECOND SCALAR:] <theta^2>, <|grad(theta)|^2>, injection rate
-!
-! Parameters
-!     a_i : i_th scalar concentration, i=1-2
-!     b_i : i_th source/force of the scalar i
-!     t : number of time steps made
-!     dt: time step
-!
-      USE fprecision
-      USE grid
-      USE mpivars
-      IMPLICIT NONE
-
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a1,a2
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: b1,b2
-      DOUBLE PRECISION    :: eng(2),ens(2),pot(2)
-      REAL(KIND=GP), INTENT(IN)    :: dt
-      INTEGER, INTENT(IN) :: t
-      INTEGER             :: i,j,k
-
-!
-! Computes the variance and the variance of k^2 times the scalar
-!
-      CALL variance(a1,eng(1),1)
-      CALL variance(a1,ens(1),0)
-      CALL variance(a2,eng(2),1)
-      CALL variance(a2,ens(2),0)
-!
-! Computes the scalar injection rate
-!
-      CALL product(a1,b1,pot(1))
-      CALL product(a2,b2,pot(2))
-!
-! Creates external files to store the results
-!
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='mscalar.txt',position='append')
-         WRITE(1,20) (t-1)*dt,eng(1),ens(1),pot(1),eng(2),ens(2),pot(2)
-   20    FORMAT( E13.6,E22.14,E22.14,E22.14,E22.14,E22.14,E22.14 )
-         CLOSE(1)
-      ENDIF
-
-      RETURN
-      END SUBROUTINE mpscheck2
-
-!*****************************************************************
-      SUBROUTINE mpscheck3(a1,b1,a2,b2,a3,b3,t,dt)
-!-----------------------------------------------------------------
-!
-! Consistency check for the conservation of 3 'multiscalar' energies
-!
-! Output file contains:
-! 'mscalar.txt':  time,
-!     [FIRST SCALAR:]  <theta^2>, <|grad(theta)|^2>, injection rate,
-!     [SECOND SCALAR:] <theta^2>, <|grad(theta)|^2>, injection rate,
-!     [THIRD SCALAR:]  <theta^2>, <|grad(theta)|^2>, injection rate
-!
-! Parameters
-!     a_i : i_th scalar concentration, i=1-3
-!     b_i : i_th source/force of the scalar i
-!     t : number of time steps made
-!     dt: time step
-!
-      USE fprecision
-      USE grid
-      USE mpivars
-      IMPLICIT NONE
-
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a1,a2
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a3,b1
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: b2,b3
-      DOUBLE PRECISION    :: eng(3),ens(3),pot(3)
-      REAL(KIND=GP), INTENT(IN)    :: dt
-      INTEGER, INTENT(IN) :: t
-      INTEGER             :: i,j,k
-
-!
-! Computes the variance and the variance of k^2 times the scalar
-!
-      CALL variance(a1,eng(1),1)
-      CALL variance(a1,ens(1),0)
-      CALL variance(a2,eng(2),1)
-      CALL variance(a2,ens(2),0)
-      CALL variance(a3,eng(3),1)
-      CALL variance(a3,ens(3),0)
-!
-! Computes the scalar injection rate
-!
-      CALL product(a1,b1,pot(1))
-      CALL product(a2,b2,pot(2))
-      CALL product(a3,b3,pot(3))
-!
-! Creates external files to store the results
-!
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='mscalar.txt',position='append')
-         WRITE(1,30) (t-1)*dt,eng(1),ens(1),pot(1),eng(2),ens(2), &
-              pot(2),eng(3),ens(3),pot(3)
-   30    FORMAT( E13.6,E22.14,E22.14,E22.14,E22.14,E22.14,        &
-              E22.14,E22.14,E22.14,E22.14 )
-         CLOSE(1)
-      ENDIF
-
-      RETURN
-      END SUBROUTINE mpscheck3
 
 !*****************************************************************
       SUBROUTINE spectrsc(a,nmb,isc)
@@ -925,3 +769,63 @@
 
       RETURN
       END SUBROUTINE difucz
+
+END MODULE pseudospec_scalar
+
+!=================================================================
+
+MODULE pseudospec_phd
+   USE pseudospec_scalar
+   CONTAINS
+
+!*****************************************************************
+      SUBROUTINE pscheck(a,b,t,dt)
+!-----------------------------------------------------------------
+!
+! Writes a global file with quantities relevant for a passive
+! or active scalar.
+!
+! Output file contains:
+! 'scalar.txt':  time, <theta^2>, <|grad(theta)|^2>, injection rate
+!
+! Parameters
+!     a : scalar concentration
+!     b : source of the scalar
+!     t : number of time steps made
+!     dt: time step
+!
+      USE fprecision
+      USE grid
+      USE mpivars
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
+      DOUBLE PRECISION    :: eng,ens,pot
+      REAL(KIND=GP), INTENT(IN)    :: dt
+      INTEGER, INTENT(IN) :: t
+      INTEGER             :: i,j,k
+
+!
+! Computes the variance and the variance of k^2 times the scalar
+!
+      CALL variance(a,eng,1)
+      CALL variance(a,ens,0)
+!
+! Computes the scalar injection rate
+!
+      CALL product(a,b,pot)
+!
+! Creates external files to store the results
+!
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='scalar.txt',position='append')
+         WRITE(1,10) (t-1)*dt,eng,ens,pot
+   10    FORMAT( E13.6,E22.14,E22.14,E22.14 )
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+    END SUBROUTINE pscheck
+
+END MODULE pseudospec_phd
+  

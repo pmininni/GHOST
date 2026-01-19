@@ -7,7 +7,8 @@
 
 !=================================================================
 
-MODULE dns
+MODULE pseudospec_norm
+  USE pseudospec_fluid
 
 CONTAINS
   SUBROUTINE normalize(fx,fy,fz,f0,kin,comm)
@@ -40,5 +41,5 @@ CONTAINS
     END DO
   END SUBROUTINE normalize
 
-END MODULE dns
+END MODULE pseudospec_norm
 !=================================================================

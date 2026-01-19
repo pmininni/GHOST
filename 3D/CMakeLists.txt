@@ -40,10 +40,8 @@ function(preprocess_fpp OUTVAR FPP_PATH)
     add_custom_command(
         OUTPUT "${out}"
         COMMAND ${CMAKE_C_COMPILER} -E
-            -DNX_=${NX} -DNY_=${NY} -DNZ_=${NZ} -DORD_=${ORD}
             -DIKIND_=${IKIND} -DCSIZE_=${CSIZE} -DNSTRIP_=${NSTRIP}
-            -DG${PRECISION}_PRECISION -D${SOLVER}_SOL
-            "${FPP_PATH}" -o "${out}"
+            -DG${PRECISION}_PRECISION "${FPP_PATH}" -o "${out}"
         DEPENDS "${FPP_PATH}"
         COMMENT "Preprocessing ${fname}.fpp → build/${fname}.f90"
         VERBATIM
@@ -91,9 +89,6 @@ add_library(project_defs INTERFACE)
 string(TOUPPER "${SOLVER}" SOLVER_UP)
 target_compile_definitions(project_defs INTERFACE "${SOLVER_UP}_SOL")
 
-if(ARBSIZE)
-    target_compile_definitions(project_defs INTERFACE DEF_ARBSIZE_)
-endif()
 
 # ---------------------- Include directories -------------------------
 add_library(project_includes INTERFACE)
@@ -109,8 +104,10 @@ target_include_directories(project_includes INTERFACE
     "${CMAKE_BINARY_DIR}"              # Generated .f90
     "${CMAKE_BINARY_DIR}/src/utils"    # Generated modules
     "${CMAKE_BINARY_DIR}/src/mpiio"
+    "${CMAKE_BINARY_DIR}/src/pseudo"
     "${CMAKE_BINARY_DIR}/src/memmgt"
     "${CMAKE_BINARY_DIR}/src/pdes"
+     ${CMAKE_BINARY_DIR}/src/pseudo
     "${CMAKE_BINARY_DIR}/src/ic"
     "${CMAKE_BINARY_DIR}/src/force"
     "${CMAKE_BINARY_DIR}/src/${FFTP}"
@@ -119,6 +116,7 @@ target_include_directories(project_includes INTERFACE
 # ---------------------- Subdirectories ------------------------------
 add_subdirectory("${SRC_DIR}/utils")
 add_subdirectory("${SRC_DIR}/mpiio")
+add_subdirectory("${SRC_DIR}/pseudo")
 add_subdirectory("${SRC_DIR}/memmgt")
 add_subdirectory("${SRC_DIR}/pdes")
 add_subdirectory("${SRC_DIR}/ic")
@@ -126,7 +124,6 @@ add_subdirectory("${SRC_DIR}/force")
 add_subdirectory("${SRC_DIR}/${FFTP}")
 
 # ---------------------- Preprocess FPP sources ----------------------
-preprocess_fpp(PSEUDO3D_SRC "${SRC_DIR}/pseudo/pseudospec3D_mod.fpp")
 preprocess_fpp(GUTILS_SRC   "${SRC_DIR}/utils/gutils_mod.fpp")
 preprocess_fpp(PRECIS_SRC   "${SRC_DIR}/${FFTP}/fprecision_mod.fpp")
 preprocess_fpp(FFTMOD_SRC   "${SRC_DIR}/${FFTP}/fftp_mod.fpp")
@@ -134,16 +131,12 @@ preprocess_fpp(FFTP3D_SRC   "${SRC_DIR}/${FFTP}/fftp3D.fpp")
 preprocess_fpp(MAIN_SRC     "${SRC_DIR}/main3D.fpp")
 
 add_custom_target(project_preprocess
-    DEPENDS "${PSEUDO3D_SRC}" "${GUTILS_SRC}" "${PRECIS_SRC}"
+    DEPENDS "${GUTILS_SRC}" "${PRECIS_SRC}"
     "${FFTMOD_SRC}" "${FFTP3D_SRC}"
 )   
 
 # ---------------------- Source selection -----------------------------
 set(HD_SRC
-    "${PSEUDO3D_SRC}"
-    "${SRC_DIR}/pseudo/module_dns.f90"
-    "${SRC_DIR}/pseudo/pseudospec3D_hd.f90"
-    "${SRC_DIR}/pseudo/pseudospec3D_phd.f90"
     "${MAIN_SRC}"
 )
 
@@ -161,11 +154,6 @@ else()
 endif()
 
 # ---------------------- Main executable ------------------------------
-add_library(pseudo_lib STATIC "${PSEUDO3D_SRC}")
-add_dependencies(pseudo_lib fftp_lib)
-target_include_directories(pseudo_lib PUBLIC
-    ${CMAKE_BINARY_DIR}/src/${FFTP}
-)
 add_executable(${SOLVER} ${SOLVER_SRC})
 add_dependencies(${SOLVER} project_preprocess timer_lib fftp_lib
     utils_lib pseudo_lib mpiio_lib memmgt_lib pdes_lib ic_lib

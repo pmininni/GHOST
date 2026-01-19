@@ -15,11 +15,12 @@ target_include_directories(timer_lib PUBLIC
 target_include_directories(utils_lib PUBLIC
   ${CMAKE_SOURCE_DIR}/src/utils
   ${CMAKE_BINARY_DIR}
+  ${CMAKE_BINARY_DIR}/src/pseudo
   ${CMAKE_BINARY_DIR}/src/${FFTP}
 )
 
 # Make sure dependencies are satisfied
-add_dependencies(utils_lib fftp_lib)
+add_dependencies(utils_lib fftp_lib pseudo_lib)
 
 # Link MPI if needed
 target_link_libraries(timer_lib PUBLIC project_mpi)

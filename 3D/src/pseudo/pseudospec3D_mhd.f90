@@ -1,5 +1,9 @@
 !=================================================================
-! PSEUDOSPECTRAL subroutines
+! PSEUDOSPECTRAL modules
+!
+! CONTAINS:
+!      MODULE pseudospec_magnetic
+!      MODULE pseudospec_mhd
 !
 ! Extra subroutines to compute spatial derivatives and 
 ! nonlinear terms in MHD and Hall-MHD equations in 3D using 
@@ -17,6 +21,10 @@
 !      Universidad de Buenos Aires.
 !      e-mail: mininni@df.uba.ar
 !=================================================================
+
+MODULE pseudospec_magnetic
+   USE pseudospec_fluid
+   CONTAINS
 
 !*****************************************************************
       SUBROUTINE vector3(a,b,c,d,e,f,x,y,z)
@@ -336,6 +344,179 @@
       END SUBROUTINE gauge3
 
 !*****************************************************************
+      SUBROUTINE crosspec(a,b,c,d,e,f,nmb)
+!-----------------------------------------------------------------
+!
+! Computes the cross-helicity spectrum. Normalization of the
+! spectrum is such that E = sum[E(k).Dkk], where Dkk is the
+! width of the Fourier shells. The output is written to a
+! file by the first node.
+!
+! Output file contains:
+! 'cspectrum.XXX.txt': k, C(k)
+!
+! Parameters
+!     a  : velocity in the x-direction
+!     b  : velocity in the y-direction
+!     c  : velocity in the z-direction
+!     d  : magnetic potential in the x-direction
+!     e  : magnetic potential in the y-direction
+!     f  : magnetic potential in the z-direction
+!     nmb: the extension used when writting the file
+!
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+      USE boxsize
+      USE fprecision
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, DIMENSION(nmax/2+1) :: Cktot
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
+      INTEGER                      :: i
+      CHARACTER(len=*), INTENT(IN) :: nmb
+
+!
+! Computes the cross-helicity spectrum
+!
+      CALL crosspecc(a,b,c,d,e,f,Cktot,0.0_GP)
+!
+! Exports the spectrum to a file
+!
+      IF (myrank.eq.0) THEN
+         OPEN(1,file='cspectrum.' // nmb // '.txt')
+         DO i=1,nmax/2+1
+            WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Cktot(i)/Dkk
+         END DO
+         CLOSE(1)
+      ENDIF
+
+      RETURN
+      END SUBROUTINE crosspec
+
+!*****************************************************************
+      SUBROUTINE crosspecc(a,b,c,d,e,f,Cktot,shift)
+!-----------------------------------------------------------------
+!
+! Computes the cross-helicity spectrum, returning it.
+!
+! Parameters
+!     a  : velocity in the x-direction
+!     b  : velocity in the y-direction
+!     c  : velocity in the z-direction
+!     d  : magnetic potential in the x-direction
+!     e  : magnetic potential in the y-direction
+!     f  : magnetic potential in the z-direction
+!     Cktot: output cross-helicity spectrum
+!     shift: value that can be used to shift wavenumbers 
+!            (usually by 1) and get the spetrum to start at k=0 
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE boxsize
+!$    USE threads
+      IMPLICIT NONE
+
+      DOUBLE PRECISION, DIMENSION(nmax/2+1) :: Ck
+      DOUBLE PRECISION, INTENT(OUT), DIMENSION(nmax/2+1) :: Cktot
+      DOUBLE PRECISION    :: tmq
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
+      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
+      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)             :: c1,c2,c3
+      REAL(KIND=GP), INTENT(IN)                              :: shift
+      REAL(KIND=GP)       :: tmp,rmp
+      INTEGER             :: i,j,k
+      INTEGER             :: kmn
+
+!
+! Computes the curl of the field if needed
+!
+      CALL rotor3(e,f,c1,1)
+      CALL rotor3(d,f,c2,2)
+      CALL rotor3(d,e,c3,3)
+!
+! Sets the zero for the wavenumbers
+!
+      rmp = shift+.501_GP
+!
+! Computes the cross-helicity spectrum
+!
+      tmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+      DO i = 1,nmax/2+1
+         Ck   (i) = 0.0D0
+         Cktot(i) = 0.0D0
+      END DO
+      IF (ista.eq.1) THEN
+!$omp parallel do private (k,kmn,tmq)
+         DO j = 1,ny
+            DO k = 1,nz
+               kmn = int(sqrt(kk2(k,j,1))/Dkk+rmp)
+               IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                     tmq = (real(a(k,j,1)*conjg(c1(k,j,1)))+          &
+                            real(b(k,j,1)*conjg(c2(k,j,1)))+          &
+                            real(c(k,j,1)*conjg(c3(k,j,1))))*tmp
+!$omp atomic
+                     Ck(kmn) = Ck(kmn)+tmq
+               ENDIF
+            END DO
+         END DO
+!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+         DO i = 2,iend
+!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
+            DO j = 1,ny
+               DO k = 1,nz
+                  kmn = int(sqrt(kk2(k,j,i))/Dkk+rmp)
+                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                     tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+     &
+                              real(b(k,j,i)*conjg(c2(k,j,i)))+     &
+                              real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
+!$omp atomic
+                     Ck(kmn) = Ck(kmn)+tmq
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ELSE
+!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
+            DO j = 1,ny
+               DO k = 1,nz
+                  kmn = int(sqrt(kk2(k,j,i))/Dkk+rmp)
+                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                     tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+     &
+                              real(b(k,j,i)*conjg(c2(k,j,i)))+     &
+                              real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
+!$omp atomic
+                     Ck(kmn) = Ck(kmn)+tmq
+                  ENDIF
+               END DO
+            END DO
+         END DO
+      ENDIF
+!
+! Computes the reduction between nodes
+!
+      CALL MPI_ALLREDUCE(Ck,Cktot,nmax/2+1,MPI_DOUBLE_PRECISION,      &
+                         MPI_SUM,MPI_COMM_WORLD,ierr)
+
+      RETURN
+      END SUBROUTINE crosspecc
+
+END MODULE pseudospec_magnetic
+
+!=================================================================
+
+MODULE pseudospec_mhd
+   USE pseudospec_magnetic
+   CONTAINS
+
+!*****************************************************************
       SUBROUTINE mhdcheck(a,b,c,ma,mb,mc,t,dt,hel,crs,chk)
 !-----------------------------------------------------------------
 !
@@ -546,168 +727,4 @@
       RETURN
       END SUBROUTINE mhdcheck
 
-!*****************************************************************
-      SUBROUTINE crosspec(a,b,c,d,e,f,nmb)
-!-----------------------------------------------------------------
-!
-! Computes the cross-helicity spectrum. Normalization of the
-! spectrum is such that E = sum[E(k).Dkk], where Dkk is the
-! width of the Fourier shells. The output is written to a
-! file by the first node.
-!
-! Output file contains:
-! 'cspectrum.XXX.txt': k, C(k)
-!
-! Parameters
-!     a  : velocity in the x-direction
-!     b  : velocity in the y-direction
-!     c  : velocity in the z-direction
-!     d  : magnetic potential in the x-direction
-!     e  : magnetic potential in the y-direction
-!     f  : magnetic potential in the z-direction
-!     nmb: the extension used when writting the file
-!
-      USE kes
-      USE grid
-      USE mpivars
-      USE filefmt
-      USE boxsize
-      USE fprecision
-      IMPLICIT NONE
-
-      DOUBLE PRECISION, DIMENSION(nmax/2+1) :: Cktot
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
-      INTEGER                      :: i
-      CHARACTER(len=*), INTENT(IN) :: nmb
-
-!
-! Computes the cross-helicity spectrum
-!
-      CALL crosspecc(a,b,c,d,e,f,Cktot,0.0_GP)
-!
-! Exports the spectrum to a file
-!
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='cspectrum.' // nmb // '.txt')
-         DO i=1,nmax/2+1
-            WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Cktot(i)/Dkk
-         END DO
-         CLOSE(1)
-      ENDIF
-
-      RETURN
-      END SUBROUTINE crosspec
-
-!*****************************************************************
-      SUBROUTINE crosspecc(a,b,c,d,e,f,Cktot,shift)
-!-----------------------------------------------------------------
-!
-! Computes the cross-helicity spectrum, returning it.
-!
-! Parameters
-!     a  : velocity in the x-direction
-!     b  : velocity in the y-direction
-!     c  : velocity in the z-direction
-!     d  : magnetic potential in the x-direction
-!     e  : magnetic potential in the y-direction
-!     f  : magnetic potential in the z-direction
-!     Cktot: output cross-helicity spectrum
-!     shift: value that can be used to shift wavenumbers 
-!            (usually by 1) and get the spetrum to start at k=0 
-!
-      USE fprecision
-      USE commtypes
-      USE kes
-      USE grid
-      USE mpivars
-      USE boxsize
-!$    USE threads
-      IMPLICIT NONE
-
-      DOUBLE PRECISION, DIMENSION(nmax/2+1) :: Ck
-      DOUBLE PRECISION, INTENT(OUT), DIMENSION(nmax/2+1) :: Cktot
-      DOUBLE PRECISION    :: tmq
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)             :: c1,c2,c3
-      REAL(KIND=GP), INTENT(IN)                              :: shift
-      REAL(KIND=GP)       :: tmp,rmp
-      INTEGER             :: i,j,k
-      INTEGER             :: kmn
-
-!
-! Computes the curl of the field if needed
-!
-      CALL rotor3(e,f,c1,1)
-      CALL rotor3(d,f,c2,2)
-      CALL rotor3(d,e,c3,3)
-!
-! Sets the zero for the wavenumbers
-!
-      rmp = shift+.501_GP
-!
-! Computes the cross-helicity spectrum
-!
-      tmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
-      DO i = 1,nmax/2+1
-         Ck   (i) = 0.0D0
-         Cktot(i) = 0.0D0
-      END DO
-      IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq)
-         DO j = 1,ny
-            DO k = 1,nz
-               kmn = int(sqrt(kk2(k,j,1))/Dkk+rmp)
-               IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                     tmq = (real(a(k,j,1)*conjg(c1(k,j,1)))+          &
-                            real(b(k,j,1)*conjg(c2(k,j,1)))+          &
-                            real(c(k,j,1)*conjg(c3(k,j,1))))*tmp
-!$omp atomic
-                     Ck(kmn) = Ck(kmn)+tmq
-               ENDIF
-            END DO
-         END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
-         DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-            DO j = 1,ny
-               DO k = 1,nz
-                  kmn = int(sqrt(kk2(k,j,i))/Dkk+rmp)
-                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                     tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+     &
-                              real(b(k,j,i)*conjg(c2(k,j,i)))+     &
-                              real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
-!$omp atomic
-                     Ck(kmn) = Ck(kmn)+tmq
-                  ENDIF
-               END DO
-            END DO
-         END DO
-      ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-            DO j = 1,ny
-               DO k = 1,nz
-                  kmn = int(sqrt(kk2(k,j,i))/Dkk+rmp)
-                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                     tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+     &
-                              real(b(k,j,i)*conjg(c2(k,j,i)))+     &
-                              real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
-!$omp atomic
-                     Ck(kmn) = Ck(kmn)+tmq
-                  ENDIF
-               END DO
-            END DO
-         END DO
-      ENDIF
-!
-! Computes the reduction between nodes
-!
-      CALL MPI_ALLREDUCE(Ck,Cktot,nmax/2+1,MPI_DOUBLE_PRECISION,      &
-                         MPI_SUM,MPI_COMM_WORLD,ierr)
-
-      RETURN
-      END SUBROUTINE crosspecc
-
+END MODULE pseudospec_mhd

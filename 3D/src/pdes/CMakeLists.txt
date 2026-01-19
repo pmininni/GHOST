@@ -10,6 +10,7 @@ target_include_directories(pdes_lib PUBLIC
   ${CMAKE_BINARY_DIR}
   ${CMAKE_BINARY_DIR}/src/mpiio
   ${CMAKE_BINARY_DIR}/src/memmgt
+  ${CMAKE_BINARY_DIR}/src/pseudo
   ${CMAKE_BINARY_DIR}/src/${FFTP}
   )
 

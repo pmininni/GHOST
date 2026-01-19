@@ -40,12 +40,15 @@ module equationbase_mod
   end type VelocityBase
 
   type, abstract, extends(VelocityBase) :: ActiveScalarBase
+      integer :: ACTIVESC    ! start of active scalar sector
   end type ActiveScalarBase
 
   type, abstract, extends(VelocityBase) :: MagneticBase
+      integer :: MAGNETIC    ! start of magnetic sector
   end type MagneticBase
 
   type, abstract, extends(EquationBase) :: QuantumBase
+      integer :: ZFUNC       ! start of wavefunction sector
   end type QuantumBase
   
   abstract interface
@@ -156,6 +159,7 @@ CONTAINS
   !     npassive: number of passive scalars to advect
   !     dudt    : computed RHS for each scalar, 1-npassive
   !******************************************************************
+    use pseudospec_scalar
     use fprecision
     use ali
     use kes
@@ -185,9 +189,10 @@ CONTAINS
 
     if ( numv .eq. 3 ) then ! 3d advection
       do n = 1, npassive
-        call advect3(uin(ivstart),uin(ivstart+1),uin(ivstart+2),&
-                                  uin(isstart+n-1),ctmp)
-        call laplak3(uin(isstart+n-1),uin(isstart+n-1))
+         call advect3(uin(ivstart  )%ccomp,uin(ivstart+1  )%ccomp, &
+                      uin(ivstart+2)%ccomp,uin(isstart+n-1)%ccomp, &
+                      ctmp)
+        call laplak3(uin(isstart+n-1)%ccomp,uin(isstart+n-1)%ccomp)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         do i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -206,29 +211,29 @@ CONTAINS
         enddo
         enddo
       enddo ! end, loop over scalars
-    else ! 2d advection:
-      do n = 1, npassive
-        call advect3(uin(ivstart),uin(ivstart+1),uin(ivstart+2),&
-                                 uin(isstart+n-1),ctmp)
-        call laplak3(uin(isstart+n-1),uin(isstart+n-1))
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-        do i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-        do j = 1,ny
-        do k = 1,nz
-        if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
-          dudt(n+isstart)%ccomp(k,j,i) = &
-              kappa(n)*uin(isstart+n-1)%ccomp(k,j,i)+ctmp(k,j,i) &
-              +f(isstart)%ccomp(k,j,i)
-        else if (kn2(k,j,i).gt.kmax) then
-          dudt(n+isstart)%ccomp(k,j,i) = 0.0_GP
-        else if (kn2(k,j,i).lt.tiny) then
-          dudt(n+isstart)%ccomp(k,j,i) = 0.0_GP
-        endif
-        enddo
-        enddo
-        enddo
-      enddo ! end, loop over scalars
+!!$    else ! 2d advection:
+!!$      do n = 1, npassive
+!!$        call advect3(uin(ivstart),uin(ivstart+1),uin(ivstart+2),&
+!!$                                 uin(isstart+n-1),ctmp)
+!!$        call laplak3(uin(isstart+n-1),uin(isstart+n-1))
+!!$!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!!$        do i = ista,iend
+!!$!$omp parallel do if (iend-ista.lt.nth) private (k)
+!!$        do j = 1,ny
+!!$        do k = 1,nz
+!!$        if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
+!!$          dudt(n+isstart)%ccomp(k,j,i) = &
+!!$              kappa(n)*uin(isstart+n-1)%ccomp(k,j,i)+ctmp(k,j,i) &
+!!$              +f(isstart)%ccomp(k,j,i)
+!!$        else if (kn2(k,j,i).gt.kmax) then
+!!$          dudt(n+isstart)%ccomp(k,j,i) = 0.0_GP
+!!$        else if (kn2(k,j,i).lt.tiny) then
+!!$          dudt(n+isstart)%ccomp(k,j,i) = 0.0_GP
+!!$        endif
+!!$        enddo
+!!$        enddo
+!!$        enddo
+!!$      enddo ! end, loop over scalars
     endif
 
     CALL workspace%free_complex_tmp(ctmp)

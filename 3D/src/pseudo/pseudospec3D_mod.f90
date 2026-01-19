@@ -289,7 +289,7 @@
   MODULE order
 !
 ! ord: number of iterations in the Runge-Kutta method
-      INTEGER :: ord = ORD_
+      INTEGER :: ord = 2
       SAVE
 
   END MODULE order

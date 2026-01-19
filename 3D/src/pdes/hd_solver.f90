@@ -163,6 +163,7 @@ CONTAINS
     use var
     use grid
     use mpivars
+    use pseudospec_fluid
 !$  use threads
     implicit none
 
@@ -260,6 +261,7 @@ CONTAINS
   !! Function to compute and write global quantities
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine global_impl(this, uin, uf, t) 
+    use pseudospec_hd
     use fprecision
     use status
     implicit none
@@ -290,6 +292,7 @@ CONTAINS
   !! Function to compute and write spectra
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine spectra_impl(this, uin) 
+    use pseudospec_fluid
     use fprecision
     use filefmt
     use status
