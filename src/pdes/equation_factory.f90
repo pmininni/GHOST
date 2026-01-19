@@ -4,7 +4,7 @@
 ! To add a new solver, "USE" the corresponding module, and add a new
 ! case clause in the init_pdes_from_file function. The clause should
 ! allocate the solver class, and declare the number of field
-! components the solver needs ( 
+! components the solver needs.
 !
 ! DATE : 01/13/26 (PDM)
 ! ===================================================================
