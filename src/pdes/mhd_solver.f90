@@ -35,7 +35,7 @@ module mhd_mod
   IMPLICIT NONE
 
   ! ================= Solver traits ===================================
-  type, public  :: NMTraits
+  type, public  :: NHTraits
     logical       :: doB0         = .FALSE. ! guide field flag
     logical       :: dohall       = .FALSE. ! compute hall term
     integer       :: numpassive   = 0       ! num passive scalars
@@ -54,7 +54,7 @@ module mhd_mod
   type, extends(MagneticBase) :: MHDSolver 
     ! Member data:
     logical           :: binit_=.false. ! is initialized?
-    type  (NMTraits)  :: traits_
+    type  (NHTraits)  :: traits_
 
   CONTAINS
     procedure, public :: init          =>          init_impl ! init method
@@ -99,6 +99,7 @@ CONTAINS
 
     ! Get trait variables from input file:
     doB0     = .FALSE.
+    dohall   = .FALSE.
     nu       = 0.0
     eta      = 0.0
     npassive = 0
@@ -208,9 +209,9 @@ CONTAINS
     CALL this%workspace_%get_complex_tmp(C11,bret)
     CALL this%workspace_%get_complex_tmp(C12,bret)
     if ( this%traits_%dohall ) then
-       CALL this%workspace_%get_complex_tmp(C13)
-       CALL this%workspace_%get_complex_tmp(C14)
-       CALL this%workspace_%get_complex_tmp(C15)
+       CALL this%workspace_%get_complex_tmp(C13,bret)
+       CALL this%workspace_%get_complex_tmp(C14,bret)
+       CALL this%workspace_%get_complex_tmp(C15,bret)
     endif
 
     vx => uin(this%VELOCITY  )%ccomp
@@ -456,10 +457,10 @@ CONTAINS
     integer                                       :: j
     comp = ['x', 'y', 'z']
     do j = this%VELOCITY,this%VELOCITY+this%nc_
-       sstate(j) = 'v' // comp(j)
+       sstate(j) = 'v' // comp(j-this%VELOCITY+1)
     enddo
     do j = this%MAGNETIC,this%MAGNETIC+this%nc_
-       sstate(j) = 'a' // comp(j)
+       sstate(j) = 'a' // comp(j-this%MAGNETIC+1)
     enddo
     do j = this%PASSIVE,this%PASSIVE+this%traits_%numpassive
        write(snum,'(I0)') j

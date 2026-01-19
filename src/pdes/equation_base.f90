@@ -281,6 +281,8 @@ CONTAINS
       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
       CALL io_write(1,odir,trim(this%sstate_(nc)),ext,planio,R1)
     end do
+    call this%workspace_%free_complex_tmp(C1)
+    call this%workspace_%free_real_tmp   (R1)
   end subroutine write_states
 
 

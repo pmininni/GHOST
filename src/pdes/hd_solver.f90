@@ -374,7 +374,7 @@ CONTAINS
        sstate(j) = 'v' // comp(j)
     enddo
     do j = this%PASSIVE,this%PASSIVE+this%traits_%numpassive
-       write(snum,'(I0)') j
+       write(snum,'(I0)') j-this%PASSIVE+1
        sstate(j) = 's' // trim(snum)
     enddo
   end subroutine get_sstate_impl
