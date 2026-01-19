@@ -128,7 +128,7 @@ preprocess_fpp(GUTILS_SRC   "${SRC_DIR}/utils/gutils_mod.fpp")
 preprocess_fpp(PRECIS_SRC   "${SRC_DIR}/${FFTP}/fprecision_mod.fpp")
 preprocess_fpp(FFTMOD_SRC   "${SRC_DIR}/${FFTP}/fftp_mod.fpp")
 preprocess_fpp(FFTP3D_SRC   "${SRC_DIR}/${FFTP}/fftp3D.fpp")
-preprocess_fpp(MAIN_SRC     "${SRC_DIR}/main3D.fpp")
+preprocess_fpp(MAIN_SRC     "${SRC_DIR}/main.fpp")
 
 add_custom_target(project_preprocess
     DEPENDS "${GUTILS_SRC}" "${PRECIS_SRC}"
@@ -142,7 +142,6 @@ set(HD_SRC
 
 set(MHD_SRC
     ${HD_SRC}
-    "${SRC_DIR}/pseudo/pseudospec3D_mhd.f90"
 )
 
 if(SOLVER STREQUAL "HD")
@@ -154,12 +153,12 @@ else()
 endif()
 
 # ---------------------- Main executable ------------------------------
-add_executable(${SOLVER} ${SOLVER_SRC})
-add_dependencies(${SOLVER} project_preprocess timer_lib fftp_lib
+add_executable(GHOST ${SOLVER_SRC})
+add_dependencies(GHOST project_preprocess timer_lib fftp_lib
     utils_lib pseudo_lib mpiio_lib memmgt_lib pdes_lib ic_lib
     force_lib
 )
-target_link_libraries(${SOLVER}
+target_link_libraries(GHOST
     PRIVATE
         project_mpi
         project_fft
@@ -175,7 +174,7 @@ target_link_libraries(${SOLVER}
 	force_lib
 )
 
-set_target_properties(${SOLVER} PROPERTIES
+set_target_properties(GHOST PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${BIN_DIR}"
 )
 
