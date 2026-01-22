@@ -3,6 +3,7 @@ add_library(pseudo_lib STATIC
   pseudospec3D_hd.f90
   pseudospec3D_norm.f90
   pseudospec3D_phd.f90
+  pseudospec3D_rot.f90
   pseudospec3D_mhd.f90
 )
 

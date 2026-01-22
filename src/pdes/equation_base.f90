@@ -28,7 +28,6 @@ module equationbase_mod
       procedure(spectra_interface),     deferred :: spectra     ! Spectra
       procedure(state_size_interface),  deferred :: state_size  ! Number of states
       procedure, public                          :: timestep
-      procedure, public                          :: read_states
       procedure, public                          :: write_states
   end type EquationBase
 
@@ -287,43 +286,6 @@ CONTAINS
     call this%workspace_%free_complex_tmp(C1)
     call this%workspace_%free_real_tmp   (R1)
   end subroutine write_states
-
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Concrete method to read field states
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine read_states(this, uin, planio)
-    use fprecision
-    use grid
-    use iovar
-    use status
-    use filefmt
-    use fft
-    use commtypes
-!$  use threads
-    implicit none
-
-    class (EquationBase), intent   (in)             :: this
-    type        (GState), intent(inout)             :: uin(:)
-    type        (ioplan), intent   (in)             :: planio
-    complex    (kind=GP), pointer, dimension(:,:,:) :: C1
-    real       (kind=GP), pointer, dimension(:,:,:) :: R1
-    integer                          :: i,j,k,o,state_size,nc
-    logical                          :: bret
-
-    WRITE(ext, fmtext) tind
-    call this%workspace_%get_complex_tmp(C1,bret)
-    call this%workspace_%get_real_tmp(   R1,bret)
-    state_size = this%state_size()
-    do nc = 1,state_size
-      call io_read(1,idir,trim(this%sstate_(nc)),ext,planio,R1)
-      call fftp3d_real_to_complex(planrc,R1,uin(nc)%ccomp(k,j,i), &
-                                  MPI_COMM_WORLD)
-   end do
-   call this%workspace_%free_complex_tmp(C1)
-   call this%workspace_%free_real_tmp(   R1)
-   
-  end subroutine read_states
   
 end module equationbase_mod
 

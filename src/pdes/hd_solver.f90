@@ -152,13 +152,12 @@ CONTAINS
   !! Function to compute RHS with rotation
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine dudt_impl(this, time, uin, uf, dt, dudt) 
-    use fprecision
+    use pseudospec_fluid
     use ali
     use kes
     use var
     use grid
     use mpivars
-    use pseudospec_fluid
 !$  use threads
     implicit none
 
@@ -257,7 +256,6 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine global_impl(this, uin, uf, t) 
     use pseudospec_hd
-    use fprecision
     use status
     implicit none
 
@@ -287,21 +285,41 @@ CONTAINS
   !! Function to compute and write spectra
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine spectra_impl(this, uin) 
-    use pseudospec_fluid
-    use fprecision
+    use pseudospec_aniso
     use filefmt
     use status
+    use iovar
     implicit none
 
     class (HDSolver), intent(in)                :: this
     type    (GState), intent(in), target        :: uin(:)
     complex(kind=GP), pointer, dimension(:,:,:) :: vx,vy,vz
+    complex(kind=GP), pointer, dimension(:,:,:) :: c1,c2,c3
+    logical                                     :: bret
 
     WRITE(ext, fmtext) sind
     vx => uin(this%VELOCITY  )%ccomp
     vy => uin(this%VELOCITY+1)%ccomp
     vz => uin(this%VELOCITY+2)%ccomp
-    CALL spectrum(vx,vy,vz,ext,1,1)
+    call spectrum(vx,vy,vz,ext,1,1)
+    call this%workspace_%get_complex_tmp(c1,bret)
+    call this%workspace_%get_complex_tmp(c2,bret)
+    call this%workspace_%get_complex_tmp(c3,bret)
+    call gradre3(vx,vy,vz,c1,c2,c3)          ! Computes v.Grad(v)
+    call entrans(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy flux
+    if ( this%traits_%dorot ) then
+      CALL specpara(vx,vy,vz,ext,1,1)
+      CALL specperp(vx,vy,vz,ext,1,1)
+      ! Uncomment the following line to compute 2D spectra
+      ! CALL spec2D(vx,vy,vz,ext,odir,1,1)
+      ! Uncomment the following lines to compute spatio-temporal spectra
+      ! CALL write_fourier(vx,'vx',ext,odir)
+      ! CALL write_fourier(vy,'vy',ext,odir)
+      ! CALL write_fourier(vz,'vz',ext,odir)
+    endif
+    call this%workspace_%free_complex_tmp(c1)
+    call this%workspace_%free_complex_tmp(c2)
+    call this%workspace_%free_complex_tmp(c3)
   end subroutine spectra_impl
   
 
