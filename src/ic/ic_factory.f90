@@ -49,12 +49,16 @@ CONTAINS
     allocate( new_object(icnmb) )
     do i = 1,icnmb
       select case (trim(adjustl(icname(i))))
-!      case ('read_v')
-!        allocate( read_v :: new_object(i)%ic )
+      case ('read_v')
+        allocate( read_v   :: new_object(i)%ic )
       case ('null_v')
-        allocate( null_v :: new_object(i)%ic )
+        allocate( null_v   :: new_object(i)%ic )
       case ('tg_v')
-        allocate( tg_v   :: new_object(i)%ic )
+        allocate( tg_v     :: new_object(i)%ic )
+      case ('abc_v')
+        allocate( abc_v    :: new_object(i)%ic )
+      case ('random_v')
+        allocate( random_v :: new_object(i)%ic )
       case default
         stop 'Unknown initial conditions'
       end select

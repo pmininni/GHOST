@@ -100,6 +100,7 @@
      CALL workspace%initialize_pool(NUMTMPREAL,NUMTMPCOMP)
      CALL pde%Solver_ctor('parameter.inp',workspace,planio)
      num_components = pde%state_size()
+     PRINT *,'Solver initialized:',num_components,'components'
      CALL GState_alloc(field    , num_components)
      CALL GState_alloc(field_nxt, num_components)
      CALL GState_alloc(force    , num_components)
@@ -145,36 +146,27 @@
 
       CALL forcemethod%init_GForce(pde,force)
 
-! If stat=0 we start a new run.
-! Generates initial conditions for the fields and particles.
- IC : IF (stat.eq.0) THEN
-
-      ini  = 1
-      sind = 0                          ! index for the spectrum
-      tind = 0                          ! index for the binaries
-      pind = 0                          ! index for the particles
-      timet = tstep
-      timec = cstep
-      times = sstep
-      timep = pstep
-      CALL init_allstates(iclist,pde,field)
-
-      ELSE
-
-! If stat.ne.0 a previous run is continued
-
-      ini = int((stat-1)*tstep) + 1
-      tind = int(stat)
-      sind = int(real(ini,kind=GP)/real(sstep,kind=GP)+1)
-      pind = int((stat-1)*lgmult+1)
-      WRITE(ext, fmtext) tind
-      timet = 0
-      timep = 0
-      times = int(modulo(float(ini-1),float(sstep)))
-      timec = int(modulo(float(ini-1),float(cstep)))
-      CALL pde%read_states(field,planio)
-
+! Initial state
+ IC : IF (stat.eq.0) THEN                 ! If stat=0 we start a new run
+        ini  = 1
+        sind = 0                          ! index for the spectrum
+        tind = 0                          ! index for the binaries
+        pind = 0                          ! index for the particles
+        timet = tstep
+        timec = cstep
+        times = sstep
+        timep = pstep
+      ELSE                    ! If stat.ne.0 a previous run is continued
+        ini = int((stat-1)*tstep) + 1
+        tind = int(stat)
+        sind = int(real(ini,kind=GP)/real(sstep,kind=GP)+1)
+        pind = int((stat-1)*lgmult+1)
+        timet = 0
+        timep = 0
+        times = int(modulo(float(ini-1),float(sstep)))
+        timec = int(modulo(float(ini-1),float(cstep)))
       ENDIF IC
+      CALL init_allstates(iclist,pde,field)
 
 !
 ! Time integration scheme starts here.
