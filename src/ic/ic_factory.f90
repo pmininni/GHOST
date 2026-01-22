@@ -47,11 +47,12 @@ CONTAINS
 
     ! Loops through all requested ICs and allocates classes
     call parsestr(iclist,';',icname,25,10,icnmb)
-    print *,'Found',icnmb,'ICs'
+    if ( myrank .eq. 0 ) print *,'Found',icnmb,'ICs'
     allocate( new_object(icnmb) )
     do i = 1,icnmb
+      if ( myrank .eq. 0 ) print *,'IC',i,':',trim(adjustl(icname(i)))
       select case (trim(adjustl(icname(i))))
-      ! Velocity field ICs =====================
+      ! Velocity field ICs ---------------------
       case ('read_v')
         allocate( read_v   :: new_object(i)%ic )
       case ('null_v')
@@ -62,7 +63,7 @@ CONTAINS
         allocate( abc_v    :: new_object(i)%ic )
       case ('random_v')
         allocate( random_v :: new_object(i)%ic )
-      ! Magnetic field ICs =====================    
+      ! Magnetic field ICs ---------------------    
       case ('read_b')
         allocate( read_b   :: new_object(i)%ic )
       case ('null_b')
