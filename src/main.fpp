@@ -54,7 +54,7 @@
       TYPE(GWorkspace)                  :: workspace
       TYPE(IOPLAN)                      :: planio
       CLASS(EquationBase), ALLOCATABLE  :: pde
-      CLASS(icBase),       ALLOCATABLE  :: ics
+      CLASS(icChain),      ALLOCATABLE  :: iclist(:)
       CLASS(forceBase),    ALLOCATABLE  :: forcemethod
 
 !
@@ -98,12 +98,12 @@
 ! Now we can initialize the PDE method
      pde          = init_pdes_from_file(   'parameter.inp')
      CALL workspace%initialize_pool(NUMTMPREAL,NUMTMPCOMP)
-     CALL pde%Solver_ctor('parameter.inp',workspace,NUMFIELDS)
+     CALL pde%Solver_ctor('parameter.inp',workspace,planio)
      num_components = pde%state_size()
      CALL GState_alloc(field    , num_components)
      CALL GState_alloc(field_nxt, num_components)
      CALL GState_alloc(force    , num_components)
-     ics          = init_ic_from_file(     'parameter.inp')
+     iclist       = init_ic_from_file(     'parameter.inp')
      forcemethod  = init_forcing_from_file('parameter.inp')
 
 ! Initialization of the numerical domain
@@ -157,7 +157,7 @@
       timec = cstep
       times = sstep
       timep = pstep
-      CALL ics%init_GState(pde,field)
+      CALL init_allstates(iclist,pde,field)
 
       ELSE
 
