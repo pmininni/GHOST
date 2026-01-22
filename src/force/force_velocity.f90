@@ -74,7 +74,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Taylor-Green forcing
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !   f0  : amplitude of each Taylor-Green mode
+  !   f0  : amplitude of the forcing
   !   kdn : minimum wave number (rounded to next integer)
   !   kup : maximum wave number (rounded to next integer)
   subroutine init_tgfv(this,solver,state)
@@ -122,7 +122,7 @@ CONTAINS
 !$omp parallel do if (iend-ista.lt.nth) private (k)
        DO j = 1,ny
           DO k = 1,nz
-            state(solver%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP !vz
+            state(solver%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP !fz
           END DO
        END DO
     END DO
@@ -131,10 +131,8 @@ CONTAINS
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
        DO j = 1,ny
           DO i = 1,nx
-
           R1(i,j,k) = 0.0_GP
           R2(i,j,k) = 0.0_GP
-
           DO ki = INT(kdn),INT(kup)
              R1(i,j,k) = R1(i,j,k)+SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
                       real(nx,kind=GP))*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
@@ -145,13 +143,12 @@ CONTAINS
                       real(ny,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
                       real(nz,kind=GP))
           END DO
-
           END DO
        END DO
     END DO
-    CALL fftp3d_real_to_complex(planrc,R1, & !vx
+    CALL fftp3d_real_to_complex(planrc,R1, & !fx
                    state(solver%VELOCITY  )%ccomp,MPI_COMM_WORLD)
-    CALL fftp3d_real_to_complex(planrc,R2, & !vy
+    CALL fftp3d_real_to_complex(planrc,R2, & !fy
                    state(solver%VELOCITY+1)%ccomp,MPI_COMM_WORLD)
     CALL normalize(state(solver%VELOCITY  )%ccomp, &
                    state(solver%VELOCITY+1)%ccomp, &

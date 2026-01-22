@@ -7,6 +7,7 @@
 module equationbase_mod
   USE class_GWorkspace3D
   USE gstate_mod
+  USE iovar
 
   IMPLICIT NONE
 
@@ -14,6 +15,7 @@ module equationbase_mod
   ! Define an abstract base class
   type, abstract :: EquationBase
       type(GWorkspace), pointer     :: workspace_
+      type    (ioplan), pointer     :: planio_
       integer                       :: myrank_   ! MPI rank
       integer                       :: nprocs_   ! MPI rank 
       character(len=8), allocatable :: sstate_(:)
@@ -51,12 +53,13 @@ module equationbase_mod
   end type QuantumBase
   
   abstract interface
-     subroutine Solver_ctor_interface(this, infile, workspace, nc)
+     subroutine Solver_ctor_interface(this, infile, workspace, plan)
        USE class_GWorkspace3D
+       USE iovar
        import :: EquationBase
        class(EquationBase), intent(inout)         :: this
-       integer            , intent   (in)         :: nc
        type(GWorkspace)   , intent(inout), target :: workspace
+       type(ioplan)       , intent(inout), target :: plan
        character(len=*)   , intent   (in)         :: infile  
      end subroutine Solver_ctor_interface
 

@@ -18,7 +18,6 @@ module equation_factory
   IMPLICIT NONE
 
   ! ================= Global parameters ===============================
-  integer, public :: NUMFIELDS  = 0 ! Number of field components
   integer, public :: NUMTMPCOMP = 0 ! Number of cmplx tmp arrays
   integer, public :: NUMTMPREAL = 0 ! Number of real tmp arrays
   
@@ -49,10 +48,10 @@ CONTAINS
     select case (trim(adjustl(solver)))
       case ('HD')
         allocate(HDsolver :: new_object)
-        NUMFIELDS = 3; NUMTMPCOMP =  8; NUMTMPREAL = 3
+        NUMTMPCOMP =  8; NUMTMPREAL = 3
       case ('MHD')
         allocate(MHDsolver :: new_object)
-        NUMFIELDS = 6; NUMTMPCOMP = 12; NUMTMPREAL = 3
+        NUMTMPCOMP = 12; NUMTMPREAL = 3
 !     case ('UserDefined')
 !       allocate(UserDefinedsolver :: new_object)
 !       NUMFIELDS = 3; NUMTMPCOMP =  8; NUMTMPREAL = 3

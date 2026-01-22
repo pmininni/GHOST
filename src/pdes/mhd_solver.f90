@@ -149,9 +149,10 @@ CONTAINS
     endif
 
     this%nd_      = 3                        ! 3d
+    this%nc_      = this%nd_                 ! # field components
     this%VELOCITY = 1                        ! start of vel sector
-    this%MAGNETIC = this%VELOCITY + this%nd_ ! start of mag sector
-    this%PASSIVE  = this%MAGNETIC + this%nd_ ! start of scalar sector
+    this%MAGNETIC = this%VELOCITY + this%nc_ ! start of mag sector
+    this%PASSIVE  = this%MAGNETIC + this%nc_ ! start of scalar sector
 
     allocate(this%sstate_(this%state_size()))
     call this%get_sstate(this%sstate_)
@@ -353,7 +354,7 @@ CONTAINS
     mx => uf (this%MAGNETIC  )%ccomp
     my => uf (this%MAGNETIC+1)%ccomp
     mz => uf (this%MAGNETIC+2)%ccomp
-    CALL mhdcheck(vx,vy,vz,ax,ay,az,t,dt,1,1,0)
+    CALL mhdcheck(vx,vy,vz,ax,ay,az,t,dt,this%traits_%epsilon,1,1,0)
     CALL cross(vx,vy,vz,fx,fy,fz,eps,1)
     CALL cross(ax,ay,az,mx,my,mz,epm,0)
     CALL maxabs(vx,vy,vz,rmp,0)
@@ -403,14 +404,15 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Constructor
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine MHDSolver_ctor(this, infile, workspace, nc)
+  subroutine MHDSolver_ctor(this, infile, workspace, plan)
+    use iovar
     class (MHDSolver), intent(inout)         :: this
-    integer          , intent   (in)         :: nc
     type(GWorkspace) , intent(inout), target :: workspace
+    type    (ioplan) , intent(inout), target :: plan
     character(len=*) , intent   (in)         :: infile
+    this%infile_    =  infile    ! input file
     this%workspace_ => workspace
-    this%nc_        = nc     ! # vel. components (useful for 2D solvers)
-    this%infile_    = infile ! input file
+    this%planio_    => plan
     call this%init();
   end subroutine MHDSolver_ctor
 
@@ -420,7 +422,10 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine MHDSolver_dtor(this) 
     type  (MHDSolver), intent(inout) :: this
-!   deallocate( this%sstate_ )
+    if (associated(this%workspace_))   nullify(this%workspace_)
+    if (associated(this%planio_))      nullify(this%planio_)
+    if (allocated(this%sstate_))       deallocate(this%sstate_)
+    if (allocated(this%traits_%kappa)) deallocate(this%traits_%kappa)
   end subroutine MHDSolver_dtor
 
 
@@ -474,7 +479,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   PURE function state_size_impl(this) result(num)
     class(MHDSolver), intent(in) :: this
-    integer                     :: num
+    integer                      :: num
     num = this%nc_                      ! # vel. components
     num = num + this%nc_                ! # vec. potential components
     num = num + this%traits_%numpassive ! # scalars

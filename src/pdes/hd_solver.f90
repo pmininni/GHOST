@@ -132,14 +132,9 @@ CONTAINS
       deallocate(kappa)
     endif
 
-    this%nd_      = 3  ! 3d
-    this%VELOCITY = 1  ! start of vel sector
-!   if ( ny .eq. 1 ) then ! 2D works but 2 comp may need another solver
-!     this%nd_ =  2 ! 2d
-!   else 
-!     this%nd_ =  3 ! 3d
-!   endif
-
+    this%nd_      = 3                       ! 3d
+    this%nc_      = this%nd_                ! # field components
+    this%VELOCITY = 1                       ! start of vel sector
     this%PASSIVE = this%VELOCITY + this%nc_ ! start of scalar sector
 
     allocate(this%sstate_(this%state_size()))
@@ -317,15 +312,16 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Constructor
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine HDSolver_ctor(this, infile, workspace, nc)
+  subroutine HDSolver_ctor(this, infile, workspace, plan)
+    use iovar
     class  (HDSolver), intent(inout)         :: this
-    integer          , intent   (in)         :: nc
     type(GWorkspace) , intent(inout), target :: workspace
+    type(ioplan)     , intent(inout), target :: plan
     character(len=*) , intent   (in)         :: infile
+    this%infile_    =  infile    ! input file
     this%workspace_ => workspace
-    this%nc_        = nc     ! # vel. components (useful for 2D solvers)
-    this%infile_    = infile ! input file
-    call this%init();
+    this%planio_    => plan
+    call this%init()
   end subroutine HDSolver_ctor
 
 
@@ -334,7 +330,10 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine HDSolver_dtor(this) 
     type  (HDSolver), intent(inout) :: this
-!   deallocate( this%sstate_ )
+    if (associated(this%workspace_))   nullify(this%workspace_)
+    if (associated(this%planio_))      nullify(this%planio_)
+    if (allocated(this%sstate_))       deallocate(this%sstate_)
+    if (allocated(this%traits_%kappa)) deallocate(this%traits_%kappa)
   end subroutine HDSolver_dtor
 
 
@@ -371,7 +370,7 @@ CONTAINS
     integer                                       :: j
     comp = ['x', 'y', 'z']
     do j = this%VELOCITY,this%VELOCITY+this%nc_
-       sstate(j) = 'v' // comp(j)
+       sstate(j) = 'v' // comp(j-this%VELOCITY+1)
     enddo
     do j = this%PASSIVE,this%PASSIVE+this%traits_%numpassive
        write(snum,'(I0)') j-this%PASSIVE+1

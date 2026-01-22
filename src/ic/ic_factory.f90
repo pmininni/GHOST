@@ -15,7 +15,6 @@
 ! ===================================================================
 
 module ic_factory
-  USE gstate_mod
   USE icbase_mod
   USE ic_velocity
   
@@ -25,15 +24,16 @@ CONTAINS
   
   ! ================= Factory function ==============================
   function init_ic_from_file(infile) result(new_object)
-    USE icbase_mod
+    USE gstate_mod
     USE commtypes
-    class   (icBase), allocatable :: new_object
+    USE gutils
+    type   (icChain), allocatable :: new_object(:)
     character(len=*),  intent(in) :: infile
 
     ! Temporary data to read from namelist:
-    integer            :: i,ib,ie,ind,ic_nmb
+    integer            :: i,ib,ie,ind,icnmb
     character(len=256) :: iclist
-    character( len=25) :: icname(10)
+    character(len= 25) :: icname(10)
     ! Required namelist:
     namelist/ initial_conditions / iclist
 
@@ -45,31 +45,20 @@ CONTAINS
     call MPI_BCAST(iclist,256,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
 
     ! Loops through all requested ICs and allocates classes
-    ib = 1
-    ie = len(iclist)
-    i  = 1
-    do while ( len(trim(iclist(ib:ie))) .GT. 0 )  
-      ind = index(iclist(ib:ie),";")
-      if ( ind .eq. 0 ) then
-        icname(i) = trim(adjustl(iclist(ib:ie)))
-        ib = ie + 1
-        i  = i+1
-      else
-        icname(i) = trim(adjustl(iclist(ib:(ib+ind-2))))
-        ib = ib + ind
-      endif
-    end do
-    ic_nmb  = i-1
-!   do i = 1,ic_nmb
-    i = 1
-    select case (trim(adjustl(icname(i))))
+    call parsestr(iclist,';',icname,25,10,icnmb)
+    allocate( new_object(icnmb) )
+    do i = 1,icnmb
+      select case (trim(adjustl(icname(i))))
+!      case ('read_v')
+!        allocate( read_v :: new_object(i)%ic )
       case ('null_v')
-        allocate( null_v :: new_object )
+        allocate( null_v :: new_object(i)%ic )
       case ('tg_v')
-        allocate( tg_v   :: new_object )
+        allocate( tg_v   :: new_object(i)%ic )
       case default
         stop 'Unknown initial conditions'
-    end select
+      end select
+    end do
   end function init_ic_from_file
 
 end module ic_factory
