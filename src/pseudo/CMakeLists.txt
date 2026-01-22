@@ -9,7 +9,7 @@ add_library(pseudo_lib STATIC
 target_include_directories(pseudo_lib PUBLIC
   "$<TARGET_PROPERTY:project_fft,INTERFACE_INCLUDE_DIRECTORIES>"
    ${CMAKE_BINARY_DIR}
-   ${CMAKE_BINARY_DIR}/src/pseudo
+   ${CMAKE_BINARY_DIR}/src/utils
    ${CMAKE_BINARY_DIR}/src/${FFTP}
   )
 
@@ -19,4 +19,4 @@ add_dependencies(pseudo_lib
   )
 
 # Link MPI if needed
-target_link_libraries(pseudo_lib PUBLIC project_mpi)
+target_link_libraries(pseudo_lib PUBLIC project_mpi fftp_lib utils_lib)

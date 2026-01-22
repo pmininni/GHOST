@@ -24,4 +24,4 @@ add_dependencies(pdes_lib
   )
 
 # Link MPI if needed
-target_link_libraries(pdes_lib PUBLIC project_mpi)
+target_link_libraries(pdes_lib PUBLIC project_mpi pseudo_lib utils_lib)

@@ -160,18 +160,17 @@ add_dependencies(GHOST project_preprocess timer_lib fftp_lib
 )
 target_link_libraries(GHOST
     PRIVATE
-        project_mpi
+        timer_lib
         project_fft
+        project_mpi
         project_includes
-	timer_lib
-	fftp_lib
-	pseudo_lib
-	utils_lib
-	mpiio_lib
-	memmgt_lib
-	pdes_lib
-	ic_lib
-	force_lib
+        pseudo_lib
+        utils_lib
+        mpiio_lib
+        memmgt_lib
+        pdes_lib
+        ic_lib
+        force_lib
 )
 
 set_target_properties(GHOST PROPERTIES

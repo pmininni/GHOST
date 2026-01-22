@@ -24,4 +24,4 @@ add_dependencies(utils_lib fftp_lib pseudo_lib)
 
 # Link MPI if needed
 target_link_libraries(timer_lib PUBLIC project_mpi)
-target_link_libraries(utils_lib PUBLIC project_mpi)
+target_link_libraries(utils_lib PUBLIC project_mpi project_fft)
