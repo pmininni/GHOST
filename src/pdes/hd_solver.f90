@@ -369,10 +369,10 @@ CONTAINS
     character(len=1)                              :: comp(3)
     integer                                       :: j
     comp = ['x', 'y', 'z']
-    do j = this%VELOCITY,this%VELOCITY+this%nc_
+    do j = this%VELOCITY,this%VELOCITY+this%nc_-1
        sstate(j) = 'v' // comp(j-this%VELOCITY+1)
     enddo
-    do j = this%PASSIVE,this%PASSIVE+this%traits_%numpassive
+    do j = this%PASSIVE,this%PASSIVE+this%traits_%numpassive-1
        write(snum,'(I0)') j-this%PASSIVE+1
        sstate(j) = 's' // trim(snum)
     enddo
