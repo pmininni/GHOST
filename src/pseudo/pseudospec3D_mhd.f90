@@ -517,7 +517,7 @@ MODULE pseudospec_mhd
    CONTAINS
 
 !*****************************************************************
-      SUBROUTINE mhdcheck(a,b,c,ma,mb,mc,t,dt,hel,crs,chk)
+      SUBROUTINE mhdcheck(a,b,c,ma,mb,mc,t,dt,ep,hel,crs,chk)
 !-----------------------------------------------------------------
 !
 ! Consistency check for the conservation of the total
@@ -539,6 +539,7 @@ MODULE pseudospec_mhd
 !     mc : vector potential in the z-direction
 !     t  : number of time steps made
 !     dt : time step
+!     ep : Hall term epsilon
 !     hel: =0 skips helicity computation
 !          =1 computes the helicity
 !     crs: =0 skips cross helicity computation
@@ -550,7 +551,6 @@ MODULE pseudospec_mhd
       USE fprecision
       USE commtypes
       USE grid
-      USE hall
       USE mpivars
 !$    USE threads
       IMPLICIT NONE
@@ -563,7 +563,7 @@ MODULE pseudospec_mhd
       DOUBLE PRECISION    :: helk,helm,cur,tmp
       DOUBLE PRECISION    :: helg, g1sq, g2sq
       REAL(KIND=GP)                :: tmq
-      REAL(KIND=GP), INTENT(IN)    :: dt
+      REAL(KIND=GP), INTENT(IN)    :: dt,ep
       INTEGER, INTENT(IN) :: hel,crs,chk
       INTEGER, INTENT(IN) :: t
       INTEGER             :: i,j,k
