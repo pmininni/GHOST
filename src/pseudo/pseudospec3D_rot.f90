@@ -1,5 +1,5 @@
 !=================================================================
-! PSEUDOSPECTRAL subroutines
+! PSEUDOSPECTRAL modules
 !
 ! Extra subroutines to compute the energy spectrum and energy 
 ! transfer functions in the HD, MHD, and Hall-MHD equations 
@@ -20,6 +20,10 @@
 !
 ! 7 Aug 2010: New specperp and 2D spectrum (T. Teitelbaum)
 !=================================================================
+
+MODULE pseudospec_aniso
+   USE pseudospec_fluid
+   CONTAINS
 
 !*****************************************************************
       SUBROUTINE specpara(a,b,c,nmb,kin,hel)
@@ -1723,3 +1727,6 @@
 
       RETURN
       END SUBROUTINE write_fourier
+
+END MODULE pseudospec_aniso
+    
