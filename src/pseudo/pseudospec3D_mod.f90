@@ -227,6 +227,7 @@
 !  tstep: number of steps between binary output
 !  sstep: number of steps between power spectrum output
 !  cstep: number of steps between output of global quantities
+!  seed : a global seed for random number generation (when needed)
       USE fprecision
       REAL(KIND=GP)      :: dt
       REAL(KIND=GP)      :: time
@@ -236,6 +237,7 @@
       INTEGER            :: bench = 0
       INTEGER            :: outs
       INTEGER            :: mult
+      INTEGER            :: seed
       INTEGER            :: pind,tind,sind
       INTEGER            :: timet,timec
       INTEGER            :: times,timef
@@ -257,7 +259,7 @@
 
       CHARACTER(len=128), INTENT(IN)      :: infile_
       NAMELIST / status / idir,odir,stat,mult,bench,outs
-      NAMELIST / status / dt,step,tstep,sstep,cstep
+      NAMELIST / status / dt,step,tstep,sstep,cstep,seed
 
       IF (myrank.eq.0) THEN
          OPEN(1,file=infile_,status='unknown',form="formatted")
@@ -280,6 +282,7 @@
       CALL MPI_BCAST(tstep,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sstep,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(cstep,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(seed ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       END SUBROUTINE status_init
 
   END MODULE status
@@ -310,34 +313,6 @@
       SAVE
 
   END MODULE var
-!=================================================================
-
-  MODULE hall
-      USE fprecision
-      REAL(KIND=GP) :: ep
-      INTEGER :: gspe
-      SAVE
-
-  END MODULE hall
-!=================================================================
-
-  MODULE hbar
-      USE fprecision
-      REAL(KIND=GP) :: alpha,beta,omegag
-      REAL(KIND=GP) :: regu = 1.e-20_GP
-      SAVE
-
-  END MODULE hbar
-!=================================================================
-
-  MODULE newtmod
-      USE fprecision
-      REAL(KIND=GP) :: dt_newt,tol_newt,tolbicg_rel
-      INTEGER :: iter_max_newt,iter_max_bicg
-      INTEGER :: cflow_newt,n_dim_1d
-      SAVE
-
-  END MODULE newtmod
 !=================================================================
 
   MODULE random
