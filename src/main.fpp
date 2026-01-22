@@ -100,7 +100,6 @@
      CALL workspace%initialize_pool(NUMTMPREAL,NUMTMPCOMP)
      CALL pde%Solver_ctor('parameter.inp',workspace,planio)
      num_components = pde%state_size()
-     PRINT *,'Solver initialized:',num_components,'components'
      CALL GState_alloc(field    , num_components)
      CALL GState_alloc(field_nxt, num_components)
      CALL GState_alloc(force    , num_components)

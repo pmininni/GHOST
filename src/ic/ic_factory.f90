@@ -17,6 +17,7 @@
 module ic_factory
   USE icbase_mod
   USE ic_velocity
+  USE ic_magnetic
   
   IMPLICIT NONE
   
@@ -46,9 +47,11 @@ CONTAINS
 
     ! Loops through all requested ICs and allocates classes
     call parsestr(iclist,';',icname,25,10,icnmb)
+    print *,'Found',icnmb,'ICs'
     allocate( new_object(icnmb) )
     do i = 1,icnmb
       select case (trim(adjustl(icname(i))))
+      ! Velocity field ICs =====================
       case ('read_v')
         allocate( read_v   :: new_object(i)%ic )
       case ('null_v')
@@ -59,6 +62,13 @@ CONTAINS
         allocate( abc_v    :: new_object(i)%ic )
       case ('random_v')
         allocate( random_v :: new_object(i)%ic )
+      ! Magnetic field ICs =====================    
+      case ('read_b')
+        allocate( read_b   :: new_object(i)%ic )
+      case ('null_b')
+        allocate( null_b   :: new_object(i)%ic )
+      case ('random_b')
+        allocate( random_b :: new_object(i)%ic )
       case default
         stop 'Unknown initial conditions'
       end select

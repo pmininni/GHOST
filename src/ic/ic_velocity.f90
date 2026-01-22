@@ -2,7 +2,7 @@
 ! NAME       : ic_velocity.f90
 ! DESCRIPTION: Initial conditions for all VelocityBase solver classes.
 !              These initial conditions can be used to initialize
-!              velocities on other solver classes, using composition of
+!              velocities in other solver classes, using composition of
 !              initial condition operators, as long as no correlation
 !              between the fields is needed.
 !
@@ -72,7 +72,7 @@ CONTAINS
     type    (GState), intent(inout)             :: state(:)
     complex(kind=GP), pointer, dimension(:,:,:) :: C1
     real   (kind=GP), pointer, dimension(:,:,:) :: R1
-    integer                          :: i,j,k,o,state_size,nc
+    integer                          :: i
     logical                          :: bret
 
     if ((stat .eq. 0).and.(solver%myrank_ .eq. 0)) then
@@ -382,7 +382,7 @@ CONTAINS
       C3(1,1,1) = 0.
       DO j = 2,ny/2+1
         IF ((kk2(1,j,1).le.kup**2).and.(kk2(1,j,1).ge.kdn**2)) THEN
-          dump = 1./sqrt(kk2(1,j,1))**5
+          dump = 1./sqrt(kk2(1,j,1))**4
           phase = 2*pi*randu(seed)
           C1(1,j,1) = (COS(phase)+im*SIN(phase))*dump
           C1(1,ny-j+2,1) = conjg(C1(1,j,1))
@@ -403,7 +403,7 @@ CONTAINS
       END DO
       DO k = 2,nz/2+1
         IF ((kk2(k,1,1).le.kup**2).and.(kk2(k,1,1).ge.kdn**2)) THEN
-          dump = 1./sqrt(kk2(k,1,1))**5
+          dump = 1./sqrt(kk2(k,1,1))**4
           phase = 2*pi*randu(seed)
           C1(k,1,1) = (COS(phase)+im*SIN(phase))*dump
           C1(nz-k+2,1,1) = conjg(C1(k,1,1))
@@ -425,7 +425,7 @@ CONTAINS
       DO j = 2,ny
         DO k = 2,nz/2+1
           IF ((kk2(k,j,1).le.kup**2).and.(kk2(k,j,1).ge.kdn**2)) THEN
-            dump = 1./sqrt(kk2(k,j,1))**5
+            dump = 1./sqrt(kk2(k,j,1))**4
             phase = 2*pi*randu(seed)
             C1(k,j,1) = (COS(phase)+im*SIN(phase))*dump
             C1(nz-k+2,ny-j+2,1) = conjg(C1(k,j,1))
@@ -449,7 +449,7 @@ CONTAINS
         DO j = 1,ny
           DO k = 1,nz
             IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
-              dump = 1./sqrt(kk2(k,j,i))**5
+              dump = 1./sqrt(kk2(k,j,i))**4
               phase = 2*pi*randu(seed)
               C1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
               phase = 2*pi*randu(seed)
@@ -469,7 +469,7 @@ CONTAINS
         DO j = 1,ny
           DO k = 1,nz
             IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
-              dump = 1./sqrt(kk2(k,j,i))**5
+              dump = 1./sqrt(kk2(k,j,i))**4
               phase = 2*pi*randu(seed)
               C1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
               phase = 2*pi*randu(seed)
@@ -497,7 +497,7 @@ CONTAINS
       C3(1,1,1) = 0.
       DO j = 2,ny/2+1
         IF ((kk2(1,j,1).le.kup**2).and.(kk2(1,j,1).ge.kdn**2)) THEN
-          dump = 1./sqrt(kk2(1,j,1))**5
+          dump = 1./sqrt(kk2(1,j,1))**4
           phase = 2*pi*randu(seed)
           C1(1,j,1) = (COS(phase)+im*SIN(phase))*dump
           C1(1,ny-j+2,1) = conjg(C1(1,j,1))
@@ -518,7 +518,7 @@ CONTAINS
       END DO
       DO k = 2,nz/2+1
         IF ((kk2(k,1,1).le.kup**2).and.(kk2(k,1,1).ge.kdn**2)) THEN
-          dump = 1./sqrt(kk2(k,1,1))**5
+          dump = 1./sqrt(kk2(k,1,1))**4
           phase = 2*pi*randu(seed)
           C1(k,1,1) = (COS(phase)+im*SIN(phase))*dump
           C1(nz-k+2,1,1) = conjg(C1(k,1,1))
@@ -540,7 +540,7 @@ CONTAINS
       DO j = 2,ny
         DO k = 2,nz/2+1
           IF ((kk2(k,j,1).le.kup**2).and.(kk2(k,j,1).ge.kdn**2)) THEN
-            dump = 1./sqrt(kk2(k,j,1))**5
+            dump = 1./sqrt(kk2(k,j,1))**4
             phase = 2*pi*randu(seed)
             C1(k,j,1) = (COS(phase)+im*SIN(phase))*dump
             C1(nz-k+2,ny-j+2,1) = conjg(C1(k,j,1))
@@ -564,7 +564,7 @@ CONTAINS
         DO j = 1,ny
           DO k = 1,nz
             IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
-              dump = 1./sqrt(kk2(k,j,i))**5
+              dump = 1./sqrt(kk2(k,j,i))**4
               phase = 2*pi*randu(seed)
               C1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
               phase = 2*pi*randu(seed)
@@ -584,7 +584,7 @@ CONTAINS
         DO j = 1,ny
           DO k = 1,nz
             IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
-              dump = 1./sqrt(kk2(k,j,i))**5
+              dump = 1./sqrt(kk2(k,j,i))**4
               phase = 2*pi*randu(seed)
               C1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
               phase = 2*pi*randu(seed)
