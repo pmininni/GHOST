@@ -18,6 +18,7 @@ module equationbase_mod
       type    (ioplan), pointer     :: planio_
       integer                       :: myrank_   ! MPI rank
       integer                       :: nprocs_   ! MPI rank 
+      integer                       :: order_    ! Default integration order
       character(len=8), allocatable :: sstate_(:)
       character(len=128)            :: infile_
     contains
@@ -113,7 +114,6 @@ CONTAINS
   !! Concrete method to take one time step using Runge-Kutta
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine timestep(this, time, uin, uf, dt, uout)
-    use order
 !$  use threads
     implicit none
 
@@ -124,7 +124,7 @@ CONTAINS
     integer                             :: i,j,k,o,state_size,nc
 
     state_size = this%state_size()
-    do o = ord,1,-1
+    do o = this%order_,1,-1
       eff_dt = dt/real(o,kind=GP)
       CALL this%dudt(time, uout, uf, eff_dt, uout)
       do nc = 1,state_size
@@ -161,7 +161,6 @@ CONTAINS
   !     dudt    : computed RHS for each scalar, 1-npassive
   !******************************************************************
     use pseudospec_scalar
-    use fprecision
     use ali
     use kes
     use var
@@ -246,7 +245,6 @@ CONTAINS
   !! Concrete method to write field states
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine write_states(this, uin, planio)
-    use fprecision
     use grid
     use iovar
     use status

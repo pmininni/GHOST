@@ -289,15 +289,6 @@
 
 !=================================================================
 
-  MODULE order
-!
-! ord: number of iterations in the Runge-Kutta method
-      INTEGER :: ord = 2
-      SAVE
-
-  END MODULE order
-!=================================================================
-
   MODULE fft
       USE fftplans
       TYPE(FFTPLAN) :: planrc, plancr

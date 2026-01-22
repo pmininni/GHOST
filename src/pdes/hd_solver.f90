@@ -132,6 +132,7 @@ CONTAINS
       deallocate(kappa)
     endif
 
+    this%order_   = 2                       ! Time stepping order
     this%nd_      = 3                       ! 3d
     this%nc_      = this%nd_                ! # field components
     this%VELOCITY = 1                       ! start of vel sector
