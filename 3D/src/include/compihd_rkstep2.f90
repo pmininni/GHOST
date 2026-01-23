@@ -94,7 +94,7 @@
 
          ENDIF ! Voigt check
 !
-         CALL mom2vel(rho,sx,sy,sz,0,vx,vy,vz)    ! compute velocity update
+         CALL mom2vel(rho,sx,sy,sz,1,vx,vy,vz)    ! compute velocity update
 
       else ! useRK3 != 0: 
 
@@ -153,7 +153,7 @@
          END DO
          END DO
 
-         CALL mom2vel(rho,sx,sy,sz,0,vx,vy,vz)    ! compute velocity update
+         CALL mom2vel(rho,sx,sy,sz,1,vx,vy,vz)    ! compute velocity update
 
 
       endif ! end, useRK3 check
