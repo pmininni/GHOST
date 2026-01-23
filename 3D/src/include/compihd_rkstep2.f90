@@ -130,8 +130,8 @@
                        KVX3,KVY3,KVZ3,KD3,KE3)
 
          sx  = C1  + ( KVX1 + 4.0* KVX2 + KVX3 ) * ( dt / 6.0 ) 
-         sy  = C2  + ( KVY1 + 4.0* KVY2 + KVX3 ) * ( dt / 6.0 ) 
-         sz  = C3  + ( KVZ1 + 4.0* KVZ2 + KVX3 ) * ( dt / 6.0 ) 
+         sy  = C2  + ( KVY1 + 4.0* KVY2 + KVY3 ) * ( dt / 6.0 ) 
+         sz  = C3  + ( KVZ1 + 4.0* KVZ2 + KVZ3 ) * ( dt / 6.0 ) 
          rho = C20 + ( KD1  + 4.0* KD2  + KD3  ) * ( dt / 6.0 ) 
          th  = C35 + ( KE1  + 4.0* KE2  + KE3  ) * ( dt / 6.0 ) 
 
