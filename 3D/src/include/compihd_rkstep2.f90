@@ -135,6 +135,25 @@
          rho = C20 + ( KD1  + 4.0* KD2  + KD3  ) * ( dt / 6.0 ) 
          th  = C35 + ( KE1  + 4.0* KE2  + KE3  ) * ( dt / 6.0 ) 
 
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+         DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+         DO k = 1,nz
+
+            IF (kn2(k,j,i).gt.kmax) THEN
+               sx (k,j,i) = 0.0_GP
+               sy (k,j,i) = 0.0_GP
+               sz (k,j,i) = 0.0_GP
+               rho(k,j,i) = 0.0_GP
+               th (k,j,i) = 0.0_GP
+            ENDIF
+
+         END DO
+         END DO
+         END DO
+
          CALL mom2vel(rho,sx,sy,sz,0,vx,vy,vz)    ! compute velocity update
+
 
       endif ! end, useRK3 check
