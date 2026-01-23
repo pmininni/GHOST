@@ -504,7 +504,7 @@
       NAMELIST / inject / injt,injtm,creset
 #endif
 #ifdef COMPRESSIBLE_
-      NAMELIST / compressible / Stokeshyp, smach, gam1, nu2, rho0
+      NAMELIST / compressible / useRK3, Stokeshyp, smach, gam1, nu2, rho0
 #endif
 #ifdef CMHD_
       NAMELIST / cmhdb / amach
@@ -1220,6 +1220,9 @@
 !     Stokeshyp: if 1, then nu2 = -2/3 * nu; else set by user
       Stokeshyp = 0
       rho0      = 1.0
+#if defined(COMPIHD_SOL) 
+      useRK3    = 1
+#endif
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
@@ -1229,6 +1232,7 @@
       CALL MPI_BCAST(smach    ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(gam1     ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(Stokeshyp,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(useRK3   ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nu2      ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(rho0     ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
       gam1 = gam1 - 1.0_GP
@@ -1759,9 +1763,6 @@
        write(*,*) 'main: Voigt regularization may not be used with this solver'
        STOP
      ENDIF
-#endif
-#if defined(COMPIHD_SOL) 
-     useRK3 = 1
 #endif
 
       INCLUDE SOLVERCHECK_
