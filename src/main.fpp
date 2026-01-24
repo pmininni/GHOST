@@ -55,7 +55,7 @@
       TYPE(IOPLAN)                      :: planio
       CLASS(EquationBase), ALLOCATABLE  :: pde
       CLASS(icChain),      ALLOCATABLE  :: iclist(:)
-      CLASS(forceBase),    ALLOCATABLE  :: forcemethod
+      CLASS(forceChain),   ALLOCATABLE  :: forcemethod(:)
 
 !
 ! Auxiliary variables
@@ -143,7 +143,7 @@
 !
 ! Sets the external forcing
 
-      CALL forcemethod%init_GForce(pde,force)
+      CALL init_forcing(forcemethod,pde,force)
 
 ! Initial state
  IC : IF (stat.eq.0) THEN                 ! If stat=0 we start a new run
@@ -152,9 +152,10 @@
         tind = 0                          ! index for the binaries
         pind = 0                          ! index for the particles
         timet = tstep
+        timep = pstep
         timec = cstep
         times = sstep
-        timep = pstep
+        timef = 0
       ELSE                    ! If stat.ne.0 a previous run is continued
         ini = int((stat-1)*tstep) + 1
         tind = int(stat)
@@ -162,8 +163,9 @@
         pind = int((stat-1)*lgmult+1)
         timet = 0
         timep = 0
-        times = int(modulo(float(ini-1),float(sstep)))
         timec = int(modulo(float(ini-1),float(cstep)))
+        times = int(modulo(float(ini-1),float(sstep)))
+        timef = int(modulo(float(ini-1),float(fstep)))
       ENDIF IC
       CALL init_allstates(iclist,pde,field)
 
@@ -216,13 +218,13 @@
          ENDIF
 
 ! Time evolution
-         CALL forcemethod%update_GForce(pde,force) ! Update forcing?
+         CALL update_forcing(forcemethod,pde,force)
          CALL pde%timestep(time, field, force, dt, field_nxt)
          field = field_nxt
          timet = timet+1
-         times = times+1
-         timec = timec+1
          timep = timep+1
+         timec = timec+1
+         times = times+1
 
       END DO RK
 
