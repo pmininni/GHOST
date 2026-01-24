@@ -227,13 +227,15 @@
 !  tstep: number of steps between binary output
 !  sstep: number of steps between power spectrum output
 !  cstep: number of steps between output of global quantities
-!  seed : a global seed for random number generation (when needed)
+!  cort : global correlation time for random forcings (when needed)
+!  seed : global seed for random number generation (when needed)
       USE fprecision
       REAL(KIND=GP)      :: dt
       REAL(KIND=GP)      :: time
       INTEGER            :: stat ,ini
-      INTEGER            :: step ,tstep
-      INTEGER            :: cstep,sstep
+      INTEGER            :: step
+      INTEGER            :: tstep,cstep
+      INTEGER            :: sstep,fstep
       INTEGER            :: bench = 0
       INTEGER            :: outs
       INTEGER            :: mult
@@ -257,10 +259,12 @@
 !$    USE threads
       IMPLICIT NONE
 
+      REAL(KIND=GP)                       :: cort
       CHARACTER(len=128), INTENT(IN)      :: infile_
-      NAMELIST / status / idir,odir,stat,mult,bench,outs
-      NAMELIST / status / dt,step,tstep,sstep,cstep,seed
+      NAMELIST / status / idir,odir,stat,mult,bench,outs,dt
+      NAMELIST / status / step,tstep,sstep,cstep,seed,cort
 
+      cort = 1000.0_GP
       IF (myrank.eq.0) THEN
          OPEN(1,file=infile_,status='unknown',form="formatted")
          READ(1,NML=status)
@@ -270,6 +274,7 @@
          tstep = tstep*mult
          sstep = sstep*mult
          cstep = cstep*mult
+         fstep = int(cort/dt)
       ENDIF
       CALL MPI_BCAST(idir ,100,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(odir ,100,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
@@ -282,6 +287,7 @@
       CALL MPI_BCAST(tstep,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sstep,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(cstep,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(fstep,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(seed ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       END SUBROUTINE status_init
 
