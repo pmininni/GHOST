@@ -1,66 +1,58 @@
 ! =====================================================================
-! NAME       : force_velocity.f90
-! DESCRIPTION: Forcing methods for all VelocityBase solver classes.
+! NAME       : force_magnetic.f90
+! DESCRIPTION: Forcing methods for all MagneticBase solver classes.
 !              Each force needs an initial set up, and an update.
 !              These forcing methods can be used to initialize and
 !              update forcings on other solver classes, using
 !              composition of operators, as long as no correlation
-!              between the forces is needed.
+!              between the forces is needed. For fv-fb correlated
+!              cases, this file can provide methods to initialize
+!              both forces simultaneously.
 !
 ! Forces avaliable:
-!   null_fv    : Null forcing of the velocity field
-!   tg_fv      : Taylor-Green forcing
-!   abc_fv     : ABC forcing
-!   random_fv  : Random forcing of the velocity field
+!   null_fb     : Null vector potential
+!   random_fb   : Random (Pouquet-Patterson) electromotive forcing
 !
 ! Update methods available:
-!   constant_fv: Constant forcing (no method)
-!   shift_fv   : Instantaneous phase shift
-!   shuffle_fv : Slowly evolving random phases
+!   constant_fb : Constant forcing (no method)
+!   shift_fb    : Instantaneous phase shift (uncorrelated from fv)
+!   shuffle_fb  : Slowly evolving random phases
 !
-! DATE       : 01/18/26 (PDM)
+! DATE       : 01/24/26 (PDM)
 ! =====================================================================
 
-module force_velocity
+module force_magnetic
   USE forcebase_mod
 
   IMPLICIT NONE
 
   ! ================= Forcing functions supported =====================
-  type, extends(forceBase) :: null_fv
+  type, extends(forceBase) :: null_fb
     contains
-      procedure :: init_GForce => init_nullfv
-  end type null_fv
-  type, extends(forceBase) :: tg_fv
+      procedure :: init_GForce => init_nullfb
+  end type null_fb
+  type, extends(forceBase) :: random_fb
     contains
-      procedure :: init_GForce => init_tgfv
-  end type tg_fv
-  type, extends(forceBase) :: abc_fv
-    contains
-      procedure :: init_GForce => init_abcfv
-  end type abc_fv
-  type, extends(forceBase) :: random_fv
-    contains
-      procedure :: init_GForce => init_randomfv
-  end type random_fv
-! type, extends(forceBase) :: userdef_fv
+      procedure :: init_GForce => init_randomfb
+  end type random_fb
+! type, extends(forceBase) :: userdef_fb
 !   contains
-!     procedure :: init_GForce => init_userdefv
-! end type userdef_fv
+!     procedure :: init_GForce => init_userdefb
+! end type userdef_fb
 
   ! ================= Update methods supported =======================
-  type, extends(forceUpdt) :: shiftupdt_fv
+  type, extends(forceUpdt) :: shiftupdt_fb
     contains
-      procedure :: update_GForce => update_shiftfv
-  end type shiftupdt_fv 
-  type, extends(forceUpdt) :: shuffleupdt_fv
+      procedure ::   update_GForce => update_shiftfb
+  end type shiftupdt_fb 
+  type, extends(forceUpdt) :: shuffleupdt_fb
     contains
-      procedure :: update_GForce => update_shufflefv
-  end type shuffleupdt_fv
-! type, extends(forceUpdt) :: userupdt_fv
+      procedure ::   update_GForce => update_shufflefb
+  end type shuffleupdt_fb
+! type, extends(forceUpdt) :: userupdt_fb
 !   contains
-!     procedure :: init_GForce => init_userupdtfv
-! end type userupdt_fv
+!     procedure :: init_GForce => init_userupdtfb
+! end type userupdt_fb
 
 CONTAINS
 
@@ -69,223 +61,38 @@ CONTAINS
   ! ===================================================================
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Null forcing
+  !! Null electromotive forcing
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine init_nullfv(this,solver,state)
+  subroutine init_nullfb(this,solver,state)
     use gstate_mod
-    use hd_mod
+    use mhd_mod
     use grid
     use mpivars
 !$  use threads
     implicit none
     
-    class     (null_fv), intent   (in) :: this
+    class     (null_fb), intent   (in) :: this
     class(EquationBase), intent   (in) :: solver
     type       (Gstate), intent(inout) :: state(:)
     integer                            :: i,j,k
 
     select type (solver)
-    class is (VelocityBase)
+    class is (MagneticBase)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
         DO j = 1,ny
           DO k = 1,nz
-            state(solver%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
-            state(solver%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
-            state(solver%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
+            state(solver%MAGNETIC  )%ccomp(k,j,i) = 0.0_GP
+            state(solver%MAGNETIC+1)%ccomp(k,j,i) = 0.0_GP
+            state(solver%MAGNETIC+2)%ccomp(k,j,i) = 0.0_GP
           END DO
         END DO
       END DO
     class default
-      error stop "This solver does not support velocity forcing"
+      error stop "This solver does not support electromotive forcing"
     end select
-  end subroutine init_nullfv
-
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Taylor-Green forcing
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !   f0  : amplitude of the forcing
-  !   kdn : minimum wave number (rounded to next integer)
-  !   kup : maximum wave number (rounded to next integer)
-  subroutine init_tgfv(this,solver,state)
-    use gstate_mod
-    use hd_mod
-    use grid
-    use boxsize
-    use commtypes
-    use fft
-    use ali
-    use var
-    use pseudospec_norm
-!$  use threads
-    implicit none
-    
-    class       (tg_fv), intent   (in)       :: this
-    class(EquationBase), intent   (in)       :: solver
-    type       (Gstate), intent(inout)       :: state(:)
-    real(kind=GP), pointer, dimension(:,:,:) :: R1,R2
-    real(kind=GP)                            :: f0,kdn,kup
-    integer                                  :: i,j,k,ki
-    logical                                  :: bret
-
-    namelist/ tg_fv / f0,kdn,kup
-    CALL solver%workspace_%get_real_tmp(R1,bret)
-    CALL solver%workspace_%get_real_tmp(R2,bret)
-    select type (solver)
-    class is (VelocityBase)
-    ! Read parameters from a namelist in the input file
-    if ( myrank .eq. 0 ) then
-      open(1,file=solver%infile_,status='unknown',form="formatted")
-      read(1,NML=tg_fv)
-      close(1)
-    endif
-    call mpi_bcast(f0 ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(kup,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(kdn,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-    ! Generate a superposition of TG flows
-    IF ( abs(Lx-Ly).gt.tiny ) THEN
-      IF (myrank.eq.0) error stop "TG initial conditions require Lx=Ly"
-    ENDIF
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-    DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-       DO j = 1,ny
-          DO k = 1,nz
-            state(solver%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP !fz
-          END DO
-       END DO
-    END DO
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-    DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-       DO j = 1,ny
-          DO i = 1,nx
-          R1(i,j,k) = 0.0_GP
-          R2(i,j,k) = 0.0_GP
-          DO ki = INT(kdn),INT(kup)
-             R1(i,j,k) = R1(i,j,k)+SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
-                      real(nx,kind=GP))*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
-                      real(ny,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
-                      real(nz,kind=GP))
-             R2(i,j,k) = R2(i,j,k)-COS(2*pi*ki*(real(i,kind=GP)-1)/ &
-                      real(nx,kind=GP))*SIN(2*pi*ki*(real(j,kind=GP)-1)/ &
-                      real(ny,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
-                      real(nz,kind=GP))
-          END DO
-          END DO
-       END DO
-    END DO
-    CALL fftp3d_real_to_complex(planrc,R1, & !fx
-                   state(solver%VELOCITY  )%ccomp,MPI_COMM_WORLD)
-    CALL fftp3d_real_to_complex(planrc,R2, & !fy
-                   state(solver%VELOCITY+1)%ccomp,MPI_COMM_WORLD)
-    CALL normalize(state(solver%VELOCITY  )%ccomp, &
-                   state(solver%VELOCITY+1)%ccomp, &
-                   state(solver%VELOCITY+2)%ccomp, &
-                   f0,1,MPI_COMM_WORLD)
-    class default
-      error stop "This solver does not support velocity forcing"
-    end select
-    CALL solver%workspace_%free_real_tmp(R1)
-    CALL solver%workspace_%free_real_tmp(R2)
-  end subroutine init_tgfv
-
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! ABC forcing
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !   f0  : normalized amplitude of the forcing
-  !   kdn : minimum wave number (rounded to next integer)
-  !   kup : maximum wave number (rounded to next integer)
-  !   A   : A amplitude (default =1)
-  !   B   : B amplitude (default =1)
-  !   C   : C amplitude (default =1)
-  subroutine init_abcfv(this,solver,state)
-    use gstate_mod
-    use hd_mod
-    use grid
-    use boxsize
-    use commtypes
-    use fft
-    use ali
-    use var
-    use pseudospec_norm
-!$  use threads
-    implicit none
-
-    class      (abc_fv), intent   (in)       :: this
-    class(EquationBase), intent   (in)       :: solver
-    type       (Gstate), intent(inout)       :: state(:)
-    real(kind=GP), pointer, dimension(:,:,:) :: R1,R2,R3
-    real(kind=GP)                            :: f0,kdn,kup
-    real(kind=GP)                            :: A,B,C
-    integer                                  :: i,j,k,ki
-    logical                                  :: bret
-
-    namelist/ abc_fv / f0,kdn,kup,A,B,C
-    CALL solver%workspace_%get_real_tmp(R1,bret)
-    CALL solver%workspace_%get_real_tmp(R2,bret)
-    CALL solver%workspace_%get_real_tmp(R3,bret)
-    select type (solver)
-    class is (VelocityBase)
-    ! Read parameters from a namelist in the input file
-    A = 1.0_GP ; B = 1.0_GP ; C = 1.0_GP
-    if ( myrank .eq. 0 ) then
-      open(1,file=solver%infile_,status='unknown',form="formatted")
-      read(1,NML=abc_fv)
-      close(1)
-    endif
-    call mpi_bcast(f0 ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(kup,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(kdn,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(A  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(B  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(C  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-    ! Generate a superposition of ABC flows
-    if ( (abs(Lx-Ly).gt.tiny).or.(abs(Lx-Lz).gt.tiny) ) then
-      if (myrank.eq.0) error stop 'ABC forcing requires Lx=Ly=Lz'
-    endif
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-    DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-      DO j = 1,ny
-        DO i = 1,nx
-          R1(i,j,k) = 0.
-          R2(i,j,k) = 0.
-          R3(i,j,k) = 0.
-          DO ki = INT(kdn),INT(kup)
-          R1(i,j,k) = R1(i,j,k)+(B*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
-               real(ny,kind=GP))+C*SIN(2*pi*ki*(real(k,kind=GP)-1)/ &
-               real(nz,kind=GP)))/ki**2
-          R2(i,j,k) = R2(i,j,k)+(A*SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
-               real(nx,kind=GP))+C*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
-               real(nz,kind=GP)))/ki**2 
-          R3(i,j,k) = R3(i,j,k)+(A*COS(2*pi*ki*(real(i,kind=GP)-1)/ &
-               real(nx,kind=GP))+B*SIN(2*pi*ki*(real(j,kind=GP)-1)/ &
-               real(ny,kind=GP)))/ki**2
-          END DO
-        END DO
-      END DO
-    END DO
-    call fftp3d_real_to_complex(planrc,R1, & !fx
-                   state(solver%VELOCITY  )%ccomp,MPI_COMM_WORLD)
-    call fftp3d_real_to_complex(planrc,R2, & !fy
-                   state(solver%VELOCITY+1)%ccomp,MPI_COMM_WORLD)
-    call fftp3d_real_to_complex(planrc,R3, & !fz
-                   state(solver%VELOCITY+2)%ccomp,MPI_COMM_WORLD)
-    call normalize(state(solver%VELOCITY  )%ccomp, &
-                   state(solver%VELOCITY+1)%ccomp, &
-                   state(solver%VELOCITY+2)%ccomp, &
-                   f0,1,MPI_COMM_WORLD)
-    class default
-      error stop "This solver does not support velocity field ICs"
-    end select
-    call solver%workspace_%free_real_tmp(R1)
-    call solver%workspace_%free_real_tmp(R2)
-    call solver%workspace_%free_real_tmp(R3)
-  end subroutine init_abcfv
+  end subroutine init_nullfb
 
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -298,9 +105,10 @@ CONTAINS
   !   kdn  : minimum wave number (rounded to next integer)
   !   kup  : maximum wave number (rounded to next integer)
   !   alpha: sin(2*alpha) is the total relative helicity
-  subroutine init_randomfv(this,solver,state)
+  !   corr : correlation with the velocity forcing
+  subroutine init_randomfb(this,solver,state)
     use gstate_mod
-    use hd_mod
+    use mhd_mod
     use random
     use grid
     use boxsize
@@ -313,7 +121,7 @@ CONTAINS
 !$  use threads
     implicit none
 
-    class   (random_fv), intent   (in)          :: this
+    class   (random_fb), intent   (in)          :: this
     class(EquationBase), intent   (in)          :: solver
     type       (Gstate), intent(inout)          :: state(:)
     complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4
@@ -321,10 +129,11 @@ CONTAINS
     real(kind=GP)                               :: f0,kdn,kup
     real(kind=GP)                               :: alpha,a1,a2
     real(kind=GP)                               :: dump,phase
+    real(kind=GP)                               :: corr,rmp
     integer                                     :: i,j,k
     logical                                     :: bret
 
-    namelist/ random_fv / f0,kdn,kup,alpha
+    namelist/ random_fb / f0,kdn,kup,alpha,corr
     CALL solver%workspace_%get_complex_tmp(C1,bret)
     CALL solver%workspace_%get_complex_tmp(C2,bret)
     CALL solver%workspace_%get_complex_tmp(C3,bret)
@@ -334,18 +143,20 @@ CONTAINS
     CALL solver%workspace_%get_complex_tmp(C7,bret)
     CALL solver%workspace_%get_complex_tmp(C8,bret)
     select type (solver)
-    class is (VelocityBase)
+    class is (MagneticBase)
     ! Read parameters from a namelist in the input file
     alpha = 0.0_GP
+    corr  = 0.0_GP
     if ( myrank .eq. 0 ) then
       open(1,file=solver%infile_,status='unknown',form="formatted")
-      read(1,NML=random_fv)
+      read(1,NML=random_fb)
       close(1)
     endif
     call mpi_bcast(f0   ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(kup  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(kdn  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(alpha,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(corr ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
     ! Generate the first random velocity field
     IF (ista.eq.1) THEN
       C1(1,1,1) = 0.
@@ -353,7 +164,7 @@ CONTAINS
       C3(1,1,1) = 0.
       DO j = 2,ny/2+1
         IF ((kk2(1,j,1).le.kup**2).and.(kk2(1,j,1).ge.kdn**2)) THEN
-          dump = 1./sqrt(kk2(1,j,1))**4
+          dump = 1./sqrt(kk2(1,j,1))**5
           phase = 2*pi*randu(seed)
           C1(1,j,1) = (COS(phase)+im*SIN(phase))*dump
           C1(1,ny-j+2,1) = conjg(C1(1,j,1))
@@ -374,7 +185,7 @@ CONTAINS
       END DO
       DO k = 2,nz/2+1
         IF ((kk2(k,1,1).le.kup**2).and.(kk2(k,1,1).ge.kdn**2)) THEN
-          dump = 1./sqrt(kk2(k,1,1))**4
+          dump = 1./sqrt(kk2(k,1,1))**5
           phase = 2*pi*randu(seed)
           C1(k,1,1) = (COS(phase)+im*SIN(phase))*dump
           C1(nz-k+2,1,1) = conjg(C1(k,1,1))
@@ -396,7 +207,7 @@ CONTAINS
       DO j = 2,ny
         DO k = 2,nz/2+1
           IF ((kk2(k,j,1).le.kup**2).and.(kk2(k,j,1).ge.kdn**2)) THEN
-            dump = 1./sqrt(kk2(k,j,1))**4
+            dump = 1./sqrt(kk2(k,j,1))**5
             phase = 2*pi*randu(seed)
             C1(k,j,1) = (COS(phase)+im*SIN(phase))*dump
             C1(nz-k+2,ny-j+2,1) = conjg(C1(k,j,1))
@@ -420,7 +231,7 @@ CONTAINS
         DO j = 1,ny
           DO k = 1,nz
             IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
-              dump = 1./sqrt(kk2(k,j,i))**4
+              dump = 1./sqrt(kk2(k,j,i))**5
               phase = 2*pi*randu(seed)
               C1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
               phase = 2*pi*randu(seed)
@@ -440,7 +251,7 @@ CONTAINS
         DO j = 1,ny
           DO k = 1,nz
             IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
-              dump = 1./sqrt(kk2(k,j,i))**4
+              dump = 1./sqrt(kk2(k,j,i))**5
               phase = 2*pi*randu(seed)
               C1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
               phase = 2*pi*randu(seed)
@@ -459,7 +270,7 @@ CONTAINS
     CALL rotor3(C2,C3,C4,1)
     CALL rotor3(C1,C3,C5,2)
     CALL rotor3(C1,C2,C6,3)
-    CALL normalize(C4,C5,C6,f0,1,MPI_COMM_WORLD)
+    CALL normalize(C4,C5,C6,f0,0,MPI_COMM_WORLD)
     ! C4,C5,C6 are the components of the first random vector (say v1)
     ! Repeating this procedure we create the second random vector (v2)
     IF (ista.eq.1) THEN
@@ -468,7 +279,7 @@ CONTAINS
       C3(1,1,1) = 0.
       DO j = 2,ny/2+1
         IF ((kk2(1,j,1).le.kup**2).and.(kk2(1,j,1).ge.kdn**2)) THEN
-          dump = 1./sqrt(kk2(1,j,1))**4
+          dump = 1./sqrt(kk2(1,j,1))**5
           phase = 2*pi*randu(seed)
           C1(1,j,1) = (COS(phase)+im*SIN(phase))*dump
           C1(1,ny-j+2,1) = conjg(C1(1,j,1))
@@ -489,7 +300,7 @@ CONTAINS
       END DO
       DO k = 2,nz/2+1
         IF ((kk2(k,1,1).le.kup**2).and.(kk2(k,1,1).ge.kdn**2)) THEN
-          dump = 1./sqrt(kk2(k,1,1))**4
+          dump = 1./sqrt(kk2(k,1,1))**5
           phase = 2*pi*randu(seed)
           C1(k,1,1) = (COS(phase)+im*SIN(phase))*dump
           C1(nz-k+2,1,1) = conjg(C1(k,1,1))
@@ -511,7 +322,7 @@ CONTAINS
       DO j = 2,ny
         DO k = 2,nz/2+1
           IF ((kk2(k,j,1).le.kup**2).and.(kk2(k,j,1).ge.kdn**2)) THEN
-            dump = 1./sqrt(kk2(k,j,1))**4
+            dump = 1./sqrt(kk2(k,j,1))**5
             phase = 2*pi*randu(seed)
             C1(k,j,1) = (COS(phase)+im*SIN(phase))*dump
             C1(nz-k+2,ny-j+2,1) = conjg(C1(k,j,1))
@@ -535,7 +346,7 @@ CONTAINS
         DO j = 1,ny
           DO k = 1,nz
             IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
-              dump = 1./sqrt(kk2(k,j,i))**4
+              dump = 1./sqrt(kk2(k,j,i))**5
               phase = 2*pi*randu(seed)
               C1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
               phase = 2*pi*randu(seed)
@@ -555,7 +366,7 @@ CONTAINS
         DO j = 1,ny
           DO k = 1,nz
             IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
-              dump = 1./sqrt(kk2(k,j,i))**4
+              dump = 1./sqrt(kk2(k,j,i))**5
               phase = 2*pi*randu(seed)
               C1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
               phase = 2*pi*randu(seed)
@@ -574,7 +385,7 @@ CONTAINS
     CALL rotor3(C2,C3,C7,1)
     CALL rotor3(C1,C3,C8,2)
     CALL rotor3(C1,C2,C3,3)
-    CALL normalize(C7,C8,C3,f0,1,MPI_COMM_WORLD)
+    CALL normalize(C7,C8,C3,f0,0,MPI_COMM_WORLD)
     ! So far, v1 = (C4,C5,C6) and v2 = (C7,C8,C3) are two random 
     ! normalized vectors in Fourier space. Correlating vectors 
     ! v1 and v2 we create the force components fx, fy, and fz.
@@ -598,7 +409,7 @@ CONTAINS
         DO k = 1,nz
           IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
             dump = 1./sqrt(kk2(k,j,i))
-            state(solver%VELOCITY  )%ccomp(k,j,i) = a2*C4(k,j,i) +  &
+            state(solver%MAGNETIC  )%ccomp(k,j,i) = a2*C4(k,j,i) +  &
                         a1*C7(k,j,i) + C1(k,j,i)*dump
           ENDIF
         END DO
@@ -622,7 +433,7 @@ CONTAINS
         DO k = 1,nz
           IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
             dump = 1./sqrt(kk2(k,j,i))
-            state(solver%VELOCITY+1)%ccomp(k,j,i) = a2*C5(k,j,i) +  &
+            state(solver%MAGNETIC+1)%ccomp(k,j,i) = a2*C5(k,j,i) +  &
                         a1*C8(k,j,i) + C1(k,j,i)*dump
           ENDIF
         END DO
@@ -646,18 +457,56 @@ CONTAINS
         DO k = 1,nz
           IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
             dump = 1./sqrt(kk2(k,j,i))
-            state(solver%VELOCITY+2)%ccomp(k,j,i) = a2*C6(k,j,i) +  &
+            state(solver%MAGNETIC+2)%ccomp(k,j,i) = a2*C6(k,j,i) +  &
                         a1*C3(k,j,i) + C1(k,j,i)*dump
           ENDIF
         END DO
       END DO
     END DO
-    call normalize(state(solver%VELOCITY  )%ccomp, &
-                   state(solver%VELOCITY+1)%ccomp, &
-                   state(solver%VELOCITY+2)%ccomp, &
-                   f0,1,MPI_COMM_WORLD)
+    call normalize(state(solver%MAGNETIC  )%ccomp, &
+                   state(solver%MAGNETIC+1)%ccomp, &
+                   state(solver%MAGNETIC+2)%ccomp, &
+                   f0,0,MPI_COMM_WORLD)
+    if ( corr .gt. tiny ) then   ! Correlate with the velocity forcing
+      DO i = ista,iend
+        DO j = 1,ny
+          DO k = 1,nz
+            C1(k,j,i) = state(solver%VELOCITY  )%ccomp(k,j,i)
+            C2(k,j,i) = state(solver%VELOCITY+1)%ccomp(k,j,i)
+            C3(k,j,i) = state(solver%VELOCITY+2)%ccomp(k,j,i)
+          END DO
+        END DO
+      END DO
+      call normalize(C1,C2,C3,f0,1,MPI_COMM_WORLD)
+      CALL rotor3(C2,C3,C4,1)
+      CALL rotor3(C1,C3,C5,2)
+      CALL rotor3(C1,C2,C6,3)
+      rmp = sqrt(1-corr**2)
+      DO i = ista,iend
+        DO j = 1,ny
+          DO k = 1,nz
+            IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+              dump = 1.0_GP/kk2(k,j,i)
+              state(solver%MAGNETIC  )%ccomp(k,j,i) =          &
+                   rmp*state(solver%MAGNETIC  )%ccomp(k,j,i) + &
+                   corr*dump*C4(k,j,i)
+              state(solver%MAGNETIC+1)%ccomp(k,j,i) =          &
+                   rmp*state(solver%MAGNETIC+1)%ccomp(k,j,i) + &
+                   corr*dump*C5(k,j,i)
+              state(solver%MAGNETIC+2)%ccomp(k,j,i) =          &
+                   rmp*state(solver%MAGNETIC+2)%ccomp(k,j,i) + &
+                   corr*dump*C6(k,j,i)
+            ENDIF
+          END DO
+        END DO
+      END DO
+      call normalize(state(solver%MAGNETIC  )%ccomp, &
+                     state(solver%MAGNETIC+1)%ccomp, &
+                     state(solver%MAGNETIC+2)%ccomp, &
+                     f0,0,MPI_COMM_WORLD)
+    endif
     class default
-      error stop "This solver does not support velocity forcing"
+      error stop "This solver does not support electromotive forcing"
     end select
     call solver%workspace_%free_complex_tmp(C1)
     call solver%workspace_%free_complex_tmp(C2)
@@ -667,7 +516,7 @@ CONTAINS
     call solver%workspace_%free_complex_tmp(C6)
     call solver%workspace_%free_complex_tmp(C7)
     call solver%workspace_%free_complex_tmp(C8)
-  end subroutine init_randomfv
+  end subroutine init_randomfb
 
   
   ! ===================================================================
@@ -676,8 +525,9 @@ CONTAINS
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Instantaneous phase shift
+  !! This method destroys any cross correlation between forces
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine update_shiftfv(this, force, solver, state)
+  subroutine update_shiftfb(this, force, solver, state)
     use pseudospec_fluid
     use equationbase_mod
     use commtypes
@@ -685,7 +535,7 @@ CONTAINS
     use status
     implicit none
     
-    class(shiftupdt_fv),   intent(inout) :: this
+    class(shiftupdt_fb),   intent(inout) :: this
     class   (forceBase),   intent   (in) :: force
     class(EquationBase),   intent   (in) :: solver
     type       (Gstate),   intent(inout) :: state(:)
@@ -693,27 +543,27 @@ CONTAINS
     real(kind=GP)                        :: phase
 
     select type (solver)
-    class is (VelocityBase)
+    class is (MagneticBase)
       if (timef.eq.fstep) then
         if (myrank.eq.0) phase = 2*pi*randu(seed)
         call MPI_BCAST(phase,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
         cdump = COS(phase)+im*SIN(phase)
-        call phaseshift(state(solver%VELOCITY  )%ccomp,cdump)
-        call phaseshift(state(solver%VELOCITY+1)%ccomp,cdump)
-        call phaseshift(state(solver%VELOCITY+2)%ccomp,cdump)
+        call phaseshift(state(solver%MAGNETIC  )%ccomp,cdump)
+        call phaseshift(state(solver%MAGNETIC+1)%ccomp,cdump)
+        call phaseshift(state(solver%MAGNETIC+2)%ccomp,cdump)
       endif
     class default
-      error stop "This solver does not support velocity forcing"
+      error stop "This solver does not support electromotive forcing"
     end select
-  end subroutine update_shiftfv
+  end subroutine update_shiftfb
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Slowly evolving random phases. This update method
   !! requires randomnes in the generation of the forcing,
-  !! i.e., it doesn't work with deterministic forcing as ABC.
+  !! but preserves cross correlations between forces.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine update_shufflefv(this, force, solver, state)
+  subroutine update_shufflefb(this, force, solver, state)
     use equationbase_mod
     use status
     use filefmt
@@ -721,7 +571,7 @@ CONTAINS
     use commtypes
     implicit none
     
-    class(shuffleupdt_fv), intent(inout)             :: this
+    class(shuffleupdt_fb), intent(inout)             :: this
     class     (forceBase), intent   (in)             :: force
     class  (EquationBase), intent   (in)             :: solver
     type         (Gstate), intent(inout)             :: state(:)
@@ -748,15 +598,15 @@ CONTAINS
         call solver%workspace_%get_real_tmp(R1,bret)
         call solver%workspace_%get_real_tmp(R2,bret)
         call solver%workspace_%get_real_tmp(R3,bret)
-        call io_read(1,idir,'fvxold',ext,solver%planio_,R1)
-        call io_read(1,idir,'fvyold',ext,solver%planio_,R2)
-        call io_read(1,idir,'fvzold',ext,solver%planio_,R3)
+        call io_read(1,idir,'fbxold',ext,solver%planio_,R1)
+        call io_read(1,idir,'fbyold',ext,solver%planio_,R2)
+        call io_read(1,idir,'fbzold',ext,solver%planio_,R3)
         call fftp3d_real_to_complex(planrc,R1,this%fxold_,MPI_COMM_WORLD)
         call fftp3d_real_to_complex(planrc,R2,this%fyold_,MPI_COMM_WORLD)
         call fftp3d_real_to_complex(planrc,R3,this%fzold_,MPI_COMM_WORLD)
-        call io_read(1,idir,'fvxnew',ext,solver%planio_,R1)
-        call io_read(1,idir,'fvynew',ext,solver%planio_,R2)
-        call io_read(1,idir,'fvznew',ext,solver%planio_,R3)
+        call io_read(1,idir,'fbxnew',ext,solver%planio_,R1)
+        call io_read(1,idir,'fbynew',ext,solver%planio_,R2)
+        call io_read(1,idir,'fbznew',ext,solver%planio_,R3)
         call fftp3d_real_to_complex(planrc,R1,this%fxnew_,MPI_COMM_WORLD)
         call fftp3d_real_to_complex(planrc,R2,this%fynew_,MPI_COMM_WORLD)
         call fftp3d_real_to_complex(planrc,R3,this%fznew_,MPI_COMM_WORLD)
@@ -767,15 +617,15 @@ CONTAINS
       this%binit_ = .TRUE.
     endif
     select type (solver)
-    class is (VelocityBase)
+    class is (MagneticBase)
       ! Generate new forcing states when the correlation time is reached
       if (timef.eq.fstep) then
         do i = ista,iend        ! Keeps a copy of the last forcing state
           do j = 1,ny
             do k = 1,nz
-              this%fxold_(k,j,i) = state(solver%VELOCITY  )%ccomp(k,j,i)
-              this%fyold_(k,j,i) = state(solver%VELOCITY+1)%ccomp(k,j,i)
-              this%fzold_(k,j,i) = state(solver%VELOCITY+2)%ccomp(k,j,i)
+              this%fxold_(k,j,i) = state(solver%MAGNETIC  )%ccomp(k,j,i)
+              this%fyold_(k,j,i) = state(solver%MAGNETIC+1)%ccomp(k,j,i)
+              this%fzold_(k,j,i) = state(solver%MAGNETIC+2)%ccomp(k,j,i)
             end do
           end do
         end do
@@ -783,9 +633,9 @@ CONTAINS
         do i = ista,iend                ! Copies the new forcing to fnew
           do j = 1,ny
             do k = 1,nz
-              this%fxnew_(k,j,i) = state(solver%VELOCITY  )%ccomp(k,j,i)
-              this%fynew_(k,j,i) = state(solver%VELOCITY+1)%ccomp(k,j,i)
-              this%fznew_(k,j,i) = state(solver%VELOCITY+2)%ccomp(k,j,i)
+              this%fxnew_(k,j,i) = state(solver%MAGNETIC  )%ccomp(k,j,i)
+              this%fynew_(k,j,i) = state(solver%MAGNETIC+1)%ccomp(k,j,i)
+              this%fznew_(k,j,i) = state(solver%MAGNETIC+2)%ccomp(k,j,i)
             end do
           end do
         end do
@@ -795,11 +645,11 @@ CONTAINS
       do i = ista,iend
         do j = 1,ny
           do k = 1,nz
-            state(solver%VELOCITY  )%ccomp(k,j,i) = &
+            state(solver%MAGNETIC  )%ccomp(k,j,i) = &
                  (1-rmp)*this%fxold_(k,j,i)+rmp*this%fxnew_(k,j,i)
-            state(solver%VELOCITY+1)%ccomp(k,j,i) = &
+            state(solver%MAGNETIC+1)%ccomp(k,j,i) = &
                  (1-rmp)*this%fyold_(k,j,i)+rmp*this%fynew_(k,j,i)
-            state(solver%VELOCITY+2)%ccomp(k,j,i) = &
+            state(solver%MAGNETIC+2)%ccomp(k,j,i) = &
                  (1-rmp)*this%fzold_(k,j,i)+rmp*this%fznew_(k,j,i)
           end do
         end do
@@ -831,9 +681,9 @@ CONTAINS
       call fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
       call fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
       call fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
-      call io_write(1,odir,'fvxold',ext,solver%planio_,R1)
-      call io_write(1,odir,'fvyold',ext,solver%planio_,R2)
-      call io_write(1,odir,'fvzold',ext,solver%planio_,R3)
+      call io_write(1,odir,'fbxold',ext,solver%planio_,R1)
+      call io_write(1,odir,'fbyold',ext,solver%planio_,R2)
+      call io_write(1,odir,'fbzold',ext,solver%planio_,R3)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       do i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -848,9 +698,9 @@ CONTAINS
       call fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
       call fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
       call fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
-      call io_write(1,odir,'fvxnew',ext,solver%planio_,R1)
-      call io_write(1,odir,'fvynew',ext,solver%planio_,R2)
-      call io_write(1,odir,'fvznew',ext,solver%planio_,R3)
+      call io_write(1,odir,'fbxnew',ext,solver%planio_,R1)
+      call io_write(1,odir,'fbynew',ext,solver%planio_,R2)
+      call io_write(1,odir,'fbznew',ext,solver%planio_,R3)
       call solver%workspace_%free_complex_tmp(C1)
       call solver%workspace_%free_complex_tmp(C2)
       call solver%workspace_%free_complex_tmp(C3)
@@ -858,6 +708,6 @@ CONTAINS
       call solver%workspace_%free_real_tmp(R2)
       call solver%workspace_%free_real_tmp(R3)
     endif
-  end subroutine update_shufflefv
+  end subroutine update_shufflefb
   
-end module force_velocity
+end module force_magnetic

@@ -10,6 +10,7 @@
 module force_factory
   USE forcebase_mod
   USE force_velocity
+  USE force_magnetic
   
   IMPLICIT NONE
   
@@ -50,6 +51,7 @@ CONTAINS
       call parsestr(forcelist(i),',',forcename,25,2,unmb)
       if ( myrank .eq. 0 ) print *,'Forcing',i,':', &
            trim(adjustl(forcename(1))),',',trim(adjustl(forcename(2)))
+      ! Forcing functions  ------------------------------------------
       select case (trim(adjustl(forcename(1))))
       ! Velocity forcing functions  ------------
       case ('null_fv')
@@ -60,16 +62,15 @@ CONTAINS
         allocate( abc_fv         :: new_object(i)%force )
       case ('random_fv')
         allocate( random_fv      :: new_object(i)%force )
-!!$      ! Magnetic forcing functions -------------
-!!$      case ('read_b')
-!!$        allocate( read_b   :: new_object(i)%ic )
-!!$      case ('null_b')
-!!$        allocate( null_b   :: new_object(i)%ic )
-!!$      case ('random_b')
-!!$        allocate( random_b :: new_object(i)%ic )
+      ! Electromotive forcing functions --------
+      case ('null_fb')
+        allocate( null_fb        :: new_object(i)%force )
+      case ('random_fb')
+        allocate( random_fb      :: new_object(i)%force )
       case default
         stop 'Unknown forcing function'
       end select
+      ! Update methods ----------------------------------------------
       select case (trim(adjustl(forcename(2))))
       ! Velocity forcing update methods --------
       case ('constant_fv')
@@ -79,13 +80,14 @@ CONTAINS
       case ('shuffle_fv')
         allocate( shuffleupdt_fv :: new_object(i)%update )
         new_object(i)%update%binit_ = .FALSE.
-!!$      ! Magnetic field ICs ---------------------    
-!!$      case ('read_b')
-!!$        allocate( read_b   :: new_object(i)%ic )
-!!$      case ('null_b')
-!!$        allocate( null_b   :: new_object(i)%ic )
-!!$      case ('random_b')
-!!$        allocate( random_b :: new_object(i)%ic )
+      ! Electromotive force update methods -----
+      case ('constant_fb')
+        if ( allocated(new_object(i)%update) ) deallocate(new_object(i)%update)
+      case ('shift_fb')
+        allocate( shiftupdt_fb   :: new_object(i)%update )
+      case ('shuffle_fb')
+        allocate( shuffleupdt_fb :: new_object(i)%update )
+        new_object(i)%update%binit_ = .FALSE.
       case default
         stop 'Unknown or undefined forcing update method'
       end select
