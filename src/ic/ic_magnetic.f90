@@ -50,13 +50,12 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_readb(this,solver,state)
     use gstate_mod
-    use hd_mod
+    use mhd_mod
     use iovar
     use status
     use filefmt
     use fft
     use commtypes
-!$  use threads
     implicit none
 
     class      (read_b), intent   (in)          :: this
@@ -93,8 +92,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_nullb(this,solver,state)
     use gstate_mod
-    use hd_mod
-    use fprecision
+    use mhd_mod
     use grid
     use mpivars
 !$  use threads
@@ -134,9 +132,10 @@ CONTAINS
   !   kdn  : minimum wave number (rounded to next integer)
   !   kup  : maximum wave number (rounded to next integer)
   !   alpha: sin(2*alpha) is the total relative helicity
+  !   corr : correlation with the velocity field
   subroutine init_randomb(this,solver,state)
     use gstate_mod
-    use hd_mod
+    use mhd_mod
     use random
     use grid
     use boxsize
@@ -157,10 +156,11 @@ CONTAINS
     real(kind=GP)                               :: b0,kdn,kup
     real(kind=GP)                               :: alpha,a1,a2
     real(kind=GP)                               :: dump,phase
+    real(kind=GP)                               :: corr,rmp
     integer                                     :: i,j,k
     logical                                     :: bret
 
-    namelist/ random_b / b0,kdn,kup,alpha
+    namelist/ random_b / b0,kdn,kup,alpha,corr
     CALL solver%workspace_%get_complex_tmp(C1,bret)
     CALL solver%workspace_%get_complex_tmp(C2,bret)
     CALL solver%workspace_%get_complex_tmp(C3,bret)
@@ -173,6 +173,7 @@ CONTAINS
     class is (MagneticBase)
     ! Read parameters from a namelist in the input file
     alpha = 0.0_GP
+    corr  = 0.0_GP
     if ( myrank .eq. 0 ) then
       open(1,file=solver%infile_,status='unknown',form="formatted")
       read(1,NML=random_b)
@@ -182,6 +183,7 @@ CONTAINS
     call mpi_bcast(kup  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(kdn  ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(alpha,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(corr ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
     ! Generate the first random field
     IF (ista.eq.1) THEN
       C1(1,1,1) = 0.
@@ -492,6 +494,44 @@ CONTAINS
                    state(solver%MAGNETIC+1)%ccomp, &
                    state(solver%MAGNETIC+2)%ccomp, &
                    b0,0,MPI_COMM_WORLD)
+    if ( corr .gt. tiny ) then   ! Correlate with the velocity field
+      DO i = ista,iend
+        DO j = 1,ny
+          DO k = 1,nz
+            C1(k,j,i) = state(solver%VELOCITY  )%ccomp(k,j,i)
+            C2(k,j,i) = state(solver%VELOCITY+1)%ccomp(k,j,i)
+            C3(k,j,i) = state(solver%VELOCITY+2)%ccomp(k,j,i)
+          END DO
+        END DO
+      END DO
+      call normalize(C1,C2,C3,b0,1,MPI_COMM_WORLD)
+      CALL rotor3(C2,C3,C4,1)
+      CALL rotor3(C1,C3,C5,2)
+      CALL rotor3(C1,C2,C6,3)
+      rmp = sqrt(1-corr**2)
+      DO i = ista,iend
+        DO j = 1,ny
+          DO k = 1,nz
+            IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
+              dump = 1.0_GP/kk2(k,j,i)
+              state(solver%MAGNETIC  )%ccomp(k,j,i) =          &
+                   rmp*state(solver%MAGNETIC  )%ccomp(k,j,i) + &
+                   corr*dump*C4(k,j,i)
+              state(solver%MAGNETIC+1)%ccomp(k,j,i) =          &
+                   rmp*state(solver%MAGNETIC+1)%ccomp(k,j,i) + &
+                   corr*dump*C5(k,j,i)
+              state(solver%MAGNETIC+2)%ccomp(k,j,i) =          &
+                   rmp*state(solver%MAGNETIC+2)%ccomp(k,j,i) + &
+                   corr*dump*C6(k,j,i)
+            ENDIF
+          END DO
+        END DO
+      END DO
+      call normalize(state(solver%MAGNETIC  )%ccomp, &
+                     state(solver%MAGNETIC+1)%ccomp, &
+                     state(solver%MAGNETIC+2)%ccomp, &
+                     b0,0,MPI_COMM_WORLD)
+    endif
     class default
       error stop "This solver does not support magnetic field ICs"
     end select
