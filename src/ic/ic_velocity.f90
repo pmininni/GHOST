@@ -45,7 +45,7 @@ module ic_velocity
 ! type, extends(icBase) :: userdef_v
 !   contains
 !     procedure :: init_GState => init_userdefv
-! end type random_v
+! end type userdef_v
 
 CONTAINS
 
@@ -64,7 +64,6 @@ CONTAINS
     use filefmt
     use fft
     use commtypes
-!$  use threads
     implicit none
 
     class      (read_v), intent   (in)          :: this
@@ -102,7 +101,6 @@ CONTAINS
   subroutine init_nullv(this,solver,state)
     use gstate_mod
     use hd_mod
-    use fprecision
     use grid
     use mpivars
 !$  use threads

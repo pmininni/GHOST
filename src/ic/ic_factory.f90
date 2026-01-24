@@ -1,15 +1,8 @@
 ! ===================================================================
 ! Factory for all initial conditions (ICs)
 !
-! To add a new initial condition...
-! NOTE: Maybe GState should be part of the IC class. After all, IC
-! does an "init" of the states. This would allow us to mark the
-! Gstates depending on whether they have velocity, magnetic fields,
-! quantum (this is now done with subclasses in the solvers). It would
-! also allow for double checks.
-! Following the same idea, the forcing vector (which should be more
-! flexible and allow for complex and real elements) could be part of
-! a "forcing" class.
+! This factory applies chain operation to create multiple initial
+! conditions for all fields in a pde solver.
 !
 ! DATE : 01/16/26 (PDM)
 ! ===================================================================

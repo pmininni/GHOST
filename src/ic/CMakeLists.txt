@@ -26,4 +26,4 @@ add_dependencies(ic_lib
   )
 
 # Link MPI if needed
-target_link_libraries(ic_lib PUBLIC project_mpi)
+target_link_libraries(ic_lib PUBLIC project_mpi utils_lib)
