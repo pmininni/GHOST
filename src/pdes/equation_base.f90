@@ -251,14 +251,16 @@ CONTAINS
     use filefmt
     use fft
     use commtypes
+    use pseudospec_fluid
 !$  use threads
     implicit none
 
     class (EquationBase), intent   (in)             :: this
     type        (GState), intent(inout)             :: uin(:)
     type        (ioplan), intent   (in)             :: planio
-    complex    (kind=GP), pointer, dimension(:,:,:) :: C1
-    real       (kind=GP), pointer, dimension(:,:,:) :: R1
+    complex    (kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3
+    complex    (kind=GP), pointer, dimension(:,:,:) :: C4,C5,C6
+    real       (kind=GP), pointer, dimension(:,:,:) :: R1,R2,R3
     real       (kind=GP)                            :: rmp
     integer                          :: i,j,k,o,state_size,nc
     logical                          :: bret
@@ -281,10 +283,83 @@ CONTAINS
       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
       CALL io_write(1,odir,trim(this%sstate_(nc)),ext,planio,R1)
     end do
+    if ( outs .ge. 1) then
+      call this%workspace_%get_complex_tmp(C2,bret)
+      call this%workspace_%get_complex_tmp(C3,bret)
+      call this%workspace_%get_complex_tmp(C4,bret)
+      call this%workspace_%get_complex_tmp(C5,bret)
+      call this%workspace_%get_complex_tmp(C6,bret)
+      call this%workspace_%get_real_tmp   (R2,bret)
+      call this%workspace_%get_real_tmp   (R3,bret)
+      select type (this)
+      class is (VelocityBase)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              C1(k,j,i) = uin(this%VELOCITY  )%ccomp(k,j,i)*rmp
+              C2(k,j,i) = uin(this%VELOCITY+1)%ccomp(k,j,i)*rmp
+              C3(k,j,i) = uin(this%VELOCITY+1)%ccomp(k,j,i)*rmp
+            END DO
+          END DO
+        END DO
+        CALL rotor3(C2,C3,C4,1) 
+        CALL rotor3(C1,C3,C5,2)
+        CALL rotor3(C1,C2,C6,3)
+        CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
+        CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
+        CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
+        CALL io_write(1,odir,'wx',ext,planio,R1)
+        CALL io_write(1,odir,'wy',ext,planio,R2)
+        CALL io_write(1,odir,'wz',ext,planio,R3)
+        select type (this)
+        class is (MagneticBase)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+          DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+            DO j = 1,ny
+              DO k = 1,nz
+                C1(k,j,i) = uin(this%MAGNETIC  )%ccomp(k,j,i)*rmp
+                C2(k,j,i) = uin(this%MAGNETIC+1)%ccomp(k,j,i)*rmp
+                C3(k,j,i) = uin(this%MAGNETIC+1)%ccomp(k,j,i)*rmp
+              END DO
+            END DO
+          END DO
+          CALL rotor3(C2,C3,C4,1) 
+          CALL rotor3(C1,C3,C5,2)
+          CALL rotor3(C1,C2,C6,3)
+          CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
+          CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
+          CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
+          CALL io_write(1,odir,'bx',ext,planio,R1)
+          CALL io_write(1,odir,'by',ext,planio,R2)
+          CALL io_write(1,odir,'bz',ext,planio,R3)
+          if ( outs .eq. 2 ) then
+            CALL laplak3(C1,C4)
+            CALL laplak3(C2,C5)
+            CALL laplak3(C3,C6)
+            CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
+            CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
+            CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
+            CALL io_write(1,odir,'jx',ext,planio,-R1)
+            CALL io_write(1,odir,'jy',ext,planio,-R2)
+            CALL io_write(1,odir,'jz',ext,planio,-R3)
+          endif
+        end select
+      end select 
+      call this%workspace_%free_complex_tmp(C2)
+      call this%workspace_%free_complex_tmp(C3)
+      call this%workspace_%free_complex_tmp(C4)
+      call this%workspace_%free_complex_tmp(C5)
+      call this%workspace_%free_complex_tmp(C6)
+      call this%workspace_%free_real_tmp   (R2)
+      call this%workspace_%free_real_tmp   (R3)
+    endif
     call this%workspace_%free_complex_tmp(C1)
     call this%workspace_%free_real_tmp   (R1)
   end subroutine write_states
-  
+
 end module equationbase_mod
 
 
