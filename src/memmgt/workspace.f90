@@ -48,12 +48,11 @@ module class_GWorkspace3D
   CONTAINS
     procedure, public :: initialize_pool, get_real_tmp, get_complex_tmp
     procedure, public :: free_real_tmp, free_complex_tmp 
+    procedure, public :: get_real_tmp_size, get_complex_tmp_size 
+    procedure, public :: add_real_entries , add_complex_entries
     final             :: cleanup_pool
   end type GWorkspace
 
-  PRIVATE :: get_real_tmp_size, get_complex_tmp_size
-  PRIVATE :: add_real_entries , add_complex_entries
-  
 CONTAINS
 
   ! ===================================================================
