@@ -84,11 +84,10 @@ if(NOT IOLIB STREQUAL "mpiio")
 endif()
 
 # ---------------------- Compile definitions -------------------------
+set(SOLVER "HD"    CACHE STRING "Hack to build GHOST with any solver")
 add_library(project_defs INTERFACE)
-
 string(TOUPPER "${SOLVER}" SOLVER_UP)
 target_compile_definitions(project_defs INTERFACE "${SOLVER_UP}_SOL")
-
 
 # ---------------------- Include directories -------------------------
 add_library(project_includes INTERFACE)
@@ -137,19 +136,11 @@ add_custom_target(project_preprocess
 
 # ---------------------- Source selection -----------------------------
 set(HD_SRC
-    "${MAIN_SRC}"
-)
-
-set(MHD_SRC
-    ${HD_SRC}
+   "${MAIN_SRC}"
 )
 
 if(SOLVER STREQUAL "HD")
     set(SOLVER_SRC ${HD_SRC})
-elseif(SOLVER STREQUAL "MHD")
-    set(SOLVER_SRC ${MHD_SRC})
-else()
-    message(FATAL_ERROR "SOLVER must be HD or MHD")
 endif()
 
 # ---------------------- Main executable ------------------------------
