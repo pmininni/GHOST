@@ -16,10 +16,13 @@
 !
 ! INPUT FILE : For solver='MHD', looks for a "&MHD" namelist with:
 !              nu      : fluid kinematic viscosity
-!              dorot   : do rotation, = .TRUE. or .FALSE.
-!              omegax  : amplitude of the uniform rotation along x
-!              omegay  : amplitude of the uniform rotation along y
-!              omegaz  : amplitude of the uniform rotation along z
+!              eta     : magnetic diffusivity
+!              doB0    : do mean magnetic field, = .TRUE. or .FALSE.
+!              dohall  : do Hall physics         = .TRUE. or .FALSE.
+!              epsilon : amplitude of the Hall term
+!              B0x     : amplitude of the guide field along x
+!              B0y     : amplitude of the guide field along y
+!              B0z     : amplitude of the guide field along z
 !              npassive: number of passive scalars (default=0)
 !
 !              For npassive > 0, looks for a "&passive" namelist with:
@@ -91,7 +94,8 @@ CONTAINS
     real(kind=GP), allocatable :: kappa(:)
 
     ! Required namelists:
-    namelist/ MHD      / nu, eta, doB0, dohall, B0x, B0y, B0z, npassive
+    namelist/ MHD      / nu, eta, doB0, B0x, B0y, B0z, npassive
+    namelist/ MHD      / dohall, epsilon, npassive
     namelist/ passive  / kappa
 
     call MPI_COMM_SIZE(MPI_COMM_WORLD,this%nprocs_,ierr)
@@ -147,7 +151,7 @@ CONTAINS
       this%traits_%kappa = kappa
       deallocate(kappa)
     endif
-
+    if ( dohall ) call this%workspace_%add_complex_entries(3)
     this%order_   = 2                        ! Time stepping order
     this%nd_      = 3                        ! 3d
     this%nc_      = this%nd_                 ! # field components
@@ -170,13 +174,12 @@ CONTAINS
   !! Function to compute RHS with guide field and hall terms
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine dudt_impl(this, time, uin, uf, dt, dudt) 
-    use fprecision
+    use pseudospec_magnetic
     use ali
     use kes
     use var
     use grid
     use mpivars
-    use pseudospec_magnetic
 !$  use threads
     implicit none
 
@@ -322,6 +325,7 @@ CONTAINS
     endif
   end subroutine dudt_impl
 
+
   ! ===================================================================
   ! Computation of global quantities and spectra
   ! ===================================================================
@@ -331,7 +335,6 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine global_impl(this, uin, uf, t) 
     use pseudospec_mhd
-    use fprecision
     use status
     implicit none
 
@@ -355,7 +358,11 @@ CONTAINS
     mx => uf (this%MAGNETIC  )%ccomp
     my => uf (this%MAGNETIC+1)%ccomp
     mz => uf (this%MAGNETIC+2)%ccomp
-    CALL mhdcheck(vx,vy,vz,ax,ay,az,t,dt,this%traits_%epsilon,1,1,0)
+    if ( .not. this%traits_%dohall ) then
+      CALL mhdcheck(vx,vy,vz,ax,ay,az,t,dt,this%traits_%epsilon,1,1,0)
+    else
+      CALL mhdcheck(vx,vy,vz,ax,ay,az,t,dt,this%traits_%epsilon,1,2,0)
+    endif
     CALL cross(vx,vy,vz,fx,fy,fz,eps,1)
     CALL cross(ax,ay,az,mx,my,mz,epm,0)
     CALL maxabs(vx,vy,vz,rmp,0)
@@ -375,8 +382,7 @@ CONTAINS
   !! Function to compute and write spectra
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine spectra_impl(this, uin)
-    use pseudospec_fluid
-    use fprecision
+    use pseudospec_aniso
     use filefmt
     use status
     implicit none
@@ -385,6 +391,9 @@ CONTAINS
     type    (GState), intent(in), target        :: uin(:)
     complex(kind=GP), pointer, dimension(:,:,:) :: vx,vy,vz
     complex(kind=GP), pointer, dimension(:,:,:) :: ax,ay,az
+    complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3
+    integer                                     :: i,j,k
+    logical                                     :: bret
 
     WRITE(ext, fmtext) sind
     vx => uin(this%VELOCITY  )%ccomp
@@ -395,6 +404,34 @@ CONTAINS
     az => uin(this%MAGNETIC+2)%ccomp
     CALL spectrum(vx,vy,vz,ext,1,1)
     CALL spectrum(ax,ay,az,ext,0,1)
+    if ( this%traits_%doB0 ) then
+      CALL specpara(vx,vy,vz,ext,1,1)
+      CALL specpara(ax,ay,az,ext,0,1)
+      CALL specperp(vx,vy,vz,ext,1,1)
+      CALL specperp(ax,ay,az,ext,0,1)
+    endif
+    if (  this%traits_%dohall ) then
+      call this%workspace_%get_complex_tmp(C1,bret)
+      call this%workspace_%get_complex_tmp(C2,bret)
+      call this%workspace_%get_complex_tmp(C3,bret)
+      DO i = ista,iend
+        DO j = 1,ny
+          DO k = 1,nz
+            C1(k,j,i) = ax(k,j,i)+this%traits_%epsilon*vx(k,j,i)
+            C2(k,j,i) = ay(k,j,i)+this%traits_%epsilon*vy(k,j,i)
+            C3(k,j,i) = az(k,j,i)+this%traits_%epsilon*vz(k,j,i)
+          END DO
+        END DO
+      END DO
+      CALL spectrum(C1,C2,C3,ext,2,1)
+      if ( this%traits_%doB0 ) then
+        CALL specpara(C1,C2,C3,ext,2,1)
+        CALL specperp(C1,C2,C3,ext,2,1)
+      endif
+      call this%workspace_%free_complex_tmp(C1)
+      call this%workspace_%free_complex_tmp(C2)
+      call this%workspace_%free_complex_tmp(C3)
+    endif       
   end subroutine spectra_impl
   
 
