@@ -306,11 +306,18 @@ CONTAINS
     call this%workspace_%get_complex_tmp(c1,bret)
     call this%workspace_%get_complex_tmp(c2,bret)
     call this%workspace_%get_complex_tmp(c3,bret)
-    call gradre3(vx,vy,vz,c1,c2,c3)          ! Computes v.Grad(v)
-    call entrans(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy flux
+    call gradre3(vx,vy,vz,c1,c2,c3)            ! Computes v.Grad(v)
+    call entrans(vx,vy,vz,-c1,-c2,-c3,ext,1)   ! Writes the energy flux
+    ! Uncomment the following line to compute the helicity flux
+    ! call heltrans(vx,vy,vz,-c1,-c2,-c3,ext,1)
     if ( this%traits_%dorot ) then
-      CALL specpara(vx,vy,vz,ext,1,1)
-      CALL specperp(vx,vy,vz,ext,1,1)
+      call specpara(vx,vy,vz,ext,1,1)
+      call specperp(vx,vy,vz,ext,1,1)
+      call entpara(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy flux
+      call entperp(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy fluxq
+      ! The following two lines compute anisotropic helicity fluxes
+      ! call helpara(vx,vy,vz,-c1,-c2,-c3,ext,1)
+      ! call helperp(vx,vy,vz,-c1,-c2,-c3,ext,1)
       ! Uncomment the following line to compute 2D spectra
       ! CALL spec2D(vx,vy,vz,ext,odir,1,1)
       ! Uncomment the following lines to compute spatio-temporal spectra
