@@ -291,7 +291,7 @@ MODULE pseudospec_scalar
       END SUBROUTINE product
 
 !*****************************************************************
-      SUBROUTINE spectrsc(a,nmb,isc)
+      SUBROUTINE spectrsc(a,nmb,isc,tail)
 !-----------------------------------------------------------------
 !
 ! Computes the passive/active scalar power spectrum.
@@ -310,6 +310,7 @@ MODULE pseudospec_scalar
 !            represents; modifies output file name. If 
 !            isc < 0, then we get the following prefixes:
 !            -1 ==> 'rhospect.XXX.txt'
+!     tail : Appends tail at the end of the file name [optional]
 !
       USE kes
       USE grid
@@ -319,12 +320,14 @@ MODULE pseudospec_scalar
 !$    USE threads
       IMPLICIT NONE
 
-      DOUBLE PRECISION, DIMENSION(nmax/2+1)                   :: Ek
+      DOUBLE PRECISION, DIMENSION(nmax/2+1)                    :: Ek
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
-      INTEGER, INTENT(IN)                                    :: isc
+      INTEGER,          INTENT(IN)                             :: isc
       INTEGER                                :: i
-      CHARACTER(len=*),           INTENT(IN) :: nmb
+      CHARACTER(len=*), INTENT(IN)           :: nmb
+      CHARACTER(len=*), INTENT(IN), OPTIONAL :: tail
       CHARACTER(len=1)                       :: si
+      CHARACTER(len=128)                     :: fname
 
 !
 ! Computes the power spectrum
@@ -336,17 +339,18 @@ MODULE pseudospec_scalar
       IF ( myrank.eq.0 ) THEN
          IF ( isc.ge.0 ) THEN
            IF ( isc.gt.0 ) THEN
-             WRITE(si,'(i1.1)') isc
-             OPEN(1,file='s' // si // 'spectrum.' // nmb // '.txt')
+              WRITE(si,'(i1.1)') isc
+              fname = 's' // si // 'spectrum'
            ELSE
-             OPEN(1,file='sspectrum.' // nmb // '.txt')
+              fname = 'sspectrum'
            ENDIF
          ELSE IF ( isc .eq. -1 ) THEN
-             OPEN(1,file='rhospectrum.' // nmb // '.txt')
-         ELSE
-             PRINT*, 'SPECTRSC: Invalid option'
-             STOP
+           fname = 'rhospectrum'
          ENDIF
+         if (present(tail)) then
+            fname = trim(adjustl(fname)) // '_' // trim(adjustl(tail))
+         endif
+         OPEN(1,file= trim(adjustl(fname)) // '.' // nmb // '.txt')
          DO i=1,nmax/2+1
             WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Ek(i)/Dkk
          END DO
@@ -453,7 +457,7 @@ MODULE pseudospec_scalar
       END SUBROUTINE spectrscc
 
 !*****************************************************************
-      SUBROUTINE sctrans(a,b,nmb,isc)
+      SUBROUTINE sctrans(a,b,nmb,isc,tail)
 !-----------------------------------------------------------------
 !
 ! Computes the scalar transfer in Fourier space in 3D.
@@ -467,13 +471,14 @@ MODULE pseudospec_scalar
 ! 'sNtransfer.XXX.txt': k, Ts(k) (same for the N-th scalar)
 !
 ! Parameters
-!     a  : scalar
-!     b  : nonlinear term
-!     nmb: the extension used when writting the file
-!     isc: if doing multi-scalar, gives index of scalar 
-!          whose transfer is being computed (1, 2, or 3) and
-!          names file as s<isc>transfer.XXX.txt. If isc=0, then
-!          filename is stransfer.XXX.txt
+!     a   : scalar
+!     b   : nonlinear term
+!     nmb : the extension used when writting the file
+!     isc : if doing multi-scalar, gives index of scalar 
+!           whose transfer is being computed (1, 2, or 3) and
+!           names file as s<isc>transfer.XXX.txt. If isc=0, then
+!           filename is stransfer.XXX.txt
+!     tail: Appends tail at the end of the file name [optional]
 !          
 !
       USE fprecision
@@ -490,11 +495,13 @@ MODULE pseudospec_scalar
       DOUBLE PRECISION, DIMENSION(nmax/2+1) :: Ek,Ektot
       DOUBLE PRECISION :: tmq
       REAL(KIND=GP)    :: tmp
-      INTEGER,           INTENT(IN)                             :: isc
+      INTEGER         , INTENT(IN)           :: isc
       INTEGER          :: i,j,k
       INTEGER          :: kmn
-      CHARACTER(len=*) , INTENT(IN)                             :: nmb
-      CHARACTER(len=1) :: si
+      CHARACTER(len=*), INTENT(IN)           :: nmb
+      CHARACTER(len=*), INTENT(IN), OPTIONAL :: tail
+      CHARACTER(len=128)                     :: fname
+      CHARACTER(len=1)                       :: si
 !
 ! Sets Ek to zero
 !
@@ -554,23 +561,31 @@ MODULE pseudospec_scalar
 !
       CALL MPI_REDUCE(Ek,Ektot,nmax/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
-      IF (myrank.eq.0) THEN
-        IF ( isc.GT.0 ) THEN
-          WRITE(si,'(i1.1)') isc
-          OPEN(1,file='s' // trim(si) // 'transfer.' // nmb // '.txt')
-        ELSE
-          OPEN(1,file='stransfer.' // nmb // '.txt')
-        ENDIF
-        DO i=1,nmax/2+1
-           WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Ektot(i)/Dkk
-        END DO
+      IF ( myrank.eq.0 ) THEN
+         IF ( isc.ge.0 ) THEN
+           IF ( isc.gt.0 ) THEN
+              WRITE(si,'(i1.1)') isc
+              fname = 's' // si // 'transfer'
+           ELSE
+              fname = 'stransfer'
+           ENDIF
+         ELSE IF ( isc .eq. -1 ) THEN
+           fname = 'rhotransfer'
+         ENDIF
+         if (present(tail)) then
+            fname = trim(adjustl(fname)) // '_' // trim(adjustl(tail))
+         endif
+         OPEN(1,file= trim(adjustl(fname)) // '.' // nmb // '.txt')
+         DO i=1,nmax/2+1
+            WRITE(1,FMT='(E13.6,E23.15)') Dkk*i,Ektot(i)/Dkk
+         END DO
       ENDIF
 
       RETURN
       END SUBROUTINE sctrans
 
 !*****************************************************************
-      SUBROUTINE difucx(a,b,nmb)
+      SUBROUTINE difucx(a,b,nmb,tail)
 !-----------------------------------------------------------------
 !
 ! Computes the mean profiles in x of the velocity, the 
@@ -583,7 +598,8 @@ MODULE pseudospec_scalar
 ! Parameters
 !     a    : vector field component in the x-direction
 !     b    : scalar field
-!     nmb: the extension used when writting the file
+!     nmb  : the extension used when writting the file
+!     tail : Appends tail at the end of the file name [optional]
 !
       USE fprecision
       USE commtypes
@@ -604,6 +620,8 @@ MODULE pseudospec_scalar
       REAL(KIND=GP)                :: tmp,tmq
       INTEGER                      :: i,j,k
       CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=*), INTENT(IN), OPTIONAL :: tail
+      CHARACTER(len=128)                     :: fname
 
 !
 ! Transforms the input arrays to real space
@@ -658,7 +676,11 @@ MODULE pseudospec_scalar
       CALL MPI_REDUCE(methv,mthv,nx,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='profilex.' // nmb // '.txt')
+         fname = 'profilex'
+         if (present(tail)) then
+            fname = trim(adjustl(fname)) // '_' // trim(adjustl(tail))
+         endif
+         OPEN(1,file= trim(adjustl(fname)) // '.' // nmb // '.txt')
          DO i = 1,nx
             WRITE(1,40) 2*pi*Lx*(real(i,kind=GP)-1)/real(nx,kind=GP), &
                         mv(i),mth(i),mthv(i)
@@ -671,7 +693,7 @@ MODULE pseudospec_scalar
       END SUBROUTINE difucx
 
 !*****************************************************************
-      SUBROUTINE difucz(a,b,nmb)
+      SUBROUTINE difucz(a,b,nmb,tail)
 !-----------------------------------------------------------------
 !
 ! Computes the mean profiles in z of the velocity, the 
@@ -684,7 +706,8 @@ MODULE pseudospec_scalar
 ! Parameters
 !     a    : vector field component in the z-direction
 !     b    : scalar field
-!     nmb  : number of blocks
+!     nmb  : the extension used when writting the file
+!     tail : Appends tail at the end of the file name [optional]
 !
       USE fprecision
       USE commtypes
@@ -705,6 +728,8 @@ MODULE pseudospec_scalar
       REAL(KIND=GP)                :: tmp,tmq
       INTEGER                      :: i,j,k
       CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=*), INTENT(IN), OPTIONAL :: tail
+      CHARACTER(len=128)                     :: fname
 
 !
 ! Transforms the input arrays to real space
@@ -759,6 +784,11 @@ MODULE pseudospec_scalar
       CALL MPI_REDUCE(methv,mthv,nz,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
 
       IF (myrank.eq.0) THEN
+         fname = 'profilez'
+         if (present(tail)) then
+            fname = trim(adjustl(fname)) // '_' // trim(adjustl(tail))
+         endif
+         OPEN(1,file= trim(adjustl(fname)) // '.' // nmb // '.txt')
          DO k = 1,nz
             WRITE(1,50) 2*pi*Lz*(real(k,kind=GP)-1)/real(nz,kind=GP), &
                         mv(k),mth(k),mthv(k)
@@ -779,7 +809,7 @@ MODULE pseudospec_phd
    CONTAINS
 
 !*****************************************************************
-      SUBROUTINE pscheck(a,b,t,dt)
+      SUBROUTINE pscheck(a,b,t,dt,ext)
 !-----------------------------------------------------------------
 !
 ! Writes a global file with quantities relevant for a passive
@@ -789,10 +819,11 @@ MODULE pseudospec_phd
 ! 'scalar.txt':  time, <theta^2>, <|grad(theta)|^2>, injection rate
 !
 ! Parameters
-!     a : scalar concentration
-!     b : source of the scalar
-!     t : number of time steps made
-!     dt: time step
+!     a  : scalar concentration
+!     b  : source of the scalar
+!     t  : number of time steps made
+!     dt : time step
+!     ext: file extension [optional]
 !
       USE fprecision
       USE grid
@@ -800,10 +831,12 @@ MODULE pseudospec_phd
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
-      DOUBLE PRECISION    :: eng,ens,pot
-      REAL(KIND=GP), INTENT(IN)    :: dt
-      INTEGER, INTENT(IN) :: t
-      INTEGER             :: i,j,k
+      DOUBLE PRECISION          :: eng,ens,pot
+      REAL(KIND=GP), INTENT(IN) :: dt
+      INTEGER, INTENT(IN)       :: t
+      INTEGER                   :: i,j,k
+      CHARACTER(len=*), INTENT(IN), OPTIONAL :: ext
+      CHARACTER(len=128)        :: fname
 
 !
 ! Computes the variance and the variance of k^2 times the scalar
@@ -818,7 +851,12 @@ MODULE pseudospec_phd
 ! Creates external files to store the results
 !
       IF (myrank.eq.0) THEN
-         OPEN(1,file='scalar.txt',position='append')
+         if (present(ext)) then
+            fname = 'scalar_' // trim(adjustl(ext)) // '.txt'
+         else
+            fname = 'scalar.txt'
+         endif
+         OPEN(1,file=trim(adjustl(fname)),position='append')
          WRITE(1,10) (t-1)*dt,eng,ens,pot
    10    FORMAT( E13.6,E22.14,E22.14,E22.14 )
          CLOSE(1)
