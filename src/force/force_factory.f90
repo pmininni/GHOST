@@ -17,16 +17,17 @@ module force_factory
 CONTAINS
   
   ! ================= Factory function ==============================
-  function init_forcing_from_file(infile) result(new_object)
+  function init_forcing_from_file(infile,workspace) result(new_object)
+    USE class_GWorkspace3D
     USE gstate_mod
     USE commtypes
     USE gutils
-    type(forceChain), allocatable :: new_object(:)
-    character(len=*),  intent(in) :: infile
-
+    type(forceChain),   allocatable :: new_object(:)
+    type(GWorkspace), intent(inout) :: workspace 
+    character(len=*), intent   (in) :: infile
     ! Temporary data:
     real(kind=GP)      :: cort
-    integer            :: i,ib,ie,ind,fnmb,unmb
+    integer            :: i,ib,ie,ind,fnmb,unmb,poolsz=0
     character(len=512) :: forces
     character(len= 50) :: forcelist(10)
     character( len=25) :: forcename(2)
@@ -41,7 +42,7 @@ CONTAINS
     call MPI_BCAST(forces,512,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
     call MPI_BCAST(cort  ,  1,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
 
-    ! Loops through all requested forces and allocates classes
+    ! Loops through all requested forces and allocates classes.
     call parsestr(forces,';',forcelist ,50,10,fnmb)
     if ( myrank .eq. 0 ) then
        print *,'Found',fnmb,'force methods'
@@ -80,6 +81,7 @@ CONTAINS
       case ('shuffle_fv')
         allocate( shuffleupdt_fv :: new_object(i)%update )
         new_object(i)%update%binit_ = .FALSE.
+        poolsz = poolsz + 3
       ! Electromotive force update methods -----
       case ('constant_fb')
         if ( allocated(new_object(i)%update) ) deallocate(new_object(i)%update)
@@ -88,10 +90,14 @@ CONTAINS
       case ('shuffle_fb')
         allocate( shuffleupdt_fb :: new_object(i)%update )
         new_object(i)%update%binit_ = .FALSE.
+        poolsz = poolsz + 3
       case default
         stop 'Unknown or undefined forcing update method'
       end select
     end do
+    ! If needed, we increase the pool size here as it is still safe for 
+    ! for permanent storage
+    if ( poolsz .gt. 0 ) call workspace%add_complex_entries(poolsz)
   end function init_forcing_from_file
 
 end module force_factory

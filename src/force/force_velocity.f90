@@ -734,7 +734,6 @@ CONTAINS
     
     ! If not initialized, initialize the method
     if ( .not. this%binit_ ) then
-      call solver%workspace_%add_complex_entries(6)
       call solver%workspace_%get_complex_tmp(this%fxold_,bret)
       call solver%workspace_%get_complex_tmp(this%fyold_,bret)
       call solver%workspace_%get_complex_tmp(this%fzold_,bret)

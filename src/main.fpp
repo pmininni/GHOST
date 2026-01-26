@@ -104,7 +104,7 @@
      CALL GState_alloc(field_nxt, num_components)
      CALL GState_alloc(force    , num_components)
      iclist       = init_ic_from_file(     'parameter.inp')
-     forcemethod  = init_forcing_from_file('parameter.inp')
+     forcemethod  = init_forcing_from_file('parameter.inp',workspace)
 
 ! Initialization of the numerical domain
      CALL box_init('parameter.inp')

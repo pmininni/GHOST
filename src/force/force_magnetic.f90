@@ -584,7 +584,6 @@ CONTAINS
     
     ! If not initialized, initialize the method
     if ( .not. this%binit_ ) then
-      call solver%workspace_%add_complex_entries(6)
       call solver%workspace_%get_complex_tmp(this%fxold_,bret)
       call solver%workspace_%get_complex_tmp(this%fyold_,bret)
       call solver%workspace_%get_complex_tmp(this%fzold_,bret)
@@ -655,7 +654,7 @@ CONTAINS
         end do
       end do
     class default
-      error stop "This solver does not support velocity forcing"
+      error stop "This solver does not support electromotive forcing"
     end select
     ! If we just wrote binary files, we save the force state
     if ((timet.eq.0).and.(bench.eq.0)) then
