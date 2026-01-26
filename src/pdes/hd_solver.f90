@@ -287,9 +287,9 @@ CONTAINS
   !! Function to compute and write spectra
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine spectra_impl(this, uin) 
+    use pseudospec_aniso
     use pseudospec_scalar
     use pseudospec_anisca
-    use pseudospec_aniso
     use filefmt
     use status
     use iovar
