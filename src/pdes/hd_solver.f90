@@ -83,8 +83,8 @@ CONTAINS
     real(kind=GP), allocatable :: kappa(:)
 
     ! Required namelists:
-    namelist/ HD       / nu, dorot, omegax, omegay, omegaz, npassive
-    namelist/ passive  / kappa
+    namelist/ HD      / nu, dorot, omegax, omegay, omegaz, npassive
+    namelist/ passive / kappa
 
     call MPI_COMM_SIZE(MPI_COMM_WORLD,this%nprocs_,ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD,this%myrank_,ierr)
@@ -98,14 +98,6 @@ CONTAINS
       open(1,file=this%infile_,status='unknown',form="formatted")
       read(1,NML=HD)
       close(1)
-      if ( npassive .gt. MAXPASSIVE ) then
-        stop 'Max # of passive scalars exceeded'
-      endif
-      if ( npassive .gt. 0 ) then
-        open(1,file=this%infile_,status='unknown',form="formatted")
-        read(1,NML=passive)
-        close(1)
-      endif
     endif
     call mpi_bcast(nu       ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(dorot    ,1 ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
@@ -113,16 +105,22 @@ CONTAINS
     call mpi_bcast(omegay   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(omegaz   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(npassive ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-!   if ( npassive .gt. 0 ) then
-!     allocate(kappa(npassive))
-!     call mpi_bcast(kappa    ,npassive,GC_REAL,0,MPI_COMM_WORLD,ierr)
-!   endif
+    this%numpassive_ = npassive
+    if ( npassive .gt. 0 ) then
+      allocate(kappa(npassive))
+      if ( this%myrank_ .eq. 0 ) then
+        if ( npassive .gt. MAXPASSIVE ) stop 'Max # of passive scalars exceeded'
+        open(1,file=this%infile_,status='unknown',form="formatted")
+        read(1,NML=passive)
+        close(1)
+      endif
+      call mpi_bcast(kappa,npassive,GC_REAL,0,MPI_COMM_WORLD,ierr)
+    endif
 
     ! Set traits from inputfile data:
-    this%traits_%     dorot = dorot
-    this%traits_%numpassive = npassive
-    this%traits_%        nu = nu
-    this%traits_%     omega = (/omegax,omegay,omegaz/)
+    this%traits_%dorot = dorot
+    this%traits_%   nu = nu
+    this%traits_%omega = (/omegax,omegay,omegaz/)
     if ( npassive .gt. 0 ) then
       if ( allocated(this%traits_%kappa) ) then
         deallocate(this%traits_%kappa);
@@ -234,17 +232,16 @@ CONTAINS
     enddo
     enddo
 
-    ! Compute passive scalars:
-!      call rhs_passive(this, uin, uf, this%traits_%kappa, &
-!              this%VELOCITY, this%nc_, this%PASSIVE, &
-!              this%numpassive, dudt)
-
     CALL this%workspace_%free_complex_tmp(C1)
     CALL this%workspace_%free_complex_tmp(C2)
     CALL this%workspace_%free_complex_tmp(C3)
     CALL this%workspace_%free_complex_tmp(C4)
     CALL this%workspace_%free_complex_tmp(C5)
     CALL this%workspace_%free_complex_tmp(C6)
+
+    ! Compute passive scalars:
+    call this%rhs_passive(uin, uf, this%traits_%kappa, dudt)
+
   end subroutine dudt_impl
 
 
@@ -256,6 +253,7 @@ CONTAINS
   !! Function to compute and write global quantities
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine global_impl(this, uin, uf, t) 
+    use pseudospec_phd
     use pseudospec_hd
     use status
     implicit none
@@ -265,6 +263,7 @@ CONTAINS
     integer         , intent(in)                :: t
     complex(kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
     real   (kind=GP)                            :: rmp
+    integer                                     :: i
 
     vx => uin(this%VELOCITY  )%ccomp
     vy => uin(this%VELOCITY+1)%ccomp
@@ -279,6 +278,9 @@ CONTAINS
       WRITE(1,FMT='(E13.6,E13.6)') (t-1)*dt,rmp
       CLOSE(1)
     ENDIF
+    do i = this%PASSIVE, this%PASSIVE+this%numpassive_-1
+      call pscheck(uin(i)%ccomp,uf(i)%ccomp,t,dt,trim(this%sstate_(i)))
+    end do   
   end subroutine global_impl
 
   
@@ -286,6 +288,8 @@ CONTAINS
   !! Function to compute and write spectra
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine spectra_impl(this, uin) 
+    use pseudospec_scalar
+    use pseudospec_anisca
     use pseudospec_aniso
     use filefmt
     use status
@@ -296,6 +300,7 @@ CONTAINS
     type    (GState), intent(in), target        :: uin(:)
     complex(kind=GP), pointer, dimension(:,:,:) :: vx,vy,vz
     complex(kind=GP), pointer, dimension(:,:,:) :: c1,c2,c3
+    integer                                     :: i
     logical                                     :: bret
 
     WRITE(ext, fmtext) sind
@@ -328,6 +333,15 @@ CONTAINS
     call this%workspace_%free_complex_tmp(c1)
     call this%workspace_%free_complex_tmp(c2)
     call this%workspace_%free_complex_tmp(c3)
+    if ( this%numpassive_ .gt. 0) then
+      do i = this%PASSIVE, this%PASSIVE+this%numpassive_-1
+        call spectrsc(uin(i)%ccomp,ext,0,trim(this%sstate_(i)))
+        if ( this%traits_%dorot ) then
+          call specscpa(uin(i)%ccomp,ext,0,trim(this%sstate_(i)))
+          call specscpe(uin(i)%ccomp,ext,0,trim(this%sstate_(i)))
+        endif
+      end do
+    endif
   end subroutine spectra_impl
   
 
@@ -398,7 +412,7 @@ CONTAINS
     do j = this%VELOCITY,this%VELOCITY+this%nc_-1
        sstate(j) = 'v' // comp(j-this%VELOCITY+1)
     enddo
-    do j = this%PASSIVE,this%PASSIVE+this%traits_%numpassive-1
+    do j = this%PASSIVE,this%PASSIVE+this%numpassive_-1
        write(snum,'(I0)') j-this%PASSIVE+1
        sstate(j) = 's' // trim(snum)
     enddo
@@ -411,8 +425,8 @@ CONTAINS
   PURE function state_size_impl(this) result(num)
     class(HDSolver), intent(in) :: this
     integer                     :: num
-    num = this%nc_                      ! # vel. components
-    num = num + this%traits_%numpassive ! # scalars
+    num = this%nc_               ! # vel. components
+    num = num + this%numpassive_ ! # scalars
   end function state_size_impl
 
 end module hd_mod

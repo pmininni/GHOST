@@ -38,6 +38,8 @@ module equationbase_mod
       integer :: numpassive_ ! # passive scalars
       integer :: nd_         ! problem dimension
       integer :: nc_         ! # vector field components
+    contains
+      procedure, public                          :: rhs_passive
   end type VelocityBase
 
   type, abstract, extends(VelocityBase) :: ActiveScalarBase
@@ -140,26 +142,20 @@ CONTAINS
         end do
       end do
     end do
-
   end subroutine timestep
 
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Concrete method to compute RHS for all passive scalars
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine rhs_passive(this, uin, f, &
-               kappa, ivstart, numv, isstart, npassive, dudt)
-  !------------------------------------------------------------------
+  subroutine rhs_passive(this, uin, uf, kappa, dudt)
+  !----------------------------------------------------------
   ! Parameters
-  !     uin     : current full state
-  !     f       : forces for each state comp
-  !     kappa   : diffusivities (must be npassive of these)
-  !     ivstart : start index of velocity sector in uin
-  !     numv    : number of velocity comps to use for advection
-  !     sstart  : start index of scalar sector
-  !     npassive: number of passive scalars to advect
-  !     dudt    : computed RHS for each scalar, 1-npassive
-  !******************************************************************
+  !   uin  : current full state
+  !   uf   : forces for each state comp
+  !   kappa: diffusivities (must be npassive of these)
+  !   dudt : computed RHS for all scalars
+  !**********************************************************
     use pseudospec_scalar
     use ali
     use kes
@@ -170,74 +166,47 @@ CONTAINS
 !$  use threads
     implicit none
 
-    class (EquationBase), intent(in) :: this
-    integer          , intent   (in) :: isstart, npassive
-    integer          , intent   (in) :: ivstart, numv
-    real    (kind=GP), intent   (in) :: kappa(:)
-    type     (GState), intent(inout) :: uin(:)
-    type     (GState), intent(inout) :: f(:)
-    type (GWorkspace), pointer       :: workspace
-    type     (GState), intent  (out) :: dudt(:) 
-    logical                          :: bret
-    integer                          :: i,j,k,n
-    complex, pointer                 :: ctmp(:,:,:)
- 
-    CALL workspace%get_complex_tmp(ctmp,bret)
+    class(VelocityBase), intent(in)   :: this
+    real     (kind=GP), intent   (in) :: kappa(:)
+    type      (GState), intent(inout) :: uin(:)
+    type      (GState), intent   (in) :: uf(:)
+    type      (GState), intent(inout) :: dudt(:) 
+    logical                           :: bret
+    integer                           :: i,j,k,n
+    complex  (kind=GP), pointer       :: adve(:,:,:),lapl(:,:,:)
+
+    if ( this%numpassive_ .eq. 0 ) return
+    call this%workspace_%get_complex_tmp(adve,bret)
+    call this%workspace_%get_complex_tmp(lapl,bret)
     if ( .not.bret ) then
       stop 'EquationBase::rhs_passive: workspace get failure'
-    endif 
-
-    if ( numv .eq. 3 ) then ! 3d advection
-      do n = 1, npassive
-         call advect3(uin(ivstart  )%ccomp,uin(ivstart+1  )%ccomp, &
-                      uin(ivstart+2)%ccomp,uin(isstart+n-1)%ccomp, &
-                      ctmp)
-        call laplak3(uin(isstart+n-1)%ccomp,uin(isstart+n-1)%ccomp)
+    endif
+    if ( this%nc_ .eq. 3 ) then ! 3d advection
+      do n = this%PASSIVE, this%PASSIVE+this%numpassive_-1
+        call advect3(uin(this%VELOCITY  )%ccomp, &
+                     uin(this%VELOCITY+1)%ccomp, &
+                     uin(this%VELOCITY+2)%ccomp, &
+                     uin(n)%ccomp,adve)
+        call laplak3(uin(n)%ccomp,lapl)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         do i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-        do j = 1,ny
-        do k = 1,nz
-          if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
-            dudt(n)%ccomp(k,j,i) = &
-                kappa(n)*uin(isstart+n-1)%ccomp(k,j,i)+ctmp(k,j,i) &
-                +f(isstart)%ccomp(k,j,i)
-          else if (kn2(k,j,i).gt.kmax) then
-            dudt(n)%ccomp(k,j,i) = 0.0_GP
-          else if (kn2(k,j,i).lt.tiny) then
-            dudt(n)%ccomp(k,j,i) = 0.0_GP
-          endif
+          do j = 1,ny
+            do k = 1,nz
+              if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
+                dudt(n)%ccomp(k,j,i) =                  &
+                  kappa(n-this%PASSIVE+1)*lapl(k,j,i) + &
+                  adve(k,j,i) + uf(n)%ccomp(k,j,i)
+              else if ((kn2(k,j,i).gt.kmax).or.(kn2(k,j,i).lt.tiny)) then
+                  dudt(n)%ccomp(k,j,i) = 0.0_GP
+              endif
+            enddo
+          enddo
         enddo
-        enddo
-        enddo
-      enddo ! end, loop over scalars
-!!$    else ! 2d advection:
-!!$      do n = 1, npassive
-!!$        call advect3(uin(ivstart),uin(ivstart+1),uin(ivstart+2),&
-!!$                                 uin(isstart+n-1),ctmp)
-!!$        call laplak3(uin(isstart+n-1),uin(isstart+n-1))
-!!$!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-!!$        do i = ista,iend
-!!$!$omp parallel do if (iend-ista.lt.nth) private (k)
-!!$        do j = 1,ny
-!!$        do k = 1,nz
-!!$        if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
-!!$          dudt(n+isstart)%ccomp(k,j,i) = &
-!!$              kappa(n)*uin(isstart+n-1)%ccomp(k,j,i)+ctmp(k,j,i) &
-!!$              +f(isstart)%ccomp(k,j,i)
-!!$        else if (kn2(k,j,i).gt.kmax) then
-!!$          dudt(n+isstart)%ccomp(k,j,i) = 0.0_GP
-!!$        else if (kn2(k,j,i).lt.tiny) then
-!!$          dudt(n+isstart)%ccomp(k,j,i) = 0.0_GP
-!!$        endif
-!!$        enddo
-!!$        enddo
-!!$        enddo
-!!$      enddo ! end, loop over scalars
+      enddo ! end, loop over all scalars
     endif
-
-    CALL workspace%free_complex_tmp(ctmp)
-
+    call this%workspace_%free_complex_tmp(adve)
+    call this%workspace_%free_complex_tmp(lapl)
   end subroutine rhs_passive
 
   
