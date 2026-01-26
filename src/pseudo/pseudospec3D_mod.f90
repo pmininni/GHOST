@@ -37,7 +37,7 @@
       USE mpivars
       IMPLICIT NONE
 
-      CHARACTER(len=128), INTENT(IN)      :: infile_
+      CHARACTER(len=*), INTENT(IN) :: infile_
       NAMELIST/ grid / nx,ny,nz
       IF ( myrank .EQ. 0 ) THEN
          OPEN(1,file=infile_,status='unknown',form="formatted")
@@ -101,10 +101,10 @@
 !$    USE threads
       IMPLICIT NONE
 
-      CHARACTER(len=128), INTENT(IN)      :: infile_
-      CHARACTER(len=256)                  :: iomsg
-      REAL(KIND=GP)                       :: rmp,rmq,rms
-      INTEGER                             :: i,j,k,ios
+      CHARACTER  (len=*), INTENT(IN) :: infile_
+      CHARACTER(len=256)             :: iomsg
+      REAL(KIND=GP)                  :: rmp,rmq,rms
+      INTEGER                        :: i,j,k,ios
       NAMELIST / boxparams / Lx,Ly,Lz,Dkk
 
       Lx  = 1.0_GP; Ly  = 1.0_GP; Lz  = 1.0_GP
@@ -259,8 +259,8 @@
 !$    USE threads
       IMPLICIT NONE
 
-      REAL(KIND=GP)                       :: cort
-      CHARACTER(len=128), INTENT(IN)      :: infile_
+      REAL(KIND=GP)                :: cort
+      CHARACTER(len=*), INTENT(IN) :: infile_
       NAMELIST / status / idir,odir,stat,mult,bench,outs,dt
       NAMELIST / status / step,tstep,sstep,cstep,seed,cort
 
