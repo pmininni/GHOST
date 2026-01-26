@@ -121,11 +121,14 @@ CONTAINS
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !  Subroutine to add real arrays to the real array pool.
+  !  Note that this routine can make all pointers to the pool
+  !  become undefined when the pool is resized with 
+  !  MOVE_ALLOC. It should not be used after initiating
+  !  arrays in the pool intended for permanent storage.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine add_real_entries(this, num_new)
     CLASS(GWorkspace), intent(inout)          :: this
     integer          , intent(in)             :: num_new
-    
     integer                                   :: i
     type(RealEntry)  , ALLOCATABLE            :: tmp_copy(:)
 
@@ -164,12 +167,14 @@ CONTAINS
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !  Subroutine to add complex arrays to the complex array
-  !  pool.
+  !  pool. Note that this routine can make all pointers to
+  !  the pool become undefined when the pool is resized with
+  !  MOVE_ALLOC. It should not be used after initiating
+  !  arrays in the pool intended for permanent storage.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine add_complex_entries(this, num_new)
     CLASS(GWorkspace), intent(inout)          :: this
     integer          , intent(in)             :: num_new
-    
     integer                                   :: i
     type(ComplexEntry) , ALLOCATABLE          :: tmp_copy(:)
 
@@ -183,7 +188,7 @@ CONTAINS
       ! Need to extend arrays and copy old data
       ALLOCATE(tmp_copy(1:this%complex_size_+num_new+this%nreserve_))
       tmp_copy(1:this%complex_size_) = this%complex_entries_(1:this%complex_size_)
-      call MOVE_ALLOC(tmp_copy, this%complex_entries_)
+      call MOVE_ALLOC(tmp_copy, this%complex_entries_) 
       
       ! Allocate the remaining arrays
       do i = this%complex_size_+1,this%complex_size_+num_new
@@ -237,7 +242,6 @@ CONTAINS
     CLASS(GWorkspace), target, intent(inout) :: this
     real(kind=GP)   , pointer, intent(out)   :: ret_ptr(:,:,:)
     logical        , optional, intent(out)   :: success
-
     integer                                  :: i
 
     success = .FALSE.
@@ -261,7 +265,6 @@ CONTAINS
     CLASS(GWorkspace), target , intent(inout) :: this
     complex(kind=GP) , pointer, intent(out)   :: ret_ptr(:,:,:)
     logical         , optional, intent(out)   :: success
-
     integer                                   :: i
 
     success = .FALSE.
@@ -284,7 +287,6 @@ CONTAINS
   subroutine free_real_tmp(this, in_ptr)
     CLASS(GWorkspace), target , intent(inout) :: this
     real(kind=GP)    , pointer, intent(inout) :: in_ptr(:,:,:)
-
     integer                                   :: i
 
     do i = 1, this%real_size_
@@ -306,7 +308,6 @@ CONTAINS
   subroutine free_complex_tmp(this, in_ptr)
     CLASS(GWorkspace), target, intent(inout) :: this
     complex(kind=GP), pointer, intent(inout) :: in_ptr(:,:,:)
-
     integer                                  :: i
 
     do i = 1, this%complex_size_
