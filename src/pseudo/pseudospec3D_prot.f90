@@ -1,5 +1,8 @@
 !=================================================================
-! PSEUDOSPECTRAL subroutines
+! PSEUDOSPECTRAL modules
+!
+! CONTAINS:
+!      MODULE pseudospec_anisc
 !
 ! Extra subroutines to compute the variance spectrum and 
 ! transfer functions for a passive scalar in 3D in the 
@@ -22,8 +25,11 @@
 ! 7 Aug 2010: New specperp and 2D spectrum (Teitelbaum & Mininni)
 !=================================================================
 
+MODULE pseudospec_anisca
+   CONTAINS
+
 !*****************************************************************
-      SUBROUTINE specscpa(a,nmb,isc)
+      SUBROUTINE specscpa(a,nmb,isc,tail)
 !-----------------------------------------------------------------
 !
 ! Computes the reduced power spectrum of the passive scalar in
@@ -39,10 +45,11 @@
 ! 'sNspecpara.XXX.txt': kz, V(kz) (same for the N-th scalar)
 !
 ! Parameters
-!     a  : input matrix with the passive scalar
-!     nmb: the extension used when writting the file
-!     isc: index to specify which scalar the spectrum 
-!          represents; modifies output file name
+!     a    : input matrix with the passive scalar
+!     nmb  : the extension used when writting the file
+!     isc  : index to specify which scalar the spectrum 
+!            represents; modifies output file name
+!     tail : Appends tail at the end of the file name [optional]
 !
       USE fprecision
       USE commtypes
@@ -61,8 +68,10 @@
       INTEGER,          INTENT(IN)                           :: isc
       INTEGER          :: i,j,k
       INTEGER          :: kmn
-      CHARACTER(len=*), INTENT(IN) :: nmb
-      CHARACTER(len=1)             :: si
+      CHARACTER(len=*), INTENT(IN)           :: nmb
+      CHARACTER(len=*), INTENT(IN), OPTIONAL :: tail
+      CHARACTER(len=1)                       :: si
+      CHARACTER(len=128)                     :: fname
 
 !
 ! Sets Ek to zero
@@ -123,13 +132,21 @@
 !
       CALL MPI_REDUCE(Ek,Ektot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
-      IF (myrank.eq.0) THEN
-         IF ( isc.gt.0 ) THEN
-           WRITE(si,'(i1.1)') isc
-           OPEN(1,file='s' // si // 'specpara.' // nmb // '.txt')
-         ELSE
-           OPEN(1,file='sspecpara.' // nmb // '.txt')
+      IF ( myrank.eq.0 ) THEN
+         IF ( isc.ge.0 ) THEN
+           IF ( isc.gt.0 ) THEN
+              WRITE(si,'(i1.1)') isc
+              fname = 's' // si // 'specpara'
+           ELSE
+              fname = 'sspecpara'
+           ENDIF
+         ELSE IF ( isc .eq. -1 ) THEN
+           fname = 'rhospecpara'
          ENDIF
+         if (present(tail)) then
+            fname = trim(adjustl(fname)) // '_' // trim(adjustl(tail))
+         endif
+         OPEN(1,file= trim(adjustl(fname)) // '.' // nmb // '.txt')
          DO k = 1,nz/2+1
             WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Ektot(k)*Lz
          END DO
@@ -140,7 +157,7 @@
       END SUBROUTINE specscpa
 
 !*****************************************************************
- SUBROUTINE specscpe(a,nmb,isc)
+ SUBROUTINE specscpe(a,nmb,isc,tail)
 !-----------------------------------------------------------------
 !
 ! Computes the reduced power spectrum of the passive scalar 
@@ -159,10 +176,11 @@
 ! 'sNspecperp.XXX.txt': kp, V(kp), v(kp,kz=0) (for the N-th scalar)
 !
 ! Parameters   
-!     a  : input matrix with the passive scalar
-!     nmb: the extension used when writting the file
-!     isc: index to specify which scalar the spectrum 
-!          represents; modifies output file name
+!     a    : input matrix with the passive scalar
+!     nmb  : the extension used when writting the file
+!     isc  : index to specify which scalar the spectrum 
+!            represents; modifies output file name
+!     tail : Appends tail at the end of the file name [optional]
 !
       USE kes
       USE grid
@@ -173,10 +191,12 @@
 
       DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ektot,Eptot
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
-      INTEGER,          INTENT(IN) :: isc
-      INTEGER                      :: j
-      CHARACTER(len=*), INTENT(IN) :: nmb
-      CHARACTER(len=1)             :: si
+      INTEGER,          INTENT(IN)           :: isc
+      INTEGER                                :: j
+      CHARACTER(len=*), INTENT(IN)           :: nmb
+      CHARACTER(len=*), INTENT(IN), OPTIONAL :: tail
+      CHARACTER(len=1)                       :: si
+      CHARACTER(len=128)                     :: fname
 
 !
 ! Computes the energy and/or helicity spectra
@@ -185,13 +205,21 @@
 !
 ! Exports the energy spectra to a file
 !
-      IF (myrank.eq.0) THEN
-         IF ( isc.gt.0 ) THEN
-           WRITE(si,'(i1.1)') isc
-           OPEN(1,file='s' // si // 'specperp.' // nmb // '.txt')
-         ELSE
-           OPEN(1,file='sspecperp.' // nmb // '.txt')
+      IF ( myrank.eq.0 ) THEN
+         IF ( isc.ge.0 ) THEN
+           IF ( isc.gt.0 ) THEN
+              WRITE(si,'(i1.1)') isc
+              fname = 's' // si // 'specperp'
+           ELSE
+              fname = 'sspecperp'
+           ENDIF
+         ELSE IF ( isc .eq. -1 ) THEN
+           fname = 'rhospecperp'
          ENDIF
+         if (present(tail)) then
+            fname = trim(adjustl(fname)) // '_'// trim(adjustl(tail))
+         endif
+         OPEN(1,file= trim(adjustl(fname)) // '.' // nmb // '.txt')
          DO j = 1,nmaxperp/2+1
             WRITE(1,FMT='(E23.15,E23.15,E23.15)') Dkk*(j-1), &
                                  Ektot(j)/Dkk, Eptot(j)/Dkk
@@ -314,7 +342,7 @@
       END SUBROUTINE specscpec
 
 !*****************************************************************
-      SUBROUTINE sctpara(a,b,nmb,isc)
+      SUBROUTINE sctpara(a,b,nmb,isc,tail)
 !-----------------------------------------------------------------
 !
 ! Computes the transfer function for the passive scalar in 
@@ -335,6 +363,7 @@
 !     b  : nonlinear term
 !     nmb: the extension used when writting the file
 !     isc: scalar id, used if isc >= 0
+!     tail : Appends tail at the end of the file name [optional]
 !
       USE fprecision
       USE commtypes
@@ -353,8 +382,10 @@
       INTEGER         , INTENT(IN)                             :: isc
       INTEGER          :: i,j,k
       INTEGER          :: kmn
-      CHARACTER(len=*), INTENT(IN) :: nmb
-      CHARACTER(len=1)             :: si
+      CHARACTER(len=*), INTENT(IN)           :: nmb
+      CHARACTER(len=*), INTENT(IN), OPTIONAL :: tail
+      CHARACTER(len=1)                       :: si
+      CHARACTER(len=128)                     :: fname
 
 !
 ! Sets Ek to zero
@@ -415,13 +446,21 @@
 !
       CALL MPI_REDUCE(Ek,Ektot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
-      IF (myrank.eq.0) THEN
-         IF ( isc.gt.0 ) THEN
-           WRITE(si,'(i1.1)')isc
-           OPEN(1,file='s' // trim(si) // 'tranpara.' // nmb // '.txt')
-         ELSE
-           OPEN(1,file='stranpara.' // nmb // '.txt')
+      IF ( myrank.eq.0 ) THEN
+         IF ( isc.ge.0 ) THEN
+           IF ( isc.gt.0 ) THEN
+              WRITE(si,'(i1.1)') isc
+              fname = 's' // si // 'tranpara'
+           ELSE
+              fname = 'stranpara'
+           ENDIF
+         ELSE IF ( isc .eq. -1 ) THEN
+           fname = 'rhotranpara'
          ENDIF
+         if (present(tail)) then
+            fname = trim(adjustl(fname)) // '_' // trim(adjustl(tail))
+         endif
+         OPEN(1,file= trim(adjustl(fname)) // '.' // nmb // '.txt')
          DO k = 1,nz/2+1
             WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Ektot(k)*Lz
          END DO
@@ -432,7 +471,7 @@
       END SUBROUTINE sctpara
 
 !*****************************************************************
-      SUBROUTINE sctperp(a,b,nmb,isc)
+      SUBROUTINE sctperp(a,b,nmb,isc,tail)
 !-----------------------------------------------------------------
 !
 ! Computes the transfer function for the passive scalar in 
@@ -454,6 +493,7 @@
 !     b  : nonlinear term
 !     nmb: the extension used when writting the file
 !     isc: scalar id, used if isc >= 0
+!     tail : Appends tail at the end of the file name [optional]
 !
       USE fprecision
       USE commtypes
@@ -472,8 +512,10 @@
       INTEGER         , INTENT(IN)                            :: isc
       INTEGER          :: i,j,k
       INTEGER          :: kmn
-      CHARACTER(len=*), INTENT(IN) :: nmb
-      CHARACTER(len=1)             :: si
+      CHARACTER(len=*), INTENT(IN)           :: nmb
+      CHARACTER(len=*), INTENT(IN), OPTIONAL :: tail
+      CHARACTER(len=1)                       :: si
+      CHARACTER(len=128)                     :: fname
 
 !
 ! Sets Ek to zero
@@ -534,13 +576,21 @@
 !
       CALL MPI_REDUCE(Ek,Ektot,nmaxperp/2+1,MPI_DOUBLE_PRECISION,     &
                       MPI_SUM,0,MPI_COMM_WORLD,ierr)
-      IF (myrank.eq.0) THEN
-        IF ( isc.gt.0 ) THEN
-           WRITE(si,'(i1.1)')isc
-           OPEN(1,file='s' // trim(si) // 'tranperp.' // nmb // '.txt')
-         ELSE
-           OPEN(1,file='stranperp.' // nmb // '.txt')
+      IF ( myrank.eq.0 ) THEN
+         IF ( isc.ge.0 ) THEN
+           IF ( isc.gt.0 ) THEN
+              WRITE(si,'(i1.1)') isc
+              fname = 's' // si // 'tranperp'
+           ELSE
+              fname = 'stranperp'
+           ENDIF
+         ELSE IF ( isc .eq. -1 ) THEN
+           fname = 'rhotranperp'
          ENDIF
+         if (present(tail)) then
+            fname = trim(adjustl(fname)) // '_' // trim(adjustl(tail))
+         endif
+         OPEN(1,file= trim(adjustl(fname)) // '.' // nmb // '.txt')
          DO j = 1,nmaxperp/2+1
             WRITE(1,FMT='(E13.6,E23.15)') Dkk*(j-1),Ektot(j)/Dkk
          END DO
@@ -551,7 +601,7 @@
       END SUBROUTINE sctperp
 
 !*****************************************************************
-      SUBROUTINE specsc2D(a,nmb,dir,isc)
+      SUBROUTINE specsc2D(a,nmb,dir,isc,tail)
 !-----------------------------------------------------------------
 !
 ! Computes the axysimmetric power spectrum of the passive 
@@ -574,6 +624,7 @@
 !     nmb: the extension used when writting the file
 !     dir: directory where the files are written
 !     isc: if > 0, changes filename prefix
+!     tail : Appends tail at the end of the file name [optional]
 !
       USE fprecision
       USE commtypes
@@ -591,9 +642,11 @@
       INTEGER             :: i,j,k
       INTEGER, INTENT(IN) :: isc
       INTEGER             :: kmn,kmz
-      CHARACTER(len=100), INTENT(IN) :: dir
-      CHARACTER(len=*), INTENT(IN)   :: nmb
-      CHARACTER(len=1)               :: si
+      CHARACTER(len=100), INTENT(IN)           :: dir
+      CHARACTER(len=*),   INTENT(IN)           :: nmb
+      CHARACTER(len=*),   INTENT(IN), OPTIONAL :: tail
+      CHARACTER(len=1)                         :: si
+      CHARACTER(len=256)                       :: fname
 
 !
 ! Sets Ek to zero
@@ -665,17 +718,26 @@
 !
       CALL MPI_REDUCE(Ek,Ektot,(nmaxperp/2+1)*(nz/2+1),GC_REAL,       &
                       MPI_SUM,0,MPI_COMM_WORLD,ierr)
-      IF (myrank.eq.0) THEN
-         IF ( isc.gt.0 ) THEN
-           WRITE(si,'(i1.1)') isc
-           OPEN(1,file=trim(dir) // '/' // si // 'spec2D.' // nmb //  &
-                '.out',form='unformatted')
-         ELSE
-           OPEN(1,file=trim(dir) // '/' // 'sspec2D.' // nmb //       &
-                '.out',form='unformatted')
+      IF ( myrank.eq.0 ) THEN
+         IF ( isc.ge.0 ) THEN
+           IF ( isc.gt.0 ) THEN
+              WRITE(si,'(i1.1)') isc
+              fname = trim(dir) // '/s' // si // 'spec2D'
+           ELSE
+              fname = trim(dir) // '/sspec2D'
+           ENDIF
+         ELSE IF ( isc .eq. -1 ) THEN
+           fname = trim(dir) // '/rhospec2D'
          ENDIF
+         if (present(tail)) then
+            fname = trim(adjustl(fname)) // '_' // trim(adjustl(tail))
+         endif
+         OPEN(1,file= trim(adjustl(fname)) // '.' // nmb // '.txt',   &
+              form='unformatted')
          WRITE(1) Ektot
          CLOSE(1)
       ENDIF
 
       END SUBROUTINE specsc2d
+
+END MODULE pseudospec_anisca
