@@ -35,7 +35,6 @@ module hd_mod
   ! ================= Solver traits ===================================
   type, public  :: NHTraits
     logical       :: dorot        = .FALSE. ! rotation flag
-    integer       :: numpassive   = 0       ! num passive scalars
     real(kind=GP) :: nu           = 0.0_GP  ! dissipation
     real(kind=GP), allocatable :: kappa(:)  ! diffusivities
     real(kind=GP)              :: omega(3)  ! rotation vector
@@ -130,11 +129,11 @@ CONTAINS
       deallocate(kappa)
     endif
 
-    this%order_   = 2                       ! Time stepping order
-    this%nd_      = 3                       ! 3d
-    this%nc_      = this%nd_                ! # field components
-    this%VELOCITY = 1                       ! start of vel sector
-    this%PASSIVE = this%VELOCITY + this%nc_ ! start of scalar sector
+    this%order_   = 2                        ! Time stepping order
+    this%nd_      = 3                        ! 3d
+    this%nc_      = this%nd_                 ! # field components
+    this%VELOCITY = 1                        ! start of vel sector
+    this%PASSIVE  = this%VELOCITY + this%nc_ ! start of scalar sector
 
     allocate(this%sstate_(this%state_size()))
     call this%get_sstate(this%sstate_)
@@ -253,8 +252,8 @@ CONTAINS
   !! Function to compute and write global quantities
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine global_impl(this, uin, uf, t) 
-    use pseudospec_phd
     use pseudospec_hd
+    use pseudospec_phd
     use status
     implicit none
 

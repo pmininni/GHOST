@@ -41,7 +41,6 @@ module mhd_mod
   type, public  :: NHTraits
     logical       :: doB0         = .FALSE. ! guide field flag
     logical       :: dohall       = .FALSE. ! compute hall term
-    integer       :: numpassive   = 0       ! num passive scalars
     real(kind=GP) :: nu           = 0.0_GP  ! dissipation
     real(kind=GP) :: eta          = 0.0_GP  ! magnetic diffusivity
     real(kind=GP) :: epsilon      = 0.0_GP  ! Ion inertial length scale
@@ -112,14 +111,6 @@ CONTAINS
       open(1,file=this%infile_,status='unknown',form="formatted")
       read(1,NML=MHD)
       close(1)
-      if ( npassive .gt. MAXPASSIVE ) then
-        stop 'Max # of passive scalars exceeded'
-      endif
-      if ( npassive .gt. 0 ) then
-        open(1,file=this%infile_,status='unknown',form="formatted")
-        read(1,NML=passive)
-        close(1)
-      endif
     endif
     call mpi_bcast(nu       ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(eta      ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
@@ -130,15 +121,21 @@ CONTAINS
     call mpi_bcast(B0y      ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(B0z      ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(npassive ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-!   if ( npassive .gt. 0 ) then
-!     allocate(kappa(npassive))
-!     call mpi_bcast(kappa    ,npassive,GC_REAL,0,MPI_COMM_WORLD,ierr)
-!   endif
+    this%numpassive_ = npassive
+    if ( npassive .gt. 0 ) then
+      allocate(kappa(npassive))
+      if ( this%myrank_ .eq. 0 ) then
+        if ( npassive .gt. MAXPASSIVE ) stop 'Max # of passive scalars exceeded'
+        open(1,file=this%infile_,status='unknown',form="formatted")
+        read(1,NML=passive)
+        close(1)
+      endif
+      call mpi_bcast(kappa,npassive,GC_REAL,0,MPI_COMM_WORLD,ierr)
+    endif
 
     ! Set traits from inputfile data:
     this%traits_%      doB0 = doB0
     this%traits_%    dohall = dohall
-    this%traits_%numpassive = npassive
     this%traits_%        nu = nu
     this%traits_%       eta = eta
     this%traits_%   epsilon = epsilon
@@ -151,6 +148,7 @@ CONTAINS
       this%traits_%kappa = kappa
       deallocate(kappa)
     endif
+   
     if ( dohall ) call this%workspace_%add_complex_entries(3)
     this%order_   = 2                        ! Time stepping order
     this%nd_      = 3                        ! 3d
@@ -301,11 +299,6 @@ CONTAINS
     enddo
     enddo
 
-    ! Compute passive scalars:
-!      call rhs_passive(this, uin, uf, this%traits_%kappa, &
-!              this%VELOCITY, this%nc_, this%PASSIVE, &
-!              this%numpassive, dudt)
-
     CALL this%workspace_%free_complex_tmp(C1)
     CALL this%workspace_%free_complex_tmp(C2)
     CALL this%workspace_%free_complex_tmp(C3)
@@ -323,6 +316,10 @@ CONTAINS
        CALL this%workspace_%free_complex_tmp(C14)
        CALL this%workspace_%free_complex_tmp(C15)
     endif
+
+    ! Compute passive scalars:
+    call this%rhs_passive(uin, uf, this%traits_%kappa, dudt)
+
   end subroutine dudt_impl
 
 
@@ -335,6 +332,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine global_impl(this, uin, uf, t) 
     use pseudospec_mhd
+    use pseudospec_phd
     use status
     implicit none
 
@@ -345,6 +343,7 @@ CONTAINS
     complex(kind=GP), pointer, dimension(:,:,:) :: mx,my,mz,ax,ay,az
     double precision                            :: eps,epm
     real   (kind=GP)                            :: rmp,rmq
+    integer                                     :: i
 
     vx => uin(this%VELOCITY  )%ccomp
     vy => uin(this%VELOCITY+1)%ccomp
@@ -375,6 +374,9 @@ CONTAINS
       WRITE(1,FMT='(E13.6,E13.6,E13.6)') (t-1)*dt,rmp,rmq
       CLOSE(1)
     ENDIF
+    do i = this%PASSIVE, this%PASSIVE+this%numpassive_-1
+      call pscheck(uin(i)%ccomp,uf(i)%ccomp,t,dt,trim(this%sstate_(i)))
+    end do
   end subroutine global_impl
 
   
@@ -383,6 +385,8 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine spectra_impl(this, uin)
     use pseudospec_aniso
+    use pseudospec_scalar
+    use pseudospec_anisca
     use filefmt
     use status
     implicit none
@@ -431,7 +435,17 @@ CONTAINS
       call this%workspace_%free_complex_tmp(C1)
       call this%workspace_%free_complex_tmp(C2)
       call this%workspace_%free_complex_tmp(C3)
-    endif       
+    endif
+    if ( this%numpassive_ .gt. 0) then
+      do i = this%PASSIVE, this%PASSIVE+this%numpassive_-1
+        call spectrsc(uin(i)%ccomp,ext,0,trim(this%sstate_(i)))
+        if ( this%traits_%doB0 ) then
+          call specscpa(uin(i)%ccomp,ext,0,trim(this%sstate_(i)))
+          call specscpe(uin(i)%ccomp,ext,0,trim(this%sstate_(i)))
+        endif
+      end do
+    endif
+
   end subroutine spectra_impl
   
 
@@ -505,7 +519,7 @@ CONTAINS
     do j = this%MAGNETIC,this%MAGNETIC+this%nc_-1
        sstate(j) = 'a' // comp(j-this%MAGNETIC+1)
     enddo
-    do j = this%PASSIVE,this%PASSIVE+this%traits_%numpassive-1
+    do j = this%PASSIVE,this%PASSIVE+this%numpassive_-1
        write(snum,'(I0)') j-this%PASSIVE+1
        sstate(j) = 's' // trim(snum)
     enddo
@@ -518,9 +532,9 @@ CONTAINS
   PURE function state_size_impl(this) result(num)
     class(MHDSolver), intent(in) :: this
     integer                      :: num
-    num = this%nc_                      ! # vel. components
-    num = num + this%nc_                ! # vec. potential components
-    num = num + this%traits_%numpassive ! # scalars
+    num = this%nc_               ! # vel. components
+    num = num + this%nc_         ! # vec. potential components
+    num = num + this%numpassive_ ! # scalars
   end function state_size_impl
 
 end module mhd_mod
