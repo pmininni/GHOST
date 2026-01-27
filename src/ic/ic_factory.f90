@@ -11,6 +11,7 @@ module ic_factory
   USE icbase_mod
   USE ic_velocity
   USE ic_magnetic
+  USE ic_passive
   
   IMPLICIT NONE
   
@@ -63,6 +64,15 @@ CONTAINS
         allocate( null_b   :: new_object(i)%ic )
       case ('random_b')
         allocate( random_b :: new_object(i)%ic )
+      ! Passive scalar ICs ---------------------    
+      case ('read_s')
+        allocate( read_s     :: new_object(i)%ic )
+      case ('constant_s')
+        allocate( constant_s :: new_object(i)%ic )
+      case ('puff_s')
+        allocate( puff_s     :: new_object(i)%ic )
+      case ('random_s')
+        allocate( random_s   :: new_object(i)%ic )
       case default
         stop 'Unknown initial conditions'
       end select

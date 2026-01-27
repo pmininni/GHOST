@@ -2,6 +2,7 @@ add_library(force_lib STATIC
   force_base.f90
   force_velocity.f90
   force_magnetic.f90
+  force_passive.f90
   force_factory.f90
 )
 

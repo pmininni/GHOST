@@ -731,7 +731,7 @@ CONTAINS
     real(kind=GP)                                    :: phase,rmp
     integer                                          :: i,j,k
     logical                                          :: bret
-    
+
     ! If not initialized, initialize the method
     if ( .not. this%binit_ ) then
       call solver%workspace_%get_complex_tmp(this%fxold_,bret)
@@ -741,7 +741,7 @@ CONTAINS
       call solver%workspace_%get_complex_tmp(this%fynew_,bret)
       call solver%workspace_%get_complex_tmp(this%fznew_,bret)
       if ( stat .eq. 0 ) then ! Generate new forcing
-        timef = fstep
+         timef = fstep
       else                    ! Read previous forcing state
         write(ext, fmtext) tind
         call solver%workspace_%get_real_tmp(R1,bret)

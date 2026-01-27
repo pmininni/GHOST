@@ -69,16 +69,14 @@ CONTAINS
     class      (read_v), intent   (in)          :: this
     class(EquationBase), intent   (in)          :: solver
     type    (GState), intent(inout)             :: state(:)
-    complex(kind=GP), pointer, dimension(:,:,:) :: C1
     real   (kind=GP), pointer, dimension(:,:,:) :: R1
     integer                          :: i
     logical                          :: bret
 
     if ((stat .eq. 0).and.(solver%myrank_ .eq. 0)) then
-       error stop 'Cannot read files if starting a new run with stat=0'
+      stop 'Cannot read files if starting a new run with stat=0'
     endif
-    call solver%workspace_%get_complex_tmp(C1,bret)
-    call solver%workspace_%get_real_tmp(   R1,bret)
+    call solver%workspace_%get_real_tmp(R1,bret)
     select type (solver)
     class is (VelocityBase)
       tind = int(stat)
@@ -90,8 +88,7 @@ CONTAINS
     class default
       error stop "This solver does not support velocity field ICs"
     end select
-    call solver%workspace_%free_complex_tmp(C1)
-    call solver%workspace_%free_real_tmp(   R1)
+    call solver%workspace_%free_real_tmp(R1)
   end subroutine init_readv
  
 

@@ -11,6 +11,7 @@ module force_factory
   USE forcebase_mod
   USE force_velocity
   USE force_magnetic
+  USE force_passive
   
   IMPLICIT NONE
   
@@ -27,7 +28,7 @@ CONTAINS
     character(len=*), intent   (in) :: infile
     ! Temporary data:
     real(kind=GP)      :: cort
-    integer            :: i,ib,ie,ind,fnmb,unmb,poolsz=0
+    integer            :: i,ib,ie,ind,fnmb,unmb,poolsz = 0
     character(len=512) :: forces
     character(len= 50) :: forcelist(10)
     character( len=25) :: forcename(2)
@@ -68,6 +69,13 @@ CONTAINS
         allocate( null_fb        :: new_object(i)%force )
       case ('random_fb')
         allocate( random_fb      :: new_object(i)%force )
+      ! Passive scalar forcing functions -------
+      case ('null_fs')
+        allocate( null_fs        :: new_object(i)%force )
+      case ('puff_fs')
+        allocate( puff_fs        :: new_object(i)%force )
+      case ('random_fs')
+        allocate( random_fs      :: new_object(i)%force )
       case default
         stop 'Unknown forcing function'
       end select
@@ -91,6 +99,11 @@ CONTAINS
         allocate( shuffleupdt_fb :: new_object(i)%update )
         new_object(i)%update%binit_ = .FALSE.
         poolsz = poolsz + 3
+      ! Passive scalar forcing functions -------
+      case ('constant_fs')
+        if ( allocated(new_object(i)%update) ) deallocate(new_object(i)%update)
+      case ('shift_fs')
+        allocate( shiftupdt_fs   :: new_object(i)%update )
       case default
         stop 'Unknown or undefined forcing update method'
       end select

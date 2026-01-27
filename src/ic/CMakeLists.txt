@@ -2,6 +2,7 @@ add_library(ic_lib STATIC
   ic_base.f90
   ic_velocity.f90
   ic_magnetic.f90
+  ic_passive.f90
   ic_factory.f90
 )
 

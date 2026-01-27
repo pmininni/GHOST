@@ -140,12 +140,7 @@
          CALL GTStop(ihwtm2)
       ENDIF
 
-!
-! Sets the external forcing
-
-      CALL init_forcing(forcemethod,pde,force)
-
-! Initial state
+! Initial states
  IC : IF (stat.eq.0) THEN                 ! If stat=0 we start a new run
         ini  = 1
         sind = 0                          ! index for the spectrum
@@ -168,8 +163,8 @@
         timef = int(modulo(float(ini-1),float(fstep)))
       ENDIF IC
       CALL init_allstates(iclist,pde,field)
+      CALL init_forcing(forcemethod,pde,force)
 
-!
 ! Time integration scheme starts here.
 ! If we are doing a benchmark, we measure
 ! cputime before starting.
