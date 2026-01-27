@@ -89,7 +89,7 @@ CONTAINS
       case ('shuffle_fv')
         allocate( shuffleupdt_fv :: new_object(i)%update )
         new_object(i)%update%binit_ = .FALSE.
-        poolsz = poolsz + 3
+        poolsz = poolsz + 6
       ! Electromotive force update methods -----
       case ('constant_fb')
         if ( allocated(new_object(i)%update) ) deallocate(new_object(i)%update)
@@ -98,7 +98,7 @@ CONTAINS
       case ('shuffle_fb')
         allocate( shuffleupdt_fb :: new_object(i)%update )
         new_object(i)%update%binit_ = .FALSE.
-        poolsz = poolsz + 3
+        poolsz = poolsz + 6
       ! Passive scalar forcing functions -------
       case ('constant_fs')
         if ( allocated(new_object(i)%update) ) deallocate(new_object(i)%update)
