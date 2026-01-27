@@ -6,14 +6,14 @@
 &grid
 nx = 64
 ny = 64
-nz = 64
+nz = 128
 /
 
 ! Boz size, if not present GHOST uses a 2.pi cubic box
 &boxparams
 Lx = 1.00        ! Length of the box in x
 Ly = 1.00        ! Length of the box in y
-Lz = 1.00        ! Length of the box in z
+Lz = 2.00        ! Length of the box in z
 /
 
 ! General configuration flags
@@ -29,7 +29,7 @@ step = 501       ! total number of steps
 tstep = 250      ! number of steps between binary output
 sstep = 250      ! number of steps between spectrum output
 cstep = 5        ! number of steps between writing global quantities
-cort = 0.2       ! global correlation time for random forcing methods
+cort = 0.1       ! global correlation time for random forcing methods
 seed = 1000      ! global seed for random number generators
 /
 
@@ -42,13 +42,19 @@ solver = "MHD"   ! Solver name, reads a namelist with the same name
 &MHD
 nu  = 3.e-3      ! kinematic viscosity
 eta = 3.e-3      ! magnetic diffusivity
-doB0   = .FALSE. ! do MHD/Hall-MHD with guide field
+doB0   = .TRUE.  ! do MHD/Hall-MHD with guide field
 dohall = .FALSE. ! do Hall-MHD
 B0x = 0.0        ! guide field in x (ignored if doB0 is FALSE)
 B0y = 0.0        ! guide field in y (ignored if doB0 is FALSE)
-B0z = 0.0        ! guide field in z (ignored if doB0 is FALSE)
+B0z = 1.0        ! guide field in z (ignored if doB0 is FALSE)
 epsilon = 0.0    ! amplitude of the Hall term (ignored if dohall is FALSE)
-npassive = 0     ! number of passive scalars
+npassive = 2     ! number of passive scalars
+/
+
+! Parameters for the passive scalar (we set up npassive parameters)
+! Passive scalar diffuvities when npassive > 0, separated by commas.
+&passive
+kappa = 1.3e-2, 2.1e-2 ! we have npassive = 2
 /
 
 ! Initial conditions. List separated by ';' to set up ICs. 
@@ -57,7 +63,7 @@ npassive = 0     ! number of passive scalars
 ! Use "read_v;read_b" if restarting from a previous file with stat > 0
 ! If stat > 0 and some ICs are not "read_?", GHOST resets that field.
 &initial_conditions
-iclist = "null_v;null_b"
+iclist = "null_v;null_b;random_s"
 /
 
 ! Forcing. List separated by ';', each forcing is a pair of
@@ -67,23 +73,20 @@ iclist = "null_v;null_b"
 ! Forcings for b: null_fb, random_fb
 ! Updates for fb: constant_fb, shift_fb, shuffle_fb
 &forcing
-forces = "random_fv,shuffle_fv;random_fb,shuffle_fb"
+forces = "tg_fv,constant_fv;null_fb,constant_fb;null_fs,constant_fs"
 /
 
 ! Forcing specific parameters, in a namelist with the forcing name:
-! Parameters for random velocity forcing
-&random_fv
+! Parameters for tg velocity forcing
+&tg_fv
 f0 = 1.00        ! amplitude of the mechanical forcing
 kdn = 1          ! minimum wavenumber
 kup = 2          ! maximum wavenumber
-alpha = 0.0      ! relative helicity
 /
 
-! Parameters for random electromotive forcing
-&random_fb
-f0 = 1.00        ! amplitude of the mechanical forcing
-kdn = 1          ! minimum wavenumber
-kup = 2          ! maximum wavenumber
-alpha = 0.0      ! relative helicity
-corr  = 0.7      ! Cross-correlation between fv and fb
+! Parameters for the passive scalar random initial conditions
+&random_s
+c0 = 1.00, 0.50  ! r.m.s. amplitudes of the initial concentrations
+kdn = 1, 1       ! minimum wavenumber
+kup = 2, 3       ! maximum wavenumber
 /
