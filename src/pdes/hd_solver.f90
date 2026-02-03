@@ -170,6 +170,10 @@ CONTAINS
     integer                                     :: i,j,k
     logical                                     :: bret
        
+    if ( .not. this%binit_ ) then
+      stop 'HDSolver::dud: Solver not initialized'
+    endif
+
     nu     = this%traits_%nu
 
     CALL this%workspace_%get_complex_tmp(C1,bret)

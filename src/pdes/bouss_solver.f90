@@ -201,6 +201,10 @@ CONTAINS
     real   (kind=GP)                            :: omegax,omegay,omegaz
     integer                                     :: i,j,k
     logical                                     :: bret
+
+    if ( .not. this%binit_ ) then
+      stop 'BOUSSolver::dud: Solver not initialized'
+    endif
        
     nu     = this%traits_%nu
     bkappa = this%traits_%bkappa
