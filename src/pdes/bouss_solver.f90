@@ -21,7 +21,7 @@
 !                TEMP                                : temperature sector
 !                PASSIVE  (PASSIVE+1, PASSIVE+2, ...): passive scalar sector
 !
-! INPUT FILE : For solver='BOUSS', looks for a "&HD" namelist with:
+! INPUT FILE : For solver='BOUSS', looks for a "&BOUSS" namelist with:
 !              nu      : fluid kinematic viscosity
 !              bkappa  : active scalar diffusivity
 !              bvfreq  : Brunt-Vaisala frequency
@@ -62,7 +62,7 @@ module bouss_mod
 
   ! ================= Solver ==========================================
   ! Define class:
-  type, extends(VelocityBase) :: BoussSolver 
+  type, extends(VelocityBase) :: BOUSSSolver 
     ! Member data:
     logical           :: binit_=.false. ! is initialized?
     type  (NHTraits)  :: traits_
@@ -74,9 +74,9 @@ module bouss_mod
     procedure, public :: state_size    =>    state_size_impl ! state size
     procedure, public :: sstate2istate => sstate2istate_impl ! state names
     procedure, public :: get_sstate    =>    get_sstate_impl ! get state name list
-    procedure, public :: Solver_ctor   =>      BoussSolver_ctor ! constructor
-    final             :: BoussSolver_dtor
-  end type BoussSolver
+    procedure, public :: Solver_ctor   =>      BOUSSSolver_ctor ! constructor
+    final             :: BOUSSSolver_dtor
+  end type BOUSSSolver
 
 CONTAINS
 
@@ -89,7 +89,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_impl(this)
     USE commtypes
-    class  (BoussSolver), intent (inout) :: this
+    class  (BOUSSSolver), intent (inout) :: this
 
     ! Temporary data to read from namelists:
     logical                    :: dorot
@@ -188,7 +188,7 @@ CONTAINS
 !$  use threads
     implicit none
 
-    class (BoussSolver), intent   (in)             :: this
+    class (BOUSSSolver), intent   (in)             :: this
     real   (kind=GP), intent   (in)             :: time, dt
     type    (GState), intent(inout), target     :: uin(:),uf(:)
     type    (GState), intent(inout)             :: dudt(:) 
@@ -324,7 +324,7 @@ CONTAINS
     use status
     implicit none
 
-    class (BoussSolver), intent(in)                :: this
+    class (BOUSSSolver), intent(in)                :: this
     type    (GState), intent(in), target        :: uin(:), uf(:)
     integer         , intent(in)                :: t
     complex(kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz,th
@@ -363,7 +363,7 @@ CONTAINS
     use iovar
     implicit none
 
-    class (BoussSolver), intent(in)                :: this
+    class (BOUSSSolver), intent(in)                :: this
     type    (GState), intent(in), target        :: uin(:)
     complex(kind=GP), pointer, dimension(:,:,:) :: vx,vy,vz,th
     complex(kind=GP), pointer, dimension(:,:,:) :: c1,c2,c3
@@ -420,9 +420,9 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Constructor
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine BoussSolver_ctor(this, infile, workspace, plan)
+  subroutine BOUSSSolver_ctor(this, infile, workspace, plan)
     use iovar
-    class  (BoussSolver), intent(inout)         :: this
+    class  (BOUSSSolver), intent(inout)         :: this
     type(GWorkspace) , intent(inout), target :: workspace
     type(ioplan)     , intent(inout), target :: plan
     character(len=*) , intent   (in)         :: infile
@@ -430,31 +430,31 @@ CONTAINS
     this%workspace_ => workspace
     this%planio_    => plan
     call this%init()
-  end subroutine BoussSolver_ctor
+  end subroutine BOUSSSolver_ctor
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Destructor
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine BoussSolver_dtor(this) 
-    type  (BoussSolver), intent(inout) :: this
+  subroutine BOUSSSolver_dtor(this) 
+    type  (BOUSSSolver), intent(inout) :: this
     if (associated(this%workspace_))   nullify(this%workspace_)
     if (associated(this%planio_))      nullify(this%planio_)
     if (allocated(this%sstate_))       deallocate(this%sstate_)
     if (allocated(this%traits_%kappa)) deallocate(this%traits_%kappa)
-  end subroutine BoussSolver_dtor
+  end subroutine BOUSSSolver_dtor
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Convert input state name to index in state vector
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine sstate2istate_impl(this, sstate, istate) 
-    class (BoussSolver)              , intent   (in) :: this
+    class (BOUSSSolver)              , intent   (in) :: this
     character(len=8)              , intent   (in) :: sstate(:)
     integer         , allocatable , intent(inout) :: istate(:)
     integer                                       :: i,j
     if ( size(sstate) .ne. size(istate) ) then
-      stop 'BoussSolver::sstate2istate_impl: Incompatible sstate and istate'
+      stop 'BOUSSSolver::sstate2istate_impl: Incompatible sstate and istate'
     endif  
     do i = 1, size(sstate)
       istate(i) = -1 ! return unusable index
@@ -471,7 +471,7 @@ CONTAINS
   !! Get state variable names
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine get_sstate_impl(this, sstate) 
-    class  (BoussSolver)             , intent   (in) :: this
+    class  (BOUSSSolver)             , intent   (in) :: this
     character (len=8), allocatable, intent(inout) :: sstate(:)
     character(len=100)                            :: snum
     character(len=1)                              :: comp(3)
@@ -498,7 +498,7 @@ CONTAINS
   !! Function to compute number of state members (equations)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   PURE function state_size_impl(this) result(num)
-    class(BoussSolver), intent(in) :: this
+    class(BOUSSSolver), intent(in) :: this
     integer                     :: num
     num = this%nc_ + 1           ! # vel. components + theta
     num = num + this%numpassive_ ! # passive scalars
