@@ -192,14 +192,21 @@ CONTAINS
     real   (kind=GP), intent   (in)             :: time, dt
     type    (GState), intent(inout), target     :: uin(:),uf(:)
     type    (GState), intent(inout)             :: dudt(:) 
-    complex(kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz,th
+    complex(kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
+    complex(kind=GP), pointer, dimension(:,:,:) :: fth,th
     complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4,C5,C6
-    real   (kind=GP)                            :: nu
+    complex(kind=GP), pointer, dimension(:,:,:) :: C7,C8
+    real   (kind=GP)                            :: bkappa,bvfreq,nu
+    real   (kind=GP)                            :: xmom,xtemp
     real   (kind=GP)                            :: omegax,omegay,omegaz
     integer                                     :: i,j,k
     logical                                     :: bret
        
     nu     = this%traits_%nu
+    bkappa = this%traits_%bkappa
+    bvfreq = this%traits_%bvfreq
+    xmom   = this%traits_%xmom  * this%bvfreq
+    xtemp  = this%traits_%xtemp * this%traits_%bvfreq
 
     CALL this%workspace_%get_complex_tmp(C1,bret)
     CALL this%workspace_%get_complex_tmp(C2,bret)
@@ -207,14 +214,17 @@ CONTAINS
     CALL this%workspace_%get_complex_tmp(C4,bret)
     CALL this%workspace_%get_complex_tmp(C5,bret)
     CALL this%workspace_%get_complex_tmp(C6,bret)
+    CALL this%workspace_%get_complex_tmp(C7,bret)
+    CALL this%workspace_%get_complex_tmp(C8,bret)
 
-    vx => uin(this%VELOCITY  )%ccomp
-    vy => uin(this%VELOCITY+1)%ccomp
-    vz => uin(this%VELOCITY+2)%ccomp
-    th => uin(this%TEMP)      %ccomp
-    fx => uf (this%VELOCITY  )%ccomp
-    fy => uf (this%VELOCITY+1)%ccomp
-    fz => uf (this%VELOCITY+2)%ccomp
+    vx  => uin(this%VELOCITY  )%ccomp
+    vy  => uin(this%VELOCITY+1)%ccomp
+    vz  => uin(this%VELOCITY+2)%ccomp
+    th  => uin(this%TEMP)      %ccomp
+    fx  => uf (this%VELOCITY  )%ccomp
+    fy  => uf (this%VELOCITY+1)%ccomp
+    fz  => uf (this%VELOCITY+2)%ccomp
+    fth => uf (this%TEMP)      %ccomp
       
     call prodre3(vx,vy,vz,C4,C5,C6)                    ! w x v
     if ( this%traits_%dorot ) then
@@ -236,12 +246,37 @@ CONTAINS
       end do
       end do
     endif
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+    do i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+    do j = 1,ny
+    do k = 1,nz
+       C6(k,j,i) = C6(k,j,i) - xmom*th(k,j,i) ! buoyancy term
+    end do
+    end do
+    end do
+
     call nonlhd3(C4,C5,C6,C1,1)  ! -[(w + 2 Omega) x v + Grad p]_x
     call nonlhd3(C4,C5,C6,C2,2)  ! -[(w + 2 Omega) x v + Grad p]_y
     call nonlhd3(C4,C5,C6,C3,3)  ! -[(w + 2 Omega) x v + Grad p]_z
     call laplak3(vx,C4)          ! Del^2 vx
     call laplak3(vy,C5)          ! Del^2 vy
     call laplak3(vz,C6)          ! Del^2 vz
+
+    CALL advect3(vx,vy,vz,th,C7) ! -(v.Grad) th
+    call laplak3(th,C8)          ! Del^2 th
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+    DO i = ista,iend               ! heat 'currrent':
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+      DO j = 1,ny
+        DO k = 1,nz
+          C7(k,j,i) = C7(k,j,i) + xtemp*vz(k,j,i) ! add N vz term
+        END DO
+      END DO
+    END DO
+
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
     do i = ista,iend
@@ -252,10 +287,12 @@ CONTAINS
         dudt(this%VELOCITY  )%ccomp(k,j,i) = nu*C4(k,j,i) + C1(k,j,i) + fx(k,j,i)
         dudt(this%VELOCITY+1)%ccomp(k,j,i) = nu*C5(k,j,i) + C2(k,j,i) + fy(k,j,i)
         dudt(this%VELOCITY+2)%ccomp(k,j,i) = nu*C6(k,j,i) + C3(k,j,i) + fz(k,j,i)
+        dudt(this%TEMP)%ccomp(k,j,i) = bkappa*C8(k,j,i) + C7(k,j,i) + fth(k,j,i)
       else
         dudt(this%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
         dudt(this%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
         dudt(this%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
+        dudt(this%TEMP)      %ccomp(k,j,i) = 0.0_GP
       endif
     enddo
     enddo
@@ -439,6 +476,12 @@ CONTAINS
     character(len=100)                            :: snum
     character(len=1)                              :: comp(3)
     integer                                       :: j
+
+    if ( size(sstate) .lt. this%state_size() ) then
+      deallocate(sstate)
+      allocate(sstate,this%state_size())
+    endif
+
     comp = ['x', 'y', 'z']
     do j = this%VELOCITY,this%VELOCITY+this%nc_-1
        sstate(j) = 'v' // comp(j-this%VELOCITY+1)
