@@ -330,6 +330,7 @@ CONTAINS
     type    (GState), intent(in), target        :: uin(:), uf(:)
     integer         , intent(in)                :: t
     complex(kind=GP), pointer, dimension(:,:,:) :: fs,fx,fy,fz,vx,vy,vz,th
+    complex(kind=GP), pointer, dimension(:,:,:) :: c1,c2,c3
     real   (kind=GP)                            :: rmp,rmq
     integer                                     :: i
 
@@ -363,7 +364,9 @@ CONTAINS
       call pscheck(uin(i)%ccomp,uf(i)%ccomp,t,dt,trim(this%sstate_(i)))
     end do   
 
-     CALL this%workspace_%free_complex_tmp(c1)
+    CALL this%workspace_%free_complex_tmp(c1)
+    CALL this%workspace_%free_complex_tmp(c2)
+    CALL this%workspace_%free_complex_tmp(c3)
 
   end subroutine global_impl
 
@@ -403,6 +406,10 @@ CONTAINS
     if ( this%traits_%dorot ) then
       call specpara(vx,vy,vz,ext,1,1)
       call specperp(vx,vy,vz,ext,1,1)
+      call spectrsc(th,ext,0)
+      call specscpa(th,ext,0)
+      call specscpe(th,ext,0)
+
       call entpara(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy flux
       call entperp(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy fluxq
       ! The following two lines compute anisotropic helicity fluxes
@@ -414,6 +421,10 @@ CONTAINS
       ! CALL write_fourier(vx,'vx',ext,odir)
       ! CALL write_fourier(vy,'vy',ext,odir)
       ! CALL write_fourier(vz,'vz',ext,odir)
+
+      ! Uncomment the following line to compute vert. spectrum of pot'l vorticity
+      !  CALL spectpv(vx,vy,vz,th,ext)
+
     endif
     call this%workspace_%free_complex_tmp(c1)
     call this%workspace_%free_complex_tmp(c2)
