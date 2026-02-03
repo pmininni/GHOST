@@ -70,7 +70,7 @@ module equationbase_mod
        class (EquationBase), intent (inout) :: this
      end subroutine init_interface
 
-      subroutine dudt_interface(this, time, uin, uf, dt, dudt) 
+     subroutine dudt_interface(this, time, uin, uf, dt, dudt) 
        USE gstate_mod
        import :: EquationBase
        class(EquationBase), intent   (in)         :: this
@@ -123,20 +123,20 @@ CONTAINS
     type        (GState), intent(inout) :: uin(:), uf(:), uout(:)
     real       (kind=GP), intent   (in) :: time, dt
     real       (kind=GP)                :: eff_dt
-    integer                             :: i,j,k,o,state_size,nc
+    integer                             :: i,j,k,o,state_size,ic
 
     state_size = this%state_size()
     do o = this%order_,1,-1
       eff_dt = dt/real(o,kind=GP)
       CALL this%dudt(time, uout, uf, eff_dt, uout)
-      do nc = 1,state_size
+      do ic = 1,state_size
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         do i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           do j = 1,ny
             do k = 1,nz
-              uout(nc)%ccomp(k,j,i) = uin(nc)%ccomp(k,j,i) + &
-                              eff_dt*uout(nc)%ccomp(k,j,i)
+              uout(ic)%ccomp(k,j,i) = uin(ic)%ccomp(k,j,i) + &
+                              eff_dt*uout(ic)%ccomp(k,j,i)
             end do
           end do
         end do
@@ -154,7 +154,7 @@ CONTAINS
   !   uin  : current full state
   !   uf   : forces for each state comp
   !   kappa: diffusivities (must be npassive of these)
-  !   dudt : computed RHS for all scalars
+  !   dudt : computed RHS for full state
   !**********************************************************
     use pseudospec_scalar
     use ali
