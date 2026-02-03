@@ -356,7 +356,7 @@ CONTAINS
 
     IF (myrank.eq.0) THEN
       OPEN(1,file='maximum.txt',position='append')
-      WRITE(1,FMT='(E13.6,E13.6)') (t-1)*dt,rmp,rmq
+      WRITE(1,FMT='(E13.6,E13.6,E13.6)') (t-1)*dt,rmp,rmq
       CLOSE(1)
     ENDIF
     do i = this%PASSIVE, this%PASSIVE+this%numpassive_-1
