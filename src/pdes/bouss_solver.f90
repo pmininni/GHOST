@@ -383,7 +383,7 @@ CONTAINS
     use iovar
     implicit none
 
-    class (BOUSSSolver), intent(in)                :: this
+    class (BOUSSSolver), intent(in)             :: this
     type    (GState), intent(in), target        :: uin(:)
     complex(kind=GP), pointer, dimension(:,:,:) :: vx,vy,vz,th
     complex(kind=GP), pointer, dimension(:,:,:) :: c1,c2,c3
@@ -450,7 +450,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine BOUSSSolver_ctor(this, infile, workspace, plan)
     use iovar
-    class  (BOUSSSolver), intent(inout)         :: this
+    class  (BOUSSSolver), intent(inout)      :: this
     type(GWorkspace) , intent(inout), target :: workspace
     type(ioplan)     , intent(inout), target :: plan
     character(len=*) , intent   (in)         :: infile
