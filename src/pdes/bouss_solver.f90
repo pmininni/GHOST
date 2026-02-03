@@ -304,6 +304,8 @@ CONTAINS
     CALL this%workspace_%free_complex_tmp(C4)
     CALL this%workspace_%free_complex_tmp(C5)
     CALL this%workspace_%free_complex_tmp(C6)
+    CALL this%workspace_%free_complex_tmp(C7)
+    CALL this%workspace_%free_complex_tmp(C8)
 
     ! Compute passive scalars:
     call this%rhs_passive(uin, uf, this%traits_%kappa, dudt)
@@ -324,12 +326,14 @@ CONTAINS
     use status
     implicit none
 
-    class (BOUSSSolver), intent(in)                :: this
+    class (BOUSSSolver), intent(in)             :: this
     type    (GState), intent(in), target        :: uin(:), uf(:)
     integer         , intent(in)                :: t
-    complex(kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz,th
-    real   (kind=GP)                            :: rmp
+    complex(kind=GP), pointer, dimension(:,:,:) :: fs,fx,fy,fz,vx,vy,vz,th
+    real   (kind=GP)                            :: rmp,rmq
     integer                                     :: i
+
+    CALL this%workspace_%get_complex_tmp(C1,bret)
 
     vx => uin(this%VELOCITY  )%ccomp
     vy => uin(this%VELOCITY+1)%ccomp
@@ -338,16 +342,29 @@ CONTAINS
     fx => uf (this%VELOCITY  )%ccomp
     fy => uf (this%VELOCITY+1)%ccomp
     fz => uf (this%VELOCITY+2)%ccomp
+    fs => uf (this%TEMP)      %ccomp
+
+
     CALL hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,0)
     CALL maxabs(vx,vy,vz,rmp,0)
+
+    CALL pscheck(th,fs,t,dt)
+    CALL derivk3(th,c1,1)
+    CALL derivk3(th,c2,2)
+    CALL derivk3(th,c3,3)
+    CALL maxabs(c1,c2,c3,rmq,2)
+
     IF (myrank.eq.0) THEN
       OPEN(1,file='maximum.txt',position='append')
-      WRITE(1,FMT='(E13.6,E13.6)') (t-1)*dt,rmp
+      WRITE(1,FMT='(E13.6,E13.6)') (t-1)*dt,rmp,rmq
       CLOSE(1)
     ENDIF
     do i = this%PASSIVE, this%PASSIVE+this%numpassive_-1
       call pscheck(uin(i)%ccomp,uf(i)%ccomp,t,dt,trim(this%sstate_(i)))
     end do   
+
+     CALL this%workspace_%free_complex_tmp(c1)
+
   end subroutine global_impl
 
   
