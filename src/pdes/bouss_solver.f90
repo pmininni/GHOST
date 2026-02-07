@@ -34,6 +34,11 @@
 !              omegay  : amplitude of the uniform rotation along y
 !              omegaz  : amplitude of the uniform rotation along z
 !              npassive: number of passive scalars (default=0)
+!              spectlod: spectral output level of detail (in [1,4]):
+!                          1: All 1d spectra, KE and PE fluxes
+!                          2: 2D spectra, helicity flluxes
+!                          3: KE Fourier modes
+!                          4: PV spectra, horizontally-avged quantities
 
 !              For npassive > 0, looks for a "&passive" namelist with:
 !              kappa   : vector with npassive diffusivities
@@ -48,8 +53,9 @@ module bouss_mod
   IMPLICIT NONE
 
   ! ================= Solver traits ===================================
-  type, public  :: NHTraits
+  type, public  :: BSTraits
     logical       :: dorot        = .FALSE. ! rotation flag
+    integer       :: spectlod     = 1       ! standard level of detail 
     real(kind=GP) :: nu           = 0.0_GP  ! dissipation
     real(kind=GP) :: bkappa       = 0.0_GP  ! diffusivity
     real(kind=GP) :: bvfreq       = 0.0_GP  ! Brunt-Vaisala freq
@@ -65,7 +71,7 @@ module bouss_mod
   type, extends(VelocityBase) :: BOUSSSolver 
     ! Member data:
     logical           :: binit_=.false. ! is initialized?
-    type  (NHTraits)  :: traits_
+    type  (BSTraits)  :: traits_
   CONTAINS
     procedure, public :: init          =>          init_impl ! init method
     procedure, public :: dudt          =>          dudt_impl ! RHS method
@@ -100,7 +106,8 @@ CONTAINS
 
     ! Required namelists:
     namelist/ BOUSS      / nu, bkappa, bvfreq, xmom, xtamp, &
-                           dorot, omegax, omegay, omegaz, npassive
+                           dorot, omegax, omegay, omegaz,  &
+                           npassive, spectlod
     namelist/ passive    / kappa
 
     call MPI_COMM_SIZE(MPI_COMM_WORLD,this%nprocs_,ierr)
@@ -108,6 +115,7 @@ CONTAINS
 
     ! Get trait variables from input file:
     dorot    = .FALSE.
+    spectlod = 1 ! standard lod
     nu       = 0.0
     bkappa   = 0.0
     bvfreq   = 0.0
@@ -130,6 +138,7 @@ CONTAINS
     call mpi_bcast(omegay   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(omegaz   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(npassive ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(spectlod ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
     this%numpassive_ = npassive
     if ( npassive .gt. 0 ) then
       allocate(kappa(npassive))
@@ -156,6 +165,7 @@ CONTAINS
       this%traits_%kappa = kappa
       deallocate(kappa)
     endif
+    this%traits_%spectlod =  spectlod
 
     this%order_   = 2                        ! Time stepping order
     this%nd_      = 3                        ! 3d
@@ -391,10 +401,14 @@ CONTAINS
     type    (GState), intent(in), target        :: uin(:)
     complex(kind=GP), pointer, dimension(:,:,:) :: vx,vy,vz,th
     complex(kind=GP), pointer, dimension(:,:,:) :: c1,c2,c3
+    real   (kind=GP)                            :: bvfreq,omegaz
     integer                                     :: i
     logical                                     :: bret
 
-    WRITE(ext, fmtext) sind
+    bvfreq = this%traits_%bvfreq 
+    omegaz = this%traits_% omega(3) 
+
+!   WRITE(ext, fmtext) sind
     vx => uin(this%VELOCITY  )%ccomp
     vy => uin(this%VELOCITY+1)%ccomp
     vz => uin(this%VELOCITY+2)%ccomp
@@ -405,31 +419,50 @@ CONTAINS
     call this%workspace_%get_complex_tmp(c3,bret)
     call gradre3(vx,vy,vz,c1,c2,c3)            ! Computes v.Grad(v)
     call entrans(vx,vy,vz,-c1,-c2,-c3,ext,1)   ! Writes the energy flux
-    ! Uncomment the following line to compute the helicity flux
-    ! call heltrans(vx,vy,vz,-c1,-c2,-c3,ext,1)
-    if ( this%traits_%dorot ) then
-      call specpara(vx,vy,vz,ext,1,1)
-      call specperp(vx,vy,vz,ext,1,1)
-      call spectrsc(th,ext,0)
-      call specscpa(th,ext,0)
-      call specscpe(th,ext,0)
 
-      call entpara(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy flux
-      call entperp(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy fluxq
-      ! The following two lines compute anisotropic helicity fluxes
-      ! call helpara(vx,vy,vz,-c1,-c2,-c3,ext,1)
-      ! call helperp(vx,vy,vz,-c1,-c2,-c3,ext,1)
-      ! Uncomment the following line to compute 2D spectra
-      ! CALL spec2D(vx,vy,vz,ext,odir,1,1)
-      ! Uncomment the following lines to compute spatio-temporal spectra
-      ! CALL write_fourier(vx,'vx',ext,odir)
-      ! CALL write_fourier(vy,'vy',ext,odir)
-      ! CALL write_fourier(vz,'vz',ext,odir)
+    call specpara(vx,vy,vz,ext,1,1)
+    call specperp(vx,vy,vz,ext,1,1)
+    call spectrsc(th,ext,0)
+    call specscpa(th,ext,0)
+    call specscpe(th,ext,0)
 
-      ! Uncomment the following line to compute vert. spectrum of pot'l vorticity
-      !  CALL spectpv(vx,vy,vz,th,ext)
+    call entpara(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy flux
+    call entperp(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy fluxq
+
+    ! Write helicity fluxes, 2D spectra:
+    if ( this%traits_%spectlod .ge. 2 ) then
+      call heltrans(vx,vy,vz,-c1,-c2,-c3,ext,1)
+      call helpara(vx,vy,vz,-c1,-c2,-c3,ext,1)
+      call helperp(vx,vy,vz,-c1,-c2,-c3,ext,1)
+      ! Write 2D spectra:
+      CALL spec2D(vx,vy,vz,ext,odir,1,1)
+      CALL specsc2D(th,ext,odir,0)
+    endif
+
+    ! Write Fourier modes:
+    if ( this%traits_%spectlod .ge. 3 ) then
+      CALL write_fourier(vx,'vx',ext,odir)
+      CALL write_fourier(vy,'vy',ext,odir)
+      CALL write_fourier(vz,'vz',ext,odir)
+    endif
+
+    ! Write PV spectra, horizontally-averaged data:
+    if ( this%traits_%spectlod .ge. 4 ) then
+      CALL spectpv(vx,vy,vz,th,ext)
+      CALL havgwrite(0,'shear'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! shear
+      CALL havgwrite(1,'tgradz' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! dtheta/dz
+      CALL havgwrite(2,'hawdtdz',ext,vx,vy,vz,th,omegaz,bvfreq) ! u_z*dtheta/dz
+      CALL havgwrite(3,'hahke'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! hor. k.e.
+      CALL havgwrite(4,'havke'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! vert. k.e.
+      CALL havgwrite(5,'haphel' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! perp. helicity
+      CALL havgwrite(6,'haomzt' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! ometa_z*theta
+      CALL havgwrite(7,'hapv2'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! pot'l vorticity^2
+      CALL havgwrite(8,'hasuph' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! super-helicity
+      CALL havgwrite(9,'hari'   ,ext,vx,vy,vz,th,omegaz,bvfreq) ! Richardson no.
 
     endif
+
+
     call this%workspace_%free_complex_tmp(c1)
     call this%workspace_%free_complex_tmp(c2)
     call this%workspace_%free_complex_tmp(c3)
