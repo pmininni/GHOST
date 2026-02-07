@@ -80,12 +80,13 @@ module bouss_mod
     procedure, public :: state_size    =>    state_size_impl ! state size
     procedure, public :: sstate2istate => sstate2istate_impl ! state names
     procedure, public :: get_sstate    =>    get_sstate_impl ! get state name list
-    procedure, public :: Solver_ctor   =>      BOUSSSolver_ctor ! constructor
+    procedure, public :: Solver_ctor   =>   BOUSSSolver_ctor ! constructor
     final             :: BOUSSSolver_dtor
   end type BOUSSSolver
 
 CONTAINS
 
+   procedure, public :: init          =>          init_impl ! init method
   ! ===================================================================
   ! Solver initialization, this is where parameter files are read
   ! ===================================================================
