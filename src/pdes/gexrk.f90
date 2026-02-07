@@ -245,6 +245,7 @@ CONTAINS
         this%beta_ (3,2) = 0.5_GP
         this%beta_ (4,3) = 1.0_GP; 
       case default:
+        stop 'GExRKStepper::init_butcher: Invalid norder'
     end select 
 
   end subroutine init_butcher
