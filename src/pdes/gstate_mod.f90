@@ -1,9 +1,9 @@
 module gstate_mod
-  USE fprecision
-  USE mpivars
-  USE grid
+  use fprecision
+  use mpivars
+  use grid
 
-  IMPLICIT NONE
+  implicit none
 
   ! ================= Base field data types =========================
   ! Derived types for complex (Fourier transformed) field components
@@ -12,22 +12,29 @@ module gstate_mod
   end type GStateComp
   
   ! Derived type for real space field components
-  type, public :: GStateCompReal
+  type, public :: GStateRealComp
     real(kind=GP)   , allocatable :: rcomp(:,:,:) ! real component
-  end type GStateCompReal
+  end type GStateRealComp
 
-! type, public :: GState
-!   type(GStateComp), allocatable :: comp(:) ! real component
-! end type GState
-  
-! type, public :: GStateReal
-!   type(GStateCompReal), allocatable :: comp(:) ! real component
-! end type GStateReal
-  
+  ! Derived type GCState, whose data 
+  ! is a 1d pointer array of complex components:
+  type, abstract :: GCState
+    type    (GStateComp), allocatable, dimension(:) :: cstate_
+    contains
+      procedure, public :: data => cdata
+  end type GCState
 
-CONTAINS
+  ! Derived type GRState, whose data 
+  ! is a 1d pointer array of real components:
+  type, abstract :: GRState
+    type(GStateRealComp), allocatable, dimension(:) :: rstate_
+    contains
+      procedure :: data => rdata
+  end type GRState
 
-  ! ================= Allocation routines ===========================
+contains
+
+  ! ================= Allocation routines ===================
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Method to allocate complex GStateComp data types
@@ -39,10 +46,10 @@ CONTAINS
     type (GStateComp), allocatable, intent(inout) :: state(:)
     integer                       , intent   (in) :: nc
     integer                                       :: i
-    ALLOCATE( state(nc) )
-    DO i = 1,nc
-      ALLOCATE( state(i)%ccomp(nz,ny,ista:iend) )
-    END DO
+    allocate( state(nc) )
+    do i = 1,nc
+      allocate( state(i)%ccomp(nz,ny,ista:iend) )
+    end do
   end subroutine GState_alloc
 
   
@@ -53,13 +60,37 @@ CONTAINS
     use grid
     use mpivars
     implicit none
-    type (GStateCompReal), allocatable, intent(inout) :: state(:)
+    type (GStateRealComp), allocatable, intent(inout) :: state(:)
     integer                           , intent   (in) :: nc
     integer                                           :: i
-    ALLOCATE( state(nc) )
-    DO i = 1,nc
-      ALLOCATE( state(i)%rcomp(nx,ny,ksta:kend) )
-    END DO
+    allocate( state(nc) )
+    do i = 1,nc
+      allocate( state(i)%rcomp(nx,ny,ksta:kend) )
+    end do
   end subroutine GStateReal_alloc
   
+  ! ================= Data access routines  =================
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Method to get GCState complex data
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  function cdata(this) result(ret)
+    implicit none
+    import :: GCState
+    class(GCState), intent(inout) :: this
+    type    (GStateComp), pointer, dimension(:) :: ret 
+    ret => this%cstate_
+  end function cdata
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Method to get GRState real data
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  function rdata(this) result(ret)
+    implicit none
+    import :: GRState
+    class(GRState), intent(inout) :: this
+    type(GStateRealComp), pointer, dimension(:) :: ret 
+    ret => this%rstate_
+  end function rdata
+
 end module gstate_mod
