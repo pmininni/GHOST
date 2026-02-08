@@ -21,7 +21,8 @@ module gstate_mod
   type, abstract :: GCState
     type    (GStateComp), allocatable, dimension(:) :: cstate_
     contains
-      procedure, public :: data => cdata
+      procedure, public :: data => GCState_data
+      generic           :: operator() => GCState_comp
   end type GCState
 
   ! Derived type GRState, whose data 
@@ -29,7 +30,8 @@ module gstate_mod
   type, abstract :: GRState
     type(GStateRealComp), allocatable, dimension(:) :: rstate_
     contains
-      procedure :: data => rdata
+      procedure, public :: data => GRState_data
+      generic           :: operator() => GRState_comp
   end type GRState
 
 contains
@@ -74,23 +76,55 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Method to get GCState complex data
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  function cdata(this) result(ret)
+  function GCState_data(this) result(ret)
     implicit none
     import :: GCState
     class(GCState), intent(inout) :: this
     type    (GStateComp), pointer, dimension(:) :: ret 
     ret => this%cstate_
-  end function cdata
+  end function GCState_data
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Method to get GRState real data
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  function rdata(this) result(ret)
+  function GRState_data(this) result(ret)
     implicit none
     import :: GRState
     class(GRState), intent(inout) :: this
     type(GStateRealComp), pointer, dimension(:) :: ret 
     ret => this%rstate_
-  end function rdata
+  end function GRState_data
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Method to get GCState complex component data
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  function GCState_comp(this, i) result(ret)
+    implicit none
+    import :: GCState
+    class(GCState), intent(inout) :: this
+    type    (GStateComp), pointer :: ret 
+    integer       , intent   (in) :: i
+
+    if ( i .lt. 1 .or i .gt. size(this%cstate_) ) then
+      stop 'GCState_comp: Invalid index'
+    endif
+    ret => this%cstate_(i);
+  end function GCState_comp
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Method to get GCState real component data
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  function GRState_comp(this, i) result(ret)
+    implicit none
+    import :: GRState
+    class(GRState), intent(inout) :: this
+    type(GStateRealComp), pointer :: ret 
+    integer       , intent   (in) :: i
+
+    if ( i .lt. 1 .or i .gt. size(this%rstate_) ) then
+      stop 'GRState_comp: Invalid index'
+    endif
+    ret => this%rstate_(i);
+  end function GRState_comp
 
 end module gstate_mod
