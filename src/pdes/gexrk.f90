@@ -22,8 +22,7 @@ module gexrk_mod
   use equationbase_mod
 
 
-
-  IMPLICIT NONE
+  implicit none
 
   ! Define callback function interface:
   abstract interface
@@ -32,8 +31,8 @@ module gexrk_mod
        import :: GExRKStepper
        class(GExRKStepper), intent   (in)         :: this
        real      (kind=GP), intent   (in)         :: time, dt
-       type       (GState), intent(inout), target :: uin(:),uf(:)
-       type       (GState), intent(inout)         :: dudt(:) 
+       type   (GStateComp), intent(inout), target :: uin(:),uf(:)
+       type   (GStateComp), intent(inout)         :: dudt(:) 
      end subroutine dudt_interface
   end interface
 
@@ -67,7 +66,7 @@ module gexrk_mod
                                dimension    (:) :: alpha_, c_
     real   (kind=GP),        , allocatable, &
                                dimension  (:,:) :: beta_
-    type    (GState), pointer, allocatable, &
+    type   (GCState), pointer, allocatable, &
                                dimension    (:) :: K_
 
     procedure(dudt_interface), pointer, nopass :: callback_ => null()
@@ -190,7 +189,7 @@ CONTAINS
     end select
 
     if (allocated(this%K_)) deallocate(this%K_)
-    allocate(this%K_(this%nstage_,this%nstate_))
+    allocate(this%K_(this%nstage_))
 
     ! Not sure if it's best to set tmp from pool
     ! for lifetime of this object, or if we
@@ -293,7 +292,7 @@ CONTAINS
       endif
       do istage = 1, this%nstage_   
         do istate = 1, this%nstate_   
-          CALL this%workspace_%get_complex_tmp(this%K_(istage,istate),bret)
+          CALL this%workspace_%get_complex_tmp(this%K_(istage)(istate),bret)
           if ( .not. bret  ) then
             stop 'GExRKStepper::set_tmp: Workspace failure'
           endif
@@ -315,7 +314,7 @@ CONTAINS
 
     do istage = 1, this%nstage_   
       do istate = 1, this%nstate_   
-        CALL this%workspace_%free_complex_tmp(this%K_(istage,istate))
+        CALL this%workspace_%free_complex_tmp(this%K_(istage)(istate))
       enddo
     enddo
 
@@ -341,7 +340,7 @@ CONTAINS
     implicit none
 
     class (GExRKStepper), intent   (in) :: this
-    type        (GState), intent(inout) :: uin(:), uf(:), uout(:)
+    type    (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
     real       (kind=GP), intent   (in) :: time, dt
     logical                             :: bret
        
@@ -376,7 +375,7 @@ CONTAINS
     implicit none
 
     class (GExRKStepper), intent   (in) :: this
-    type        (GState), intent(inout) :: uin(:), uf(:), uout(:)
+    type    (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
     complex(kind=GP), pointer, &
                        dimension(:,:,:) :: sum
     real       (kind=GP), intent   (in) :: time, dt
@@ -399,7 +398,7 @@ CONTAINS
       enddo
       do j = 1, m-1  ! utmp = utmp + h beta K_j
         do n = 1, this%nstate_  ! set utmp
-          call saxpby_c(utmp(n), utmp(n), 1.0_GP, this%K_(j,n), this%beta_(m,j)*dt)
+          call saxpby_c(utmp(n), utmp(n), 1.0_GP, this%K_(j)(n), this%beta_(m,j)*dt)
         enddo
         tt = time + this%alpha_(m) * dt
         this%callback_( tt, utmp, uf, dt, K_(m) ); 
@@ -415,7 +414,7 @@ CONTAINS
     do m = 1, this%nstage_  
 
       do n = 1, this%nstate_ ! uout = uout + h * c_ * K:
-        call saxpby_c(uout(n), uout(n), 1.0_GP, this%K_(m,n), this%c_(m,j)*dt)
+        call saxpby_c(uout(n), uout(n), 1.0_GP, this%K_(m)(n), this%c_(m,j)*dt)
       enddo
 
     enddo ! m-loop
@@ -433,7 +432,7 @@ CONTAINS
     implicit none
 
     class (GExRKStepper), intent   (in) :: this
-    type        (GState), intent(inout) :: uin(:), uf(:), uout(:)
+    type    (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
     real       (kind=GP), intent   (in) :: time, dt
     logical                             :: bret
 
@@ -449,7 +448,7 @@ CONTAINS
     implicit none
 
     class (GExRKStepper), intent   (in) :: this
-    type        (GState), intent(inout) :: uin(:), uf(:), uout(:)
+    type    (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
     real       (kind=GP), intent   (in) :: time, dt
     logical                             :: bret
 
