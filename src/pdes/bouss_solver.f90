@@ -86,7 +86,6 @@ module bouss_mod
 
 CONTAINS
 
-   procedure, public :: init          =>          init_impl ! init method
   ! ===================================================================
   ! Solver initialization, this is where parameter files are read
   ! ===================================================================
