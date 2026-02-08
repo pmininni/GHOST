@@ -7,7 +7,9 @@
 !              for a specifiable order, though it is strictly
 !              speaking of full truncation order only for
 !              norder = 2. Explicit number of stages are
-!              not required.
+!              not required. While norder > 2 may not yield
+!              a truncation of that order, it can still provide
+!              benefit.
 !
 ! INPUT FILE : Stepper looks for a "&stepper" namelist with:
 !                norder  : Stepper order (arbitrary)
