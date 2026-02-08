@@ -60,7 +60,7 @@ CONTAINS
 
     class      (read_s), intent   (in)          :: this
     class(EquationBase), intent   (in)          :: solver
-    type    (GState), intent(inout)             :: state(:)
+    type(GStateComp), intent(inout)             :: state(:)
     real   (kind=GP), pointer, dimension(:,:,:) :: R1
     integer                                     :: i
     logical                                     :: bret

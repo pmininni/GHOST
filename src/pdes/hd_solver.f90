@@ -161,8 +161,8 @@ CONTAINS
 
     class (HDSolver), intent   (in)             :: this
     real   (kind=GP), intent   (in)             :: time, dt
-    type    (GState), intent(inout), target     :: uin(:),uf(:)
-    type    (GState), intent(inout)             :: dudt(:) 
+    type(GStateComp), intent(inout), target     :: uin(:),uf(:)
+    type(GStateComp), intent(inout)             :: dudt(:) 
     complex(kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
     complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4,C5,C6
     real   (kind=GP)                            :: nu
@@ -262,7 +262,7 @@ CONTAINS
     implicit none
 
     class (HDSolver), intent(in)                :: this
-    type    (GState), intent(in), target        :: uin(:), uf(:)
+    type(GStateComp), intent(in), target        :: uin(:), uf(:)
     integer         , intent(in)                :: t
     complex(kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
     real   (kind=GP)                            :: rmp
@@ -300,7 +300,7 @@ CONTAINS
     implicit none
 
     class (HDSolver), intent(in)                :: this
-    type    (GState), intent(in), target        :: uin(:)
+    type(GStateComp), intent(in), target        :: uin(:)
     complex(kind=GP), pointer, dimension(:,:,:) :: vx,vy,vz
     complex(kind=GP), pointer, dimension(:,:,:) :: c1,c2,c3
     integer                                     :: i

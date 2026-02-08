@@ -183,8 +183,8 @@ CONTAINS
 
     class(MHDSolver), intent   (in)             :: this
     real   (kind=GP), intent   (in)             :: time, dt
-    type    (GState), intent(inout), target     :: uin(:),uf(:)
-    type    (GState), intent(inout)             :: dudt(:) 
+    type(GStateComp), intent(inout), target     :: uin(:),uf(:)
+    type(GStateComp), intent(inout)             :: dudt(:) 
     complex(kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
     complex(kind=GP), pointer, dimension(:,:,:) :: mx,my,mz,ax,ay,az
     complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4,C5,C6
@@ -337,7 +337,7 @@ CONTAINS
     implicit none
 
     class(MHDSolver), intent(in)                :: this
-    type    (GState), intent(in), target        :: uin(:), uf(:)
+    type(GStateComp), intent(in), target        :: uin(:), uf(:)
     integer         , intent(in)                :: t
     complex(kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
     complex(kind=GP), pointer, dimension(:,:,:) :: mx,my,mz,ax,ay,az
@@ -392,7 +392,7 @@ CONTAINS
     implicit none
 
     class(MHDSolver), intent(in)                :: this
-    type    (GState), intent(in), target        :: uin(:)
+    type(GStateComp), intent(in), target        :: uin(:)
     complex(kind=GP), pointer, dimension(:,:,:) :: vx,vy,vz
     complex(kind=GP), pointer, dimension(:,:,:) :: ax,ay,az
     complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3

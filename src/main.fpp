@@ -50,7 +50,7 @@
 !
 ! Arrays for the field states, workspace, I/O, and PDE solver class
 
-      TYPE(GState),        ALLOCATABLE :: field(:),field_nxt(:),force(:)
+      TYPE(GStateComp),    ALLOCATABLE :: field(:),field_nxt(:),force(:)
       TYPE(GWorkspace)                 :: workspace
       TYPE(IOPLAN)                     :: planio
       CLASS(EquationBase), ALLOCATABLE :: pde

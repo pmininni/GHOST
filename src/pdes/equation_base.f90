@@ -75,8 +75,8 @@ module equationbase_mod
        import :: EquationBase
        class(EquationBase), intent   (in)         :: this
        real      (kind=GP), intent   (in)         :: time, dt
-       type       (GState), intent(inout), target :: uin(:),uf(:)
-       type       (GState), intent(inout)         :: dudt(:) 
+       type   (GStateComp), intent(inout), target :: uin(:),uf(:)
+       type   (GStateComp), intent(inout)         :: dudt(:) 
      end subroutine dudt_interface
 
      subroutine global_interface(this, uin, uf, t) 
@@ -85,7 +85,7 @@ module equationbase_mod
        USE status
        import :: EquationBase
        class(EquationBase), intent(in)            :: this
-       type       (GState), intent(in), target    :: uin(:),uf(:)
+       type   (GStateComp), intent(in), target    :: uin(:),uf(:)
        integer            , intent(in)            :: t
      end subroutine global_interface
        
@@ -96,7 +96,7 @@ module equationbase_mod
        USE status
        import :: EquationBase
        class(EquationBase), intent(in)            :: this
-       type       (GState), intent(in), target    :: uin(:)
+       type   (GStateComp), intent(in), target    :: uin(:)
      end subroutine spectra_interface
 
      function state_size_interface(this) result(num)
@@ -120,7 +120,7 @@ CONTAINS
     implicit none
 
     class (EquationBase), intent   (in) :: this
-    type        (GState), intent(inout) :: uin(:), uf(:), uout(:)
+    type    (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
     real       (kind=GP), intent   (in) :: time, dt
     real       (kind=GP)                :: eff_dt
     integer                             :: i,j,k,o,state_size,ic
@@ -168,9 +168,9 @@ CONTAINS
 
     class(VelocityBase), intent(in)   :: this
     real     (kind=GP), intent   (in) :: kappa(:)
-    type      (GState), intent(inout) :: uin(:)
-    type      (GState), intent   (in) :: uf(:)
-    type      (GState), intent(inout) :: dudt(:) 
+    type      (GStateComp), intent(inout) :: uin(:)
+    type      (GStateComp), intent   (in) :: uf(:)
+    type      (GStateComp), intent(inout) :: dudt(:) 
     logical                           :: bret
     integer                           :: i,j,k,n
     complex  (kind=GP), pointer       :: adve(:,:,:),lapl(:,:,:)
@@ -225,7 +225,7 @@ CONTAINS
     implicit none
 
     class (EquationBase), intent   (in)             :: this
-    type        (GState), intent(inout)             :: uin(:)
+    type    (GStateComp), intent(inout)             :: uin(:)
     type        (ioplan), intent   (in)             :: planio
     complex    (kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3
     complex    (kind=GP), pointer, dimension(:,:,:) :: C4,C5,C6

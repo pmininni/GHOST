@@ -50,7 +50,7 @@ module bouss_mod
   USE equationbase_mod
   USE gstate_mod
 
-  IMPLICIT NONE
+  implicit none
 
   ! ================= Solver traits ===================================
   type, public  :: BSTraits
@@ -72,7 +72,7 @@ module bouss_mod
     ! Member data:
     logical           :: binit_=.false. ! is initialized?
     type  (BSTraits)  :: traits_
-  CONTAINS
+  contains
     procedure, public :: init          =>          init_impl ! init method
     procedure, public :: dudt          =>          dudt_impl ! RHS method
     procedure, public :: global        =>        global_impl ! Writes global qtys
@@ -84,7 +84,7 @@ module bouss_mod
     final             :: BOUSSSolver_dtor
   end type BOUSSSolver
 
-CONTAINS
+contains
 
   ! ===================================================================
   ! Solver initialization, this is where parameter files are read
@@ -200,8 +200,8 @@ CONTAINS
 
     class (BOUSSSolver), intent   (in)             :: this
     real   (kind=GP), intent   (in)             :: time, dt
-    type    (GState), intent(inout), target     :: uin(:),uf(:)
-    type    (GState), intent(inout)             :: dudt(:) 
+    type(GStateComp), intent(inout), target     :: uin(:),uf(:)
+    type(GStateComp), intent(inout)             :: dudt(:) 
     complex(kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
     complex(kind=GP), pointer, dimension(:,:,:) :: fth,th
     complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4,C5,C6
@@ -341,7 +341,7 @@ CONTAINS
     implicit none
 
     class (BOUSSSolver), intent(in)             :: this
-    type    (GState), intent(in), target        :: uin(:), uf(:)
+    type(GStateComp), intent(in), target        :: uin(:), uf(:)
     integer         , intent(in)                :: t
     complex(kind=GP), pointer, dimension(:,:,:) :: fs,fx,fy,fz,vx,vy,vz,th
     complex(kind=GP), pointer, dimension(:,:,:) :: c1,c2,c3
@@ -398,7 +398,7 @@ CONTAINS
     implicit none
 
     class (BOUSSSolver), intent(in)             :: this
-    type    (GState), intent(in), target        :: uin(:)
+    type(GStateComp), intent(in), target        :: uin(:)
     complex(kind=GP), pointer, dimension(:,:,:) :: vx,vy,vz,th
     complex(kind=GP), pointer, dimension(:,:,:) :: c1,c2,c3
     real   (kind=GP)                            :: bvfreq,omegaz
