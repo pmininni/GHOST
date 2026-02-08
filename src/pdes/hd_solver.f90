@@ -33,10 +33,10 @@
 ! =====================================================================
 
 module hd_mod
-  USE equationbase_mod
-  USE gstate_mod
+  use equationbase_mod
+  use gstate_mod
 
-  IMPLICIT NONE
+  implicit none
 
   ! ================= Solver traits ===================================
   type, public  :: NHTraits
@@ -78,7 +78,7 @@ CONTAINS
   !! Subroutine to initialize the solver
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_impl(this)
-    USE commtypes
+    use commtypes
     class  (HDSolver), intent (inout) :: this
 
     ! Temporary data to read from namelists:
@@ -286,11 +286,11 @@ CONTAINS
     fz => uf (this%VELOCITY+2)%ccomp
     call hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,0)
     call maxabs(vx,vy,vz,rmp,0)
-    IF (myrank.eq.0) THEN
-      OPEN(1,file='maximum.txt',position='append')
-      WRITE(1,FMT='(E13.6,E13.6)') (t-1)*dt,rmp
-      CLOSE(1)
-    ENDIF
+    if (myrank.eq.0) THEN
+      open(1,file='maximum.txt',position='append')
+      write(1,FMT='(E13.6,E13.6)') (t-1)*dt,rmp
+      close(1)
+    endif
     do i = this%PASSIVE, this%PASSIVE+this%numpassive_-1
       call pscheck(uin(i)%ccomp,uf(i)%ccomp,t,dt,trim(this%sstate_(i)))
     end do   
@@ -316,7 +316,7 @@ CONTAINS
     integer                                     :: i
     logical                                     :: bret
 
-    WRITE(ext, fmtext) sind
+    write(ext, fmtext) sind
     vx => uin(this%VELOCITY  )%ccomp
     vy => uin(this%VELOCITY+1)%ccomp
     vz => uin(this%VELOCITY+2)%ccomp

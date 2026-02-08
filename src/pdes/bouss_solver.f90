@@ -223,14 +223,14 @@ contains
     xmom   = this%traits_%xmom  * this%bvfreq
     xtemp  = this%traits_%xtemp * this%traits_%bvfreq
 
-    CALL this%workspace_%get_complex_tmp(C1,bret)
-    CALL this%workspace_%get_complex_tmp(C2,bret)
-    CALL this%workspace_%get_complex_tmp(C3,bret)
-    CALL this%workspace_%get_complex_tmp(C4,bret)
-    CALL this%workspace_%get_complex_tmp(C5,bret)
-    CALL this%workspace_%get_complex_tmp(C6,bret)
-    CALL this%workspace_%get_complex_tmp(C7,bret)
-    CALL this%workspace_%get_complex_tmp(C8,bret)
+    call this%workspace_%get_complex_tmp(C1,bret)
+    call this%workspace_%get_complex_tmp(C2,bret)
+    call this%workspace_%get_complex_tmp(C3,bret)
+    call this%workspace_%get_complex_tmp(C4,bret)
+    call this%workspace_%get_complex_tmp(C5,bret)
+    call this%workspace_%get_complex_tmp(C6,bret)
+    call this%workspace_%get_complex_tmp(C7,bret)
+    call this%workspace_%get_complex_tmp(C8,bret)
 
     vx  => uin(this%VELOCITY  )%ccomp
     vy  => uin(this%VELOCITY+1)%ccomp
@@ -279,18 +279,18 @@ contains
     call laplak3(vy,C5)          ! Del^2 vy
     call laplak3(vz,C6)          ! Del^2 vz
 
-    CALL advect3(vx,vy,vz,th,C7) ! -(v.Grad) th
+    call advect3(vx,vy,vz,th,C7) ! -(v.Grad) th
     call laplak3(th,C8)          ! Del^2 th
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
-    DO i = ista,iend               ! heat 'currrent':
+    do i = ista,iend               ! heat 'currrent':
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-      DO j = 1,ny
-        DO k = 1,nz
+      do j = 1,ny
+        do k = 1,nz
           C7(k,j,i) = C7(k,j,i) + xtemp*vz(k,j,i) ! add N vz term
-        END DO
-      END DO
-    END DO
+        end do
+      end do
+    end do
 
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -313,14 +313,14 @@ contains
     enddo
     enddo
 
-    CALL this%workspace_%free_complex_tmp(C1)
-    CALL this%workspace_%free_complex_tmp(C2)
-    CALL this%workspace_%free_complex_tmp(C3)
-    CALL this%workspace_%free_complex_tmp(C4)
-    CALL this%workspace_%free_complex_tmp(C5)
-    CALL this%workspace_%free_complex_tmp(C6)
-    CALL this%workspace_%free_complex_tmp(C7)
-    CALL this%workspace_%free_complex_tmp(C8)
+    call this%workspace_%free_complex_tmp(C1)
+    call this%workspace_%free_complex_tmp(C2)
+    call this%workspace_%free_complex_tmp(C3)
+    call this%workspace_%free_complex_tmp(C4)
+    call this%workspace_%free_complex_tmp(C5)
+    call this%workspace_%free_complex_tmp(C6)
+    call this%workspace_%free_complex_tmp(C7)
+    call this%workspace_%free_complex_tmp(C8)
 
     ! Compute passive scalars:
     call this%rhs_passive(uin, uf, this%traits_%kappa, dudt)
@@ -349,7 +349,7 @@ contains
     real   (kind=GP)                            :: rmp,rmq
     integer                                     :: i
 
-    CALL this%workspace_%get_complex_tmp(C1,bret)
+    call this%workspace_%get_complex_tmp(C1,bret)
 
     vx => uin(this%VELOCITY  )%ccomp
     vy => uin(this%VELOCITY+1)%ccomp
@@ -361,27 +361,27 @@ contains
     fs => uf (this%TEMP)      %ccomp
 
 
-    CALL hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,0)
-    CALL maxabs(vx,vy,vz,rmp,0)
+    call hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,0)
+    call maxabs(vx,vy,vz,rmp,0)
 
-    CALL pscheck(th,fs,t,dt)
-    CALL derivk3(th,c1,1)
-    CALL derivk3(th,c2,2)
-    CALL derivk3(th,c3,3)
-    CALL maxabs(c1,c2,c3,rmq,2)
+    call pscheck(th,fs,t,dt)
+    call derivk3(th,c1,1)
+    call derivk3(th,c2,2)
+    call derivk3(th,c3,3)
+    call maxabs(c1,c2,c3,rmq,2)
 
     IF (myrank.eq.0) THEN
-      OPEN(1,file='maximum.txt',position='append')
-      WRITE(1,FMT='(E13.6,E13.6,E13.6)') (t-1)*dt,rmp,rmq
-      CLOSE(1)
-    ENDIF
+      open(1,file='maximum.txt',position='append')
+      write(1,FMT='(E13.6,E13.6,E13.6)') (t-1)*dt,rmp,rmq
+      close(1)
+    endif
     do i = this%PASSIVE, this%PASSIVE+this%numpassive_-1
       call pscheck(uin(i)%ccomp,uf(i)%ccomp,t,dt,trim(this%sstate_(i)))
     end do   
 
-    CALL this%workspace_%free_complex_tmp(c1)
-    CALL this%workspace_%free_complex_tmp(c2)
-    CALL this%workspace_%free_complex_tmp(c3)
+    call this%workspace_%free_complex_tmp(c1)
+    call this%workspace_%free_complex_tmp(c2)
+    call this%workspace_%free_complex_tmp(c3)
 
   end subroutine global_impl
 
@@ -409,7 +409,7 @@ contains
     bvfreq = this%traits_%bvfreq 
     omegaz = this%traits_% omega(3) 
 
-!   WRITE(ext, fmtext) sind
+!   write(ext, fmtext) sind
     vx => uin(this%VELOCITY  )%ccomp
     vy => uin(this%VELOCITY+1)%ccomp
     vz => uin(this%VELOCITY+2)%ccomp
@@ -436,31 +436,31 @@ contains
       call helpara(vx,vy,vz,-c1,-c2,-c3,ext,1)
       call helperp(vx,vy,vz,-c1,-c2,-c3,ext,1)
       ! Write 2D spectra:
-      CALL spec2D(vx,vy,vz,ext,odir,1,1)
-      CALL specsc2D(th,ext,odir,0)
+      call spec2D(vx,vy,vz,ext,odir,1,1)
+      call specsc2D(th,ext,odir,0)
     endif
 
     ! Write Fourier modes:
     if ( this%traits_%spectlod .ge. 3 ) then
-      CALL write_fourier(vx,'vx',ext,odir)
-      CALL write_fourier(vy,'vy',ext,odir)
-      CALL write_fourier(vz,'vz',ext,odir)
-      CALL write_fourier(th,'th',ext,odir)
+      call write_fourier(vx,'vx',ext,odir)
+      call write_fourier(vy,'vy',ext,odir)
+      call write_fourier(vz,'vz',ext,odir)
+      call write_fourier(th,'th',ext,odir)
     endif
 
     ! Write PV spectra, horizontally-averaged data:
     if ( this%traits_%spectlod .ge. 4 ) then
-      CALL spectpv(vx,vy,vz,th,ext)
-      CALL havgwrite(0,'shear'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! shear
-      CALL havgwrite(1,'tgradz' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! dtheta/dz
-      CALL havgwrite(2,'hawdtdz',ext,vx,vy,vz,th,omegaz,bvfreq) ! u_z*dtheta/dz
-      CALL havgwrite(3,'hahke'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! hor. k.e.
-      CALL havgwrite(4,'havke'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! vert. k.e.
-      CALL havgwrite(5,'haphel' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! perp. helicity
-      CALL havgwrite(6,'haomzt' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! ometa_z*theta
-      CALL havgwrite(7,'hapv2'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! pot'l vorticity^2
-      CALL havgwrite(8,'hasuph' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! super-helicity
-      CALL havgwrite(9,'hari'   ,ext,vx,vy,vz,th,omegaz,bvfreq) ! Richardson no.
+      call spectpv(vx,vy,vz,th,ext)
+      call havgwrite(0,'shear'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! shear
+      call havgwrite(1,'tgradz' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! dtheta/dz
+      call havgwrite(2,'hawdtdz',ext,vx,vy,vz,th,omegaz,bvfreq) ! u_z*dtheta/dz
+      call havgwrite(3,'hahke'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! hor. k.e.
+      call havgwrite(4,'havke'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! vert. k.e.
+      call havgwrite(5,'haphel' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! perp. helicity
+      call havgwrite(6,'haomzt' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! ometa_z*theta
+      call havgwrite(7,'hapv2'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! pot'l vorticity^2
+      call havgwrite(8,'hasuph' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! super-helicity
+      call havgwrite(9,'hari'   ,ext,vx,vy,vz,th,omegaz,bvfreq) ! Richardson no.
 
     endif
 
