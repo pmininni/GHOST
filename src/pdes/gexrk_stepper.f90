@@ -54,10 +54,9 @@ module gexrk_mod
     type(GWorkspace), pointer     :: workspace_
     logical                       :: binit_=.false. ! is initialized?
     logical                       :: busing_butcher_=.true. ! using Butcher tableau?
-    integer                       :: nstate_=0 ! no. state members
 !   integer                       :: myrank_   ! MPI rank
 !   integer                       :: nprocs_   ! MPI rank 
-    type(StepperTraits)           :: traits_
+    type(GStepperTraits)          :: traits_
     real   (kind=GP),        , allocatable, &
                                dimension    (:) :: alpha_, c_
     real   (kind=GP),        , allocatable, &
@@ -132,37 +131,7 @@ CONTAINS
   subroutine init(this, infile, nstate)
 !   use commtypes
     class(GExRKStepper), intent (inout) :: this
-    integer            , intent    (in) :: nstate
-    character  (len=*) , intent    (in) :: infile
-
-    ! Temporary data to read from namelists:
-    integer                                :: itype,norder,nstage
-    integer                                :: ierr
-    character(len=128)                     :: sname ! stepper name
-    
-    ! Required namelists:
-    namelist/ stepper    / sname, itype, norder, nstage
-
-    if ( nstate .le. 0 ) then
-      stop 'GExRKStepper::init: Invalid nstate'
-    endif
-    this%nstate_    = nstate    ! no. state components
-    this%infile_    = infile    ! input file
-
-    ! Get stepper traits from input file:
-    itype    = GEXRK_BUTCHER
-    norder   = 2
-    nstage   = 2
-
-    if ( this%myrank_ .eq. 0 ) then
-      open(1,file=this%infile_,status='unknown',form="formatted")
-      read(1,NML=HD)
-      close(1)
-    endif
-    call mpi_bcast(sname    ,128 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(itype    ,1 ,MPI_INTEGER,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(norder   ,1 ,MPI_INTEGER,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(nstage   ,1 ,MPI_INTEGER,    0,MPI_COMM_WORLD,ierr)
+    type(StepperTraits), intent    (in) :: traits
 
     this%traits_ = traits
 
@@ -182,6 +151,8 @@ CONTAINS
       case GEXRK_BUTCHER:
         this%busing_butcher_ = .true.
         call this%init_butcher()
+        if (allocated(this%K_)) deallocate(this%K_)
+        allocate(this%K_(this%traits_%nstage))
       case GEXRK_MIXED:
         call this%init_mixed()
       case GEXRK_SSP:
@@ -190,8 +161,6 @@ CONTAINS
         stop 'GExRKStepper::init: Invalid stepper type'
     end select
 
-    if (allocated(this%K_)) deallocate(this%K_)
-    allocate(this%K_(this%nstage_))
 
     ! Not sure if it's best to set tmp from pool
     ! for lifetime of this object, or if we
@@ -279,11 +248,11 @@ CONTAINS
     logical                               :: bret
     integer                               :: istage,istate
 
-    if ( this%nstate_ .le. 0 ) then
+    if ( this%traits_%nstate .le. 0 ) then
       stop 'GExRKStepper::set_tmp: Invalid nstate'
     endif 
 
-    if ( this%norder_ .le. 0 .or. this%nstage_ .le. 0 ) then
+    if ( this%traits_%norder .le. 0 .or. this%traits_%nstage .le. 0 ) then
       stop 'GExRKStepper::set_tmp: Invalid norder/nstage'
     endif 
 
@@ -292,8 +261,8 @@ CONTAINS
       if ( .not. allocated(this%K_) ) then
         stop 'GExRKStepper::set_tmp: volatile not allocated'
       endif
-      do istage = 1, this%nstage_   
-        do istate = 1, this%nstate_   
+      do istage = 1, this%traits_%nstage   
+        do istate = 1, this%traits_%nstate
           CALL this%workspace_%get_complex_tmp(this%K_(istage)(istate),bret)
           if ( .not. bret  ) then
             stop 'GExRKStepper::set_tmp: Workspace failure'
@@ -314,8 +283,8 @@ CONTAINS
     logical                               :: bret
     integer                               :: istage,istate
 
-    do istage = 1, this%nstage_   
-      do istate = 1, this%nstate_   
+    do istage = 1, this%traits_%nstage   
+      do istate = 1, this%traits_%nstate   
         CALL this%workspace_%free_complex_tmp(this%K_(istage)(istate))
       enddo
     enddo
@@ -346,8 +315,8 @@ CONTAINS
     real       (kind=GP), intent   (in) :: time, dt
     logical                             :: bret
        
-    if ( size(uin) .ne. this%nstate_ &
-     .or.size(uout) .ne. this%nstate_  ) then
+    if ( size(uin) .ne. this%traits_%nstate &
+     .or.size(uout) .ne. this%traits_%nstate  ) then
       stop 'GExRKStepperi::step: Inconsistent input state'
     endif
     
@@ -393,13 +362,13 @@ CONTAINS
     ! K_     : stage data: 
    
     ! Compute stage data:
-    do m = 1, this%nstage_
+    do m = 1, this%traits_%nstage
 
-      do n = 1, this%nstate_  ! set temp state
+      do n = 1, this%traits_%nstate  ! set temp state
         utmp(n) = uin(n)
       enddo
       do j = 1, m-1  ! utmp = utmp + h beta K_j
-        do n = 1, this%nstate_  ! set utmp
+        do n = 1, this%traits_%nstate  ! set utmp
           call saxpby_c(utmp(n), utmp(n), 1.0_GP, this%K_(j)(n), this%beta_(m,j)*dt)
         enddo
         tt = time + this%alpha_(m) * dt
@@ -409,13 +378,13 @@ CONTAINS
     enddo ! stage m loop
 
     ! Combine stages to get step update:
-    do n = 1, this%nstate_  ! uout = uin
+    do n = 1, this%traits_%nstate  ! uout = uin
       uout(n) = uin(n)
     enddo
 
-    do m = 1, this%nstage_  
+    do m = 1, this%traits_%nstage  
 
-      do n = 1, this%nstate_ ! uout = uout + h * c_ * K:
+      do n = 1, this%traits_%nstate ! uout = uout + h * c_ * K:
         call saxpby_c(uout(n), uout(n), 1.0_GP, this%K_(m)(n), this%c_(m,j)*dt)
       enddo
 
