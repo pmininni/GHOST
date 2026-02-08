@@ -4,13 +4,17 @@
 !              stages
 !
 ! INPUT FILE : Stepper looks for a "&stepper" namelist with:
+!                itype   : Stepper type:
+!                    =1 => Butcher type (norder = nstage)
+!                    =2 => Mixed type (norder != nstage; not available)
+!                    =3 => SSP type (strong stability preserving; not available)
 !                norder  : Stepper order (1-4 currently)
 !                nstage  : No. stepper stages (1-4 currently)
 !
 !              Currently stepper supports only explicit RK
-!              schemes where norder=nstage, but this may change
-!              in the futurel this object is designed up to 
-!              accommodate this case eventually.
+!              schemes where norder=nstage, but the class 
+!              is designed to eventually accommodate both 
+!              GEXRK_MIXED (itype=2), and GEXRK_SSP (itype=3) types.
 !
 ! DATE       : 2/2/26 (DLR)
 ! =====================================================================
