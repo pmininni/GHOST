@@ -1,6 +1,17 @@
 ! ===================================================================
-! NAME       : equation_base.fpp
+! NAME       : equation_base.f90
 ! DESCRIPTION: Forms base class for all PDEs
+!
+! INPUT FILE : All PDEs look for a "&stepper" block that
+!              governs configuration of the time stepping
+!              scheme. Folliwing are the parameters allowed 
+!              in the configuration block:
+!                sname : Name of scheme. check build_stepper function
+!                        in gstepper_base.f90 for valid names
+!                norder: Order of scheme
+!                nstage: Number of stages (if doing GEXRK)
+!                itype : Sub-type of RK scheme is using GEXRK
+
 ! DATE       : 11/29/25 (DLR)
 ! ===================================================================
 
@@ -21,7 +32,7 @@ module equationbase_mod
       integer                       :: order_    ! Default integration order
       character(len=8), allocatable :: sstate_(:)
       character(len=128)            :: infile_
-      type(StepperBase)             :: stepper_  ! time stepping object
+      type(StepperBase),allocatable :: stepper_  ! time stepping object
     contains
       procedure(Solver_ctor_interface), deferred :: Solver_ctor => Solver_base_ctor ! Constructor
       procedure(init_interface),        deferred :: init        ! init method
