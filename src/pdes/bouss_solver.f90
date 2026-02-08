@@ -55,7 +55,7 @@ module bouss_mod
   ! ================= Solver traits ===================================
   type, public  :: BSTraits
     logical       :: dorot        = .FALSE. ! rotation flag
-    integer       :: spectlod     = 1       ! standard level of detail 
+    integer       :: spectlod     = 1       ! standard level of spectra detail 
     real(kind=GP) :: nu           = 0.0_GP  ! dissipation
     real(kind=GP) :: bkappa       = 0.0_GP  ! diffusivity
     real(kind=GP) :: bvfreq       = 0.0_GP  ! Brunt-Vaisala freq
@@ -100,6 +100,7 @@ contains
     ! Temporary data to read from namelists:
     logical                    :: dorot
     integer                    :: npassive
+    integer                    :: spectlod
     integer                    :: ierr
     real(kind=GP)              :: nu, bkappa, bvfreq, omegax, omegay, omegaz
     real(kind=GP), allocatable :: kappa(:)
@@ -444,6 +445,7 @@ contains
       CALL write_fourier(vx,'vx',ext,odir)
       CALL write_fourier(vy,'vy',ext,odir)
       CALL write_fourier(vz,'vz',ext,odir)
+      CALL write_fourier(th,'th',ext,odir)
     endif
 
     ! Write PV spectra, horizontally-averaged data:

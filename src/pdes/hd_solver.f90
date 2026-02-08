@@ -20,6 +20,12 @@
 !              omegaz  : amplitude of the uniform rotation along z
 !              npassive: number of passive scalars (default=0)
 !
+!              spectlod: spectral output level of detail (in [1,3]):
+!                          1: All 1d spectra, KE fluxes
+!                          2: 2D spectra, directional spectra, 
+!                             fluxes, helicity flux, if drot=true
+!                          3: KE Fourier modes
+!
 !              For npassive > 0, looks for a "&passive" namelist with:
 !              kappa   : vector with npassive diffusivities
 !
@@ -35,6 +41,7 @@ module hd_mod
   ! ================= Solver traits ===================================
   type, public  :: NHTraits
     logical       :: dorot        = .FALSE. ! rotation flag
+    integer       :: spectlod     = 1       ! standard level of spectra detail 
     real(kind=GP) :: nu           = 0.0_GP  ! dissipation
     real(kind=GP), allocatable :: kappa(:)  ! diffusivities
     real(kind=GP)              :: omega(3)  ! rotation vector
@@ -77,12 +84,13 @@ CONTAINS
     ! Temporary data to read from namelists:
     logical                    :: dorot
     integer                    :: npassive
+    integer                    :: spectlod
     integer                    :: ierr
     real(kind=GP)              :: nu, omegax, omegay, omegaz
     real(kind=GP), allocatable :: kappa(:)
 
     ! Required namelists:
-    namelist/ HD      / nu, dorot, omegax, omegay, omegaz, npassive
+    namelist/ HD      / nu, dorot, omegax, omegay, omegaz, npassive, spectlod
     namelist/ passive / kappa
 
     call MPI_COMM_SIZE(MPI_COMM_WORLD,this%nprocs_,ierr)
@@ -90,8 +98,8 @@ CONTAINS
 
     ! Get trait variables from input file:
     dorot    = .FALSE.
+    spectlod = 1 ! standard lod
     nu       = 0.0
-    npassive = 0
     omegax   = 0.0_GP; omegay = 0.0_GP; omegaz = 0.0_GP
     if ( this%myrank_ .eq. 0 ) then
       open(1,file=this%infile_,status='unknown',form="formatted")
@@ -104,6 +112,7 @@ CONTAINS
     call mpi_bcast(omegay   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(omegaz   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(npassive ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(spectlod ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
     this%numpassive_ = npassive
     if ( npassive .gt. 0 ) then
       allocate(kappa(npassive))
@@ -117,9 +126,10 @@ CONTAINS
     endif
 
     ! Set traits from inputfile data:
-    this%traits_%dorot = dorot
-    this%traits_%   nu = nu
-    this%traits_%omega = (/omegax,omegay,omegaz/)
+    this%traits_%   dorot = dorot
+    this%traits_%spectlod = spectlod
+    this%traits_%      nu = nu
+    this%traits_%omega    = (/omegax,omegay,omegaz/)
     if ( npassive .gt. 0 ) then
       if ( allocated(this%traits_%kappa) ) then
         deallocate(this%traits_%kappa);
@@ -176,12 +186,12 @@ CONTAINS
 
     nu     = this%traits_%nu
 
-    CALL this%workspace_%get_complex_tmp(C1,bret)
-    CALL this%workspace_%get_complex_tmp(C2,bret)
-    CALL this%workspace_%get_complex_tmp(C3,bret)
-    CALL this%workspace_%get_complex_tmp(C4,bret)
-    CALL this%workspace_%get_complex_tmp(C5,bret)
-    CALL this%workspace_%get_complex_tmp(C6,bret)
+    call this%workspace_%get_complex_tmp(C1,bret)
+    call this%workspace_%get_complex_tmp(C2,bret)
+    call this%workspace_%get_complex_tmp(C3,bret)
+    call this%workspace_%get_complex_tmp(C4,bret)
+    call this%workspace_%get_complex_tmp(C5,bret)
+    call this%workspace_%get_complex_tmp(C6,bret)
 
     vx => uin(this%VELOCITY  )%ccomp
     vy => uin(this%VELOCITY+1)%ccomp
@@ -235,12 +245,12 @@ CONTAINS
     enddo
     enddo
 
-    CALL this%workspace_%free_complex_tmp(C1)
-    CALL this%workspace_%free_complex_tmp(C2)
-    CALL this%workspace_%free_complex_tmp(C3)
-    CALL this%workspace_%free_complex_tmp(C4)
-    CALL this%workspace_%free_complex_tmp(C5)
-    CALL this%workspace_%free_complex_tmp(C6)
+    call this%workspace_%free_complex_tmp(C1)
+    call this%workspace_%free_complex_tmp(C2)
+    call this%workspace_%free_complex_tmp(C3)
+    call this%workspace_%free_complex_tmp(C4)
+    call this%workspace_%free_complex_tmp(C5)
+    call this%workspace_%free_complex_tmp(C6)
 
     ! Compute passive scalars:
     call this%rhs_passive(uin, uf, this%traits_%kappa, dudt)
@@ -274,8 +284,8 @@ CONTAINS
     fx => uf (this%VELOCITY  )%ccomp
     fy => uf (this%VELOCITY+1)%ccomp
     fz => uf (this%VELOCITY+2)%ccomp
-    CALL hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,0)
-    CALL maxabs(vx,vy,vz,rmp,0)
+    call hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,0)
+    call maxabs(vx,vy,vz,rmp,0)
     IF (myrank.eq.0) THEN
       OPEN(1,file='maximum.txt',position='append')
       WRITE(1,FMT='(E13.6,E13.6)') (t-1)*dt,rmp
@@ -317,21 +327,23 @@ CONTAINS
     call gradre3(vx,vy,vz,c1,c2,c3)            ! Computes v.Grad(v)
     call entrans(vx,vy,vz,-c1,-c2,-c3,ext,1)   ! Writes the energy flux
     ! Uncomment the following line to compute the helicity flux
-    ! call heltrans(vx,vy,vz,-c1,-c2,-c3,ext,1)
     if ( this%traits_%dorot ) then
       call specpara(vx,vy,vz,ext,1,1)
       call specperp(vx,vy,vz,ext,1,1)
       call entpara(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy flux
       call entperp(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy fluxq
-      ! The following two lines compute anisotropic helicity fluxes
-      ! call helpara(vx,vy,vz,-c1,-c2,-c3,ext,1)
-      ! call helperp(vx,vy,vz,-c1,-c2,-c3,ext,1)
-      ! Uncomment the following line to compute 2D spectra
-      ! CALL spec2D(vx,vy,vz,ext,odir,1,1)
-      ! Uncomment the following lines to compute spatio-temporal spectra
-      ! CALL write_fourier(vx,'vx',ext,odir)
-      ! CALL write_fourier(vy,'vy',ext,odir)
-      ! CALL write_fourier(vz,'vz',ext,odir)
+      if ( this%traits_%spectlod .ge. 2 ) then
+        call heltrans(vx,vy,vz,-c1,-c2,-c3,ext,1)
+        call helpara(vx,vy,vz,-c1,-c2,-c3,ext,1)
+        call helperp(vx,vy,vz,-c1,-c2,-c3,ext,1)
+        call spec2D(vx,vy,vz,ext,odir,1,1)
+      endif
+
+      if ( this%traits_%spectlod .ge. 3 ) then
+        call write_fourier(vx,'vx',ext,odir)
+        call write_fourier(vy,'vy',ext,odir)
+        call write_fourier(vz,'vz',ext,odir)
+      endif
     endif
     call this%workspace_%free_complex_tmp(c1)
     call this%workspace_%free_complex_tmp(c2)
