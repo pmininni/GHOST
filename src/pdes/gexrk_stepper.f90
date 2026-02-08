@@ -1,6 +1,8 @@
 ! =====================================================================
 ! NAME       : gexrk.f90
-!              using explicit RK of specified order and number of
+!  
+!              Performs time stepping using explicit RK 
+!              with user-specified order and number of
 !              stages
 !
 ! INPUT FILE : Stepper looks for a "&stepper" namelist with:
@@ -23,49 +25,39 @@ module gexrk_mod
   use iso_c_binding
   use class_GWorkspace3D
   use gstate_mod
-  use equationbase_mod
+  use stepperbase_mod
 
 
   implicit none
 
   ! Define callback function interface:
-  abstract interface
-     subroutine dudt_interface(this, time, uin, uf, dt, dudt)   
-       use gstate_mod
-       import :: GExRKStepper
-       class(GExRKStepper), intent   (in)         :: this
-       real      (kind=GP), intent   (in)         :: time, dt
-       type   (GStateComp), intent(inout), target :: uin(:),uf(:)
-       type   (GStateComp), intent(inout)         :: dudt(:) 
-     end subroutine dudt_interface
-  end interface
+! abstract interface
+!    subroutine dudt_interface(this, time, uin, uf, dt, dudt)   
+!      use gstate_mod
+!      import :: GExRKStepper
+!      class(GExRKStepper), intent   (in)         :: this
+!      real      (kind=GP), intent   (in)         :: time, dt
+!      type   (GStateComp), intent(inout), target :: uin(:),uf(:)
+!      type   (GStateComp), intent(inout)         :: dudt(:) 
+!    end subroutine dudt_interface
+! end interface
 
   ! ================= Global parameters ===============================
   enum, bind(c)
     enumerator :: GEXRK_BUTCHER = 1, GEXRK_MIXED = 2, GEXRK_SSP = 3
   end enum
 
-  ! ================= Stepper traits ===================================
-  type, public  :: GEXRKTraits
-!   logical       :: bSSP       = .FALSE. ! strong stability flag?
-!   logical       :: blowstore  = .FALSE. ! low storage version, if possible?
-    integer       :: itype      = GEXRK_BUTCHER
-    integer       :: norder     = 2  
-    integer       :: nstage     = 2 
-  end type
-
-
   ! ================= Stepper ==========================================
   ! Define class:
-  type :: GExRKStepper
+  type, extends(StepperBase) :: GExRKStepper
     ! Member data:
     type(GWorkspace), pointer     :: workspace_
     logical                       :: binit_=.false. ! is initialized?
     logical                       :: busing_butcher_=.true. ! using Butcher tableau?
     integer                       :: nstate_=0 ! no. state members
-    integer                       :: myrank_   ! MPI rank
-    integer                       :: nprocs_   ! MPI rank 
-    type  (GEXRKTraits)           :: traits_
+!   integer                       :: myrank_   ! MPI rank
+!   integer                       :: nprocs_   ! MPI rank 
+    type(StepperTraits)           :: traits_
     real   (kind=GP),        , allocatable, &
                                dimension    (:) :: alpha_, c_
     real   (kind=GP),        , allocatable, &
@@ -74,12 +66,13 @@ module gexrk_mod
                                dimension    (:) :: K_
 
     procedure(dudt_interface), pointer, nopass :: callback_ => null()
+
   CONTAINS
-    procedure, public :: set_order     ! set order, nstages
-    procedure, public :: init          ! initialize
-    procedure, public :: set_callback  ! set RHS callback method
-    procedure, public :: step          ! take one timestep
-    procedure, public :: GEXRKStepper_ctor 
+    procedure, public :: init                        ! initialize
+    procedure, public :: set_callback => set_callback_impl
+                                                     ! set RHS callback method
+    procedure, public :: step         =>  step_impl  ! take one timestep
+    procedure, public :: Stepper_ctor =>  GEXRKStepper_ctor 
     final             :: GExRKStepper_dtor
 
     procedure, private:: init_butcher   ! initialize Butcher table
@@ -101,18 +94,18 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Constructor
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine GExRKStepper_ctor(this, infile, workspace, nstate)
+  subroutine GExRKStepper_ctor(this, traits, workspace)
     use iovar
-    class  (GExRKStepper), intent(inout)     :: this
-    type(GWorkspace) , intent(inout), target :: workspace
-    character(len=*) , intent   (in)         :: infile
+    class (GExRKStepper), intent(inout)         :: this
+    type(GStepperTraits), intent(inout), target :: traits
+    type  (GWorkspace)  , intent(inout), target :: workspace
 
     this%workspace_ => workspace
     if (.not. associated(this%workspace_)) then
       stop 'GExRKStepper::GExRKStepper_ctor: Worskpace not associated'
     endif
 
-    call this%init(infile, nstate)
+    call this%init(traits)
   end subroutine GExRKStepper_ctor
 
 
@@ -138,16 +131,17 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init(this, infile, nstate)
 !   use commtypes
-    class  (GExRKStepper), intent (inout) :: this
-    integer          , intent   (in)      :: nstate
-    character(len=*) , intent   (in)      :: infile
+    class(GExRKStepper), intent (inout) :: this
+    integer            , intent    (in) :: nstate
+    character  (len=*) , intent    (in) :: infile
 
     ! Temporary data to read from namelists:
-    integer                    :: itype,norder,nstage
-    integer                    :: ierr
+    integer                                :: itype,norder,nstage
+    integer                                :: ierr
+    character(len=128)                     :: sname ! stepper name
     
     ! Required namelists:
-    namelist/ stepper    / norder, nstage
+    namelist/ stepper    / sname, itype, norder, nstage
 
     if ( nstate .le. 0 ) then
       stop 'GExRKStepper::init: Invalid nstate'
@@ -165,11 +159,15 @@ CONTAINS
       read(1,NML=HD)
       close(1)
     endif
+    call mpi_bcast(sname    ,128 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(itype    ,1 ,MPI_INTEGER,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(norder   ,1 ,MPI_INTEGER,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(nstage   ,1 ,MPI_INTEGER,    0,MPI_COMM_WORLD,ierr)
+
+    this%traits_ = traits
+
     ! Validate norder, nstage:
-    if ( norder .le. 0 .or. nstage .le. 0 ) then
+    if ( this%traits_%norder .le. 0 .or. this%traits_%nstage .le. 0 ) then
       stop 'GExRKStepper::init: Invalid norder/nstage'
     endif
 
@@ -327,19 +325,19 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Subroutine to set RHS callback function
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine set_callback(this, fcn_callback)
+  subroutine set_callback_impl(this, fcn_callback)
     class  (GExRKStepper), intent  (inout) :: this
     procedure(callback_interface), pointer :: fcn_callback
 
     this%callback_ => fcn_callback
 
-  end subroutine set_callback
+  end subroutine set_callback_impl
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Function to take one step
+  !! Implementation function to take one step
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine step(this, time, uin, uf, dt, uout)
+  subroutine step_impl(this, time, uin, uf, dt, uout)
 !$  use threads
     implicit none
 
@@ -368,7 +366,7 @@ CONTAINS
         stop 'GExRKStepper::step: Invalid stepper type'
     end select
 
-  end subroutine step
+  end subroutine step_impl
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
