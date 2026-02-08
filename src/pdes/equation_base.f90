@@ -5,11 +5,11 @@
 ! ===================================================================
 
 module equationbase_mod
-  USE class_GWorkspace3D
-  USE gstate_mod
-  USE iovar
+  use class_GWorkspace3D
+  use gstate_mod
+  use iovar
 
-  IMPLICIT NONE
+  implicit none
 
   ! ================= Base class for all PDEs =======================
   ! Define an abstract base class
@@ -21,8 +21,9 @@ module equationbase_mod
       integer                       :: order_    ! Default integration order
       character(len=8), allocatable :: sstate_(:)
       character(len=128)            :: infile_
+      type(StepperBase)             :: stepper_  ! time stepping object
     contains
-      procedure(Solver_ctor_interface), deferred :: Solver_ctor ! Constructor
+      procedure(Solver_ctor_interface), deferred :: Solver_ctor => Solver_base_ctor ! Constructor
       procedure(init_interface),        deferred :: init        ! init method
       procedure(dudt_interface),        deferred :: dudt        ! RHS method
       procedure(global_interface),      deferred :: global      ! Global qtys
@@ -30,6 +31,7 @@ module equationbase_mod
       procedure(state_size_interface),  deferred :: state_size  ! Number of states
       procedure, public                          :: timestep
       procedure, public                          :: write_states
+      procedure, private                         :: build_stepper
   end type EquationBase
 
   type, abstract, extends(EquationBase) :: VelocityBase
@@ -56,8 +58,8 @@ module equationbase_mod
   
   abstract interface
      subroutine Solver_ctor_interface(this, infile, workspace, plan)
-       USE class_GWorkspace3D
-       USE iovar
+       use class_GWorkspace3D
+       use iovar
        import :: EquationBase
        class(EquationBase), intent(inout)         :: this
        type(GWorkspace)   , intent(inout), target :: workspace
@@ -71,7 +73,7 @@ module equationbase_mod
      end subroutine init_interface
 
      subroutine dudt_interface(this, time, uin, uf, dt, dudt) 
-       USE gstate_mod
+       use gstate_mod
        import :: EquationBase
        class(EquationBase), intent   (in)         :: this
        real      (kind=GP), intent   (in)         :: time, dt
@@ -80,9 +82,9 @@ module equationbase_mod
      end subroutine dudt_interface
 
      subroutine global_interface(this, uin, uf, t) 
-       USE gstate_mod
-       USE fprecision
-       USE status
+       use gstate_mod
+       use fprecision
+       use status
        import :: EquationBase
        class(EquationBase), intent(in)            :: this
        type   (GStateComp), intent(in), target    :: uin(:),uf(:)
@@ -90,10 +92,10 @@ module equationbase_mod
      end subroutine global_interface
        
      subroutine spectra_interface(this, uin) 
-       USE gstate_mod
-       USE fprecision
-       USE filefmt
-       USE status
+       use gstate_mod
+       use fprecision
+       use filefmt
+       use status
        import :: EquationBase
        class(EquationBase), intent(in)            :: this
        type   (GStateComp), intent(in), target    :: uin(:)
@@ -113,6 +115,26 @@ CONTAINS
   ! ===================================================================
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Base constructor: 
+  !! must be called from each child constructor
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine Solver_base_ctor(this, infile, workspace, plan)
+    use class_GWorkspace3D
+    use gstepperbase_mod
+    use iovar
+    import :: EquationBase
+    class(EquationBase), intent(inout)         :: this
+    type(GWorkspace)   , intent(inout), target :: workspace
+    type(ioplan)       , intent(inout), target :: plan
+    character(len=*)   , intent   (in)         :: infile
+
+
+    this%workspace_ => workspace;
+    this%stepper_ = build_stepper(this, infile)
+ 
+  end subroutine Solver_base_ctor
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Concrete method to take one time step using Runge-Kutta
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine timestep(this, time, uin, uf, dt, uout)
@@ -125,23 +147,12 @@ CONTAINS
     real       (kind=GP)                :: eff_dt
     integer                             :: i,j,k,o,state_size,ic
 
-    state_size = this%state_size()
-    do o = this%order_,1,-1
-      eff_dt = dt/real(o,kind=GP)
-      CALL this%dudt(time, uout, uf, eff_dt, uout)
-      do ic = 1,state_size
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-        do i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-          do j = 1,ny
-            do k = 1,nz
-              uout(ic)%ccomp(k,j,i) = uin(ic)%ccomp(k,j,i) + &
-                              eff_dt*uout(ic)%ccomp(k,j,i)
-            end do
-          end do
-        end do
-      end do
-    end do
+    if ( .not. associated(this%stepper_) ) then
+      stop 'EquationBase::timestep: time stepper object not set'
+    endif
+
+    this%stepper(time, uin, uf, dt, uout)
+
   end subroutine timestep
 
   
@@ -241,16 +252,16 @@ CONTAINS
     do nc = 1,state_size
       rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      DO i = ista,iend
+      do i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-        DO j = 1,ny
-          DO k = 1,nz
+        do j = 1,ny
+          do k = 1,nz
             C1(k,j,i) = uin(nc)%ccomp(k,j,i)*rmp
-          END DO
-        END DO
-      END DO
-      CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
-      CALL io_write(1,odir,trim(this%sstate_(nc)),ext,planio,R1)
+          end do
+        end do
+      end do
+      call fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+      call io_write(1,odir,trim(this%sstate_(nc)),ext,planio,R1)
     end do
     if ( outs .ge. 1) then
       call this%workspace_%get_complex_tmp(C2,bret)
@@ -263,57 +274,57 @@ CONTAINS
       select type (this)
       class is (VelocityBase)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
-        DO i = ista,iend
+        do i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-          DO j = 1,ny
-            DO k = 1,nz
+          do j = 1,ny
+            do k = 1,nz
               C1(k,j,i) = uin(this%VELOCITY  )%ccomp(k,j,i)*rmp
               C2(k,j,i) = uin(this%VELOCITY+1)%ccomp(k,j,i)*rmp
               C3(k,j,i) = uin(this%VELOCITY+1)%ccomp(k,j,i)*rmp
-            END DO
-          END DO
-        END DO
-        CALL rotor3(C2,C3,C4,1) 
-        CALL rotor3(C1,C3,C5,2)
-        CALL rotor3(C1,C2,C6,3)
-        CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
-        CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
-        CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
-        CALL io_write(1,odir,'wx',ext,planio,R1)
-        CALL io_write(1,odir,'wy',ext,planio,R2)
-        CALL io_write(1,odir,'wz',ext,planio,R3)
+            end do
+          end do
+        end do
+        call rotor3(C2,C3,C4,1) 
+        call rotor3(C1,C3,C5,2)
+        call rotor3(C1,C2,C6,3)
+        call fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
+        call fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
+        call fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
+        call io_write(1,odir,'wx',ext,planio,R1)
+        call io_write(1,odir,'wy',ext,planio,R2)
+        call io_write(1,odir,'wz',ext,planio,R3)
         select type (this)
         class is (MagneticBase)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
-          DO i = ista,iend
+          do i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,ny
-              DO k = 1,nz
+            do j = 1,ny
+              do k = 1,nz
                 C1(k,j,i) = uin(this%MAGNETIC  )%ccomp(k,j,i)*rmp
                 C2(k,j,i) = uin(this%MAGNETIC+1)%ccomp(k,j,i)*rmp
                 C3(k,j,i) = uin(this%MAGNETIC+1)%ccomp(k,j,i)*rmp
-              END DO
-            END DO
-          END DO
-          CALL rotor3(C2,C3,C4,1) 
-          CALL rotor3(C1,C3,C5,2)
-          CALL rotor3(C1,C2,C6,3)
-          CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
-          CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
-          CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
-          CALL io_write(1,odir,'bx',ext,planio,R1)
-          CALL io_write(1,odir,'by',ext,planio,R2)
-          CALL io_write(1,odir,'bz',ext,planio,R3)
+              end do
+            end do
+          end do
+          call rotor3(C2,C3,C4,1) 
+          call rotor3(C1,C3,C5,2)
+          call rotor3(C1,C2,C6,3)
+          call fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
+          call fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
+          call fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
+          call io_write(1,odir,'bx',ext,planio,R1)
+          call io_write(1,odir,'by',ext,planio,R2)
+          call io_write(1,odir,'bz',ext,planio,R3)
           if ( outs .eq. 2 ) then
-            CALL laplak3(C1,C4)
-            CALL laplak3(C2,C5)
-            CALL laplak3(C3,C6)
-            CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
-            CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
-            CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
-            CALL io_write(1,odir,'jx',ext,planio,-R1)
-            CALL io_write(1,odir,'jy',ext,planio,-R2)
-            CALL io_write(1,odir,'jz',ext,planio,-R3)
+            call laplak3(C1,C4)
+            call laplak3(C2,C5)
+            call laplak3(C3,C6)
+            call fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
+            call fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
+            call fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
+            call io_write(1,odir,'jx',ext,planio,-R1)
+            call io_write(1,odir,'jy',ext,planio,-R2)
+            call io_write(1,odir,'jz',ext,planio,-R3)
           endif
         end select
       end select 
