@@ -130,8 +130,8 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init(this, infile, nstate)
 !   use commtypes
-    class(GExRKStepper), intent (inout) :: this
-    type(StepperTraits), intent    (in) :: traits
+    class (GExRKStepper), intent (inout) :: this
+    type(GStepperTraits), intent    (in) :: traits
 
     this%traits_ = traits
 

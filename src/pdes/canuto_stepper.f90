@@ -51,7 +51,7 @@ module canuto_stepper_mod
     logical                       :: busing_butcher_=.true. ! using Butcher tableau?
     integer                       :: myrank_   ! MPI rank
     integer                       :: nprocs_   ! MPI rank 
-    type(StepperTraits)           :: traits_   ! GStepper traits
+    type(GStepperTraits)          :: traits_   ! GStepper traits
 
 
     procedure(dudt_interface), pointer, nopass :: callback_ => null()
@@ -104,7 +104,7 @@ CONTAINS
   subroutine init(this, traits)
 !   use commtypes
     class(CanutoStepper), intent (inout) :: this
-    type (StepperTraits), intent    (in) :: traits
+    type(GStepperTraits), intent    (in) :: traits
 
     this%traits_ = traits;
 
