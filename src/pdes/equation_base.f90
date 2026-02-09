@@ -6,8 +6,8 @@
 !              governs configuration of the time stepping
 !              scheme. Folliwing are the parameters allowed 
 !              in the configuration block:
-!                sname : Name of scheme. check build_stepper function
-!                        in gstepper_base.f90 for valid names
+!                sname : Name of scheme. check stepper_factory_mod 
+!                        for valid names
 !                norder: Order of scheme
 !                nstage: Number of stages (if doing GEXRK)
 !                itype : Sub-type of RK scheme is using GEXRK
@@ -42,7 +42,6 @@ module equationbase_mod
       procedure(state_size_interface),  deferred :: state_size  ! Number of states
       procedure, public                          :: timestep
       procedure, public                          :: write_states
-      procedure, private                         :: build_stepper
   end type EquationBase
 
   type, abstract, extends(EquationBase) :: VelocityBase
@@ -131,7 +130,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine Solver_base_ctor(this, infile, workspace, plan)
     use class_GWorkspace3D
-    use gstepperbase_mod
+    use stepper_factory_mod
     use iovar
     import :: EquationBase
     class(EquationBase), intent(inout)         :: this
@@ -141,12 +140,13 @@ CONTAINS
 
 
     this%workspace_ => workspace;
-    this%stepper_ = build_stepper(this, infile)
+    this%stepper_ = build_stepper_from_file(infile, workspace)
  
   end subroutine Solver_base_ctor
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Concrete method to take one time step using Runge-Kutta
+  !! Concrete method to take one time step 
+  !! using configured time stepping object
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine timestep(this, time, uin, uf, dt, uout)
 !$  use threads
@@ -155,11 +155,9 @@ CONTAINS
     class (EquationBase), intent   (in) :: this
     type    (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
     real       (kind=GP), intent   (in) :: time, dt
-    real       (kind=GP)                :: eff_dt
-    integer                             :: i,j,k,o,state_size,ic
 
-    if ( .not. associated(this%stepper_) ) then
-      stop 'EquationBase::timestep: time stepper object not set'
+    if ( .not. allocated(this%stepper_) ) then
+      stop 'EquationBase::timestep: time stepper object not allocated'
     endif
 
     this%stepper(time, uin, uf, dt, uout)
