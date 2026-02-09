@@ -147,7 +147,7 @@ CONTAINS
 
     do o = this%traits_%norder,1,-1
       eff_dt = dt/real(o,kind=GP)
-      call this%callback(time, uout, uf, eff_dt, uout)
+      call this%callback_(time, uout, uf, eff_dt, uout)
       do ic = 1,this%traits_%nstate
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         do i = ista,iend
