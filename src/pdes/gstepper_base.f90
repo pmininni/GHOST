@@ -36,8 +36,8 @@ module gstepperbase_mod
 
   abstract interface
 
-     ! Define step function interface:
-     subroutine GStepper_ctor_interface(this, traits)
+     ! Define step constructor:
+     subroutine GStepper_ctor_interface(this, traits, workspace)
        use class_GWorkspace3D
        import :: GStepperBase
        class (GStepperBase), intent(inout)        :: this
@@ -77,60 +77,6 @@ CONTAINS
   ! ===================================================================
   ! Concrete methods inherited by all steppers
   ! ===================================================================
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Stepper factory
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  function build_stepper(infile,workspace) result(stepper_obj)
-    use class_GWorkspace3D
-    use gstepperbase_mod
-    use gexrk_mod
-    use canuto_stepper_mod
-
-    character(len=*) , intent   (in)         :: infile
-    type(GWorkspace) , intent(inout), target :: workspace
-
-
-    ! Temporary data to read from namelists:
-    integer                                :: itype,norder,nstage
-    integer                                :: ierr
-    character(len=128)                     :: sname ! stepper name
-    type(StepperTraits)                    :: straits
-    type      (Stepper), allocatable       :: stepper_obj
-
-    ! Required namelists:
-    namelist/ stepper    / sname, itype, norder, nstage
-
-    itype          = 1 ! Butcher type if using GEXRK object
-    norder         = 2
-    nstage         = 2
-    sname          = ''
-
-    if ( this%myrank_ .eq. 0 ) then
-      open(1,file=this%infile,status='unknown',form="formatted")
-      read(1,NML=Stepper)
-      close(1)
-    endif
-    call mpi_bcast(sname    ,128 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(itype    ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(norder   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(nstage   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-
-    ! Build traits object:
-    straits.nstate = this%state_size()
-    straits.norder = norder
-    straits.nstage = nstage
-    straits.sname  = sname
-
-    ! Allocate child object:
-    if      ( 'gexrk'  .eq. to_lowercase(trim(sname) ) then
-      allocate( GExRKStepper  :: stepper_obj )
-    else if ( 'canuto' .eq. to_lowercase(trim(sname) ) then
-      allocate( CanutoStepper :: stepper_obj )
-    endif
-
-    stepper_obj%GStepper_ctor(straits,workspace)
-
-  end subroutine build_stepper
 
   
 end module gstepperbase_mod
