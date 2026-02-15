@@ -22,7 +22,7 @@ module gstate_mod
     type    (GStateComp), allocatable, dimension(:) :: cstate_
     contains
       procedure, public :: data => GCState_data
-      generic           :: operator() => GCState_comp
+      generic           :: operator() => GCState_get_comp
   end type GCState
 
   ! Derived type GRState, whose data 
@@ -31,7 +31,7 @@ module gstate_mod
     type(GStateRealComp), allocatable, dimension(:) :: rstate_
     contains
       procedure, public :: data => GRState_data
-      generic           :: operator() => GRState_comp
+      generic           :: operator() => GRState_get_comp
   end type GRState
 
 contains
@@ -98,7 +98,7 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Method to get GCState complex component data
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  function GCState_comp(this, i) result(ret)
+  function GCState_get_comp(this, i) result(ret)
     implicit none
     import :: GCState
     class(GCState), intent(inout) :: this
@@ -106,15 +106,15 @@ contains
     integer       , intent   (in) :: i
 
     if ( i .lt. 1 .or i .gt. size(this%cstate_) ) then
-      stop 'GCState_comp: Invalid index'
+      stop 'GCState_get_comp: Invalid index'
     endif
     ret => this%cstate_(i);
-  end function GCState_comp
+  end function GCState_get_comp
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Method to get GCState real component data
+  !! Method to get GRState real component data
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  function GRState_comp(this, i) result(ret)
+  function GRState_get_comp(this, i) result(ret)
     implicit none
     import :: GRState
     class(GRState), intent(inout) :: this
@@ -122,9 +122,9 @@ contains
     integer       , intent   (in) :: i
 
     if ( i .lt. 1 .or i .gt. size(this%rstate_) ) then
-      stop 'GRState_comp: Invalid index'
+      stop 'GRState_get_comp: Invalid index'
     endif
     ret => this%rstate_(i);
-  end function GRState_comp
+  end function GRState_get_comp
 
 end module gstate_mod
