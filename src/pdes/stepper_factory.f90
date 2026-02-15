@@ -45,7 +45,7 @@ contains
     itype          = 1 ! Butcher type if using GEXRK object
     norder         = 2
     nstage         = 2
-    sname          = 'CANUTO'
+    sname          = 'TRADITIONAL'
 
     if ( myrank .eq. 0 ) then
       open(1,file=this%infile,status='unknown',form="formatted")
@@ -67,7 +67,7 @@ contains
    select case (trim(to_lowercase(sname)))
      case ('gexrk')
        allocate( GExRKStepper  :: new_object )
-     case ('canuto')
+     case ('traditional')
        allocate( CanutoStepper :: new_object )
      case default
        stop 'stepper_factory::build_stepper_from_file: Invalid stepper type'
