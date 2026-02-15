@@ -71,6 +71,7 @@ module gexrk_mod
     procedure, public :: set_callback => set_callback_impl
                                                      ! set RHS callback method
     procedure, public :: step         =>  step_impl  ! take one timestep
+    procedure, public :: pstep        =>  pstep_impl ! take one part+field timestep
     procedure, public :: Stepper_ctor =>  GEXRKStepper_ctor 
     final             :: GExRKStepper_dtor
 
@@ -80,6 +81,9 @@ module gexrk_mod
     procedure, private:: step_butcher   ! take a Butcher step
     procedure, private:: step_mixed     ! take a mixed step
     procedure, private:: step_ssp       ! take a SSP step
+    procedure, private:: pstep_butcher  ! take a part+field Butcher step
+    procedure, private:: pstep_mixed    ! take a part+field mixed step
+    procedure, private:: pstep_ssp      ! take a part+field SSP step
     procedure, private:: set_tmp        ! set data from tmp pool
     procedure, private:: free_tmp       ! free data from tmp pool
   end type GExRKStepper
@@ -347,6 +351,63 @@ CONTAINS
 
     class (GExRKStepper), intent   (in) :: this
     type    (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
+!   complex(kind=GP), pointer, &
+!                      dimension(:,:,:) :: sum
+    real       (kind=GP), intent   (in) :: time, dt
+    real       (kind=GP)                :: tt
+    logical                             :: bret
+    integer                             :: j,m,n
+
+!   CALL this%workspace_%get_complex_tmp(sum,bret)
+
+    ! alpha_ : time fractions for each stage
+    ! beta_  : stage coefficient matrix 
+    ! c_     : weights for final combination
+    ! K_     : stage data: 
+   
+    ! Compute stage data:
+    do m = 1, this%traits_%nstage
+
+      do n = 1, this%traits_%nstate  ! set temp state
+        utmp(n) = uin(n)
+      enddo
+      do j = 1, m-1  ! utmp = utmp + h beta K_j
+        do n = 1, this%traits_%nstate  ! set utmp
+          call saxpby_c(utmp(n), utmp(n), 1.0_GP, this%K_(j)(n), this%beta_(m,j)*dt)
+        enddo
+        tt = time + this%alpha_(m) * dt
+        this%callback_( tt, utmp, uf, dt, K_(m) ); 
+      enddo ! j-loop
+
+    enddo ! stage m loop
+
+    ! Combine stages to get step update:
+    do n = 1, this%traits_%nstate  ! uout = uin
+      uout(n) = uin(n)
+    enddo
+
+    do m = 1, this%traits_%nstage  
+
+      do n = 1, this%traits_%nstate ! uout = uout + h * c_ * K:
+        call saxpby_c(uout(n), uout(n), 1.0_GP, this%K_(m)(n), this%c_(m,j)*dt)
+      enddo
+
+    enddo ! m-loop
+
+!   CALL this%workspace_%free_complex_tmp(sum)
+
+  end subroutine step_butcher
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Function to take one part+field GEXRK_BUTCHER step
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine step_butcher(this, time, uin, puin, uf, dt, uout, puout)
+!$  use threads
+    implicit none
+
+    class (GExRKStepper), intent   (in) :: this
+    type    (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
+    type   (GPStateComp), intent(inout) :: puin(:), puout(:)
     complex(kind=GP), pointer, &
                        dimension(:,:,:) :: sum
     real       (kind=GP), intent   (in) :: time, dt
@@ -394,7 +455,6 @@ CONTAINS
 
   end subroutine step_butcher
 
-
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Function to take one GEXRK_MIXED step
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -408,6 +468,22 @@ CONTAINS
     logical                             :: bret
 
     stop 'GExRKStepper::step_mixed: GEXRK_MIXED not yet supported!'
+  end subroutine step_mixed
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Function to take one part+field GEXRK_MIXED step
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine pstep_mixed(this, time, uin, puin, uf, dt, uout, puout)
+!$  use threads
+    implicit none
+
+    class (GExRKStepper), intent   (in) :: this
+    type    (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
+    type   (GPStateComp), intent(inout) :: puin(:), puout(:)
+    real       (kind=GP), intent   (in) :: time, dt
+    logical                             :: bret
+
+    stop 'GExRKStepper::pstep_mixed: GEXRK_MIXED not yet supported!'
   end subroutine step_mixed
 
 
@@ -425,6 +501,22 @@ CONTAINS
 
     stop 'GExRKStepper::step_ssp: GEXRK_SSP not yet supported!'
   end subroutine step_ssp
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Function to take one part+field GEXRK_SSP step
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine pstep_ssp(this, time, uin, puin, uf, dt, uout, puout)
+!$  use threads
+    implicit none
+
+    class (GExRKStepper), intent   (in) :: this
+    type    (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
+    type   (GPStateComp), intent(inout) :: puin(:), puout(:)
+    real       (kind=GP), intent   (in) :: time, dt
+    logical                             :: bret
+
+    stop 'GExRKStepper::pstep_ssp: GEXRK_SSP not yet supported!'
+  end subroutine pstep_ssp
 
 
 end module gexrk_mod
