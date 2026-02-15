@@ -16,7 +16,7 @@ module gstepperbase_mod
     integer            :: norder  = 2 ! order 2
     integer            :: nstage  = 2 ! arbitrary
     integer            :: nstate  = 0 ! no. continuum state components
-    integer            :: npstate = 0 ! no. particles
+    integer            :: npstate = 0 ! no. particle state components
     character(len=128) :: sname  = 'TRADITIONAL' ! Currently: 'TRADITIONAL' or 'GEXRK'
   end type
 
