@@ -15,6 +15,7 @@
 ! INPUT FILE : For solver='HD', looks for a "&HD" namelist with:
 !              nu      : fluid kinematic viscosity
 !              dorot   : do rotation, = .TRUE. or .FALSE.
+!              doparts : use particles, = .TRUE. or .FALSE.
 !              omegax  : amplitude of the uniform rotation along x
 !              omegay  : amplitude of the uniform rotation along y
 !              omegaz  : amplitude of the uniform rotation along z
@@ -41,6 +42,7 @@ module hd_mod
   ! ================= Solver traits ===================================
   type, public  :: NHTraits
     logical       :: dorot        = .FALSE. ! rotation flag
+    logical       :: doparts      = .FALSE. ! do particles flag
     integer       :: spectlod     = 1       ! standard level of spectra detail 
     real(kind=GP) :: nu           = 0.0_GP  ! dissipation
     real(kind=GP), allocatable :: kappa(:)  ! diffusivities
@@ -59,6 +61,7 @@ module hd_mod
   CONTAINS
     procedure, public :: init          =>          init_impl ! init method
     procedure, public :: dudt          =>          dudt_impl ! RHS method
+    procedure, public :: pdudt         =>         pdudt_impl ! part+field RHS method
     procedure, public :: global        =>        global_impl ! Writes global qtys
     procedure, public :: spectra       =>       spectra_impl ! Writes spectra
     procedure, public :: state_size    =>    state_size_impl ! state size
@@ -83,6 +86,7 @@ CONTAINS
 
     ! Temporary data to read from namelists:
     logical                    :: dorot
+    logical                    :: doparts
     integer                    :: npassive
     integer                    :: spectlod
     integer                    :: ierr
@@ -90,7 +94,7 @@ CONTAINS
     real(kind=GP), allocatable :: kappa(:)
 
     ! Required namelists:
-    namelist/ HD      / nu, dorot, omegax, omegay, omegaz, npassive, spectlod
+    namelist/ HD      / nu, dorot, doparts, omegax, omegay, omegaz, npassive, spectlod
     namelist/ passive / kappa
 
     call MPI_COMM_SIZE(MPI_COMM_WORLD,this%nprocs_,ierr)
@@ -98,6 +102,7 @@ CONTAINS
 
     ! Get trait variables from input file:
     dorot    = .FALSE.
+    doparts  = .FALSE.
     spectlod = 1 ! standard lod
     nu       = 0.0
     omegax   = 0.0_GP; omegay = 0.0_GP; omegaz = 0.0_GP
@@ -108,6 +113,7 @@ CONTAINS
     endif
     call mpi_bcast(nu       ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(dorot    ,1 ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(doparts  ,1 ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(omegax   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(omegay   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(omegaz   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
@@ -127,6 +133,7 @@ CONTAINS
 
     ! Set traits from inputfile data:
     this%traits_%   dorot = dorot
+    this%traits_% doparts = doparts
     this%traits_%spectlod = spectlod
     this%traits_%      nu = nu
     this%traits_%omega    = (/omegax,omegay,omegaz/)
@@ -147,6 +154,13 @@ CONTAINS
 
     allocate(this%sstate_(this%state_size()))
     call this%get_sstate(this%sstate_)
+
+    ! Set stepper callback:
+    if ( .not. this%traits_%doparts ) then
+      this%stepper_%set_callback(this%dudt_impl)
+    else
+      this%stepper_%set_pcallback(this%pdudt_impl)
+    endif
 
     this%binit_ = .true.  
   end subroutine init_impl
@@ -256,6 +270,116 @@ CONTAINS
     call this%rhs_passive(uin, uf, this%traits_%kappa, dudt)
 
   end subroutine dudt_impl
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Function to compute part+field RHS with rotation
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine pdudt_impl(this, time, uin, upin, uf, dt, dudt, pdudt) 
+    use pseudospec_fluid
+    use ali
+    use kes
+    use var
+    use grid
+    use mpivars
+!$  use threads
+    implicit none
+
+    class  (HDSolver), intent   (in)             :: this
+    real    (kind=GP), intent   (in)             :: time, dt
+    type (GStateComp), intent(inout), target     :: uin(:),uf(:)
+    type(GPStateComp), intent(inout), target     :: puin(:)
+    type (GStateComp), intent(inout)             :: dudt(:) 
+    type(GPStateComp), intent(inout)             :: pdudt(:) 
+    complex(kind=GP), pointer, dimension(:,:,:)  :: fx,fy,fz,vx,vy,vz
+    complex(kind=GP), pointer, dimension(:,:,:)  :: C1,C2,C3,C4,C5,C6
+    real   (kind=GP)                             :: nu
+    real   (kind=GP)                             :: omegax,omegay,omegaz
+    integer                                      :: i,j,k
+    logical                                      :: bret
+
+
+    stop 'HDSolver::pdudt: Solver particle interface not ready yet!'
+       
+    if ( .not. this%traits_%doparts) then
+      stop 'HDSolver::dud: Particle interface cannot be used'
+    endif
+
+    if ( .not. this%binit_ ) then
+      stop 'HDSolver::dudt: Solver not initialized'
+    endif
+
+    nu     = this%traits_%nu
+
+    call this%workspace_%get_complex_tmp(C1,bret)
+    call this%workspace_%get_complex_tmp(C2,bret)
+    call this%workspace_%get_complex_tmp(C3,bret)
+    call this%workspace_%get_complex_tmp(C4,bret)
+    call this%workspace_%get_complex_tmp(C5,bret)
+    call this%workspace_%get_complex_tmp(C6,bret)
+
+    vx => uin(this%VELOCITY  )%ccomp
+    vy => uin(this%VELOCITY+1)%ccomp
+    vz => uin(this%VELOCITY+2)%ccomp
+    fx => uf (this%VELOCITY  )%ccomp
+    fy => uf (this%VELOCITY+1)%ccomp
+    fz => uf (this%VELOCITY+2)%ccomp
+      
+    call prodre3(vx,vy,vz,C4,C5,C6)                    ! w x v
+    if ( this%traits_%dorot ) then
+      omegax = this%traits_%omega(1)
+      omegay = this%traits_%omega(2)
+      omegaz = this%traits_%omega(3)
+      call saxpby_c(C1, vz, 2*omegay, vy, -2.0*omegaz) ! 2 Omega x v
+      call saxpby_c(C2, vx, 2*omegaz, vz, -2.0*omegax)
+      call saxpby_c(C3, vy, 2*omegax, vx, -2.0*omegay)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      do i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+      do j = 1,ny
+      do k = 1,nz
+         C4(k,j,i) = C4(k,j,i) + C1(k,j,i) ! (w x v + 2 Omega x v)_x
+         C5(k,j,i) = C5(k,j,i) + C2(k,j,i) ! (w x v + 2 Omega x v)_y
+         C6(k,j,i) = C6(k,j,i) + C3(k,j,i) ! (w x v + 2 Omega x v)_z
+      end do
+      end do
+      end do
+    endif
+    call nonlhd3(C4,C5,C6,C1,1)  ! -[(w + 2 Omega) x v + Grad p]_x
+    call nonlhd3(C4,C5,C6,C2,2)  ! -[(w + 2 Omega) x v + Grad p]_y
+    call nonlhd3(C4,C5,C6,C3,3)  ! -[(w + 2 Omega) x v + Grad p]_z
+    call laplak3(vx,C4)          ! Del^2 vx
+    call laplak3(vy,C5)          ! Del^2 vy
+    call laplak3(vz,C6)          ! Del^2 vz
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+    do i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+    do j = 1,ny
+    do k = 1,nz
+      if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
+        dudt(this%VELOCITY  )%ccomp(k,j,i) = nu*C4(k,j,i) + C1(k,j,i) + fx(k,j,i)
+        dudt(this%VELOCITY+1)%ccomp(k,j,i) = nu*C5(k,j,i) + C2(k,j,i) + fy(k,j,i)
+        dudt(this%VELOCITY+2)%ccomp(k,j,i) = nu*C6(k,j,i) + C3(k,j,i) + fz(k,j,i)
+      else
+        dudt(this%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
+        dudt(this%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
+        dudt(this%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
+      endif
+    enddo
+    enddo
+    enddo
+
+    call this%workspace_%free_complex_tmp(C1)
+    call this%workspace_%free_complex_tmp(C2)
+    call this%workspace_%free_complex_tmp(C3)
+    call this%workspace_%free_complex_tmp(C4)
+    call this%workspace_%free_complex_tmp(C5)
+    call this%workspace_%free_complex_tmp(C6)
+
+    ! Compute passive scalars:
+    call this%rhs_passive(uin, uf, this%traits_%kappa, dudt)
+
+  end subroutine pdudt_impl
 
 
   ! ===================================================================

@@ -19,6 +19,7 @@
 !              eta     : magnetic diffusivity
 !              doB0    : do mean magnetic field, = .TRUE. or .FALSE.
 !              dohall  : do Hall physics         = .TRUE. or .FALSE.
+!              doparts : use particles = .TRUE. or .FALSE.
 !              epsilon : amplitude of the Hall term
 !              B0x     : amplitude of the guide field along x
 !              B0y     : amplitude of the guide field along y
@@ -41,6 +42,7 @@ module mhd_mod
   type, public  :: NHTraits
     logical       :: doB0         = .FALSE. ! guide field flag
     logical       :: dohall       = .FALSE. ! compute hall term
+    logical       :: doparts      = .FALSE. ! do particles flag
     real(kind=GP) :: nu           = 0.0_GP  ! dissipation
     real(kind=GP) :: eta          = 0.0_GP  ! magnetic diffusivity
     real(kind=GP) :: epsilon      = 0.0_GP  ! Ion inertial length scale
@@ -61,6 +63,7 @@ module mhd_mod
   CONTAINS
     procedure, public :: init          =>          init_impl ! init method
     procedure, public :: dudt          =>          dudt_impl ! RHS method
+    procedure, public :: pdudt         =>          pdudt_impl! part_field RHS method
     procedure, public :: global        =>        global_impl ! Writes global qtys
     procedure, public :: spectra       =>       spectra_impl ! Writes spectra
     procedure, public :: state_size    =>    state_size_impl ! state size
@@ -86,6 +89,7 @@ CONTAINS
     ! Temporary data to read from namelists:
     logical                    :: doB0
     logical                    :: dohall
+    logical                    :: doparts
     integer                    :: npassive
     integer                    :: ierr
     real(kind=GP)              :: nu, eta, epsilon
@@ -93,7 +97,7 @@ CONTAINS
     real(kind=GP), allocatable :: kappa(:)
 
     ! Required namelists:
-    namelist/ MHD      / nu, eta, doB0, B0x, B0y, B0z, npassive
+    namelist/ MHD      / nu, eta, doB0, doparts, B0x, B0y, B0z, npassive
     namelist/ MHD      / dohall, epsilon, npassive
     namelist/ passive  / kappa
 
@@ -103,6 +107,7 @@ CONTAINS
     ! Get trait variables from input file:
     doB0     = .FALSE.
     dohall   = .FALSE.
+    doparts  = .FALSE.
     nu       = 0.0
     eta      = 0.0
     npassive = 0
@@ -117,6 +122,7 @@ CONTAINS
     call mpi_bcast(epsilon  ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(doB0     ,1 ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(dohall   ,1 ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(doparts  ,1 ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(B0x      ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(B0y      ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(B0z      ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
@@ -136,6 +142,7 @@ CONTAINS
     ! Set traits from inputfile data:
     this%traits_%      doB0 = doB0
     this%traits_%    dohall = dohall
+    this%traits_%   doparts = doparts
     this%traits_%        nu = nu
     this%traits_%       eta = eta
     this%traits_%   epsilon = epsilon
@@ -159,6 +166,14 @@ CONTAINS
 
     allocate(this%sstate_(this%state_size()))
     call this%get_sstate(this%sstate_)
+
+    ! Set stepper callback:
+    if ( .not. this%traits_%doparts ) then
+      this%stepper_%set_callback(this%dudt_impl)
+    else
+      this%stepper_%set_pcallback(this%pdudt_impl)
+    endif
+
 
     this%binit_ = .true.  
   end subroutine init_impl
@@ -321,6 +336,170 @@ CONTAINS
     call this%rhs_passive(uin, uf, this%traits_%kappa, dudt)
 
   end subroutine dudt_impl
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Function to compute part+field RHS with guide field and hall terms
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine pdudt_impl(this, time, uin, puin, uf, dt, dudt, pdudt) 
+    use pseudospec_magnetic
+    use ali
+    use kes
+    use var
+    use grid
+    use mpivars
+!$  use threads
+    implicit none
+
+    class (MHDSolver), intent   (in)             :: this
+    real    (kind=GP), intent   (in)             :: time, dt
+    type (GStateComp), intent(inout), target     :: uin(:),uf(:)
+    type(GPStateComp), intent(inout), target     :: puin(:) 
+    type( GStateComp), intent(inout)             :: dudt(:) 
+    type(GPStateComp), intent(inout)             :: pdudt(:) 
+    complex(kind=GP), pointer, dimension(:,:,:)  :: fx,fy,fz,vx,vy,vz
+    complex(kind=GP), pointer, dimension(:,:,:)  :: mx,my,mz,ax,ay,az
+    complex(kind=GP), pointer, dimension(:,:,:)  :: C1,C2,C3,C4,C5,C6
+    complex(kind=GP), pointer, dimension(:,:,:)  :: C7,C8,C9,C10,C11
+    complex(kind=GP), pointer, dimension(:,:,:)  :: C12,C13,C14,C15
+    real   (kind=GP)                             :: nu,eta,ep
+    real   (kind=GP)                             :: b0x,b0y,b0z
+    integer                                      :: i,j,k
+    logical                                      :: bret
+
+    stop 'MHDSolver::pdudt: Solver particle interface not ready yet!'
+
+    if ( .not. this%traits_%doparts) then
+      stop 'MHDSolver::dud: Particle interface cannot be used'
+    endif
+
+
+
+    nu  = this%traits_%nu
+    eta = this%traits_%eta
+    ep  = this%traits_%epsilon
+
+    CALL this%workspace_%get_complex_tmp(C1,bret)
+    CALL this%workspace_%get_complex_tmp(C2,bret)
+    CALL this%workspace_%get_complex_tmp(C3,bret)
+    CALL this%workspace_%get_complex_tmp(C4,bret)
+    CALL this%workspace_%get_complex_tmp(C5,bret)
+    CALL this%workspace_%get_complex_tmp(C6,bret)
+    CALL this%workspace_%get_complex_tmp(C7,bret)
+    CALL this%workspace_%get_complex_tmp(C8,bret)
+    CALL this%workspace_%get_complex_tmp(C9,bret)
+    CALL this%workspace_%get_complex_tmp(C10,bret)
+    CALL this%workspace_%get_complex_tmp(C11,bret)
+    CALL this%workspace_%get_complex_tmp(C12,bret)
+    if ( this%traits_%dohall ) then
+       CALL this%workspace_%get_complex_tmp(C13,bret)
+       CALL this%workspace_%get_complex_tmp(C14,bret)
+       CALL this%workspace_%get_complex_tmp(C15,bret)
+    endif
+
+    vx => uin(this%VELOCITY  )%ccomp
+    vy => uin(this%VELOCITY+1)%ccomp
+    vz => uin(this%VELOCITY+2)%ccomp
+    fx => uf (this%VELOCITY  )%ccomp
+    fy => uf (this%VELOCITY+1)%ccomp
+    fz => uf (this%VELOCITY+2)%ccomp
+    ax => uin(this%MAGNETIC  )%ccomp
+    ay => uin(this%MAGNETIC+1)%ccomp
+    az => uin(this%MAGNETIC+2)%ccomp
+    mx => uf (this%MAGNETIC  )%ccomp
+    my => uf (this%MAGNETIC+1)%ccomp
+    mz => uf (this%MAGNETIC+2)%ccomp
+
+    call rotor3(ay,az,C1,1)         ! b = curl(a)
+    call rotor3(ax,az,C2,2)
+    call rotor3(ax,ay,C3,3)
+    if ( this%traits_%doB0 ) then   ! b = b + B_0
+      if (myrank.eq.0) then
+        b0x = this%traits_%B0(1)
+        b0y = this%traits_%B0(2)
+        b0z = this%traits_%B0(3)
+        C1(1,1,1) = b0x*real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)
+        C2(1,1,1) = b0y*real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)
+        C3(1,1,1) = b0z*real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)
+      endif
+    endif
+    call prodre3(vx,vy,vz,C4,C5,C6) ! w x v
+    call prodre3(C1,C2,C3,C7,C8,C9) ! j x b
+    call nonlin3(C4,C5,C6,C7,C8,C9,C10,1) ! [- w x v + j x b - Grad p]_x
+    call nonlin3(C4,C5,C6,C7,C8,C9,C11,2) ! [- w x v + j x b - Grad p]_y
+    call nonlin3(C4,C5,C6,C7,C8,C9,C12,3) ! [- w x v + j x b - Grad p]_z
+    call laplak3(ax,C4)             ! Del^2 ax
+    call laplak3(ay,C5)             ! Del^2 ay
+    call laplak3(az,C6)             ! Del^2 az
+    if ( this%traits_%dohall ) then ! electron velocity: v_e = v - epsilon j
+      do i = ista,iend               
+        do j = 1,ny
+          do k = 1,nz
+            C7(k,j,i) = vx(k,j,i)+ep*C4(k,j,i)
+            C8(k,j,i) = vy(k,j,i)+ep*C5(k,j,i)
+            C9(k,j,i) = vz(k,j,i)+ep*C6(k,j,i)
+          end do
+        end do
+      end do
+      call vector3(C7,C8,C9,C1,C2,C3,C13,C14,C15) ! v_e x b (hall)
+      call gauge3(C13,C14,C15,C1,1) ! [v_e x b - Grad phi]_x
+      call gauge3(C13,C14,C15,C2,2) ! [v_e x b - Grad phi]_y
+      call gauge3(C13,C14,C15,C3,3) ! [v_e x b - Grad phi]_z
+    else
+      call vector3(vx,vy,vz,C1,C2,C3,C7,C8,C9)    ! v x b (no hall)
+      call gauge3(C7, C8, C9, C1,1) ! [v_e x b - Grad phi]_x
+      call gauge3(C7, C8, C9, C2,2) ! [v_e x b - Grad phi]_y
+      call gauge3(C7, C8, C9, C3,3) ! [v_e x b - Grad phi]_z
+    endif
+    call laplak3(vx,C7)             ! Del^2 vx
+    call laplak3(vy,C8)             ! Del^2 vy
+    call laplak3(vz,C9)             ! Del^2 vz
+
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+    do i = ista,iend
+!$omp parallel do if (iend-ista.ge.nth) private (k)
+    do j = 1,ny
+    do k = 1,nz
+      if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
+        dudt(this%VELOCITY  )%ccomp(k,j,i) = nu*C7(k,j,i) + C10(k,j,i) + fx(k,j,i)
+        dudt(this%VELOCITY+1)%ccomp(k,j,i) = nu*C8(k,j,i) + C11(k,j,i) + fy(k,j,i)
+        dudt(this%VELOCITY+2)%ccomp(k,j,i) = nu*C9(k,j,i) + C12(k,j,i) + fz(k,j,i)
+        dudt(this%MAGNETIC  )%ccomp(k,j,i) = eta*C4(k,j,i) + C1(k,j,i) + mx(k,j,i)
+        dudt(this%MAGNETIC+1)%ccomp(k,j,i) = eta*C5(k,j,i) + C2(k,j,i) + my(k,j,i)
+        dudt(this%MAGNETIC+2)%ccomp(k,j,i) = eta*C6(k,j,i) + C3(k,j,i) + mz(k,j,i)
+      else
+        dudt(this%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
+        dudt(this%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
+        dudt(this%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
+        dudt(this%MAGNETIC  )%ccomp(k,j,i) = 0.0_GP
+        dudt(this%MAGNETIC+1)%ccomp(k,j,i) = 0.0_GP
+        dudt(this%MAGNETIC+2)%ccomp(k,j,i) = 0.0_GP
+      endif
+    enddo
+    enddo
+    enddo
+
+    CALL this%workspace_%free_complex_tmp(C1)
+    CALL this%workspace_%free_complex_tmp(C2)
+    CALL this%workspace_%free_complex_tmp(C3)
+    CALL this%workspace_%free_complex_tmp(C4)
+    CALL this%workspace_%free_complex_tmp(C5)
+    CALL this%workspace_%free_complex_tmp(C6)
+    CALL this%workspace_%free_complex_tmp(C7)
+    CALL this%workspace_%free_complex_tmp(C8)
+    CALL this%workspace_%free_complex_tmp(C9)
+    CALL this%workspace_%free_complex_tmp(C10)
+    CALL this%workspace_%free_complex_tmp(C11)
+    CALL this%workspace_%free_complex_tmp(C12)
+    if ( this%traits_%dohall ) then
+       CALL this%workspace_%free_complex_tmp(C13)
+       CALL this%workspace_%free_complex_tmp(C14)
+       CALL this%workspace_%free_complex_tmp(C15)
+    endif
+
+    ! Compute passive scalars:
+    call this%rhs_passive(uin, uf, this%traits_%kappa, dudt)
+
+  end subroutine pdudt_impl
 
 
   ! ===================================================================
