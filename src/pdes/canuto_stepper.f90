@@ -69,6 +69,7 @@ CONTAINS
       stop 'CanutoStepper::CanutoStepper_ctor: Worskpace not associated'
     endif
 
+    ! Call StepperBase constructor:
     this%GStepperBase%GStepper_ctor_interface(traits, workspace, nparts)
 
     call this%init(traits)
