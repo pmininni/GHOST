@@ -2,14 +2,14 @@
 ! NAME       : canuto_stepper.f90
 !
 !              Performs time stepping using method of 
-!              Canuto et al. Spectral Methods in Fluid
+!              Canuto et al., Spectral Methods in Fluid
 !              Dynamics. This is a low storage time stepper
 !              for a specifiable order, though it is strictly
 !              speaking of full truncation order only for
-!              norder = 2. Explicit number of stages are
-!              not required. While norder > 2 may not yield
-!              a truncation of that order, it can still provide
-!              benefit.
+!              norder = 2, or for linear PDEs. Explicit number
+!              of stages are not required. While norder > 2 may
+!              not yield a truncation of that order in nonlinear
+!              PDEs, it can still provide benefit.
 !
 ! INPUT FILE : Stepper looks for a "&stepper" namelist with:
 !                norder  : Stepper order (arbitrary)
@@ -18,25 +18,10 @@
 ! =====================================================================
 
 module canuto_stepper_mod
-  use iso_c_binding
-  use class_GWorkspace3D
   use gstate_mod
-  use stepperbase_mod
-
-
+  use gpstate_mod
+  use gstepperbase_mod
   implicit none
-
-  ! Define callback function interface:
-! abstract interface
-!    subroutine dudt_interface(this, time, uin, uf, dt, dudt)   
-!      use gstate_mod
-!      import :: CanutoStepper
-!      class(CanutoStepper), intent   (in)         :: this
-!      real      (kind=GP), intent   (in)         :: time, dt
-!      type   (GStateComp), intent(inout), target :: uin(:),uf(:)
-!      type   (GStateComp), intent(inout)         :: dudt(:) 
-!    end subroutine dudt_interface
-! end interface
 
   ! ================= Global parameters ===============================
 
@@ -45,14 +30,10 @@ module canuto_stepper_mod
   ! ================= Stepper ==========================================
   ! Define class:
   type, extends(GStepperBase) :: CanutoStepper
-    ! Member data:
-    type(GWorkspace), pointer     :: workspace_
+    ! Member data (extends GStepperBase member data)
     logical                       :: binit_=.false. ! is initialized?
     logical                       :: busing_butcher_=.true. ! using Butcher tableau?
-    integer                       :: myrank_   ! MPI rank
-    integer                       :: nprocs_   ! MPI rank 
     type(GStepperTraits)          :: traits_   ! GStepper traits
-
 
     procedure (dudt_interface), pointer, nopass :: callback_  => null()
     procedure(pdudt_interface), pointer, nopass :: pcallback_ => null()
@@ -61,9 +42,9 @@ module canuto_stepper_mod
     procedure, public :: init                        ! initialize
     procedure, public :: set_callback  => set_callback_impl  ! set RHS callback method
     procedure, public :: set_pcallback => set_pcallback_impl ! set part+field RHS callback method
-    procedure, public :: step         =>  step_impl  ! take one timestep
-    procedure, public :: pstep        =>  pstep_impl ! take one part+field timestep
-    procedure, public :: GStepper_ctor =>  CanutoStepper_ctor 
+    procedure, public :: step          => step_impl  ! take one timestep
+    procedure, public :: pstep         => pstep_impl ! take one part+field timestep
+    procedure, public :: GStepper_ctor => CanutoStepper_ctor 
     final             :: CanutoStepper_dtor
 
   end type CanutoStepper
@@ -78,8 +59,9 @@ CONTAINS
   !! Constructor
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine CanutoStepper_ctor(this, traits, workspace)
-    type(GStepperTraits), intent(inout), target :: traits
-    type  (GWorkspace)  , intent(inout), target :: workspace
+    class(CanutoStepper), intent(inout)         :: this
+    type(GStepperTraits), intent(inout)         :: traits
+    type    (GWorkspace), intent(inout), target :: workspace
 
     this%workspace_ => workspace
     if (.not. associated(this%workspace_)) then
@@ -94,10 +76,9 @@ CONTAINS
   !! Destructor
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine CanutoStepper_dtor(this) 
-    type  (CanutoStepper), intent(inout) :: this
+    type(CanutoStepper), intent(inout) :: this
 
     if (associated(this%workspace_))   nullify(this%workspace_)
-    
   end subroutine CanutoStepper_dtor
 
 
@@ -105,23 +86,20 @@ CONTAINS
   !! Subroutine to initialize the stepper
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init(this, traits)
-!   use commtypes
     class(CanutoStepper), intent (inout) :: this
     type(GStepperTraits), intent    (in) :: traits
 
     this%traits_ = traits;
-
   end subroutine init
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Subroutine to set RHS callback function
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine set_callback_impl(this, fcn_callback)
-    class (CanutoStepper), intent  (inout) :: this
-    procedure(dudt_interface), pointer :: fcn_callback
+    class (CanutoStepper), intent(inout) :: this
+    procedure(dudt_interface), pointer   :: fcn_callback
 
     this%callback_ => fcn_callback
-
   end subroutine set_callback_impl
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -132,7 +110,6 @@ CONTAINS
     procedure(pdudt_interface), pointer :: fcn_callback
 
     this%pcallback_ => fcn_callback
-
   end subroutine set_pcallback_impl
 
 
@@ -175,8 +152,6 @@ CONTAINS
         end do
       end do
     end do
-
-
   end subroutine step_impl
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -192,7 +167,7 @@ CONTAINS
     type   (GPStateComp), intent(inout) :: upin(:), upout(:)
     real       (kind=GP), intent   (in) :: time, dt
     real       (kind=GP)                :: eff_dt
-    integer                             :: i,j,k,nparts,o,state_size,ic,ip,nparts
+    integer                             :: i,j,k,o,state_size,ic,ip,nparts
     logical                             :: bret
        
     if ( size(uin) .ne. this%traits_%nstate &
@@ -212,7 +187,7 @@ CONTAINS
       call this%pcallback_(time, uout, upin, uf, eff_dt, uout, upout)
 
       ! Update fields:
-      do ic = 1,this%traits_%nstate % ! for each state comp
+      do ic = 1,this%traits_%nstate  ! for each state comp
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         do i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -234,9 +209,6 @@ CONTAINS
       end do
 
     end do ! end, o-loop
-
-
   end subroutine pstep_impl
-
 
 end module canuto_stepper_mod

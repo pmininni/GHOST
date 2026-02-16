@@ -2,7 +2,6 @@ module gpstate_mod
   use fprecision
   use mpivars
   use grid
-
   implicit none
 
   ! ================= Base field data types =========================
@@ -18,8 +17,9 @@ module gpstate_mod
   type, abstract :: GPState
     type(GPStateComp), allocatable, dimension(:) :: data_
     contains
-      procedure, public :: data => GPState_data
-      generic  , pass   :: operator() => GPState_get_comp
+      procedure, public  :: data => GPState_data
+      procedure, private :: GPState_get_comp
+      generic            :: operator(.get.) => GPState_get_comp
   end type GPState
 
 contains
@@ -35,9 +35,9 @@ contains
     use grid
     use mpivars
     implicit none
-    type     (GPStateComp), allocatable, intent(inout) :: pstate(:)
-    integer                            , intent   (in) :: nc, np
-    integer                                            :: i
+    type(GPStateComp), allocatable, intent(inout) :: pstate(:)
+    integer                       , intent   (in) :: nc, np
+    integer                                       :: i
     allocate( pstate(nc) )
     do i = 1,nc
       allocate( pstate(i)%rcomp(np) )
@@ -51,8 +51,7 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   function GPState_data(this) result(ret)
     implicit none
-    import :: GPState
-    class    (GPState), intent(inout)         :: this
+    class    (GPState), target,    intent(in) :: this
     type (GPStateComp), pointer, dimension(:) :: ret 
     ret => this%data_
   end function GPState_data
@@ -63,12 +62,11 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   function GPState_get_comp(this, i) result(ret)
     implicit none
-    import :: GPState
-    class   (GPState), intent(inout) :: this
-    type(GPStateComp), pointer       :: ret 
-    integer          , intent   (in) :: i
+    class   (GPState), target, intent(in) :: this
+    type(GPStateComp), pointer            :: ret 
+    integer          ,         intent(in) :: i
 
-    if ( i .lt. 1 .or i .gt. size(this%data_) ) then
+    if ( (i .lt. 1).or.(i .gt. size(this%data_)) ) then
       stop 'GPState_get_comp: Invalid index'
     endif
     ret => this%data_(i);

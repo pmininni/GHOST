@@ -2,10 +2,10 @@ module gstate_mod
   use fprecision
   use mpivars
   use grid
-
   implicit none
 
   ! ================= Base field data types =========================
+
   ! Derived types for complex (Fourier transformed) field components
   type, public :: GStateComp
     complex(kind=GP), allocatable :: ccomp(:,:,:) ! complex component      
@@ -21,8 +21,9 @@ module gstate_mod
   type, abstract :: GCState
     type    (GStateComp), allocatable, dimension(:) :: cstate_
     contains
-      procedure, public :: data => GCState_data
-      generic           :: operator() => GCState_get_comp
+      procedure, public  :: data => GCState_data
+      procedure, private :: GCState_get_comp
+      generic            :: operator(.get.) => GCState_get_comp
   end type GCState
 
   ! Derived type GRState, whose data 
@@ -30,8 +31,9 @@ module gstate_mod
   type, abstract :: GRState
     type(GStateRealComp), allocatable, dimension(:) :: rstate_
     contains
-      procedure, public :: data => GRState_data
-      generic           :: operator() => GRState_get_comp
+      procedure, public  :: data => GRState_data
+      procedure, private :: GRState_get_comp
+      generic            :: operator(.get.) => GRState_get_comp
   end type GRState
 
 contains
@@ -78,9 +80,8 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   function GCState_data(this) result(ret)
     implicit none
-    import :: GCState
-    class(GCState), intent(inout) :: this
-    type    (GStateComp), pointer, dimension(:) :: ret 
+    class  (GCState), target, intent(inout) :: this
+    type(GStateComp), pointer, dimension(:) :: ret 
     ret => this%cstate_
   end function GCState_data
 
@@ -89,8 +90,7 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   function GRState_data(this) result(ret)
     implicit none
-    import :: GRState
-    class(GRState), intent(inout) :: this
+    class      (GRState), target, intent(inout) :: this
     type(GStateRealComp), pointer, dimension(:) :: ret 
     ret => this%rstate_
   end function GRState_data
@@ -100,15 +100,14 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   function GCState_get_comp(this, i) result(ret)
     implicit none
-    import :: GCState
-    class(GCState), intent(inout) :: this
-    type    (GStateComp), pointer :: ret 
-    integer       , intent   (in) :: i
+    class  (GCState), target, intent(in) :: this
+    type(GStateComp), pointer :: ret 
+    integer,       intent(in) :: i
 
-    if ( i .lt. 1 .or i .gt. size(this%cstate_) ) then
-      stop 'GCState_get_comp: Invalid index'
+    if ( (i .lt. 1).or.(i .gt. size(this%cstate_)) ) then
+      stop 'GCState_comp: Invalid index'
     endif
-    ret => this%cstate_(i);
+    ret => this%cstate_(i)
   end function GCState_get_comp
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -116,15 +115,14 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   function GRState_get_comp(this, i) result(ret)
     implicit none
-    import :: GRState
-    class(GRState), intent(inout) :: this
+    class      (GRState), target, intent(in) :: this
     type(GStateRealComp), pointer :: ret 
-    integer       , intent   (in) :: i
+    integer,           intent(in) :: i
 
-    if ( i .lt. 1 .or i .gt. size(this%rstate_) ) then
-      stop 'GRState_get_comp: Invalid index'
+    if ( (i .lt. 1).or.(i .gt. size(this%rstate_)) ) then
+      stop 'GRState_comp: Invalid index'
     endif
-    ret => this%rstate_(i);
+    ret => this%rstate_(i)
   end function GRState_get_comp
 
 end module gstate_mod

@@ -1,10 +1,6 @@
 ! ===================================================================
 ! Factory for all allowed time stepper objects
 !
-! To add a new solver, "use" the corresponding module, and add a new
-! case clause in the build_stepper_from_file function. The clause should
-! allocate the stepper class, and call its constructor
-!
 ! DATE : 02/8/26 (DLR)
 ! ===================================================================
 
@@ -12,8 +8,6 @@ module stepper_factory_mod
   use gstepperbase_mod
   use gexrk_stepper_mod
   use canuto_stepper_mod
-
-  
   implicit none
 
   ! ================= Global parameters ===============================
@@ -27,7 +21,6 @@ contains
     character(len=*)   , intent(in)   :: infile
     type   (GWorkspace), intent(inout), &
                                target :: workspace
-
 
     call MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
