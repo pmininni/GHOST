@@ -26,6 +26,8 @@ module gstepperbase_mod
       type(GWorkspace), pointer     :: workspace_
       integer                       :: myrank_   ! MPI rank
       integer                       :: nprocs_   ! MPI rank 
+      logical                       :: doparts_=.false.
+                                                 ! use particle interfaces?
       character(len=128)            :: infile_
     contains
       procedure(GStepper_ctor_interface), deferred :: GStepper_ctor! Constructor
@@ -38,12 +40,20 @@ module gstepperbase_mod
   abstract interface
 
      ! Define step constructor:
-     subroutine GStepper_ctor_interface(this, traits, workspace)
+     subroutine GStepper_ctor_interface(this, traits, workspace, nparts)
        use class_GWorkspace3D
        import :: GStepperBase, GStepperTraits
-       class (GStepperBase), intent(inout)         :: this
-       type(GStepperTraits), intent(inout)         :: traits
-       type   (GWorkspace), intent(inout),  target :: workspace
+       class (GStepperBase), intent(inout)          :: this
+       type(GStepperTraits), intent(inout)          :: traits
+       type   (GWorkspace), intent(inout), target   :: workspace
+       integer            , intent   (in), optional :: nparts
+
+       if ( nparts .gt. 0 ) then
+         this%doparts_ = .true.
+         if ( workspace%get_nparts() .ne. nparts ) then
+           stop 'GStepperBase_ctor:: Incompatible workspace' 
+         endif
+       endif
      end subroutine GStepper_ctor_interface
 
 !    subroutine init_interface(this) 
