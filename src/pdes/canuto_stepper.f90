@@ -58,15 +58,18 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Constructor
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine CanutoStepper_ctor(this, traits, workspace)
-    class(CanutoStepper), intent(inout)         :: this
-    type(GStepperTraits), intent(inout)         :: traits
-    type    (GWorkspace), intent(inout), target :: workspace
+  subroutine CanutoStepper_ctor(this, traits, workspace, nparts)
+    class(CanutoStepper), intent(inout)           :: this
+    type(GStepperTraits), intent(inout)           :: traits
+    type    (GWorkspace), intent(inout), target   :: workspace
+    integer             , intent   (in), optional :: nparts
 
     this%workspace_ => workspace
     if (.not. associated(this%workspace_)) then
       stop 'CanutoStepper::CanutoStepper_ctor: Worskpace not associated'
     endif
+
+    this%GStepperBase%GStepper_ctor_interface(traits, workspace, nparts)
 
     call this%init(traits)
   end subroutine CanutoStepper_ctor

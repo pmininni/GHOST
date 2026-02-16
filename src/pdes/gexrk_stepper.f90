@@ -4,7 +4,7 @@
 !              Performs time stepping using explicit RK 
 !              with user-specified order and number of
 !              stages
-!
+!              
 ! INPUT FILE : Stepper looks for a "&stepper" namelist with:
 !                itype   : Stepper type:
 !                    =1 => Butcher type (norder = nstage)
@@ -97,16 +97,19 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Constructor
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine GExRKStepper_ctor(this, traits, workspace)
+  subroutine GExRKStepper_ctor(this, traits, workspace, nparts)
     use iovar
-    class (GExRKStepper), intent(inout)         :: this
-    type(GStepperTraits), intent(inout), target :: traits
-    type  (GWorkspace)  , intent(inout), target :: workspace
+    class (GExRKStepper), intent(inout)          :: this
+    type(GStepperTraits), intent(inout), target  :: traits
+    type  (GWorkspace)  , intent(inout), target  :: workspace
+    integer             , intent(inout), optional:: nparts
 
     this%workspace_ => workspace
     if (.not. associated(this%workspace_)) then
       stop 'GExRKStepper::GExRKStepper_ctor: Worskpace not associated'
     endif
+    
+    this%GStepperBase%GStepper_ctor_interface(traits, workspace, nparts)
 
     call this%init(traits)
   end subroutine GExRKStepper_ctor
@@ -401,7 +404,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Function to take one part+field GEXRK_BUTCHER step
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine step_butcher(this, time, uin, puin, uf, dt, uout, puout)
+  subroutine pstep_butcher(this, time, uin, puin, uf, dt, uout, puout)
 !$  use threads
     implicit none
 
@@ -453,7 +456,7 @@ CONTAINS
 
     CALL this%workspace_%free_complex_tmp(sum)
 
-  end subroutine step_butcher
+  end subroutine pstep_butcher
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Function to take one GEXRK_MIXED step
@@ -484,7 +487,7 @@ CONTAINS
     logical                             :: bret
 
     stop 'GExRKStepper::pstep_mixed: GEXRK_MIXED not yet supported!'
-  end subroutine step_mixed
+  end subroutine pstep_mixed
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
