@@ -18,8 +18,8 @@ module gpstate_mod
     type(GPStateComp), allocatable, dimension(:) :: data_
     contains
       procedure, public  :: data => GPState_data
-      procedure, private :: GPState_get_comp
-      generic            :: operator(.get.) => GPState_get_comp
+!     procedure, private :: GPState_get_comp
+!     generic            :: operator(.get.) => GPState_get_comp
   end type GPState
 
 contains
@@ -57,19 +57,19 @@ contains
   end function GPState_data
 
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Method to get GPState component data
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  function GPState_get_comp(this, i) result(ret)
-    implicit none
-    class   (GPState), target, intent(in) :: this
-    type(GPStateComp), pointer            :: ret 
-    integer          ,         intent(in) :: i
-
-    if ( (i .lt. 1).or.(i .gt. size(this%data_)) ) then
-      stop 'GPState_get_comp: Invalid index'
-    endif
-    ret => this%data_(i);
-  end function GPState_get_comp
+! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! !! Method to get GPState component data
+! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! function GPState_get_comp(this, i) result(ret)
+!   implicit none
+!   class   (GPState), target, intent(in) :: this
+!   type(GPStateComp), pointer            :: ret 
+!   integer          ,         intent(in) :: i
+!
+!   if ( (i .lt. 1).or.(i .gt. size(this%data_)) ) then
+!     stop 'GPState_get_comp: Invalid index'
+!   endif
+!   ret => this%data_(i);
+! end function GPState_get_comp
 
 end module gpstate_mod
