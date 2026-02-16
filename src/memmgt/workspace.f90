@@ -27,6 +27,11 @@ module class_GWorkspace3D
     real(kind=GP), ALLOCATABLE    :: array(:, :, :)
   end type RealEntry
 
+  ! Derived type for 'particle' component entry
+  type, EXTENDS(ArrayEntry_Base)  :: PCompEntry
+    real(kind=GP), ALLOCATABLE    :: array(:)
+  end type PCompEntry
+
   ! Derived type for Complex (GP) 3D array entry
   type, EXTENDS(ArrayEntry_Base)  :: ComplexEntry
     complex(kind=GP), ALLOCATABLE :: array(:, :, :)
@@ -39,17 +44,22 @@ module class_GWorkspace3D
     ! sophisticated data structure (like a linked list) might be better,
     ! but an allocatable array is sufficient for moderate size.
     CLASS   (RealEntry), ALLOCATABLE  :: real_entries_   (:)
+    CLASS  (PCompEntry), ALLOCATABLE  :: pcomp_entries_  (:)
     CLASS(ComplexEntry), ALLOCATABLE  :: complex_entries_(:)
     integer :: real_size_           = 0
+    integer :: pcomp_size_          = 0
     integer :: complex_size_        = 0
     integer :: nreserve_            = 8
     integer :: ncurr_realreserve_   = 8
+    integer :: ncurr_pcompreserve_  = 8
     integer :: ncurr_complexreserve_= 8
+    integer :: nparts_              = 0
   CONTAINS
-    procedure, public :: initialize_pool, get_real_tmp, get_complex_tmp
-    procedure, public :: free_real_tmp, free_complex_tmp 
-    procedure, public :: get_real_tmp_size, get_complex_tmp_size 
-    procedure, public :: add_real_entries , add_complex_entries
+    procedure, public :: initialize_pool, get_real_tmp, get_pcomp_tmp, get_complex_tmp
+    procedure, public :: free_real_tmp, free_pcomp_tmp, free_complex_tmp 
+    procedure, public :: get_real_tmp_size, get_pcomp_tmp_size,  get_complex_tmp_size 
+    procedure, public :: add_real_entries , add_pcomp_entries, add_complex_entries
+    procedure, public :: set_nparts
     final             :: cleanup_pool
   end type GWorkspace
 
@@ -63,10 +73,11 @@ CONTAINS
   ! Subroutine to initialize the array pool with a specified 
   ! number of arrays.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine initialize_pool(this, num_real, num_complex)
+  subroutine initialize_pool(this, num_real, num_complex, num_pcomp)
     CLASS(GWorkspace), intent(inout) :: this
     integer             , intent(in) :: num_real
     integer             , intent(in) :: num_complex
+    integer             , intent(in) :: num_pcomp
     integer                          :: i
 
     if (num_real <= 0) THEN
@@ -79,25 +90,35 @@ CONTAINS
 
     ! Allocate the pool
     this%real_size_    = num_real
+    this%pcomp_size_   = num_pcomp
     this%complex_size_ = num_complex
     ALLOCATE(this%real_entries_   (this%real_size_   + this%ncurr_realreserve_   ))
+    ALLOCATE(this%pcomp_entries_  (this%pcomp_size_  + this%ncurr_pcompreserve_  ))
     ALLOCATE(this%complex_entries_(this%complex_size_+ this%ncurr_complexreserve_))
 
     ! Initialize Real entries
-    do i = 1, num_real
+    do i = 1, this%real_size_
       ! Allocate the derived type contained array
       ALLOCATE(this%real_entries_(i)%array(nx, ny, ksta:kend))
       this%real_entries_(i)%is_free = .TRUE.
     end do
 
+    ! Initialize PComp entries
+    do i = 1, this%pcomp_size_ 
+      ! Allocate the derived type contained array
+      ALLOCATE(this%pcomp_entries_(i)%array(this%nparts_))
+      this%pcomp_entries_(i)%is_free = .TRUE.
+    end do
+
     ! Initialize Complex entries
-    do i = 1, num_complex
+    do i = 1, this%complex_size_
       ! Allocate the derived type contained array
       ALLOCATE(this%complex_entries_(i)%array(nz, ny, ista:iend))
       this%complex_entries_(i)%is_free = .TRUE.
     end do
 
-    write(*,*) 'Pool initialized: ', num_real, ' Real and ', num_complex, ' Complex arrays.'
+    write(*,*) 'Pool initialized: ', num_real, ' Real and ', & 
+              num_pcomp, ' PComp arrays',  num_complex, ' Complex arrays'  
   end subroutine initialize_pool
 
 
@@ -212,6 +233,16 @@ CONTAINS
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Function to set no. particles
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine set_nparts(this, nparts)
+    CLASS(GWorkspace), intent(inout)          :: this
+    integer          , intent(in)             :: nparts
+    this%nparts_ = nparts
+  end subroutine set_nparts
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Function to return current number of real entries
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   PURE function get_real_tmp_size(this) result(num)
@@ -219,6 +250,16 @@ CONTAINS
     integer                       :: num
     num = this%real_size_
   end function get_real_tmp_size
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Function to return current number of pcomp entries
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  PURE function get_pcomp_tmp_size(this) result(num)
+    CLASS(GWorkspace), intent(in) :: this
+    integer                       :: num
+    num = this%pcomp_size_
+  end function get_pcomp_tmp_size
 
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -255,6 +296,33 @@ CONTAINS
       endif
     enddo
   end subroutine get_real_tmp
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Subroutine to check out a free pcomp array from the pool.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine get_pcomp_tmp(this, ret_ptr, success)
+    CLASS(GWorkspace), target, intent(inout) :: this
+    real(kind=GP)   , pointer, intent(out)   :: ret_ptr(:)
+    logical        , optional, intent(out)   :: success
+    integer                                  :: i
+
+    success = .FALSE.
+    if ( this%nparts_ .le. 0 ) then
+      ret_ptr = null()
+      stop 'GWorkspace::get_pcomp_tmp: nparts = 0. Must call set_nparts. '
+    endif
+
+    do i = 1, this%pcomp_size_
+      ! Look for a free entry
+      if ( this%pcomp_entries_(i)%is_free ) THEN
+        this%pcomp_entries_(i)%is_free = .FALSE. ! Mark as in use
+        ret_ptr => this%pcomp_entries_(i)%array
+        success = .TRUE.
+        return
+      endif
+    enddo
+  end subroutine get_pcomp_tmp
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -299,6 +367,27 @@ CONTAINS
     enddo
     stop 'free_real_tmp: Real array not found in pool. Check-in failed'
   end subroutine free_real_tmp
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !  Subroutine to check-in/free a pcomp tmp array, making it
+  !  available again.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine free_pcomp_tmp(this, in_ptr)
+    CLASS(GWorkspace), target , intent(inout) :: this
+    real(kind=GP)    , pointer, intent(inout) :: in_ptr(:)
+    integer                                   :: i
+
+    do i = 1, this%pcomp_size_
+      if (associated(in_ptr, this%pcomp_entries_(i)%array)) then
+        NULLIFY(in_ptr)
+        this%pcomp_entries_(i)%is_free = .TRUE. ! Mark as available
+        this%pcomp_entries_(i)%array = 0.0_GP   ! Optional: Zero the array
+        return
+      endif
+    enddo
+    stop 'free_pcomp_tmp: Real array not found in pool. Check-in failed'
+  end subroutine free_pcomp_tmp
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
