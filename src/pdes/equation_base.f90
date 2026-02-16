@@ -34,15 +34,13 @@ module equationbase_mod
       character(len=128)            :: infile_   ! config file name
       type(StepperBase),allocatable :: stepper_  ! time stepping object
     contains
-      procedure(Solver_ctor_interface), deferred :: Solver_ctor => Solver_base_ctor ! Constructor
+      procedure(Solver_ctor_interface), deferred :: Solver_base_ctor ! Constructor
       procedure(init_interface),        deferred :: init        ! init method
       procedure(dudt_interface),        deferred :: dudt        ! RHS method
       procedure(global_interface),      deferred :: global      ! Global qtys
       procedure(spectra_interface),     deferred :: spectra     ! Spectra
       procedure(state_size_interface),  deferred :: state_size  ! Number of states
-      interface timestep
-        procedure, public                          :: timestep_f, timestep_fp
-      end interface
+      procedure, public                          :: timestep_f, timestep_fp
       procedure, public                          :: write_states
   end type EquationBase
 
@@ -139,7 +137,6 @@ CONTAINS
     type(GWorkspace)   , intent(inout), target :: workspace
     type(ioplan)       , intent(inout), target :: plan
     character(len=*)   , intent   (in)         :: infile
-
 
     this%workspace_ => workspace;
     this%stepper_ = build_stepper_from_file(infile, workspace)

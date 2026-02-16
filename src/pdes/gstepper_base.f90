@@ -7,7 +7,6 @@
 module gstepperbase_mod
   use class_GWorkspace3D
   use gstate_mod
-
   implicit none
 
   ! ================= Stepper traits ===================================
@@ -29,12 +28,11 @@ module gstepperbase_mod
       integer                       :: nprocs_   ! MPI rank 
       character(len=128)            :: infile_
     contains
-      procedure(GStepper_ctor_interface), deferred :: GStepper_ctor ! Constructor
-!     procedure(init_interface),         deferred :: init        ! init method
-      procedure(step_interface),         deferred :: step        ! step method
-      procedure(pstep_interface),        deferred :: pstep       ! part+field step method
-      procedure(dudt_interface),         deferred :: set_callback ! RHS method
-      procedure(pdudt_interface),        deferred :: set_pcallback! part+field RHS method
+      procedure(GStepper_ctor_interface), deferred :: GStepper_ctor! Constructor
+      procedure(step_interface),          deferred :: step         ! step method
+      procedure(pstep_interface),         deferred :: pstep        ! part+field step method
+      procedure(dudt_interface),          deferred :: set_callback ! RHS method
+      procedure(pdudt_interface),         deferred :: set_pcallback! part+field RHS method
   end type GStepperBase
 
   abstract interface
@@ -42,10 +40,10 @@ module gstepperbase_mod
      ! Define step constructor:
      subroutine GStepper_ctor_interface(this, traits, workspace)
        use class_GWorkspace3D
-       import :: GStepperBase
-       class (GStepperBase), intent(inout)        :: this
-       type(GStepperTraits), intent(inout)        :: traits
-       type   (GWorkspace), intent(inout), target:: workspace
+       import :: GStepperBase, GStepperTraits
+       class (GStepperBase), intent(inout)         :: this
+       type(GStepperTraits), intent(inout)         :: traits
+       type   (GWorkspace), intent(inout),  target :: workspace
      end subroutine GStepper_ctor_interface
 
 !    subroutine init_interface(this) 
@@ -57,46 +55,48 @@ module gstepperbase_mod
      subroutine step_interface(this, time, uin, uf, dt, uout) 
        use gstate_mod
        import :: GStepperBase
-       class (GStepperBase), intent   (in)         :: this
-       real      (kind=GP), intent   (in)         :: time, dt
-       type   (GStateComp), intent(inout), target :: uin(:),uf(:)
-       type   (GStateComp), intent(inout)         :: uout(:) 
+       class(GStepperBase), intent   (in) :: this
+       real      (kind=GP), intent   (in) :: time, dt
+       type   (GStateComp), intent(inout) :: uin(:),uf(:)
+       type   (GStateComp), intent(inout) :: uout(:) 
      end subroutine step_interface
 
      ! Define step function interface for 
      ! particles plus fields:
-     subroutine pstep_interface(this, time, uin, puin, uf, dt, uout, puout) 
+     subroutine pstep_interface(this, time, uin, upin, uf, dt, uout, upout) 
        use gstate_mod
+       use gpstate_mod
        import :: GStepperBase
-       class (GStepperBase), intent   (in)         :: this
-       real      (kind=GP), intent   (in)         :: time, dt
-       type   (GStateComp), intent(inout), target :: uin(:),uf(:)
-       type  (GPStateComp), intent(inout), target :: upin(:)
-       type   (GStateComp), intent(inout)         :: uout(:) 
-       type  (GPStateComp), intent(inout)         :: upout(:) 
-     end subroutine step_interface
+       class (GStepperBase), intent  (in) :: this
+       real      (kind=GP), intent   (in) :: time, dt
+       type   (GStateComp), intent(inout) :: uin(:),uf(:)
+       type  (GPStateComp), intent(inout) :: upin(:)
+       type   (GStateComp), intent(inout) :: uout(:) 
+       type  (GPStateComp), intent(inout) :: upout(:) 
+     end subroutine pstep_interface
 
      ! Define callback function interface:
      subroutine dudt_interface(this, time, uin, uf, dt, dudt)
        use gstate_mod
        import :: GStepperBase
-       class (GStepperBase), intent   (in)         :: this
-       real      (kind=GP), intent   (in)         :: time, dt
-       type   (GStateComp), intent(inout), target :: uin(:),uf(:)
-       type   (GStateComp), intent(inout)         :: dudt(:)
+       class (GStepperBase), intent(inout)         :: this
+       real      (kind=GP),  intent   (in)         :: time, dt
+       type   (GStateComp),  intent(inout), target :: uin(:),uf(:)
+       type   (GStateComp),  intent(inout)         :: dudt(:)
      end subroutine dudt_interface
 
      ! Define callback function particle + field interface:
      subroutine pdudt_interface(this, time, uin, upin, uf, dt, dudt, pdudt)
        use gstate_mod
+       use gpstate_mod
        import :: GStepperBase
-       class (GStepperBase), intent   (in)         :: this
-       real      (kind=GP), intent   (in)         :: time, dt
-       type   (GStateComp), intent(inout), target :: uin(:),uf(:)
-       type  (GPStateComp), intent(inout), target :: upin(:)
-       type   (GStateComp), intent(inout)         :: dudt(:)
-       type  (GPStateComp), intent(inout)         :: pdudt(:)
-     end subroutine dudt_interface
+       class (GStepperBase), intent(inout)         :: this
+       real      (kind=GP),  intent   (in)         :: time, dt
+       type   (GStateComp),  intent(inout), target :: uin(:),uf(:)
+       type  (GPStateComp),  intent(inout), target :: upin(:)
+       type   (GStateComp),  intent(inout)         :: dudt(:)
+       type  (GPStateComp),  intent(inout)         :: pdudt(:)
+     end subroutine pdudt_interface
 
   end interface
 
