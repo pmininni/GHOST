@@ -2,10 +2,10 @@ module gstate_mod
   use fprecision
   use mpivars
   use grid
-
   implicit none
 
   ! ================= Base field data types =========================
+
   ! Derived types for complex (Fourier transformed) field components
   type, public :: GStateComp
     complex(kind=GP), allocatable :: ccomp(:,:,:) ! complex component      
@@ -22,8 +22,8 @@ module gstate_mod
     type    (GStateComp), allocatable, dimension(:) :: cstate_
     contains
       procedure, public  :: data => GCState_data
-      procedure, private :: GCState_comp
-      generic            :: operator(.get.) => GCState_comp
+      procedure, private :: GCState_get_comp
+      generic            :: operator(.get.) => GCState_get_comp
   end type GCState
 
   ! Derived type GRState, whose data 
@@ -32,8 +32,8 @@ module gstate_mod
     type(GStateRealComp), allocatable, dimension(:) :: rstate_
     contains
       procedure, public  :: data => GRState_data
-      procedure, private :: GRState_comp
-      generic            :: operator(.get.) => GRState_comp
+      procedure, private :: GRState_get_comp
+      generic            :: operator(.get.) => GRState_get_comp
   end type GRState
 
 contains
@@ -98,7 +98,7 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Method to get GCState complex component data
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  function GCState_comp(this, i) result(ret)
+  function GCState_get_comp(this, i) result(ret)
     implicit none
     class  (GCState), target, intent(in) :: this
     type(GStateComp), pointer :: ret 
@@ -108,12 +108,12 @@ contains
       stop 'GCState_comp: Invalid index'
     endif
     ret => this%cstate_(i)
-  end function GCState_comp
+  end function GCState_get_comp
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Method to get GCState real component data
+  !! Method to get GRState real component data
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  function GRState_comp(this, i) result(ret)
+  function GRState_get_comp(this, i) result(ret)
     implicit none
     class      (GRState), target, intent(in) :: this
     type(GStateRealComp), pointer :: ret 
@@ -123,6 +123,6 @@ contains
       stop 'GRState_comp: Invalid index'
     endif
     ret => this%rstate_(i)
-  end function GRState_comp
+  end function GRState_get_comp
 
 end module gstate_mod
