@@ -59,7 +59,7 @@ module class_GWorkspace3D
     procedure, public :: free_real_tmp, free_pcomp_tmp, free_complex_tmp 
     procedure, public :: get_real_tmp_size, get_pcomp_tmp_size,  get_complex_tmp_size 
     procedure, public :: add_real_entries , add_pcomp_entries, add_complex_entries
-    procedure, public :: set_nparts
+    procedure, public :: set_nparts, get_nparts
     final             :: cleanup_pool
   end type GWorkspace
 
@@ -233,13 +233,24 @@ CONTAINS
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! Function to set no. particles
+  ! Method to set no. particles
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine set_nparts(this, nparts)
     CLASS(GWorkspace), intent(inout)          :: this
     integer          , intent(in)             :: nparts
     this%nparts_ = nparts
   end subroutine set_nparts
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Function to get no. particles
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  PURE function get_nparts(this) result(num)
+    CLASS(GWorkspace), intent(inout)          :: this
+    integer                                   :: num
+    num = this%nparts_ 
+  end function get_nparts
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
