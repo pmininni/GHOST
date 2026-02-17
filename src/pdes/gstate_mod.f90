@@ -19,7 +19,7 @@ module gstate_mod
   ! Derived type GCState, whose data 
   ! is a 1d pointer array of complex components:
   type, abstract :: GCState
-    type    (GStateComp), allocatable, dimension(:) :: cstate_
+    type    (GStateComp), allocatable, dimension(:) :: cstate
     contains
       procedure, public  :: data => GCState_data
       procedure, private :: GCState_get_comp
@@ -29,7 +29,7 @@ module gstate_mod
   ! Derived type GRState, whose data 
   ! is a 1d pointer array of real components:
   type, abstract :: GRState
-    type(GStateRealComp), allocatable, dimension(:) :: rstate_
+    type(GStateRealComp), allocatable, dimension(:) :: rstate
     contains
       procedure, public  :: data => GRState_data
       procedure, private :: GRState_get_comp
@@ -82,7 +82,7 @@ contains
     implicit none
     class  (GCState), target, intent(inout) :: this
     type(GStateComp), pointer, dimension(:) :: ret 
-    ret => this%cstate_
+    ret => this%cstate
   end function GCState_data
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -92,7 +92,7 @@ contains
     implicit none
     class      (GRState), target, intent(inout) :: this
     type(GStateRealComp), pointer, dimension(:) :: ret 
-    ret => this%rstate_
+    ret => this%rstate
   end function GRState_data
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -104,10 +104,10 @@ contains
     type(GStateComp), pointer :: ret 
     integer,       intent(in) :: i
 
-    if ( (i .lt. 1).or.(i .gt. size(this%cstate_)) ) then
+    if ( (i .lt. 1).or.(i .gt. size(this%cstate)) ) then
       stop 'GCState_comp: Invalid index'
     endif
-    ret => this%cstate_(i)
+    ret => this%cstate(i)
   end function GCState_get_comp
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -119,10 +119,10 @@ contains
     type(GStateRealComp), pointer :: ret 
     integer,           intent(in) :: i
 
-    if ( (i .lt. 1).or.(i .gt. size(this%rstate_)) ) then
+    if ( (i .lt. 1).or.(i .gt. size(this%rstate)) ) then
       stop 'GRState_comp: Invalid index'
     endif
-    ret => this%rstate_(i)
+    ret => this%rstate(i)
   end function GRState_get_comp
 
 end module gstate_mod
