@@ -24,6 +24,12 @@
 !              B0x     : amplitude of the guide field along x
 !              B0y     : amplitude of the guide field along y
 !              B0z     : amplitude of the guide field along z
+!              spectlod: spectral output level of detail (in [1,3]):
+!                          1: All 1d spectra, KE fluxes
+!                          2: 2D spectra, directional spectra, 
+!                             fluxes, helicity flux, if drot=true
+!                          3: KE Fourier modes
+
 !              npassive: number of passive scalars (default=0)
 !
 !              For npassive > 0, looks for a "&passive" namelist with:
@@ -39,10 +45,11 @@ module mhd_mod
   IMPLICIT NONE
 
   ! ================= Solver traits ===================================
-  type, public  :: NHTraits
+  type, public  :: MHDTraits
     logical       :: doB0         = .FALSE. ! guide field flag
     logical       :: dohall       = .FALSE. ! compute hall term
     logical       :: doparts      = .FALSE. ! do particles flag
+    integer       :: spectlod     = 1       ! standard level of spectra detail 
     real(kind=GP) :: nu           = 0.0_GP  ! dissipation
     real(kind=GP) :: eta          = 0.0_GP  ! magnetic diffusivity
     real(kind=GP) :: epsilon      = 0.0_GP  ! Ion inertial length scale
@@ -58,7 +65,7 @@ module mhd_mod
   type, extends(MagneticBase) :: MHDSolver 
     ! Member data:
     logical           :: binit_=.false. ! is initialized?
-    type  (NHTraits)  :: traits_
+    type  (MHDTraits)  :: traits_
 
   CONTAINS
     procedure, public :: init          =>          init_impl ! init method
