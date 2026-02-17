@@ -482,7 +482,7 @@ CONTAINS
     endif
     
     if ( .not. associated(this%pcallback_) ) then
-      stop 'GExRKStepperi::pstep: RHS callback function not set'
+      stop 'GExRKStepperi::pstep: RHS pcallback function not set'
     endif
 
     select case ( this%traits_%itype )
