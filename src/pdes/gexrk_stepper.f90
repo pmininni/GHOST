@@ -63,15 +63,26 @@ module gexrk_mod
                                dimension  (:,:) :: beta_
     type   (GCState), pointer, allocatable, &
                                dimension    (:) :: K_
+    type   (GPState), pointer, allocatable, &
+                               dimension    (:) :: pK_
+    type(GStateComp), pointer, allocatable, &
+                               dimension    (:) :: utmp_
+    type(GPStateComp), pointer, allocatable, &
+                               dimension    (:) :: putmp_
 
-    procedure(dudt_interface), pointer, nopass :: callback_ => null()
+    procedure (dudt_interface), pointer, nopass :: callback_  => null()
+    procedure(pdudt_interface), pointer, nopass :: pcallback_ => null()
 
   CONTAINS
     procedure, public :: init                        ! initialize
-    procedure, public :: set_callback => set_callback_impl
+    procedure, public :: set_callback  => set_callback_impl
                                                      ! set RHS callback method
-    procedure, public :: step         =>  step_impl  ! take one timestep
-    procedure, public :: pstep        =>  pstep_impl ! take one part+field timestep
+    procedure, public :: set_pcallback => set_callback_impl
+                                                     ! set RHS part callback method
+    interface step
+      procedure, public :: step         =>  step_impl, pstep_impl  ! take one timestep
+    end interface
+
     procedure, public :: Stepper_ctor =>  GEXRKStepper_ctor 
     final             :: GExRKStepper_dtor
 
@@ -86,6 +97,8 @@ module gexrk_mod
     procedure, private:: pstep_ssp      ! take a part+field SSP step
     procedure, private:: set_tmp        ! set data from tmp pool
     procedure, private:: free_tmp       ! free data from tmp pool
+    procedure, private:: alloc_tmp      ! allocate tmp arrays
+    procedure, private:: dealloc_tmp    ! deallocate tmp arrays
   end type GExRKStepper
 
 CONTAINS
@@ -109,6 +122,7 @@ CONTAINS
       stop 'GExRKStepper::GExRKStepper_ctor: Worskpace not associated'
     endif
     
+    ! Call StepperBase constructor:
     this%GStepperBase%GStepper_ctor_interface(traits, workspace, nparts)
 
     call this%init(traits)
@@ -121,13 +135,16 @@ CONTAINS
   subroutine GExRKStepper_dtor(this) 
     type  (GExRKStepper), intent(inout) :: this
 
-    if (associated(this%workspace_))   nullify(this%workspace_)
-    if (allocated(this%alpha_)) deallocate(this%alpha_)
-    if (allocated (this%beta_)) deallocate (this%beta_)
-    if (allocated    (this%c_)) deallocate    (this%c_)
+    if ( associated(this%workspace_) )   nullify(this%workspace_)
+    if ( allocated(this%alpha_) ) deallocate(this%alpha_)
+    if ( allocated (this%beta_) ) deallocate (this%beta_)
+    if ( allocated    (this%c_) ) deallocate    (this%c_)
 
-    call this%free_tmp() ! must call this before deleting K_:
-    if (allocated    (this%K_)) deallocate    (this%K_)
+    if ( allocated(this%utmp_) ) deallocate(this%utmp_)
+
+    if ( allocated(this%putmp_) ) deallocate(this%putmp_)
+
+    call this%dealloc_tmp() ! deallocate tmp pointer arrays
     
   end subroutine GExRKStepper_dtor
 
@@ -135,10 +152,11 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Subroutine to initialize the stepper
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine init(this, infile, nstate)
+  subroutine init(this, traits)
 !   use commtypes
     class (GExRKStepper), intent (inout) :: this
     type(GStepperTraits), intent    (in) :: traits
+    interger                             :: i
 
     this%traits_ = traits
 
@@ -154,20 +172,13 @@ CONTAINS
     call MPI_COMM_SIZE(MPI_COMM_WORLD,this%nprocs_,ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD,this%myrank_,ierr)
 
-    select case ( this%traits_%itype )
-      case GEXRK_BUTCHER:
-        this%busing_butcher_ = .true.
-        call this%init_butcher()
-        if (allocated(this%K_)) deallocate(this%K_)
-        allocate(this%K_(this%traits_%nstage))
-      case GEXRK_MIXED:
-        call this%init_mixed()
-      case GEXRK_SSP:
-        call this%init_ssp()
-      case default:
-        stop 'GExRKStepper::init: Invalid stepper type'
-    end select
+    if ( allocated(this%utmp_) ) deallocate(this%utmp_)
+    allocate(this%utmp_(this%traits_%nstate))
 
+    if ( this%doparts_ ) then
+      if ( allocated(this%putmp_) ) deallocate(this%putmp_)
+      allocate(this%putmp_(this%traits_%npstate))
+    endif
 
     ! Not sure if it's best to set tmp from pool
     ! for lifetime of this object, or if we
@@ -253,7 +264,7 @@ CONTAINS
   subroutine set_tmp(this)
     class  (GExRKStepper), intent (inout) :: this
     logical                               :: bret
-    integer                               :: istage,istate
+    integer                               :: istage,icomp
 
     if ( this%traits_%nstate .le. 0 ) then
       stop 'GExRKStepper::set_tmp: Invalid nstate'
@@ -269,14 +280,33 @@ CONTAINS
         stop 'GExRKStepper::set_tmp: volatile not allocated'
       endif
       do istage = 1, this%traits_%nstage   
-        do istate = 1, this%traits_%nstate
-          CALL this%workspace_%get_complex_tmp(this%K_(istage)(istate),bret)
+        do icomp = 1, this%traits_%nstate
+          CALL this%workspace_%get_complex_tmp(this%K_(istage)%cstate(icomp),bret)
           if ( .not. bret  ) then
-            stop 'GExRKStepper::set_tmp: Workspace failure'
+            stop 'GExRKStepper::set_tmp: Workspace field failure'
           endif
         enddo
       enddo
     endif
+
+    ! Set particle tmp space, if using particles:
+    if ( this%doparts_ ) then
+      if ( this%traits_%npstate .le. 0 ) then
+        stop 'GExRKStepper::set_tmp: Invalid npstate'
+      endif 
+      if ( .not. allocated(this%pK_) ) then
+        stop 'GExRKStepper::set_tmp: volatile not allocated'
+      endif
+      do istage = 1, this%traits_%nstage   
+        do icomp = 1, this%traits_%npstate
+          CALL this%workspace_%get_pcomp_tmp(this%pK_(istage)%rpstate(icomp),bret)
+          if ( .not. bret  ) then
+            stop 'GExRKStepper::set_tmp: Workspace particle failure'
+          endif
+        enddo
+      enddo
+    endif
+    
 
   end subroutine set_tmp
 
@@ -292,11 +322,84 @@ CONTAINS
 
     do istage = 1, this%traits_%nstage   
       do istate = 1, this%traits_%nstate   
-        CALL this%workspace_%free_complex_tmp(this%K_(istage)(istate))
+        CALL this%workspace_%free_complex_tmp(this%K_(istage)%cstate(istate))
+      enddo
+    enddo
+
+    do istage = 1, this%traits_%nstage   
+      do istate = 1, this%traits_%npstate   
+        CALL this%workspace_%free_complex_tmp(this%pK_(istage)%rpstate(istate))
       enddo
     enddo
 
   end subroutine free_tmp
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Subroutine to allocate set of tmp pointer arrays
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine alloc_tmp(this)
+    class  (GExRKStepper), intent (inout) :: this
+    logical                               :: bret
+    integer                               :: istage,istate
+
+
+    call this%free_tmp()    ! free workspace pointers
+    call this%dealloc_tmp() ! deallocate tmp pointer arrays
+
+    select case ( this%traits_%itype )
+      case GEXRK_BUTCHER:
+        this%busing_butcher_ = .true.
+        call this%init_butcher()
+        if (allocated(this%K_)) deallocate(this%K_)
+        allocate(this%K_(this%traits_%nstage))
+        do i = 1, this%traits_%nstage
+          allocate( K_(i)%cstate(this%traits_%nstate) )
+        enddo
+        if ( this%doparts_ ) then
+          if (allocated(this%pK_)) deallocate(this%pK_)
+          allocate(this%pK_(this%traits_%nstage))
+          do i = 1, this%traits_%nstage
+            allocate( pK_(i)%rpstate(this%traits_%npstate) )
+          enddo
+        endif
+      case GEXRK_MIXED:
+        call this%init_mixed()
+      case GEXRK_SSP:
+        call this%init_ssp()
+      case default:
+        stop 'GExRKStepper::init: Invalid stepper type'
+    end select
+
+
+  end subroutine alloc_tmp
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Subroutine to deallocate set of tmp pointer arrays
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine dealloc_tmp(this)
+    class  (GExRKStepper), intent (inout) :: this
+    logical                               :: bret
+    integer                               :: istage,istate
+
+    this%free_tmp(); ! free workspace
+
+    if ( allocated(this%K_) ) then
+      do istage = 1, this%traits_%nstage   
+        if ( allocated(this%K_(istage)) ) deallocate(this%K_(istage))
+      enddo
+      deallocate(this%K_)
+    enddo
+
+    if ( allocated(this%pK_) ) then
+      do istage = 1, this%traits_%nstage   
+        if ( allocated(this%pK_(istage)) ) deallocate(this%pK_(istage))
+      enddo
+      deallocate(this%pK_))
+    enddo
+
+  end subroutine dealloc_tmp
+
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Subroutine to set RHS callback function
@@ -306,6 +409,18 @@ CONTAINS
     procedure(callback_interface), pointer :: fcn_callback
 
     this%callback_ => fcn_callback
+
+  end subroutine set_callback_impl
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Subroutine to set RHS part+field callback function
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine set_pcallback_impl(this, fcn_callback)
+    class  (GExRKStepper), intent  (inout) :: this
+    procedure(pcallback_interface), pointer :: fcn_callback
+
+    this%pcallback_ => fcn_callback
 
   end subroutine set_callback_impl
 
@@ -344,6 +459,41 @@ CONTAINS
 
   end subroutine step_impl
 
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Implementation function to take one part+field step
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine pstep_impl(this, time, uin, puin, uf, dt, uout, puout)
+!$  use threads
+    implicit none
+
+    class (GExRKStepper), intent   (in) :: this
+    type    (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
+    type   (GPStateComp), intent(inout) :: puin(:), puout(:)
+    real       (kind=GP), intent   (in) :: time, dt
+    logical                             :: bret
+       
+    if ( size(uin) .ne. this%traits_%nstate &
+     .or.size(uout) .ne. this%traits_%nstate  ) then
+      stop 'GExRKStepperi::step: Inconsistent input state'
+    endif
+    
+    if ( .not. associated(this%callback_) ) then
+      stop 'GExRKStepperi::step: RHS callback function not set'
+    endif
+
+    select case ( this%traits_%itype )
+      case GEXRK_BUTCHER:
+        call this%step_butcher(time, uin, puin, uf, dt, uout, puout)
+      case GEXRK_MIXED:
+        call this%step_mixed(time, uin, puin, uf, dt, uout, puout)
+      case GEXRK_SSP:
+        call this%step_ssp(time, uin, puin, uf, dt, uout, puout)
+      case default:
+        stop 'GExRKStepper::step: Invalid stepper type'
+    end select
+
+  end subroutine pstep_impl
+
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Function to take one GEXRK_BUTCHER step
@@ -367,6 +517,7 @@ CONTAINS
     ! beta_  : stage coefficient matrix 
     ! c_     : weights for final combination
     ! K_     : stage data: 
+    ! pK_    : particle stage data: 
    
     ! Compute stage data:
     do m = 1, this%traits_%nstage
@@ -376,10 +527,10 @@ CONTAINS
       enddo
       do j = 1, m-1  ! utmp = utmp + h beta K_j
         do n = 1, this%traits_%nstate  ! set utmp
-          call saxpby_c(utmp(n), utmp(n), 1.0_GP, this%K_(j)(n), this%beta_(m,j)*dt)
+          call saxpby_c(utmp(n), utmp(n), 1.0_GP, this%K_(j)%cstate(n), this%beta_(m,j)*dt)
         enddo
         tt = time + this%alpha_(m) * dt
-        this%callback_( tt, utmp, uf, dt, K_(m) ); 
+        this%callback_( tt, utmp, uf, dt, K_(m)%cstate ); 
       enddo ! j-loop
 
     enddo ! stage m loop
@@ -392,7 +543,7 @@ CONTAINS
     do m = 1, this%traits_%nstage  
 
       do n = 1, this%traits_%nstate ! uout = uout + h * c_ * K:
-        call saxpby_c(uout(n), uout(n), 1.0_GP, this%K_(m)(n), this%c_(m,j)*dt)
+        call saxpby_c(uout(n), uout(n), 1.0_GP, this%K_(m)%cstate(n), this%c_(m,j)*dt)
       enddo
 
     enddo ! m-loop
@@ -418,12 +569,12 @@ CONTAINS
     logical                             :: bret
     integer                             :: j,m,n
 
-    CALL this%workspace_%get_complex_tmp(sum,bret)
 
     ! alpha_ : time fractions for each stage
     ! beta_  : stage coefficient matrix 
     ! c_     : weights for final combination
     ! K_     : stage data: 
+    ! pK_    : particle stage data: 
    
     ! Compute stage data:
     do m = 1, this%traits_%nstage
@@ -431,12 +582,18 @@ CONTAINS
       do n = 1, this%traits_%nstate  ! set temp state
         utmp(n) = uin(n)
       enddo
+      do n = 1, this%traits_%npstate  ! set ptemp state
+        putmp(n) = puin(n)
+      enddo
       do j = 1, m-1  ! utmp = utmp + h beta K_j
         do n = 1, this%traits_%nstate  ! set utmp
-          call saxpby_c(utmp(n), utmp(n), 1.0_GP, this%K_(j)(n), this%beta_(m,j)*dt)
+          call saxpby_c(utmp(n), utmp(n), 1.0_GP, this%K_(j)%cstate(n), this%beta_(m,j)*dt)
+        enddo
+        do n = 1, this%traits_%npstate  ! set utmp
+          call saxpby_c(putmp(n), putmp(n), 1.0_GP, this%pK_(j)%rpstate(n), this%beta_(m,j)*dt)
         enddo
         tt = time + this%alpha_(m) * dt
-        this%callback_( tt, utmp, uf, dt, K_(m) ); 
+        this%pcallback_( tt, utmp, putmp, uf, dt, K_(m)%cstate, pK_(m)%rpstate); 
       enddo ! j-loop
 
     enddo ! stage m loop
@@ -445,16 +602,21 @@ CONTAINS
     do n = 1, this%traits_%nstate  ! uout = uin
       uout(n) = uin(n)
     enddo
+    do n = 1, this%traits_%npstate  ! uout = uin
+      puout(n) = puin(n)
+    enddo
 
     do m = 1, this%traits_%nstage  
 
       do n = 1, this%traits_%nstate ! uout = uout + h * c_ * K:
-        call saxpby_c(uout(n), uout(n), 1.0_GP, this%K_(m)(n), this%c_(m,j)*dt)
+        call saxpby_c(uout(n), uout(n), 1.0_GP, this%K_(m)%cstate(n), this%c_(m,j)*dt)
+      enddo
+      do n = 1, this%traits_%npstate ! uout = uout + h * c_ * K:
+        call saxpby_c(puout(n), puout(n), 1.0_GP, this%pK_(m)%rpstate(n), this%c_(m,j)*dt)
       enddo
 
     enddo ! m-loop
 
-    CALL this%workspace_%free_complex_tmp(sum)
 
   end subroutine pstep_butcher
 
