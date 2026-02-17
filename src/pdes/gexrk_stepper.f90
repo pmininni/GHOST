@@ -476,9 +476,13 @@ CONTAINS
      .or.size(uout) .ne. this%traits_%nstate  ) then
       stop 'GExRKStepperi::step: Inconsistent input state'
     endif
+    if ( size(puin) .ne. this%traits_%npstate &
+     .or.size(puout) .ne. this%traits_%npstate  ) then
+      stop 'GExRKStepperi::step: Inconsistent particle state'
+    endif
     
-    if ( .not. associated(this%callback_) ) then
-      stop 'GExRKStepperi::step: RHS callback function not set'
+    if ( .not. associated(this%pcallback_) ) then
+      stop 'GExRKStepperi::pstep: RHS callback function not set'
     endif
 
     select case ( this%traits_%itype )
