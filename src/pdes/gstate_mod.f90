@@ -21,9 +21,9 @@ module gstate_mod
   type, abstract :: GCState
     type    (GStateComp), allocatable, dimension(:) :: cstate
     contains
-      procedure, public  :: data => GCState_data
-      procedure, private :: GCState_get_comp
-      generic            :: operator(.get.) => GCState_get_comp
+!     procedure, public  :: data => GCState_data
+!     procedure, private :: GCState_get_comp
+!     generic            :: operator(.get.) => GCState_get_comp
   end type GCState
 
   ! Derived type GRState, whose data 
@@ -31,9 +31,9 @@ module gstate_mod
   type, abstract :: GRState
     type(GStateRealComp), allocatable, dimension(:) :: rstate
     contains
-      procedure, public  :: data => GRState_data
-      procedure, private :: GRState_get_comp
-      generic            :: operator(.get.) => GRState_get_comp
+!     procedure, public  :: data => GRState_data
+!     procedure, private :: GRState_get_comp
+!     generic            :: operator(.get.) => GRState_get_comp
   end type GRState
 
 contains
@@ -50,11 +50,41 @@ contains
     type (GStateComp), allocatable, intent(inout) :: state(:)
     integer                       , intent   (in) :: nc
     integer                                       :: i
+
+    if ( allocated(state) ) then
+      do i = 1, size(state) 
+        if ( allocated(state(i)%ccomp) ) then
+          deallocate(state(i)%ccomp)
+        endif
+      enddo
+    endif
+
     allocate( state(nc) )
     do i = 1,nc
       allocate( state(i)%ccomp(nz,ny,ista:iend) )
     end do
   end subroutine GState_alloc
+
+  
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Method to deallocate complex GStateComp data types
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine GState_dealloc(state)
+    use grid
+    use mpivars
+    implicit none
+    type (GStateComp), allocatable, intent(inout) :: state(:)
+    integer                                       :: i
+
+    if ( allocated(state) ) then
+      do i = 1, size(state) 
+        if ( allocated(state(i)%ccomp) ) then
+          deallocate(state(i)%ccomp)
+        endif
+      enddo
+    endif
+
+  end subroutine GState_dealloc
 
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -75,54 +105,54 @@ contains
   
   ! ================= Data access routines  =================
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Method to get GCState complex data
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  function GCState_data(this) result(ret)
-    implicit none
-    class  (GCState), target, intent(inout) :: this
-    type(GStateComp), pointer, dimension(:) :: ret 
-    ret => this%cstate
-  end function GCState_data
+! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! !! Method to get GCState complex data
+! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! function GCState_data(this) result(ret)
+!   implicit none
+!   class  (GCState), target, intent(inout) :: this
+!   type(GStateComp), pointer, dimension(:) :: ret 
+!   ret => this%cstate
+! end function GCState_data
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Method to get GRState real data
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  function GRState_data(this) result(ret)
-    implicit none
-    class      (GRState), target, intent(inout) :: this
-    type(GStateRealComp), pointer, dimension(:) :: ret 
-    ret => this%rstate
-  end function GRState_data
+! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! !! Method to get GRState real data
+! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! function GRState_data(this) result(ret)
+!   implicit none
+!   class      (GRState), target, intent(inout) :: this
+!   type(GStateRealComp), pointer, dimension(:) :: ret 
+!   ret => this%rstate
+! end function GRState_data
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Method to get GCState complex component data
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  function GCState_get_comp(this, i) result(ret)
-    implicit none
-    class  (GCState), target, intent(in) :: this
-    type(GStateComp), pointer :: ret 
-    integer,       intent(in) :: i
+! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! !! Method to get GCState complex component data
+! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! function GCState_get_comp(this, i) result(ret)
+!   implicit none
+!   class  (GCState), target, intent(in) :: this
+!   type(GStateComp), pointer :: ret 
+!   integer,       intent(in) :: i
 
-    if ( (i .lt. 1).or.(i .gt. size(this%cstate)) ) then
-      stop 'GCState_comp: Invalid index'
-    endif
-    ret => this%cstate(i)
-  end function GCState_get_comp
+!   if ( (i .lt. 1).or.(i .gt. size(this%cstate)) ) then
+!     stop 'GCState_comp: Invalid index'
+!   endif
+!   ret => this%cstate(i)
+! end function GCState_get_comp
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Method to get GRState real component data
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  function GRState_get_comp(this, i) result(ret)
-    implicit none
-    class      (GRState), target, intent(in) :: this
-    type(GStateRealComp), pointer :: ret 
-    integer,           intent(in) :: i
+! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! !! Method to get GRState real component data
+! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+! function GRState_get_comp(this, i) result(ret)
+!   implicit none
+!   class      (GRState), target, intent(in) :: this
+!   type(GStateRealComp), pointer :: ret 
+!   integer,           intent(in) :: i
 
-    if ( (i .lt. 1).or.(i .gt. size(this%rstate)) ) then
-      stop 'GRState_comp: Invalid index'
-    endif
-    ret => this%rstate(i)
-  end function GRState_get_comp
+!   if ( (i .lt. 1).or.(i .gt. size(this%rstate)) ) then
+!     stop 'GRState_comp: Invalid index'
+!   endif
+!   ret => this%rstate(i)
+! end function GRState_get_comp
 
 end module gstate_mod

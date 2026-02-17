@@ -38,11 +38,40 @@ contains
     type(GPStateComp), allocatable, intent(inout) :: pstate(:)
     integer                       , intent   (in) :: nc, np
     integer                                       :: i
+    
+    if ( allocated(pstate) ) then
+      do i = 1,size(state)
+        if ( allocated(pstate(i)%rcomp ) then
+          deallocate( pstate(i)%rcomp )
+        endif
+      end do
+    endif 
+
     allocate( pstate(nc) )
     do i = 1,nc
       allocate( pstate(i)%rcomp(np) )
     end do
   end subroutine GPState_alloc
+  
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Method to deallocate real GPState data types
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine GPState_dealloc(pstate)
+    use grid
+    use mpivars
+    implicit none
+    type(GPStateComp), allocatable, intent(inout) :: pstate(:)
+    integer                                       :: i
+    
+    if ( allocated(pstate) ) then
+      do i = 1,size(state)
+        if ( allocated(pstate(i)%rcomp ) then
+          deallocate( pstate(i)%rcomp )
+        endif
+      end do
+    endif 
+
+  end subroutine GPState_dealloc
   
   ! ================= Data access routines  =================
 
