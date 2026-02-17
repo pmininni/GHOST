@@ -15,7 +15,7 @@ module gpstate_mod
   ! Derived type GPState, whose data 
   ! is a 1d pointer array of GPStateComp's:
   type, abstract :: GPState
-    type(GPStateComp), allocatable, dimension(:) :: data_
+    type(GPStateComp), allocatable, dimension(:) :: rpstate
     contains
       procedure, public  :: data => GPState_data
 !     procedure, private :: GPState_get_comp
@@ -53,7 +53,7 @@ contains
     implicit none
     class    (GPState), target,    intent(in) :: this
     type (GPStateComp), pointer, dimension(:) :: ret 
-    ret => this%data_
+    ret => this%rpstate
   end function GPState_data
 
 
@@ -66,10 +66,10 @@ contains
 !   type(GPStateComp), pointer            :: ret 
 !   integer          ,         intent(in) :: i
 !
-!   if ( (i .lt. 1).or.(i .gt. size(this%data_)) ) then
+!   if ( (i .lt. 1).or.(i .gt. size(this%rpstate)) ) then
 !     stop 'GPState_get_comp: Invalid index'
 !   endif
-!   ret => this%data_(i);
+!   ret => this%rpstate(i);
 ! end function GPState_get_comp
 
 end module gpstate_mod
