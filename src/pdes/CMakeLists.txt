@@ -1,10 +1,4 @@
 add_library(pdes_lib STATIC
-  gstate_mod.f90
-  gpstate_mod.f90
-  gstepper_base.f90
-  gexrk_stepper.f90
-  canuto_stepper.f90
-  stepper_factory.f90
   equation_base.f90
   hd_solver.f90
   mhd_solver.f90
