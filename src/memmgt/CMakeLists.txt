@@ -1,5 +1,7 @@
 add_library(memmgt_lib STATIC
-  workspace.f90)
+  workspace.f90
+  gstate_mod.f90
+  gpstate_mod.f90)
 
 target_include_directories(memmgt_lib PUBLIC
   ${CMAKE_BINARY_DIR}
