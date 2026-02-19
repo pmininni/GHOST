@@ -40,8 +40,8 @@ contains
     integer                                       :: i
     
     if ( allocated(pstate) ) then
-      do i = 1,size(state)
-        if ( allocated(pstate(i)%rcomp ) then
+      do i = 1,size(pstate)
+        if ( allocated(pstate(i)%rcomp) ) then
           deallocate( pstate(i)%rcomp )
         endif
       end do
@@ -64,8 +64,8 @@ contains
     integer                                       :: i
     
     if ( allocated(pstate) ) then
-      do i = 1,size(state)
-        if ( allocated(pstate(i)%rcomp ) then
+      do i = 1,size(pstate)
+        if ( allocated(pstate(i)%rcomp) ) then
           deallocate( pstate(i)%rcomp )
         endif
       end do
