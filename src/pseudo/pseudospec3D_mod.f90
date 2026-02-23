@@ -248,9 +248,7 @@
 !-----------------------------------------------------------------
       SUBROUTINE status_init(infile_)
 !
-! Initializes the box size, and arrays with wavenumbers. If no
-! parameters are present, the code attempts to initialize a cubic
-! box with Lx=Ly=Lz=2.pi
+! Initializes general global status parameters for the pde solvers
       USE commtypes
       USE mpivars
       USE grid
