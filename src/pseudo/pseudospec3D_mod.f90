@@ -240,7 +240,7 @@
       INTEGER            :: outs
       INTEGER            :: mult
       INTEGER            :: seed
-      INTEGER            :: pind,tind,sind
+      INTEGER            :: tind,sind
       INTEGER            :: timet,timec
       INTEGER            :: times,timef
       CHARACTER(len=128) :: odir,idir
