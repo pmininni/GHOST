@@ -16,7 +16,7 @@ module particle_factory
   IMPLICIT NONE
 
   ! ================= Global parameters ===============================
-  integer, public :: NUMTMPPART = 0 ! Number of tmp arrays for particles
+  integer, public :: NUMTMPPART = 0   ! Number of tmp arrays for particles
 
 CONTAINS
 
@@ -40,14 +40,17 @@ CONTAINS
       read(1,NML=particles,iostat=ios,iomsg=iomsg)
       close(1)
     endif
-    call MPI_BCAST(solver,64,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(psolver,64,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
 
     if (ios .eq. 0) then
       ! Clauses for each solver class
       select case (trim(adjustl(solver)))
+        case ('none')
+          allocate(nullParticle :: new_object)
+          NUMTMPPART = 0
         case ('lagpart')
           allocate(lagpart :: new_object)
-          NUMTMPPART = 2
+          NUMTMPPART = 3
 !       case ('inerpart')
 !         allocate(inerpart :: new_object)
 !         NUMTMPPART = 3
@@ -64,7 +67,7 @@ CONTAINS
           stop 'Unknown solver name'
       end select
     else ! Not running with particles
-      new_object => null()
+      allocate(nullParticle :: new_object)
     endif
   end function init_particles_from_file
 
