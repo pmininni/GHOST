@@ -72,9 +72,9 @@ module particlebase_mod
       CHARACTER(len=MPI_MAX_ERROR_STRING)        :: serr_
     contains
       procedure(part_ctor_interface) , deferred :: part_ctor
-      procedure(init_interface)      , deferred :: init_particles
-      procedure(dpdt_interface)      , deferred :: dpdt_particles
-      procedure(write_interface),      deferred :: write_particles
+      procedure(init_interface)      , deferred :: init
+      procedure(dpdt_interface)      , deferred :: dpdt
+      procedure(write_interface),      deferred :: write_pstate
       procedure(state_size_interface), deferred :: state_size  ! Number of states
   END TYPE ParticleBase
 
