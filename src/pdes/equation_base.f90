@@ -130,7 +130,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine Solver_base_ctor(this, infile, workspace, plan)
     use class_GWorkspace3D
-    use stepper_factory_mod
+!    use stepper_factory_mod
     use iovar
     import :: EquationBase
     class(EquationBase), intent(inout)         :: this
@@ -139,7 +139,7 @@ CONTAINS
     character(len=*)   , intent   (in)         :: infile
 
     this%workspace_ => workspace;
-    this%stepper_ = build_stepper_from_file(infile, workspace)
+!    this%stepper_ = build_stepper_from_file(infile, workspace)
  
   end subroutine Solver_base_ctor
 

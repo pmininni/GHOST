@@ -1,4 +1,5 @@
 add_library(pdes_lib STATIC
+  status_mod.f90
   equation_base.f90
   hd_solver.f90
   mhd_solver.f90
