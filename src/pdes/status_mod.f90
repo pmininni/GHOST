@@ -11,6 +11,7 @@
   MODULE status
 !
 ! General status flags for all pde/time integrators
+! Reads a "&status" namelist with:    
 !  idir : directory for unformatted input
 !  odir : directory for unformatted output
 !  stat : = 0 starts a new run
