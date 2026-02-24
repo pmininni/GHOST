@@ -34,6 +34,7 @@
 !
 ! Initializes general global status parameters for the particle
 ! solvers
+      USE particlebase_mod
       USE commtypes
       USE mpivars
       USE status

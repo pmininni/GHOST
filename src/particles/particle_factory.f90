@@ -49,7 +49,7 @@ CONTAINS
           allocate(nullParticle :: new_object)
           NUMTMPPART = 0
         case ('lagpart')
-          allocate(lagpart :: new_object)
+          allocate(Gpart :: new_object)
           NUMTMPPART = 3
 !       case ('inerpart')
 !         allocate(inerpart :: new_object)

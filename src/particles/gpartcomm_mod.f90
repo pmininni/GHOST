@@ -6,6 +6,7 @@
 !       provided for each. The velocity data can be exchanged
 !       for _any_ other field variable as well, although the
 !       'multi-field' interfaces may not be appropriate for it.
+!       Interfaces are also provided to exchance scalar quantities.
 !
 ! 2013 D. Rosenberg
 !      ORNL: NCCS
@@ -100,7 +101,6 @@ MODULE class_GPartComm
       PUBLIC :: Resize_ArrayRank1,Resize_ArrayRank2
       PUBLIC :: Resize_IntArray,Resize_IntArrayRank2
       PUBLIC :: Resize_ArrayRank2Transposed
-
 
       PRIVATE :: GPartComm_Init              , GPartComm_AllocRet
       PRIVATE :: GPartComm_SlabDataExchangeMF, GPartComm_SlabDataExchangeSF
