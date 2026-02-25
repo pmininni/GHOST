@@ -50,8 +50,8 @@ CONTAINS
         allocate(HDsolver :: new_object)
         NUMTMPCOMP =  8; NUMTMPREAL = 3
       case ('BOUSS')
-        allocate(BOUSSsolver :: new_object)
-        NUMTMPCOMP =  8; NUMTMPREAL = 3
+!       allocate(BOUSSsolver :: new_object)
+!       NUMTMPCOMP =  8; NUMTMPREAL = 3
       case ('MHD')
         allocate(MHDsolver :: new_object)
         NUMTMPCOMP = 12; NUMTMPREAL = 3

@@ -32,15 +32,15 @@ module equationbase_mod
       integer                       :: order_    ! default integration order
       character(len=8), allocatable :: sstate_(:)! state member nanes
       character(len=128)            :: infile_   ! config file name
-      type(StepperBase),allocatable :: stepper_  ! time stepping object
+!     type(StepperBase),allocatable :: stepper_  ! time stepping object
     contains
-      procedure(Solver_ctor_interface), deferred :: Solver_base_ctor ! Constructor
+      procedure(Solver_ctor_interface), deferred :: Solver_ctor ! Constructor
       procedure(init_interface),        deferred :: init        ! init method
       procedure(dudt_interface),        deferred :: dudt        ! RHS method
       procedure(global_interface),      deferred :: global      ! Global qtys
       procedure(spectra_interface),     deferred :: spectra     ! Spectra
       procedure(state_size_interface),  deferred :: state_size  ! Number of states
-      procedure, public                          :: timestep_f, timestep_fp
+!     procedure, public                          :: timestep_f, timestep_fp
       procedure, public                          :: write_states
   end type EquationBase
 
@@ -130,9 +130,8 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine Solver_base_ctor(this, infile, workspace, plan)
     use class_GWorkspace3D
-!    use stepper_factory_mod
+!   use stepper_factory_mod
     use iovar
-    import :: EquationBase
     class(EquationBase), intent(inout)         :: this
     type(GWorkspace)   , intent(inout), target :: workspace
     type(ioplan)       , intent(inout), target :: plan
@@ -143,49 +142,49 @@ CONTAINS
  
   end subroutine Solver_base_ctor
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Concrete method to take one time step 
-  !! using configured time stepping object.
-  !! This method applies only to field evolution.
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine timestep_f(this, time, uin, uf, dt, uout)
-!$  use threads
-    implicit none
+!!$  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!$  !! Concrete method to take one time step 
+!!$  !! using configured time stepping object.
+!!$  !! This method applies only to field evolution.
+!!$  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!$  subroutine timestep_f(this, time, uin, uf, dt, uout)
+!!$!$  use threads
+!!$    implicit none
+!!$
+!!$    class (EquationBase), intent   (in) :: this
+!!$    type    (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
+!!$    real       (kind=GP), intent   (in) :: time, dt
+!!$
+!!$    if ( .not. allocated(this%stepper_) ) then
+!!$      stop 'EquationBase::timestep: time stepper object not allocated'
+!!$    endif
+!!$
+!!$    this%stepper(time, uin, uf, dt, uout)
+!!$
+!!$  end subroutine timestep_f
 
-    class (EquationBase), intent   (in) :: this
-    type    (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
-    real       (kind=GP), intent   (in) :: time, dt
-
-    if ( .not. allocated(this%stepper_) ) then
-      stop 'EquationBase::timestep: time stepper object not allocated'
-    endif
-
-    this%stepper(time, uin, uf, dt, uout)
-
-  end subroutine timestep_f
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Concrete method to take one time step 
-  !! using configured time stepping object.
-  !! This method applies to field and
-  !! particle evolution.
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine timestep_fp(this, time, uin, upin, uf, dt, uout, upout)
-!$  use threads
-    implicit none
-
-    class (EquationBase), intent   (in) :: this
-    type    (GStateComp), intent(inout) :: uin (:), uf(:), uout (:)
-    type   (GPStateComp), intent(inout) :: upin(:)       , upout(:)
-    real       (kind=GP), intent   (in) :: time, dt
-
-    if ( .not. allocated(this%stepper_) ) then
-      stop 'EquationBase::timestep: time stepper object not allocated'
-    endif
-
-    this%stepper(time, uin, upin, uf, dt, uout, upout)
-
-  end subroutine timestep_fp
+!!$  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!$  !! Concrete method to take one time step 
+!!$  !! using configured time stepping object.
+!!$  !! This method applies to field and
+!!$  !! particle evolution.
+!!$  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!$  subroutine timestep_fp(this, time, uin, upin, uf, dt, uout, upout)
+!!$!$  use threads
+!!$    implicit none
+!!$
+!!$    class (EquationBase), intent   (in) :: this
+!!$    type    (GStateComp), intent(inout) :: uin (:), uf(:), uout (:)
+!!$    type   (GPStateComp), intent(inout) :: upin(:)       , upout(:)
+!!$    real       (kind=GP), intent   (in) :: time, dt
+!!$
+!!$    if ( .not. allocated(this%stepper_) ) then
+!!$      stop 'EquationBase::timestep: time stepper object not allocated'
+!!$    endif
+!!$
+!!$    this%stepper(time, uin, upin, uf, dt, uout, upout)
+!!$
+!!$  end subroutine timestep_fp
 
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
