@@ -37,7 +37,7 @@ module forcebase_mod
       import :: forceBase
       class   (forceBase),   intent   (in) :: this
       class(EquationBase),   intent   (in) :: solver
-      type       (Gstate),   intent(inout) :: state(:)
+      type   (GStateComp),   intent(inout) :: state(:)
     end subroutine
   end interface
 
@@ -50,7 +50,7 @@ module forcebase_mod
       class   (forceUpdt),   intent(inout) :: this
       class   (forceBase),   intent   (in) :: force
       class(EquationBase),   intent   (in) :: solver
-      type       (Gstate),   intent(inout) :: state(:)
+      type   (GStateComp),   intent(inout) :: state(:)
     end subroutine
   end interface
 
@@ -67,7 +67,7 @@ CONTAINS
     implicit none
     type   (forceChain), intent   (in) :: chain(:)
     class(EquationBase), intent   (in) :: solver
-    type       (Gstate), intent(inout) :: state(:)
+    type   (GStateComp), intent(inout) :: state(:)
     integer                            :: i
     do i = 1,size(chain)
       call chain(i)%force%init_GForce(solver,state)
@@ -85,7 +85,7 @@ CONTAINS
     implicit none
     type   (forceChain), intent(inout) :: chain(:)
     class(EquationBase), intent   (in) :: solver
-    type       (Gstate), intent(inout) :: state(:)
+    type   (GStateComp), intent(inout) :: state(:)
     integer                            :: i
     do i = 1,size(chain)
       if ( allocated(chain(i)%update) ) then
