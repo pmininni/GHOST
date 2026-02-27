@@ -102,7 +102,7 @@ CONTAINS
     
     class  (constant_s), intent   (in) :: this
     class(EquationBase), intent   (in) :: solver
-    type       (Gstate), intent(inout) :: state(:)
+    type   (GstateComp), intent(inout) :: state(:)
     real      (kind=GP), allocatable   :: c0(:)
     integer                            :: i,j,k,n
     
@@ -160,7 +160,7 @@ CONTAINS
     
     class      (puff_s), intent   (in) :: this
     class(EquationBase), intent   (in) :: solver
-    type       (Gstate), intent(inout) :: state(:)
+    type   (GStateComp), intent(inout) :: state(:)
     real      (kind=GP), pointer       :: R1(:,:,:)
     real      (kind=GP), allocatable, dimension(:)  :: c0,x0,y0,z0,r0
     double precision                   :: tmp
@@ -245,7 +245,7 @@ CONTAINS
     
     class    (random_s), intent   (in) :: this
     class(EquationBase), intent   (in) :: solver
-    type       (Gstate), intent(inout) :: state(:)
+    type   (GstateComp), intent(inout) :: state(:)
     real      (kind=GP), allocatable, dimension(:)  :: c0,kdn,kup
     real      (kind=GP)                             :: skup,skdn
     real      (kind=GP)                             :: dump,phase
