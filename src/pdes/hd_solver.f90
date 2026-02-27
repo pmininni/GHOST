@@ -15,12 +15,10 @@
 ! INPUT FILE : For solver='HD', looks for a "&HD" namelist with:
 !              nu      : fluid kinematic viscosity
 !              dorot   : do rotation, = .TRUE. or .FALSE.
-!              doparts : use particles, = .TRUE. or .FALSE.
 !              omegax  : amplitude of the uniform rotation along x
 !              omegay  : amplitude of the uniform rotation along y
 !              omegaz  : amplitude of the uniform rotation along z
 !              npassive: number of passive scalars (default=0)
-!
 !              spectlod: spectral output level of detail (in [1,3]):
 !                          1: All 1d spectra, KE fluxes
 !                          2: 2D spectra, directional spectra, 
@@ -42,7 +40,6 @@ module hd_mod
   ! ================= Solver traits ===================================
   type, public  :: NHTraits
     logical       :: dorot        = .FALSE. ! rotation flag
-    logical       :: doparts      = .FALSE. ! do particles flag
     integer       :: spectlod     = 1       ! standard level of spectra detail 
     real(kind=GP) :: nu           = 0.0_GP  ! dissipation
     real(kind=GP), allocatable :: kappa(:)  ! diffusivities
@@ -86,7 +83,6 @@ CONTAINS
 
     ! Temporary data to read from namelists:
     logical                    :: dorot
-    logical                    :: doparts
     integer                    :: npassive
     integer                    :: spectlod
     integer                    :: ierr
@@ -94,7 +90,7 @@ CONTAINS
     real(kind=GP), allocatable :: kappa(:)
 
     ! Required namelists:
-    namelist/ HD      / nu, dorot, doparts, omegax, omegay, omegaz, npassive, spectlod
+    namelist/ HD      / nu, dorot, omegax, omegay, omegaz, npassive, spectlod
     namelist/ passive / kappa
 
     call MPI_COMM_SIZE(MPI_COMM_WORLD,this%nprocs_,ierr)
@@ -102,7 +98,6 @@ CONTAINS
 
     ! Get trait variables from input file:
     dorot    = .FALSE.
-    doparts  = .FALSE.
     spectlod = 1 ! standard lod
     nu       = 0.0
     omegax   = 0.0_GP; omegay = 0.0_GP; omegaz = 0.0_GP
@@ -113,7 +108,6 @@ CONTAINS
     endif
     call mpi_bcast(nu       ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(dorot    ,1 ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(doparts  ,1 ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(omegax   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(omegay   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(omegaz   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
@@ -133,7 +127,6 @@ CONTAINS
 
     ! Set traits from inputfile data:
     this%traits_%   dorot = dorot
-    this%traits_% doparts = doparts
     this%traits_%spectlod = spectlod
     this%traits_%      nu = nu
     this%traits_%omega    = (/omegax,omegay,omegaz/)
