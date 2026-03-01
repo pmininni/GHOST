@@ -9,17 +9,12 @@
 !              norder = 2, or for linear PDEs. Explicit number
 !              of stages are not required. While norder > 2 may
 !              not yield a truncation of that order in nonlinear
-!              PDEs, it can still provide benefit.
-!
-! INPUT FILE : Stepper looks for a "&stepper" namelist with:
-!                norder  : Stepper order (arbitrary)
+!              PDEs, it can still provide a benefit.
 !
 ! DATE       : 2/8/26 (DLR)
 ! =====================================================================
 
 module canuto_stepper_mod
-!  use gstate_mod
-!  use gpstate_mod
   use gstepperbase_mod
   implicit none
 
@@ -31,25 +26,16 @@ module canuto_stepper_mod
   ! Define class:
   type, extends(GStepperBase) :: CanutoStepper
     ! Member data (extends GStepperBase member data)
-    logical                       :: binit_ = .false. ! is initialized?
-    logical                       :: busing_butcher_ = .true. ! using Butcher tableau?
-    type(GStepperTraits)          :: traits_   ! GStepper traits
-
-!   procedure (dudt_interface), pointer, nopass :: callback_  => null()
-!   procedure(pdudt_interface), pointer, nopass :: pcallback_ => null()
-
-  CONTAINS
-    procedure, public :: init                        ! initialize
-    procedure, public :: set_callback  => set_callback_impl  ! set RHS callback method
-!   procedure, public :: set_pcallback => set_pcallback_impl ! set part+field RHS callback method
-    procedure, public :: step          => step_impl  ! take one timestep
-!    procedure, public :: pstep         => pstep_impl ! take one part+field timestep
+    type(GStepperTraits)      :: traits_                     ! GStepper traits
+  contains
+    procedure, public :: init                                ! initialize
+    procedure, public :: step          => step_impl          ! take one timestep
+!   procedure, public :: pstep         => pstep_impl         ! take one part+field timestep
     procedure, public :: GStepper_ctor => CanutoStepper_ctor 
     final             :: CanutoStepper_dtor
-
   end type CanutoStepper
 
-CONTAINS
+contains
 
   ! ===================================================================
   ! Stepper-specific methods
@@ -58,20 +44,19 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Constructor
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine CanutoStepper_ctor(this, traits, workspace, nparts)
-    class(CanutoStepper), intent(inout)           :: this
-    type(GStepperTraits), intent(inout)           :: traits
-    type    (GWorkspace), intent(inout), target   :: workspace
-    integer             , intent   (in), optional :: nparts
-
+! subroutine CanutoStepper_ctor(this, traits, workspace, solver, psolver)
+  subroutine CanutoStepper_ctor(this, traits, workspace, solver)
+    class(CanutoStepper), intent(inout)                   :: this
+    type(GStepperTraits), intent(inout)                   :: traits
+    type    (GWorkspace), intent(inout), target           :: workspace
+    class (EquationBase), intent   (in), target           :: solver
+!   class (ParticleBase), intent   (in), target, optional :: psolver
     this%workspace_ => workspace
+    this%solver_    => solver
+!   this%psolver_   => psolver
     if (.not. associated(this%workspace_)) then
       stop 'CanutoStepper::CanutoStepper_ctor: Worskpace not associated'
     endif
-
-    ! Call StepperBase constructor:
- !   this%GStepperBase%GStepper_ctor_interface(traits, workspace, nparts)
-
     call this%init(traits)
   end subroutine CanutoStepper_ctor
 
@@ -81,7 +66,9 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine CanutoStepper_dtor(this) 
     type(CanutoStepper), intent(inout) :: this
-    if (associated(this%workspace_))   nullify(this%workspace_)
+    if (associated(this%workspace_)) nullify(this%workspace_)
+    if (associated(this%solver_))    nullify(this%solver_)
+!   if (associated(this%psolver_))   nullify(this%psolver_)
   end subroutine CanutoStepper_dtor
 
 
@@ -96,54 +83,27 @@ CONTAINS
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Subroutine to set RHS callback function
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine set_callback_impl(this, fcn_callback)
-!    use EquationBase
-    class (CanutoStepper), intent(inout) :: this
-    procedure(dudt_interface)    :: fcn_callback
-    this%callback_ => fcn_callback
-  end subroutine set_callback_impl
-
-
-!!$  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!$  !! Subroutine to set RHS part+field callback function
-!!$  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!$  subroutine set_pcallback_impl(this, fcn_callback)
-!!$    class (CanutoStepper), intent  (inout) :: this
-!!$    procedure(pdudt_interface), pointer :: fcn_callback
-!!$
-!!$    this%pcallback_ => fcn_callback
-!!$  end subroutine set_pcallback_impl
-
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Implementation function to take one step
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine step_impl(this, solver, time, uin, uf, dt, uout)
+  subroutine step_impl(this, time, uin, uf, dt, uout)
 !$  use threads
     implicit none
 
     class(CanutoStepper), intent   (in) :: this
-    class(EquationBase), intent    (in) :: solver
     type    (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
     real       (kind=GP), intent   (in) :: time, dt
     real       (kind=GP)                :: eff_dt
     integer                             :: i,j,k,o,state_size,ic
     logical                             :: bret
        
-    if ( size(uin) .ne. this%traits_%nstate &
+    if ( size(uin)  .ne. this%traits_%nstate &
      .or.size(uout) .ne. this%traits_%nstate  ) then
       stop 'CanutoStepper::step: Inconsistent input state'
-    endif
-    
-    if ( .not. associated(this%callback_) ) then
-      stop 'CanutoStepper::step: RHS callback function not set'
     endif
 
     do o = this%traits_%norder,1,-1
       eff_dt = dt/real(o,kind=GP)
-      call this%callback_(solver,time, uout, uf, eff_dt, uout)
+      call this%solver_%dudt(time, uout, uf, eff_dt, uout)
       do ic = 1,this%traits_%nstate
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         do i = ista,iend
@@ -158,6 +118,7 @@ CONTAINS
       end do
     end do
   end subroutine step_impl
+
 
 !!$  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!$  !! Implementation function to take one step

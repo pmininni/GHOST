@@ -167,8 +167,7 @@
       CALL init_forcing(forcemethod,pde,force)
 
 ! Sets up the time stepper
-      stepper = build_stepper_from_file('parameter.inp')
-
+      stepper = build_stepper_from_file('parameter.inp',workspace,pde)
 
 ! Time integration scheme starts here.
 ! If we are doing a benchmark, we measure
@@ -219,8 +218,7 @@
 
 ! Time evolution
          CALL update_forcing(forcemethod,pde,force)
-         CALL stepper%step(pde, time, field, force, dt, field_nxt)
-!        CALL pde%timestep(time, field, force, dt, field_nxt)
+         CALL stepper%step(time, field, force, dt, field_nxt)
          field = field_nxt
          timet = timet+1
          timep = timep+1
