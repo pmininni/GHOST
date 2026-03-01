@@ -109,6 +109,7 @@ target_include_directories(project_includes INTERFACE
      ${CMAKE_BINARY_DIR}/src/pseudo
     "${CMAKE_BINARY_DIR}/src/ic"
     "${CMAKE_BINARY_DIR}/src/force"
+    "${CMAKE_BINARY_DIR}/src/steppers"
     "${CMAKE_BINARY_DIR}/src/${FFTP}"
 )
 
@@ -120,6 +121,7 @@ add_subdirectory("${SRC_DIR}/memmgt")
 add_subdirectory("${SRC_DIR}/pdes")
 add_subdirectory("${SRC_DIR}/ic")
 add_subdirectory("${SRC_DIR}/force")
+add_subdirectory("${SRC_DIR}/steppers")
 add_subdirectory("${SRC_DIR}/${FFTP}")
 
 # ---------------------- Preprocess FPP sources ----------------------
@@ -147,7 +149,7 @@ endif()
 add_executable(GHOST ${SOLVER_SRC})
 add_dependencies(GHOST project_preprocess timer_lib fftp_lib
     utils_lib pseudo_lib mpiio_lib memmgt_lib pdes_lib ic_lib
-    force_lib
+    force_lib stepper_lib
 )
 target_link_libraries(GHOST
     PRIVATE
@@ -162,6 +164,7 @@ target_link_libraries(GHOST
         pdes_lib
         ic_lib
         force_lib
+        stepper_lib
 )
 
 set_target_properties(GHOST PROPERTIES

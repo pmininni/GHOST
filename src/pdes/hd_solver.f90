@@ -451,8 +451,8 @@ CONTAINS
       call entperp(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy fluxq
       if ( this%traits_%spectlod .ge. 2 ) then
         call heltrans(vx,vy,vz,-c1,-c2,-c3,ext,1)
-        call helpara(vx,vy,vz,-c1,-c2,-c3,ext,1)
-        call helperp(vx,vy,vz,-c1,-c2,-c3,ext,1)
+!       call helpara(vx,vy,vz,-c1,-c2,-c3,ext,1)
+!       call helperp(vx,vy,vz,-c1,-c2,-c3,ext,1)
         call spec2D(vx,vy,vz,ext,odir,1,1)
       endif
 

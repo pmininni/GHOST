@@ -43,6 +43,7 @@
       USE ic_factory
       USE force_factory
       USE equation_factory
+      USE stepper_factory
 !     USE class_GPart
 
       IMPLICIT NONE
@@ -54,9 +55,9 @@
       TYPE(GWorkspace)                 :: workspace
       TYPE(IOPLAN)                     :: planio
       CLASS(EquationBase), ALLOCATABLE :: pde
+      CLASS(GStepperBase), ALLOCATABLE :: stepper
       CLASS(icChain),      ALLOCATABLE :: iclist(:)
       CLASS(forceChain),   ALLOCATABLE :: forcemethod(:)
-
 !
 ! Auxiliary variables
 
@@ -90,7 +91,7 @@
 ! Initialization of time integration parameters
       CALL status_init('parameter.inp')
 
-! Initialization of I/O
+! I/O initialization
       CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
       CALL range(1,nz,nprocs,myrank,ksta,kend)
       CALL io_init(myrank,(/nx,ny,nz/),ksta,kend,planio)
@@ -145,7 +146,7 @@
         ini  = 1
         sind = 0                          ! index for the spectrum
         tind = 0                          ! index for the binaries
-        pind = 0                          ! index for the particles
+!       pind = 0                          ! index for the particles
         timet = tstep
         timep = pstep
         timec = cstep
@@ -155,7 +156,7 @@
         ini = int((stat-1)*tstep) + 1
         tind = int(stat)
         sind = int(real(ini,kind=GP)/real(sstep,kind=GP)+1)
-        pind = int((stat-1)*lgmult+1)
+!       pind = int((stat-1)*lgmult+1)
         timet = 0
         timep = 0
         timec = int(modulo(float(ini-1),float(cstep)))
@@ -164,6 +165,10 @@
       ENDIF IC
       CALL init_allstates(iclist,pde,field)
       CALL init_forcing(forcemethod,pde,force)
+
+! Sets up the time stepper
+      stepper = build_stepper_from_file('parameter.inp')
+
 
 ! Time integration scheme starts here.
 ! If we are doing a benchmark, we measure
@@ -214,7 +219,8 @@
 
 ! Time evolution
          CALL update_forcing(forcemethod,pde,force)
-         CALL pde%timestep(time, field, force, dt, field_nxt)
+         CALL stepper%step(pde, time, field, force, dt, field_nxt)
+!        CALL pde%timestep(time, field, force, dt, field_nxt)
          field = field_nxt
          timet = timet+1
          timep = timep+1
