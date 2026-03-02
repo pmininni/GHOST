@@ -1,8 +1,8 @@
 ! =====================================================================
 ! NAME       : canuto_stepper.f90
 !
-!              Performs time stepping using method of 
-!              Canuto et al., Spectral Methods in Fluid
+!              Performs time stepping using the modified RK method 
+!              of Canuto et al., Spectral Methods in Fluid
 !              Dynamics. This is a low storage time stepper
 !              for a specifiable order, though it is strictly
 !              speaking of full truncation order only for
@@ -10,6 +10,15 @@
 !              of stages are not required. While norder > 2 may
 !              not yield a truncation of that order in nonlinear
 !              PDEs, it can still provide a benefit.
+!
+! INPUT FILE : Stepper looks for a "&stepper" namelist with:
+!                sname   : 'TRADITIONAL' to use this time stepper
+!                itype   : Ignored by this solver. The stepper type:
+!                    =1 => Butcher type (norder = nstage, this solver)
+!                    =2 => Mixed type (norder != nstage; not available)
+!                    =3 => SSP type (strong stability preserving; not available)
+!                norder  : Stepper order (>=1)
+!                nstage  : No. stepper stages (ignored by this solver)
 !
 ! DATE       : 2/8/26 (DLR)
 ! =====================================================================
