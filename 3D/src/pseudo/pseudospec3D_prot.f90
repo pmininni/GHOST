@@ -43,6 +43,7 @@
 !     nmb: the extension used when writting the file
 !     isc: index to specify which scalar the spectrum 
 !          represents; modifies output file name
+!          If = -1, file name is 'rhospecpe.XXX.txt'
 !
       USE fprecision
       USE commtypes
@@ -127,6 +128,8 @@
          IF ( isc.gt.0 ) THEN
            WRITE(si,'(i1.1)') isc
            OPEN(1,file='s' // si // 'specpara.' // nmb // '.txt')
+         ELSE IF ( isc.lt.0 ) THEN
+           OPEN(1,file='rhospecpara.' // nmb // '.txt')
          ELSE
            OPEN(1,file='sspecpara.' // nmb // '.txt')
          ENDIF
@@ -162,7 +165,8 @@
 !     a  : input matrix with the passive scalar
 !     nmb: the extension used when writting the file
 !     isc: index to specify which scalar the spectrum 
-!          represents; modifies output file name
+!          represents; modifies output file name.
+!          If = -1, file name is 'rhospecpe.XXX.txt'
 !
       USE kes
       USE grid
@@ -189,6 +193,8 @@
          IF ( isc.gt.0 ) THEN
            WRITE(si,'(i1.1)') isc
            OPEN(1,file='s' // si // 'specperp.' // nmb // '.txt')
+         ELSE IF ( isc.lt.0 ) THEN
+           OPEN(1,file='rhospecperp.' // nmb // '.txt')
          ELSE
            OPEN(1,file='sspecperp.' // nmb // '.txt')
          ENDIF
