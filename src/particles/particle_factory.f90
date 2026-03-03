@@ -1,4 +1,4 @@
- ===================================================================
+! ===================================================================
 ! Factory for all particles.
 !
 ! To add new particles, "USE" the corresponding module, and add a
@@ -29,9 +29,9 @@ CONTAINS
     ! Temporary data to read from namelist:
     integer            :: nprocs,myrank,ierr,ios
     character(len=256) :: iomsg
-    character(len=64)  :: solver
+    character(len=64)  :: psolver
     ! Required namelist:
-    namelist/ particles / solver
+    namelist/ particles / psolver
 
     call MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
@@ -44,10 +44,10 @@ CONTAINS
 
     if (ios .eq. 0) then
       ! Clauses for each solver class
-      select case (trim(adjustl(solver)))
-        case ('none')
-          allocate(nullParticle :: new_object)
-          NUMTMPPART = 0
+      select case (trim(adjustl(psolver)))
+!       case ('none')
+!         allocate(nullParticle :: new_object)
+!         NUMTMPPART = 0
         case ('lagpart')
           allocate(Gpart :: new_object)
           NUMTMPPART = 3
@@ -67,7 +67,7 @@ CONTAINS
           stop 'Unknown solver name'
       end select
     else ! Not running with particles
-      allocate(nullParticle :: new_object)
+ !    allocate(nullParticle :: new_object)
     endif
   end function init_particles_from_file
 

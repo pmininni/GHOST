@@ -26,6 +26,7 @@
       INTEGER             :: pstep, tind, timep
       INTEGER             :: maxparts
       INTEGER             :: lgmult
+      INTEGER             :: intorder
       INTEGER             :: ilgintrptype, ilgexchtype
       INTEGER             :: ilgouttype, ilgwrtunit
       INTEGER             :: ilgcoll, ilgfpfiletype
@@ -37,27 +38,23 @@
 ! Initializes general global status parameters for the particle
 ! solvers
       USE particlebase_mod
-      USE commtypes
-      USE mpivars
       USE status
       IMPLICIT NONE
 
       CHARACTER(len=*), INTENT(IN) :: infile_
       NAMELIST / pstatus / maxparts,lgmult,ilgintrptype
-      NAMELIST / pstatus / ilgexchtype,ilgouttype,ilgwrtunit
+      NAMELIST / pstatus / ilgexchtype,ilgouttype,ilgwrtunit,intorder
       NAMELIST / pstatus / ilgcoll,ilgfpfiletype,slgfpfile,lgseedfile
 
       maxparts     = 1000
-      ilginittype  = GPINIT_RANDLOC
       ilgintrptype = GPINTRP_CSPLINE
       ilgexchtype  = GPEXCHTYPE_VDB
       ilgouttype   = 0
       ilgwrtunit   = 0
+      intorder     = 3
       lgmult       = 1
       lgseedfile   = 'gplag.dat'
       ilgcoll      = 1
-      rbal         = 0.0
-      nwpart       = 0
       ilgfpfiletype= 0
       slgfpfile    = 'xlgInitRndSeed.000.txt'
       IF (myrank.eq.0) THEN
@@ -71,6 +68,7 @@
       CALL MPI_BCAST(ilgexchtype  ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilgouttype   ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilgwrtunit   ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(intorder     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilgcoll      ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ilgfpfiletype,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(slgfpfile ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)

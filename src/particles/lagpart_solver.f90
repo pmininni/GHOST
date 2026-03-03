@@ -37,14 +37,14 @@ module lagpart_mod
   CONTAINS
     procedure, public :: init          =>          init_impl ! init method
     procedure, public :: dpdt          =>          dpdt_impl ! part RHS method
-    procedure, public :: end_step      =>      end_step_impl ! finalizes time evolution
-    procedure, public :: feedback      =>             null() ! feedback in the fluid
+!   procedure, public :: end_step      =>      end_step_impl ! finalizes time evolution
+    procedure, public :: feedback      =>      null_feedback ! feedback in the fluid
     procedure, public :: write_pstate  =>  write_pstate_impl ! write states
-    procedure, public :: state_size    =>    state_size_impl ! state size
-    procedure, public :: sstate2istate => sstate2istate_impl ! state names
-    procedure, public :: get_sstate    =>    get_sstate_impl ! get state name list
+!   procedure, public :: state_size    =>    state_size_impl ! state size
+!   procedure, public :: sstate2istate => sstate2istate_impl ! state names
+!   procedure, public :: get_sstate    =>    get_sstate_impl ! get state name list
     procedure, public :: part_ctor     =>         GPart_ctor ! constructor
-    final             :: Part_dtor
+    final             :: GPart_dtor
   end type GPart
 
 CONTAINS
@@ -69,29 +69,27 @@ CONTAINS
   !! Function to compute the rhs of the equations of motion
   !! of Lagrangian particles.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE dpdt_impl(this, time, pde, fluidstate, pstate, dt, dpdt)
-    USE fprecision
-    USE commtypes
-    USE mpivars
-    USE grid
-
+  SUBROUTINE dpdt_impl(this, time, pde, fluidstate, pstate, dt, dpdtout)
+    use equationbase_mod
+    use fft
     IMPLICIT NONE
-    CLASS        (GPart), INTENT(in)              :: this
-    CLASS (EquationBase), INTENT(in)              :: pde
-    real       (kind=GP), intent(in)              :: time, dt
-    type        (GState), intent(inout), target   :: fluidstate(:)
-    type       (GPState), intent(inout)           :: pstate(:)
-    COMPLEX    (KIND=GP),pointer,DIMENSION(:,:,:) :: velr,tmp2,tmp3
-    REAL       (KIND=GP),pointer,DIMENSION(:,:,:) :: velc
-    real       (kind=GP)                          :: rmp
-    INTEGER                                       :: i,j,k
+    class       (GPart),         intent(inout) :: this
+    class(VelocityBase),         intent   (in) :: pde
+    real      (kind=GP),         intent   (in) :: time, dt
+    type   (GStateComp), target, intent   (in) :: fluidstate(:)
+    type  (GPStateComp),         intent   (in) :: pstate(:)
+    type  (GPStateComp),         intent(inout) :: dpdtout(:)
+    complex   (KIND=GP), pointer,DIMENSION(:,:,:) :: velc
+    real      (KIND=GP), pointer,DIMENSION(:,:,:) :: velr,tmp1,tmp2
+    real      (kind=GP)                           :: rmp
+    integer                                       :: i,j,k,m
     logical                                       :: bret
     
     CALL GTStart(this%htimers_(GPTIME_STEP))
-    call this%workspace_%get_complex_tmp(vel ,bret)
+    call this%workspace_%get_complex_tmp(velc,bret)
+    call this%workspace_%get_real_tmp   (velr,bret)
     call this%workspace_%get_real_tmp   (tmp1,bret)
     call this%workspace_%get_real_tmp   (tmp2,bret)
-    call this%workspace_%get_real_tmp   (tmp3,bret)
     
     ! Find F(u*):
     do m = pde%VELOCITY, pde%VELOCITY+pde%nc_-1
@@ -105,12 +103,13 @@ CONTAINS
         end do
       end do
       call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-      call EulerToLag(this,dpdt(m)%rcomp,this%nparts_,velr,.true. ,tmp1,tmp2)
+      call EulerToLag(this,dpdtout(m)%rcomp,this%nparts_,velr,.true.,tmp1,tmp2)
     end do
    
-    call this%workspace_%free_real_tmp(tmp1)
-    call this%workspace_%free_real_tmp(tmp2)
-    call this%workspace_%free_real_tmp(tmp3)
+    call this%workspace_%free_complex_tmp(velc)
+    call this%workspace_%free_real_tmp   (velr)
+    call this%workspace_%free_real_tmp   (tmp1)
+    call this%workspace_%free_real_tmp   (tmp2)
     CALL GTAcc(this%htimers_(GPTIME_STEP))    
   END SUBROUTINE dpdt_impl
 
@@ -118,8 +117,13 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Functions to compute fluid and particle couplings
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine null_feedback(this, pstate, feedback)
+    class     (GPart), intent   (in) :: this
+    type(GPStateComp), intent   (in) :: pstate
+    type (GStateComp), intent(inout) :: feedback
+    return
+  end subroutine null_feedback
   
-
   ! ===================================================================
   ! Output methods 
   ! ===================================================================
@@ -127,16 +131,15 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Function to compute and write particle states
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-  subroutine write_part_impl(this, time, pde, fluidstate, pstate)
-    use EquationBase
-    use ParticleBase
+  subroutine write_pstate_impl(this, time, pde, fluidstate, pstate)
+    use equationbase_mod
+    use particlebase_mod
     
-    class(ParticleBase),         intent(inout) :: this
-    class(EquationBase),         intent   (in) :: pde
+    class       (GPart),         intent(inout) :: this
+    class(VelocityBase),         intent   (in) :: pde
     real      (kind=GP),         intent   (in) :: time
-    type       (GState), target, intent   (in) :: fluidstate(:)
-    type      (GPState),         intent   (in) :: pstate(:)
+    type   (GStateComp), target, intent   (in) :: fluidstate(:)
+    type  (GPStateComp),         intent   (in) :: pstate(:)
     real      (kind=GP) :: rmp
     integer             :: i,j,k
 
@@ -202,7 +205,7 @@ CONTAINS
 !!$    CALL lagpart%io_write_vec(1,odir,'wlg'  ,lgext,(t-1)*dt)
 !!$
 !!$    nwpart = nwpart + 1
-  end subroutine write_part_impl
+  end subroutine write_pstate_impl
         
   ! ===================================================================
   ! Solver specific methods
@@ -218,16 +221,18 @@ CONTAINS
     USE mpivars
     USE pstatus
     USE commtypes
+    USE fftplans
+    USE pstatus
     USE random
-
     IMPLICIT NONE
-    CLASS(GPart)     , INTENT(INOUT)         :: this
-    type(GWorkspace) , intent(inout), target :: workspace
-    type(ioplan)     , intent(inout), target :: plan
+    CLASS     (GPart), INTENT(INOUT)         :: this
+    type (GWorkspace), intent(inout), target :: workspace
+    type(GPStateComp), intent   (in), target :: pstate(:)
     character(len=*) , intent   (in)         :: infile
     INTEGER                             :: disp(3),lens(3),types(3),szreal
     INTEGER                             :: tsta,tend
     INTEGER                             :: j,nc
+    logical                             :: bret
 
     this%infile_      =  infile    ! input file
     this%workspace_   => workspace
@@ -252,8 +257,8 @@ CONTAINS
     this%intorder_    = max(intorder,1)
     this%iseed_       = 1000
     this%istep_       = 0   
-    this%iexchtype_   = iexchtyp
-    this%iouttype_    = iouttyp
+    this%iexchtype_   = ilgexchtype
+    this%iouttype_    = ilgouttype
     this%bcollective_ = ilgcoll
     this%itimetype_   = GT_WTIME
     this%wrtunit_     = ilgwrtunit
@@ -261,13 +266,13 @@ CONTAINS
     CALL MPI_COMM_SIZE(this%comm_,this%nprocs_,this%ierr_)
     CALL MPI_COMM_RANK(this%comm_,this%myrank_,this%ierr_)
  
-    IF (iexchtyp.EQ.GPEXCHTYPE_VDB) THEN
+    IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
       this%partbuff_ = maxparts  
-    ELSE IF (iexchtyp.EQ.GPEXCHTYPE_NN) THEN
+    ELSE IF (this%iexchtype_.EQ.GPEXCHTYPE_NN) THEN
       this%partbuff_      = 1 + (maxparts - 1)/this%nprocs_
       this%partchunksize_ = (this%partbuff_ + 9)/10
       this%partbuff_      =  this%partbuff_ + this%partchunksize_
-      IF ((bcoll.EQ.0).AND.(this%myrank_.EQ.0)) THEN
+      IF ((this%bcollective_.EQ.0).AND.(this%myrank_.EQ.0)) THEN
         this%partbuff_   = maxparts
       END IF
       this%stepcounter_ = 0
@@ -321,9 +326,9 @@ CONTAINS
     CALL MPI_TYPE_SIZE(GC_REAL,szreal,this%ierr_)
     ALLOCATE(this%id_      (this%partbuff_))
     ALLOCATE(this%tmpint_  (this%partbuff_))
-    this%px_ => pstate(this%POSITION  )
-    this%py_ => pstate(this%POSITION+1)
-    this%pz_ => pstate(this%POSITION+2)
+    this%px_ => pstate(this%POSITION  )%rcomp
+    this%py_ => pstate(this%POSITION+1)%rcomp
+    this%pz_ => pstate(this%POSITION+2)%rcomp
     call this%workspace_%get_pcomp_tmp(this%lvx_,bret)    
     call this%workspace_%get_pcomp_tmp(this%lvy_,bret)    
     call this%workspace_%get_pcomp_tmp(this%lvz_,bret)    
@@ -342,17 +347,19 @@ CONTAINS
     IMPLICIT NONE
     TYPE(GPart)   ,INTENT(INOUT) :: this
     integer                      :: j
-    IF ( ALLOCATED    (this%id_) ) DEALLOCATE    (this%id_)
-    IF ( ALLOCATED(this%tmpint_) ) DEALLOCATE(this%tmpint_)
-    IF ( ALLOCATED   (this%idm_) ) DEALLOCATE   (this%idm_)
-    IF ( ALLOCATED    (this%px_) ) DEALLOCATE    (this%px_)
-    IF ( ALLOCATED    (this%py_) ) DEALLOCATE    (this%py_)
-    IF ( ALLOCATED    (this%pz_) ) DEALLOCATE    (this%pz_)
-    IF ( ALLOCATED   (this%lvx_) ) DEALLOCATE   (this%lvx_)
-    IF ( ALLOCATED   (this%lvy_) ) DEALLOCATE   (this%lvy_)
-    IF ( ALLOCATED   (this%lvz_) ) DEALLOCATE   (this%lvz_)
-    IF ( ALLOCATED (this%ptmp0_) ) DEALLOCATE (this%ptmp0_)
-    IF ( ALLOCATED   (this%vdb_) ) DEALLOCATE   (this%vdb_)
+    IF ( ALLOCATED    (this%id_)   ) DEALLOCATE    (this%id_)
+    IF ( ALLOCATED(this%tmpint_)   ) DEALLOCATE(this%tmpint_)
+    IF ( ALLOCATED   (this%idm_)   ) DEALLOCATE   (this%idm_)
+    IF ( ALLOCATED (this%ptmp0_)   ) DEALLOCATE (this%ptmp0_)
+    IF ( ALLOCATED   (this%vdb_)   ) DEALLOCATE   (this%vdb_)
+    IF ( ALLOCATED   (this%ptmp0_) ) DEALLOCATE   (this%vdb_)
+    IF ( ASSOCIATED   (this%px_)   ) NULLIFY       (this%px_)
+    IF ( ASSOCIATED   (this%py_)   ) NULLIFY       (this%py_)
+    IF ( ASSOCIATED   (this%pz_)   ) NULLIFY       (this%pz_)
+    ! Free workspace pointers
+    call this%workspace_%free_pcomp_tmp(this%lvx_)
+    call this%workspace_%free_pcomp_tmp(this%lvy_)
+    call this%workspace_%free_pcomp_tmp(this%lvz_)
     ! Destroy timers:
     DO j = 1, GPMAXTIMERS
       CALL GTFree(this%htimers_(j))
@@ -373,3 +380,5 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Function to compute number of state members (equations)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+end module lagpart_mod

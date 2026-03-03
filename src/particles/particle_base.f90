@@ -7,8 +7,11 @@
 
 module particlebase_mod
   use class_GWorkspace3D
-  use gpstate_mod
-  use iovar
+  use class_GPSplineInt
+  use class_GPartComm
+  use gstate_mod
+  use commtypes
+  use gtimer
   implicit none
 
   ! ================= Global parameters =============================
@@ -31,7 +34,7 @@ module particlebase_mod
   INTEGER,PARAMETER,PUBLIC    :: GPTIME_GPREAD  =8
   INTEGER,PARAMETER,PUBLIC    :: GPTIME_GPWRITE =9
   INTEGER,PARAMETER,PUBLIC    :: GPSWIPERATE    =100
-  INTEGER,PARAMETER,PRIVATE   :: GPMAXTIMERS    =9  ! no. GPTIME parameters
+  INTEGER,PARAMETER,PUBLIC    :: GPMAXTIMERS    =9  ! no. GPTIME parameters
   CHARACTER(len=8),PUBLIC     :: lgext              ! string to hold time index
   CHARACTER(len=6),PUBLIC     :: lgfmtext='(i8.8)'  ! file time index format
 
@@ -42,7 +45,7 @@ module particlebase_mod
       integer                             :: myrank_   ! MPI rank
       integer                             :: nprocs_   ! MPI procs
       integer                             :: POSITION  ! start of position sector
-      integer                             :: nd_       ! problem dimension
+      integer                             :: ndim_     ! problem dimension
       integer                             :: nc_       ! # vector field components
       character(len=8), allocatable       :: sstate_(:)! state member names
       character(len=128)                  :: infile_   ! config file name
@@ -60,35 +63,40 @@ module particlebase_mod
       INTEGER                             :: htimers_(GPMAXTIMERS)
       INTEGER                             :: ierr_,iseed_,istep_
       INTEGER                             :: maxparts_,nparts_,npartsm_,nvdb_
-      INTEGER                             :: partbuff_,partchunksize_
+      INTEGER                             :: partbuff_,partchunksize_,stepcounter_
       INTEGER                             :: comm_
       INTEGER      , ALLOCATABLE, DIMENSION  (:) :: id_,idm_,tmpint_
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:) :: vdb_
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:) :: vdb_,ptmp0_
       REAL(KIND=GP), pointer, DIMENSION      (:) :: px_ ,py_ ,pz_
       REAL(KIND=GP), pointer, DIMENSION      (:) :: lvx_,lvy_,lvz_
-      REAL(KIND=GP)                              :: lxbnds_(3,2),gext_(3)
-      REAL(KIND=GP)                              :: delta_(3),invdel_(3)
-      CHARACTER(len=1024)                        :: seedfile_,sfile_
-      CHARACTER(len=MPI_MAX_ERROR_STRING)        :: serr_
+      REAL(KIND=GP)                       :: lxbnds_(3,2),gext_(3)
+      REAL(KIND=GP)                       :: delta_(3),invdel_(3)
+      CHARACTER(len=1024)                 :: seedfile_,sfile_
+      CHARACTER(len=MPI_MAX_ERROR_STRING) :: serr_
     contains
       procedure(part_ctor_interface) , deferred :: part_ctor
       procedure(init_interface)      , deferred :: init
       procedure(dpdt_interface)      , deferred :: dpdt
       procedure(write_interface),      deferred :: write_pstate
-      procedure(state_size_interface), deferred :: state_size  ! Number of states
-  END TYPE ParticleBase
+!     procedure(state_size_interface), deferred :: state_size  ! Number of states
+  end type ParticleBase
 
   type, abstract, extends(ParticleBase)      :: VelocParticleBase
       integer :: VELOCITY    ! start of velocity sector
   end type VelocParticleBase
    
   type, abstract, extends(VelocParticleBase) :: ChargedParticleBase
-  end type VelocParticleBase
+  end type ChargedParticleBase
 
   abstract interface
-     subroutine part_ctor_interface(this)
+     subroutine part_ctor_interface(this,infile, workspace, pstate)
+       use class_GWorkspace3D
+       use gpstate_mod
        import :: ParticleBase
        class(ParticleBase),         intent(inout) :: this
+       type   (GWorkspace), intent(inout), target :: workspace
+       type  (GPStateComp), intent   (in), target :: pstate(:)
+       character   (len=*), intent   (in)         :: infile
      end subroutine part_ctor_interface
 
      subroutine init_interface(this)
@@ -96,25 +104,27 @@ module particlebase_mod
        class(ParticleBase),         intent(inout) :: this       
      end subroutine init_interface
 
-     subroutine dpdt_interface(this, time, pde, fluidstate, pstate, dt, dpdt)
-       use EquationBase
+     subroutine dpdt_interface(this, time, pde, fluidstate, pstate, dt, dpdtout)
+       use equationbase_mod
+       use gpstate_mod
        import :: ParticleBase
        class(ParticleBase),         intent(inout) :: this
-       class(EquationBase),         intent   (in) :: pde
+       class(VelocityBase),         intent   (in) :: pde
        real      (kind=GP),         intent   (in) :: time, dt
-       type       (GState), target, intent   (in) :: fluidstate(:)
-       type      (GPState),         intent   (in) :: pstate(:) 
-       type      (GPState),         intent(inout) :: dpdt(:) 
-     end subroutine dvpdt_interface
+       type   (GStateComp), target, intent   (in) :: fluidstate(:)
+       type  (GPStateComp),         intent   (in) :: pstate(:) 
+       type  (GPStateComp),         intent(inout) :: dpdtout(:) 
+     end subroutine dpdt_interface
 
      subroutine write_interface(this, time, pde, fluidstate, pstate)
-       use EquationBase
+       use equationbase_mod
+       use gpstate_mod
        import :: ParticleBase
        class(ParticleBase),         intent(inout) :: this
-       class(EquationBase),         intent   (in) :: pde
+       class(VelocityBase),         intent   (in) :: pde
        real      (kind=GP),         intent   (in) :: time
-       type       (GState), target, intent   (in) :: fluidstate(:)
-       type      (GPState),         intent   (in) :: pstate(:) 
+       type   (GStateComp), target, intent   (in) :: fluidstate(:)
+       type  (GPStateComp),         intent   (in) :: pstate(:) 
      end subroutine write_interface
 
      function state_size_interface(this) result(num)
@@ -208,7 +218,7 @@ CONTAINS
       END IF
     ELSE IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
       CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
-                     this%px_,this%py_,this%pz_,this%nparts_)
+                     this%px_,this%py_,this%pz_,this%nparts_,this%ptmp0_)
       ! Store global VDB data into temp array:
 !$omp parallel do
       DO j = 1, this%maxparts_
@@ -354,6 +364,7 @@ CONTAINS
     CLASS(ParticleBase) ,INTENT(INOUT)                     :: this
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: evar
     REAL(KIND=GP),pointer      ,DIMENSION(:,:,:)           :: tmp1,tmp2
+    REAL(KIND=GP),pointer      ,DIMENSION(:)               :: lagtmp0,lagtmp1
     REAL(KIND=GP),INTENT   (IN)                            :: time
     INTEGER      ,INTENT   (IN)                            :: iunit
     INTEGER                                                :: fh,offset,nt,szint,szreal
@@ -522,19 +533,19 @@ CONTAINS
       nv = 1
 !$omp parallel do
       DO j = 1, np
-        this%ptmp1_(1,j) = fld0(j)
+        this%ptmp0_(1,j) = fld0(j)
       ENDDO
       IF ( present(fld1) ) THEN
 !$omp parallel do
         DO j = 1, np
-          this%ptmp1_(2,j) = fld1(j)
+          this%ptmp0_(2,j) = fld1(j)
         ENDDO
         nv = nv+1
       ENDIF
       IF ( present(fld2) ) THEN
 !$omp parallel do
         DO j = 1, np
-          this%ptmp1_(3,j) = fld2(j)
+          this%ptmp0_(3,j) = fld2(j)
         ENDDO
         nv = nv+1
       ENDIF
@@ -549,7 +560,7 @@ CONTAINS
       ENDIF
       WRITE(iunit) real(np,kind=GP)
       WRITE(iunit) time
-      WRITE(iunit) this%ptmp1_(1:nv,1:this%maxparts_)
+      WRITE(iunit) this%ptmp0_(1:nv,1:this%maxparts_)
       CLOSE(iunit)
     ENDIF
   END SUBROUTINE binary_write_lag_t0
@@ -826,7 +837,7 @@ CONTAINS
         IF ((this%ptmp0_(3,j).GE.this%lxbnds_(3,1)).AND.(this%ptmp0_(3,j).LT.this%lxbnds_(3,2))) THEN
           IF (this%nparts_.GE.this%partbuff_) THEN
             this%partbuff_ = this%partbuff_ + this%partchunksize_
-            CALL this%ResizeArrays(this%partbuff_,.true.)
+            CALL ResizeArrays(this,this%partbuff_,.true.)
           END IF
           this%nparts_ = this%nparts_+1
           this%id_(this%nparts_) = j+nb-1
@@ -986,7 +997,7 @@ CONTAINS
                    ' | partbuff=', this%partbuff_, ' --> ', &
                    (1+this%nparts_/this%partchunksize_)*this%partchunksize_
           this%partbuff_ = (1+this%nparts_/this%partchunksize_)*this%partchunksize_
-          CALL this%ResizeArrays(this%partbuff_,.true.)
+          CALL ResizeArrays(this,this%partbuff_,.true.)
         END IF
       ELSE
         CALL this%gpcomm_%PartScatterV(this%id_,pdb(1,:),pdb(2,:),pdb(3,:),this%nparts_,this%tmpint_)
@@ -1573,7 +1584,7 @@ CONTAINS
 
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !!  METHOD     : PartResize_Arrays
+  !!  METHOD     : Resize_Arrays
   !!  DESCRIPTION: Resize all arrays in the GPart class (including 
   !!               subclases, i.e. communicator, spline)
   !!  ARGUMENTS  :
@@ -1581,7 +1592,7 @@ CONTAINS
   !!    new_size: new number of particles
   !!    onlyinc : if true, will only resize to increase array size
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE PartResizeArrays(this,new_size,onlyinc,exc)
+  SUBROUTINE ResizeArrays(this,new_size,onlyinc,exc)
 !$  USE threads 
     IMPLICIT NONE
     CLASS(ParticleBase) ,INTENT(INOUT)                   :: this
@@ -1595,31 +1606,33 @@ CONTAINS
       CALL Resize_IntArray(this%id_,new_size,.true.)
     END IF
 
-    n = SIZE(this%px_)
-    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
-      CALL Resize_ArrayRank1(this%px_,new_size,.true.)
-    END IF
-    n = SIZE(this%py_)
-    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
-      CALL Resize_ArrayRank1(this%py_,new_size,.true.)
-    END IF
-    n = SIZE(this%pz_)
-    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
-      CALL Resize_ArrayRank1(this%pz_,new_size,.true.)
-    END IF
-
-    n = SIZE(this%lvx_)
-    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
-      CALL Resize_ArrayRank1(this%lvx_,new_size,.false.)
-    END IF
-    n = SIZE(this%lvy_)
-    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
-      CALL Resize_ArrayRank1(this%lvy_,new_size,.false.)
-    END IF
-    n = SIZE(this%lvz_)
-    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
-      CALL Resize_ArrayRank1(this%lvz_,new_size,.false.)
-    END IF
+    ! This must be corrected to resize the pstate arrays instead of
+    ! the pointers. For the moment, the NN interface should not work.
+!!$    n = SIZE(this%px_)
+!!$    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+!!$      CALL Resize_ArrayRank1(this%px_,new_size,.true.)
+!!$    END IF
+!!$    n = SIZE(this%py_)
+!!$    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+!!$      CALL Resize_ArrayRank1(this%py_,new_size,.true.)
+!!$    END IF
+!!$    n = SIZE(this%pz_)
+!!$    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+!!$      CALL Resize_ArrayRank1(this%pz_,new_size,.true.)
+!!$    END IF
+!!$
+!!$    n = SIZE(this%lvx_)
+!!$    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+!!$      CALL Resize_ArrayRank1(this%lvx_,new_size,.false.)
+!!$    END IF
+!!$    n = SIZE(this%lvy_)
+!!$    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+!!$      CALL Resize_ArrayRank1(this%lvy_,new_size,.false.)
+!!$    END IF
+!!$    n = SIZE(this%lvz_)
+!!$    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+!!$      CALL Resize_ArrayRank1(this%lvz_,new_size,.false.)
+!!$    END IF
 
     n = SIZE(this%ptmp0_,2)
     IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
@@ -1646,6 +1659,6 @@ CONTAINS
     CALL this%gpcomm_%ResizeArrays(new_size,onlyinc)
 
     RETURN 
-  END SUBROUTINE PartResizeArrays
+  END SUBROUTINE ResizeArrays
 
 end module particlebase_mod
