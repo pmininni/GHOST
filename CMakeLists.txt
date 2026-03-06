@@ -106,7 +106,8 @@ target_include_directories(project_includes INTERFACE
     "${CMAKE_BINARY_DIR}/src/pseudo"
     "${CMAKE_BINARY_DIR}/src/memmgt"
     "${CMAKE_BINARY_DIR}/src/pdes"
-     ${CMAKE_BINARY_DIR}/src/pseudo
+    "${CMAKE_BINARY_DIR}/src/particles"
+    "${CMAKE_BINARY_DIR}/src/pseudo"
     "${CMAKE_BINARY_DIR}/src/ic"
     "${CMAKE_BINARY_DIR}/src/force"
     "${CMAKE_BINARY_DIR}/src/steppers"
@@ -119,6 +120,7 @@ add_subdirectory("${SRC_DIR}/mpiio")
 add_subdirectory("${SRC_DIR}/pseudo")
 add_subdirectory("${SRC_DIR}/memmgt")
 add_subdirectory("${SRC_DIR}/pdes")
+add_subdirectory("${SRC_DIR}/particles")
 add_subdirectory("${SRC_DIR}/ic")
 add_subdirectory("${SRC_DIR}/force")
 add_subdirectory("${SRC_DIR}/steppers")
@@ -126,13 +128,14 @@ add_subdirectory("${SRC_DIR}/${FFTP}")
 
 # ---------------------- Preprocess FPP sources ----------------------
 preprocess_fpp(GUTILS_SRC   "${SRC_DIR}/utils/gutils_mod.fpp")
+preprocess_fpp(SPLINE_SRC   "${SRC_DIR}/particles/gpsplineint_mod.fpp")
 preprocess_fpp(PRECIS_SRC   "${SRC_DIR}/${FFTP}/fprecision_mod.fpp")
 preprocess_fpp(FFTMOD_SRC   "${SRC_DIR}/${FFTP}/fftp_mod.fpp")
 preprocess_fpp(FFTP3D_SRC   "${SRC_DIR}/${FFTP}/fftp3D.fpp")
 preprocess_fpp(MAIN_SRC     "${SRC_DIR}/main.fpp")
 
 add_custom_target(project_preprocess
-    DEPENDS "${GUTILS_SRC}" "${PRECIS_SRC}"
+    DEPENDS "${GUTILS_SRC}" "${SPLINE_SRC}" "${PRECIS_SRC}"
     "${FFTMOD_SRC}" "${FFTP3D_SRC}"
 )   
 
@@ -148,8 +151,8 @@ endif()
 # ---------------------- Main executable ------------------------------
 add_executable(GHOST ${SOLVER_SRC})
 add_dependencies(GHOST project_preprocess timer_lib fftp_lib
-    utils_lib pseudo_lib mpiio_lib memmgt_lib pdes_lib ic_lib
-    force_lib stepper_lib
+    utils_lib pseudo_lib mpiio_lib memmgt_lib pdes_lib particles_lib
+    ic_lib force_lib stepper_lib
 )
 target_link_libraries(GHOST
     PRIVATE
@@ -162,6 +165,7 @@ target_link_libraries(GHOST
         mpiio_lib
         memmgt_lib
         pdes_lib
+        particles_lib
         ic_lib
         force_lib
         stepper_lib
