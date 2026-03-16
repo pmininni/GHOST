@@ -12,6 +12,7 @@ target_include_directories(stepper_lib PUBLIC
   ${CMAKE_BINARY_DIR}/src/memmgt
   ${CMAKE_BINARY_DIR}/src/pseudo
   ${CMAKE_BINARY_DIR}/src/pdes
+  ${CMAKE_BINARY_DIR}/src/particles
   ${CMAKE_BINARY_DIR}/src/${FFTP}
   )
 
@@ -22,6 +23,7 @@ add_dependencies(stepper_lib
   mpiio_lib
   memmgt_lib
   pdes_lib
+  particles_lib
   )
 
 # Link MPI if needed

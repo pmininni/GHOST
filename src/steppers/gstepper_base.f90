@@ -6,6 +6,7 @@
 
 module gstepperbase_mod
   use equationbase_mod
+  use particlebase_mod
   implicit none
 
   ! ================= Stepper traits ===================================
@@ -15,6 +16,7 @@ module gstepperbase_mod
     integer            :: nstage      ! Number of stages
     integer            :: nstate  = 0 ! Number of field state components
     integer            :: npstate = 0 ! Number of particles state components
+    logical            :: dopart  = .false. ! Use particle interfaces?   
     character(len=128) :: sname       ! Stepper name
   end type
 
@@ -23,25 +25,25 @@ module gstepperbase_mod
   type, abstract :: GStepperBase
       type   (GWorkspace), pointer   :: workspace_
       class(EquationBase), pointer   :: solver_
-!     class(ParticleBase), pointer   :: psolver_
-      logical                        :: doparts_ = .false. ! use particle interfaces?   
+      class(ParticleBase), pointer   :: psolver_
       character (len=128)            :: infile_
     contains
       procedure(GStepper_ctor_interface), deferred :: GStepper_ctor! Constructor
       procedure         (step_interface), deferred :: step         ! step method
-!     procedure        (pstep_interface), deferred :: pstep        ! part+field step method
+      procedure        (pstep_interface), deferred :: pstep        ! part+field step method
+      generic,                              public :: gstep => step, pstep ! general method
   end type GStepperBase
-
+  
   abstract interface
-!   subroutine GStepper_ctor_interface(this, traits, workspace, solver, psolver)
-    subroutine GStepper_ctor_interface(this, traits, workspace, solver)
+    subroutine GStepper_ctor_interface(this, traits, workspace, solver, psolver)
       use equationbase_mod
+      use particlebase_mod
       import :: GStepperBase, GStepperTraits
       class (GStepperBase), intent(inout)                   :: this
       type(GStepperTraits), intent(inout)                   :: traits
       type    (GWorkspace), intent(inout), target           :: workspace
       class (Equationbase), intent   (in), target           :: solver
-!     class (Particlebase), intent   (in), target, optional :: psolver
+      class (ParticleBase), intent   (in), target, optional :: psolver
     end subroutine GStepper_ctor_interface
 
 !   subroutine init_interface(this) 
@@ -59,19 +61,19 @@ module gstepperbase_mod
       type   (GStateComp), intent(inout) :: uout(:) 
     end subroutine step_interface
 
-!!$     ! Define step function interface for 
-!!$     ! particles plus fields:
-!!$     subroutine pstep_interface(this, time, uin, upin, uf, dt, uout, upout) 
-!!$       use gstate_mod
-!!$       use gpstate_mod
-!!$       import :: GStepperBase
-!!$       class (GStepperBase), intent  (in) :: this
-!!$       real      (kind=GP), intent   (in) :: time, dt
-!!$       type   (GStateComp), intent(inout) :: uin(:),uf(:)
-!!$       type  (GPStateComp), intent(inout) :: upin(:)
-!!$       type   (GStateComp), intent(inout) :: uout(:) 
-!!$       type  (GPStateComp), intent(inout) :: upout(:) 
-!!$     end subroutine pstep_interface
+    ! Define step function interface for 
+    ! particles plus fields:
+    subroutine pstep_interface(this, time, uin, upin, uf, dt, uout, upout) 
+      use gstate_mod
+      use gpstate_mod
+      import :: GStepperBase
+      class (GStepperBase), intent  (in) :: this
+      real      (kind=GP), intent   (in) :: time, dt
+      type   (GStateComp), intent(inout) :: uin(:),uf(:)
+      type  (GPStateComp), intent(inout) :: upin(:)
+      type   (GStateComp), intent(inout) :: uout(:) 
+      type  (GPStateComp), intent(inout) :: upout(:) 
+    end subroutine pstep_interface
   end interface
 
 contains

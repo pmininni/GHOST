@@ -18,11 +18,10 @@
 !  ilgexchtype : Boundary exchange type: GPEXCHTYPE_VDB (voxel db)
 !                or GPEXCHTYPE_NN (nearest-neighbor)
 !  ilgouttype  : Particle output type: 0=binary; 1=ASCII
-!  ilgwrtunit  : Units for part position write: 0=box units; 1=grid units
 !  lgseedfile  : Name of seed file if using user initialization
 !  ilgcoll     : 1=binary collective I/O; 0=task 0 binary (posix) I/O
 !  ilgwrtunit  : write particle positions in box units (==1) (i.e.,
-!            x,y,z in [0,2.pi]), or in grid units (==0) (x,y,z in [0,N]).
+!                x,y,z in [0,2.pi]), or in grid units (==0) (x,y,z in [0,N]).
       INTEGER             :: pstep, tind, timep
       INTEGER             :: maxparts
       INTEGER             :: lgmult

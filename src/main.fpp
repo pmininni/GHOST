@@ -218,7 +218,7 @@
 
 ! Time evolution
          CALL update_forcing(forcemethod,pde,force)
-         CALL stepper%step(time, field, force, dt, field_nxt)
+         CALL stepper%gstep(time, field, force, dt, field_nxt)
          field = field_nxt
          timet = timet+1
          timep = timep+1

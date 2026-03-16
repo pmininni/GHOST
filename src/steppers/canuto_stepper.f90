@@ -39,8 +39,8 @@ module canuto_stepper_mod
   contains
     procedure, public :: init                                ! initialize
     procedure, public :: step          => step_impl          ! take one timestep
-!   procedure, public :: pstep         => pstep_impl         ! take one part+field timestep
-    procedure, public :: GStepper_ctor => CanutoStepper_ctor 
+    procedure, public :: pstep         => pstep_impl         ! take one part+field timestep
+    procedure, public :: GStepper_ctor => CanutoStepper_ctor
     final             :: CanutoStepper_dtor
   end type CanutoStepper
 
@@ -53,16 +53,19 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Constructor
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! subroutine CanutoStepper_ctor(this, traits, workspace, solver, psolver)
-  subroutine CanutoStepper_ctor(this, traits, workspace, solver)
+  subroutine CanutoStepper_ctor(this, traits, workspace, solver, psolver)
     class(CanutoStepper), intent(inout)                   :: this
     type(GStepperTraits), intent(inout)                   :: traits
     type    (GWorkspace), intent(inout), target           :: workspace
     class (EquationBase), intent   (in), target           :: solver
-!   class (ParticleBase), intent   (in), target, optional :: psolver
+    class (ParticleBase), intent   (in), target, optional :: psolver
     this%workspace_ => workspace
     this%solver_    => solver
-!   this%psolver_   => psolver
+    if (present(psolver)) then
+      this%psolver_ => psolver
+    else
+      this%psolver_ => null()
+    endif
     if (.not. associated(this%workspace_)) then
       stop 'CanutoStepper::CanutoStepper_ctor: Worskpace not associated'
     endif
@@ -77,7 +80,7 @@ contains
     type(CanutoStepper), intent(inout) :: this
     if (associated(this%workspace_)) nullify(this%workspace_)
     if (associated(this%solver_))    nullify(this%solver_)
-!   if (associated(this%psolver_))   nullify(this%psolver_)
+    if (associated(this%psolver_))   nullify(this%psolver_)
   end subroutine CanutoStepper_dtor
 
 
@@ -129,27 +132,28 @@ contains
   end subroutine step_impl
 
 
-!!$  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!$  !! Implementation function to take one step
-!!$  !! for particles + fields
-!!$  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!$  subroutine pstep_impl(this, time, uin, upin, uf, dt, uout, upout)
-!!$!$  use threads
-!!$    implicit none
-!!$
-!!$    class(CanutoStepper), intent   (in) :: this
-!!$    type    (GStateComp), intent(inout) :: uin (:), uf(:), uout(:)
-!!$    type   (GPStateComp), intent(inout) :: upin(:), upout(:)
-!!$    real       (kind=GP), intent   (in) :: time, dt
-!!$    real       (kind=GP)                :: eff_dt
-!!$    integer                             :: i,j,k,o,state_size,ic,ip,nparts
-!!$    logical                             :: bret
-!!$       
-!!$    if ( size(uin) .ne. this%traits_%nstate &
-!!$     .or.size(uout) .ne. this%traits_%nstate  ) then
-!!$      stop 'CanutoStepper::step: Inconsistent input state'
-!!$    endif
-!!$    
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Implementation function to take one step
+  !! for particles + fields
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine pstep_impl(this, time, uin, upin, uf, dt, uout, upout)
+!$  use threads
+    use gpstate_mod
+    implicit none
+
+    class(CanutoStepper), intent   (in) :: this
+    type    (GStateComp), intent(inout) :: uin (:), uf(:), uout(:)
+    type   (GPStateComp), intent(inout) :: upin(:), upout(:)
+    real       (kind=GP), intent   (in) :: time, dt
+    real       (kind=GP)                :: eff_dt
+    integer                             :: i,j,k,o,state_size,ic,ip,nparts
+    logical                             :: bret
+       
+    if ( size(uin) .ne. this%traits_%nstate &
+     .or.size(uout) .ne. this%traits_%nstate  ) then
+      stop 'CanutoStepper::step: Inconsistent input state'
+    endif
+    
 !!$    if ( .not. associated(this%pcallback_) ) then
 !!$      stop 'CanutoStepper::step: RHS pcallback function not set'
 !!$    endif
@@ -184,6 +188,6 @@ contains
 !!$      end do
 !!$
 !!$    end do ! end, o-loop
-!!$  end subroutine pstep_impl
+  end subroutine pstep_impl
 
 end module canuto_stepper_mod

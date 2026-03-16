@@ -15,13 +15,14 @@ module stepper_factory
 contains
   
   ! ================= Factory function ==============================
-! function build_stepper_from_file(infile, workspace, solver, psolver) result(new_object)
-  function build_stepper_from_file(infile, workspace, solver) result(new_object)
+  function build_stepper_from_file(infile, workspace, solver, psolver) result(new_object)
+    use equationbase_mod
+    use particlebase_mod
     use commtypes
     class(GStepperBase), allocatable                     :: new_object
     class  (GWorkspace), intent(inout)                   :: workspace
     class(EquationBase), intent   (in), target           :: solver
-!   class(ParticleBase), intent   (in), target, optional :: psolver
+    class(ParticleBase), intent   (in), target, optional :: psolver
     character   (len=*), intent   (in)                   :: infile
 
     ! Temporary data to read from namelists:
@@ -53,22 +54,31 @@ contains
     straits%itype   = itype
     straits%norder  = norder
     straits%nstage  = nstage
-    straits%nstate  = solver%state_size ()
-!   straits%npstate = psolver%state_size()
+    straits%nstate  = solver%state_size()
+    if (present(psolver)) then
+      straits%dopart  = .true.
+!     straits%npstate = psolver%state_size()
+    else
+      straits%dopart  = .false.
+      straits%npstate = 0
+    endif
 
-   ! Allocate child object:
-   select case (trim(adjustl(sname)))
-     case ('traditional', 'TRADITIONAL')
-       allocate( CanutoStepper :: new_object )
-!    case ('gexrk', 'GERXK')
-!      allocate( GExRKStepper  :: new_object )
-     case default
-       stop 'stepper_factory::build_stepper_from_file: Invalid stepper type'
-   end select
+    ! Allocate child object:
+    select case (trim(adjustl(sname)))
+      case ('traditional', 'TRADITIONAL')
+        allocate( CanutoStepper :: new_object )
+!     case ('gexrk', 'GERXK')
+!       allocate( GExRKStepper  :: new_object )
+      case default
+        stop 'stepper_factory::build_stepper_from_file: Invalid stepper type'
+    end select
    
-   ! Call constructor:
-!  call new_object%GStepper_ctor(straits,workspace,solver,psolver)
-   call new_object%GStepper_ctor(straits,workspace,solver)
+    ! Call constructor:
+    if (straits%dopart) then
+      call new_object%GStepper_ctor(straits,workspace,solver,psolver)
+    else
+      call new_object%GStepper_ctor(straits,workspace,solver)
+    endif
   end function build_stepper_from_file
 
 end module stepper_factory
