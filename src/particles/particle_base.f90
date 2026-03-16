@@ -78,7 +78,7 @@ module particlebase_mod
       procedure(init_interface)      , deferred :: init
       procedure(dpdt_interface)      , deferred :: dpdt
       procedure(write_interface),      deferred :: write_pstate
-!     procedure(state_size_interface), deferred :: state_size  ! Number of states
+      procedure(state_size_interface), deferred :: state_size  ! Number of states
   end type ParticleBase
 
   type, abstract, extends(ParticleBase)      :: VelocParticleBase
@@ -89,14 +89,14 @@ module particlebase_mod
   end type ChargedParticleBase
 
   abstract interface
-     subroutine part_ctor_interface(this,infile, workspace, pstate)
+     subroutine part_ctor_interface(this,infile, workspace, pstate, pstate_cpy)
        use class_GWorkspace3D
        use gpstate_mod
        import :: ParticleBase
-       class(ParticleBase),         intent(inout) :: this
-       type   (GWorkspace), intent(inout), target :: workspace
-       type  (GPStateComp), intent   (in), target :: pstate(:)
-       character   (len=*), intent   (in)         :: infile
+       class(ParticleBase),         intent(inout)              :: this
+       type   (GWorkspace), intent(inout),              target :: workspace
+       type  (GPStateComp), intent(inout), allocatable, target :: pstate(:),pstate_cpy(:)
+       character   (len=*), intent   (in)                      :: infile
      end subroutine part_ctor_interface
 
      subroutine init_interface(this)
@@ -109,7 +109,7 @@ module particlebase_mod
        use gpstate_mod
        import :: ParticleBase
        class(ParticleBase),         intent(inout) :: this
-       class(VelocityBase),         intent   (in) :: pde
+       class(EquationBase),         intent   (in) :: pde
        real      (kind=GP),         intent   (in) :: time, dt
        type   (GStateComp), target, intent   (in) :: fluidstate(:)
        type  (GPStateComp),         intent   (in) :: pstate(:) 
@@ -121,7 +121,7 @@ module particlebase_mod
        use gpstate_mod
        import :: ParticleBase
        class(ParticleBase),         intent(inout) :: this
-       class(VelocityBase),         intent   (in) :: pde
+       class(EquationBase),         intent   (in) :: pde
        real      (kind=GP),         intent   (in) :: time
        type   (GStateComp), target, intent   (in) :: fluidstate(:)
        type  (GPStateComp),         intent   (in) :: pstate(:) 

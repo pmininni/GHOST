@@ -45,9 +45,9 @@ CONTAINS
     if (ios .eq. 0) then
       ! Clauses for each solver class
       select case (trim(adjustl(psolver)))
-!       case ('none')
-!         allocate(nullParticle :: new_object)
-!         NUMTMPPART = 0
+        case ('none')
+!          if (allocated(new_object)) deallocate(new_object)
+          NUMTMPPART = 0
         case ('lagpart')
           allocate(Gpart :: new_object)
           NUMTMPPART = 3
@@ -67,7 +67,8 @@ CONTAINS
           stop 'Unknown solver name'
       end select
     else ! Not running with particles
- !    allocate(nullParticle :: new_object)
+!      if (allocated(new_object)) deallocate(new_object)
+      NUMTMPPART = 0
     endif
   end function init_particles_from_file
 

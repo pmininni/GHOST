@@ -40,7 +40,7 @@ module lagpart_mod
 !   procedure, public :: end_step      =>      end_step_impl ! finalizes time evolution
     procedure, public :: feedback      =>      null_feedback ! feedback in the fluid
     procedure, public :: write_pstate  =>  write_pstate_impl ! write states
-!   procedure, public :: state_size    =>    state_size_impl ! state size
+    procedure, public :: state_size    =>    state_size_impl ! state size
 !   procedure, public :: sstate2istate => sstate2istate_impl ! state names
 !   procedure, public :: get_sstate    =>    get_sstate_impl ! get state name list
     procedure, public :: part_ctor     =>         GPart_ctor ! constructor
@@ -74,7 +74,7 @@ CONTAINS
     use fft
     IMPLICIT NONE
     class       (GPart),         intent(inout) :: this
-    class(VelocityBase),         intent   (in) :: pde
+    class(EquationBase),         intent   (in) :: pde
     real      (kind=GP),         intent   (in) :: time, dt
     type   (GStateComp), target, intent   (in) :: fluidstate(:)
     type  (GPStateComp),         intent   (in) :: pstate(:)
@@ -90,22 +90,27 @@ CONTAINS
     call this%workspace_%get_real_tmp   (velr,bret)
     call this%workspace_%get_real_tmp   (tmp1,bret)
     call this%workspace_%get_real_tmp   (tmp2,bret)
-    
-    ! Find F(u*):
-    do m = pde%VELOCITY, pde%VELOCITY+pde%nc_-1
-    !$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      do i = ista,iend
+
+    select type (pde)
+    class is (VelocityBase)
+      ! Find F(u*):
+      do m = pde%VELOCITY, pde%VELOCITY+pde%nc_-1
+      !$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        do i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-        do j = 1,ny
-          do k = 1,nz
-            velc(k,j,i) = fluidstate(m)%ccomp(k,j,i)*rmp
+          do j = 1,ny
+            do k = 1,nz
+              velc(k,j,i) = fluidstate(m)%ccomp(k,j,i)*rmp
+            end do
           end do
         end do
+        call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
+        call EulerToLag(this,dpdtout(m)%rcomp,this%nparts_,velr,.true.,tmp1,tmp2)
       end do
-      call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-      call EulerToLag(this,dpdtout(m)%rcomp,this%nparts_,velr,.true.,tmp1,tmp2)
-    end do
-   
+    class default
+      stop "lagpart: This solver does not support pdes without a velocity field"
+    end select
+ 
     call this%workspace_%free_complex_tmp(velc)
     call this%workspace_%free_real_tmp   (velr)
     call this%workspace_%free_real_tmp   (tmp1)
@@ -136,7 +141,7 @@ CONTAINS
     use particlebase_mod
     
     class       (GPart),         intent(inout) :: this
-    class(VelocityBase),         intent   (in) :: pde
+    class(EquationBase),         intent   (in) :: pde
     real      (kind=GP),         intent   (in) :: time
     type   (GStateComp), target, intent   (in) :: fluidstate(:)
     type  (GPStateComp),         intent   (in) :: pstate(:)
@@ -214,7 +219,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Constructor
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE GPart_ctor(this,infile, workspace, pstate)
+  SUBROUTINE GPart_ctor(this,infile, workspace, pstate, pstate_cpy)
     USE var
     USE grid
     USE boxsize
@@ -225,18 +230,19 @@ CONTAINS
     USE pstatus
     USE random
     IMPLICIT NONE
-    CLASS     (GPart), INTENT(INOUT)         :: this
-    type (GWorkspace), intent(inout), target :: workspace
-    type(GPStateComp), intent   (in), target :: pstate(:)
-    character(len=*) , intent   (in)         :: infile
+    CLASS     (GPart), intent(inout)                      :: this
+    type (GWorkspace), intent(inout),              target :: workspace
+    type(GPStateComp), intent(inout), allocatable, target :: pstate(:), pstate_cpy(:)
+    character(len=*) , intent   (in)                      :: infile
     INTEGER                             :: disp(3),lens(3),types(3),szreal
-    INTEGER                             :: tsta,tend
+    INTEGER                             :: tsta,tend,num_components
     INTEGER                             :: j,nc
     logical                             :: bret
 
     this%infile_      =  infile    ! input file
     this%workspace_   => workspace
     call pstatus_init(this%infile_)
+    this%nc_          = 3          ! fixed for now
     this%nparts_      = 0 
     this%npartsm_     = 0 
     this%nvdb_        = 0
@@ -322,10 +328,13 @@ CONTAINS
          this%tibnds_,this%intorder_,this%partbuff_,this%gpcomm_,&
          this%htimers_(GPTIME_DATAEX),this%htimers_(GPTIME_TRANSP))
 
-    ! Create part. d.b. structure type for I/O
+    ! Create part. d.b. structure type for time evolution and I/O
     CALL MPI_TYPE_SIZE(GC_REAL,szreal,this%ierr_)
     ALLOCATE(this%id_      (this%partbuff_))
     ALLOCATE(this%tmpint_  (this%partbuff_))
+    num_components = this%state_size()
+    CALL GPState_alloc(pstate    , num_components, this%partbuff_)
+    CALL GPState_alloc(pstate_cpy, num_components, this%partbuff_)
     this%px_ => pstate(this%POSITION  )%rcomp
     this%py_ => pstate(this%POSITION+1)%rcomp
     this%pz_ => pstate(this%POSITION+2)%rcomp
@@ -380,5 +389,10 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Function to compute number of state members (equations)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
+  PURE function state_size_impl(this) result(num)
+    class(GPart), intent(in)    :: this
+    integer                     :: num
+    num = this%nc_              ! # spatial coordinates
+  end function state_size_impl
+  
 end module lagpart_mod
