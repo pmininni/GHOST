@@ -90,7 +90,7 @@
       CALL io_init(myrank,(/nx,ny,nz/),ksta,kend,planio)
 
 ! Now we can initialize the PDE methods and read the particles status
-      fluid        = init_pdes_from_file     ('parameter.inp')
+      fluid        = init_pdes_from_file('parameter.inp')
       if (dopart) particle = init_particles_from_file('parameter.inp')
       CALL workspace%initialize_pool(NUMTMPREAL,NUMTMPCOMP,NUMTMPPART)
       CALL fluid%Solver_ctor('parameter.inp',workspace,planio)

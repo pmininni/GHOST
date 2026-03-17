@@ -59,7 +59,7 @@ CONTAINS
 !       allocate(UserDefinedsolver :: new_object)
 !       NUMFIELDS = 3; NUMTMPCOMP =  8; NUMTMPREAL = 3
       case default
-        stop 'Unknown solver name'
+        stop 'Equation factory :: init_pdes_from_file : Unknown solver name'
     end select
   end function init_pdes_from_file
 

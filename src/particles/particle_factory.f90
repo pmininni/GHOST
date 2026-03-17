@@ -40,13 +40,13 @@ CONTAINS
       read(1,NML=particles,iostat=ios,iomsg=iomsg)
       close(1)
     endif
-    call MPI_BCAST(psolver,64,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-
+    call MPI_BCAST(ios,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
     if (ios .eq. 0) then
+      call MPI_BCAST(psolver,64,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       ! Clauses for each solver class
       select case (trim(adjustl(psolver)))
         case ('none')
-!          if (allocated(new_object)) deallocate(new_object)
+!         if (allocated(new_object)) deallocate(new_object)
           NUMTMPPART = 0
         case ('lagpart')
           allocate(Gpart :: new_object)
@@ -64,10 +64,10 @@ CONTAINS
 !         allocate(UserDefinedparticles :: new_object)
 !         NUMTMPPART = 2
         case default
-          stop 'Unknown solver name'
+          stop 'Particle factory :: init_particles_from_file: Unknown solver name'
       end select
     else ! Not running with particles
-!      if (allocated(new_object)) deallocate(new_object)
+!     if (allocated(new_object)) deallocate(new_object)
       NUMTMPPART = 0
     endif
   end function init_particles_from_file

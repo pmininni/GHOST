@@ -56,7 +56,7 @@
       ilgwrtunit   = 0
       intorder     = 3
       lgmult       = 1
-      lgseedfile   = 'gplag.dat'
+      lgseedfile   = 'user_seed_file.dat'
       ilgcoll      = 1
       ilgfpfiletype= 0
       slgfpfile    = 'xlgInitRndSeed.000.txt'
@@ -65,6 +65,7 @@
          READ(1,NML=pstatus,iostat=ios,iomsg=iomsg)
          CLOSE(1)
       ENDIF
+      call MPI_BCAST(ios,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
       if (ios .eq. 0) then
         dopart = .true.
         CALL MPI_BCAST(maxparts     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
