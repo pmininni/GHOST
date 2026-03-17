@@ -860,46 +860,46 @@ MODULE class_GPSplineInt
 !$  INTEGER(c_int)                             :: rc
 
     IF ( ASSOCIATED (this%esplfld_  ) ) THEN
-          DEALLOCATE (this%esplfld_)
+          NULLIFY (this%esplfld_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptresplfld,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%esplfld_),targetdev)
 #endif
     ENDIF
-    IF ( ASSOCIATED (this%esplfld2_ ) ) DEALLOCATE(this%esplfld2_)
+    IF ( ASSOCIATED (this%esplfld2_ ) ) NULLIFY(this%esplfld2_)
 
     IF ( ASSOCIATED    (this%ax_   ) ) THEN
-          DEALLOCATE      (this%ax_)
+          NULLIFY      (this%ax_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptrax,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%ax_),targetdev)
 #endif
     ENDIF
-    IF ( ASSOCIATED    (this%bx_   ) ) DEALLOCATE      (this%bx_)
-    IF ( ASSOCIATED    (this%cx_   ) ) DEALLOCATE      (this%cx_)
+    IF ( ASSOCIATED    (this%bx_   ) ) NULLIFY      (this%bx_)
+    IF ( ASSOCIATED    (this%cx_   ) ) NULLIFY      (this%cx_)
     IF ( ASSOCIATED    (this%px_   ) ) THEN
-          DEALLOCATE      (this%px_)
+          NULLIFY      (this%px_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptrpx,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%px_),targetdev)
 #endif
     ENDIF
     IF ( ASSOCIATED    (this%gamx_ ) ) THEN
-          DEALLOCATE    (this%gamx_)
+          NULLIFY      (this%gamx_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptrgamx,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%gamx_),targetdev)
 #endif
     ENDIF
     IF ( ASSOCIATED    (this%betx_ ) ) THEN
-          DEALLOCATE    (this%betx_)
+          NULLIFY      (this%betx_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptrbetx,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%betx_),targetdev)
 #endif
     ENDIF
     IF ( ASSOCIATED    (this%xxx_  ) ) THEN
-          DEALLOCATE     (this%xxx_)
+          NULLIFY      (this%xxx_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptrxxx,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%xxx_),targetdev)
@@ -907,37 +907,37 @@ MODULE class_GPSplineInt
     ENDIF
 
     IF ( ASSOCIATED    (this%ay_   ) ) THEN
-          DEALLOCATE      (this%ay_)
+          NULLIFY      (this%ay_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptray,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%ay_),targetdev)
 #endif
     ENDIF
-    IF ( ASSOCIATED    (this%by_   ) ) DEALLOCATE      (this%by_)
-    IF ( ASSOCIATED    (this%cy_   ) ) DEALLOCATE      (this%cy_)
+    IF ( ASSOCIATED    (this%by_   ) ) NULLIFY      (this%by_)
+    IF ( ASSOCIATED    (this%cy_   ) ) NULLIFY      (this%cy_)
     IF ( ASSOCIATED    (this%py_   ) ) THEN
-          DEALLOCATE      (this%py_)
+          NULLIFY      (this%py_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptrpy,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%py_),targetdev)
 #endif
     ENDIF
     IF ( ASSOCIATED    (this%gamy_ ) ) THEN
-          DEALLOCATE    (this%gamy_)
+          NULLIFY      (this%gamy_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptrgamy,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%gamy_),targetdev)
 #endif
     ENDIF
     IF ( ASSOCIATED    (this%bety_ ) ) THEN
-          DEALLOCATE    (this%bety_)
+          NULLIFY      (this%bety_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptrbety,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%bety_),targetdev)
 #endif
     ENDIF
     IF ( ASSOCIATED    (this%xxy_  ) ) THEN
-          DEALLOCATE     (this%xxy_)
+          NULLIFY      (this%xxy_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptrxxy,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%xxy_),targetdev)
@@ -945,37 +945,37 @@ MODULE class_GPSplineInt
     ENDIF
 
     IF ( ASSOCIATED    (this%az_   ) ) THEN
-          DEALLOCATE      (this%az_)
+          NULLIFY      (this%az_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptraz,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%az_),targetdev)
 #endif
     ENDIF
-    IF ( ASSOCIATED    (this%bz_   ) ) DEALLOCATE      (this%bz_)
-    IF ( ASSOCIATED    (this%cz_   ) ) DEALLOCATE      (this%cz_)
+    IF ( ASSOCIATED    (this%bz_   ) ) NULLIFY      (this%bz_)
+    IF ( ASSOCIATED    (this%cz_   ) ) NULLIFY      (this%cz_)
     IF ( ASSOCIATED    (this%pz_   ) ) THEN
-          DEALLOCATE      (this%pz_)
+          NULLIFY      (this%pz_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptrpz,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%pz_),targetdev)
 #endif
     ENDIF
     IF ( ASSOCIATED    (this%gamz_ ) ) THEN 
-          DEALLOCATE    (this%gamz_)
+          NULLIFY      (this%gamz_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptrgamz,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%gamz_),targetdev)
 #endif
     ENDIF
     IF ( ASSOCIATED    (this%betz_ ) ) THEN 
-          DEALLOCATE    (this%betz_)
+          NULLIFY      (this%betz_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptrbetz,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%betz_),targetdev)
 #endif
     ENDIF
     IF ( ASSOCIATED    (this%xxz_  ) ) THEN
-          DEALLOCATE     (this%xxz_)
+          NULLIFY      (this%xxz_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptrxxz,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%xxz_),targetdev)
@@ -983,49 +983,49 @@ MODULE class_GPSplineInt
     ENDIF
 
     IF ( ASSOCIATED      (this%wrkl_) ) THEN
-          DEALLOCATE    (this%wrkl_)
+          NULLIFY        (this%wrkl_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptrwrkl,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%wrkl_),targetdev)
 #endif
     ENDIF
     IF ( ASSOCIATED       (this%ilg_) ) THEN
-          DEALLOCATE     (this%ilg_)
+          NULLIFY         (this%ilg_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptrilg,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%ilg_),targetdev)
 #endif
     ENDIF
     IF ( ASSOCIATED       (this%jlg_) ) THEN
-          DEALLOCATE     (this%jlg_)
+          NULLIFY         (this%jlg_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptrjlg,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%jlg_),targetdev)
 #endif
     ENDIF
     IF ( ASSOCIATED       (this%klg_) ) THEN
-          DEALLOCATE     (this%klg_)
+          NULLIFY         (this%klg_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptrklg,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%klg_),targetdev)
 #endif
     ENDIF
     IF ( ASSOCIATED       (this%xrk_) ) THEN
-          DEALLOCATE     (this%xrk_)
+          NULLIFY         (this%xrk_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptrxrk,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%xrk_),targetdev)
 #endif
     ENDIF
     IF ( ASSOCIATED       (this%yrk_) ) THEN
-            DEALLOCATE     (this%yrk_)
+            NULLIFY       (this%yrk_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptryrk,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%yrk_),targetdev)
 #endif
     ENDIF
     IF ( ASSOCIATED       (this%zrk_) ) THEN
-          DEALLOCATE     (this%zrk_)
+          NULLIFY         (this%zrk_)
 #if defined(DO_HYBRIDoffl)
 !$        call omp_target_free(this%dptrzrk,targetdev)
 !$        rc = omp_target_disassociate_ptr(C_LOC(this%zrk_),targetdev)
