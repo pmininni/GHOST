@@ -45,9 +45,9 @@ CONTAINS
       call MPI_BCAST(psolver,64,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       ! Clauses for each solver class
       select case (trim(adjustl(psolver)))
-        case ('none')
+!       case ('none')
 !         if (allocated(new_object)) deallocate(new_object)
-          NUMTMPPART = 0
+!         NUMTMPPART = 0
         case ('lagpart')
           allocate(Gpart :: new_object)
           NUMTMPPART = 3

@@ -67,8 +67,8 @@ module particlebase_mod
       INTEGER                             :: comm_
       INTEGER      , ALLOCATABLE, DIMENSION  (:) :: id_,idm_,tmpint_
       REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:) :: vdb_,ptmp0_
-      REAL(KIND=GP), pointer, DIMENSION      (:) :: px_ ,py_ ,pz_
-      REAL(KIND=GP), pointer, DIMENSION      (:) :: lvx_,lvy_,lvz_
+      REAL(KIND=GP), pointer    , DIMENSION  (:) :: px_ ,py_ ,pz_
+      REAL(KIND=GP), pointer    , DIMENSION  (:) :: lvx_,lvy_,lvz_
       REAL(KIND=GP)                       :: lxbnds_(3,2),gext_(3)
       REAL(KIND=GP)                       :: delta_(3),invdel_(3)
       CHARACTER(len=1024)                 :: seedfile_,sfile_

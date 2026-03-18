@@ -32,8 +32,8 @@ module lagpart_mod
   ! Define class:
   type, extends(VelocParticleBase) :: GPart 
     ! Member data:
-    logical           :: binit_=.false. ! is initialized?
-    type  (NHTraits)  :: traits_
+    logical           :: binit_ = .false. ! is initialized?
+!   type  (NHTraits)  :: traits_
   CONTAINS
     procedure, public :: init          =>          init_impl ! init method
     procedure, public :: dpdt          =>          dpdt_impl ! part RHS method
@@ -59,6 +59,7 @@ CONTAINS
   subroutine init_impl(this)
     use commtypes
     class  (GPart), intent (inout) :: this
+    this%POSITION = 1                        ! start of position sector
   end subroutine init_impl
   
   ! ===================================================================
@@ -322,6 +323,9 @@ CONTAINS
       this%gext_ (j) = real(this%nd_(j),kind=GP)
     ENDDO
 
+    ! Call init
+    call this%init()
+
     ! Instantiate interp operation. Remember that a valid timer 
     ! handle must be passed:
     CALL this%intop_%GPSplineInt_ctor(3,this%nd_,this%libnds_,this%lxbnds_, &
@@ -338,6 +342,7 @@ CONTAINS
     this%px_ => pstate(this%POSITION  )%rcomp
     this%py_ => pstate(this%POSITION+1)%rcomp
     this%pz_ => pstate(this%POSITION+2)%rcomp
+    call this%workspace_%set_nparts(this%partbuff_)
     call this%workspace_%get_pcomp_tmp(this%lvx_,bret)    
     call this%workspace_%get_pcomp_tmp(this%lvy_,bret)    
     call this%workspace_%get_pcomp_tmp(this%lvz_,bret)    
@@ -345,7 +350,6 @@ CONTAINS
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
       ALLOCATE(this%vdb_ (3,this%partbuff_))
     ENDIF
-    call this%init()
   END SUBROUTINE GPart_ctor
 
   
@@ -356,26 +360,21 @@ CONTAINS
     IMPLICIT NONE
     TYPE(GPart)   ,INTENT(INOUT) :: this
     integer                      :: j
-    IF ( ALLOCATED    (this%id_)   ) DEALLOCATE    (this%id_)
-    IF ( ALLOCATED(this%tmpint_)   ) DEALLOCATE(this%tmpint_)
-    IF ( ALLOCATED   (this%idm_)   ) DEALLOCATE   (this%idm_)
-    IF ( ALLOCATED (this%ptmp0_)   ) DEALLOCATE (this%ptmp0_)
-    IF ( ALLOCATED   (this%vdb_)   ) DEALLOCATE   (this%vdb_)
-    IF ( ALLOCATED   (this%ptmp0_) ) DEALLOCATE   (this%vdb_)
-    IF ( ASSOCIATED   (this%px_)   ) NULLIFY       (this%px_)
-    IF ( ASSOCIATED   (this%py_)   ) NULLIFY       (this%py_)
-    IF ( ASSOCIATED   (this%pz_)   ) NULLIFY       (this%pz_)
-    ! Free workspace pointers
-    call this%workspace_%free_pcomp_tmp(this%lvx_)
-    call this%workspace_%free_pcomp_tmp(this%lvy_)
-    call this%workspace_%free_pcomp_tmp(this%lvz_)
+    IF ( ALLOCATED    (this%id_) ) DEALLOCATE    (this%id_)
+    IF ( ALLOCATED(this%tmpint_) ) DEALLOCATE(this%tmpint_)
+    IF ( ALLOCATED   (this%idm_) ) DEALLOCATE   (this%idm_)
+    IF ( ALLOCATED   (this%vdb_) ) DEALLOCATE   (this%vdb_)
+    IF ( ALLOCATED (this%ptmp0_) ) DEALLOCATE (this%ptmp0_)
+    IF ( ASSOCIATED   (this%px_) ) NULLIFY       (this%px_)
+    IF ( ASSOCIATED   (this%py_) ) NULLIFY       (this%py_)
+    IF ( ASSOCIATED   (this%pz_) ) NULLIFY       (this%pz_)
     ! Destroy timers:
     DO j = 1, GPMAXTIMERS
       CALL GTFree(this%htimers_(j))
     ENDDO
   END SUBROUTINE GPart_dtor
 
-  
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Convert input state name to index in state vector
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
