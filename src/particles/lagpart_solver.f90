@@ -33,7 +33,7 @@ module lagpart_mod
   type, extends(VelocParticleBase) :: GPart 
     ! Member data:
     logical           :: binit_ = .false. ! is initialized?
-!   type  (NHTraits)  :: traits_
+    type  (NHTraits)  :: traits_
   CONTAINS
     procedure, public :: init          =>          init_impl ! init method
     procedure, public :: dpdt          =>          dpdt_impl ! part RHS method
