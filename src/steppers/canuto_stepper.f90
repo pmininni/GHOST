@@ -108,13 +108,14 @@ contains
     integer                             :: i,j,k,o,state_size,ic
     logical                             :: bret
        
-    if ( size(uin)  .ne. this%traits_%nstate &
+    if ( size (uin) .ne. this%traits_%nstate &
      .or.size(uout) .ne. this%traits_%nstate  ) then
       stop 'CanutoStepper::step: Inconsistent input state'
     endif
 
     do o = this%traits_%norder,1,-1
       eff_dt = dt/real(o,kind=GP)
+      ! We assume that at input, uout has a copy of uin
       call this%solver_%dudt(time, uout, uf, eff_dt, uout)
       do ic = 1,this%traits_%nstate
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -149,45 +150,45 @@ contains
     integer                             :: i,j,k,o,state_size,ic,ip,nparts
     logical                             :: bret
        
-    if ( size(uin) .ne. this%traits_%nstate &
+    if ( size (uin) .ne. this%traits_%nstate &
      .or.size(uout) .ne. this%traits_%nstate  ) then
       stop 'CanutoStepper::step: Inconsistent input state'
     endif
+    nparts = size(upin(1)%rcomp)
     
-!!$    if ( .not. associated(this%pcallback_) ) then
-!!$      stop 'CanutoStepper::step: RHS pcallback function not set'
-!!$    endif
-!!$
-!!$    nparts = size(upin(1)%rcomp)
-!!$
-!!$    do o = this%traits_%norder,1,-1
-!!$
-!!$      eff_dt = dt/real(o,kind=GP)
-!!$      call this%pcallback_(time, uout, upin, uf, eff_dt, uout, upout)
-!!$
-!!$      ! Update fields:
-!!$      do ic = 1,this%traits_%nstate  ! for each state comp
-!!$!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-!!$        do i = ista,iend
-!!$!$omp parallel do if (iend-ista.lt.nth) private (k)
-!!$          do j = 1,ny
-!!$            do k = 1,nz
-!!$              uout(ic)%ccomp(k,j,i) = uin(ic)%ccomp(k,j,i) + &
-!!$                              eff_dt*uout(ic)%ccomp(k,j,i)
-!!$            end do
-!!$          end do
-!!$        end do
-!!$      end do
-!!$
-!!$      ! Update particles:
-!!$      do ip = 1,this%traits_%npstate ! for each state comp
-!!$        do k = 1, nparts
-!!$          upout(ip)%rcomp(k) = upin(ip)%rcomp(k) + &
-!!$                               eff_dt*upout(ip)%rcomp(k)
-!!$        enddo
-!!$      end do
-!!$
-!!$    end do ! end, o-loop
+    do o = this%traits_%norder,1,-1
+      eff_dt = dt/real(o,kind=GP)
+      ! We assume that at input, uout has a copy of uin
+      call this%solver_%dudt (time, uout, uf, eff_dt, uout)
+!     if ( this%psolver_%hasfeedback_ ) then
+!       call this%psolver_%feedback(upin,force)
+!       uout = uout + force
+!     endif
+      ! Update fields:
+      do ic = 1,this%traits_%nstate  ! for each state comp
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        do i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          do j = 1,ny
+            do k = 1,nz
+              uout(ic)%ccomp(k,j,i) = uin(ic)%ccomp(k,j,i) + &
+                              eff_dt*uout(ic)%ccomp(k,j,i)
+            end do
+          end do
+        end do
+      end do
+      ! We assume that at input, upout has a copy of upin
+      call this%psolver_%dpdt(time, this%solver_, uout, upout, eff_dt, upout)
+      ! Update particles:
+      do ip = 1,this%traits_%npstate ! for each state comp
+        do k = 1, nparts
+          upout(ip)%rcomp(k) = upin(ip)%rcomp(k) + &
+                       eff_dt*upout(ip)%rcomp(k)
+        enddo
+      end do
+!     CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3)
+!     CALL GPart_EndStageRKK(this,vx,vy,vz,xk,tmp1,tmp2)
+   end do ! end, o-loop
   end subroutine pstep_impl
 
 end module canuto_stepper_mod
