@@ -144,6 +144,7 @@ contains
 
     class(CanutoStepper), intent   (in) :: this
     type    (GStateComp), intent(inout) :: uin (:), uf(:), uout(:)
+    type    (GStateComp), allocatable   :: fdbk(:)
     type   (GPStateComp), intent(inout) :: upin(:), upout(:)
     real       (kind=GP), intent   (in) :: time, dt
     real       (kind=GP)                :: eff_dt
@@ -155,15 +156,20 @@ contains
       stop 'CanutoStepper::step: Inconsistent input state'
     endif
     nparts = size(upin(1)%rcomp)
-    
+    if ( this%psolver_%hasfeedback_ ) then
+      call GState_alloc(fdbk, this%traits_%nstate)
+    endif
+   
     do o = this%traits_%norder,1,-1
       eff_dt = dt/real(o,kind=GP)
       ! We assume that at input, uout has a copy of uin
       call this%solver_%dudt (time, uout, uf, eff_dt, uout)
-!     if ( this%psolver_%hasfeedback_ ) then
-!       call this%psolver_%feedback(upin,force)
-!       uout = uout + force
-!     endif
+      if ( this%psolver_%hasfeedback_ ) then
+        call this%psolver_%feedback(upin,fdbk)
+        do ic = 1,this%traits_%nstate
+          uout(ic)%ccomp = uout(ic)%ccomp + fdbk(ic)%ccomp
+        end do
+      endif
       ! Update fields:
       do ic = 1,this%traits_%nstate  ! for each state comp
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -186,9 +192,10 @@ contains
                        eff_dt*upout(ip)%rcomp(k)
         enddo
       end do
-!     CALL GPart_MakePeriodicP(this,this%px_,this%py_,this%pz_,this%nparts_,3)
-!     CALL GPart_EndStageRKK(this,vx,vy,vz,xk,tmp1,tmp2)
-   end do ! end, o-loop
+      ! Synch particles
+      call this%psolver_%end_stage(upin,upout)
+    end do ! end, o-loop
+    if ( this%psolver_%hasfeedback_ ) call GState_dealloc(fdbk)
   end subroutine pstep_impl
 
 end module canuto_stepper_mod

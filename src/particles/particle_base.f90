@@ -66,27 +66,27 @@ module particlebase_mod
       INTEGER                             :: partbuff_,partchunksize_,stepcounter_
       INTEGER                             :: comm_
       INTEGER      , ALLOCATABLE, DIMENSION  (:) :: id_,idm_,tmpint_
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:) :: vdb_,ptmp0_
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:) :: vdb_,ptmp0_,gptmp0_
       REAL(KIND=GP), pointer    , DIMENSION  (:) :: px_ ,py_ ,pz_
       REAL(KIND=GP), pointer    , DIMENSION  (:) :: lvx_,lvy_,lvz_
       REAL(KIND=GP)                       :: lxbnds_(3,2),gext_(3)
       REAL(KIND=GP)                       :: delta_(3),invdel_(3)
       CHARACTER(len=1024)                 :: seedfile_,sfile_
       CHARACTER(len=MPI_MAX_ERROR_STRING) :: serr_
+      logical                             :: hasfeedback_ ! Has feedback on fluid
     contains
       procedure(part_ctor_interface) , deferred :: part_ctor
       procedure(init_interface)      , deferred :: init
       procedure(dpdt_interface)      , deferred :: dpdt
+      procedure(end_stage_interface) , deferred :: end_stage
+      procedure(feedback_interface)  , deferred :: feedback
       procedure(write_interface),      deferred :: write_pstate
       procedure(state_size_interface), deferred :: state_size  ! Number of states
   end type ParticleBase
 
   type, abstract, extends(ParticleBase)      :: VelocParticleBase
-      integer :: VELOCITY    ! start of velocity sector
+      integer                             :: VELOCITY  ! start of velocity sector
   end type VelocParticleBase
-   
-  type, abstract, extends(VelocParticleBase) :: ChargedParticleBase
-  end type ChargedParticleBase
 
   abstract interface
      subroutine part_ctor_interface(this,infile, workspace, pstate, pstate_cpy)
@@ -116,6 +116,23 @@ module particlebase_mod
        type  (GPStateComp),         intent(inout) :: dpdtout(:) 
      end subroutine dpdt_interface
 
+     subroutine end_stage_interface(this, upin, upout)
+       use gpstate_mod
+       import :: ParticleBase
+       class(ParticleBase), intent(inout)         :: this
+       type  (GPStateComp), intent(inout)         :: upin (:)
+       type  (GPStateComp), intent(inout)         :: upout(:)
+     end subroutine end_stage_interface
+     
+     subroutine feedback_interface(this, pstate, feedback)
+       use gstate_mod
+       use gpstate_mod
+       import :: ParticleBase
+       class(ParticleBase), intent   (in)         :: this
+       type  (GPStateComp), intent   (in)         :: pstate(:)
+       type   (GStateComp), intent(inout)         :: feedback(:)
+     end subroutine feedback_interface
+     
      subroutine write_interface(this, time, pde, fluidstate, pstate)
        use equationbase_mod
        use gpstate_mod

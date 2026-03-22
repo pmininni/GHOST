@@ -37,7 +37,7 @@ module lagpart_mod
   CONTAINS
     procedure, public :: init          =>          init_impl ! init method
     procedure, public :: dpdt          =>          dpdt_impl ! part RHS method
-!   procedure, public :: end_step      =>      end_step_impl ! finalizes time evolution
+    procedure, public :: end_stage     =>     end_stage_impl ! finalizes time evolution
     procedure, public :: feedback      =>      null_feedback ! feedback in the fluid
     procedure, public :: write_pstate  =>  write_pstate_impl ! write states
     procedure, public :: state_size    =>    state_size_impl ! state size
@@ -119,16 +119,196 @@ CONTAINS
     CALL GTAcc(this%htimers_(GPTIME_STEP))    
   END SUBROUTINE dpdt_impl
 
-    
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Functions to compute fluid and particle couplings
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine null_feedback(this, pstate, feedback)
     class     (GPart), intent   (in) :: this
-    type(GPStateComp), intent   (in) :: pstate
-    type (GStateComp), intent(inout) :: feedback
+    type(GPStateComp), intent   (in) :: pstate(:)
+    type (GStateComp), intent(inout) :: feedback(:)
     return
   end subroutine null_feedback
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Functions to synch particles after doing a time step
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine end_stage_impl(this, upin, upout)
+    use gpstate_mod
+    implicit none
+    class     (GPart), intent(inout) :: this
+    type(GPStateComp), intent(inout) :: upin (:)  ! state at t0
+    type(GPStateComp), intent(inout) :: upout(:)  ! state after sub-stage
+    integer :: j, ng
+    ! ------------------------------------------------------------------
+    ! Convenience aliases – keep notation close to the legacy code
+    ! ------------------------------------------------------------------
+    ! upout(POSITION  )%rcomp  <==>  this%px_   (updated x-positions)
+    ! upout(POSITION+1)%rcomp  <==>  this%py_
+    ! upout(POSITION+2)%rcomp  <==>  this%pz_
+    ! upin (POSITION  )%rcomp  <==>  this%ptmp0_(1,:)  (x at t^n)
+    ! upin (POSITION+1)%rcomp  <==>  this%ptmp0_(2,:)
+    ! upin (POSITION+2)%rcomp  <==>  this%ptmp0_(3,:)
+    ! ------------------------------------------------------------------
+    ! ==================================================================
+    ! Branch 1: Nearest-neighbour (NN) exchange
+    ! ==================================================================
+!!$    if (this%iexchtype_ .EQ. GPEXCHTYPE_NN) then
+!!$      ! --- Identify particles that have left the local slab in z ------
+!!$      CALL GTStart(this%htimers_(GPTIME_COMM))
+!!$      CALL this%gpcomm_%IdentifyExchV(                        &
+!!$               this%id_,                                      &
+!!$               upout(this%POSITION+2)%rcomp,                           &
+!!$               this%nparts_, ng,                              &
+!!$               this%lxbnds_(3,1),                             &
+!!$               this%lxbnds_(3,2))
+!!$      ! --- Resize internal buffers if the exchange set is too large ---
+!!$      if (ng .GT. this%partbuff_) then
+!!$        if (this%myrank_ .EQ. 0) then
+!!$          WRITE(*,'(A,I0,A,I0,A,I0,A,I0)') &
+!!$            'EndStage: Rank ', this%myrank_,              &
+!!$            ' resizing: nparts=', ng,                              &
+!!$            ' | partbuff=', this%partbuff_,               &
+!!$            ' --> ', this%partbuff_ +                     &
+!!$              (1 + (ng - this%partbuff_) /                &
+!!$               this%partchunksize_) *                     &
+!!$               this%partchunksize_
+!!$        end if
+!!$        this%partbuff_ = this%partbuff_ +            &
+!!$              (1 + (ng - this%partbuff_) /                    &
+!!$               this%partchunksize_) *                         &
+!!$               this%partchunksize_
+!!$        CALL this%ResizeArrays(this%partbuff_, .true.)
+!!$        ! NOTE: after ResizeArrays the %rcomp pointers inside upin/upout
+!!$        ! may need to be re-associated if they are pointer-aliased to the
+!!$        ! internal arrays. The recommended design is that upin/upout are
+!!$        ! *independent* copies so no re-association is needed here.
+!!$      end if
+!!$      ! --- Exchange current positions (upout) across MPI tasks --------
+!!$      !     GPEXCH_INIT sends the data; the matching GPEXCH_END call
+!!$      !     (below, using upin positions) receives the incoming data.
+!!$      CALL this%gpcomm_%PartExchangeV(                        &
+!!$               this%id_,                                      &
+!!$               upout(this%POSITION  )%rcomp,                           &
+!!$               upout(this%POSITION+1)%rcomp,                           &
+!!$               upout(this%POSITION+2)%rcomp,                           &
+!!$               this%nparts_,                                  &
+!!$               this%lxbnds_(3,1),                             &
+!!$               this%lxbnds_(3,2), GPEXCH_INIT)
+!!$      ! --- Exchange the t^n positions (upin) -- mirrors old ptmp0_ ----
+!!$      CALL this%gpcomm_%PartExchangeV(                        &
+!!$               this%id_,                                      &
+!!$               upin(this%POSITION  )%rcomp,                            &
+!!$               upin(this%POSITION+1)%rcomp,                            &
+!!$               upin(this%POSITION+2)%rcomp,                            &
+!!$               this%nparts_,                                  &
+!!$               this%lxbnds_(3,1),                             &
+!!$               this%lxbnds_(3,2), GPEXCH_END)
+!!$      CALL GTAcc(this%htimers_(GPTIME_COMM))
+!!$ 
+!!$      ! --- x-y periodicity already enforced by caller; enforce z ------
+!!$      ! MakePeriodicZ wraps pz (upout) and the saved z at t^n (upin):
+!!$      CALL MakePeriodicZ(this,                                &
+!!$                         upout(this%POSITION+2)%rcomp,                 &
+!!$                         upin (this%POSITION+2)%rcomp,                 &
+!!$                         this%nparts_)
+!!$      ! --- Periodic buffer shrink (swipe) -----------------------------
+!!$      if (this%stepcounter_ .GE. GPSWIPERATE) then
+!!$        if ((this%bcollective_ .EQ. 1) .OR.                  &
+!!$            (this%myrank_ .NE. 0)) then
+!!$          ng = this%partbuff_ - this%nparts_
+!!$          if (ng .GE. this%partchunksize_) then
+!!$            if (this%myrank_ .EQ. 0) then
+!!$              WRITE(*,'(A,I0,A,I0,A,I0,A,I0)') &
+!!$                'EndStage: Rank ', this%myrank_,          &
+!!$                ' resizing: nparts=', this%nparts_,       &
+!!$                ' | partbuff=', this%partbuff_,           &
+!!$                ' --> ', this%partbuff_ -                 &
+!!$                  (ng / this%partchunksize_ - 1) *        &
+!!$                   this%partchunksize_
+!!$            end if
+!!$            this%partbuff_ = this%partbuff_ -        &
+!!$                (ng / this%partchunksize_ - 1) *              &
+!!$                 this%partchunksize_
+!!$            CALL this%ResizeArrays(this%partbuff_, .false.)
+!!$          end if
+!!$        end if
+!!$        this%stepcounter_ = 1
+!!$      else
+!!$        this%stepcounter_ = this%stepcounter_ + 1
+!!$      end if
+!!$    end if  ! GPEXCHTYPE_NN
+    ! ==================================================================
+    ! Branch 2: Virtual-Database (VDB) exchange
+    ! ==================================================================
+    if (this%iexchtype_ .EQ. GPEXCHTYPE_VDB) then
+      ! x-y-z periodicity on updated positions (caller already did x-y,
+      ! but VDB path requires all three to be clean before the global sync):
+      CALL MakePeriodicP(this,                                &
+                         upout(this%POSITION  )%rcomp,        &
+                         upout(this%POSITION+1)%rcomp,        &
+                         upout(this%POSITION+2)%rcomp,        &
+                         this%nparts_, 7)   ! 7 == x+y+z mask
+      ! Consistency check:
+      if (.NOT. PartNumConsistent(this, this%nparts_)) then
+        if (this%myrank_ .EQ. 0) then
+          WRITE(*,*) 'EndStage_impl (VDB): inconsistent particle count'
+          print *,this%nparts_,this%maxparts_
+        end if
+      end if
+      ! --- Sync global VDB for both current and t^n positions ---------
+      CALL GTStart(this%htimers_(GPTIME_COMM))
+      CALL this%gpcomm_%VDBSynch(                             &
+               this%vdb_,                                     &
+               this%maxparts_,                                &
+               this%id_,                                      &
+               upout(this%POSITION  )%rcomp,                           &
+               upout(this%POSITION+1)%rcomp,                           &
+               upout(this%POSITION+2)%rcomp,                           &
+               this%nparts_,                                  &
+               this%ptmp0_)
+      CALL this%gpcomm_%VDBSynch(                             &
+               this%gptmp0_,                                  &
+               this%maxparts_,                                &
+               this%id_,                                      &
+               upin(this%POSITION  )%rcomp,                            &
+               upin(this%POSITION+1)%rcomp,                            &
+               upin(this%POSITION+2)%rcomp,                            &
+               this%nparts_,                                  &
+               this%ptmp0_)
+      CALL GTAcc(this%htimers_(GPTIME_COMM))
+      ! --- Redistribute local work from the updated VDB ----------------
+      ! GetLocalWrk_aux also synchronises auxiliary RK arrays (xk1_ etc.)
+      ! and must be called when EndStage is invoked mid-step.
+      CALL GetLocalWrk_aux(this,                              &
+               this%id_,                                      &
+               upout(this%POSITION  )%rcomp,                           &
+               upout(this%POSITION+1)%rcomp,                           &
+               upout(this%POSITION+2)%rcomp,                           &
+               upin (this%POSITION  )%rcomp,                           &
+               upin (this%POSITION+1)%rcomp,                           &
+               upin (this%POSITION+2)%rcomp,                           &
+               this%nparts_,                                  &
+               this%vdb_,                                     &
+               this%gptmp0_,                                  &
+               this%maxparts_)
+      ! Global particle-count sanity check:
+      CALL MPI_ALLREDUCE(this%nparts_, ng, 1, MPI_INTEGER,    &
+                         MPI_SUM, this%comm_, this%ierr_)
+      if (this%myrank_ .EQ. 0 .AND.                          &
+          ng .NE. this%maxparts_) then
+        WRITE(*,*) 'EndStage_impl (VDB): inconsistent d.b.: expected: ', &
+                   this%maxparts_, '; found: ', ng
+        CALL ascii_write_lag(this, 1, '.', 'xlgerr',   &
+                                   '000', 0.0_GP,                      &
+                                   this%maxparts_,            &
+                                   this%vdb_)
+        STOP
+      end if
+    end if  ! GPEXCHTYPE_VDB
+  end subroutine end_stage_impl  
+
   
   ! ===================================================================
   ! Output methods 
@@ -243,6 +423,7 @@ CONTAINS
     this%infile_      =  infile    ! input file
     this%workspace_   => workspace
     call pstatus_init(this%infile_)
+    this%hasfeedback_ = .false.    ! No feedback on fluid
     this%nc_          = 3          ! fixed for now
     this%nparts_      = 0 
     this%npartsm_     = 0 
@@ -345,10 +526,11 @@ CONTAINS
     call this%workspace_%set_nparts(this%partbuff_)
     call this%workspace_%get_pcomp_tmp(this%lvx_,bret)    
     call this%workspace_%get_pcomp_tmp(this%lvy_,bret)    
-    call this%workspace_%get_pcomp_tmp(this%lvz_,bret)    
+    call this%workspace_%get_pcomp_tmp(this%lvz_,bret)
     ALLOCATE(this%ptmp0_ (3,this%partbuff_))
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
-      ALLOCATE(this%vdb_ (3,this%partbuff_))
+      ALLOCATE(this%vdb_   (3,this%partbuff_))
+      ALLOCATE(this%gptmp0_(3,this%partbuff_))
     ENDIF
   END SUBROUTINE GPart_ctor
 

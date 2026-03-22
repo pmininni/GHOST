@@ -171,10 +171,8 @@ MODULE class_GPartComm
     this%btransinit_ = .FALSE.
 
     IF ( this%intrfc_ .GE. 1 ) THEN
-!      this%nbuff_  = MAX(maxparts*4,3*nd(1)*nd(2)*nzghost+nzghost+1) + 1
       this%nbuff_  = 3*nd(1)*nd(2)*nzghost+nzghost+2
     ELSE
-!      this%nbuff_  = MAX(maxparts*4,  nd(1)*nd(2)*nzghost+nzghost+1) + 1
       this%nbuff_  =   nd(1)*nd(2)*nzghost+nzghost+2
     ENDIF
 
@@ -315,7 +313,6 @@ MODULE class_GPartComm
     IF ( ALLOCATED  (this%rtbuffp_) ) DEALLOCATE (this%rtbuffp_)
     IF ( ALLOCATED     (this%itop_) ) DEALLOCATE    (this%itop_)
     IF ( ALLOCATED     (this%ibot_) ) DEALLOCATE    (this%ibot_)
-
     IF ( ALLOCATED   (this%ibrcvp_) ) DEALLOCATE  (this%ibrcvp_)
     IF ( ALLOCATED   (this%ibsndp_) ) DEALLOCATE  (this%ibsndp_)
     IF ( ALLOCATED   (this%itrcvp_) ) DEALLOCATE  (this%itrcvp_)
@@ -341,7 +338,6 @@ MODULE class_GPartComm
     IF ( ALLOCATED  (this%itrcvnz_) ) DEALLOCATE (this%itrcvnz_)
     IF ( ALLOCATED  (this%ibsndnz_) ) DEALLOCATE (this%ibsndnz_)
     IF ( ALLOCATED  (this%itsndnz_) ) DEALLOCATE (this%itsndnz_)
-
     IF ( ALLOCATED  (this%oldid_)   ) DEALLOCATE   (this%oldid_)
     IF ( ALLOCATED (this%ibretp_  ) ) DEALLOCATE (this%ibretp_  )
     IF ( ALLOCATED (this%itretp_  ) ) DEALLOCATE (this%itretp_  )
@@ -394,11 +390,9 @@ MODULE class_GPartComm
     ALLOCATE(this%stbuffp_(this%maxparts_))
     ALLOCATE(this%rbbuffp_(this%maxparts_))
     ALLOCATE(this%rtbuffp_(this%maxparts_))
-
     ALLOCATE(this%ibot_(this%maxparts_))
     ALLOCATE(this%itop_(this%maxparts_))
     ALLOCATE(this%oldid_(this%maxparts_))
-
     ALLOCATE(this%ibrcvp_(nt))
     ALLOCATE(this%ibsndp_(nt))
     ALLOCATE(this%itrcvp_(nt))
@@ -595,7 +589,6 @@ MODULE class_GPartComm
     ENDIF
 
     DEALLOCATE(jfwd,kfend,kfsta,nzF)
-   
     CALL GPartComm_InitMPITypes()
 
   END SUBROUTINE GPartComm_Init
@@ -687,12 +680,10 @@ MODULE class_GPartComm
           vxext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy) = vx(i+(j-1)*nx+(k-1)*nxy)
           vyext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy) = vy(i+(j-1)*nx+(k-1)*nxy)
           vzext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy) = vz(i+(j-1)*nx+(k-1)*nxy)
-
           ! set bottom bcs:
           vxext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy) = vx(i+(j-1)*nx+(nz-ngz+k-1)*nxy)
           vyext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy) = vy(i+(j-1)*nx+(nz-ngz+k-1)*nxy)
           vzext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy) = vz(i+(j-1)*nx+(nz-ngz+k-1)*nxy)
-
         ENDDO
       ENDDO
     ENDDO
@@ -1686,7 +1677,6 @@ MODULE class_GPartComm
     CALL MPI_RECV(this%rtbuffp_,this%maxparts_,MPI_GPDataPackType,itrank, &
                   1,this%comm_,this%itrh_(1),this%ierr_)
     CALL MPI_GET_COUNT(this%itrh_(1),MPI_GPDataPackType,nrt,this%ierr_)
-
     CALL MPI_WAIT(this%ibsh_(1),this%istatus_,this%ierr_)
     CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
     CALL GTAcc(this%hcomm_)
@@ -2322,7 +2312,6 @@ MODULE class_GPartComm
     INTEGER                                    :: irank,krank
     INTEGER                                    :: itemp1,itemp2
 
-
     CALL range(1,this%nd_(3),this%nprocs_,this%myrank_,ksta,kend)
     DO irank = 0,this%nprocs_-1
        CALL range(1,this%nd_(1),this%nprocs_,irank,ista,iend)
@@ -2414,13 +2403,8 @@ MODULE class_GPartComm
                       t,this%comm_,this%ibrh_(1),this%ierr_)
         CALL MPI_GET_COUNT(this%ibrh_,MPI_GPDataPackType,m,this%ierr_)
         CALL GTAcc(this%hcomm_)
-!        m = int(this%rbbuff_(1,1))
 !$omp parallel do
         DO j = 1,m
-!          i = int(this%rbbuff_(4*j-2,1)) + 1
-!          gvdb(1,i) = this%rbbuff_(4*j-1,1)
-!          gvdb(2,i) = this%rbbuff_(4*j+0,1)
-!          gvdb(3,i) = this%rbbuff_(4*j+1,1)
           i = this%rbbuffp_(j)%idp_ + 1
           gvdb(1,i) = this%rbbuffp_(j)%rp_(1)
           gvdb(2,i) = this%rbbuffp_(j)%rp_(2)
@@ -2462,17 +2446,16 @@ MODULE class_GPartComm
 !   CALL MPI_ALLREDUCE(nl,ng,1,MPI_INTEGER,   &
 !                      MPI_SUM,this%comm_,this%ierr_)
 !   CALL GTAcc(this%hcomm_)
-
-!!  IF ( this%myrank_.EQ.0 .AND. ng.NE.ngvdb ) THEN
-!!    IF ( .NOT.present(scaller) ) THEN
-!!      WRITE(*,*)'GPartComm_VDBSynch: inconsistent d.b.: expected: ', &
-!!                 ngvdb, '; found: ',ng
-!!    ELSE
-!!      WRITE(*,*)'GPartComm_VDBSynch: caller:',trim(scaller),': inconsistent d.b.: expected: ', &
-!!                 ngvdb, '; found: ',ng
-!!    ENDIF
-!!    STOP
-!!  ENDIF
+!   IF ( this%myrank_.EQ.0 .AND. ng.NE.ngvdb ) THEN
+!    IF ( .NOT.present(scaller) ) THEN
+!      WRITE(*,*)'GPartComm_VDBSynch: inconsistent d.b.: expected: ', &
+!                 ngvdb, '; found: ',ng
+!    ELSE
+!      WRITE(*,*)'GPartComm_VDBSynch: caller:',trim(scaller),': inconsistent d.b.: expected: ', &
+!                 ngvdb, '; found: ',ng
+!    ENDIF
+!    STOP
+!  ENDIF
 
     DO j = 1, ngvdb
       gvdb(1:3,j) = 0.0_GP
@@ -2524,11 +2507,8 @@ MODULE class_GPartComm
       DO i = 1,nl
         this%stbuffp_(i)%idp_   = id(i)
         this%stbuffp_(i)%rp_(1) = ls(i)
-!        this%stbuff_(2*i,1) = REAL(id(i),kind=GP)
-!        this%stbuff_(2*i+1,1) = ls(i)
       END DO 
       CALL GTStart(this%hcomm_)
-!      CALL MPI_ISEND(this%stbuff_,2*nl+1,GC_REAL,0,this%myrank_,this%comm_,this%ibsh_(1),this%ierr_)
       CALL MPI_ISEND(this%stbuffp_,nl,MPI_GPDataPackType,0,this%myrank_,this%comm_,this%itsh_(1),this%ierr_)
       CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
       CALL GTAcc(this%hcomm_)
@@ -2544,13 +2524,9 @@ MODULE class_GPartComm
         CALL MPI_RECV(this%rbbuffp_,this%maxparts_,MPI_GPDataPackType,t, &
                       t,this%comm_,this%ibrh_(1),this%ierr_)
         CALL MPI_GET_COUNT(this%ibrh_,MPI_GPDataPackType,m,this%ierr_)
-!        CALL MPI_WAIT(this%ibrh_(1),this%istatus_,this%ierr_)
         CALL GTAcc(this%hcomm_)
-!        m = int(this%rbbuff_(1,1))
 !$omp parallel do
         DO j = 1,m
-!          i = int(this%rbbuff_(2*j,1)) + 1
-!          gs(i) = this%rbbuff_(2*j+1,1)
           i     = this%rbbuffp_(j)%idp_ + 1
           gs(i) = this%rbbuffp_(j)%rp_(1)
         END DO
@@ -2560,7 +2536,6 @@ MODULE class_GPartComm
   END SUBROUTINE GPartComm_LagSynch_t0
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-
 
   SUBROUTINE GPartComm_LagSynch(this,gs,ngs,id,ls,nl,ptmp)
 !-----------------------------------------------------------------
@@ -2586,7 +2561,6 @@ MODULE class_GPartComm
     INTEGER                                         :: i,j
     REAL(KIND=GP),INTENT   (IN),DIMENSION(*)        :: ls
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)        :: gs,ptmp
-
 
     DO j = 1, ngs
       gs  (j) = 0.0_GP
@@ -2659,8 +2633,6 @@ MODULE class_GPartComm
 
 !$omp parallel do if(ny*(this%kend_-this%ksta_+1).GE.nth) collapse(2) private(jm,i)
      DO km = 0,this%kend_-this%ksta_
-!    DO k = 1,this%kend_-this%ksta_+1
-!      km = k-1
       DO j=1,ny
         jm = j-1
         DO i=1,nx
@@ -2706,10 +2678,8 @@ MODULE class_GPartComm
       CALL Resize_DataPack(this%rtbuffp_,newmparts)
       this%maxparts_ = newmparts
       IF ( this%intrfc_ .GE. 1 ) THEN
-!        newbuff = MAX(newmparts*4,3*nd(1)*nd(2)*nzg+nzg+1) + 1
         newbuff = 3*nd(1)*nd(2)*nzg+nzg+2
       ELSE
-!        newbuff = MAX(newmparts*4,  nd(1)*nd(2)*nzg+nzg+1) + 1
         newbuff =   nd(1)*nd(2)*nzg+nzg+2
       ENDIF
       n = this%nbuff_
