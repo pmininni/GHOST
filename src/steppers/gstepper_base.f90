@@ -29,9 +29,10 @@ module gstepperbase_mod
       character (len=128)            :: infile_
     contains
       procedure(GStepper_ctor_interface), deferred :: GStepper_ctor! Constructor
+!     procedure         (init_interface), deferred :: init         ! init method
       procedure         (step_interface), deferred :: step         ! step method
       procedure        (pstep_interface), deferred :: pstep        ! part+field step method
-      generic,                              public :: gstep => step, pstep ! general method
+      generic                           ,   public :: gstep => step, pstep ! general method
   end type GStepperBase
   
   abstract interface
@@ -46,9 +47,10 @@ module gstepperbase_mod
       class (ParticleBase), intent   (in), target, optional :: psolver
     end subroutine GStepper_ctor_interface
 
-!   subroutine init_interface(this) 
-!     import :: GStepperBase
+!   subroutine init_interface(this, traits) 
+!     import :: GStepperBase, GStepperTraits
 !     class (GStepperBase), intent (inout) :: this
+!     type(GStepperTraits), intent    (in) :: traits
 !   end subroutine init_interface
 
     subroutine step_interface(this, time, uin, uf, dt, uout) 
@@ -61,18 +63,14 @@ module gstepperbase_mod
       type   (GStateComp), intent(inout) :: uout(:) 
     end subroutine step_interface
 
-    ! Define step function interface for 
-    ! particles plus fields:
     subroutine pstep_interface(this, time, uin, upin, uf, dt, uout, upout) 
       use gstate_mod
       use gpstate_mod
       import :: GStepperBase
-      class (GStepperBase), intent  (in) :: this
-      real      (kind=GP), intent   (in) :: time, dt
-      type   (GStateComp), intent(inout) :: uin(:),uf(:)
-      type  (GPStateComp), intent(inout) :: upin(:)
-      type   (GStateComp), intent(inout) :: uout(:) 
-      type  (GPStateComp), intent(inout) :: upout(:) 
+      class (GStepperBase), intent  (in)         :: this
+      real      (kind=GP), intent   (in)         :: time, dt
+      type   (GStateComp), intent(inout)         :: uin(:),uf(:), uout(:)
+      type  (GPStateComp), intent(inout), target :: upin(:), upout(:)
     end subroutine pstep_interface
   end interface
 
@@ -83,5 +81,3 @@ contains
   ! ===================================================================
   
 end module gstepperbase_mod
-
-

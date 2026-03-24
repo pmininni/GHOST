@@ -37,7 +37,7 @@ module canuto_stepper_mod
     ! Member data (extends GStepperBase member data)
     type(GStepperTraits)      :: traits_                     ! GStepper traits
   contains
-    procedure, public :: init                                ! initialize
+    procedure, public :: init !        => init_impl          ! initialize
     procedure, public :: step          => step_impl          ! take one timestep
     procedure, public :: pstep         => pstep_impl         ! take one part+field timestep
     procedure, public :: GStepper_ctor => CanutoStepper_ctor
@@ -142,30 +142,37 @@ contains
     use gpstate_mod
     implicit none
 
-    class(CanutoStepper), intent   (in) :: this
-    type    (GStateComp), intent(inout) :: uin (:), uf(:), uout(:)
-    type    (GStateComp), allocatable   :: fdbk(:)
-    type   (GPStateComp), intent(inout) :: upin(:), upout(:)
-    real       (kind=GP), intent   (in) :: time, dt
-    real       (kind=GP)                :: eff_dt
-    integer                             :: i,j,k,o,state_size,ic,ip,nparts
-    logical                             :: bret
+    class(CanutoStepper), intent   (in)         :: this
+    type    (GStateComp), intent(inout)         :: uin (:), uf(:), uout(:)
+    type    (GStateComp), allocatable           :: fdbk(:)
+    type   (GPStateComp), intent(inout), target :: upin(:), upout(:)
+    real       (kind=GP), intent   (in)         :: time, dt
+    real       (kind=GP)                        :: eff_dt
+    integer                                     :: i,j,k,o,state_size
+    integer                                     :: ic,ip,nparts
+    logical                                     :: bret
        
     if ( size (uin) .ne. this%traits_%nstate &
      .or.size(uout) .ne. this%traits_%nstate  ) then
       stop 'CanutoStepper::step: Inconsistent input state'
     endif
     nparts = size(upin(1)%rcomp)
-    if ( this%psolver_%hasfeedback_ ) then
+    if ( this%psolver_%hasfeedback_ ) then  ! We alloc arrays if we have feedback
       call GState_alloc(fdbk, this%traits_%nstate)
     endif
-   
+    call AssignLagPos(this%psolver_, upout) ! We assign the lag position pointers
+    
     do o = this%traits_%norder,1,-1
       eff_dt = dt/real(o,kind=GP)
+      ! If needed we compute the feedback of the particles in the fluid 
+      if ( this%psolver_%hasfeedback_ ) call this%psolver_%feedback(upout,fdbk)
+      ! We compute dpdt first; we assume that at input, upout has a copy of upin
+      call this%psolver_%dpdt(time, this%solver_, uout, upout, eff_dt, upout)
       ! We assume that at input, uout has a copy of uin
       call this%solver_%dudt (time, uout, uf, eff_dt, uout)
+      ! If needed we update the forcing to include the feedback
       if ( this%psolver_%hasfeedback_ ) then
-        call this%psolver_%feedback(upin,fdbk)
+        call this%psolver_%feedback(upout,fdbk)
         do ic = 1,this%traits_%nstate
           uout(ic)%ccomp = uout(ic)%ccomp + fdbk(ic)%ccomp
         end do
@@ -183,10 +190,8 @@ contains
           end do
         end do
       end do
-      ! We assume that at input, upout has a copy of upin
-      call this%psolver_%dpdt(time, this%solver_, uout, upout, eff_dt, upout)
       ! Update particles:
-      do ip = 1,this%traits_%npstate ! for each state comp
+      do ip = 1,this%traits_%npstate ! for each pstate comp
         do k = 1, nparts
           upout(ip)%rcomp(k) = upin(ip)%rcomp(k) + &
                        eff_dt*upout(ip)%rcomp(k)
