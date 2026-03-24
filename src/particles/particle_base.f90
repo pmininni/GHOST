@@ -189,6 +189,34 @@ CONTAINS
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!  METHOD     : AssignLagPos
+  !!  DESCRIPTION: Assigns px,py,pz pointers to a particle state.
+  !!               Must be called before any routine that needs
+  !!               access to this%px_, this%py_, this%pz_.
+  !!  ARGUMENTS  :
+  !!    this    : 'this' class instance
+  !!    pstate  : A particle state
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SUBROUTINE AssignLagPos(this, pstate)
+    use gpstate_mod
+    CLASS(ParticleBase) ,INTENT(INOUT)      :: this
+    type  (GPStateComp), intent(in), target :: pstate(:)
+    if (.not. associated (this%px_, pstate(this%POSITION  )%rcomp)) then
+      nullify (this%px_)
+      this%px_ => pstate(this%POSITION  )%rcomp
+    endif
+    if (.not. associated (this%py_, pstate(this%POSITION+1)%rcomp)) then
+      nullify (this%py_)
+      this%py_ => pstate(this%POSITION+1)%rcomp
+    endif
+    if (.not. associated (this%pz_, pstate(this%POSITION+2)%rcomp)) then
+      nullify (this%pz_)
+      this%pz_ => pstate(this%POSITION+2)%rcomp
+    endif
+  END SUBROUTINE AssignLagPos
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!  METHOD     : io_write_pdb
   !!  DESCRIPTION: Does write of Lagrangian position d.b. to file. 
   !!               Position of the particle structure in file is the
