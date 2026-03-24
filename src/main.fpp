@@ -39,6 +39,7 @@
       USE force_factory
       USE equation_factory
       USE particle_factory
+      USE icp_factory
       USE stepper_factory
       IMPLICIT NONE
 
@@ -52,15 +53,17 @@
       CLASS(GStepperBase), ALLOCATABLE :: stepper
       CLASS(icChain),      ALLOCATABLE :: iclist(:)
       CLASS(forceChain),   ALLOCATABLE :: forcemethod(:)
+      CLASS(icpChain),     ALLOCATABLE :: icplist(:)
 
 ! Auxiliary variables
-      INTEGER :: t
-      INTEGER :: num_components
-      INTEGER :: idevice, iret, ncuda, ngcuda, ppn
-      INTEGER :: ihcpu1,ihcpu2
-      INTEGER :: ihomp1,ihomp2
-      INTEGER :: ihwtm1,ihwtm2
-      LOGICAL :: bbenchexist
+      REAL(KIND=GP) :: time
+      INTEGER       :: t
+      INTEGER       :: num_components
+      INTEGER       :: idevice, iret, ncuda, ngcuda, ppn
+      INTEGER       :: ihcpu1,ihcpu2
+      INTEGER       :: ihomp1,ihomp2
+      INTEGER       :: ihwtm1,ihwtm2
+      LOGICAL       :: bbenchexist
 
 ! Initialization
 ! Initializes the MPI and I/O libraries
@@ -105,7 +108,10 @@
       CALL box_init('parameter.inp')
 
 ! Initialization of the particles
-      if (dopart) CALL particle%part_ctor('parameter.inp',workspace,part,part_nxt)
+      if (dopart) then
+         CALL particle%part_ctor('parameter.inp',workspace,part,part_nxt)
+         icplist = init_icp_from_file('parameter.inp')
+      endif
 
 ! Initializes the FFT library. This must be done at
 ! this stage as it requires the variable "bench" to
@@ -142,7 +148,7 @@
         ini  = 1
         sind = 0                          ! index for the spectrum
         tind = 0                          ! index for the binaries
-!       pind = 0                          ! index for the particles
+        pind = 0                          ! index for the particles
         timet = tstep
         timep = pstep
         timec = cstep
@@ -152,7 +158,7 @@
         ini = int((stat-1)*tstep) + 1
         tind = int(stat)
         sind = int(real(ini,kind=GP)/real(sstep,kind=GP)+1)
-!       pind = int((stat-1)*lgmult+1)
+        pind = int((stat-1)*lgmult+1)
         timet = 0
         timep = 0
         timec = int(modulo(float(ini-1),float(cstep)))
@@ -160,8 +166,12 @@
         timef = int(modulo(float(ini-1),float(fstep)))
       ENDIF IC
       CALL init_allstates(iclist,fluid,field)
+      field_nxt = field  ! We update nxt to work with I/O and all steppers
       CALL init_forcing(forcemethod,fluid,force)
-!     if (dopart) CALL init_particles()
+      if (dopart) then
+         CALL init_allpstates(icplist,particle,part)
+	 part_nxt = part ! We also update part_nxt
+      endif
 
 ! Sets up the time stepper
       if (dopart) then
@@ -192,55 +202,51 @@
       ENDIF
 
  RK : DO t = ini,step
-
+         time = (t-1)*dt
 ! Every 'tstep' steps, stores the fields in binary files
          IF ((timet.eq.tstep).and.(bench.eq.0)) THEN
             timet = 0
             tind = tind+1
-	    CALL fluid%write_states(field, planio)
+	    CALL fluid%write_states(field_nxt, planio)
 	 ENDIF
 
 ! Every 'pstep' steps, stores the particle states
          if (dopart) then
-           IF ((timep.eq.pstep).and.(bench.eq.0)) THEN
-             timep = 0
-	     pind = pind+1
-  	     CALL particle%write_pstate(time,fluid,field,part)
-	   ENDIF
+            IF ((timep.eq.pstep).and.(bench.eq.0)) THEN
+               timep = 0
+	       pind = pind+1
+  	       CALL particle%write_pstate(time,fluid,field_nxt,part_nxt)
+	    ENDIF
 	 endif
 
 ! Every 'cstep' steps writes global quantities
          IF ((timec.eq.cstep).and.(bench.eq.0)) THEN
             timec = 0
-	    CALL fluid%global(field, force, t)
+	    CALL fluid%global(field_nxt, force, t)
          ENDIF
 
 ! Every 'sstep' steps writes spectra
          IF ((times.eq.sstep).and.(bench.eq.0)) THEN
             times = 0
             sind = sind+1
-            CALL fluid%spectra(field)
+            CALL fluid%spectra(field_nxt)
          ENDIF
 
 ! Time evolution
          CALL update_forcing(forcemethod,fluid,force)
          if (dopart) then
-           CALL stepper%gstep(time, field, part, force, dt, field_nxt, part_nxt)
-           field = field_nxt
-	   part  = part_nxt
+            field = field_nxt
+	    part  = part_nxt
+            CALL stepper%gstep(time, field, part, force, dt, field_nxt, part_nxt)
 	 else
-           CALL stepper%gstep(time, field, force, dt, field_nxt)
-	   field = field_nxt
+	    field = field_nxt
+            CALL stepper%gstep(time, field, force, dt, field_nxt)
 	 endif
          timet = timet+1
          timep = timep+1
          timec = timec+1
          times = times+1
-
       END DO RK
-
-!
-! End of Runge-Kutta
 
 ! Computes the benchmark
 
