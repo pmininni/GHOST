@@ -57,7 +57,7 @@ contains
     straits%nstate  = solver%state_size()
     if (present(psolver)) then
       straits%dopart  = .true.
-!     straits%npstate = psolver%state_size()
+      straits%npstate = psolver%state_size()
     else
       straits%dopart  = .false.
       straits%npstate = 0
