@@ -32,7 +32,6 @@
 !  seed : global seed for random number generation (when needed)
       USE fprecision
       REAL(KIND=GP)      :: dt
-      REAL(KIND=GP)      :: time
       INTEGER            :: stat ,ini
       INTEGER            :: step
       INTEGER            :: tstep,cstep
