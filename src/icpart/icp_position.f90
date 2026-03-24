@@ -7,9 +7,9 @@
 !              operators.
 !
 ! Initial conditions avaliable:
-!   read_position  : Reads positions from an input file numbered by stat
-!   user_position  : Reads positions from a user defined input file
-!   random_position: Random initial positions
+!   read_x   : Reads positions from an input file numbered by stat
+!   user_x   : Reads positions from a user defined input file
+!   random_x : Random initial positions
 !
 ! DATE       : 03/21/26 (PDM)
 ! =====================================================================
@@ -52,28 +52,8 @@ CONTAINS
     use commtypes
     implicit none
     class    (read_pos), intent   (in)          :: this
-    class(ParticleBase), intent   (in)          :: psolver
+    class(ParticleBase), intent(inout)          :: psolver
     type  (GPStateComp), intent(inout)          :: pstate(:)
-!!$    real   (kind=GP), pointer, dimension(:,:,:) :: R1
-!!$    integer                          :: i
-!!$    logical                          :: bret
-!!$
-!!$    if ((stat .eq. 0).and.(solver%myrank_ .eq. 0)) then
-!!$      stop 'Cannot read files if starting a new run with stat=0'
-!!$    endif
-!!$    call solver%workspace_%get_real_tmp(R1,bret)
-!!$    select type (solver)
-!!$    class is (VelocityBase)
-!!$      tind = int(stat)
-!!$      WRITE(ext, fmtext) tind
-!!$      do i = solver%VELOCITY,solver%VELOCITY+solver%nc_-1
-!!$        call io_read(1,idir,trim(solver%sstate_(i)),ext,solver%planio_,R1)
-!!$        call fftp3d_real_to_complex(planrc,R1,state(i)%ccomp,MPI_COMM_WORLD)
-!!$      end do
-!!$    class default
-!!$      error stop "This solver does not support velocity field ICs"
-!!$    end select
-!!$    call solver%workspace_%free_real_tmp(R1)
   end subroutine init_readpos
 
 
@@ -88,24 +68,8 @@ CONTAINS
     use commtypes
     implicit none
     class    (user_pos), intent   (in)          :: this
-    class(ParticleBase), intent   (in)          :: psolver
+    class(ParticleBase), intent(inout)          :: psolver
     type  (GPStateComp), intent(inout)          :: pstate(:)
-!!$    select type (solver)
-!!$    class is (VelocityBase)
-!!$!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-!!$      DO i = ista,iend
-!!$!$omp parallel do if (iend-ista.lt.nth) private (k)
-!!$        DO j = 1,ny
-!!$          DO k = 1,nz
-!!$            state(solver%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
-!!$            state(solver%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
-!!$            state(solver%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
-!!$          END DO
-!!$        END DO
-!!$      END DO
-!!$    class default
-!!$      error stop "This solver does not support velocity field ICs"
-!!$    end select
   end subroutine init_userpos
 
 
@@ -114,74 +78,88 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_randompos(this,psolver,pstate)
     use gpstate_mod
-    use status
-    use pstatus
-    use filefmt
-    use commtypes
+    use random
     implicit none
     class    (rand_pos), intent   (in)          :: this
-    class(ParticleBase), intent   (in)          :: psolver
+    class(ParticleBase), intent(inout)          :: psolver
     type  (GPStateComp), intent(inout)          :: pstate(:)
-!!$    namelist/ tg_v / u0,kdn,kup
-!!$    CALL solver%workspace_%get_real_tmp(R1,bret)
-!!$    CALL solver%workspace_%get_real_tmp(R2,bret)
-!!$    select type (solver)
-!!$    class is (VelocityBase)
-!!$    ! Read parameters from a namelist in the input file
-!!$    if ( myrank .eq. 0 ) then
-!!$      open(1,file=solver%infile_,status='unknown',form="formatted")
-!!$      read(1,NML=tg_v)
-!!$      close(1)
-!!$    endif
-!!$    call mpi_bcast(u0 ,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-!!$    call mpi_bcast(kup,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-!!$    call mpi_bcast(kdn,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-!!$    ! Generate a superposition of TG flows
-!!$    IF ( abs(Lx-Ly).gt.tiny ) THEN
-!!$      IF (myrank.eq.0) error stop "TG initial conditions require Lx=Ly"
-!!$    ENDIF
-!!$!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-!!$    DO i = ista,iend
-!!$!$omp parallel do if (iend-ista.lt.nth) private (k)
-!!$       DO j = 1,ny
-!!$          DO k = 1,nz
-!!$            state(solver%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP !vz
-!!$          END DO
-!!$       END DO
-!!$    END DO
-!!$!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-!!$    DO k = ksta,kend
-!!$!$omp parallel do if (kend-ksta.lt.nth) private (i)
-!!$       DO j = 1,ny
-!!$          DO i = 1,nx
-!!$          R1(i,j,k) = 0.0_GP
-!!$          R2(i,j,k) = 0.0_GP
-!!$          DO ki = INT(kdn),INT(kup)
-!!$             R1(i,j,k) = R1(i,j,k)+SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
-!!$                      real(nx,kind=GP))*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
-!!$                      real(ny,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
-!!$                      real(nz,kind=GP))
-!!$             R2(i,j,k) = R2(i,j,k)-COS(2*pi*ki*(real(i,kind=GP)-1)/ &
-!!$                      real(nx,kind=GP))*SIN(2*pi*ki*(real(j,kind=GP)-1)/ &
-!!$                      real(ny,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
-!!$                      real(nz,kind=GP))
-!!$          END DO
-!!$          END DO
-!!$       END DO
-!!$    END DO
-!!$    CALL fftp3d_real_to_complex(planrc,R1, & !vx
-!!$                   state(solver%VELOCITY  )%ccomp,MPI_COMM_WORLD)
-!!$    CALL fftp3d_real_to_complex(planrc,R2, & !vy
-!!$                   state(solver%VELOCITY+1)%ccomp,MPI_COMM_WORLD)
-!!$    CALL normalize(state(solver%VELOCITY  )%ccomp, &
-!!$                   state(solver%VELOCITY+1)%ccomp, &
-!!$                   state(solver%VELOCITY+2)%ccomp, &
-!!$                   u0,1,MPI_COMM_WORLD)
-!!$    class default
-!!$      error stop "This solver does not support velocity field ICs"
-!!$    end select
-!!$    CALL solver%workspace_%free_real_tmp(R1)
-!!$    CALL solver%workspace_%free_real_tmp(R2)
+    integer                           :: ib,ie,j,iwrk1,iwrk2,nt
+    real(kind=GP)                     :: c,r,x1,x2
+
+    ! Note: Box is [0,N-1]^3.
+    ! All tasks write to _global_ grid, expecting a VDBSynch afterwards
+    ! and a GetLocalWrk call to get the particles a task owns when using VDB
+    iwrk1 = psolver%maxparts_/psolver%nprocs_
+    iwrk2 = modulo(psolver%maxparts_,psolver%nprocs_)
+    IF ( iwrk1.GT.0 ) THEN
+      ib = psolver%myrank_*iwrk1+1+min(psolver%myrank_,iwrk2)
+      ie = ib+iwrk1-1
+      IF ( iwrk2.GT.psolver%myrank_ ) ie = ie + 1
+    ELSE
+      ib = psolver%myrank_+1
+      ie = ib
+      IF ( psolver%myrank_+1.GT.psolver%maxparts_ ) THEN
+        ie = 0
+        ib = 1
+      ENDIF
+    ENDIF
+    ib = ib - 1
+    ie = ie - 1
+    psolver%nparts_ = ie - ib + 1
+    DO j = 1, psolver%nparts_
+      psolver%id_(j)    = ib + j - 1
+      CALL prandom_number(r)
+      x1 = real(psolver%libnds_(1,1)-1,kind=GP)
+      x2 = real(psolver%libnds_(1,2),kind=GP)
+      c = r*(psolver%nd_(1))
+      pstate(psolver%POSITION  )%rcomp(j) = min(max(c,x1),x2)
+      CALL prandom_number(r)
+      x1 = real(psolver%libnds_(2,1)-1,kind=GP)
+      x2 = real(psolver%libnds_(2,2),kind=GP)
+      c = r*(psolver%nd_(2))
+      pstate(psolver%POSITION+1)%rcomp(j) = min(max(c,x1),x2)
+      CALL prandom_number(r)
+      x1 = real(psolver%libnds_(3,1)-1,kind=GP)
+      x2 = real(psolver%libnds_(3,2),kind=GP);
+      pstate(psolver%POSITION+2)%rcomp(j) = min(max(x1+r*(x2-x1),x1),x2)
+    ENDDO
+    CALL MPI_ALLREDUCE(psolver%nparts_,nt,1,MPI_INTEGER,MPI_SUM,psolver%comm_,  &
+                       psolver%ierr_)
+    IF ( psolver%myrank_.eq.0 .AND. nt.NE.psolver%maxparts_ ) THEN
+      WRITE(*,*) 'init_randompos: Inconsistent particle count: maxparts=',  &
+      psolver%maxparts_,' total created: ',nt
+      STOP
+    ENDIF
+    IF ( psolver%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
+      CALL psolver%gpcomm_%VDBSynch(psolver%vdb_,psolver%maxparts_,psolver%id_, &
+                                    pstate(psolver%POSITION  )%rcomp,           &
+                                    pstate(psolver%POSITION+1)%rcomp,           &
+                                    pstate(psolver%POSITION+2)%rcomp,           &
+                                    psolver%nparts_,psolver%ptmp0_)
+      CALL GetLocalWrk(psolver,psolver%id_,                                     &
+                       pstate(psolver%POSITION  )%rcomp,                        &
+                       pstate(psolver%POSITION+1)%rcomp,                        &
+                       pstate(psolver%POSITION+2)%rcomp,                        &
+                       psolver%nparts_,psolver%vdb_,psolver%maxparts_)  
+      IF ( psolver%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to box units
+        psolver%ptmp0_(1,:) = psolver%vdb_(1,:)*psolver%delta_(1)
+        psolver%ptmp0_(2,:) = psolver%vdb_(2,:)*psolver%delta_(2)
+        psolver%ptmp0_(3,:) = psolver%vdb_(3,:)*psolver%delta_(3)
+        CALL ascii_write_lag(psolver,1,'.','xlgInitRndSeed','000',0.0_GP,       &
+                             psolver%maxparts_,psolver%ptmp0_(1,:),             &
+                             psolver%ptmp0_(2,:),psolver%ptmp0_(3,:))
+      ELSE
+        CALL ascii_write_lag(psolver,1,'.','xlgInitRndSeed','000',0.0_GP,       &
+                             psolver%maxparts_,psolver%vdb_(1,:),               &
+                             psolver%vdb_(2,:),psolver%vdb_(3,:))
+      ENDIF
+    ENDIF
+    IF ( .NOT. PartNumConsistent(psolver,psolver%nparts_) ) THEN
+      IF ( psolver%myrank_.eq.0 ) THEN
+        WRITE(*,*) 'init_randompos: Invalid particle after GetLocalWrk call'
+        STOP
+      ENDIF
+    ENDIF
   end subroutine init_randompos
 
 end module icp_position

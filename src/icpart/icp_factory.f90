@@ -46,20 +46,20 @@ CONTAINS
       if ( myrank .eq. 0 ) print *,'Particle IC',i,':',trim(adjustl(icname(i)))
       select case (trim(adjustl(icname(i))))
       ! Position ICs ---------------------
-      case ('read_position')
+      case ('read_x')
         allocate( read_pos    :: new_object(i)%icp )
-      case ('user_position')
+      case ('user_x')
         allocate( user_pos    :: new_object(i)%icp )
-      case ('random_position')
+      case ('random_x')
         allocate( rand_pos    :: new_object(i)%icp )
 !!$      ! Velocity ICs ---------------------    
-!!$      case ('read_velocity')
+!!$      case ('read_v')
 !!$        allocate( read_vel    :: new_object(i)%ic )
-!!$      case ('null_velocity')
+!!$      case ('null_v')
 !!$        allocate( null_vel    :: new_object(i)%ic )
-!!$      case ('fluid_velocity')
+!!$      case ('fluid_v')
 !!$        allocate( fluid_vel   :: new_object(i)%ic )
-!!$      case ('thermal_velocity')
+!!$      case ('thermal_v')
 !!$        allocate( thermal_vel :: new_object(i)%ic )
       case default
         stop 'Unknown initial conditions'

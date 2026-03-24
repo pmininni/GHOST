@@ -26,7 +26,7 @@ module icpbase_mod
       USE gpstate_mod
       import :: icpBase
       class     (icpBase), intent   (in) :: this
-      class(ParticleBase), intent   (in) :: psolver
+      class(ParticleBase), intent(inout) :: psolver
       type  (GPStateComp), intent(inout) :: pstate(:)
     end subroutine
   end interface
@@ -43,7 +43,7 @@ contains
     USE gpstate_mod
     implicit none
     type     (icpChain), intent   (in) :: chain(:)
-    class(ParticleBase), intent   (in) :: psolver
+    class(ParticleBase), intent(inout) :: psolver
     type  (GPstateComp), intent(inout) :: pstate(:)
     integer                            :: i
     do i = 1,size(chain)
