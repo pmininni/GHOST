@@ -84,7 +84,7 @@ CONTAINS
     real      (KIND=GP), pointer,DIMENSION(:,:,:) :: velr,tmp1,tmp2
     real      (kind=GP)                           :: rmp
     integer                                       :: i,j,k,m
-    logical                                       :: bret
+    logical                                       :: bret,doupdate(this%nc_)
     
     CALL GTStart(this%htimers_(GPTIME_STEP))
     call this%workspace_%get_complex_tmp(velc,bret)
@@ -94,19 +94,27 @@ CONTAINS
 
     select type (pde)
     class is (VelocityBase)
+      if (this%nc_ .ne. pde%nc_) then
+        stop "Lagpart: # of components of the particles and pdes must be equal"
+      endif
+      doupdate    = .false.
+      doupdate(1) = .true.
+      rmp = 1.0_GP/(real(this%nd_(1),kind=GP)*real(this%nd_(2),kind=GP)* &
+                    real(this%nd_(3),kind=GP))
       ! Find F(u*):
-      do m = pde%VELOCITY, pde%VELOCITY+pde%nc_-1
+      do m = 1,this%nc_
       !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         do i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
           do j = 1,ny
             do k = 1,nz
-              velc(k,j,i) = fluidstate(m)%ccomp(k,j,i)*rmp
+              velc(k,j,i) = fluidstate(pde%VELOCITY+m-1)%ccomp(k,j,i)*rmp
             end do
           end do
         end do
         call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-        call EulerToLag(this,dpdtout(m)%rcomp,this%nparts_,velr,.true.,tmp1,tmp2)
+        call EulerToLag(this,dpdtout(this%POSITION+m-1)%rcomp,this%nparts_, &
+                        velr,doupdate(m),tmp1,tmp2)
       end do
     class default
       stop "lagpart: This solver does not support pdes without a velocity field"
@@ -243,13 +251,12 @@ CONTAINS
     ! Branch 2: Virtual-Database (VDB) exchange
     ! ==================================================================
     if (this%iexchtype_ .EQ. GPEXCHTYPE_VDB) then
-      ! x-y-z periodicity on updated positions (caller already did x-y,
-      ! but VDB path requires all three to be clean before the global sync):
-      CALL MakePeriodicP(this,                                &
-                         upout(this%POSITION  )%rcomp,        &
-                         upout(this%POSITION+1)%rcomp,        &
-                         upout(this%POSITION+2)%rcomp,        &
-                         this%nparts_, 7)   ! 7 == x+y+z mask
+      ! x-y-z periodicity on updated positions
+      CALL MakePeriodicP(this,                                      &
+                         upout(this%POSITION  )%rcomp,              &
+                         upout(this%POSITION+1)%rcomp,              &
+                         upout(this%POSITION+2)%rcomp,              &
+                         this%nparts_, 7)
       ! Consistency check:
       if (.NOT. PartNumConsistent(this, this%nparts_)) then
         if (this%myrank_ .EQ. 0) then
@@ -257,53 +264,41 @@ CONTAINS
           print *,this%nparts_,this%maxparts_
         end if
       end if
-      ! --- Sync global VDB for both current and t^n positions ---------
+      ! Sync global VDB for the current positions (upout)
       CALL GTStart(this%htimers_(GPTIME_COMM))
-      CALL this%gpcomm_%VDBSynch(                             &
-               this%vdb_,                                     &
-               this%maxparts_,                                &
-               this%id_,                                      &
-               upout(this%POSITION  )%rcomp,                           &
-               upout(this%POSITION+1)%rcomp,                           &
-               upout(this%POSITION+2)%rcomp,                           &
-               this%nparts_,                                  &
-               this%ptmp0_)
-      CALL this%gpcomm_%VDBSynch(                             &
-               this%gptmp0_,                                  &
-               this%maxparts_,                                &
-               this%id_,                                      &
-               upin(this%POSITION  )%rcomp,                            &
-               upin(this%POSITION+1)%rcomp,                            &
-               upin(this%POSITION+2)%rcomp,                            &
-               this%nparts_,                                  &
-               this%ptmp0_)
-      CALL GTAcc(this%htimers_(GPTIME_COMM))
-      ! --- Redistribute local work from the updated VDB ----------------
-      ! GetLocalWrk_aux also synchronises auxiliary RK arrays (xk1_ etc.)
-      ! and must be called when EndStage is invoked mid-step.
-      CALL GetLocalWrk_aux(this,                              &
-               this%id_,                                      &
-               upout(this%POSITION  )%rcomp,                           &
-               upout(this%POSITION+1)%rcomp,                           &
-               upout(this%POSITION+2)%rcomp,                           &
-               upin (this%POSITION  )%rcomp,                           &
-               upin (this%POSITION+1)%rcomp,                           &
-               upin (this%POSITION+2)%rcomp,                           &
-               this%nparts_,                                  &
-               this%vdb_,                                     &
-               this%gptmp0_,                                  &
-               this%maxparts_)
+      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+               upout(this%POSITION  )%rcomp,                        &
+               upout(this%POSITION+1)%rcomp,                        &
+               upout(this%POSITION+2)%rcomp,                        &
+               this%nparts_,this%ptmp0_)
+      CALL GetLocalWrk(this,this%id_,                               &
+               upout(this%POSITION  )%rcomp,                        &
+               upout(this%POSITION+1)%rcomp,                        &
+               upout(this%POSITION+2)%rcomp,                        &
+               this%nparts_, this%vdb_, this%maxparts_)
+      ! Sync upin. Since their positions need the same reordering,
+      ! and upin carries the same ids (just different position values),
+      ! we do a direct MPI_AllReduce of upin using the same communication
+      ! pattern, then pick local entries by the id already established:
+      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
+               upin (this%POSITION  )%rcomp,                        &
+               upin (this%POSITION+1)%rcomp,                        &
+               upin (this%POSITION+2)%rcomp,                        &
+               this%nparts_,this%ptmp0_)
+      ! vdb_ now holds all-task upin, we extract the local entries:
+      do j = 1, this%nparts_
+        upin(this%POSITION  )%rcomp(j) = this%vdb_(1, this%id_(j)+1)
+        upin(this%POSITION+1)%rcomp(j) = this%vdb_(2, this%id_(j)+1)
+        upin(this%POSITION+2)%rcomp(j) = this%vdb_(3, this%id_(j)+1)
+      end do 
       ! Global particle-count sanity check:
-      CALL MPI_ALLREDUCE(this%nparts_, ng, 1, MPI_INTEGER,    &
+      CALL MPI_ALLREDUCE(this%nparts_, ng, 1, MPI_INTEGER,          &
                          MPI_SUM, this%comm_, this%ierr_)
-      if (this%myrank_ .EQ. 0 .AND.                          &
-          ng .NE. this%maxparts_) then
+      if (this%myrank_ .EQ. 0 .AND. ng .NE. this%maxparts_) then
         WRITE(*,*) 'EndStage_impl (VDB): inconsistent d.b.: expected: ', &
                    this%maxparts_, '; found: ', ng
-        CALL ascii_write_lag(this, 1, '.', 'xlgerr',   &
-                                   '000', 0.0_GP,                      &
-                                   this%maxparts_,            &
-                                   this%vdb_)
+        CALL ascii_write_lag(this, 1, '.', 'xlgerr','000', 0.0_GP,  &
+                             this%maxparts_,this%vdb_)
         STOP
       end if
     end if  ! GPEXCHTYPE_VDB
@@ -320,77 +315,75 @@ CONTAINS
   subroutine write_pstate_impl(this, time, pde, fluidstate, pstate)
     use equationbase_mod
     use particlebase_mod
+    use status
+    use pstatus
+    use fft
+    class       (GPart),             intent(inout) :: this
+    class(EquationBase),             intent   (in) :: pde
+    type   (GStateComp), target ,    intent   (in) :: fluidstate(:)
+    type  (GPStateComp),             intent   (in) :: pstate(:)
+    real      (kind=GP),             intent   (in) :: time
+    complex   (kind=GP), pointer, dimension(:,:,:) :: velc
+    real      (kind=GP), pointer, dimension(:,:,:) :: velr,tmp1,tmp2
+    real      (kind=GP)                            :: rmp
+    integer                                        :: i,j,k
+    logical                                        :: bret
     
-    class       (GPart),         intent(inout) :: this
-    class(EquationBase),         intent   (in) :: pde
-    real      (kind=GP),         intent   (in) :: time
-    type   (GStateComp), target, intent   (in) :: fluidstate(:)
-    type  (GPStateComp),         intent   (in) :: pstate(:)
-    real      (kind=GP) :: rmp
-    integer             :: i,j,k
+    call this%workspace_%get_complex_tmp(velc,bret)
+    call this%workspace_%get_real_tmp   (velr,bret)
+    call this%workspace_%get_real_tmp   (tmp1,bret)
+    call this%workspace_%get_real_tmp   (tmp2,bret)
+    call AssignLagPos(this, pstate)
 
-!!$    ! Set the Lagrangian velocities so output doesn't
-!!$    ! give 0: 
-!!$    rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
-!!$!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-!!$    DO i = ista,iend
-!!$!$omp parallel do if (iend-ista.lt.nth) private (k)
-!!$      DO j = 1,ny
-!!$        DO k = 1,nz
-!!$          C7(k,j,i) = vx(k,j,i)*rmp
-!!$        END DO
-!!$      END DO
-!!$    END DO
-!!$    CALL fftp3d_complex_to_real(plancr,C7,R1,MPI_COMM_WORLD)
-!!$!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-!!$    DO i = ista,iend
-!!$!$omp parallel do if (iend-ista.lt.nth) private (k)
-!!$      DO j = 1,ny
-!!$        DO k = 1,nz
-!!$          C7(k,j,i) = vy(k,j,i)*rmp
-!!$        END DO
-!!$      END DO
-!!$    END DO
-!!$    CALL fftp3d_complex_to_real(plancr,C7,R2,MPI_COMM_WORLD)
-!!$!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-!!$      DO i = ista,iend
-!!$!$omp parallel do if (iend-ista.lt.nth) private (k)
-!!$        DO j = 1,ny
-!!$          DO k = 1,nz
-!!$            C7(k,j,i) = vz(k,j,i)*rmp
-!!$          END DO
-!!$        END DO
-!!$      END DO
-!!$    CALL fftp3d_complex_to_real(plancr,C7,R3,MPI_COMM_WORLD)
-!!$    CALL lagpart%SetLagVec(R1,R2,R3,.true.,R4,R5)
-!!$
-!!$    timep = 0
-!!$    pind = pind+1
-!!$    WRITE(lgext,lgfmtext) pind
-!!$
-!!$!!!!!! Write Lagrangian vorticity components: !!!!!!
-!!$!
-!!$!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-!!$    DO i = ista,iend
-!!$!$omp parallel do if (iend-ista.lt.nth) private (k)
-!!$      DO j = 1,ny
-!!$        DO k = 1,nz
-!!$          C1(k,j,i) = vx(k,j,i)*rmp
-!!$          C2(k,j,i) = vy(k,j,i)*rmp
-!!$          C3(k,j,i) = vz(k,j,i)*rmp
-!!$        END DO
-!!$      END DO
-!!$    END DO
-!!$    CALL rotor3(C2,C3,C4,1)
-!!$    CALL rotor3(C1,C3,C5,2)
-!!$    CALL rotor3(C1,C2,C6,3)
-!!$    CALL fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
-!!$    CALL fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
-!!$    CALL fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
-!!$    CALL lagpart%SetLagVec(R1,R2,R3,.false.,R4,R5)
-!!$    CALL lagpart%io_write_vec(1,odir,'wlg'  ,lgext,(t-1)*dt)
-!!$
-!!$    nwpart = nwpart + 1
+    select type (pde)
+    class is (VelocityBase)
+      ! Set the lac vec to the Lagrangian velocities so output doesn't give 0: 
+      rmp = 1.0_GP/(real(this%nd_(1),kind=GP)*real(this%nd_(2),kind=GP)* &
+                    real(this%nd_(3),kind=GP))
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,ny
+          DO k = 1,nz
+            velc(k,j,i) = fluidstate(pde%VELOCITY  )%ccomp(k,j,i)*rmp
+          END DO
+        END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
+      CALL EulerToLag(this,this%lvx_,this%nparts_,velr,.true. ,tmp1,tmp2)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,ny
+          DO k = 1,nz
+            velc(k,j,i) = fluidstate(pde%VELOCITY+1)%ccomp(k,j,i)*rmp
+          END DO
+        END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
+      CALL EulerToLag(this,this%lvy_,this%nparts_,velr,.false.,tmp1,tmp2)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,ny
+          DO k = 1,nz
+            velc(k,j,i) = fluidstate(pde%VELOCITY+2)%ccomp(k,j,i)*rmp
+          END DO
+        END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
+      CALL EulerToLag(this,this%lvz_,this%nparts_,velr,.false.,tmp1,tmp2)
+      WRITE(lgext,lgfmtext) pind
+      CALL io_write_pdb(this,1,odir,'xlg',lgext,time)
+      CALL io_write_vec(this,1,odir,'vlg',lgext,time)
+    class default
+      stop "lagpart: This solver does not support pdes without a velocity field"
+    end select
+   
+    call this%workspace_%free_complex_tmp(velc)
+    call this%workspace_%free_real_tmp   (velr)
+    call this%workspace_%free_real_tmp   (tmp1)
+    call this%workspace_%free_real_tmp   (tmp2)
   end subroutine write_pstate_impl
         
   ! ===================================================================
@@ -520,13 +513,13 @@ CONTAINS
     num_components = this%state_size()
     CALL GPState_alloc(pstate    , num_components, this%partbuff_)
     CALL GPState_alloc(pstate_cpy, num_components, this%partbuff_)
-    this%px_ => pstate(this%POSITION  )%rcomp
-    this%py_ => pstate(this%POSITION+1)%rcomp
-    this%pz_ => pstate(this%POSITION+2)%rcomp
     call this%workspace_%set_nparts(this%partbuff_)
-    call this%workspace_%get_pcomp_tmp(this%lvx_,bret)    
-    call this%workspace_%get_pcomp_tmp(this%lvy_,bret)    
-    call this%workspace_%get_pcomp_tmp(this%lvz_,bret)
+!   call this%workspace_%get_pcomp_tmp(this%lvx_,bret) ! We have a problem with the
+!   call this%workspace_%get_pcomp_tmp(this%lvy_,bret) ! workspace as it allocates pcomps
+!   call this%workspace_%get_pcomp_tmp(this%lvz_,bret) ! before knowing their size
+    allocate(this%lvx_(this%partbuff_))
+    allocate(this%lvy_(this%partbuff_))
+    allocate(this%lvz_(this%partbuff_))
     ALLOCATE(this%ptmp0_ (3,this%partbuff_))
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
       ALLOCATE(this%vdb_   (3,this%partbuff_))
