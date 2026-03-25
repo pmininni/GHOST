@@ -20,7 +20,8 @@ file(MAKE_DIRECTORY "${BIN_DIR}")
 # ----------------------- Compiler options ---------------------------
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
     # Apply flags for all Fortran files
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -funroll-loops")
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O4 -funroll-loops")
+    #set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -gdwarf-2 -O0 -fno-omit-frame-pointer -fbacktrace -fcheck=all -finit-real=snan -finit-integer=-999999 -finit-logical=true -finit-character=0 -Wall -Wextra")
     # Apply version-specific flags
     if(CMAKE_Fortran_COMPILER_VERSION VERSION_GREATER_EQUAL "9.0")
     message(STATUS "GNU Fortran version is 9.0 or newer, enabling -fallow-argument-mismatch.")
@@ -110,6 +111,7 @@ target_include_directories(project_includes INTERFACE
     "${CMAKE_BINARY_DIR}/src/pseudo"
     "${CMAKE_BINARY_DIR}/src/ic"
     "${CMAKE_BINARY_DIR}/src/force"
+    "${CMAKE_BINARY_DIR}/src/icpart"
     "${CMAKE_BINARY_DIR}/src/steppers"
     "${CMAKE_BINARY_DIR}/src/${FFTP}"
 )
@@ -123,6 +125,7 @@ add_subdirectory("${SRC_DIR}/pdes")
 add_subdirectory("${SRC_DIR}/particles")
 add_subdirectory("${SRC_DIR}/ic")
 add_subdirectory("${SRC_DIR}/force")
+add_subdirectory("${SRC_DIR}/icpart")
 add_subdirectory("${SRC_DIR}/steppers")
 add_subdirectory("${SRC_DIR}/${FFTP}")
 
@@ -152,7 +155,7 @@ endif()
 add_executable(GHOST ${SOLVER_SRC})
 add_dependencies(GHOST project_preprocess timer_lib fftp_lib
     utils_lib pseudo_lib mpiio_lib memmgt_lib pdes_lib particles_lib
-    ic_lib force_lib stepper_lib
+    ic_lib force_lib icp_lib stepper_lib
 )
 target_link_libraries(GHOST
     PRIVATE
@@ -168,6 +171,7 @@ target_link_libraries(GHOST
         particles_lib
         ic_lib
         force_lib
+        icp_lib
         stepper_lib
 )
 
