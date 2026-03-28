@@ -5,7 +5,18 @@
 ! GWorkspace assumes users never call allocate() themselves, always
 ! return arrays via free_*_tmp, and do not keep aliases to the arrays
 ! after returning them. Returning the same array twice or returning
-! an array not from the pool results in error.
+! an array not from the pool results in error. Resizing the pool
+! invalidates all pointers to arrays in the pool.
+!
+! For particles (PComp), the pool life cycle is:
+!  1. initialize_pool(..., num_pcomp): Allocates num_pcomp PCompEntry
+!     slots but leaves their array(:) components unallocated.
+!  2. init_pcomp_arrays(partbuff): Called once partbuff is known
+!     (after particle init). Allocates array(partbuff) in every slot.
+!  3. resize_pcomp_arrays(new_size [, keep_data]): Reallocates every
+!     array in the pool to new_size, optionally preserving existing
+!     values up to min(old,new). Pointers obtained via get_pcomp_tmp
+!     remain valid after resize.
 ! ===================================================================
 
 module class_GWorkspace3D
@@ -53,12 +64,16 @@ module class_GWorkspace3D
     integer :: ncurr_realreserve_   = 8
     integer :: ncurr_complexreserve_= 8
     integer :: ncurr_pcompreserve_  = 8
-    integer :: nparts_              = 0
+    integer :: nparts_              = 0       ! current particle buffer size
+    logical :: pcomp_initialised_   = .FALSE. ! TRUE after init_pcomp_arrays
   CONTAINS
-    procedure, public :: initialize_pool, get_real_tmp, get_complex_tmp, get_pcomp_tmp
+    procedure, public :: initialize_pool
+    procedure, public :: init_pcomp_arrays    ! allocates pcomp data
+    procedure, public :: resize_pcomp_arrays  ! resizes pcomp data in-place
+    procedure, public :: get_real_tmp     , get_complex_tmp     , get_pcomp_tmp
     procedure, public :: free_real_tmp    , free_complex_tmp    , free_pcomp_tmp 
     procedure, public :: get_real_tmp_size, get_complex_tmp_size, get_pcomp_tmp_size
-    procedure, public :: add_real_entries , add_complex_entries
+    procedure, public :: add_real_entries , add_complex_entries , add_pcomp_entries
     procedure, public :: set_nparts, get_nparts
     final             :: cleanup_pool
   end type GWorkspace
@@ -116,23 +131,86 @@ CONTAINS
       this%complex_entries_(i)%is_free = .TRUE.
     end do
 
-    ! Initialize PComp entries
-    if ( this%pcomp_size_ .gt. 0 ) then
-      do i = 1, this%pcomp_size_ 
-        ! Allocate the derived type contained array
-        ALLOCATE(this%pcomp_entries_(i)%array(this%nparts_))
+    ! PComp: create slots only, no array allocation yet.
+    if (this%pcomp_size_ > 0) then
+      do i = 1, this%pcomp_size_
         this%pcomp_entries_(i)%is_free = .TRUE.
+        ! array intentionally not allocated here
       end do
     endif
     
-    write(*,*) 'Pool initialized: ', num_real, ' Real and ', & 
-               num_complex, ' Complex arrays', num_pcomp, ' PComp arrays'  
+    write(*,*) 'Pool initialized: ', num_real, ' Real,', & 
+               num_complex, ' Complex, and', num_pcomp, ' PComp arrays'  
   end subroutine initialize_pool
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !  Subroutine to clean up and deallocate the entire array 
-  !  pool.
+  ! Phase-2 init for PComp entries. Call this once partbuff
+  ! is known (after particle ctor). Allocates array(partbuff)
+  ! in every slot that does not already have an allocated array.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine init_pcomp_arrays(this, partbuff)
+    CLASS(GWorkspace), intent(inout) :: this
+    integer          , intent(in)    :: partbuff
+    integer                          :: i
+ 
+    if (partbuff <= 0) &
+      stop 'init_pcomp_arrays: partbuff must be positive.'
+    if (this%pcomp_size_ == 0) &
+      stop 'init_pcomp_arrays: no PComp slots; call initialize_pool with num_pcomp > 0.'
+ 
+    do i = 1, this%pcomp_size_
+      if (.NOT. ALLOCATED(this%pcomp_entries_(i)%array)) then
+        ALLOCATE(this%pcomp_entries_(i)%array(partbuff))
+        this%pcomp_entries_(i)%array   = 0.0_GP
+        this%pcomp_entries_(i)%is_free = .TRUE.
+      end if
+    end do
+    this%nparts_             = partbuff
+    this%pcomp_initialised_  = .TRUE.
+ 
+    write(*,*) 'PComp arrays initialized: ', this%pcomp_size_, &
+               ' arrays of size ', partbuff
+  end subroutine init_pcomp_arrays
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Resize all PComp arrays in the pool to new_size. If
+  ! keep_data is .TRUE. (default), values up to min(old_size,
+  ! new_size) are preserved.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine resize_pcomp_arrays(this, new_size, keep_data)
+    CLASS(GWorkspace), intent(inout)        :: this
+    integer          , intent(in)           :: new_size
+    logical          , intent(in), optional :: keep_data
+    logical                                 :: do_keep
+    real(kind=GP)    , allocatable          :: tmp(:)
+    integer                                 :: i, copy_n
+ 
+    if (.NOT. this%pcomp_initialised_) &
+      stop 'resize_pcomp_arrays: call init_pcomp_arrays first.'
+    if (new_size <= 0) &
+      stop 'resize_pcomp_arrays: new_size must be positive.'
+ 
+    do_keep = .TRUE.
+    if (present(keep_data)) do_keep = keep_data
+    do i = 1, this%pcomp_size_
+      if (ALLOCATED(this%pcomp_entries_(i)%array)) then
+        copy_n = min(this%nparts_, new_size)
+        ALLOCATE(tmp(copy_n))
+        if (do_keep) tmp(1:copy_n) = this%pcomp_entries_(i)%array(1:copy_n)
+        call MOVE_ALLOC(tmp, this%pcomp_entries_(i)%array)          
+      end if
+    end do
+    this%nparts_ = new_size
+ 
+    write(*,*) 'PComp arrays resized to ', new_size
+  end subroutine resize_pcomp_arrays
+  
+  
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Subroutine to clean up and deallocate the entire array 
+  ! pool.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine cleanup_pool(this)
     type(GWorkspace), intent(inout) :: this
@@ -153,11 +231,10 @@ CONTAINS
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !  Subroutine to add real arrays to the real array pool.
-  !  Note that this routine can make all pointers to the pool
-  !  become undefined when the pool is resized with 
-  !  MOVE_ALLOC. It should not be used after initiating
-  !  arrays in the pool intended for permanent storage.
+  ! Subroutine to add real arrays to the real array pool.
+  ! Note that this routine makes all pointers to the arrays
+  ! become undefined. It should not be used after initiating
+  ! arrays in the pool intended for permanent storage.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine add_real_entries(this, num_new)
     CLASS(GWorkspace), intent(inout)          :: this
@@ -199,11 +276,10 @@ CONTAINS
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !  Subroutine to add complex arrays to the complex array
-  !  pool. Note that this routine can make all pointers to
-  !  the pool become undefined when the pool is resized with
-  !  MOVE_ALLOC. It should not be used after initiating
-  !  arrays in the pool intended for permanent storage.
+  ! Subroutine to add complex arrays to the complex array pool.
+  ! Note that this routine makes all pointers to the arrays
+  ! become undefined. It should not be used after initiating
+  ! arrays in the pool intended for permanent storage.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine add_complex_entries(this, num_new)
     CLASS(GWorkspace), intent(inout)          :: this
@@ -243,7 +319,67 @@ CONTAINS
     this%complex_size_    = this%complex_size_ + num_new
   end subroutine add_complex_entries
 
+  
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Subroutine to add PComp slots to the pool. This routine
+  ! makes all pointers to the arrays become undefined. Slots
+  ! are added without allocating arrays; call init_pcomp_arrays
+  ! afterwards (or the new slots will be allocated by the next
+  ! init_pcomp_arrays / resize call).
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine add_pcomp_entries(this, num_new)
+    CLASS(GWorkspace), intent(inout)          :: this
+    integer          , intent(in)             :: num_new
+    integer                                   :: i
+    type(PCompEntry) , allocatable            :: tmp_copy(:)
+ 
+    if (num_new <= 0) &
+      stop 'add_pcomp_entries: num_new must be positive.'
+ 
+    if (.NOT. ALLOCATED(this%pcomp_entries_)) then
+      ! Pool was created without pcomp slots; create from scratch
+      ALLOCATE(this%pcomp_entries_(num_new + this%nreserve_))
+      do i = 1, num_new
+        this%pcomp_entries_(i)%is_free = .TRUE.
+      end do
+      this%ncurr_pcompreserve_ = this%nreserve_
+      this%pcomp_size_         = num_new
+      return
+    end if
+ 
+    if (num_new > this%ncurr_pcompreserve_) then
+      ALLOCATE(tmp_copy(1:this%pcomp_size_+num_new+this%nreserve_))
+      ! Preserve existing slots
+      tmp_copy(1:this%pcomp_size_) = this%pcomp_entries_(1:this%pcomp_size_)
+      call MOVE_ALLOC(tmp_copy, this%pcomp_entries_)
+      do i = this%pcomp_size_+1, this%pcomp_size_+num_new
+        this%pcomp_entries_(i)%is_free = .TRUE.
+        ! If pcomp already initialised, allocate data in new slots too
+        if (this%pcomp_initialised_) then
+          ALLOCATE(this%pcomp_entries_(i)%array(this%nparts_))
+          this%pcomp_entries_(i)%array = 0.0_GP
+        end if
+      end do
+      this%ncurr_pcompreserve_ = this%nreserve_
+    else
+      do i = this%pcomp_size_+1, this%pcomp_size_+num_new
+        this%pcomp_entries_(i)%is_free = .TRUE.
+        if (this%pcomp_initialised_) then
+          ALLOCATE(this%pcomp_entries_(i)%array(this%nparts_))
+          this%pcomp_entries_(i)%array = 0.0_GP
+        end if
+        this%ncurr_pcompreserve_ = this%ncurr_pcompreserve_ - 1
+      end do
+    endif
+ 
+    this%pcomp_size_ = this%pcomp_size_ + num_new
+  end subroutine add_pcomp_entries
+ 
 
+  ! ===================================================================
+  ! Size query and nparts helpers
+  ! ===================================================================
+  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Function to return current number of real entries
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -313,7 +449,7 @@ CONTAINS
       if ( this%real_entries_(i)%is_free ) THEN
         this%real_entries_(i)%is_free = .FALSE. ! Mark as in use
         ret_ptr => this%real_entries_(i)%array
-        success = .TRUE.
+        if (present(success)) success = .TRUE.
         return
       endif
     enddo
@@ -336,7 +472,7 @@ CONTAINS
       if ( this%complex_entries_(i)%is_free ) THEN
         this%complex_entries_(i)%is_free = .FALSE. ! Mark as in use
         ret_ptr => this%complex_entries_(i)%array
-        success = .TRUE.
+        if (present(success)) success = .TRUE.
         return
       endif
     enddo
@@ -345,6 +481,7 @@ CONTAINS
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Subroutine to check out a free pcomp array from the pool.
+  ! Requires init_pcomp_arrays to have been called first.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine get_pcomp_tmp(this, ret_ptr, success)
     CLASS(GWorkspace), target, intent(inout) :: this
@@ -357,13 +494,17 @@ CONTAINS
       ret_ptr => null()
       stop 'GWorkspace::get_pcomp_tmp: nparts = 0. Must call set_nparts. '
     endif
+    if (.NOT. this%pcomp_initialised_) then
+      ret_ptr => null()
+      stop 'GWorkspace::get_pcomp_tmp: call init_pcomp_arrays before first checkout.'
+    endif
 
     do i = 1, this%pcomp_size_
       ! Look for a free entry
       if ( this%pcomp_entries_(i)%is_free ) THEN
         this%pcomp_entries_(i)%is_free = .FALSE. ! Mark as in use
         ret_ptr => this%pcomp_entries_(i)%array
-        success = .TRUE.
+        if (present(success)) success = .TRUE.
         return
       endif
     enddo
