@@ -16,10 +16,6 @@ module gpstate_mod
   ! is a 1d pointer array of GPStateComp's:
   type, abstract :: GPState
     type(GPStateComp), allocatable, dimension(:) :: rpstate
-    contains
-      procedure, public  :: data => GPState_data
-!     procedure, private :: GPState_get_comp
-!     generic            :: operator(.get.) => GPState_get_comp
   end type GPState
 
 contains
@@ -70,35 +66,31 @@ contains
         endif
       end do
     endif 
-
   end subroutine GPState_dealloc
-  
-  ! ================= Data access routines  =================
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Method to get GPState real data
+  !! Method to resize real GPState data types
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  function GPState_data(this) result(ret)
+  subroutine GPState_resize(pstate,new_size)
+    use grid
+    use mpivars
     implicit none
-    class    (GPState), target,    intent(in) :: this
-    type (GPStateComp), pointer, dimension(:) :: ret 
-    ret => this%rpstate
-  end function GPState_data
+    type(GPStateComp), allocatable, intent(inout) :: pstate(:)
+    real(kind=GP)    , allocatable                :: tmp(:)
+    integer          ,              intent(in)    :: new_size
+    integer                                       :: i,copy_n
 
-
-! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! !! Method to get GPState component data
-! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-! function GPState_get_comp(this, i) result(ret)
-!   implicit none
-!   class   (GPState), target, intent(in) :: this
-!   type(GPStateComp), pointer            :: ret 
-!   integer          ,         intent(in) :: i
-!
-!   if ( (i .lt. 1).or.(i .gt. size(this%rpstate)) ) then
-!     stop 'GPState_get_comp: Invalid index'
-!   endif
-!   ret => this%rpstate(i);
-! end function GPState_get_comp
+    if (new_size <= 0) stop 'GPState_resize: new_size must be positive.'
+    if ( allocated(pstate) ) then
+      do i = 1,size(pstate)
+        if ( allocated(pstate(i)%rcomp) ) then
+          copy_n = min(size(pstate(i)%rcomp), new_size)
+          allocate(tmp(copy_n))
+          tmp(1:copy_n) = pstate(i)%rcomp(1:copy_n)
+          call MOVE_ALLOC(tmp, pstate(i)%rcomp)
+        endif
+      end do
+    endif
+  end subroutine GPState_resize
 
 end module gpstate_mod

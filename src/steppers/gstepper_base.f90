@@ -67,10 +67,10 @@ module gstepperbase_mod
       use gstate_mod
       use gpstate_mod
       import :: GStepperBase
-      class (GStepperBase), intent  (in)         :: this
-      real      (kind=GP), intent   (in)         :: time, dt
-      type   (GStateComp), intent(inout)         :: uin(:),uf(:), uout(:)
-      type  (GPStateComp), intent(inout), target :: upin(:), upout(:)
+      class(GStepperBase), intent  (in)                      :: this
+      real     (kind=GP), intent   (in)                      :: time, dt
+      type  (GStateComp), intent(inout)                      :: uin(:),uf(:), uout(:)
+      type (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
     end subroutine pstep_interface
   end interface
 

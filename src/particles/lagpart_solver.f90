@@ -41,8 +41,6 @@ module lagpart_mod
     procedure, public :: feedback      =>      null_feedback ! feedback in the fluid
     procedure, public :: write_pstate  =>  write_pstate_impl ! write states
     procedure, public :: state_size    =>    state_size_impl ! state size
-!   procedure, public :: sstate2istate => sstate2istate_impl ! state names
-!   procedure, public :: get_sstate    =>    get_sstate_impl ! get state name list
     procedure, public :: part_ctor     =>         GPart_ctor ! constructor
     final             :: GPart_dtor
   end type GPart
@@ -91,6 +89,7 @@ CONTAINS
     call this%workspace_%get_real_tmp   (velr,bret)
     call this%workspace_%get_real_tmp   (tmp1,bret)
     call this%workspace_%get_real_tmp   (tmp2,bret)
+    call AssignLagPos(this, pstate) ! We assign px_,py_,pz_ to the pstate
 
     select type (pde)
     class is (VelocityBase)
@@ -145,111 +144,76 @@ CONTAINS
   subroutine end_stage_impl(this, upin, upout)
     use gpstate_mod
     implicit none
-    class     (GPart), intent(inout) :: this
-    type(GPStateComp), intent(inout) :: upin (:)  ! state at t0
-    type(GPStateComp), intent(inout) :: upout(:)  ! state after sub-stage
+    class     (GPart), intent(inout)              :: this
+    type(GPStateComp), intent(inout), allocatable :: upin (:) ! state at t0
+    type(GPStateComp), intent(inout), allocatable :: upout(:) ! state after sub-stage
     integer :: j, ng
-    ! ------------------------------------------------------------------
-    ! Convenience aliases – keep notation close to the legacy code
-    ! ------------------------------------------------------------------
-    ! upout(POSITION  )%rcomp  <==>  this%px_   (updated x-positions)
-    ! upout(POSITION+1)%rcomp  <==>  this%py_
-    ! upout(POSITION+2)%rcomp  <==>  this%pz_
-    ! upin (POSITION  )%rcomp  <==>  this%ptmp0_(1,:)  (x at t^n)
-    ! upin (POSITION+1)%rcomp  <==>  this%ptmp0_(2,:)
-    ! upin (POSITION+2)%rcomp  <==>  this%ptmp0_(3,:)
-    ! ------------------------------------------------------------------
-    ! ==================================================================
     ! Branch 1: Nearest-neighbour (NN) exchange
-    ! ==================================================================
-!!$    if (this%iexchtype_ .EQ. GPEXCHTYPE_NN) then
-!!$      ! --- Identify particles that have left the local slab in z ------
-!!$      CALL GTStart(this%htimers_(GPTIME_COMM))
-!!$      CALL this%gpcomm_%IdentifyExchV(                        &
-!!$               this%id_,                                      &
-!!$               upout(this%POSITION+2)%rcomp,                           &
-!!$               this%nparts_, ng,                              &
-!!$               this%lxbnds_(3,1),                             &
-!!$               this%lxbnds_(3,2))
-!!$      ! --- Resize internal buffers if the exchange set is too large ---
-!!$      if (ng .GT. this%partbuff_) then
-!!$        if (this%myrank_ .EQ. 0) then
-!!$          WRITE(*,'(A,I0,A,I0,A,I0,A,I0)') &
-!!$            'EndStage: Rank ', this%myrank_,              &
-!!$            ' resizing: nparts=', ng,                              &
-!!$            ' | partbuff=', this%partbuff_,               &
-!!$            ' --> ', this%partbuff_ +                     &
-!!$              (1 + (ng - this%partbuff_) /                &
-!!$               this%partchunksize_) *                     &
-!!$               this%partchunksize_
-!!$        end if
-!!$        this%partbuff_ = this%partbuff_ +            &
-!!$              (1 + (ng - this%partbuff_) /                    &
-!!$               this%partchunksize_) *                         &
-!!$               this%partchunksize_
-!!$        CALL this%ResizeArrays(this%partbuff_, .true.)
-!!$        ! NOTE: after ResizeArrays the %rcomp pointers inside upin/upout
-!!$        ! may need to be re-associated if they are pointer-aliased to the
-!!$        ! internal arrays. The recommended design is that upin/upout are
-!!$        ! *independent* copies so no re-association is needed here.
-!!$      end if
-!!$      ! --- Exchange current positions (upout) across MPI tasks --------
-!!$      !     GPEXCH_INIT sends the data; the matching GPEXCH_END call
-!!$      !     (below, using upin positions) receives the incoming data.
-!!$      CALL this%gpcomm_%PartExchangeV(                        &
-!!$               this%id_,                                      &
-!!$               upout(this%POSITION  )%rcomp,                           &
-!!$               upout(this%POSITION+1)%rcomp,                           &
-!!$               upout(this%POSITION+2)%rcomp,                           &
-!!$               this%nparts_,                                  &
-!!$               this%lxbnds_(3,1),                             &
-!!$               this%lxbnds_(3,2), GPEXCH_INIT)
-!!$      ! --- Exchange the t^n positions (upin) -- mirrors old ptmp0_ ----
-!!$      CALL this%gpcomm_%PartExchangeV(                        &
-!!$               this%id_,                                      &
-!!$               upin(this%POSITION  )%rcomp,                            &
-!!$               upin(this%POSITION+1)%rcomp,                            &
-!!$               upin(this%POSITION+2)%rcomp,                            &
-!!$               this%nparts_,                                  &
-!!$               this%lxbnds_(3,1),                             &
-!!$               this%lxbnds_(3,2), GPEXCH_END)
-!!$      CALL GTAcc(this%htimers_(GPTIME_COMM))
-!!$ 
-!!$      ! --- x-y periodicity already enforced by caller; enforce z ------
-!!$      ! MakePeriodicZ wraps pz (upout) and the saved z at t^n (upin):
-!!$      CALL MakePeriodicZ(this,                                &
-!!$                         upout(this%POSITION+2)%rcomp,                 &
-!!$                         upin (this%POSITION+2)%rcomp,                 &
-!!$                         this%nparts_)
-!!$      ! --- Periodic buffer shrink (swipe) -----------------------------
-!!$      if (this%stepcounter_ .GE. GPSWIPERATE) then
-!!$        if ((this%bcollective_ .EQ. 1) .OR.                  &
-!!$            (this%myrank_ .NE. 0)) then
-!!$          ng = this%partbuff_ - this%nparts_
-!!$          if (ng .GE. this%partchunksize_) then
-!!$            if (this%myrank_ .EQ. 0) then
-!!$              WRITE(*,'(A,I0,A,I0,A,I0,A,I0)') &
-!!$                'EndStage: Rank ', this%myrank_,          &
-!!$                ' resizing: nparts=', this%nparts_,       &
-!!$                ' | partbuff=', this%partbuff_,           &
-!!$                ' --> ', this%partbuff_ -                 &
-!!$                  (ng / this%partchunksize_ - 1) *        &
-!!$                   this%partchunksize_
-!!$            end if
-!!$            this%partbuff_ = this%partbuff_ -        &
-!!$                (ng / this%partchunksize_ - 1) *              &
-!!$                 this%partchunksize_
-!!$            CALL this%ResizeArrays(this%partbuff_, .false.)
-!!$          end if
-!!$        end if
-!!$        this%stepcounter_ = 1
-!!$      else
-!!$        this%stepcounter_ = this%stepcounter_ + 1
-!!$      end if
-!!$    end if  ! GPEXCHTYPE_NN
-    ! ==================================================================
-    ! Branch 2: Virtual-Database (VDB) exchange
-    ! ==================================================================
+    if (this%iexchtype_ .EQ. GPEXCHTYPE_NN) then
+      ! We first enforce periodicity in x-y only
+      CALL MakePeriodicP(this,                                         &
+                         upout(this%POSITION  )%rcomp,                 &
+                         upout(this%POSITION+1)%rcomp,                 &
+                         upout(this%POSITION+2)%rcomp,                 &
+                         this%nparts_, 3)
+      ! We identify particles that have left the local slab in z
+      CALL GTStart(this%htimers_(GPTIME_COMM))
+      CALL this%gpcomm_%IdentifyExchV(this%id_,                        &
+               upout(this%POSITION+2)%rcomp,                           &
+               this%nparts_, ng, this%lxbnds_(3,1),  this%lxbnds_(3,2))
+      ! We resize internal buffers if the exchange set is too large
+      if (ng .GT. this%partbuff_) then
+        if (this%myrank_ .EQ. 0) then
+          WRITE(*,'(A,I0,A,I0,A,I0,A,I0)') &
+            'EndStage: Rank ', this%myrank_, ' resizing: nparts=', ng, &
+            ' | partbuff=', this%partbuff_, ' --> ', this%partbuff_ +  &
+            (1 + (ng - this%partbuff_) / this%partchunksize_) * this%partchunksize_
+        end if
+        this%partbuff_ = this%partbuff_ + (1 + (ng - this%partbuff_) / &
+               this%partchunksize_) * this%partchunksize_
+        CALL ResizeArrays(this,upin,upout,this%partbuff_,.true.)
+      end if
+      ! Exchange current positions (upout) across MPI tasks
+      CALL this%gpcomm_%PartExchangeV(this%id_,                        &
+               upout(this%POSITION  )%rcomp,                           &
+               upout(this%POSITION+1)%rcomp,                           &
+               upout(this%POSITION+2)%rcomp,                           &
+               this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), GPEXCH_INIT)
+      ! Exchange the t^n positions (upin)
+      CALL this%gpcomm_%PartExchangeV(this%id_,                        &
+               upin(this%POSITION  )%rcomp,                            &
+               upin(this%POSITION+1)%rcomp,                            &
+               upin(this%POSITION+2)%rcomp,                            &
+               this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), GPEXCH_END)
+      CALL GTAcc(this%htimers_(GPTIME_COMM))
+      ! x-y periodicity already enforced, we enforce z in upout and upin
+      CALL MakePeriodicZ(this,                                         &
+                         upout(this%POSITION+2)%rcomp,                 &
+                         upin (this%POSITION+2)%rcomp,                 &
+                         this%nparts_)
+      ! Buffer shrink
+      if (this%stepcounter_ .GE. GPSWIPERATE) then
+        if ((this%bcollective_ .EQ. 1) .OR. (this%myrank_ .NE. 0)) then
+          ng = this%partbuff_ - this%nparts_
+          if (ng .GT. this%partchunksize_) then
+            if (this%myrank_ .EQ. 0) then
+              WRITE(*,'(A,I0,A,I0,A,I0,A,I0)') 'Shit EndStage: Rank ',      &
+                this%myrank_, ' resizing: nparts=', this%nparts_,      &
+                ' | partbuff=', this%partbuff_, ' --> ',               &
+                this%partbuff_ - (ng / this%partchunksize_ - 1) *      &
+                this%partchunksize_
+            end if
+            this%partbuff_ = this%partbuff_ -                          &
+                (ng / this%partchunksize_ - 1) * this%partchunksize_
+            CALL ResizeArrays(this,upin,upout,this%partbuff_,.false.)
+          end if
+        end if
+        this%stepcounter_ = 1
+      else
+        this%stepcounter_ = this%stepcounter_ + 1
+      end if
+    end if  ! GPEXCHTYPE_NN
+    ! Branch 2: Voxel Database (VDB) exchange ---------------------------
     if (this%iexchtype_ .EQ. GPEXCHTYPE_VDB) then
       ! x-y-z periodicity on updated positions
       CALL MakePeriodicP(this,                                      &
@@ -541,21 +505,14 @@ CONTAINS
     IF ( ASSOCIATED   (this%px_) ) NULLIFY       (this%px_)
     IF ( ASSOCIATED   (this%py_) ) NULLIFY       (this%py_)
     IF ( ASSOCIATED   (this%pz_) ) NULLIFY       (this%pz_)
+    IF ( ASSOCIATED(this%lvx_) ) CALL this%workspace_%free_pcomp_tmp(this%lvx_)
+    IF ( ASSOCIATED(this%lvy_) ) CALL this%workspace_%free_pcomp_tmp(this%lvy_)
+    IF ( ASSOCIATED(this%lvz_) ) CALL this%workspace_%free_pcomp_tmp(this%lvz_)
     ! Destroy timers:
     DO j = 1, GPMAXTIMERS
       CALL GTFree(this%htimers_(j))
     ENDDO
   END SUBROUTINE GPart_dtor
-
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Convert input state name to index in state vector
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Get state variable names
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
