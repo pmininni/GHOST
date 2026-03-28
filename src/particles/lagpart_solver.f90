@@ -10,7 +10,7 @@
 !              State sector ids are:
 !                POSITION (POSITION+1, POSITION+2)
 !
-! INPUT FILE : For particles='lagpart', looks for "&lagpart" namelist:
+! INPUT FILE : no specific namelist for particles='lagpart'
 !
 !
 ! DATE       : 19/02/26 (PDM)
@@ -514,12 +514,10 @@ CONTAINS
     CALL GPState_alloc(pstate    , num_components, this%partbuff_)
     CALL GPState_alloc(pstate_cpy, num_components, this%partbuff_)
     call this%workspace_%set_nparts(this%partbuff_)
-!   call this%workspace_%get_pcomp_tmp(this%lvx_,bret) ! We have a problem with the
-!   call this%workspace_%get_pcomp_tmp(this%lvy_,bret) ! workspace as it allocates pcomps
-!   call this%workspace_%get_pcomp_tmp(this%lvz_,bret) ! before knowing their size
-    allocate(this%lvx_(this%partbuff_))
-    allocate(this%lvy_(this%partbuff_))
-    allocate(this%lvz_(this%partbuff_))
+    call this%workspace_%init_pcomp_arrays(this%partbuff_) ! Init pcomp sizes
+    call this%workspace_%get_pcomp_tmp(this%lvx_,bret)
+    call this%workspace_%get_pcomp_tmp(this%lvy_,bret)
+    call this%workspace_%get_pcomp_tmp(this%lvz_,bret)
     ALLOCATE(this%ptmp0_ (3,this%partbuff_))
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
       ALLOCATE(this%vdb_   (3,this%partbuff_))

@@ -415,7 +415,7 @@ CONTAINS
     INTEGER                                                :: fh,offset,nt,szint,szreal
     INTEGER                                                :: ht,j
     LOGICAL      ,INTENT   (IN)                            :: doupdate
-    CHARACTER(len=100), INTENT(IN)                         :: dir
+    CHARACTER(len=*), INTENT(IN)                           :: dir
     CHARACTER(len=*)  , INTENT(IN)                         :: nmb
     CHARACTER(len=*)  , INTENT(IN)                         :: spref
     CHARACTER(len=1024)                                    :: sfile
@@ -489,7 +489,7 @@ CONTAINS
     INTEGER,INTENT(IN)                   :: np
     INTEGER                              :: fh,nerr,nt,nv,szreal
     INTEGER(kind=MPI_OFFSET_KIND)        :: offset
-    CHARACTER(len=*),INTENT(IN)          :: dir
+    CHARACTER(len=100),INTENT(IN)        :: dir
     CHARACTER(len=*),INTENT(IN)          :: nmb
     CHARACTER(len=*),INTENT(IN)          :: spref
     INTEGER                              :: j,gc,lc
@@ -645,7 +645,7 @@ CONTAINS
     CLASS(ParticleBase) ,INTENT(INOUT) :: this
     REAL(KIND=GP),INTENT   (IN)        :: time
     REAL(KIND=GP),INTENT   (IN)        :: fld0(this%maxparts_)
-    REAL(KIND=GP),INTENT   (IN),OPTIONAL,DIMENSION(this%maxparts_) :: fld1,fld2
+    REAL(KIND=GP),INTENT   (IN), OPTIONAL, DIMENSION(this%maxparts_) :: fld1,fld2
     REAL(KIND=GP)                      :: vout(3)
     INTEGER,INTENT   (IN)              :: iunit
     INTEGER,INTENT   (IN)              :: np
