@@ -145,7 +145,7 @@ contains
     class(CanutoStepper), intent   (in)         :: this
     type    (GStateComp), intent(inout)         :: uin (:), uf(:), uout(:)
     type    (GStateComp), allocatable           :: fdbk(:)
-    type   (GPStateComp), intent(inout), target :: upin(:), upout(:)
+    type   (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
     real       (kind=GP), intent   (in)         :: time, dt
     real       (kind=GP)                        :: eff_dt
     integer                                     :: i,j,k,o,state_size
@@ -160,8 +160,7 @@ contains
     if ( this%psolver_%hasfeedback_ ) then  ! We alloc arrays if we have feedback
       call GState_alloc(fdbk, this%traits_%nstate)
     endif
-    call AssignLagPos(this%psolver_, upout) ! We assign the lag position pointers
-    
+
     do o = this%traits_%norder,1,-1
       eff_dt = dt/real(o,kind=GP)
       ! If needed we compute the feedback of the particles in the fluid 
