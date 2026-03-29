@@ -13,6 +13,7 @@ module equation_factory
   USE equationbase_mod
   USE hd_mod
   USE mhd_mod
+  USE moist_mod
 ! USE userdefinedpde_mod
   
   IMPLICIT NONE

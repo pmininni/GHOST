@@ -20,7 +20,7 @@
 !
 !              State sector ids are:
 !                VELOCITY (VELOCITY+1, VELOCITY+2)   : momentum sector
-!                ACTIVSC  (ACTIVSC+1)               : active scalar sector
+!                ACTIVESC  (ACTIVESC+1)               : active scalar sector
 !                PASSIVE  (PASSIVE+1, PASSIVE+2, ...): passive scalar sector
 !
 ! TODO This is not completed yet
@@ -79,10 +79,11 @@ module moist_mod
 
   ! ================= Solver ==========================================
   ! Define class:
-  type, extends(VelocityBase) :: MOISTSolver 
+  type, extends(ActiveScalarBase) :: MOISTSolver 
     ! Member data:
     logical              :: binit_=.false. ! is initialized?
     type  (MOISTTraits)  :: traits_
+    integer              :: nasc_    !TODO Add this in ActiveScalarBase like nc_
   contains
     procedure, public :: init          =>          init_impl ! init method
     procedure, public :: dudt          =>          dudt_impl ! RHS method
@@ -194,10 +195,10 @@ contains
     this%nd_        = 3                             ! 3d
     this%nc_        = this%nd_                      ! #vel field components
     this%nasc_      = 2                             ! Active Scalars
-    this%na_        = this%nasc_                    ! #actsc components
+    this%nasc_      = 2                             ! #actsc components
     this%VELOCITY   = 1                             ! start of vel sector
-    this%ACTIVSC    = this%VELOCITY + this%nc_      ! Start of active scalar sector
-    this%PASSIVE    = this%ACTIVSC + this%nasc_ ! Start of passive scalar sector
+    this%ACTIVESC   = this%VELOCITY + this%nc_      ! Start of active scalar sector
+    this%PASSIVE    = this%ACTIVESC + this%nasc_ ! Start of passive scalar sector
 
     allocate(this%sstate_(this%state_size()))
     call this%get_sstate(this%sstate_)
@@ -266,14 +267,14 @@ contains
     vx   => uin(this%VELOCITY  )%ccomp
     vy   => uin(this%VELOCITY+1)%ccomp
     vz   => uin(this%VELOCITY+2)%ccomp
-    th1  => uin(this%ACTIVSC   )%ccomp
-    th2  => uin(this%ACTIVSC+1 )%ccomp
+    th1  => uin(this%ACTIVESC   )%ccomp
+    th2  => uin(this%ACTIVESC+1 )%ccomp
 
     fx   => uf (this%VELOCITY  )%ccomp
     fy   => uf (this%VELOCITY+1)%ccomp
     fz   => uf (this%VELOCITY+2)%ccomp
-    fth1 => uf (this%ACTIVSC   )%ccomp
-    fth2 => uf (this%ACTIVSC+1 )%ccomp
+    fth1 => uf (this%ACTIVESC   )%ccomp
+    fth2 => uf (this%ACTIVESC+1 )%ccomp
 
     call prodre3(vx,vy,vz,C4,C5,C6)                    ! w x v
 
@@ -389,14 +390,14 @@ contains
         dudt(this%VELOCITY  )%ccomp(k,j,i) = nu*C4(k,j,i) + C1(k,j,i) + fx(k,j,i)
         dudt(this%VELOCITY+1)%ccomp(k,j,i) = nu*C5(k,j,i) + C2(k,j,i) + fy(k,j,i)
         dudt(this%VELOCITY+2)%ccomp(k,j,i) = nu*C6(k,j,i) + C3(k,j,i) + fz(k,j,i)
-        dudt(this%ACTIVSC)%ccomp(k,j,i)    = bkappa*th1(k,j,i) + C7(k,j,i) + fth1(k,j,i)
-        dudt(this%ACTIVSC+1)%ccomp(k,j,i)  = bkappa*th2(k,j,i) + C8(k,j,i) + fth2(k,j,i)
+        dudt(this%ACTIVESC)%ccomp(k,j,i)    = bkappa*th1(k,j,i) + C7(k,j,i) + fth1(k,j,i)
+        dudt(this%ACTIVESC+1)%ccomp(k,j,i)  = bkappa*th2(k,j,i) + C8(k,j,i) + fth2(k,j,i)
       else
         dudt(this%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
         dudt(this%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
         dudt(this%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
-        dudt(this%ACTIVSC)   %ccomp(k,j,i) = 0.0_GP
-        dudt(this%ACTIVSC+1) %ccomp(k,j,i) = 0.0_GP
+        dudt(this%ACTIVESC)   %ccomp(k,j,i) = 0.0_GP
+        dudt(this%ACTIVESC+1) %ccomp(k,j,i) = 0.0_GP
       endif
     enddo
     enddo
@@ -485,14 +486,14 @@ contains
     vx   => uin(this%VELOCITY  )%ccomp
     vy   => uin(this%VELOCITY+1)%ccomp
     vz   => uin(this%VELOCITY+2)%ccomp
-    th1  => uin(this%ACTIVSC   )%ccomp
-    th2  => uin(this%ACTIVSC+1 )%ccomp
+    th1  => uin(this%ACTIVESC   )%ccomp
+    th2  => uin(this%ACTIVESC+1 )%ccomp
 
     fx   => uf(this%VELOCITY  )%ccomp
     fy   => uf(this%VELOCITY+1)%ccomp
     fz   => uf(this%VELOCITY+2)%ccomp
-    fth1 => uf(this%ACTIVSC   )%ccomp
-    fth2 => uf(this%ACTIVSC+1 )%ccomp
+    fth1 => uf(this%ACTIVESC   )%ccomp
+    fth2 => uf(this%ACTIVESC+1 )%ccomp
 
     call hdcheck(vx, vy, vz, fx, fy, fz, t, dt, 1, 1)
     call pscheck(th1, fth1, t, dt)
@@ -556,8 +557,8 @@ contains
     vx   => uin(this%VELOCITY  )%ccomp
     vy   => uin(this%VELOCITY+1)%ccomp
     vz   => uin(this%VELOCITY+2)%ccomp
-    th1  => uin(this%ACTIVSC   )%ccomp
-    th2  => uin(this%ACTIVSC+1 )%ccomp
+    th1  => uin(this%ACTIVESC   )%ccomp
+    th2  => uin(this%ACTIVESC+1 )%ccomp
 
     call this%workspace_%get_complex_tmp(c1,bret)
     call this%workspace_%get_complex_tmp(c2,bret)
@@ -723,7 +724,7 @@ contains
     ! Active scalars
     do j = 1, this%nasc_
       write(name,'("th",I1)') j
-      sstate(this%ACTIVSC + j - 1) = trim(name)
+      sstate(this%ACTIVESC + j - 1) = trim(name)
     end do
 
     ! Passive scalars
