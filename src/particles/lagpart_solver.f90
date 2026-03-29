@@ -144,9 +144,9 @@ CONTAINS
   subroutine end_stage_impl(this, upin, upout)
     use gpstate_mod
     implicit none
-    class     (GPart), intent(inout)              :: this
-    type(GPStateComp), intent(inout), allocatable :: upin (:) ! state at t0
-    type(GPStateComp), intent(inout), allocatable :: upout(:) ! state after sub-stage
+    class     (GPart), intent(inout) :: this
+    type(GPStateComp), intent(inout) :: upin (:) ! state at t0
+    type(GPStateComp), intent(inout) :: upout(:) ! state after sub-stage
     integer :: j, ng
     ! Branch 1: Nearest-neighbour (NN) exchange
     if (this%iexchtype_ .EQ. GPEXCHTYPE_NN) then
@@ -370,16 +370,17 @@ CONTAINS
     USE commtypes
     USE fftplans
     USE pstatus
+    USE status
     USE random
     IMPLICIT NONE
-    CLASS     (GPart), intent(inout)                      :: this
-    type (GWorkspace), intent(inout),              target :: workspace
-    type(GPStateComp), intent(inout), allocatable, target :: pstate(:), pstate_cpy(:)
-    character(len=*) , intent   (in)                      :: infile
-    INTEGER                             :: disp(3),lens(3),types(3),szreal
-    INTEGER                             :: tsta,tend,num_components
-    INTEGER                             :: j,nc
-    logical                             :: bret
+    CLASS     (GPart), intent(inout)              :: this
+    type (GWorkspace), intent(inout), target      :: workspace
+    type(GPStateComp), intent(inout), allocatable :: pstate(:), pstate_cpy(:)
+    character(len=*) , intent   (in)              :: infile
+    integer                                       :: disp(3),lens(3),types(3)
+    integer                                       :: tsta,tend,num_components
+    integer                                       :: j,nc,szreal
+    logical                                       :: bret
 
     this%infile_      =  infile    ! input file
     this%workspace_   => workspace
@@ -411,6 +412,7 @@ CONTAINS
     this%bcollective_ = ilgcoll
     this%itimetype_   = GT_WTIME
     this%wrtunit_     = ilgwrtunit
+    CALL SetRandSeed (this, seed )
     CALL prandom_seed(this%iseed_)
     CALL MPI_COMM_SIZE(this%comm_,this%nprocs_,this%ierr_)
     CALL MPI_COMM_RANK(this%comm_,this%myrank_,this%ierr_)

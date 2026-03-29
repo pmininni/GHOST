@@ -97,10 +97,10 @@ module particlebase_mod
        use class_GWorkspace3D
        use gpstate_mod
        import :: ParticleBase
-       class(ParticleBase),         intent(inout)              :: this
-       type   (GWorkspace), intent(inout),              target :: workspace
-       type  (GPStateComp), intent(inout), allocatable, target :: pstate(:),pstate_cpy(:)
-       character   (len=*), intent   (in)                      :: infile
+       class(ParticleBase), intent(inout)              :: this
+       type   (GWorkspace), intent(inout), target      :: workspace
+       type  (GPStateComp), intent(inout), allocatable :: pstate(:), pstate_cpy(:)
+       character   (len=*), intent   (in)              :: infile
      end subroutine part_ctor_interface
 
      subroutine init_interface(this)
@@ -123,9 +123,9 @@ module particlebase_mod
      subroutine end_stage_interface(this, upin, upout)
        use gpstate_mod
        import :: ParticleBase
-       class(ParticleBase), intent(inout)              :: this
-       type  (GPStateComp), intent(inout), allocatable :: upin (:)
-       type  (GPStateComp), intent(inout), allocatable :: upout(:)
+       class(ParticleBase), intent(inout)         :: this
+       type  (GPStateComp), intent(inout)         :: upin (:)
+       type  (GPStateComp), intent(inout)         :: upout(:)
      end subroutine end_stage_interface
      
      subroutine feedback_interface(this, pstate, feedback)
@@ -721,9 +721,9 @@ CONTAINS
     INTEGER                                   :: fh,j,ng
     INTEGER                                   :: bcoll,iotype
     INTEGER(kind=MPI_OFFSET_KIND)             :: offset
-    CHARACTER(len=*),INTENT   (IN)            :: dir
-    CHARACTER(len=*),INTENT   (IN)            :: nmb
-    CHARACTER(len=*),INTENT   (IN)            :: spref
+    CHARACTER(len=100),INTENT   (IN)          :: dir
+    CHARACTER(len=*)  ,INTENT   (IN)          :: nmb
+    CHARACTER(len=*)  ,INTENT   (IN)          :: spref
 
     IF ( present(opiotype) ) THEN
       iotype = opiotype
@@ -760,8 +760,8 @@ CONTAINS
     IF ( iotype .EQ. 0 ) THEN   ! Binary files
       IF ( bcoll.EQ. 1 ) THEN   ! collective binary
         IF (len_trim(nmb).gt.0 ) THEN
-        CALL binary_read_pdb_co(this,iunit, &
-        trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
+        CALL binary_read_pdb_co(this,iunit, trim(dir)           &
+              // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
         ELSE
         CALL binary_read_pdb_co(this,iunit, trim(spref),time,this%ptmp0_)
         ENDIF
@@ -773,7 +773,7 @@ CONTAINS
         CALL binary_read_pdb_t0(this,iunit, trim(spref),time,this%ptmp0_)
         ENDIF
       ENDIF
-    ELSE                         ! ASCII files
+    ELSE                        ! ASCII files
       IF (len_trim(nmb).gt.0 ) THEN
         CALL ascii_read_pdb (this,iunit, trim(dir)              &
               // '/' // trim(spref) // '.' // nmb // '.txt',time,this%ptmp0_)
@@ -790,10 +790,10 @@ CONTAINS
     
     CALL GTAcc(this%htimers_(GPTIME_GPREAD))
 
-    IF ( (this%iexchtype_.EQ.GPEXCHTYPE_VDB).AND.              &
+    IF ( (this%iexchtype_.EQ.GPEXCHTYPE_VDB).AND.               &
     .NOT.(present(id).and.present(lx).and.present(ly).and.present(lz).and.present(nl)) ) THEN 
       ! Store in member data arrays
-      CALL GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_, &
+      CALL GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,&
                              this%nparts_,this%ptmp0_,this%maxparts_)
     ELSE IF(this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
       ! Store in specified input arrays
@@ -807,10 +807,10 @@ CONTAINS
       END DO
     END IF
 
-    CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,   &
+    CALL MPI_ALLREDUCE(this%nparts_,ng,1,MPI_INTEGER,           &
                        MPI_SUM,this%comm_,this%ierr_)
     IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_ ) THEN
-      WRITE(*,*)'io_read: inconsistent d.b.: expected: ', &
+      WRITE(*,*)'io_read: inconsistent d.b.: expected: ',       &
                  this%maxparts_, '; found: ',ng
       STOP
     ENDIF
