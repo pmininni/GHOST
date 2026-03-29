@@ -67,7 +67,7 @@ contains
     select case (trim(adjustl(sname)))
       case ('traditional', 'TRADITIONAL')
         allocate( CanutoStepper :: new_object )
-!     case ('gexrk', 'GERXK')
+!     case ('gexrk', 'GEXRK')
 !       allocate( GExRKStepper  :: new_object )
       case default
         stop 'stepper_factory::build_stepper_from_file: Invalid stepper type'

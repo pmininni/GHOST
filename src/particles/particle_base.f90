@@ -363,20 +363,20 @@ CONTAINS
     CALL GTInitHandle(ht,GT_WTIME)
     ! If doing non-collective binary or ascii writes, synch up vector:
     IF ((this%iouttype_.EQ.0 .AND. this%bcollective_.EQ.0).OR.this%iouttype_.EQ.1 ) THEN
-      CALL this%gpcomm_%VDBSynch_t0(this%ptmp0_,this%maxparts_,this%id_, &
+      CALL this%gpcomm_%VDBSynch_t0(this%ptmp0_,this%maxparts_,this%id_,        &
                                  this%lvx_,this%lvy_,this%lvz_,this%nparts_)
     ENDIF
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
       IF ( this%bcollective_.EQ. 1 ) THEN
-        CALL binary_write_lag_co(this,iunit,dir,spref,nmb,time, this%nparts_,&
+        CALL binary_write_lag_co(this,iunit,dir,spref,nmb,time, this%nparts_,   &
                                  this%lvx_,this%lvy_,this%lvz_)
       ELSE
-        CALL binary_write_lag_t0(this,iunit,dir,spref,nmb,time, this%maxparts_,&
+        CALL binary_write_lag_t0(this,iunit,dir,spref,nmb,time, this%maxparts_, &
                                  this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:));
       ENDIF
     ELSE
-      CALL ascii_write_lag(this,iunit,dir,spref,nmb,time, this%maxparts_, &
+      CALL ascii_write_lag(this,iunit,dir,spref,nmb,time,       this%maxparts_, &
                                  this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:));
     ENDIF
     CALL GTStop(ht)
