@@ -21,7 +21,7 @@ file(MAKE_DIRECTORY "${BIN_DIR}")
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
     # Apply flags for all Fortran files
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O4 -funroll-loops")
-    #set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -gdwarf-2 -O0 -fno-omit-frame-pointer -fbacktrace -fcheck=all -finit-real=snan -finit-integer=-999999 -finit-logical=true -finit-character=0 -Wall -Wextra")
+    #set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -gdwarf-2 -O0 -fno-omit-frame-pointer -fbacktrace -fcheck=bounds -finit-real=snan -finit-integer=-999999 -finit-logical=true -finit-character=0 -Wall -Wextra")
     # Apply version-specific flags
     if(CMAKE_Fortran_COMPILER_VERSION VERSION_GREATER_EQUAL "9.0")
     message(STATUS "GNU Fortran version is 9.0 or newer, enabling -fallow-argument-mismatch.")
@@ -94,7 +94,6 @@ target_compile_definitions(project_defs INTERFACE "${SOLVER_UP}_SOL")
 add_library(project_includes INTERFACE)
 target_include_directories(project_includes INTERFACE
     "${SRC_DIR}"
-    "${SRC_DIR}/include"
     "${SRC_DIR}/utils"
     "${SRC_DIR}/pseudo"
     "${SRC_DIR}/memmgt"
