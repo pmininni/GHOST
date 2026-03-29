@@ -54,9 +54,9 @@ module class_GWorkspace3D
     ! Use a list of array entries. Note: For a very large pool, a more
     ! sophisticated data structure (like a linked list) might be better,
     ! but an allocatable array is sufficient for moderate size.
-    CLASS   (RealEntry), ALLOCATABLE  :: real_entries_   (:)
-    CLASS(ComplexEntry), ALLOCATABLE  :: complex_entries_(:)
-    CLASS  (PCompEntry), ALLOCATABLE  :: pcomp_entries_  (:)
+    TYPE   (RealEntry), ALLOCATABLE  :: real_entries_   (:)
+    TYPE(ComplexEntry), ALLOCATABLE  :: complex_entries_(:)
+    TYPE  (PCompEntry), ALLOCATABLE  :: pcomp_entries_  (:)
     integer :: real_size_           = 0
     integer :: complex_size_        = 0
     integer :: pcomp_size_          = 0
@@ -213,7 +213,7 @@ CONTAINS
   ! pool.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine cleanup_pool(this)
-    type(GWorkspace), intent(inout) :: this
+    TYPE(GWorkspace), intent(inout) :: this
 
     if (ALLOCATED(this%real_entries_)) THEN
       DEALLOCATE(this%real_entries_)
