@@ -171,7 +171,9 @@ CONTAINS
         end if
         this%partbuff_ = this%partbuff_ + (1 + (ng - this%partbuff_) / &
                this%partchunksize_) * this%partchunksize_
-        CALL ResizeArrays(this,upin,upout,this%partbuff_,.true.)
+        call ResizeArrays  (this ,this%partbuff_,.true.)
+        call GPState_resize(upin ,this%partbuff_)
+        call GPState_resize(upout,this%partbuff_)
       end if
       ! Exchange current positions (upout) across MPI tasks
       CALL this%gpcomm_%PartExchangeV(this%id_,                        &
@@ -205,7 +207,9 @@ CONTAINS
             end if
             this%partbuff_ = this%partbuff_ -                          &
                 (ng / this%partchunksize_ - 1) * this%partchunksize_
-            CALL ResizeArrays(this,upin,upout,this%partbuff_,.false.)
+            call ResizeArrays  (this ,this%partbuff_,.false.)
+            call GPState_resize(upin ,this%partbuff_)
+            call GPState_resize(upout,this%partbuff_)
           end if
         end if
         this%stepcounter_ = 1

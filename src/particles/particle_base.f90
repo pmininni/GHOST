@@ -689,8 +689,6 @@ CONTAINS
   !!               ASCII reads.
   !!  ARGUMENTS  :
   !!    this    : 'this' class instance
-  !!    pstate  : Particle state vector that may get the data
-  !!    pstate_aux: Auxiliary particle state vector (to resize if needed)
   !!    iunit   : unit number
   !!    dir     : input directory
   !!    spref   : filename prefix
@@ -707,16 +705,13 @@ CONTAINS
   !!    opiotype: optional. Overrides member data iouttype_ if specified.
   !!    opbcoll : optional. Overrides member data bcollective_ if specified.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE io_read(this, pstate, pstate_aux, iunit, dir, spref, nmb, id, &
-                     lx, ly, lz, nl,opiotype,opbcoll)
-    USE gpstate_mod
+  SUBROUTINE io_read(this,iunit,dir,spref,nmb,id,lx,ly,lz,nl,opiotype,opbcoll)
     USE fprecision
     USE commtypes
     USE mpivars
     USE grid
     IMPLICIT NONE
     CLASS(ParticleBase)    ,INTENT(INOUT)     :: this
-    type(GPStateComp)      ,intent(inout), allocatable :: pstate(:), pstate_aux(:)
     REAL(KIND=GP),INTENT(OUT),OPTIONAL,   DIMENSION(:) :: lx,ly,lz
     REAL(KIND=GP)                             :: rvar,time
     INTEGER      ,INTENT(OUT),OPTIONAL,   DIMENSION(:) :: id
@@ -741,25 +736,22 @@ CONTAINS
       bcoll = this%bcollective_
     ENDIF
 
-    ! We point px_,py_,pz_ to pstate
-    call AssignLagPos(this, pstate)
-
     IF (this%iexchtype_.EQ.GPEXCHTYPE_NN) THEN
       IF (bcoll.EQ.1) THEN
         IF (len_trim(nmb).gt.0 ) THEN
-          CALL binary_read_id_co(this,pstate,pstate_aux,iunit, &
-          trim(dir) // '/' // trim(spref) // '.' // nmb //'.lag')
+          CALL binary_read_id_co(this,iunit, trim(dir)          &
+              // '/' // trim(spref) // '.' // nmb //'.lag')
         ELSE
-          CALL binary_read_id_co(this,pstate,pstate_aux,iunit, trim(spref))
+          CALL binary_read_id_co(this,iunit, trim(spref))
         ENDIF
       ELSE
         IF (len_trim(nmb).gt.0 ) THEN
-          CALL binary_read_pdb_t0(this,pstate,pstate_aux,iunit, &
-               trim(dir) // '/' // trim(spref) // '.' // nmb //'.lag',&
-               time,this%ptmp0_,.true.)
+          CALL binary_read_pdb_t0(this,iunit, trim(dir)         &
+              // '/' // trim(spref) // '.' // nmb //'.lag',     &
+              time,this%ptmp0_,.true.)
         ELSE
-          CALL binary_read_pdb_t0(this,pstate,pstate_aux,iunit,trim(spref),time,&
-                                        this%ptmp0_, .true.)
+          CALL binary_read_pdb_t0(this,iunit, trim(spref),time, &
+              this%ptmp0_, .true.)
         END IF
       END IF
     END IF
@@ -775,16 +767,16 @@ CONTAINS
         ENDIF
       ELSE                      ! master thread binary
         IF (len_trim(nmb).gt.0 ) THEN
-        CALL binary_read_pdb_t0(this,pstate,pstate_aux,iunit,&
-         trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
+          CALL binary_read_pdb_t0(this,iunit, trim(dir)         &
+              // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
         ELSE
-        CALL binary_read_pdb_t0(this,pstate,pstate_aux,iunit, trim(spref),time,this%ptmp0_)
+        CALL binary_read_pdb_t0(this,iunit, trim(spref),time,this%ptmp0_)
         ENDIF
       ENDIF
     ELSE                         ! ASCII files
       IF (len_trim(nmb).gt.0 ) THEN
-      CALL ascii_read_pdb (this,iunit,&
-            trim(dir) // '/' // trim(spref) // '.' // nmb // '.txt',time,this%ptmp0_)
+        CALL ascii_read_pdb (this,iunit, trim(dir)              &
+              // '/' // trim(spref) // '.' // nmb // '.txt',time,this%ptmp0_)
       ELSE
       CALL ascii_read_pdb (this,iunit,trim(spref),time,this%ptmp0_)
       ENDIF
@@ -842,19 +834,15 @@ CONTAINS
   !!               collectively to determine corresponding ids.
   !!  ARGUMENTS  :
   !!    this    : 'this' class instance
-  !!    pstate  : Particle state vector that will get the data
-  !!    pstate_aux: Auxiliary particle state vector to resize
   !!    iunit   : unit number
   !!    sfile   : fully resolved file name 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE binary_read_id_co(this,pstate,pstate_aux,iunit,sfile)
-    USE gpstate_mod
+  SUBROUTINE binary_read_id_co(this,iunit,sfile)
     USE fprecision
     USE commtypes
     USE mpivars
     IMPLICIT NONE
     CLASS(ParticleBase) ,INTENT(INOUT)        :: this
-    type(GPStateComp)   ,intent(inout), allocatable :: pstate(:), pstate_aux(:)
     REAL(KIND=GP)                             :: rvar,time
     INTEGER,INTENT(IN)                        :: iunit
     INTEGER                                   :: fh,i,j,nerr,szreal,nr,nb
@@ -896,7 +884,7 @@ CONTAINS
         IF ((this%ptmp0_(3,j).GE.this%lxbnds_(3,1)).AND.(this%ptmp0_(3,j).LT.this%lxbnds_(3,2))) THEN
           IF (this%nparts_.GE.this%partbuff_) THEN
             this%partbuff_ = this%partbuff_ + this%partchunksize_
-            CALL ResizeArrays(this,pstate,pstate_aux,this%partbuff_,.true.)
+            CALL ResizeArrays(this,this%partbuff_,.true.)
           END IF
           this%nparts_ = this%nparts_+1
           this%id_(this%nparts_) = j+nb-1
@@ -982,8 +970,6 @@ CONTAINS
   !!               only from MPI task 0, and broadcast to all other tasks.
   !!  ARGUMENTS  :
   !!    this    : 'this' class instance
-  !!    pstate  : Particle state vector that will get the data
-  !!    pstate_aux: Auxiliary particle state vector to resize
   !!    iunit   : unit number
   !!    sfile   : fully resolved file name
   !!    time    : real time
@@ -991,14 +977,12 @@ CONTAINS
   !!    stg     : stage of reading (if True, only determine ids from 
   !!                                file and resize if necessary)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE binary_read_pdb_t0(this,pstate,pstate_aux,iunit,sfile,time,pdb,stg)
-    USE gpstate_mod
+  SUBROUTINE binary_read_pdb_t0(this,iunit,sfile,time,pdb,stg)
     USE fprecision
     USE commtypes
     USE mpivars
     IMPLICIT NONE
     CLASS(ParticleBase) ,INTENT(INOUT)         :: this
-    type(GPStateComp)   ,intent(inout), allocatable :: pstate(:), pstate_aux(:)
     REAL(KIND=GP),INTENT(INOUT)                :: time
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(:,:) :: pdb
     LOGICAL      ,INTENT(IN), OPTIONAL         :: stg
@@ -1060,7 +1044,7 @@ CONTAINS
                    ' | partbuff=', this%partbuff_, ' --> ', &
                    (1+this%nparts_/this%partchunksize_)*this%partchunksize_
           this%partbuff_ = (1+this%nparts_/this%partchunksize_)*this%partchunksize_
-          CALL ResizeArrays(this,pstate,pstate_aux,this%partbuff_,.true.)
+          CALL ResizeArrays(this,this%partbuff_,.true.)
         END IF
       ELSE
         CALL this%gpcomm_%PartScatterV(this%id_,pdb(1,:),pdb(2,:),pdb(3,:),this%nparts_,this%tmpint_)
@@ -1649,19 +1633,17 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!  METHOD     : Resize_Arrays
   !!  DESCRIPTION: Resize all arrays in the GPart class (including 
-  !!               subclases, i.e. communicator, spline)
+  !!               subclases, i.e. communicator, spline), but not
+  !!               particle states.
   !!  ARGUMENTS  :
   !!    this    : 'this' class instance
-  !!    pstate1,pstate2: aux particle states that will get resized
   !!    new_size: new number of particles
   !!    onlyinc : if true, will only resize to increase array size
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE ResizeArrays(this,pstate1,pstate2,new_size,onlyinc,exc)
-    use gpstate_mod
+  SUBROUTINE ResizeArrays(this,new_size,onlyinc,exc)
 !$  USE threads 
     IMPLICIT NONE
     CLASS(ParticleBase) ,INTENT(INOUT)             :: this
-    type(GPStateComp)   ,intent(inout),allocatable :: pstate1(:), pstate2(:)
     INTEGER      ,INTENT(IN)                       :: new_size
     LOGICAL      ,INTENT(IN)                       :: onlyinc
     LOGICAL      ,INTENT(IN)          ,OPTIONAL    :: exc
@@ -1685,13 +1667,6 @@ CONTAINS
     IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
       call this%workspace_%resize_pcomp_arrays(new_size,.false.)
       call this%workspace_%set_nparts(new_size)
-    END IF
-
-    ! Resize particles state vectors
-    n = size(pstate1(1)%rcomp)
-    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
-      call GPState_resize(pstate1,new_size)
-      call GPState_resize(pstate2,new_size)
     END IF
 
     IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
