@@ -20,15 +20,15 @@
 !
 !              State sector ids are:
 !                VELOCITY (VELOCITY+1, VELOCITY+2)   : momentum sector
-!                ACTIVSC  (ACTIVESC+1)               : active scalar sector
+!                ACTIVSC  (ACTIVSC+1)               : active scalar sector
 !                PASSIVE  (PASSIVE+1, PASSIVE+2, ...): passive scalar sector
 !
 ! TODO This is not completed yet
 ! INPUT FILE : For solver='MOIST', looks for a "&MOIST" namelist with:
 !              nu        : fluid kinematic viscosity
 !              bkappa    : active scalar diffusivity
-!              c0param   : Unsaturated coefficientc
-!              c1param   : Saturated coefficientc
+!              c1param   : Unsaturated coefficientc
+!              c2param   : Saturated coefficientc
 !              bvfreq    : Brunt-Vaisala frequency
 !              xmom      : factor multiplying buoyancy tendency 
 !                          in momentum eqn
@@ -48,7 +48,7 @@
 !              For npassive > 0, looks for a "&passive" namelist with:
 !              kappa   : vector with npassive diffusivities
 !
-! DATE       : 3/28/26 (JBG)
+! DATE       : 3/29/26 (JBG)
 ! =====================================================================
 
 module moist_mod
@@ -58,13 +58,17 @@ module moist_mod
   implicit none
 
   ! ================= Solver traits ===================================
-  type, public  :: BSTraits
+  type, public    :: MOISTTraits
     logical       :: dorot         = .FALSE. ! rotation flag
     integer       :: spectlod      = 1       ! standard level of spectra detail 
     real(kind=GP) :: nu            = 0.0_GP  ! dissipation
     real(kind=GP) :: bkappa        = 0.0_GP  ! diffusivity
-    real(kind=GP) :: c0param       = 0.0_GP  ! unsaturated coef
-    real(kind=GP) :: c1param       = 0.0_GP  ! saturated coef
+    real(kind=GP) :: c1param       = 0.0_GP  ! unsaturated coef
+    real(kind=GP) :: c2param       = 0.0_GP  ! saturated coef
+    real(kind=GP) :: xmom          = 1.0_GP  ! buoy mom coef    
+    real(kind=GP) :: xtemp         = 1.0_GP  ! buoy temp coef
+                                             ! TODO defined in Duane's bouss
+                                             ! and flor's moist
     real(kind=GP) :: bvfreq        = 0.0_GP  ! Brunt-Vaisala freq
     real(kind=GP), allocatable :: kappa(:)   ! diffusivities
     real(kind=GP)              :: omega(3)   ! rotation vector
@@ -77,12 +81,11 @@ module moist_mod
   ! Define class:
   type, extends(VelocityBase) :: MOISTSolver 
     ! Member data:
-    logical           :: binit_=.false. ! is initialized?
-    type  (BSTraits)  :: traits_
+    logical              :: binit_=.false. ! is initialized?
+    type  (MOISTTraits)  :: traits_
   contains
     procedure, public :: init          =>          init_impl ! init method
     procedure, public :: dudt          =>          dudt_impl ! RHS method
-    procedure, public :: pdudt         =>         pdudt_impl ! part+field RHS method
     procedure, public :: global        =>        global_impl ! Writes global qtys
     procedure, public :: spectra       =>       spectra_impl ! Writes spectra
     procedure, public :: state_size    =>    state_size_impl ! state size
@@ -110,11 +113,13 @@ contains
     integer                    :: npassive
     integer                    :: spectlod
     integer                    :: ierr
-    real(kind=GP)              :: nu, bkappa,c0param, c1param,  bvfreq, omegax, omegay, omegaz
+    real(kind=GP)              :: nu, bkappa,c1param, c2param,  bvfreq
+    real(kind=GP)              :: xmom, xtemp
+    real(kind=GP)              :: omegax, omegay, omegaz
     real(kind=GP), allocatable :: kappa(:)
 
     ! Required namelists:
-    namelist/ MOIST      / nu, bkappa,c0param, c1param,  bvfreq, xmom, xtamp, &
+    namelist/ MOIST      / nu, bkappa,c1param, c2param,  bvfreq, xmom, xtemp, &
                            dorot, omegax, omegay, omegaz,  &
                            npassive, spectlod
     namelist/ passive    / kappa
@@ -127,8 +132,8 @@ contains
     spectlod = 1 ! standard lod
     nu       = 0.0_GP
     bkappa   = 0.0_GP
-    c0param  = 0.0_GP
     c1param  = 0.0_GP
+    c2param  = 0.0_GP
     bvfreq   = 0.0_GP
     xmom     = 1.0_GP
     xtemp    = 1.0_GP
@@ -136,13 +141,13 @@ contains
     omegax   = 0.0_GP; omegay = 0.0_GP; omegaz = 0.0_GP
     if ( this%myrank_ .eq. 0 ) then
       open(1,file=this%infile_,status='unknown',form="formatted")
-      read(1,NML=HD)
+      read(1,NML=MOIST)
       close(1)
     endif
     call mpi_bcast(nu       ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(bkappa   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(c0param  ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(c1param  ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(c2param  ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(bvfreq   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(xmom     ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(xtemp    ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
@@ -169,9 +174,11 @@ contains
     this%traits_%   dorot = dorot
     this%traits_%      nu = nu
     this%traits_%  bkappa = bkappa
-    this%traits_% c0param = c0param
     this%traits_% c1param = c1param
+    this%traits_% c2param = c2param
     this%traits_%  bvfreq = bvfreq
+    this%traits_%xmom  = xmom
+    this%traits_%xtemp = xtemp   
     this%traits_%   omega = (/omegax,omegay,omegaz/)
     if ( npassive .gt. 0 ) then
       if ( allocated(this%traits_%kappa) ) then
@@ -186,21 +193,17 @@ contains
     this%order_     = 2                             ! Time stepping order
     this%nd_        = 3                             ! 3d
     this%nc_        = this%nd_                      ! #vel field components
-    this%nactivesc_ = 2                             ! Active Scalars
-    this%na_        = this%nactivesc_               ! #actsc components
+    this%nasc_      = 2                             ! Active Scalars
+    this%na_        = this%nasc_                    ! #actsc components
     this%VELOCITY   = 1                             ! start of vel sector
     this%ACTIVSC    = this%VELOCITY + this%nc_      ! Start of active scalar sector
-    this%PASSIVE    = this%ACTIVSC + this%nactivsc_ ! Start of passive scalar sector
+    this%PASSIVE    = this%ACTIVSC + this%nasc_ ! Start of passive scalar sector
 
     allocate(this%sstate_(this%state_size()))
     call this%get_sstate(this%sstate_)
 
     ! Set stepper callback:       
-    if ( .not. this%traits_%doparts ) then
-      this%stepper_%set_callback(this%dudt_impl)
-    else
-      this%stepper_%set_pcallback(this%pdudt_impl)
-    endif
+    this%stepper_%set_callback(this%dudt_impl)
 
     this%binit_ = .true.  
   end subroutine init_impl
@@ -232,8 +235,9 @@ contains
     complex(kind=GP), pointer, dimension(:,:,:) :: fth1, fth2,th1,th2
     complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4,C5,C6
     complex(kind=GP), pointer, dimension(:,:,:) :: C7,C8
-    real   (kind=GP)                            :: bkappa,c0param, c1param,bvfreq,nu
+    real   (kind=GP)                            :: bkappa,c1param, c2param,bvfreq,nu
     real   (kind=GP)                            :: xmom,xtemp
+    real(kind=GP)                               :: tmp
     real   (kind=GP)                            :: omegax,omegay,omegaz
     integer                                     :: i,j,k
     logical                                     :: bret
@@ -245,9 +249,9 @@ contains
     nu     = this%traits_%nu
     bkappa = this%traits_%bkappa
     bvfreq = this%traits_%bvfreq
-    c0param = this%traits_%c0param
     c1param = this%traits_%c1param
-    xmom   = this%traits_%xmom  * this%bvfreq
+    c2param = this%traits_%c2param
+    xmom   = this%traits_%xmom  * this%traits_%bvfreq
     xtemp  = this%traits_%xtemp * this%traits_%bvfreq
 
     call this%workspace_%get_complex_tmp(C1,bret)
@@ -262,14 +266,14 @@ contains
     vx   => uin(this%VELOCITY  )%ccomp
     vy   => uin(this%VELOCITY+1)%ccomp
     vz   => uin(this%VELOCITY+2)%ccomp
-    th1  => uin(this%activsc   )%ccomp
-    th2  => uin(this%activsc+1 )%ccomp
+    th1  => uin(this%ACTIVSC   )%ccomp
+    th2  => uin(this%ACTIVSC+1 )%ccomp
 
     fx   => uf (this%VELOCITY  )%ccomp
     fy   => uf (this%VELOCITY+1)%ccomp
     fz   => uf (this%VELOCITY+2)%ccomp
-    fth1 => uf (this%activsc   )%ccomp
-    fth2 => uf (this%activsc+1 )%ccomp
+    fth1 => uf (this%ACTIVSC   )%ccomp
+    fth2 => uf (this%ACTIVSC+1 )%ccomp
 
     call prodre3(vx,vy,vz,C4,C5,C6)                    ! w x v
 
@@ -306,10 +310,10 @@ contains
 !$omp parallel do if (kend-ksta.lt.nth) private(i)
       do j = 1, ny
         do i = 1, nx
-           if ( (c1param0*R1(i,j,k)).gt.(c2param0*R2(i,j,k)) ) then
-              R1(i,j,k) = tmp*c1param0*xmom*R1(i,j,k)
+           if ( (c1param*R1(i,j,k)).gt.(c2param*R2(i,j,k)) ) then
+              R1(i,j,k) = tmp*c1param*xmom*R1(i,j,k)
            else
-              R1(i,j,k) = tmp*c2param0*xmom*R2(i,j,k)
+              R1(i,j,k) = tmp*c2param*xmom*R2(i,j,k)
            endif
         enddo
       enddo
@@ -348,8 +352,8 @@ contains
 !$omp parallel do if (iend-ista.lt.nth) private (k)
             do j = 1,ny
                do k = 1,nz
-                  C7(k,j,i) = C7(k,j,i)+c1param0*xtemp*vz(k,j,i)
-                  C8(k,j,i) = C8(k,j,i)+c2param0*xtemp*vz(k,j,i)
+                  C7(k,j,i) = C7(k,j,i)+c1param*xtemp*vz(k,j,i)
+                  C8(k,j,i) = C8(k,j,i)+c2param*xtemp*vz(k,j,i)
                end do
             end do
          end do
@@ -385,14 +389,14 @@ contains
         dudt(this%VELOCITY  )%ccomp(k,j,i) = nu*C4(k,j,i) + C1(k,j,i) + fx(k,j,i)
         dudt(this%VELOCITY+1)%ccomp(k,j,i) = nu*C5(k,j,i) + C2(k,j,i) + fy(k,j,i)
         dudt(this%VELOCITY+2)%ccomp(k,j,i) = nu*C6(k,j,i) + C3(k,j,i) + fz(k,j,i)
-        dudt(this%TEMP0)%ccomp(k,j,i) = bkappa*th1 + C7(k,j,i) + fth1(k,j,i)
-        dudt(this%TEMP1)%ccomp(k,j,i) = bkappa*th2 + C8(k,j,i) + fth2(k,j,i)
+        dudt(this%ACTIVSC)%ccomp(k,j,i)    = bkappa*th1(k,j,i) + C7(k,j,i) + fth1(k,j,i)
+        dudt(this%ACTIVSC+1)%ccomp(k,j,i)  = bkappa*th2(k,j,i) + C8(k,j,i) + fth2(k,j,i)
       else
         dudt(this%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
         dudt(this%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
         dudt(this%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
-        dudt(this%TEMP0)     %ccomp(k,j,i) = 0.0_GP
-        dudt(this%TEMP1)     %ccomp(k,j,i) = 0.0_GP
+        dudt(this%ACTIVSC)   %ccomp(k,j,i) = 0.0_GP
+        dudt(this%ACTIVSC+1) %ccomp(k,j,i) = 0.0_GP
       endif
     enddo
     enddo
@@ -455,58 +459,66 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Function to compute and write global quantities
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine global_impl(this, uin, uf, t) 
+  subroutine global_impl(this, uin, uf, t)
     use pseudospec_hd
     use pseudospec_phd
     use status
     implicit none
 
-    class (MOISTSolver), intent(in)             :: this
+    class(MOISTSolver), intent(in)              :: this
     type(GStateComp), intent(in), target        :: uin(:), uf(:)
-    integer         , intent(in)                :: t
-    complex(kind=GP), pointer, dimension(:,:,:) :: fth1, fth2,fx,fy,fz,vx,vy,vz,th1, th2
-    complex(kind=GP), pointer, dimension(:,:,:) :: c1,c2,c3
-    real   (kind=GP)                            :: rmp,rmq
-    integer                                     :: i
+    integer, intent(in)                         :: t
+    complex(kind=GP), pointer, dimension(:,:,:) :: fx, fy, fz
+    complex(kind=GP), pointer, dimension(:,:,:) :: fth1, fth2
+    complex(kind=GP), pointer, dimension(:,:,:) :: vx, vy, vz
+    complex(kind=GP), pointer, dimension(:,:,:) :: th1, th2
+    complex(kind=GP), pointer, dimension(:,:,:) :: c1, c2, c3
+    real(kind=GP)                               :: rmp1, rmq1, rmq2
+    ! real(kind=GP)                               :: dt, myrank 
+    ! TODO defined?
+    logical                                     :: bret
 
-    call this%workspace_%get_complex_tmp(C1,bret)
+    call this%workspace_%get_complex_tmp(c1, bret)
+    call this%workspace_%get_complex_tmp(c2, bret)
+    call this%workspace_%get_complex_tmp(c3, bret)
 
     vx   => uin(this%VELOCITY  )%ccomp
     vy   => uin(this%VELOCITY+1)%ccomp
     vz   => uin(this%VELOCITY+2)%ccomp
-    th1  => uin(this%activsc   )%ccomp
-    th2  => uin(this%activsc+1 )%ccomp
+    th1  => uin(this%ACTIVSC   )%ccomp
+    th2  => uin(this%ACTIVSC+1 )%ccomp
 
-    fx   => uf (this%VELOCITY  )%ccomp
-    fy   => uf (this%VELOCITY+1)%ccomp
-    fz   => uf (this%VELOCITY+2)%ccomp
-    fth1 => uf (this%activsc   )%ccomp
-    fth2 => uf (this%activsc+1 )%ccomp
+    fx   => uf(this%VELOCITY  )%ccomp
+    fy   => uf(this%VELOCITY+1)%ccomp
+    fz   => uf(this%VELOCITY+2)%ccomp
+    fth1 => uf(this%ACTIVSC   )%ccomp
+    fth2 => uf(this%ACTIVSC+1 )%ccomp
 
-    call hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,1)
-    call pscheck(th1,fth1,t,dt)
+    call hdcheck(vx, vy, vz, fx, fy, fz, t, dt, 1, 1)
+    call pscheck(th1, fth1, t, dt)
+    ! call pscheck(th2, fth2, t, dt)
 
-    call derivk3(th1,c1,1)
-    call derivk3(th1,c2,2)
-    call derivk3(th1,c3,3)
-    call maxabs(c1,c2,c3,rmq,2)
+    call derivk3(th1, c1, 1)
+    call derivk3(th1, c2, 2)
+    call derivk3(th1, c3, 3)
+    call maxabs(c1, c2, c3, rmq1, 2)
 
-    call tbouss(vx,vy,vz,th,t,dt,0.0_GP,bvfreq)
-    call maxabs(vx,vy,vz,rmp,0)
+    ! call tbouss(vx,vy,vz,th,t,dt,0.0_GP,bvfreq)
+    call maxabs(vx,vy,vz,rmp1,0)
 
     ! call mpscheck2(th1,fth1,th2,fs1,t,dt)   ! TODO this include th1 and th2 instaed of 0 and 1
 
     call derivk3(th2,c1,1)
     call derivk3(th2,c2,2)
     call derivk3(th2,c3,3)
-    call maxabs(c1,c2,c3,rmq1,2)
+    call maxabs(c1,c2,c3,rmq2,2)
 
     if (myrank.eq.0) then
        open(1,file='maximum.txt',position='append')
        write(1,FMT='(E13.6,E13.6,E13.6,E13.6)')       &
-                    (t-1)*dt,rmp,rmq,rmq1
-       write(1,FMT='(E13.6,E13.6,E13.6,E13.6,E13.6,E13.6)') &
-                    (t-1)*dt,rmp,rmq,rmq1,rmq2,rmq3
+                    (t-1)*dt,rmp1,rmq1,rmq2
+       ! write(1,FMT='(E13.6,E13.6,E13.6,E13.6,E13.6,E13.6)') &
+       !              (t-1)*dt,rmp,rmq,rmq1,rmq2,rmq3
        close(1)
     endif
 
@@ -516,7 +528,6 @@ contains
 
   end subroutine global_impl
 
-! TODO Cheked until here
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Function to compute and write spectra
@@ -532,35 +543,43 @@ contains
 
     class (MOISTSolver), intent(in)             :: this
     type(GStateComp), intent(in), target        :: uin(:)
-    complex(kind=GP), pointer, dimension(:,:,:) :: vx,vy,vz,th
+    complex(kind=GP), pointer, dimension(:,:,:) :: vx,vy,vz,th1,th2
     complex(kind=GP), pointer, dimension(:,:,:) :: c1,c2,c3
     real   (kind=GP)                            :: bvfreq,omegaz
     integer                                     :: i
     logical                                     :: bret
 
     bvfreq = this%traits_%bvfreq 
-    omegaz = this%traits_% omega(3) 
+    omegaz = this%traits_%omega(3) 
 
 !   write(ext, fmtext) sind
-    vx => uin(this%VELOCITY  )%ccomp
-    vy => uin(this%VELOCITY+1)%ccomp
-    vz => uin(this%VELOCITY+2)%ccomp
-    th => uin(this%TEMP)      %ccomp
-    call spectrum(vx,vy,vz,ext,1,1)
+    vx   => uin(this%VELOCITY  )%ccomp
+    vy   => uin(this%VELOCITY+1)%ccomp
+    vz   => uin(this%VELOCITY+2)%ccomp
+    th1  => uin(this%ACTIVSC   )%ccomp
+    th2  => uin(this%ACTIVSC+1 )%ccomp
+
     call this%workspace_%get_complex_tmp(c1,bret)
     call this%workspace_%get_complex_tmp(c2,bret)
     call this%workspace_%get_complex_tmp(c3,bret)
+
     call gradre3(vx,vy,vz,c1,c2,c3)            ! Computes v.Grad(v)
     call entrans(vx,vy,vz,-c1,-c2,-c3,ext,1)   ! Writes the energy flux
-
-    call specpara(vx,vy,vz,ext,1,1)
-    call specperp(vx,vy,vz,ext,1,1)
-    call spectrsc(th,ext,0)
-    call specscpa(th,ext,0)
-    call specscpe(th,ext,0)
-
+    
     call entpara(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy flux
     call entperp(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy fluxq
+
+    call spectrum(vx,vy,vz,ext,1,1)
+    call specpara(vx,vy,vz,ext,1,1)
+    call specperp(vx,vy,vz,ext,1,1)
+
+    call spectrsc(th1,ext,0)
+    call specscpa(th1,ext,0)
+    call specscpe(th1,ext,0)
+
+    call spectrsc(th2,ext,1)
+    call specscpa(th2,ext,1)
+    call specscpe(th2,ext,1)
 
     ! Write helicity fluxes, 2D spectra:
     if ( this%traits_%spectlod .ge. 2 ) then
@@ -569,7 +588,8 @@ contains
       call helperp(vx,vy,vz,-c1,-c2,-c3,ext,1)
       ! Write 2D spectra:
       call spec2D(vx,vy,vz,ext,odir,1,1)
-      call specsc2D(th,ext,odir,0)
+      call specsc2D(th1,ext,odir,0)
+      call specsc2D(th2,ext,odir,1)
     endif
 
     ! Write Fourier modes:
@@ -577,22 +597,23 @@ contains
       call write_fourier(vx,'vx',ext,odir)
       call write_fourier(vy,'vy',ext,odir)
       call write_fourier(vz,'vz',ext,odir)
-      call write_fourier(th,'th',ext,odir)
+      call write_fourier(th1,'th1',ext,odir)
+      call write_fourier(th2,'th2',ext,odir)
     endif
 
     ! Write PV spectra, horizontally-averaged data:
     if ( this%traits_%spectlod .ge. 4 ) then
-      call spectpv(vx,vy,vz,th,ext)
-      call havgwrite(0,'shear'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! shear
-      call havgwrite(1,'tgradz' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! dtheta/dz
-      call havgwrite(2,'hawdtdz',ext,vx,vy,vz,th,omegaz,bvfreq) ! u_z*dtheta/dz
-      call havgwrite(3,'hahke'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! hor. k.e.
-      call havgwrite(4,'havke'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! vert. k.e.
-      call havgwrite(5,'haphel' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! perp. helicity
-      call havgwrite(6,'haomzt' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! ometa_z*theta
-      call havgwrite(7,'hapv2'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! pot'l vorticity^2
-      call havgwrite(8,'hasuph' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! super-helicity
-      call havgwrite(9,'hari'   ,ext,vx,vy,vz,th,omegaz,bvfreq) ! Richardson no.
+      call spectpv(vx,vy,vz,th1,ext)
+      call havgwrite(0,'shear'  ,ext,vx,vy,vz,th1,omegaz,bvfreq) ! shear
+      call havgwrite(1,'tgradz' ,ext,vx,vy,vz,th1,omegaz,bvfreq) ! dtheta/dz
+      call havgwrite(2,'hawdtdz',ext,vx,vy,vz,th1,omegaz,bvfreq) ! u_z*dtheta/dz
+      call havgwrite(3,'hahke'  ,ext,vx,vy,vz,th1,omegaz,bvfreq) ! hor. k.e.
+      call havgwrite(4,'havke'  ,ext,vx,vy,vz,th1,omegaz,bvfreq) ! vert. k.e.
+      call havgwrite(5,'haphel' ,ext,vx,vy,vz,th1,omegaz,bvfreq) ! perp. helicity
+      call havgwrite(6,'haomzt' ,ext,vx,vy,vz,th1,omegaz,bvfreq) ! ometa_z*theta
+      call havgwrite(7,'hapv2'  ,ext,vx,vy,vz,th1,omegaz,bvfreq) ! pot'l vorticity^2
+      call havgwrite(8,'hasuph' ,ext,vx,vy,vz,th1,omegaz,bvfreq) ! super-helicity
+      call havgwrite(9,'hari'   ,ext,vx,vy,vz,th1,omegaz,bvfreq) ! Richardson no.
 
     endif
 
@@ -621,13 +642,15 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine MOISTSolver_ctor(this, infile, workspace, plan)
     use iovar
-    class  (MOISTSolver), intent(inout)      :: this
+    class(MOISTSolver), intent(inout)        :: this
     type(GWorkspace) , intent(inout), target :: workspace
     type(ioplan)     , intent(inout), target :: plan
-    character(len=*) , intent   (in)         :: infile
-    this%infile_    =  infile    ! input file
+    character(len=*), intent(in)             :: infile
+
+    this%infile_    = infile
     this%workspace_ => workspace
     this%planio_    => plan
+
     call this%init()
   end subroutine MOISTSolver_ctor
 
@@ -635,8 +658,9 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Destructor
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine MOISTSolver_dtor(this) 
-    type  (MOISTSolver), intent(inout) :: this
+  subroutine MOISTSolver_dtor(this)
+    type(MOISTSolver), intent(inout) :: this
+
     if (associated(this%workspace_))   nullify(this%workspace_)
     if (associated(this%planio_))      nullify(this%planio_)
     if (allocated(this%sstate_))       deallocate(this%sstate_)
@@ -647,60 +671,75 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Convert input state name to index in state vector
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine sstate2istate_impl(this, sstate, istate) 
-    class (BOUSSSolver)              , intent   (in) :: this
-    character(len=8)              , intent   (in) :: sstate(:)
-    integer         , allocatable , intent(inout) :: istate(:)
-    integer                                       :: i,j
-    if ( size(sstate) .ne. size(istate) ) then
-      stop 'BOUSSSolver::sstate2istate_impl: Incompatible sstate and istate'
-    endif  
+  subroutine sstate2istate_impl(this, sstate, istate)
+    class(MOISTSolver), intent(in)            :: this
+    character(len=8), intent(in)              :: sstate(:)
+    integer, allocatable, intent(inout)       :: istate(:)
+    integer                                   :: i, j
+
+    if (.not. allocated(istate)) then
+      allocate(istate(size(sstate)))
+    else if (size(istate) /= size(sstate)) then
+      deallocate(istate)
+      allocate(istate(size(sstate)))
+    end if
+
     do i = 1, size(sstate)
-      istate(i) = -1 ! return unusable index
+      istate(i) = -1
       do j = 1, size(this%sstate_)
-        if ( sstate(i) .eq. this%sstate_(j) ) then
+        if (trim(sstate(i)) == trim(this%sstate_(j))) then
           istate(i) = j
-        endif
-      enddo
-    enddo
+          exit
+        end if
+      end do
+    end do
   end subroutine sstate2istate_impl
-  
+
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Get state variable names
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine get_sstate_impl(this, sstate) 
-    class  (BOUSSSolver)             , intent   (in) :: this
-    character (len=8), allocatable, intent(inout) :: sstate(:)
-    character(len=100)                            :: snum
-    character(len=1)                              :: comp(3)
-    integer                                       :: j
+  subroutine get_sstate_impl(this, sstate)
+    class(MOISTSolver), intent(in)              :: this
+    character(len=8), allocatable, intent(inout):: sstate(:)
+    character(len=8)                            :: name
+    character(len=1)                            :: comp(3)
+    integer                                     :: j
 
-    if ( size(sstate) .lt. this%state_size() ) then
+    if (.not. allocated(sstate)) then
+      allocate(sstate(this%state_size()))
+    else if (size(sstate) /= this%state_size()) then
       deallocate(sstate)
-      allocate(sstate,this%state_size())
-    endif
+      allocate(sstate(this%state_size()))
+    end if
 
     comp = ['x', 'y', 'z']
-    do j = this%VELOCITY,this%VELOCITY+this%nc_-1
-       sstate(j) = 'v' // comp(j-this%VELOCITY+1)
-    enddo
-    sstate(this%TEMP) = 'th' 
-    do j = this%PASSIVE,this%PASSIVE+this%numpassive_-1
-       write(snum,'(I0)') j-this%PASSIVE+1
-       sstate(j) = 's' // trim(snum)
-    enddo
+
+    ! Velocity components
+    do j = 1, this%nc_
+      sstate(this%VELOCITY + j - 1) = 'v' // comp(j)
+    end do
+
+    ! Active scalars
+    do j = 1, this%nasc_
+      write(name,'("th",I1)') j
+      sstate(this%ACTIVSC + j - 1) = trim(name)
+    end do
+
+    ! Passive scalars
+    do j = 1, this%numpassive_
+      write(name,'("s",I0)') j
+      sstate(this%PASSIVE + j - 1) = trim(name)
+    end do
   end subroutine get_sstate_impl
-  
+
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Function to compute number of state members (equations)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  PURE function state_size_impl(this) result(num)
-    class(BOUSSSolver), intent(in) :: this
-    integer                     :: num
-    num = this%nc_ + 1           ! # vel. components + theta
-    num = num + this%numpassive_ ! # passive scalars
-  end function state_size_impl
+  pure function state_size_impl(this) result(num)
+    class(MOISTSolver), intent(in) :: this
+    integer                        :: num
 
-end module bouss_mod
+    num = this%nc_ + this%nasc_ + this%numpassive_
+  end function state_size_impl
