@@ -170,6 +170,9 @@
       CALL init_forcing(forcemethod,fluid,force)
       if (dopart) then
          CALL init_allpstates(icplist,particle,part)
+	 if (size(part(1)%rcomp) .ne. size(part_nxt(1)%rcomp)) then
+	   call GPState_resize(part_nxt,particle%partbuff_) ! We resize part_nxt
+	 endif
 	 part_nxt = part ! We also update part_nxt
       endif
 
