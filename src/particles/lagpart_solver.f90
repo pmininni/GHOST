@@ -144,9 +144,9 @@ CONTAINS
   subroutine end_stage_impl(this, upin, upout)
     use gpstate_mod
     implicit none
-    class     (GPart), intent(inout)              :: this
-    type(GPStateComp), intent(inout), allocatable :: upin (:) ! state at t0
-    type(GPStateComp), intent(inout), allocatable :: upout(:) ! state after sub-stage
+    class     (GPart), intent(inout) :: this
+    type(GPStateComp), intent(inout) :: upin (:) ! state at t0
+    type(GPStateComp), intent(inout) :: upout(:) ! state after sub-stage
     integer :: j, ng
     ! Branch 1: Nearest-neighbour (NN) exchange
     if (this%iexchtype_ .EQ. GPEXCHTYPE_NN) then
@@ -171,7 +171,9 @@ CONTAINS
         end if
         this%partbuff_ = this%partbuff_ + (1 + (ng - this%partbuff_) / &
                this%partchunksize_) * this%partchunksize_
-        CALL ResizeArrays(this,upin,upout,this%partbuff_,.true.)
+        call ResizeArrays  (this ,this%partbuff_,.true.)
+        call GPState_resize(upin ,this%partbuff_)
+        call GPState_resize(upout,this%partbuff_)
       end if
       ! Exchange current positions (upout) across MPI tasks
       CALL this%gpcomm_%PartExchangeV(this%id_,                        &
@@ -205,7 +207,9 @@ CONTAINS
             end if
             this%partbuff_ = this%partbuff_ -                          &
                 (ng / this%partchunksize_ - 1) * this%partchunksize_
-            CALL ResizeArrays(this,upin,upout,this%partbuff_,.false.)
+            call ResizeArrays  (this ,this%partbuff_,.false.)
+            call GPState_resize(upin ,this%partbuff_)
+            call GPState_resize(upout,this%partbuff_)
           end if
         end if
         this%stepcounter_ = 1
@@ -366,16 +370,17 @@ CONTAINS
     USE commtypes
     USE fftplans
     USE pstatus
+    USE status
     USE random
     IMPLICIT NONE
-    CLASS     (GPart), intent(inout)                      :: this
-    type (GWorkspace), intent(inout),              target :: workspace
-    type(GPStateComp), intent(inout), allocatable, target :: pstate(:), pstate_cpy(:)
-    character(len=*) , intent   (in)                      :: infile
-    INTEGER                             :: disp(3),lens(3),types(3),szreal
-    INTEGER                             :: tsta,tend,num_components
-    INTEGER                             :: j,nc
-    logical                             :: bret
+    CLASS     (GPart), intent(inout)              :: this
+    type (GWorkspace), intent(inout), target      :: workspace
+    type(GPStateComp), intent(inout), allocatable :: pstate(:), pstate_cpy(:)
+    character(len=*) , intent   (in)              :: infile
+    integer                                       :: disp(3),lens(3),types(3)
+    integer                                       :: tsta,tend,num_components
+    integer                                       :: j,nc,szreal
+    logical                                       :: bret
 
     this%infile_      =  infile    ! input file
     this%workspace_   => workspace
@@ -407,6 +412,7 @@ CONTAINS
     this%bcollective_ = ilgcoll
     this%itimetype_   = GT_WTIME
     this%wrtunit_     = ilgwrtunit
+    CALL SetRandSeed (this, seed )
     CALL prandom_seed(this%iseed_)
     CALL MPI_COMM_SIZE(this%comm_,this%nprocs_,this%ierr_)
     CALL MPI_COMM_RANK(this%comm_,this%myrank_,this%ierr_)

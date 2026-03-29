@@ -41,24 +41,33 @@ CONTAINS
   ! ===================================================================
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Read the velocity field from restart files
+  !! Read particle positions from restart files
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_readpos(this,psolver,pstate)
     use gpstate_mod
-    
     use status
     use pstatus
     use filefmt
     use commtypes
     implicit none
-    class    (read_pos), intent   (in)          :: this
-    class(ParticleBase), intent(inout)          :: psolver
-    type  (GPStateComp), intent(inout)          :: pstate(:)
+    class    (read_pos), intent   (in)   :: this
+    class(ParticleBase), intent(inout)   :: psolver
+    type  (GPStateComp), intent(inout)   :: pstate(:)
+
+    if ((stat .eq. 0).and.(psolver%myrank_ .eq. 0)) then
+      stop 'Cannot read restart files if starting a new run with stat=0'
+    endif
+    call AssignLagPos(psolver, pstate)
+    pind = int((stat-1)*lgmult+1)
+    WRITE(lgext, lgfmtext) pind
+    CALL io_read(psolver,1,idir,'xlg',lgext)
   end subroutine init_readpos
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Read positions from a user defined input file
+  !! Read positions from a user defined input file. Pstates
+  !! outside the one used for reading must be resized to the
+  !! size of arrays in pstate after calling this routine.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_userpos(this,psolver,pstate)
     use gpstate_mod
@@ -67,24 +76,98 @@ CONTAINS
     use filefmt
     use commtypes
     implicit none
-    class    (user_pos), intent   (in)          :: this
-    class(ParticleBase), intent(inout)          :: psolver
-    type  (GPStateComp), intent(inout)          :: pstate(:)
+    class    (user_pos), intent   (in)   :: this
+    class(ParticleBase), intent(inout)   :: psolver
+    type  (GPStateComp), intent(inout)   :: pstate(:)
+    integer                              :: nl,nt
+    real(kind=GP)                        :: x,y,z
+
+    ! Note: each record (line) consists of x y z real positions
+    ! within [0,NX-1]x[0,NY-1]x[0,NZ-1] box or the equivalent
+    ! in box units depending on wrtunit_ class options.
+    OPEN(UNIT=5,FILE=trim(psolver%seedfile_),STATUS='OLD',ACTION='READ', &
+         IOSTAT=psolver%ierr_, IOMSG=psolver%serr_);
+    IF ( psolver%ierr_ .NE. 0 ) THEN
+      WRITE(*,*)'Init_userpos: file:',trim(psolver%seedfile_),' err: ',  &
+         trim(psolver%serr_) 
+      STOP
+    ENDIF
+    READ(5,*,IOSTAT=psolver%ierr_) nt
+    IF ( psolver%myrank_.eq.0 .AND. nt.NE.psolver%maxparts_ ) THEN
+      WRITE(*,*) 'Init_userpos: Inconsistent seed file: required no. part.=', &
+      psolver%maxparts_,' total listed: ',nt,' file:',psolver%seedfile_
+      STOP
+    ENDIF
+    READ(5,*,IOSTAT=psolver%ierr_) x
+
+    nt = 0  ! global part. record counter
+    nl = 0  ! local particle counter
+    DO WHILE ( psolver%ierr_.EQ.0 )
+      READ(5,*,IOSTAT=psolver%ierr_) x, y, z
+      IF ( psolver%ierr_ .NE. 0 ) THEN
+        WRITE(*,*) 'Init_userpos: terminating read; nt=', nt
+        EXIT
+      ENDIF
+      IF ( psolver%wrtunit_ .EQ. 1 ) THEN ! rescale coordinates to grid units
+        x = x*psolver%invdel_(1)
+        y = y*psolver%invdel_(2)
+        z = z*psolver%invdel_(3)
+      ENDIF
+      IF ( z.GE.psolver%lxbnds_(3,1) .AND. z.LT.psolver%lxbnds_(3,2) .AND. &
+           y.GE.psolver%lxbnds_(2,1) .AND. y.LT.psolver%lxbnds_(2,2) .AND. &
+           x.GE.psolver%lxbnds_(1,1) .AND. x.LT.psolver%lxbnds_(1,2) ) THEN
+        nl = nl + 1
+        IF (nl.GT.psolver%partbuff_) THEN
+          psolver%partbuff_ = psolver%partbuff_ + psolver%partchunksize_
+          CALL ResizeArrays  (psolver,psolver%partbuff_,.true.)
+          call GPState_resize(pstate ,psolver%partbuff_)
+        END IF
+        psolver%id_(nl)                      = nt
+        pstate(psolver%POSITION  )%rcomp(nl) = x
+        pstate(psolver%POSITION+1)%rcomp(nl) = y
+        pstate(psolver%POSITION+2)%rcomp(nl) = z
+      ENDIF
+      nt = nt + 1
+    ENDDO
+    CLOSE(5)
+
+    psolver%nparts_ = nl;
+    IF ((psolver%myrank_.NE.0).OR.(psolver%bcollective_.EQ.1)) THEN
+      IF (psolver%nparts_.LT.(psolver%partbuff_-psolver%partchunksize_)) THEN
+        psolver%partbuff_ = psolver%partbuff_ - ((psolver%partbuff_-psolver%nparts_) &
+                        /psolver%partchunksize_-1)*psolver%partchunksize_
+        CALL ResizeArrays  (psolver,psolver%partbuff_,.false.) 
+        call GPState_resize(pstate ,psolver%partbuff_)
+      END IF
+    END IF
+    CALL MPI_ALLREDUCE(nl,nt,1,MPI_INTEGER,MPI_SUM,psolver%comm_,psolver%ierr_)
+    IF ( psolver%myrank_.eq.0 .AND. nt.NE.psolver%maxparts_ ) THEN
+      WRITE(*,*) 'Init_userpos: Inconsistent particle count: required no.=',    &
+      psolver%maxparts_,' total read: ',nt,' file:',psolver%seedfile_
+      STOP
+    ENDIF
+    IF (psolver%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
+      CALL psolver%gpcomm_%VDBSynch(psolver%vdb_,psolver%maxparts_,psolver%id_, &
+           pstate(psolver%POSITION  )%rcomp,                                    &
+           pstate(psolver%POSITION+1)%rcomp,                                    &
+           pstate(psolver%POSITION+2)%rcomp,                                    &
+           psolver%nparts_,psolver%ptmp0_)
+    END IF
   end subroutine init_userpos
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Taylor-Green flow
+  !! Initialize particle positions randomly
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_randompos(this,psolver,pstate)
     use gpstate_mod
     use random
     implicit none
-    class    (rand_pos), intent   (in)          :: this
-    class(ParticleBase), intent(inout)          :: psolver
-    type  (GPStateComp), intent(inout)          :: pstate(:)
-    integer                           :: ib,ie,j,iwrk1,iwrk2,nt
-    real(kind=GP)                     :: c,r,x1,x2
+    class    (rand_pos), intent   (in)   :: this
+    class(ParticleBase), intent(inout)   :: psolver
+    type  (GPStateComp), intent(inout)   :: pstate(:)
+    integer                              :: ib,ie,j,iwrk1,iwrk2,nt
+    real(kind=GP)                        :: c,r,x1,x2
 
     ! Note: Box is [0,N-1]^3.
     ! All tasks write to _global_ grid, expecting a VDBSynch afterwards
