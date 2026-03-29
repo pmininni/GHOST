@@ -73,7 +73,6 @@ contains
   !! Constructor
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine GExRKStepper_ctor(this, traits, workspace, solver, psolver)
-  subroutine GExRKStepper_ctor(this, traits, workspace, solver)
     class (GExRKStepper), intent(inout)                   :: this
     type(GStepperTraits), intent(inout)                   :: traits
     type    (GWorkspace), intent(inout), target           :: workspace
