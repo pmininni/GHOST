@@ -83,7 +83,7 @@ module moist_mod
     ! Member data:
     logical              :: binit_=.false. ! is initialized?
     type  (MOISTTraits)  :: traits_
-    integer              :: nasc_    !TODO Add this in ActiveScalarBase like nc_
+    ! integer              :: nasc_    !TODO Add this in ActiveScalarBase like nc_
   contains
     procedure, public :: init          =>          init_impl ! init method
     procedure, public :: dudt          =>          dudt_impl ! RHS method
@@ -191,14 +191,12 @@ contains
     endif
     this%traits_%spectlod =  spectlod
 
-    this%order_     = 2                             ! Time stepping order
-    this%nd_        = 3                             ! 3d
-    this%nc_        = this%nd_                      ! #vel field components
-    this%nasc_      = 2                             ! Active Scalars
-    this%nasc_      = 2                             ! #actsc components
-    this%VELOCITY   = 1                             ! start of vel sector
-    this%ACTIVESC   = this%VELOCITY + this%nc_      ! Start of active scalar sector
-    this%PASSIVE    = this%ACTIVESC + this%nasc_ ! Start of passive scalar sector
+    this%order_     = 2                               ! Time stepping order
+    this%nd_        = 3                               ! 3d
+    this%nc_        = this%nd_                        ! #vel field components
+    this%VELOCITY   = 1                               ! start of vel sector
+    this%ACTIVESC   = this%VELOCITY + this%nc_        ! Start of active scalar sector
+    this%PASSIVE    = this%ACTIVESC + this%nactivesc_ ! Start of passive scalar sector
 
     allocate(this%sstate_(this%state_size()))
     call this%get_sstate(this%sstate_)
