@@ -6,6 +6,7 @@ add_library(pseudo_lib STATIC
   pseudospec3D_rot.f90
   pseudospec3D_prot.f90
   pseudospec3D_mhd.f90
+  pseudospec3D_bouss.f90
 )
 
 target_include_directories(pseudo_lib PUBLIC

@@ -48,7 +48,7 @@
 !              For npassive > 0, looks for a "&passive" namelist with:
 !              kappa   : vector with npassive diffusivities
 !
-! DATE       : 3/29/26 (JBG)
+! DATE       : 3/30/26 (JBG)
 ! =====================================================================
 
 module moist_mod
@@ -331,7 +331,7 @@ contains
   !$omp parallel do if (iend-ista.lt.nth) private(k)
        do j = 1,ny
           do k = 1,nz
-             C6(k,j,i) = C6(k,j,i)-C7(k,j,i) ! + in Flor's moist, - in Duane's bouss
+             C6(k,j,i) = C6(k,j,i)+C7(k,j,i)   ! '-' because '-' after nonlhd
           end do
        end do
     end do
@@ -544,6 +544,7 @@ contains
     use pseudospec_aniso
     use pseudospec_scalar
     use pseudospec_anisca
+    use pseudospec3D_bouss
     use filefmt
     use status
     use iovar
