@@ -112,6 +112,7 @@ contains
     ! Temporary data to read from namelists:
     logical                    :: dorot
     integer                    :: npassive
+    integer                    :: nactive
     integer                    :: spectlod
     integer                    :: ierr
     real(kind=GP)              :: nu, bkappa,c1param, c2param,  bvfreq
@@ -162,7 +163,7 @@ contains
     call mpi_bcast(spectlod ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
     this%numpassive_ = npassive
-    this%numactive_  = nactive
+    this%numactivesc_  = nactive
     if ( npassive .gt. 0 ) then
       allocate(kappa(npassive))
       if ( this%myrank_ .eq. 0 ) then
