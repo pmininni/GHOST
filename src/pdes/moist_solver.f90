@@ -204,7 +204,7 @@ contains
     call this%get_sstate(this%sstate_)
 
     ! Set stepper callback:       
-    this%stepper_%set_callback(this%dudt_impl)
+    ! this%stepper_%set_callback(this%dudt_impl) !TODO delete this as HD_solver
 
     this%binit_ = .true.  
   end subroutine init_impl
@@ -744,3 +744,4 @@ contains
 
     num = this%nc_ + this%nasc_ + this%numpassive_
   end function state_size_impl
+end module moist_mod
