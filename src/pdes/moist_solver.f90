@@ -196,7 +196,7 @@ contains
     this%nc_        = this%nd_                        ! #vel field components
     this%VELOCITY   = 1                               ! start of vel sector
     this%ACTIVESC   = this%VELOCITY + this%nc_        ! Start of active scalar sector
-    this%PASSIVE    = this%ACTIVESC + this%nactivesc_ ! Start of passive scalar sector
+    this%PASSIVE    = this%ACTIVESC + this%numactivesc_ ! Start of passive scalar sector
 
     allocate(this%sstate_(this%state_size()))
     call this%get_sstate(this%sstate_)
@@ -728,7 +728,7 @@ contains
     end do
 
     ! Active scalars
-    do j = 1, this%nasc_
+    do j = 1, this%numactivesc_
       write(name,'("th",I1)') j
       sstate(this%ACTIVESC + j - 1) = trim(name)
     end do
@@ -748,6 +748,6 @@ contains
     class(MOISTSolver), intent(in) :: this
     integer                        :: num
 
-    num = this%nc_ + this%nasc_ + this%numpassive_
+    num = this%nc_ + this%numactivesc_ + this%numpassive_
   end function state_size_impl
 end module moist_mod
