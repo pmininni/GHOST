@@ -363,20 +363,20 @@ CONTAINS
     CALL GTInitHandle(ht,GT_WTIME)
     ! If doing non-collective binary or ascii writes, synch up vector:
     IF ((this%iouttype_.EQ.0 .AND. this%bcollective_.EQ.0).OR.this%iouttype_.EQ.1 ) THEN
-      CALL this%gpcomm_%VDBSynch_t0(this%ptmp0_,this%maxparts_,this%id_, &
+      CALL this%gpcomm_%VDBSynch_t0(this%ptmp0_,this%maxparts_,this%id_,        &
                                  this%lvx_,this%lvy_,this%lvz_,this%nparts_)
     ENDIF
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
       IF ( this%bcollective_.EQ. 1 ) THEN
-        CALL binary_write_lag_co(this,iunit,dir,spref,nmb,time, this%nparts_,&
+        CALL binary_write_lag_co(this,iunit,dir,spref,nmb,time, this%nparts_,   &
                                  this%lvx_,this%lvy_,this%lvz_)
       ELSE
-        CALL binary_write_lag_t0(this,iunit,dir,spref,nmb,time, this%maxparts_,&
+        CALL binary_write_lag_t0(this,iunit,dir,spref,nmb,time, this%maxparts_, &
                                  this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:));
       ENDIF
     ELSE
-      CALL ascii_write_lag(this,iunit,dir,spref,nmb,time, this%maxparts_, &
+      CALL ascii_write_lag(this,iunit,dir,spref,nmb,time,       this%maxparts_, &
                                  this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:));
     ENDIF
     CALL GTStop(ht)
@@ -750,8 +750,8 @@ CONTAINS
               // '/' // trim(spref) // '.' // nmb //'.lag',     &
               time,this%ptmp0_,.true.)
         ELSE
-          CALL binary_read_pdb_t0(this,iunit, trim(spref),time, &
-              this%ptmp0_, .true.)
+          CALL binary_read_pdb_t0(this,iunit, trim(spref),      &
+              time,this%ptmp0_,.true.)
         END IF
       END IF
     END IF
@@ -760,17 +760,17 @@ CONTAINS
     IF ( iotype .EQ. 0 ) THEN   ! Binary files
       IF ( bcoll.EQ. 1 ) THEN   ! collective binary
         IF (len_trim(nmb).gt.0 ) THEN
-        CALL binary_read_pdb_co(this,iunit, trim(dir)           &
+          CALL binary_read_pdb_co(this,iunit, trim(dir)         &
               // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
         ELSE
-        CALL binary_read_pdb_co(this,iunit, trim(spref),time,this%ptmp0_)
+          CALL binary_read_pdb_co(this,iunit, trim(spref),  time,this%ptmp0_)
         ENDIF
       ELSE                      ! master thread binary
         IF (len_trim(nmb).gt.0 ) THEN
           CALL binary_read_pdb_t0(this,iunit, trim(dir)         &
               // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
         ELSE
-        CALL binary_read_pdb_t0(this,iunit, trim(spref),time,this%ptmp0_)
+          CALL binary_read_pdb_t0(this,iunit, trim(spref),  time,this%ptmp0_)
         ENDIF
       ENDIF
     ELSE                        ! ASCII files
@@ -778,7 +778,7 @@ CONTAINS
         CALL ascii_read_pdb (this,iunit, trim(dir)              &
               // '/' // trim(spref) // '.' // nmb // '.txt',time,this%ptmp0_)
       ELSE
-      CALL ascii_read_pdb (this,iunit,trim(spref),time,this%ptmp0_)
+        CALL ascii_read_pdb (this,iunit,trim(spref),        time,this%ptmp0_)
       ENDIF
     ENDIF
     ! rescale coordinates from box units
@@ -787,7 +787,6 @@ CONTAINS
        this%ptmp0_(2,:) = this%ptmp0_(2,:)*this%invdel_(2)
        this%ptmp0_(3,:) = this%ptmp0_(3,:)*this%invdel_(3)
     ENDIF
-    
     CALL GTAcc(this%htimers_(GPTIME_GPREAD))
 
     IF ( (this%iexchtype_.EQ.GPEXCHTYPE_VDB).AND.               &
