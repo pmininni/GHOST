@@ -55,7 +55,7 @@ CONTAINS
 !       NUMTMPCOMP =  8; NUMTMPREAL = 3
       case ('MOIST')
         allocate(MOISTsolver :: new_object)
-        NUMTMPCOMP =  8; NUMTMPREAL = 3 ! TODO check
+        NUMTMPCOMP =  10; NUMTMPREAL = 3 ! TODO check
       case ('MHD')
         allocate(MHDsolver :: new_object)
         NUMTMPCOMP = 12; NUMTMPREAL = 3

@@ -224,6 +224,8 @@ contains
     use var
     use grid
     use mpivars
+    use commtypes
+    use fft
 !$  use threads
     implicit none
 
@@ -236,6 +238,7 @@ contains
     complex(kind=GP), pointer, dimension(:,:,:) :: fth1, fth2,th1,th2
     complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4,C5,C6
     complex(kind=GP), pointer, dimension(:,:,:) :: C7,C8
+    real(kind=GP),    pointer, dimension(:,:,:) :: R1,R2
     real   (kind=GP)                            :: bkappa,c1param, c2param,bvfreq,nu
     real   (kind=GP)                            :: xmom,xtemp
     real(kind=GP)                               :: tmp
@@ -263,6 +266,8 @@ contains
     call this%workspace_%get_complex_tmp(C6,bret)
     call this%workspace_%get_complex_tmp(C7,bret)
     call this%workspace_%get_complex_tmp(C8,bret)
+    call this%workspace_%get_real_tmp(R1,bret)
+    call this%workspace_%get_real_tmp(R2,bret)
 
     vx   => uin(this%VELOCITY  )%ccomp
     vy   => uin(this%VELOCITY+1)%ccomp
@@ -447,6 +452,8 @@ contains
     call this%workspace_%free_complex_tmp(C6)
     call this%workspace_%free_complex_tmp(C7)
     call this%workspace_%free_complex_tmp(C8)
+    call this%workspace_%free_real_tmp(R1)
+    call this%workspace_%free_real_tmp(R2)
 
     ! Compute passive scalars:
     call this%rhs_passive(uin, uf, this%traits_%kappa, dudt)
