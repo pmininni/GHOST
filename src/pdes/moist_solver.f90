@@ -218,7 +218,7 @@ contains
   !! Function to compute RHS with rotation
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine dudt_impl(this, time, uin, uf, dt, dudt) 
-    use pseudospec_fluid
+    use pseudospec_scalar
     use ali
     use kes
     use var
@@ -592,8 +592,8 @@ contains
     ! Write helicity fluxes, 2D spectra:
     if ( this%traits_%spectlod .ge. 2 ) then
       call heltrans(vx,vy,vz,-c1,-c2,-c3,ext,1)
-      call helpara(vx,vy,vz,-c1,-c2,-c3,ext,1)
-      call helperp(vx,vy,vz,-c1,-c2,-c3,ext,1)
+      ! call helpara(vx,vy,vz,-c1,-c2,-c3,ext,1) !TODO not defined in new GHOST
+      ! call helperp(vx,vy,vz,-c1,-c2,-c3,ext,1)
       ! Write 2D spectra:
       call spec2D(vx,vy,vz,ext,odir,1,1)
       call specsc2D(th1,ext,odir,0)
