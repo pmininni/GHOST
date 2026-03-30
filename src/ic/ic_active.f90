@@ -14,6 +14,7 @@
 
 module ic_active
   use icbase_mod
+  use equationbase_mod
 
   implicit none
 
