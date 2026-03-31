@@ -78,11 +78,11 @@ CONTAINS
     type   (GStateComp), target, intent   (in) :: fluidstate(:)
     type  (GPStateComp),         intent   (in) :: pstate(:)
     type  (GPStateComp),         intent(inout) :: dpdtout(:)
-    complex   (KIND=GP), pointer,DIMENSION(:,:,:) :: velc
-    real      (KIND=GP), pointer,DIMENSION(:,:,:) :: velr,tmp1,tmp2
-    real      (kind=GP)                           :: rmp
-    integer                                       :: i,j,k,m
-    logical                                       :: bret,doupdate(this%nc_)
+    complex   (KIND=GP), pointer, DIMENSION(:,:,:) :: velc
+    real      (KIND=GP), pointer, DIMENSION(:,:,:) :: velr,tmp1,tmp2
+    real      (kind=GP)                            :: rmp
+    integer                                        :: i,j,k,m
+    logical                                        :: bret,doupdate(this%nc_)
     
     CALL GTStart(this%htimers_(GPTIME_STEP))
     call this%workspace_%get_complex_tmp(velc,bret)
@@ -234,31 +234,29 @@ CONTAINS
       end if
       ! Sync global VDB for the current positions (upout)
       CALL GTStart(this%htimers_(GPTIME_COMM))
-      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
-               upout(this%POSITION  )%rcomp,                        &
-               upout(this%POSITION+1)%rcomp,                        &
-               upout(this%POSITION+2)%rcomp,                        &
+      CALL this%gpcomm_%VDBSynch(this%vdb_   ,this%maxparts_,this%id_, &
+               upout(this%POSITION  )%rcomp,                           &
+               upout(this%POSITION+1)%rcomp,                           &
+               upout(this%POSITION+2)%rcomp,                           &
                this%nparts_,this%ptmp0_)
-      CALL GetLocalWrk(this,this%id_,                               &
-               upout(this%POSITION  )%rcomp,                        &
-               upout(this%POSITION+1)%rcomp,                        &
-               upout(this%POSITION+2)%rcomp,                        &
-               this%nparts_, this%vdb_, this%maxparts_)
-      ! Sync upin. Since their positions need the same reordering,
-      ! and upin carries the same ids (just different position values),
-      ! we do a direct MPI_AllReduce of upin using the same communication
-      ! pattern, then pick local entries by the id already established:
-      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_, &
-               upin (this%POSITION  )%rcomp,                        &
-               upin (this%POSITION+1)%rcomp,                        &
-               upin (this%POSITION+2)%rcomp,                        &
+      ! Sync tmp VDB for the previous positions (upin)
+      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+               upin(this%POSITION  )%rcomp,                            &
+               upin(this%POSITION+1)%rcomp,                            &
+               upin(this%POSITION+2)%rcomp,                            &
                this%nparts_,this%ptmp0_)
-      ! vdb_ now holds all-task upin, we extract the local entries:
-      do j = 1, this%nparts_
-        upin(this%POSITION  )%rcomp(j) = this%vdb_(1, this%id_(j)+1)
-        upin(this%POSITION+1)%rcomp(j) = this%vdb_(2, this%id_(j)+1)
-        upin(this%POSITION+2)%rcomp(j) = this%vdb_(3, this%id_(j)+1)
-      end do 
+      CALL GTAcc(this%htimers_(GPTIME_COMM))
+      ! If using VDB, get local particles to work on:
+      ! GetLocalWrk_aux also synchronizes auxiliary RK arrays, 
+      ! and is needed if the call is done in the middle of a RK step
+      CALL GetLocalWrk_aux(this,this%id_,                              &
+               upout(this%POSITION  )%rcomp,                           &
+               upout(this%POSITION+1)%rcomp,                           &
+               upout(this%POSITION+2)%rcomp,                           &
+               upin (this%POSITION  )%rcomp,                           &
+               upin (this%POSITION+1)%rcomp,                           &
+               upin (this%POSITION+2)%rcomp,                           &
+               this%nparts_,this%vdb_,this%gptmp0_,this%maxparts_)
       ! Global particle-count sanity check:
       CALL MPI_ALLREDUCE(this%nparts_, ng, 1, MPI_INTEGER,          &
                          MPI_SUM, this%comm_, this%ierr_)
@@ -488,7 +486,7 @@ CONTAINS
     call this%workspace_%get_pcomp_tmp(this%lvx_,bret)
     call this%workspace_%get_pcomp_tmp(this%lvy_,bret)
     call this%workspace_%get_pcomp_tmp(this%lvz_,bret)
-    ALLOCATE(this%ptmp0_ (3,this%partbuff_))
+    ALLOCATE(this%ptmp0_  (3,this%partbuff_))
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
       ALLOCATE(this%vdb_   (3,this%partbuff_))
       ALLOCATE(this%gptmp0_(3,this%partbuff_))
@@ -508,6 +506,7 @@ CONTAINS
     IF ( ALLOCATED   (this%idm_) ) DEALLOCATE   (this%idm_)
     IF ( ALLOCATED   (this%vdb_) ) DEALLOCATE   (this%vdb_)
     IF ( ALLOCATED (this%ptmp0_) ) DEALLOCATE (this%ptmp0_)
+    IF ( ALLOCATED(this%gptmp0_) ) DEALLOCATE(this%gptmp0_)
     IF ( ASSOCIATED   (this%px_) ) NULLIFY       (this%px_)
     IF ( ASSOCIATED   (this%py_) ) NULLIFY       (this%py_)
     IF ( ASSOCIATED   (this%pz_) ) NULLIFY       (this%pz_)
