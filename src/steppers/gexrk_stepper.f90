@@ -214,7 +214,7 @@ contains
         if ( this%doparts_ ) then
           allocate(this%pK_(this%traits_%nstage))
           do i = 1, this%traits_%nstage
-            call  GPState_alloc(this%pK_(i)%rpstate, this%traits_%npstate)
+            call GPState_alloc(this%pK_(i)%rpstate, this%traits_%npstate)
           enddo
         endif
       case (GEXRK_MIXED)
@@ -403,7 +403,6 @@ contains
    
     ! Compute stage data:
     do m = 1, this%traits_%nstage
-
       do n = 1, this%traits_%nstate  ! set temp state
         this%utmp_(n) = uin(n)
       enddo
@@ -420,7 +419,6 @@ contains
         tt = time + this%alpha_(m) * dt
         this%pcallback_( tt, this%utmp_, this%putmp_, uf, dt, K_(m)%cstate, pK_(m)%rpstate); 
       enddo ! j-loop
-
     enddo ! stage m loop
 
     ! Combine stages to get step update:
