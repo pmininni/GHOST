@@ -478,6 +478,7 @@ CONTAINS
     CALL MPI_TYPE_SIZE(GC_REAL,szreal,this%ierr_)
     ALLOCATE(this%id_      (this%partbuff_))
     ALLOCATE(this%tmpint_  (this%partbuff_))
+    ALLOCATE(this%ptmp0_ (3,this%partbuff_))
     ALLOCATE(this%gptmp0_(3,this%partbuff_))
     num_components = this%state_size()
     CALL GPState_alloc(pstate    , num_components, this%partbuff_)
@@ -487,7 +488,6 @@ CONTAINS
     call this%workspace_%get_pcomp_tmp(this%lvx_,bret)
     call this%workspace_%get_pcomp_tmp(this%lvy_,bret)
     call this%workspace_%get_pcomp_tmp(this%lvz_,bret)
-    ALLOCATE(this%ptmp0_  (3,this%partbuff_))
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
       ALLOCATE(this%vdb_ (3,this%partbuff_))
     ENDIF
