@@ -20,7 +20,7 @@
 !
 !              State sector ids are:
 !                VELOCITY (VELOCITY+1, VELOCITY+2)   : momentum sector
-!                ACTIVESC  (ACTIVESC+1)               : active scalar sector
+!                ACTIVESC (ACTIVESC+1)               : active scalar sector
 !                PASSIVE  (PASSIVE+1, PASSIVE+2, ...): passive scalar sector
 !
 ! TODO This is not completed yet
@@ -112,7 +112,6 @@ contains
     ! Temporary data to read from namelists:
     logical                    :: dorot
     integer                    :: npassive
-    integer                    :: nactive
     integer                    :: spectlod
     integer                    :: ierr
     real(kind=GP)              :: nu, bkappa,c1param, c2param,  bvfreq
@@ -121,9 +120,8 @@ contains
     real(kind=GP), allocatable :: kappa(:)
 
     ! Required namelists:
-    namelist/ MOIST      / nu, bkappa,c1param, c2param,  bvfreq, xmom, xtemp, &
-                           dorot, omegax, omegay, omegaz,  &
-                           npassive, nactive, spectlod
+    namelist/ MOIST      / nu, bkappa,c1param, c2param, bvfreq, xmom, xtemp, &
+                           dorot, omegax, omegay, omegaz, npassive, spectlod
     namelist/ passive    / kappa
 
     call MPI_COMM_SIZE(MPI_COMM_WORLD,this%nprocs_,ierr)
@@ -140,7 +138,6 @@ contains
     xmom     = 1.0_GP
     xtemp    = 1.0_GP
     npassive = 0
-    nactive  = 0
     omegax   = 0.0_GP; omegay = 0.0_GP; omegaz = 0.0_GP
     if ( this%myrank_ .eq. 0 ) then
       open(1,file=this%infile_,status='unknown',form="formatted")
@@ -159,11 +156,10 @@ contains
     call mpi_bcast(omegay   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(omegaz   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(npassive ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(nactive  ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(spectlod ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
     this%numpassive_ = npassive
-    this%numactivesc_  = nactive
+    this%numactivesc_  = 2
     if ( npassive .gt. 0 ) then
       allocate(kappa(npassive))
       if ( this%myrank_ .eq. 0 ) then

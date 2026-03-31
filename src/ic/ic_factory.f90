@@ -12,6 +12,7 @@ module ic_factory
   USE ic_velocity
   USE ic_magnetic
   USE ic_passive
+  USE ic_active
   
   IMPLICIT NONE
   
