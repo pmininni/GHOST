@@ -2401,7 +2401,7 @@ MODULE class_GPartComm
         CALL GTStart(this%hcomm_)
         CALL MPI_RECV(this%rbbuffp_,this%maxparts_,MPI_GPDataPackType,t, &
                       t,this%comm_,this%istatus_,this%ierr_)
-        CALL MPI_GET_COUNT(this%ibrh_,MPI_GPDataPackType,m,this%ierr_)
+        CALL MPI_GET_COUNT(this%istatus_,MPI_GPDataPackType,m,this%ierr_)
         CALL GTAcc(this%hcomm_)
 !$omp parallel do
         DO j = 1,m
@@ -2523,7 +2523,7 @@ MODULE class_GPartComm
         CALL GTStart(this%hcomm_)
         CALL MPI_RECV(this%rbbuffp_,this%maxparts_,MPI_GPDataPackType,t, &
                       t,this%comm_,this%istatus_,this%ierr_)
-        CALL MPI_GET_COUNT(this%ibrh_,MPI_GPDataPackType,m,this%ierr_)
+        CALL MPI_GET_COUNT(this%istatus_,MPI_GPDataPackType,m,this%ierr_)
         CALL GTAcc(this%hcomm_)
 !$omp parallel do
         DO j = 1,m
