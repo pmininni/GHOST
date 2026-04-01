@@ -197,7 +197,7 @@ CONTAINS
     do i = 1, this%pcomp_size_
       if (ALLOCATED(this%pcomp_entries_(i)%array)) then
         copy_n = min(this%nparts_, new_size)
-        ALLOCATE(tmp(copy_n))
+        ALLOCATE(tmp(new_size))
         if (do_keep) tmp(1:copy_n) = this%pcomp_entries_(i)%array(1:copy_n)
         call MOVE_ALLOC(tmp, this%pcomp_entries_(i)%array)          
       end if

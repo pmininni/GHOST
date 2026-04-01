@@ -1627,8 +1627,8 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!  METHOD     : Resize_Arrays
   !!  DESCRIPTION: Resize all arrays in the GPart class (including 
-  !!               subclases, i.e. communicator, spline), but not
-  !!               particle states.
+  !!               subclases, i.e. communicator, spline, and the
+  !!               workspace), but not particle states.
   !!  ARGUMENTS  :
   !!    this    : 'this' class instance
   !!    new_size: new number of particles
@@ -1655,6 +1655,10 @@ CONTAINS
     IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
       CALL Resize_ArrayRank2(this%ptmp0_,new_size,.true.)
     END IF
+    n = SIZE(this%gptmp0_,2)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank2(this%gptmp0_,new_size,.false.)
+    END IF
 
     ! Resize workspace
     n = this%workspace_%get_nparts()
@@ -1663,6 +1667,7 @@ CONTAINS
       call this%workspace_%set_nparts(new_size)
     END IF
 
+    ! Resize VDB
     IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
       n = SIZE(this%vdb_)
       IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
