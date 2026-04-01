@@ -15,11 +15,6 @@ module particlebase_mod
   implicit none
 
   ! ================= Global parameters =============================
-  INTEGER,PARAMETER,PUBLIC    :: GPINIT_RANDLOC =0
-  INTEGER,PARAMETER,PUBLIC    :: GPINIT_USERLOC =1
-  INTEGER,PARAMETER,PUBLIC    :: GPICINIT_FROMFLD=0
-  INTEGER,PARAMETER,PUBLIC    :: GPICINIT_FROMBIN=1
-  INTEGER,PARAMETER,PUBLIC    :: GPICINIT_FROMUSR=2
   INTEGER,PARAMETER,PUBLIC    :: GPINTRP_CSPLINE=0
   INTEGER,PARAMETER,PUBLIC    :: GPINTRP_LAGINT =1
   INTEGER,PARAMETER,PUBLIC    :: GPEXCHTYPE_NN  =0
@@ -368,7 +363,7 @@ CONTAINS
     ENDIF
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
-      IF ( this%bcollective_.EQ. 1 ) THEN
+       IF ( this%bcollective_.EQ. 1 ) THEN
         CALL binary_write_lag_co(this,iunit,dir,spref,nmb,time, this%nparts_,   &
                                  this%lvx_,this%lvy_,this%lvz_)
       ELSE
@@ -573,7 +568,7 @@ CONTAINS
     INTEGER,INTENT(IN)                   :: iunit
     INTEGER,INTENT(IN)                   :: np
     INTEGER                              :: fh,nerr,nv
-    CHARACTER(len=*),INTENT(IN)          :: dir
+    CHARACTER(len=100),INTENT(IN)        :: dir
     CHARACTER(len=*),INTENT(IN)          :: nmb
     CHARACTER(len=*),INTENT(IN)          :: spref
     INTEGER                              :: j
