@@ -191,7 +191,7 @@ contains
       end do
       ! Update particles:
       do ip = 1,this%traits_%npstate ! for each pstate comp
-        do k = 1, nparts
+        do k = 1, this%psolver_%nparts_
           upout(ip)%rcomp(k) = upin(ip)%rcomp(k) + &
                        eff_dt*upout(ip)%rcomp(k)
         enddo

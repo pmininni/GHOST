@@ -25,7 +25,7 @@ module equationbase_mod
   ! ================= Base class for all PDEs =======================
   ! Define an abstract base class
   type, abstract :: EquationBase
-      type(GWorkspace), pointer     :: workspace_
+      type(GWorkspace), pointer     :: workspace_ => null()
       type    (ioplan), pointer     :: planio_
       integer                       :: myrank_   ! MPI rank
       integer                       :: nprocs_   ! MPI rank 

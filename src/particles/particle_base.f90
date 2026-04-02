@@ -15,11 +15,6 @@ module particlebase_mod
   implicit none
 
   ! ================= Global parameters =============================
-  INTEGER,PARAMETER,PUBLIC    :: GPINIT_RANDLOC =0
-  INTEGER,PARAMETER,PUBLIC    :: GPINIT_USERLOC =1
-  INTEGER,PARAMETER,PUBLIC    :: GPICINIT_FROMFLD=0
-  INTEGER,PARAMETER,PUBLIC    :: GPICINIT_FROMBIN=1
-  INTEGER,PARAMETER,PUBLIC    :: GPICINIT_FROMUSR=2
   INTEGER,PARAMETER,PUBLIC    :: GPINTRP_CSPLINE=0
   INTEGER,PARAMETER,PUBLIC    :: GPINTRP_LAGINT =1
   INTEGER,PARAMETER,PUBLIC    :: GPEXCHTYPE_NN  =0
@@ -41,7 +36,7 @@ module particlebase_mod
   ! ================= Base class for all particles ==================
   ! Define an abstract base class
   type, abstract :: ParticleBase
-      type(GWorkspace), pointer           :: workspace_
+      type(GWorkspace), pointer           :: workspace_ => null()
       integer                             :: myrank_   ! MPI rank
       integer                             :: nprocs_   ! MPI procs
       integer                             :: POSITION  ! start of position sector
@@ -363,21 +358,21 @@ CONTAINS
     CALL GTInitHandle(ht,GT_WTIME)
     ! If doing non-collective binary or ascii writes, synch up vector:
     IF ((this%iouttype_.EQ.0 .AND. this%bcollective_.EQ.0).OR.this%iouttype_.EQ.1 ) THEN
-      CALL this%gpcomm_%VDBSynch_t0(this%ptmp0_,this%maxparts_,this%id_,        &
+      CALL this%gpcomm_%VDBSynch_t0(this%gptmp0_,this%maxparts_,this%id_,       &
                                  this%lvx_,this%lvy_,this%lvz_,this%nparts_)
     ENDIF
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
-      IF ( this%bcollective_.EQ. 1 ) THEN
+       IF ( this%bcollective_.EQ. 1 ) THEN
         CALL binary_write_lag_co(this,iunit,dir,spref,nmb,time, this%nparts_,   &
                                  this%lvx_,this%lvy_,this%lvz_)
       ELSE
         CALL binary_write_lag_t0(this,iunit,dir,spref,nmb,time, this%maxparts_, &
-                                 this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:));
+                                 this%gptmp0_(1,:),this%gptmp0_(2,:),this%gptmp0_(3,:));
       ENDIF
     ELSE
       CALL ascii_write_lag(this,iunit,dir,spref,nmb,time,       this%maxparts_, &
-                                 this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:));
+                                 this%gptmp0_(1,:),this%gptmp0_(2,:),this%gptmp0_(3,:));
     ENDIF
     CALL GTStop(ht)
     if(this%myrank_.eq.0) write(*,*)'io_write_vec: file: ', spref,'  write time: ', GTGetTime(ht)
@@ -573,7 +568,7 @@ CONTAINS
     INTEGER,INTENT(IN)                   :: iunit
     INTEGER,INTENT(IN)                   :: np
     INTEGER                              :: fh,nerr,nv
-    CHARACTER(len=*),INTENT(IN)          :: dir
+    CHARACTER(len=100),INTENT(IN)        :: dir
     CHARACTER(len=*),INTENT(IN)          :: nmb
     CHARACTER(len=*),INTENT(IN)          :: spref
     INTEGER                              :: j
@@ -1632,8 +1627,8 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!  METHOD     : Resize_Arrays
   !!  DESCRIPTION: Resize all arrays in the GPart class (including 
-  !!               subclases, i.e. communicator, spline), but not
-  !!               particle states.
+  !!               subclases, i.e. communicator, spline, and the
+  !!               workspace), but not particle states.
   !!  ARGUMENTS  :
   !!    this    : 'this' class instance
   !!    new_size: new number of particles
@@ -1660,6 +1655,10 @@ CONTAINS
     IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
       CALL Resize_ArrayRank2(this%ptmp0_,new_size,.true.)
     END IF
+    n = SIZE(this%gptmp0_,2)
+    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
+      CALL Resize_ArrayRank2(this%gptmp0_,new_size,.false.)
+    END IF
 
     ! Resize workspace
     n = this%workspace_%get_nparts()
@@ -1668,6 +1667,7 @@ CONTAINS
       call this%workspace_%set_nparts(new_size)
     END IF
 
+    ! Resize VDB
     IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
       n = SIZE(this%vdb_)
       IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN

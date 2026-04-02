@@ -70,21 +70,25 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Method to resize real GPState data types
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine GPState_resize(pstate,new_size)
+  subroutine GPState_resize(pstate,new_size,keep_data)
     use grid
     use mpivars
     implicit none
-    type(GPStateComp), intent(inout) :: pstate(:)
-    real(kind=GP)    , allocatable   :: tmp(:)
-    integer          , intent(in)    :: new_size
-    integer                          :: i,copy_n
+    type(GPStateComp), intent(inout)        :: pstate(:)
+    real(kind=GP)    , allocatable          :: tmp(:)
+    integer          , intent(in)           :: new_size
+    logical          , intent(in), optional :: keep_data
+    logical                                 :: do_keep
+    integer                                 :: i,copy_n
 
+    do_keep = .TRUE.
+    if (present(keep_data)) do_keep = keep_data    
     if (new_size <= 0) stop 'GPState_resize: new_size must be positive.'
     do i = 1,size(pstate)
       if ( allocated(pstate(i)%rcomp) ) then
         copy_n = min(size(pstate(i)%rcomp), new_size)
-        allocate(tmp(copy_n))
-        tmp(1:copy_n) = pstate(i)%rcomp(1:copy_n)
+        allocate(tmp(new_size))
+        if (do_keep) tmp(1:copy_n) = pstate(i)%rcomp(1:copy_n)
         call MOVE_ALLOC(tmp, pstate(i)%rcomp)
       endif
     end do
