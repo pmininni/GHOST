@@ -18,7 +18,7 @@
 !
 !              State sector ids are:
 !                VELOCITY (VELOCITY+1, VELOCITY+2)   : momentum sector
-!                TEMP                                : temperature sector
+!                ACTIVESC                            : temperature sector
 !                PASSIVE  (PASSIVE+1, PASSIVE+2, ...): passive scalar sector
 !
 ! INPUT FILE : For solver='BOUSS', looks for a "&BOUSS" namelist with:
@@ -30,7 +30,6 @@
 !              xtemp   : factor multiplying buoyancy tendency i
 !                        in temperature eqn
 !              dorot   : do rotation, = .TRUE. or .FALSE.
-!              doparts : use particles = .TRUE. or .FALSE.
 !              omegax  : amplitude of the uniform rotation along x
 !              omegay  : amplitude of the uniform rotation along y
 !              omegaz  : amplitude of the uniform rotation along z
@@ -44,7 +43,7 @@
 !              For npassive > 0, looks for a "&passive" namelist with:
 !              kappa   : vector with npassive diffusivities
 !
-! DATE       : 2/2/26 (DLR)
+! DATE       : 4/3/26 (JBG)
 ! =====================================================================
 
 module bouss_mod
@@ -60,6 +59,8 @@ module bouss_mod
     real(kind=GP) :: nu           = 0.0_GP  ! dissipation
     real(kind=GP) :: bkappa       = 0.0_GP  ! diffusivity
     real(kind=GP) :: bvfreq       = 0.0_GP  ! Brunt-Vaisala freq
+    real(kind=GP) :: xmom         = 1.0_GP  ! buoy mom coef    
+    real(kind=GP) :: xtemp        = 1.0_GP  ! buoy temp coef
     real(kind=GP), allocatable :: kappa(:)  ! diffusivities
     real(kind=GP)              :: omega(3)  ! rotation vector
   end type
@@ -100,16 +101,17 @@ contains
 
     ! Temporary data to read from namelists:
     logical                    :: dorot
-    logical                    :: doparts
     integer                    :: npassive
     integer                    :: spectlod
     integer                    :: ierr
     real(kind=GP)              :: nu, bkappa, bvfreq, omegax, omegay, omegaz
+    real(kind=GP)              :: xmom, xtemp
+    real(kind=GP)              :: omegax, omegay, omegaz
     real(kind=GP), allocatable :: kappa(:)
 
     ! Required namelists:
     namelist/ BOUSS      / nu, bkappa, bvfreq, xmom, xtamp, &
-                           dorot, doparts, omegax, omegay, omegaz,  &
+                           dorot,  omegax, omegay, omegaz,  &
                            npassive, spectlod
     namelist/ passive    / kappa
 
@@ -118,7 +120,6 @@ contains
 
     ! Get trait variables from input file:
     dorot    = .FALSE.
-    doparts  = .FALSE.
     spectlod = 1 ! standard lod
     nu       = 0.0
     bkappa   = 0.0
@@ -138,13 +139,15 @@ contains
     call mpi_bcast(xmom     ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(xtemp    ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(dorot    ,1 ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(doparts  ,1 ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(omegax   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(omegay   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(omegaz   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(npassive ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(spectlod ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+
     this%numpassive_ = npassive
+    this%numactivesc_  = 1
+
     if ( npassive .gt. 0 ) then
       allocate(kappa(npassive))
       if ( this%myrank_ .eq. 0 ) then
@@ -158,7 +161,6 @@ contains
 
     ! Set traits structure from inputfile data:
     this%traits_%  dorot = dorot
-    this%traits_%doparts = doparts
     this%traits_%     nu = nu
     this%traits_% bkappa = bkappa
     this%traits_% bvfreq = bvfreq
@@ -173,22 +175,18 @@ contains
     endif
     this%traits_%spectlod =  spectlod
 
-    this%order_   = 2                        ! Time stepping order
-    this%nd_      = 3                        ! 3d
-    this%nc_      = this%nd_                 ! #vel field components
-    this%VELOCITY = 1                        ! start of vel sector
-    this%TEMP     = this%VELOCITY+this%nc_   ! start of temperature sector
-    this%PASSIVE  = this%TEMP + 1            ! start of scalar sector
+    this%order_   = 2                                 ! Time stepping order
+    this%nd_      = 3                                 ! 3d
+    this%nc_      = this%nd_                          ! #vel field components
+    this%VELOCITY = 1                                 ! start of vel sector
+    this%ACTIVESC = this%VELOCITY+this%nc_            ! start of temperature sector
+    this%PASSIVE  = this%ACTIVESC + this%numactivesc_ ! Start of passive scalar sector
 
     allocate(this%sstate_(this%state_size()))
     call this%get_sstate(this%sstate_)
 
     ! Set stepper callback:       
-    if ( .not. this%traits_%doparts ) then
-      this%stepper_%set_callback(this%dudt_impl)
-    else
-      this%stepper_%set_pcallback(this%pdudt_impl)
-    endif
+    ! this%stepper_%set_pcallback(this%pdudt_impl) ! TODO deleted in HD_solver and moist_solver
 
     this%binit_ = .true.  
   end subroutine init_impl
@@ -247,11 +245,11 @@ contains
     vx  => uin(this%VELOCITY  )%ccomp
     vy  => uin(this%VELOCITY+1)%ccomp
     vz  => uin(this%VELOCITY+2)%ccomp
-    th  => uin(this%TEMP)      %ccomp
+    th  => uin(this%ACTIVESC)  %ccomp
     fx  => uf (this%VELOCITY  )%ccomp
     fy  => uf (this%VELOCITY+1)%ccomp
     fz  => uf (this%VELOCITY+2)%ccomp
-    fth => uf (this%TEMP)      %ccomp
+    fth => uf (this%ACTIVESC)  %ccomp
       
     call prodre3(vx,vy,vz,C4,C5,C6)                    ! w x v
     if ( this%traits_%dorot ) then
@@ -279,7 +277,7 @@ contains
 !$omp parallel do if (iend-ista.lt.nth) private (k)
     do j = 1,ny
     do k = 1,nz
-       C6(k,j,i) = C6(k,j,i) - xmom*th(k,j,i) ! buoyancy term
+       C6(k,j,i) = C6(k,j,i) + xmom*th(k,j,i) ! buoyancy term
     end do
     end do
     end do
@@ -313,12 +311,12 @@ contains
         dudt(this%VELOCITY  )%ccomp(k,j,i) = nu*C4(k,j,i) + C1(k,j,i) + fx(k,j,i)
         dudt(this%VELOCITY+1)%ccomp(k,j,i) = nu*C5(k,j,i) + C2(k,j,i) + fy(k,j,i)
         dudt(this%VELOCITY+2)%ccomp(k,j,i) = nu*C6(k,j,i) + C3(k,j,i) + fz(k,j,i)
-        dudt(this%TEMP)%ccomp(k,j,i) = bkappa*C8(k,j,i) + C7(k,j,i) + fth(k,j,i)
+        dudt(this%ACTIVESC)  %ccomp(k,j,i) = bkappa*C8(k,j,i) + C7(k,j,i) + fth(k,j,i)
       else
         dudt(this%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
         dudt(this%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
         dudt(this%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
-        dudt(this%TEMP)      %ccomp(k,j,i) = 0.0_GP
+        dudt(this%ACTIVESC)  %ccomp(k,j,i) = 0.0_GP
       endif
     enddo
     enddo
@@ -364,11 +362,11 @@ contains
     vx => uin(this%VELOCITY  )%ccomp
     vy => uin(this%VELOCITY+1)%ccomp
     vz => uin(this%VELOCITY+2)%ccomp
-    th => uin(this%TEMP)      %ccomp
+    th => uin(this%ACTIVESC)  %ccomp
     fx => uf (this%VELOCITY  )%ccomp
     fy => uf (this%VELOCITY+1)%ccomp
     fz => uf (this%VELOCITY+2)%ccomp
-    fs => uf (this%TEMP)      %ccomp
+    fs => uf (this%ACTIVESC)  %ccomp
 
 
     call hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,0)
@@ -423,7 +421,7 @@ contains
     vx => uin(this%VELOCITY  )%ccomp
     vy => uin(this%VELOCITY+1)%ccomp
     vz => uin(this%VELOCITY+2)%ccomp
-    th => uin(this%TEMP)      %ccomp
+    th => uin(this%ACTIVESC)  %ccomp
     call spectrum(vx,vy,vz,ext,1,1)
     call this%workspace_%get_complex_tmp(c1,bret)
     call this%workspace_%get_complex_tmp(c2,bret)
@@ -563,7 +561,7 @@ contains
     do j = this%VELOCITY,this%VELOCITY+this%nc_-1
        sstate(j) = 'v' // comp(j-this%VELOCITY+1)
     enddo
-    sstate(this%TEMP) = 'th' 
+    sstate(this%ACTIVESC) = 'th' 
     do j = this%PASSIVE,this%PASSIVE+this%numpassive_-1
        write(snum,'(I0)') j-this%PASSIVE+1
        sstate(j) = 's' // trim(snum)
@@ -576,9 +574,8 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   PURE function state_size_impl(this) result(num)
     class(BOUSSSolver), intent(in) :: this
-    integer                     :: num
-    num = this%nc_ + 1           ! # vel. components + theta
-    num = num + this%numpassive_ ! # passive scalars
+    integer                        :: num
+    num = this%nc_ + this%numactivesc_ + this%numpassive_
   end function state_size_impl
 
 end module bouss_mod
