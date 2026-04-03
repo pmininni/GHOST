@@ -14,6 +14,7 @@ module equation_factory
   USE hd_mod
   USE mhd_mod
   USE moist_mod
+  USE bouss_mod
 ! USE userdefinedpde_mod
   
   IMPLICIT NONE
@@ -51,8 +52,8 @@ CONTAINS
         allocate(HDsolver :: new_object)
         NUMTMPCOMP =  8; NUMTMPREAL = 3
       case ('BOUSS')
-!       allocate(BOUSSsolver :: new_object)
-!       NUMTMPCOMP =  8; NUMTMPREAL = 3
+        allocate(BOUSSsolver :: new_object)
+        NUMTMPCOMP =  10; NUMTMPREAL = 3
       case ('MOIST')
         allocate(MOISTsolver :: new_object)
         NUMTMPCOMP =  10; NUMTMPREAL = 3 ! TODO check

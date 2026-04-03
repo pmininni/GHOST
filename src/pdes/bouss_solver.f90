@@ -70,7 +70,7 @@ module bouss_mod
 
   ! ================= Solver ==========================================
   ! Define class:
-  type, extends(VelocityBase) :: BOUSSSolver 
+  type, extends(ActiveScalarBase) :: BOUSSSolver 
     ! Member data:
     logical           :: binit_=.false. ! is initialized?
     type  (BSTraits)  :: traits_
@@ -104,13 +104,13 @@ contains
     integer                    :: npassive
     integer                    :: spectlod
     integer                    :: ierr
-    real(kind=GP)              :: nu, bkappa, bvfreq, omegax, omegay, omegaz
+    real(kind=GP)              :: nu, bkappa, bvfreq
     real(kind=GP)              :: xmom, xtemp
     real(kind=GP)              :: omegax, omegay, omegaz
     real(kind=GP), allocatable :: kappa(:)
 
     ! Required namelists:
-    namelist/ BOUSS      / nu, bkappa, bvfreq, xmom, xtamp, &
+    namelist/ BOUSS      / nu, bkappa, bvfreq, xmom, xtemp, &
                            dorot,  omegax, omegay, omegaz,  &
                            npassive, spectlod
     namelist/ passive    / kappa
@@ -130,7 +130,7 @@ contains
     omegax   = 0.0_GP; omegay = 0.0_GP; omegaz = 0.0_GP
     if ( this%myrank_ .eq. 0 ) then
       open(1,file=this%infile_,status='unknown',form="formatted")
-      read(1,NML=HD)
+      read(1,NML=BOUSS)
       close(1)
     endif
     call mpi_bcast(nu       ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
@@ -164,6 +164,8 @@ contains
     this%traits_%     nu = nu
     this%traits_% bkappa = bkappa
     this%traits_% bvfreq = bvfreq
+    this%traits_%   xmom = xmom
+    this%traits_%  xtemp = xtemp
     this%traits_%  omega = (/omegax,omegay,omegaz/)
     if ( npassive .gt. 0 ) then
       if ( allocated(this%traits_%kappa) ) then
@@ -200,12 +202,14 @@ contains
   !! Function to compute RHS with rotation
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine dudt_impl(this, time, uin, uf, dt, dudt) 
-    use pseudospec_fluid
+    use pseudospec_scalar
     use ali
     use kes
     use var
     use grid
     use mpivars
+    use commtypes
+    use fft
 !$  use threads
     implicit none
 
@@ -230,7 +234,7 @@ contains
     nu     = this%traits_%nu
     bkappa = this%traits_%bkappa
     bvfreq = this%traits_%bvfreq
-    xmom   = this%traits_%xmom  * this%bvfreq
+    xmom   = this%traits_%xmom  * this%traits_%bvfreq
     xtemp  = this%traits_%xtemp * this%traits_%bvfreq
 
     call this%workspace_%get_complex_tmp(C1,bret)
@@ -356,8 +360,11 @@ contains
     complex(kind=GP), pointer, dimension(:,:,:) :: c1,c2,c3
     real   (kind=GP)                            :: rmp,rmq
     integer                                     :: i
+    logical                                     :: bret
 
-    call this%workspace_%get_complex_tmp(C1,bret)
+    call this%workspace_%get_complex_tmp(c1,bret)
+    call this%workspace_%get_complex_tmp(c2,bret)
+    call this%workspace_%get_complex_tmp(c3,bret)
 
     vx => uin(this%VELOCITY  )%ccomp
     vy => uin(this%VELOCITY+1)%ccomp
@@ -401,6 +408,7 @@ contains
     use pseudospec_aniso
     use pseudospec_scalar
     use pseudospec_anisca
+    use pseudospec3D_bouss
     use filefmt
     use status
     use iovar
@@ -441,8 +449,8 @@ contains
     ! Write helicity fluxes, 2D spectra:
     if ( this%traits_%spectlod .ge. 2 ) then
       call heltrans(vx,vy,vz,-c1,-c2,-c3,ext,1)
-      call helpara(vx,vy,vz,-c1,-c2,-c3,ext,1)
-      call helperp(vx,vy,vz,-c1,-c2,-c3,ext,1)
+      ! call helpara(vx,vy,vz,-c1,-c2,-c3,ext,1) !TODO don't defined
+      ! call helperp(vx,vy,vz,-c1,-c2,-c3,ext,1)
       ! Write 2D spectra:
       call spec2D(vx,vy,vz,ext,odir,1,1)
       call specsc2D(th,ext,odir,0)
@@ -554,7 +562,7 @@ contains
 
     if ( size(sstate) .lt. this%state_size() ) then
       deallocate(sstate)
-      allocate(sstate,this%state_size())
+      allocate(sstate(this%state_size()))
     endif
 
     comp = ['x', 'y', 'z']
