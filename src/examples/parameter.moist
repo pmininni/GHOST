@@ -48,6 +48,7 @@ omegax = 0.0     ! rotation in x (ignored if dorot is FALSE)
 omegay = 0.0     ! rotation in y (ignored if dorot is FALSE)
 omegaz = 0.0     ! rotation in z (ignored if dorot is FALSE)
 npassive = 0     ! number of passive scalars
+spectlod = 1     ! spectral output level of detail ([1,4])
 /
 
 ! Initial conditions. List separated by ';' to set up ICs.
