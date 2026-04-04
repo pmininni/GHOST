@@ -34,8 +34,8 @@ seed = 1000      ! global seed for random number generators
 solver = "BOUSS"    ! Solver name, reads a namelist with the same name
 /
 
-! HD solver specific parameters
-&MOIST
+! BOUSS solver specific parameters
+&BOUSS
 nu  = 2.24e-3      ! kinematic viscosity
 dorot = .FALSE.  ! do rotation
 bkappa = 2.24e-3
