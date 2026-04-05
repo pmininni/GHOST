@@ -203,8 +203,7 @@ CONTAINS
       end if
     end do
     this%nparts_ = new_size
- 
-    write(*,*) 'PComp arrays resized to ', new_size
+    write(*,*) 'Workspace: PComp arrays resized to ', new_size
   end subroutine resize_pcomp_arrays
   
   

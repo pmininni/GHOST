@@ -197,17 +197,13 @@ CONTAINS
       if (this%stepcounter_ .GE. GPSWIPERATE) then
         if ((this%bcollective_ .EQ. 1) .OR. (this%myrank_ .NE. 0)) then
           ng = this%partbuff_ - this%nparts_
-          if (ng .GT. this%partchunksize_) then
-            if (this%myrank_ .EQ. 0) then
-              WRITE(*,'(A,I0,A,I0,A,I0,A,I0)') 'Shit EndStage: Rank ',      &
-                this%myrank_, ' resizing: nparts=', this%nparts_,      &
-                ' | partbuff=', this%partbuff_, ' --> ',               &
-                this%partbuff_ - (ng / this%partchunksize_ - 1) *      &
-                this%partchunksize_
-            end if
-            this%partbuff_ = this%partbuff_ -                          &
-                (ng / this%partchunksize_ - 1) * this%partchunksize_
-            call ResizeArrays  (this ,this%partbuff_,.false.)
+          ng = this%partbuff_ - (ng/this%partchunksize_-1)*this%partchunksize_
+          if (ng .LT. this%partbuff_) then
+            WRITE(*,'(A,I0,A,I0,A,I0,A,I0)') 'EndStage: Rank ',        &
+              this%myrank_, ' shrinking: nparts=', this%nparts_,       &
+              ' | partbuff=', this%partbuff_, ' --> ', ng
+            this%partbuff_ = ng
+            call ResizeArrays  (this ,this%partbuff_,.true.)
             call GPState_resize(upin ,this%partbuff_)
             call GPState_resize(upout,this%partbuff_)
           end if
@@ -220,10 +216,10 @@ CONTAINS
     ! Branch 2: Voxel Database (VDB) exchange ---------------------------
     if (this%iexchtype_ .EQ. GPEXCHTYPE_VDB) then
       ! x-y-z periodicity on updated positions
-      CALL MakePeriodicP(this,                                      &
-                         upout(this%POSITION  )%rcomp,              &
-                         upout(this%POSITION+1)%rcomp,              &
-                         upout(this%POSITION+2)%rcomp,              &
+      CALL MakePeriodicP(this,                                         &
+                         upout(this%POSITION  )%rcomp,                 &
+                         upout(this%POSITION+1)%rcomp,                 &
+                         upout(this%POSITION+2)%rcomp,                 &
                          this%nparts_, 7)
       ! Consistency check:
       if (.NOT. PartNumConsistent(this, this%nparts_)) then
@@ -258,12 +254,12 @@ CONTAINS
                upin (this%POSITION+2)%rcomp,                           &
                this%nparts_,this%vdb_,this%gptmp0_,this%maxparts_)
       ! Global particle-count sanity check:
-      CALL MPI_ALLREDUCE(this%nparts_, ng, 1, MPI_INTEGER,          &
+      CALL MPI_ALLREDUCE(this%nparts_, ng, 1, MPI_INTEGER,             &
                          MPI_SUM, this%comm_, this%ierr_)
       if (this%myrank_ .EQ. 0 .AND. ng .NE. this%maxparts_) then
-        WRITE(*,*) 'EndStage_impl (VDB): inconsistent d.b.: expected: ', &
+        WRITE(*,*) 'EndStage (VDB): inconsistent d.b.: expected: ',    &
                    this%maxparts_, '; found: ', ng
-        CALL ascii_write_lag(this, 1, '.', 'xlgerr','000', 0.0_GP,  &
+        CALL ascii_write_lag(this, 1, '.', 'xlgerr','000', 0.0_GP,     &
                              this%maxparts_,this%vdb_)
         STOP
       end if
@@ -343,7 +339,7 @@ CONTAINS
       CALL io_write_pdb(this,1,odir,'xlg',lgext,time)
       CALL io_write_vec(this,1,odir,'vlg',lgext,time)
     class default
-      stop "lagpart: This solver does not support pdes without a velocity field"
+      stop "Lagpart: This solver does not support pdes without a velocity field"
     end select
    
     call this%workspace_%free_complex_tmp(velc)

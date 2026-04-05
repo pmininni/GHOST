@@ -92,6 +92,7 @@ contains
         call MOVE_ALLOC(tmp, pstate(i)%rcomp)
       endif
     end do
+    write(*,*) 'GPstate: GPstate array resized to ', new_size
   end subroutine GPState_resize
 
 end module gpstate_mod
