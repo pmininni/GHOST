@@ -1666,19 +1666,19 @@ MODULE class_GPartComm
     CALL GPartComm_PPackV(this,this%stbuffp_,id,px,py,pz,this%itop_,this%ntop_)
     ! Send data:
     CALL GTStart(this%hcomm_)
-    CALL MPI_ISEND(this%sbbuffp_,this%nbot_,MPI_GPDataPackType,ibrank, &
+    CALL MPI_ISEND(this%sbbuffp_,this%nbot_,MPI_GPDataPackType,ibrank,    &
                    1,this%comm_,this%ibsh_(1),this%ierr_)
-    CALL MPI_ISEND(this%stbuffp_,this%ntop_,MPI_GPDataPackType,itrank, &
+    CALL MPI_ISEND(this%stbuffp_,this%ntop_,MPI_GPDataPackType,itrank,    &
                    1,this%comm_,this%itsh_(1),this%ierr_)
   
     CALL MPI_RECV(this%rbbuffp_,this%maxparts_,MPI_GPDataPackType,ibrank, &
-                  1,this%comm_,this%ibrh_(1),this%ierr_)
-    CALL MPI_GET_COUNT(this%ibrh_(1),MPI_GPDataPackType,nrb,this%ierr_)
+                   1,this%comm_,this%istatus_,this%ierr_)
+    CALL MPI_GET_COUNT(this%istatus_, MPI_GPDataPackType, nrb, this%ierr_)
     CALL MPI_RECV(this%rtbuffp_,this%maxparts_,MPI_GPDataPackType,itrank, &
-                  1,this%comm_,this%itrh_(1),this%ierr_)
-    CALL MPI_GET_COUNT(this%itrh_(1),MPI_GPDataPackType,nrt,this%ierr_)
-    CALL MPI_WAIT(this%ibsh_(1),this%istatus_,this%ierr_)
-    CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
+                   1,this%comm_,this%istatus_,this%ierr_)
+    CALL MPI_GET_COUNT(this%istatus_, MPI_GPDataPackType, nrt, this%ierr_)
+    CALL MPI_WAIT(this%ibsh_(1), this%istatus_, this%ierr_)
+    CALL MPI_WAIT(this%itsh_(1), this%istatus_, this%ierr_)
     CALL GTAcc(this%hcomm_)
 
     ! Concatenate partcle list to remove particles sent away:
@@ -1874,7 +1874,7 @@ MODULE class_GPartComm
 
     CALL GTStart(this%hcomm_)
     CALL MPI_WAIT(this%ibrh_(1),this%istatus_,this%ierr_)
-    CALL MPI_WAIT(this%ibrh_(1),this%istatus_,this%ierr_)
+    CALL MPI_WAIT(this%itrh_(1),this%istatus_,this%ierr_)
     CALL MPI_WAIT(this%ibsh_(1),this%istatus_,this%ierr_)
     CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
     CALL GTAcc(this%hcomm_)
