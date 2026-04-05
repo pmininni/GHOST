@@ -57,10 +57,9 @@ CONTAINS
     if ((stat .eq. 0).and.(psolver%myrank_ .eq. 0)) then
       stop 'Cannot read restart files if starting a new run with stat=0'
     endif
-    call AssignLagPos(psolver, pstate)
     pind = int((stat-1)*lgmult+1)
     WRITE(lgext, lgfmtext) pind
-    CALL io_read(psolver,1,idir,'xlg',lgext)
+    CALL io_read(psolver,pstate,1,idir,'xlg',lgext)
   end subroutine init_readpos
 
 

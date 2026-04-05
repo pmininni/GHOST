@@ -684,6 +684,7 @@ CONTAINS
   !!               ASCII reads.
   !!  ARGUMENTS  :
   !!    this    : 'this' class instance
+  !!    pstate  : particle state vector where positions are stored
   !!    iunit   : unit number
   !!    dir     : input directory
   !!    spref   : filename prefix
@@ -700,13 +701,16 @@ CONTAINS
   !!    opiotype: optional. Overrides member data iouttype_ if specified.
   !!    opbcoll : optional. Overrides member data bcollective_ if specified.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE io_read(this,iunit,dir,spref,nmb,id,lx,ly,lz,nl,opiotype,opbcoll)
+  SUBROUTINE io_read(this,pstate,iunit,dir,spref,nmb,id,lx,ly,lz,nl, &
+                     opiotype,opbcoll)
+    use gpstate_mod
     USE fprecision
     USE commtypes
     USE mpivars
     USE grid
     IMPLICIT NONE
     CLASS(ParticleBase)    ,INTENT(INOUT)     :: this
+    TYPE  (GPStateComp)    ,INTENT(INOUT)     :: pstate(:)
     REAL(KIND=GP),INTENT(OUT),OPTIONAL,   DIMENSION(:) :: lx,ly,lz
     REAL(KIND=GP)                             :: rvar,time
     INTEGER      ,INTENT(OUT),OPTIONAL,   DIMENSION(:) :: id
@@ -749,8 +753,13 @@ CONTAINS
               time,this%ptmp0_,.true.)
         END IF
       END IF
+      IF (size(pstate(1)%rcomp) .NE. this%partbuff_) THEN
+        CALL GPState_resize(pstate,this%partbuff_)
+      END IF
     END IF
 
+    CALL AssignLagPos(this, pstate)
+    
     CALL GTStart(this%htimers_(GPTIME_GPREAD))
     IF ( iotype .EQ. 0 ) THEN   ! Binary files
       IF ( bcoll.EQ. 1 ) THEN   ! collective binary
