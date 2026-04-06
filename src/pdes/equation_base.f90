@@ -53,7 +53,8 @@ module equationbase_mod
   end type VelocityBase
 
   type, abstract, extends(VelocityBase) :: ActiveScalarBase
-      integer :: ACTIVESC    ! start of active scalar sector
+      integer :: ACTIVESC      ! start of active scalar sector
+      integer :: numactivesc_  ! # active scalars
   end type ActiveScalarBase
 
   type, abstract, extends(VelocityBase) :: MagneticBase

@@ -18,7 +18,7 @@
 !
 !              State sector ids are:
 !                VELOCITY (VELOCITY+1, VELOCITY+2)   : momentum sector
-!                TEMP                                : temperature sector
+!                ACTIVESC                            : temperature sector
 !                PASSIVE  (PASSIVE+1, PASSIVE+2, ...): passive scalar sector
 !
 ! INPUT FILE : For solver='BOUSS', looks for a "&BOUSS" namelist with:
@@ -30,7 +30,6 @@
 !              xtemp   : factor multiplying buoyancy tendency i
 !                        in temperature eqn
 !              dorot   : do rotation, = .TRUE. or .FALSE.
-!              doparts : use particles = .TRUE. or .FALSE.
 !              omegax  : amplitude of the uniform rotation along x
 !              omegay  : amplitude of the uniform rotation along y
 !              omegaz  : amplitude of the uniform rotation along z
@@ -44,7 +43,7 @@
 !              For npassive > 0, looks for a "&passive" namelist with:
 !              kappa   : vector with npassive diffusivities
 !
-! DATE       : 2/2/26 (DLR)
+! DATE       : 4/3/26 (JBG)
 ! =====================================================================
 
 module bouss_mod
@@ -60,6 +59,8 @@ module bouss_mod
     real(kind=GP) :: nu           = 0.0_GP  ! dissipation
     real(kind=GP) :: bkappa       = 0.0_GP  ! diffusivity
     real(kind=GP) :: bvfreq       = 0.0_GP  ! Brunt-Vaisala freq
+    real(kind=GP) :: xmom         = 1.0_GP  ! buoy mom coef    
+    real(kind=GP) :: xtemp        = 1.0_GP  ! buoy temp coef
     real(kind=GP), allocatable :: kappa(:)  ! diffusivities
     real(kind=GP)              :: omega(3)  ! rotation vector
   end type
@@ -69,7 +70,7 @@ module bouss_mod
 
   ! ================= Solver ==========================================
   ! Define class:
-  type, extends(VelocityBase) :: BOUSSSolver 
+  type, extends(ActiveScalarBase) :: BOUSSSolver 
     ! Member data:
     logical           :: binit_=.false. ! is initialized?
     type  (BSTraits)  :: traits_
@@ -100,16 +101,17 @@ contains
 
     ! Temporary data to read from namelists:
     logical                    :: dorot
-    logical                    :: doparts
     integer                    :: npassive
     integer                    :: spectlod
     integer                    :: ierr
-    real(kind=GP)              :: nu, bkappa, bvfreq, omegax, omegay, omegaz
+    real(kind=GP)              :: nu, bkappa, bvfreq
+    real(kind=GP)              :: xmom, xtemp
+    real(kind=GP)              :: omegax, omegay, omegaz
     real(kind=GP), allocatable :: kappa(:)
 
     ! Required namelists:
-    namelist/ BOUSS      / nu, bkappa, bvfreq, xmom, xtamp, &
-                           dorot, doparts, omegax, omegay, omegaz,  &
+    namelist/ BOUSS      / nu, bkappa, bvfreq, xmom, xtemp, &
+                           dorot,  omegax, omegay, omegaz,  &
                            npassive, spectlod
     namelist/ passive    / kappa
 
@@ -118,7 +120,6 @@ contains
 
     ! Get trait variables from input file:
     dorot    = .FALSE.
-    doparts  = .FALSE.
     spectlod = 1 ! standard lod
     nu       = 0.0
     bkappa   = 0.0
@@ -129,7 +130,7 @@ contains
     omegax   = 0.0_GP; omegay = 0.0_GP; omegaz = 0.0_GP
     if ( this%myrank_ .eq. 0 ) then
       open(1,file=this%infile_,status='unknown',form="formatted")
-      read(1,NML=HD)
+      read(1,NML=BOUSS)
       close(1)
     endif
     call mpi_bcast(nu       ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
@@ -138,13 +139,15 @@ contains
     call mpi_bcast(xmom     ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(xtemp    ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(dorot    ,1 ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(doparts  ,1 ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(omegax   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(omegay   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(omegaz   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(npassive ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(spectlod ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+
     this%numpassive_ = npassive
+    this%numactivesc_  = 1
+
     if ( npassive .gt. 0 ) then
       allocate(kappa(npassive))
       if ( this%myrank_ .eq. 0 ) then
@@ -158,10 +161,11 @@ contains
 
     ! Set traits structure from inputfile data:
     this%traits_%  dorot = dorot
-    this%traits_%doparts = doparts
     this%traits_%     nu = nu
     this%traits_% bkappa = bkappa
     this%traits_% bvfreq = bvfreq
+    this%traits_%   xmom = xmom
+    this%traits_%  xtemp = xtemp
     this%traits_%  omega = (/omegax,omegay,omegaz/)
     if ( npassive .gt. 0 ) then
       if ( allocated(this%traits_%kappa) ) then
@@ -173,22 +177,18 @@ contains
     endif
     this%traits_%spectlod =  spectlod
 
-    this%order_   = 2                        ! Time stepping order
-    this%nd_      = 3                        ! 3d
-    this%nc_      = this%nd_                 ! #vel field components
-    this%VELOCITY = 1                        ! start of vel sector
-    this%TEMP     = this%VELOCITY+this%nc_   ! start of temperature sector
-    this%PASSIVE  = this%TEMP + 1            ! start of scalar sector
+    this%order_   = 2                                 ! Time stepping order
+    this%nd_      = 3                                 ! 3d
+    this%nc_      = this%nd_                          ! #vel field components
+    this%VELOCITY = 1                                 ! start of vel sector
+    this%ACTIVESC = this%VELOCITY+this%nc_            ! start of temperature sector
+    this%PASSIVE  = this%ACTIVESC + this%numactivesc_ ! Start of passive scalar sector
 
     allocate(this%sstate_(this%state_size()))
     call this%get_sstate(this%sstate_)
 
     ! Set stepper callback:       
-    if ( .not. this%traits_%doparts ) then
-      this%stepper_%set_callback(this%dudt_impl)
-    else
-      this%stepper_%set_pcallback(this%pdudt_impl)
-    endif
+    ! this%stepper_%set_pcallback(this%pdudt_impl) ! TODO deleted in HD_solver and moist_solver
 
     this%binit_ = .true.  
   end subroutine init_impl
@@ -202,12 +202,14 @@ contains
   !! Function to compute RHS with rotation
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine dudt_impl(this, time, uin, uf, dt, dudt) 
-    use pseudospec_fluid
+    use pseudospec_scalar
     use ali
     use kes
     use var
     use grid
     use mpivars
+    use commtypes
+    use fft
 !$  use threads
     implicit none
 
@@ -232,7 +234,7 @@ contains
     nu     = this%traits_%nu
     bkappa = this%traits_%bkappa
     bvfreq = this%traits_%bvfreq
-    xmom   = this%traits_%xmom  * this%bvfreq
+    xmom   = this%traits_%xmom  * this%traits_%bvfreq
     xtemp  = this%traits_%xtemp * this%traits_%bvfreq
 
     call this%workspace_%get_complex_tmp(C1,bret)
@@ -247,11 +249,11 @@ contains
     vx  => uin(this%VELOCITY  )%ccomp
     vy  => uin(this%VELOCITY+1)%ccomp
     vz  => uin(this%VELOCITY+2)%ccomp
-    th  => uin(this%TEMP)      %ccomp
+    th  => uin(this%ACTIVESC)  %ccomp
     fx  => uf (this%VELOCITY  )%ccomp
     fy  => uf (this%VELOCITY+1)%ccomp
     fz  => uf (this%VELOCITY+2)%ccomp
-    fth => uf (this%TEMP)      %ccomp
+    fth => uf (this%ACTIVESC)  %ccomp
       
     call prodre3(vx,vy,vz,C4,C5,C6)                    ! w x v
     if ( this%traits_%dorot ) then
@@ -279,7 +281,7 @@ contains
 !$omp parallel do if (iend-ista.lt.nth) private (k)
     do j = 1,ny
     do k = 1,nz
-       C6(k,j,i) = C6(k,j,i) - xmom*th(k,j,i) ! buoyancy term
+       C6(k,j,i) = C6(k,j,i) + xmom*th(k,j,i) ! buoyancy term
     end do
     end do
     end do
@@ -313,12 +315,12 @@ contains
         dudt(this%VELOCITY  )%ccomp(k,j,i) = nu*C4(k,j,i) + C1(k,j,i) + fx(k,j,i)
         dudt(this%VELOCITY+1)%ccomp(k,j,i) = nu*C5(k,j,i) + C2(k,j,i) + fy(k,j,i)
         dudt(this%VELOCITY+2)%ccomp(k,j,i) = nu*C6(k,j,i) + C3(k,j,i) + fz(k,j,i)
-        dudt(this%TEMP)%ccomp(k,j,i) = bkappa*C8(k,j,i) + C7(k,j,i) + fth(k,j,i)
+        dudt(this%ACTIVESC)  %ccomp(k,j,i) = bkappa*C8(k,j,i) + C7(k,j,i) + fth(k,j,i)
       else
         dudt(this%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
         dudt(this%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
         dudt(this%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
-        dudt(this%TEMP)      %ccomp(k,j,i) = 0.0_GP
+        dudt(this%ACTIVESC)  %ccomp(k,j,i) = 0.0_GP
       endif
     enddo
     enddo
@@ -358,17 +360,20 @@ contains
     complex(kind=GP), pointer, dimension(:,:,:) :: c1,c2,c3
     real   (kind=GP)                            :: rmp,rmq
     integer                                     :: i
+    logical                                     :: bret
 
-    call this%workspace_%get_complex_tmp(C1,bret)
+    call this%workspace_%get_complex_tmp(c1,bret)
+    call this%workspace_%get_complex_tmp(c2,bret)
+    call this%workspace_%get_complex_tmp(c3,bret)
 
     vx => uin(this%VELOCITY  )%ccomp
     vy => uin(this%VELOCITY+1)%ccomp
     vz => uin(this%VELOCITY+2)%ccomp
-    th => uin(this%TEMP)      %ccomp
+    th => uin(this%ACTIVESC)  %ccomp
     fx => uf (this%VELOCITY  )%ccomp
     fy => uf (this%VELOCITY+1)%ccomp
     fz => uf (this%VELOCITY+2)%ccomp
-    fs => uf (this%TEMP)      %ccomp
+    fs => uf (this%ACTIVESC)  %ccomp
 
 
     call hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,0)
@@ -403,6 +408,7 @@ contains
     use pseudospec_aniso
     use pseudospec_scalar
     use pseudospec_anisca
+    use pseudospec3D_bouss
     use filefmt
     use status
     use iovar
@@ -423,7 +429,7 @@ contains
     vx => uin(this%VELOCITY  )%ccomp
     vy => uin(this%VELOCITY+1)%ccomp
     vz => uin(this%VELOCITY+2)%ccomp
-    th => uin(this%TEMP)      %ccomp
+    th => uin(this%ACTIVESC)  %ccomp
     call spectrum(vx,vy,vz,ext,1,1)
     call this%workspace_%get_complex_tmp(c1,bret)
     call this%workspace_%get_complex_tmp(c2,bret)
@@ -443,8 +449,8 @@ contains
     ! Write helicity fluxes, 2D spectra:
     if ( this%traits_%spectlod .ge. 2 ) then
       call heltrans(vx,vy,vz,-c1,-c2,-c3,ext,1)
-      call helpara(vx,vy,vz,-c1,-c2,-c3,ext,1)
-      call helperp(vx,vy,vz,-c1,-c2,-c3,ext,1)
+      ! call helpara(vx,vy,vz,-c1,-c2,-c3,ext,1) !TODO don't defined
+      ! call helperp(vx,vy,vz,-c1,-c2,-c3,ext,1)
       ! Write 2D spectra:
       call spec2D(vx,vy,vz,ext,odir,1,1)
       call specsc2D(th,ext,odir,0)
@@ -556,14 +562,14 @@ contains
 
     if ( size(sstate) .lt. this%state_size() ) then
       deallocate(sstate)
-      allocate(sstate,this%state_size())
+      allocate(sstate(this%state_size()))
     endif
 
     comp = ['x', 'y', 'z']
     do j = this%VELOCITY,this%VELOCITY+this%nc_-1
        sstate(j) = 'v' // comp(j-this%VELOCITY+1)
     enddo
-    sstate(this%TEMP) = 'th' 
+    sstate(this%ACTIVESC) = 'th' 
     do j = this%PASSIVE,this%PASSIVE+this%numpassive_-1
        write(snum,'(I0)') j-this%PASSIVE+1
        sstate(j) = 's' // trim(snum)
@@ -576,9 +582,8 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   PURE function state_size_impl(this) result(num)
     class(BOUSSSolver), intent(in) :: this
-    integer                     :: num
-    num = this%nc_ + 1           ! # vel. components + theta
-    num = num + this%numpassive_ ! # passive scalars
+    integer                        :: num
+    num = this%nc_ + this%numactivesc_ + this%numpassive_
   end function state_size_impl
 
 end module bouss_mod

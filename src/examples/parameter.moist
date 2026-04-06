@@ -1,0 +1,82 @@
+! Grid resolution
+&grid
+nx = 256
+ny = 256
+nz = 128
+/
+
+! Boz size, if not present GHOST uses a 2.pi cubic box
+&boxparams
+Lx = 1.00        ! Length of the box in x
+Ly = 1.00        ! Length of the box in y
+Lz = 0.50        ! Length of the box in z
+/
+
+! General configuration flags
+&status
+idir = "outs"
+odir = "outs"
+stat = 77         ! last binary file if restarting an old run
+mult = 1         ! decreases the time step
+bench = 0        ! benchmark mode if 1
+outs = 0         ! controls the amount of output
+dt = 1.25e-3        ! time step
+step = 29001       ! total number of steps
+tstep = 250      ! number of steps between binary output
+sstep = 125      ! number of steps between spectrum output
+cstep = 20        ! number of steps between writing global quantities
+cort = 1000       ! global correlation time for random forcing methods
+seed = 1000      ! global seed for random number generators
+/
+
+! Solver
+&pdes
+solver = "MOIST"    ! Solver name, reads a namelist with the same name
+/
+
+! MOIST solver specific parameters
+&MOIST
+nu  = 2.24e-3      ! kinematic viscosity
+dorot = .FALSE.  ! do rotation
+bkappa = 2.24e-3
+c1param = 1
+c2param = 0.76
+bvfreq = 10
+xmom = -1
+xtemp = -1
+omegax = 0.0     ! rotation in x (ignored if dorot is FALSE)
+omegay = 0.0     ! rotation in y (ignored if dorot is FALSE)
+omegaz = 0.0     ! rotation in z (ignored if dorot is FALSE)
+npassive = 0     ! number of passive scalars
+spectlod = 1     ! spectral output level of detail ([1,4])
+/
+
+! Initial conditions. List separated by ';' to set up ICs.
+! For v, ICs can be: read_v, null_v, tg_v, abc_v, random_v
+! Use "read_v" if restarting from a previous file with stat > 0
+! If stat > 0 and the ICs are not "read_v", GHOST resets the flow.
+&initial_conditions
+iclist = "null_v"
+/
+
+! Stepper parameters
+&stepper
+  sname  = 'TRADITIONAL'
+  norder = 2
+/
+
+! Forcing. List separated by ';', each forcing is a pair of
+! methods separated by ',': an initial forcing, and an update scheme
+! Forcings for v: null_fv, tg_fv, abc_fv, random_fv
+! Updates for fv: constant_fv, shift_fv, shuffle_fv
+&forcing
+forces = "tg_fv,constant_fv"
+/
+
+! IC and forcing specific parameters, in namelists with their names:
+! Parameters for Taylor-Green velocity forcing
+&tg_fv
+f0 = 0.37714265  ! amplitude of the mechanical forcing
+kdn = 1.00       ! minimum wavenumber
+kup = 1.00       ! maximum wavenumber
+/

@@ -15,6 +15,9 @@
 !
 !=================================================================
 
+module pseudospec3D_bouss
+    use pseudospec_scalar
+    contains
 !*****************************************************************
       SUBROUTINE havgcomp(gsh, u, v, w, s, fo, bv, itype)
 !-----------------------------------------------------------------
@@ -410,87 +413,87 @@
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-      IF ( itype .eq. 8 ) THEN
+      if ( itype .eq. 8 ) then
       ! <\omega . curl \omega>_perp == <super-helicity>_perp
         sh  = 0.0D0
         gsh = 0.0D0
         tmp = 1.0D0/(dble(nx)**3*dble(ny)**3*dble(nz)**2)
 
 !       ...do omega_x * ( d\omega_z/dy - d\omega_y/dz) contrib:
-        CALL rotor3(u,v,c1,3)
-        CALL derivk3(c1,c2,2)
-        CALL fftp3d_complex_to_real(plancr,c2,r1,MPI_COMM_WORLD)
-        CALL rotor3(u,w,c1,2)
-        CALL derivk3(c1,c2,3)
-        CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+        call rotor3(u,v,c1,3)
+        call derivk3(c1,c2,2)
+        call fftp3d_complex_to_real(plancr,c2,r1,MPI_COMM_WORLD)
+        call rotor3(u,w,c1,2)
+        call derivk3(c1,c2,3)
+        call fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
 
-        CALL rotor3(v,w,c1,1) ! omega_x
-        CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+        call rotor3(v,w,c1,1) ! omega_x
+        call fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-        DO k = ksta,kend
+        do k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-           DO j = 1,ny
-              DO i = 1,nx
+           do j = 1,ny
+              do i = 1,nx
 !$omp atomic
                  sh(k) = sh(k) + r3(i,j,k)*( r1(i,j,k)-r2(i,j,k) )
-              END DO
-           END DO
-        END DO
+              end do
+           end do
+        end do
 
 !       ...do omega_y * ( d\omega_x/dz - d\omega_z/dx) contrib:
-        CALL rotor3(v,w,c1,1) ! omega_x
-        CALL derivk3(c1,c2,3)
-        CALL fftp3d_complex_to_real(plancr,c2,r1,MPI_COMM_WORLD)
-        CALL rotor3(u,v,c1,3) ! omega_z
-        CALL derivk3(c1,c2,1)
-        CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+        call rotor3(v,w,c1,1) ! omega_x
+        call derivk3(c1,c2,3)
+        call fftp3d_complex_to_real(plancr,c2,r1,MPI_COMM_WORLD)
+        call rotor3(u,v,c1,3) ! omega_z
+        call derivk3(c1,c2,1)
+        call fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
 
-        CALL rotor3(u,w,c1,2) ! omega_y
-        CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+        call rotor3(u,w,c1,2) ! omega_y
+        call fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-        DO k = ksta,kend
+        do k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-           DO j = 1,ny
-              DO i = 1,nx
+           do j = 1,ny
+              do i = 1,nx
 !$omp atomic
                  sh(k) = sh(k) + r3(i,j,k)*( r1(i,j,k)-r2(i,j,k) )
-              END DO
-           END DO
-        END DO
+              end do
+           end do
+        end do
 
 !       ...do omega_z * ( d\omega_y/dx - d\omega_x/dy) contrib:
-        CALL rotor3(u,w,c1,2) ! omega_y
-        CALL derivk3(c1,c2,1)
-        CALL fftp3d_complex_to_real(plancr,c2,r1,MPI_COMM_WORLD)
-        CALL rotor3(v,w,c1,1) ! omega_x
-        CALL derivk3(c1,c2,2)
-        CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+        call rotor3(u,w,c1,2) ! omega_y
+        call derivk3(c1,c2,1)
+        call fftp3d_complex_to_real(plancr,c2,r1,MPI_COMM_WORLD)
+        call rotor3(v,w,c1,1) ! omega_x
+        call derivk3(c1,c2,2)
+        call fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
 
-        CALL rotor3(u,v,c1,3) ! omega_z
-        CALL fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
+        call rotor3(u,v,c1,3) ! omega_z
+        call fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-        DO k = ksta,kend
+        do k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-           DO j = 1,ny
-              DO i = 1,nx
+           do j = 1,ny
+              do i = 1,nx
 !$omp atomic
                  sh(k) = sh(k) + r3(i,j,k)*( r1(i,j,k)-r2(i,j,k) )
-              END DO
-           END DO
+              end do
+           end do
            sh(k) = sh(k) * tmp
-        END DO
+        end do
 !
 ! Collect as a fcn of z:
-        CALL MPI_ALLREDUCE(sh,gsh,nz,MPI_DOUBLE_PRECISION,      &
+        call MPI_ALLREDUCE(sh,gsh,nz,MPI_DOUBLE_PRECISION,      &
                            MPI_SUM,MPI_COMM_WORLD,ierr)
-        RETURN
+        return
         
-      ENDIF
+      endif
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-      IF ( itype .eq. 9 ) THEN  ! Ri = N (N-d\theta/dz)/(du_\perp/dz) 
+      if ( itype .eq. 9 ) then  ! ri = n (n-d\theta/dz)/(du_\perp/dz) 
 !
 !      Note, d\theta/dz should be in r3 already
 !      du_x/dz should be in r1 already, and du_y/dz in r2 from above
@@ -500,116 +503,116 @@
        tmp = 1.0D0/(dble(nx)**3*dble(ny)**3*dble(nz)**2)
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-        DO k = ksta,kend
+        DO K = KSTA,KEND
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-           DO j = 1,ny
-              DO i = 1,nx
+           do j = 1,ny
+              do i = 1,nx
 !$omp atomic
                  sh(k) = sh(k)+bv*(bv-r3(i,j,k))/(r1(i,j,k)**2+r2(i,j,k)**2) 
-              END DO
-           END DO
+              end do
+           end do
            sh(k) = sh(k) * tmp
-        END DO
+        end do
 !
 ! Collect as a fcn of z:
-        CALL MPI_ALLREDUCE(sh,gsh,nz,MPI_DOUBLE_PRECISION,      &
+        call MPI_ALLREDUCE(sh,gsh,nz,MPI_DOUBLE_PRECISION,      &
                            MPI_SUM,MPI_COMM_WORLD,ierr)
-        RETURN
+        return
 
-      ENDIF
+      endif
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-      IF ( itype .eq. 10 ) THEN  ! <v_z \theta>_perp
+      if ( itype .eq. 10 ) then  ! <v_z \theta>_perp
         sh  = 0.0D0
         gsh = 0.0D0
         tmp = 1.0D0/(dble(nx)**3*dble(ny)**3*dble(nz)**2)
         c1 = w
-        CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+        call fftp3d_complex_to_real(plancr,c1,r1,mpi_comm_world)
         c1 = s
-        CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
+        call fftp3d_complex_to_real(plancr,c1,r2,mpi_comm_world)
 
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-        DO k = ksta,kend
+        do k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
-           DO j = 1,ny
-              DO i = 1,nx
+           do j = 1,ny
+              do i = 1,nx
 !$omp atomic
                  sh(k) = sh(k)+r1(i,j,k)*r2(i,j,k)
-              END DO
-           END DO
+              end do
+           end do
            sh(k) = sh(k) * tmp
-        END DO
+        end do
 !
 ! Collect as a fcn of z:
-        CALL MPI_ALLREDUCE(sh,gsh,nz,MPI_DOUBLE_PRECISION,      &
+        call MPI_ALLREDUCE(sh,gsh,nz,MPI_DOUBLE_PRECISION,      &
                            MPI_SUM,MPI_COMM_WORLD,ierr)
 
-        RETURN
+        return
 
-      ENDIF
+      endif
 
-      RETURN
-      END SUBROUTINE havgcomp
+      return
+      end subroutine havgcomp
 
 !*****************************************************************
-      SUBROUTINE havgwrite(itype,spref,nmb,u,v,w,s,fo,bv)
+      subroutine havgwrite(itype,spref,nmb,u,v,w,s,fo,bv)
 !-----------------------------------------------------------------
 !
-! Computes horizontal average of quantity itype (specified in 
+! computes horizontal average of quantity itype (specified in 
 ! method 'havgcomp'), and outputs it as a function of z, to the
-! file whose prefix is 'spref'. Filename will be of the form
-! spref.XXX.txt, where XXX is computed from output interval id 'nmb'.
+! file whose prefix is 'spref'. filename will be of the form
+! spref.xxx.txt, where xxx is computed from output interval id 'nmb'.
 !
-! Output file contains:
-! 'spref.XXX.txt': z, mean profile of quantity 'itpype'
+! output file contains:
+! 'spref.xxx.txt': z, mean profile of quantity 'itpype'
 !         
-! Parameters
+! parameters
 !     itype : quantity id
 !     spref : filename prefix
 !     nmb   : output interval id extension
-!     u     : input x-velocity, Fourier coeffs
-!     v     : input y-velocity, Fourier coeffs
-!     w     : input z-velocity, Fourier coeffs
-!     s     : input scalar density/temperature, Fourier coeffs
-!     fo    : Coriolis parameter (usually == 2\Omega)
-!     bv    : Brunt-Vaisala frequency
+!     u     : input x-velocity, fourier coeffs
+!     v     : input y-velocity, fourier coeffs
+!     w     : input z-velocity, fourier coeffs
+!     s     : input scalar density/temperature, fourier coeffs
+!     fo    : coriolis parameter (usually == 2\omega)
+!     bv    : brunt-vaisala frequency
 !
-      USE fprecision
-      USE commtypes
-      USE var
-      USE kes
-      USE grid
-      USE mpivars
-      USE filefmt
-      USE boxsize
-!$    USE threads
-      IMPLICIT NONE
+      use fprecision
+      use commtypes
+      use var
+      use kes
+      use grid
+      use mpivars
+      use filefmt
+      use boxsize
+!$    use threads
+      implicit none
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: u,v
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: w,s
-      REAL(KIND=GP),    INTENT(IN)      :: fo, bv
-      DOUBLE PRECISION, DIMENSION(nz)   :: gsh
-      CHARACTER(len=*), INTENT(IN)      :: nmb,spref
-      INTEGER,INTENT(IN)                :: itype
-      INTEGER                           :: k
+      complex(kind=gp), intent(in), dimension(nz,ny,ista:iend) :: u,v
+      complex(kind=gp), intent(in), dimension(nz,ny,ista:iend) :: w,s
+      real(kind=gp),    intent(in)      :: fo, bv
+      double precision, dimension(nz)   :: gsh
+      character(len=*), intent(in)      :: nmb,spref
+      integer,intent(in)                :: itype
+      integer                           :: k
 
-      CALL havgcomp(gsh,u,v,w,s,fo,bv,itype) 
-      IF (myrank.eq.0) THEN
-         OPEN(1,file=trim(spref) // '.' // trim(nmb) // '.txt')
-         DO k = 1,nz
-         WRITE(1,10) 2*pi*Lz*(real(k,kind=GP)-1)/real(nz,kind=GP), gsh(k)
-         END DO
-         CLOSE(1)
-   10    FORMAT( E23.15,E23.15 )
-      ENDIF
+      call havgcomp(gsh,u,v,w,s,fo,bv,itype) 
+      if (myrank.eq.0) then
+         open(1,file=trim(spref) // '.' // trim(nmb) // '.txt')
+         do k = 1,nz
+         write(1,10) 2*pi*lz*(real(k,kind=gp)-1)/real(nz,kind=gp), gsh(k)
+         end do
+         close(1)
+   10    format( e23.15,e23.15 )
+      endif
 
-      RETURN
-      END SUBROUTINE havgwrite
+      return
+      end subroutine havgwrite
 
 !*****************************************************************
-      SUBROUTINE tbouss(u, v, w, s, t, dt, fo, bv)
+      subroutine tbouss(u, v, w, s, t, dt, fo, bv)
 !-----------------------------------------------------------------
 !
 ! Computes the volume-average and max/min of quantities computed in
@@ -641,25 +644,25 @@
 !     fo : Coriolis parameter (usually == 2\Omega)
 !     bv : Brunt-Vaisala frequency
 !
-      USE fprecision
-      USE commtypes
-      USE kes
-      USE ali
-      USE grid
-      USE mpivars
-      USE filefmt
-!$    USE threads
-      IMPLICIT NONE
+      use fprecision
+      use commtypes
+      use kes
+      use ali
+      use grid
+      use mpivars
+      use filefmt
+!$    use threads
+      implicit none
 
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: u,v
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: w,s
-      REAL(KIND=GP),    INTENT(IN)    :: dt
-      REAL(KIND=GP),    INTENT(IN)    :: fo, bv
-      DOUBLE PRECISION                :: gxavg(11),gxmax(11),gxmin(11)
-      DOUBLE PRECISION                :: tmp
-      DOUBLE PRECISION, DIMENSION(nz) :: gsh
-      INTEGER, INTENT(IN)             :: t
-      INTEGER                         :: i
+      complex(kind=gp), intent(in), dimension(nz,ny,ista:iend) :: u,v
+      complex(kind=gp), intent(in), dimension(nz,ny,ista:iend) :: w,s
+      real(kind=gp),    intent(in)    :: dt
+      real(kind=gp),    intent(in)    :: fo, bv
+      double precision                :: gxavg(11),gxmax(11),gxmin(11)
+      double precision                :: tmp
+      double precision, dimension(nz) :: gsh
+      integer, intent(in)             :: t
+      integer                         :: i
 
       gxavg  = 0.0D0
       gxmax  = 0.0D0
@@ -667,49 +670,49 @@
 
 ! Compute volume averages from horizontal averages, and
 ! also extrema from horiz. averages:
-      DO i = 1, 11
-        CALL havgcomp(gsh,u,v,w,s,fo,bv,i-1)
+      do i = 1, 11
+        call havgcomp(gsh,u,v,w,s,fo,bv,i-1)
         gxavg(i) = sum   (gsh)/dble(nz);
         gxmax(i) = maxval(gsh);
         gxmin(i) = minval(gsh);
-      ENDDO
+      enddo
 !
 ! Don't need reductions bec the results from havgcomp are globalized,
 ! so just do the outputs:
 !
 ! Output averaged quantities as a fcn of t:
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='tboussavg.txt',position='append')
-         WRITE(1,20) (t-1)*dt,gxavg(1),gxavg (2),gxavg (3),gxavg(4), &
+      if (myrank.eq.0) then
+         open(1,file='tboussavg.txt',position='append')
+         write(1,20) (t-1)*dt,gxavg(1),gxavg (2),gxavg (3),gxavg(4), &
                               gxavg(5),gxavg (6),gxavg (7),gxavg(8), &
                               gxavg(9),gxavg(10),gxavg(11)
-         CLOSE(1)
-      ENDIF
+         close(1)
+      endif
 !
 ! Output max quantities as a fcn of t:
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='tboussmax.txt',position='append')
-         WRITE(1,20) (t-1)*dt,gxmax(1),gxmax (2),gxmax (3),gxmax(4), &
+      if (myrank.eq.0) then
+         open(1,file='tboussmax.txt',position='append')
+         write(1,20) (t-1)*dt,gxmax(1),gxmax (2),gxmax (3),gxmax(4), &
                               gxmax(5),gxmax (6),gxmax (7),gxmax(8), &
                               gxmax(9),gxmax(10),gxmax(11)
-         CLOSE(1)
-      ENDIF
+         close(1)
+      endif
 !
 ! Output min quantities as a fcn of t:
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='tboussmin.txt',position='append')
-         WRITE(1,20) (t-1)*dt,gxmin(1),gxmin (2),gxmin (3),gxmin(4), &
+      if (myrank.eq.0) then
+         open(1,file='tboussmin.txt',position='append')
+         write(1,20) (t-1)*dt,gxmin(1),gxmin (2),gxmin (3),gxmin(4), &
                               gxmin(5),gxmin (6),gxmin (7),gxmin(8), &
                               gxmin(9),gxmin(10),gxmin(11)
-         CLOSE(1)
-      ENDIF
+         close(1)
+      endif
 
-      RETURN
-   20 FORMAT( E13.6,1x,11(E26.18,1x) )
-      END SUBROUTINE tbouss
+      return
+   20 format( E13.6,1x,11(E26.18,1x) )
+      end subroutine tbouss
 
 !*****************************************************************
-      SUBROUTINE spectpv(u,v,w,s,nmb)
+      subroutine spectpv(u,v,w,s,nmb)
 !-----------------------------------------------------------------
 !
 ! Computes the potential vorticity power spectrum as a function
@@ -726,89 +729,90 @@
 !     s      : input matrix with the scalar density/temperature
 !     nmb    : the extension used when writting the file
 !
-      USE fprecision
-      USE commtypes
-      USE kes
-      USE grid
-      USE mpivars
-      USE filefmt
-      USE boxsize
-      IMPLICIT NONE
+      use fprecision
+      use commtypes
+      use kes
+      use grid
+      use mpivars
+      use filefmt
+      use boxsize
+      implicit none
 
-      DOUBLE PRECISION, DIMENSION(nz/2+1)                 :: Ek,Ektot
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: u,v
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: w,s
-      COMPLEX(KIND=GP),             DIMENSION(nz,ny,ista:iend) :: c1,c2
-      COMPLEX(KIND=GP),             DIMENSION(nz,ny,ista:iend) :: c3,a
-      REAL(KIND=GP)     :: tmp
-      INTEGER           :: i,j,k
-      INTEGER           :: kmn
-      CHARACTER(len=*), INTENT(IN) :: nmb
+      double precision, dimension(nz/2+1)                 :: Ek,Ektot
+      complex(kind=gp), intent(in), dimension(nz,ny,ista:iend) :: u,v
+      complex(kind=gp), intent(in), dimension(nz,ny,ista:iend) :: w,s
+      complex(kind=gp),             dimension(nz,ny,ista:iend) :: c1,c2
+      complex(kind=gp),             dimension(nz,ny,ista:iend) :: c3,a
+      real(kind=gp)     :: tmp
+      integer           :: i,j,k
+      integer           :: kmn
+      character(len=*), intent(in) :: nmb
 !
 ! Compute vorticity:
-      CALL rotor3(v,w,c1,1)
-      CALL rotor3(u,w,c2,2)
-      CALL rotor3(u,v,c3,3)
+      call rotor3(v,w,c1,1)
+      call rotor3(u,w,c2,2)
+      call rotor3(u,v,c3,3)
 !
 ! Compute curl a = v . Grad(s):
-      CALL advect3(c1,c2,c3,s,a)
+      call advect3(c1,c2,c3,s,a)
 !
 ! Set Ek to zero
-      DO i = 1,nz/2+1
+      do i = 1,nz/2+1
          Ek(i) = 0.
-      END DO
+      end do
 !
 ! Computes the power spectrum
 !
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
-      IF (ista.eq.1) THEN
-         DO j = 1,ny
-            DO k = 1,nz
+      if (ista.eq.1) then
+         do j = 1,ny
+            do k = 1,nz
                kmn = int(abs(kz(k))*Lz+1)
-               IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
+               if ((kmn.gt.0).and.(kmn.le.nz/2+1)) then
                   Ek(kmn) = Ek(kmn)+tmp*abs(a(k,j,1))**2
-               ENDIF
-            END DO
-         END DO
-         DO i = 2,iend
-            DO j = 1,ny
-               DO k = 1,nz
+               endif
+            end do
+         end do
+         do i = 2,iend
+            do j = 1,ny
+               do k = 1,nz
+                  kmn = int(abs(kz(k))*Lz+1)
+                  if ((kmn.gt.0).and.(kmn.le.nz/2+1)) then
+                     Ek(kmn) = Ek(kmn)+2*tmp*abs(a(k,j,i))**2
+                  endif
+               end do
+            end do
+         end do
+      else
+         do i = ista,iend
+            do j = 1,ny
+               do k = 1,nz
                   kmn = int(abs(kz(k))*Lz+1)
                   IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                      Ek(kmn) = Ek(kmn)+2*tmp*abs(a(k,j,i))**2
-                  ENDIF
-               END DO
-            END DO
-         END DO
-      ELSE
-         DO i = ista,iend
-            DO j = 1,ny
-               DO k = 1,nz
-                  kmn = int(abs(kz(k))*Lz+1)
-                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
-                     Ek(kmn) = Ek(kmn)+2*tmp*abs(a(k,j,i))**2
-                  ENDIF
-               END DO
-            END DO
-         END DO
-      ENDIF
+                  endif
+               end do
+            end do
+         end do
+      endif
 !
 ! Computes the reduction between nodes
 !
-      CALL MPI_REDUCE(Ek,Ektot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+      call mpi_reduce(Ek,Ektot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
 !
 ! Exports the spectrum to a file
 !
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='pvspectrum.' // nmb // '.txt')
-         DO k = 1,nz/2+1
-            WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Ektot(k)
-         END DO
-         CLOSE(1)
-      ENDIF
+      if (myrank.eq.0) then
+         open(1,file='pvspectrum.' // nmb // '.txt')
+         do k = 1,nz/2+1
+            write(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Ektot(k)
+         end do
+         close(1)
+      endif
 
-      RETURN
-      END SUBROUTINE spectpv
+      return
+      end subroutine spectpv
 
+end module pseudospec3D_bouss
