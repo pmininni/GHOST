@@ -88,11 +88,13 @@ module particlebase_mod
   end type VelocParticleBase
 
   abstract interface
-     subroutine part_ctor_interface(this,infile, workspace, pstate, pstate_cpy)
+     subroutine part_ctor_interface(this, infile, pde, workspace, pstate, pstate_cpy)
        use class_GWorkspace3D
+       use equationbase_mod
        use gpstate_mod
        import :: ParticleBase
        class(ParticleBase), intent(inout)              :: this
+       class(EquationBase), intent   (in)              :: pde
        type   (GWorkspace), intent(inout), target      :: workspace
        type  (GPStateComp), intent(inout), allocatable :: pstate(:), pstate_cpy(:)
        character   (len=*), intent   (in)              :: infile

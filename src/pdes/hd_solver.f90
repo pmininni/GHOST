@@ -53,7 +53,7 @@ module hd_mod
   ! Define class:
   type, extends(VelocityBase) :: HDSolver 
     ! Member data:
-    logical           :: binit_=.false. ! is initialized?
+    logical           :: binit_  =.false. ! is initialized?
     type  (NHTraits)  :: traits_
   CONTAINS
     procedure, public :: init          =>          init_impl ! init method

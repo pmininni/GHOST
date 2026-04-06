@@ -109,7 +109,7 @@
 
 ! Initialization of the particles
       if (dopart) then
-         CALL particle%part_ctor('parameter.inp',workspace,part,part_nxt)
+         CALL particle%part_ctor('parameter.inp',fluid,workspace,part,part_nxt)
          icplist = init_icp_from_file('parameter.inp')
       endif
 

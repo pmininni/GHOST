@@ -355,7 +355,8 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Constructor
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE GPart_ctor(this,infile, workspace, pstate, pstate_cpy)
+  SUBROUTINE GPart_ctor(this, infile, pde, workspace, pstate, pstate_cpy)
+    USE equationbase_mod
     USE var
     USE grid
     USE boxsize
@@ -367,14 +368,15 @@ CONTAINS
     USE status
     USE random
     IMPLICIT NONE
-    CLASS     (GPart), intent(inout)              :: this
-    type (GWorkspace), intent(inout), target      :: workspace
-    type(GPStateComp), intent(inout), allocatable :: pstate(:), pstate_cpy(:)
-    character(len=*) , intent   (in)              :: infile
-    integer                                       :: disp(3),lens(3),types(3)
-    integer                                       :: tsta,tend,num_components
-    integer                                       :: j,nc,szreal
-    logical                                       :: bret
+    CLASS       (GPart), intent(inout)              :: this
+    class(EquationBase),             intent    (in) :: pde
+    type   (GWorkspace), intent(inout), target      :: workspace
+    type  (GPStateComp), intent(inout), allocatable :: pstate(:), pstate_cpy(:)
+    character   (len=*), intent   (in)              :: infile
+    integer                                         :: disp(3),lens(3),types(3)
+    integer                                         :: tsta,tend,num_components
+    integer                                         :: j,nc,szreal
+    logical                                         :: bret
 
     this%infile_      =  infile    ! input file
     this%workspace_   => workspace

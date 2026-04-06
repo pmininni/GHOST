@@ -49,7 +49,7 @@ module equationbase_mod
       integer :: nd_         ! problem dimension
       integer :: nc_         ! # vector field components
     contains
-      procedure, public                          :: rhs_passive
+      procedure, public                 :: rhs_passive
   end type VelocityBase
 
   type, abstract, extends(VelocityBase) :: ActiveScalarBase
