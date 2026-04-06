@@ -950,11 +950,11 @@ CONTAINS
       nr = this%maxparts_/this%nprocs_
       DO WHILE ((this%ierr_.EQ.MPI_SUCCESS) .AND. (nb.LT.this%maxparts_))
         nr = MIN(nr, this%maxparts_-nb)
-        CALL MPI_FILE_READ_AT_ALL(fh,offset,this%ptmp0_,3*nr,GC_REAL,this%istatus_,this%ierr_) ! PDB
+        CALL MPI_FILE_READ_AT_ALL(fh,offset,this%gptmp0_,3*nr,GC_REAL,this%istatus_,this%ierr_) ! PDB
         offset = offset + 3*nr*szreal
         DO j = 1,nr
           IF ((i.LE.this%nparts_).AND.(this%id_(i).EQ.(j+nb-1))) THEN
-            pdb(:,i) = this%ptmp0_(:,j)
+            pdb(:,i) = this%gptmp0_(:,j)
             i = i + 1
           END IF
         END DO
