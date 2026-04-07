@@ -5,8 +5,10 @@
 ! ===================================================================
 
 module gstepperbase_mod
-  use equationbase_mod
-  use particlebase_mod
+  use equationbase_mod, only: EquationBase, GWorkspace
+  use particlebase_mod, only: ParticleBase
+  use gpstate_mod
+  use gstate_mod
   implicit none
 
   ! ================= Stepper traits ===================================
@@ -18,7 +20,7 @@ module gstepperbase_mod
     integer            :: npstate = 0 ! Number of particles state components
     logical            :: dopart  = .false. ! Use particle interfaces?   
     character(len=128) :: sname       ! Stepper name
-  end type
+  end type GStepperTraits
 
   ! ================= Base class for all steppers =======================
   ! Define an abstract base class
@@ -26,52 +28,55 @@ module gstepperbase_mod
       type   (GWorkspace), pointer   :: workspace_ => null()
       class(EquationBase), pointer   :: solver_    => null()
       class(ParticleBase), pointer   :: psolver_   => null()
-      character (len=128)            :: infile_
+      character (len=128)            :: infile_    ! config file name
     contains
-      procedure(GStepper_ctor_interface), deferred :: GStepper_ctor! Constructor
-!     procedure         (init_interface), deferred :: init         ! init method
-      procedure         (step_interface), deferred :: step         ! step method
-      procedure        (pstep_interface), deferred :: pstep        ! part+field step method
-      generic                           ,   public :: gstep => step, pstep ! general method
-  end type GStepperBase
+      procedure(GStepper_ctor_interface), deferred :: GStepper_ctor ! Constructor
+      procedure         (init_interface), deferred :: init          ! init method
+      procedure         (step_interface), deferred :: step          ! fluid step method
+      procedure        (pstep_interface), deferred :: pstep         ! part  step method
+      procedure        (cstep_interface), deferred :: cstep         ! part+field step method
+      generic              , public :: gstep => step, pstep, cstep  ! general method
+  end type GStepperBase 
   
   abstract interface
     subroutine GStepper_ctor_interface(this, traits, workspace, solver, psolver)
-      use equationbase_mod
-      use particlebase_mod
-      import :: GStepperBase, GStepperTraits
+      import :: GStepperBase, GStepperTraits, GWorkspace, EquationBase, ParticleBase
       class (GStepperBase), intent(inout)                   :: this
       type(GStepperTraits), intent(inout)                   :: traits
       type    (GWorkspace), intent(inout), target           :: workspace
-      class (Equationbase), intent   (in), target           :: solver
+      class (EquationBase), intent   (in), target           :: solver
       class (ParticleBase), intent   (in), target, optional :: psolver
     end subroutine GStepper_ctor_interface
 
-!   subroutine init_interface(this, traits) 
-!     import :: GStepperBase, GStepperTraits
-!     class (GStepperBase), intent (inout) :: this
-!     type(GStepperTraits), intent    (in) :: traits
-!   end subroutine init_interface
+    subroutine init_interface(this, traits) 
+      import :: GStepperBase, GStepperTraits
+      class (GStepperBase), intent(inout) :: this
+      type(GStepperTraits), intent   (in) :: traits
+    end subroutine init_interface
 
-    subroutine step_interface(this, time, uin, uf, dt, uout) 
-      use gstate_mod
-      use equationbase_mod
-      import :: GStepperBase
+    subroutine step_interface(this, time, uin, uf, dt, uout)
+      import :: GStepperBase, GStateComp, GP
       class(GStepperBase), intent   (in) :: this
       real      (kind=GP), intent   (in) :: time, dt
       type   (GStateComp), intent(inout) :: uin(:),uf(:)
       type   (GStateComp), intent(inout) :: uout(:) 
     end subroutine step_interface
 
-    subroutine pstep_interface(this, time, uin, upin, uf, dt, uout, upout) 
-      use gstate_mod
-      use gpstate_mod
-      import :: GStepperBase
+    subroutine pstep_interface(this, time, uin, upin, dt, upout)
+      import :: GStepperBase, GStateComp, GPStateComp, GP
+      class(GStepperBase), intent  (in)                      :: this
+      real     (kind=GP), intent   (in)                      :: time, dt
+      type  (GStateComp), intent(inout)                      :: uin(:)
+      type (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
+    end subroutine pstep_interface
+
+    subroutine cstep_interface(this, time, uin, upin, uf, dt, uout, upout)
+      import :: GStepperBase, GStateComp, GPStateComp, GP
       class(GStepperBase), intent  (in)                      :: this
       real     (kind=GP), intent   (in)                      :: time, dt
       type  (GStateComp), intent(inout)                      :: uin(:),uf(:), uout(:)
       type (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
-    end subroutine pstep_interface
+    end subroutine cstep_interface
   end interface
 
 contains
