@@ -15,7 +15,7 @@
 !
 !=================================================================
 
-module pseudospec3D_bouss
+module pseudospec_bouss
     use pseudospec_scalar
     contains
 !*****************************************************************
@@ -815,4 +815,4 @@ module pseudospec3D_bouss
       return
       end subroutine spectpv
 
-end module pseudospec3D_bouss
+end module pseudospec_bouss

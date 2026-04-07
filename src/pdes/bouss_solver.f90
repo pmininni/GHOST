@@ -2,15 +2,17 @@
 ! NAME       : bouss_solver.f90
 ! DESCRIPTION: Forms class for incompressible Boussinesq solvers, computing:
 !
-!              dv/dt + (w + 2 Omega) x v = - Grad p - N theta \hat{z} + nu Del^2 v
-!              dtheta/dt + v.Grad theta  = - N v_z + kappa  Del^2 theta
+!              dv/dt + (w + 2 Omega) x v = - Grad p + xmom N theta \hat{z}
+!                                          + nu Del^2 v
+!              dtheta/dt + v.Grad theta  = - xtemp N v_z + bkappa Del^2 theta
 !
 !              ds_i/dt + v.Grad s_i = kappa_i Del^2 s_i 
 !                                             i = 1, ..., numpassive
 !              Div v = 0,
 !
-!              where N is Brunt-Vaisala frequency, nu, kappa are
-!              viscostiy and diffusivity.
+!              where N is Brunt-Vaisala frequency, nu and bkappa are
+!              the viscostiy and diffusivity of the active scalar, and kappa
+!              is a vector with the diffusivities of the passive scalar.
 !
 !
 !              State ordering is:
@@ -24,22 +26,20 @@
 ! INPUT FILE : For solver='BOUSS', looks for a "&BOUSS" namelist with:
 !              nu      : fluid kinematic viscosity
 !              bkappa  : active scalar diffusivity
-!              bvfreq  : Brunt-Vaisala frequency
-!              xmom    : factor multiplying buoyancy tendency 
-!                        in momentum eqn
-!              xtemp   : factor multiplying buoyancy tendency i
-!                        in temperature eqn
-!              dorot   : do rotation, = .TRUE. or .FALSE.
+!              bvfreq  : Brunt-Vaissala frequency (N)
+!              xmom    : factor multiplying buoyancy force in momentum eq.
+!              xtemp   : factor multiplying vertical veloc in temp. eq.
+!              dorot   : do rotation = .TRUE. or .FALSE.
 !              omegax  : amplitude of the uniform rotation along x
 !              omegay  : amplitude of the uniform rotation along y
 !              omegaz  : amplitude of the uniform rotation along z
 !              npassive: number of passive scalars (default=0)
 !              spectlod: spectral output level of detail (in [1,4]):
 !                          1: All 1d spectra, KE and PE fluxes
-!                          2: 2D spectra, helicity flluxes
+!                          2: 2D spectra, helicity fluxes
 !                          3: KE Fourier modes
-!                          4: PV spectra, horizontally-avged quantities
-
+!                          4: PV spectra, horizontally-avgd quantities
+!
 !              For npassive > 0, looks for a "&passive" namelist with:
 !              kappa   : vector with npassive diffusivities
 !
@@ -57,11 +57,11 @@ module bouss_mod
     logical       :: dorot        = .FALSE. ! rotation flag
     integer       :: spectlod     = 1       ! standard level of spectra detail 
     real(kind=GP) :: nu           = 0.0_GP  ! dissipation
-    real(kind=GP) :: bkappa       = 0.0_GP  ! diffusivity
-    real(kind=GP) :: bvfreq       = 0.0_GP  ! Brunt-Vaisala freq
-    real(kind=GP) :: xmom         = 1.0_GP  ! buoy mom coef    
+    real(kind=GP) :: bkappa       = 0.0_GP  ! active scalar diffusivity
+    real(kind=GP) :: bvfreq       = 0.0_GP  ! Brunt-Vaissala freq
+    real(kind=GP) :: xmom         = 1.0_GP  ! buoy mom  coef    
     real(kind=GP) :: xtemp        = 1.0_GP  ! buoy temp coef
-    real(kind=GP), allocatable :: kappa(:)  ! diffusivities
+    real(kind=GP), allocatable :: kappa(:)  ! passive scalar diffusivities
     real(kind=GP)              :: omega(3)  ! rotation vector
   end type
 
@@ -72,7 +72,7 @@ module bouss_mod
   ! Define class:
   type, extends(ActiveScalarBase) :: BOUSSSolver 
     ! Member data:
-    logical           :: binit_=.false. ! is initialized?
+    logical           :: binit_  = .false. ! is initialized?
     type  (BSTraits)  :: traits_
   contains
     procedure, public :: init          =>          init_impl ! init method
@@ -110,9 +110,9 @@ contains
     real(kind=GP), allocatable :: kappa(:)
 
     ! Required namelists:
-    namelist/ BOUSS      / nu, bkappa, bvfreq, xmom, xtemp, &
-                           dorot,  omegax, omegay, omegaz,  &
-                           npassive, spectlod
+    namelist/ BOUSS      / nu, bkappa, bvfreq, xmom, xtemp
+    namelist/ BOUSS      / dorot,  omegax, omegay, omegaz
+    namelist/ BOUSS      / npassive, spectlod
     namelist/ passive    / kappa
 
     call MPI_COMM_SIZE(MPI_COMM_WORLD,this%nprocs_,ierr)
@@ -145,8 +145,8 @@ contains
     call mpi_bcast(npassive ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(spectlod ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
 
-    this%numpassive_ = npassive
-    this%numactivesc_  = 1
+    this%numpassive_  = npassive
+    this%numactivesc_ = 1
 
     if ( npassive .gt. 0 ) then
       allocate(kappa(npassive))
@@ -160,13 +160,14 @@ contains
     endif
 
     ! Set traits structure from inputfile data:
-    this%traits_%  dorot = dorot
-    this%traits_%     nu = nu
-    this%traits_% bkappa = bkappa
-    this%traits_% bvfreq = bvfreq
-    this%traits_%   xmom = xmom
-    this%traits_%  xtemp = xtemp
-    this%traits_%  omega = (/omegax,omegay,omegaz/)
+    this%traits_%   dorot = dorot
+    this%traits_%spectlod = spectlod
+    this%traits_%      nu = nu
+    this%traits_%  bkappa = bkappa
+    this%traits_%  bvfreq = bvfreq
+    this%traits_%    xmom = xmom
+    this%traits_%   xtemp = xtemp
+    this%traits_%   omega = (/omegax,omegay,omegaz/)
     if ( npassive .gt. 0 ) then
       if ( allocated(this%traits_%kappa) ) then
         deallocate(this%traits_%kappa);
@@ -175,21 +176,15 @@ contains
       this%traits_%kappa = kappa
       deallocate(kappa)
     endif
-    this%traits_%spectlod =  spectlod
 
-    this%order_   = 2                                 ! Time stepping order
     this%nd_      = 3                                 ! 3d
     this%nc_      = this%nd_                          ! #vel field components
     this%VELOCITY = 1                                 ! start of vel sector
-    this%ACTIVESC = this%VELOCITY+this%nc_            ! start of temperature sector
+    this%ACTIVESC = this%VELOCITY + this%nc_          ! Start of temperature sector
     this%PASSIVE  = this%ACTIVESC + this%numactivesc_ ! Start of passive scalar sector
 
     allocate(this%sstate_(this%state_size()))
     call this%get_sstate(this%sstate_)
-
-    ! Set stepper callback:       
-    ! this%stepper_%set_pcallback(this%pdudt_impl) ! TODO deleted in HD_solver and moist_solver
-
     this%binit_ = .true.  
   end subroutine init_impl
 
@@ -213,22 +208,22 @@ contains
 !$  use threads
     implicit none
 
-    class (BOUSSSolver), intent   (in)             :: this
-    real   (kind=GP), intent   (in)             :: time, dt
-    type(GStateComp), intent(inout), target     :: uin(:),uf(:)
-    type(GStateComp), intent(inout)             :: dudt(:) 
-    complex(kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
-    complex(kind=GP), pointer, dimension(:,:,:) :: fth,th
-    complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4,C5,C6
-    complex(kind=GP), pointer, dimension(:,:,:) :: C7,C8
-    real   (kind=GP)                            :: bkappa,bvfreq,nu
-    real   (kind=GP)                            :: xmom,xtemp
-    real   (kind=GP)                            :: omegax,omegay,omegaz
-    integer                                     :: i,j,k
-    logical                                     :: bret
+    class(BOUSSSolver), intent   (in)             :: this
+    real     (kind=GP), intent   (in)             :: time, dt
+    type  (GStateComp), intent(inout), target     :: uin(:),uf(:)
+    type  (GStateComp), intent(inout)             :: dudt(:) 
+    complex  (kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
+    complex  (kind=GP), pointer, dimension(:,:,:) :: fth,th
+    complex  (kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4,C5,C6
+    complex  (kind=GP), pointer, dimension(:,:,:) :: C7,C8
+    real     (kind=GP)                            :: bkappa,bvfreq,nu
+    real     (kind=GP)                            :: xmom,xtemp
+    real     (kind=GP)                            :: omegax,omegay,omegaz
+    integer                                       :: i,j,k
+    logical                                       :: bret
 
     if ( .not. this%binit_ ) then
-      stop 'BOUSSolver::dud: Solver not initialized'
+      stop 'BOUSSolver :: dudt: Solver not initialized'
     endif
        
     nu     = this%traits_%nu
@@ -249,11 +244,11 @@ contains
     vx  => uin(this%VELOCITY  )%ccomp
     vy  => uin(this%VELOCITY+1)%ccomp
     vz  => uin(this%VELOCITY+2)%ccomp
-    th  => uin(this%ACTIVESC)  %ccomp
+    th  => uin(this%ACTIVESC  )%ccomp
     fx  => uf (this%VELOCITY  )%ccomp
     fy  => uf (this%VELOCITY+1)%ccomp
     fz  => uf (this%VELOCITY+2)%ccomp
-    fth => uf (this%ACTIVESC)  %ccomp
+    fth => uf (this%ACTIVESC  )%ccomp
       
     call prodre3(vx,vy,vz,C4,C5,C6)                    ! w x v
     if ( this%traits_%dorot ) then
@@ -279,9 +274,9 @@ contains
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
     do i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-    do j = 1,ny
-    do k = 1,nz
-       C6(k,j,i) = C6(k,j,i) + xmom*th(k,j,i) ! buoyancy term
+    do j = 1,ny                               ! Buoyancy term
+    do k = 1,nz                               ! It becomes negative as it changes
+       C6(k,j,i) = C6(k,j,i) + xmom*th(k,j,i) ! sign after the call to nonlhd3
     end do
     end do
     end do
@@ -292,18 +287,17 @@ contains
     call laplak3(vx,C4)          ! Del^2 vx
     call laplak3(vy,C5)          ! Del^2 vy
     call laplak3(vz,C6)          ! Del^2 vz
-
     call advect3(vx,vy,vz,th,C7) ! -(v.Grad) th
     call laplak3(th,C8)          ! Del^2 th
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
-    do i = ista,iend               ! heat 'currrent':
+    do i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
-      do j = 1,ny
-        do k = 1,nz
-          C7(k,j,i) = C7(k,j,i) + xtemp*vz(k,j,i) ! add N vz term
-        end do
-      end do
+    do j = 1,ny
+    do k = 1,nz                  ! heat 'currrent'
+      C7(k,j,i) = C7(k,j,i) + xtemp*vz(k,j,i)
+    end do
+    end do
     end do
 
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -315,12 +309,12 @@ contains
         dudt(this%VELOCITY  )%ccomp(k,j,i) = nu*C4(k,j,i) + C1(k,j,i) + fx(k,j,i)
         dudt(this%VELOCITY+1)%ccomp(k,j,i) = nu*C5(k,j,i) + C2(k,j,i) + fy(k,j,i)
         dudt(this%VELOCITY+2)%ccomp(k,j,i) = nu*C6(k,j,i) + C3(k,j,i) + fz(k,j,i)
-        dudt(this%ACTIVESC)  %ccomp(k,j,i) = bkappa*C8(k,j,i) + C7(k,j,i) + fth(k,j,i)
+        dudt(this%ACTIVESC  )%ccomp(k,j,i) = bkappa*C8(k,j,i) + C7(k,j,i) + fth(k,j,i)
       else
         dudt(this%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
         dudt(this%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
         dudt(this%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
-        dudt(this%ACTIVESC)  %ccomp(k,j,i) = 0.0_GP
+        dudt(this%ACTIVESC  )%ccomp(k,j,i) = 0.0_GP
       endif
     enddo
     enddo
@@ -369,27 +363,26 @@ contains
     vx => uin(this%VELOCITY  )%ccomp
     vy => uin(this%VELOCITY+1)%ccomp
     vz => uin(this%VELOCITY+2)%ccomp
-    th => uin(this%ACTIVESC)  %ccomp
+    th => uin(this%ACTIVESC  )%ccomp
     fx => uf (this%VELOCITY  )%ccomp
     fy => uf (this%VELOCITY+1)%ccomp
     fz => uf (this%VELOCITY+2)%ccomp
-    fs => uf (this%ACTIVESC)  %ccomp
-
+    fs => uf (this%ACTIVESC  )%ccomp
 
     call hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,0)
-    call maxabs(vx,vy,vz,rmp,0)
+    call pscheck(th,fs,t,dt,trim(this%sstate_(this%ACTIVESC)))
 
-    call pscheck(th,fs,t,dt)
+    call maxabs(vx,vy,vz,rmp,0) ! max |vorticity|
     call derivk3(th,c1,1)
     call derivk3(th,c2,2)
     call derivk3(th,c3,3)
-    call maxabs(c1,c2,c3,rmq,2)
-
+    call maxabs(c1,c2,c3,rmq,2) ! max |Grad th|
     IF (myrank.eq.0) THEN
       open(1,file='maximum.txt',position='append')
       write(1,FMT='(E13.6,E13.6,E13.6)') (t-1)*dt,rmp,rmq
       close(1)
     endif
+
     do i = this%PASSIVE, this%PASSIVE+this%numpassive_-1
       call pscheck(uin(i)%ccomp,uf(i)%ccomp,t,dt,trim(this%sstate_(i)))
     end do   
@@ -397,7 +390,6 @@ contains
     call this%workspace_%free_complex_tmp(c1)
     call this%workspace_%free_complex_tmp(c2)
     call this%workspace_%free_complex_tmp(c3)
-
   end subroutine global_impl
 
   
@@ -408,7 +400,7 @@ contains
     use pseudospec_aniso
     use pseudospec_scalar
     use pseudospec_anisca
-    use pseudospec3D_bouss
+    use pseudospec_bouss
     use filefmt
     use status
     use iovar
@@ -425,11 +417,11 @@ contains
     bvfreq = this%traits_%bvfreq 
     omegaz = this%traits_% omega(3) 
 
-!   write(ext, fmtext) sind
+    write(ext, fmtext) sind
     vx => uin(this%VELOCITY  )%ccomp
     vy => uin(this%VELOCITY+1)%ccomp
     vz => uin(this%VELOCITY+2)%ccomp
-    th => uin(this%ACTIVESC)  %ccomp
+    th => uin(this%ACTIVESC  )%ccomp
     call spectrum(vx,vy,vz,ext,1,1)
     call this%workspace_%get_complex_tmp(c1,bret)
     call this%workspace_%get_complex_tmp(c2,bret)
@@ -439,29 +431,26 @@ contains
 
     call specpara(vx,vy,vz,ext,1,1)
     call specperp(vx,vy,vz,ext,1,1)
-    call spectrsc(th,ext,0)
-    call specscpa(th,ext,0)
-    call specscpe(th,ext,0)
-
-    call entpara(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy flux
-    call entperp(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy fluxq
+    call spectrsc(th,ext,0,trim(this%sstate_(this%ACTIVESC)))
+    call specscpa(th,ext,0,trim(this%sstate_(this%ACTIVESC)))
+    call specscpe(th,ext,0,trim(this%sstate_(this%ACTIVESC)))
+    call entpara (vx,vy,vz,-c1,-c2,-c3,ext,1)  ! Writes the energy flux
+    call entperp (vx,vy,vz,-c1,-c2,-c3,ext,1)  ! Writes the energy flux
 
     ! Write helicity fluxes, 2D spectra:
     if ( this%traits_%spectlod .ge. 2 ) then
       call heltrans(vx,vy,vz,-c1,-c2,-c3,ext,1)
-      ! call helpara(vx,vy,vz,-c1,-c2,-c3,ext,1) !TODO don't defined
-      ! call helperp(vx,vy,vz,-c1,-c2,-c3,ext,1)
       ! Write 2D spectra:
-      call spec2D(vx,vy,vz,ext,odir,1,1)
-      call specsc2D(th,ext,odir,0)
+      call spec2D  (vx,vy,vz,ext,odir,1,1)
+      call specsc2D(th,ext,odir,0,trim(this%sstate_(this%ACTIVESC)))
     endif
 
     ! Write Fourier modes:
     if ( this%traits_%spectlod .ge. 3 ) then
-      call write_fourier(vx,'vx',ext,odir)
-      call write_fourier(vy,'vy',ext,odir)
-      call write_fourier(vz,'vz',ext,odir)
-      call write_fourier(th,'th',ext,odir)
+      call write_fourier(vx,trim(this%sstate_(this%VELOCITY  )),ext,odir)
+      call write_fourier(vy,trim(this%sstate_(this%VELOCITY+1)),ext,odir)
+      call write_fourier(vz,trim(this%sstate_(this%VELOCITY+2)),ext,odir)
+      call write_fourier(th,trim(this%sstate_(this%ACTIVESC  )),ext,odir)
     endif
 
     ! Write PV spectra, horizontally-averaged data:
@@ -477,9 +466,7 @@ contains
       call havgwrite(7,'hapv2'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! pot'l vorticity^2
       call havgwrite(8,'hasuph' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! super-helicity
       call havgwrite(9,'hari'   ,ext,vx,vy,vz,th,omegaz,bvfreq) ! Richardson no.
-
     endif
-
 
     call this%workspace_%free_complex_tmp(c1)
     call this%workspace_%free_complex_tmp(c2)
@@ -559,12 +546,10 @@ contains
     character(len=100)                            :: snum
     character(len=1)                              :: comp(3)
     integer                                       :: j
-
     if ( size(sstate) .lt. this%state_size() ) then
       deallocate(sstate)
       allocate(sstate(this%state_size()))
     endif
-
     comp = ['x', 'y', 'z']
     do j = this%VELOCITY,this%VELOCITY+this%nc_-1
        sstate(j) = 'v' // comp(j-this%VELOCITY+1)

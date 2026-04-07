@@ -19,7 +19,6 @@
 !              eta     : magnetic diffusivity
 !              doB0    : do mean magnetic field, = .TRUE. or .FALSE.
 !              dohall  : do Hall physics         = .TRUE. or .FALSE.
-!              doparts : use particles = .TRUE. or .FALSE.
 !              epsilon : amplitude of the Hall term
 !              B0x     : amplitude of the guide field along x
 !              B0y     : amplitude of the guide field along y
@@ -47,7 +46,6 @@ module mhd_mod
   type, public  :: MHDTraits
     logical       :: doB0         = .FALSE. ! guide field flag
     logical       :: dohall       = .FALSE. ! compute hall term
-    logical       :: doparts      = .FALSE. ! do particles flag
     integer       :: spectlod     = 1       ! standard level of spectra detail 
     real(kind=GP) :: nu           = 0.0_GP  ! dissipation
     real(kind=GP) :: eta          = 0.0_GP  ! magnetic diffusivity
@@ -94,17 +92,17 @@ CONTAINS
     ! Temporary data to read from namelists:
     logical                    :: doB0
     logical                    :: dohall
-    logical                    :: doparts
     integer                    :: npassive
+    integer                    :: spectlod
     integer                    :: ierr
     real(kind=GP)              :: nu, eta, epsilon
     real(kind=GP)              :: B0x, B0y, B0z
     real(kind=GP), allocatable :: kappa(:)
 
     ! Required namelists:
-    namelist/ MHD      / nu, eta, doB0, doparts, B0x, B0y, B0z, npassive
-    namelist/ MHD      / dohall, epsilon, npassive
-    namelist/ passive  / kappa
+    namelist/ MHD     / nu, eta, doB0, B0x, B0y, B0z, npassive
+    namelist/ MHD     / dohall, epsilon, npassive
+    namelist/ passive / kappa
 
     call MPI_COMM_SIZE(MPI_COMM_WORLD,this%nprocs_,ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD,this%myrank_,ierr)
@@ -112,7 +110,7 @@ CONTAINS
     ! Get trait variables from input file:
     doB0     = .FALSE.
     dohall   = .FALSE.
-    doparts  = .FALSE.
+    spectlod = 1 ! standard lod
     nu       = 0.0
     eta      = 0.0
     npassive = 0
@@ -127,11 +125,11 @@ CONTAINS
     call mpi_bcast(epsilon  ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(doB0     ,1 ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(dohall   ,1 ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(doparts  ,1 ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(B0x      ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(B0y      ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(B0z      ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(npassive ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(spectlod ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
     this%numpassive_ = npassive
     if ( npassive .gt. 0 ) then
       allocate(kappa(npassive))
@@ -145,13 +143,13 @@ CONTAINS
     endif
 
     ! Set traits from inputfile data:
-    this%traits_%      doB0 = doB0
-    this%traits_%    dohall = dohall
-    this%traits_%   doparts = doparts
-    this%traits_%        nu = nu
-    this%traits_%       eta = eta
-    this%traits_%   epsilon = epsilon
-    this%traits_%        B0 = (/B0x,B0y,B0z/)
+    this%traits_%    doB0 = doB0
+    this%traits_%  dohall = dohall
+    this%traits_%spectlod = spectlod
+    this%traits_%      nu = nu
+    this%traits_%     eta = eta
+    this%traits_% epsilon = epsilon
+    this%traits_%      B0 = (/B0x,B0y,B0z/)
     if ( npassive .gt. 0 ) then
       if ( allocated(this%traits_%kappa) ) then
         deallocate(this%traits_%kappa);
@@ -162,7 +160,6 @@ CONTAINS
     endif
    
     if ( dohall ) call this%workspace_%add_complex_entries(3)
-    this%order_   = 2                        ! Time stepping order
     this%nd_      = 3                        ! 3d
     this%nc_      = this%nd_                 ! # field components
     this%VELOCITY = 1                        ! start of vel sector
@@ -205,6 +202,10 @@ CONTAINS
     real   (kind=GP)                            :: b0x,b0y,b0z
     integer                                     :: i,j,k
     logical                                     :: bret
+
+    if ( .not. this%binit_ ) then
+      stop 'MHDSolver::dudt: Solver not initialized'
+    endif
 
     nu  = this%traits_%nu
     eta = this%traits_%eta

@@ -17,8 +17,12 @@ module forcebase_mod
   end type forceBase
 
   type, abstract :: forceUpdt
-      complex(kind=GP), pointer, dimension(:,:,:)  :: fxold_,fyold_,fzold_
-      complex(kind=GP), pointer, dimension(:,:,:)  :: fxnew_,fynew_,fznew_
+      complex(kind=GP), pointer, dimension(:,:,:)  :: fxold_ => null()
+      complex(kind=GP), pointer, dimension(:,:,:)  :: fyold_ => null()
+      complex(kind=GP), pointer, dimension(:,:,:)  :: fzold_ => null()
+      complex(kind=GP), pointer, dimension(:,:,:)  :: fxnew_ => null()
+      complex(kind=GP), pointer, dimension(:,:,:)  :: fynew_ => null()
+      complex(kind=GP), pointer, dimension(:,:,:)  :: fznew_ => null()
       logical                                      :: binit_
     contains
       procedure(update_GForce_interface), deferred :: update_GForce

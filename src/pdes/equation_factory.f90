@@ -49,16 +49,16 @@ CONTAINS
     ! Clauses for each solver class
     select case (trim(adjustl(solver)))
       case ('HD')
-        allocate(HDsolver :: new_object)
+        allocate(HDsolver    :: new_object)
         NUMTMPCOMP =  8; NUMTMPREAL = 3
       case ('BOUSS')
         allocate(BOUSSsolver :: new_object)
-        NUMTMPCOMP =  10; NUMTMPREAL = 3
+        NUMTMPCOMP = 10; NUMTMPREAL = 3
       case ('MOIST')
         allocate(MOISTsolver :: new_object)
-        NUMTMPCOMP =  10; NUMTMPREAL = 3 ! TODO check
+        NUMTMPCOMP = 10; NUMTMPREAL = 3
       case ('MHD')
-        allocate(MHDsolver :: new_object)
+        allocate(MHDsolver   :: new_object)
         NUMTMPCOMP = 12; NUMTMPREAL = 3
 !     case ('UserDefined')
 !       allocate(UserDefinedsolver :: new_object)

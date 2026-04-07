@@ -53,7 +53,7 @@ module hd_mod
   ! Define class:
   type, extends(VelocityBase) :: HDSolver 
     ! Member data:
-    logical           :: binit_  =.false. ! is initialized?
+    logical           :: binit_  = .false. ! is initialized?
     type  (NHTraits)  :: traits_
   CONTAINS
     procedure, public :: init          =>          init_impl ! init method
@@ -128,7 +128,7 @@ CONTAINS
     this%traits_%   dorot = dorot
     this%traits_%spectlod = spectlod
     this%traits_%      nu = nu
-    this%traits_%omega    = (/omegax,omegay,omegaz/)
+    this%traits_%   omega = (/omegax,omegay,omegaz/)
     if ( npassive .gt. 0 ) then
       if ( allocated(this%traits_%kappa) ) then
         deallocate(this%traits_%kappa);
@@ -138,7 +138,6 @@ CONTAINS
       deallocate(kappa)
     endif
 
-    this%order_   = 2                        ! Time stepping order
     this%nd_      = 3                        ! 3d
     this%nc_      = this%nd_                 ! # field components
     this%VELOCITY = 1                        ! start of vel sector
@@ -179,10 +178,10 @@ CONTAINS
     logical                                     :: bret
        
     if ( .not. this%binit_ ) then
-      stop 'HDSolver::dud: Solver not initialized'
+      stop 'HDSolver::dudt: Solver not initialized'
     endif
 
-    nu     = this%traits_%nu
+    nu = this%traits_%nu
 
     call this%workspace_%get_complex_tmp(C1,bret)
     call this%workspace_%get_complex_tmp(C2,bret)
@@ -323,7 +322,6 @@ CONTAINS
     call this%workspace_%get_complex_tmp(c3,bret)
     call gradre3(vx,vy,vz,c1,c2,c3)            ! Computes v.Grad(v)
     call entrans(vx,vy,vz,-c1,-c2,-c3,ext,1)   ! Writes the energy flux
-    ! Uncomment the following line to compute the helicity flux
     if ( this%traits_%dorot ) then
       call specpara(vx,vy,vz,ext,1,1)
       call specperp(vx,vy,vz,ext,1,1)

@@ -2,16 +2,6 @@
 ! NAME       : equation_base.f90
 ! DESCRIPTION: Forms base class for all PDEs
 !
-! INPUT FILE : All PDEs look for a "&stepper" block that
-!              governs configuration of the time stepping
-!              scheme. Folliwing are the parameters allowed 
-!              in the configuration block:
-!                sname : Name of scheme. check stepper_factory_mod 
-!                        for valid names
-!                norder: Order of scheme
-!                nstage: Number of stages (if doing GEXRK)
-!                itype : Sub-type of RK scheme is using GEXRK
-
 ! DATE       : 11/29/25 (DLR)
 ! ===================================================================
 
@@ -26,10 +16,9 @@ module equationbase_mod
   ! Define an abstract base class
   type, abstract :: EquationBase
       type(GWorkspace), pointer     :: workspace_ => null()
-      type    (ioplan), pointer     :: planio_
+      type    (ioplan), pointer     :: planio_    => null()
       integer                       :: myrank_   ! MPI rank
       integer                       :: nprocs_   ! MPI rank 
-      integer                       :: order_    ! default integration order
       character(len=8), allocatable :: sstate_(:)! state member nanes
       character(len=128)            :: infile_   ! config file name
     contains
@@ -53,8 +42,8 @@ module equationbase_mod
   end type VelocityBase
 
   type, abstract, extends(VelocityBase) :: ActiveScalarBase
-      integer :: ACTIVESC      ! start of active scalar sector
-      integer :: numactivesc_  ! # active scalars
+      integer :: ACTIVESC     ! start of active scalar sector
+      integer :: numactivesc_ ! # active scalars
   end type ActiveScalarBase
 
   type, abstract, extends(VelocityBase) :: MagneticBase
@@ -134,7 +123,7 @@ CONTAINS
     type(GWorkspace)   , intent(inout), target :: workspace
     type(ioplan)       , intent(inout), target :: plan
     character(len=*)   , intent   (in)         :: infile
-    this%workspace_ => workspace;
+    this%workspace_ => workspace
   end subroutine Solver_base_ctor
 
 

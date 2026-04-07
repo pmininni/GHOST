@@ -23,9 +23,9 @@ module gstepperbase_mod
   ! ================= Base class for all steppers =======================
   ! Define an abstract base class
   type, abstract :: GStepperBase
-      type   (GWorkspace), pointer   :: workspace_
-      class(EquationBase), pointer   :: solver_
-      class(ParticleBase), pointer   :: psolver_
+      type   (GWorkspace), pointer   :: workspace_ => null()
+      class(EquationBase), pointer   :: solver_    => null()
+      class(ParticleBase), pointer   :: psolver_   => null()
       character (len=128)            :: infile_
     contains
       procedure(GStepper_ctor_interface), deferred :: GStepper_ctor! Constructor
