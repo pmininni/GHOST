@@ -140,7 +140,8 @@ contains
   !! forces on the fluid (one-way coupled), and evolves the
   !! particles in a fixed velocity field during the substepping 
   !! stages. This method is mainly inteded for manual
-  !! integration of multiple sets of one-way coupled particles.
+  !! integration of multiple sets of (same type) one-way
+  !! coupled particles.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine pstep_impl(this, time, uin, upin, dt, upout)
 !$  use threads
@@ -159,8 +160,8 @@ contains
     if ( size (uin) .ne. this%traits_%nstate ) then
       stop 'CanutoStepper::pstep: Inconsistent input state'
     endif
-    if ( size(puin) .ne. this%traits_%npstate &
-    .or.size(puout) .ne. this%traits_%npstate  ) then
+    if ( size(upin) .ne. this%traits_%npstate &
+    .or.size(upout) .ne. this%traits_%npstate  ) then
       stop 'CanutoStepper::pstep: Inconsistent particle state'
     endif
     if ( .not. this%traits_%dopart ) then
@@ -213,8 +214,8 @@ contains
      .or.size(uout) .ne. this%traits_%nstate  ) then
       stop 'CanutoStepper::cstep: Inconsistent input state'
     endif
-    if ( size(puin) .ne. this%traits_%npstate &
-    .or.size(puout) .ne. this%traits_%npstate  ) then
+    if ( size(upin) .ne. this%traits_%npstate &
+    .or.size(upout) .ne. this%traits_%npstate  ) then
       stop 'CanutoStepper::cstep: Inconsistent particle state'
     endif
     if ( .not. this%traits_%dopart ) then
