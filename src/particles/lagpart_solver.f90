@@ -336,8 +336,8 @@ CONTAINS
       CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
       CALL EulerToLag(this,this%lvz_,this%nparts_,velr,.false.,tmp1,tmp2)
       WRITE(lgext,lgfmtext) pind
-      CALL io_write_pdb(this,1,odir,'xlg',lgext,time)
-      CALL io_write_vec(this,1,odir,'vlg',lgext,time)
+      CALL io_write_pdb(this,1,this%odir_,'xlg',lgext,time)
+      CALL io_write_vec(this,1,this%odir_,'vlg',lgext,time)
     class default
       stop "Lagpart: This solver does not support pdes without a velocity field"
     end select
@@ -379,6 +379,8 @@ CONTAINS
     logical                                         :: bret
 
     this%infile_      =  infile    ! input file
+    this%idir_        =  idir      ! input  directory
+    this%odir_        =  odir      ! output directory
     this%workspace_   => workspace
     call pstatus_init(this%infile_)
     this%hasfeedback_ = .false.    ! No feedback on fluid
