@@ -251,7 +251,7 @@ CONTAINS
             do k = 1,nz
               C1(k,j,i) = uin(this%VELOCITY  )%ccomp(k,j,i)*rmp
               C2(k,j,i) = uin(this%VELOCITY+1)%ccomp(k,j,i)*rmp
-              C3(k,j,i) = uin(this%VELOCITY+1)%ccomp(k,j,i)*rmp
+              C3(k,j,i) = uin(this%VELOCITY+2)%ccomp(k,j,i)*rmp
             end do
           end do
         end do
@@ -273,7 +273,7 @@ CONTAINS
               do k = 1,nz
                 C1(k,j,i) = uin(this%MAGNETIC  )%ccomp(k,j,i)*rmp
                 C2(k,j,i) = uin(this%MAGNETIC+1)%ccomp(k,j,i)*rmp
-                C3(k,j,i) = uin(this%MAGNETIC+1)%ccomp(k,j,i)*rmp
+                C3(k,j,i) = uin(this%MAGNETIC+2)%ccomp(k,j,i)*rmp
               end do
             end do
           end do
