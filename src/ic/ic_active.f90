@@ -4,12 +4,12 @@
 !              solver classes supporting ACTIVESC.
 !
 ! Initial conditions available:
-!   read_a    : Reads active scalars from input files numbered by stat
-!   constant_a: Uniform active scalar
-!   puff_a    : Localized concentration
-!   random_a  : Random concentration
+!   read_as    : Reads active scalars from input files numbered by stat
+!   constant_as: Uniform active scalar
+!   puff_as    : Localized concentration
+!   random_as  : Random concentration
 !
-! DATE       : 03/30/26 (JBG)
+! DATE       : 04/08/26 (JBG)
 ! =====================================================================
 
 module ic_active
@@ -19,25 +19,25 @@ module ic_active
   implicit none
 
   ! ================= Initial conditions supported ====================
-  type, extends(icBase) :: read_a
+  type, extends(icBase) :: read_as
     contains
       procedure :: init_GState => init_reads
-  end type read_a
+  end type read_as
 
-  type, extends(icBase) :: constant_a
+  type, extends(icBase) :: constant_as
     contains
       procedure :: init_GState => init_constants
-  end type constant_a
+  end type constant_as
 
-  type, extends(icBase) :: puff_a
+  type, extends(icBase) :: puff_as
     contains
       procedure :: init_GState => init_puffs
-  end type puff_a
+  end type puff_as
 
-  type, extends(icBase) :: random_a
+  type, extends(icBase) :: random_as
     contains
       procedure :: init_GState => init_randoms
-  end type random_a
+  end type random_as
 
 contains
 
@@ -57,7 +57,7 @@ contains
     use commtypes
     implicit none
 
-    class(read_a), intent(in)                  :: this
+    class(read_as), intent(in)                  :: this
     class(EquationBase), intent(in)            :: solver
     type(GStateComp), intent(inout)            :: state(:)
     real(kind=GP), pointer, dimension(:,:,:)   :: R1
@@ -105,13 +105,13 @@ contains
 !$  use threads
     implicit none
 
-    class(constant_a), intent(in)              :: this
+    class(constant_as), intent(in)              :: this
     class(EquationBase), intent(in)            :: solver
     type(GStateComp), intent(inout)            :: state(:)
     real(kind=GP), allocatable                 :: c0(:)
     integer                                    :: i,j,k,n
 
-    namelist /constant_a/ c0
+    namelist /constant_as/ c0
 
     select type (solver)
     class is (ActiveScalarBase)
@@ -124,7 +124,7 @@ contains
 
       if (myrank .eq. 0) then
         open(1,file=solver%infile_,status='unknown',form='formatted')
-        read(1,nml=constant_a)
+        read(1,nml=constant_as)
         close(1)
       endif
 
@@ -170,7 +170,7 @@ contains
 !$  use threads
     implicit none
 
-    class(puff_a), intent(in)                  :: this
+    class(puff_as), intent(in)                  :: this
     class(EquationBase), intent(in)            :: solver
     type(GStateComp), intent(inout)            :: state(:)
     real(kind=GP), pointer                     :: R1(:,:,:)
@@ -179,7 +179,7 @@ contains
     integer                                    :: i,j,k,n
     logical                                    :: bret
 
-    namelist /puff_a/ c0,x0,y0,z0,r0
+    namelist /puff_as/ c0,x0,y0,z0,r0
 
     call solver%workspace_%get_real_tmp(R1,bret)
 
@@ -198,7 +198,7 @@ contains
 
       if (myrank .eq. 0) then
         open(1,file=solver%infile_,status='unknown',form='formatted')
-        read(1,nml=puff_a)
+        read(1,nml=puff_as)
         close(1)
       endif
 
@@ -266,7 +266,7 @@ contains
 !$  use threads
     implicit none
 
-    class(random_a), intent(in)                :: this
+    class(random_as), intent(in)                :: this
     class(EquationBase), intent(in)            :: solver
     type(GStateComp), intent(inout)            :: state(:)
     real(kind=GP), allocatable                 :: c0(:),kdn(:),kup(:)
@@ -275,7 +275,7 @@ contains
     double precision                           :: tmp
     integer                                    :: i,j,k,n
 
-    namelist /random_a/ c0,kup,kdn
+    namelist /random_as/ c0,kup,kdn
 
     select type (solver)
     class is (ActiveScalarBase)
@@ -290,7 +290,7 @@ contains
 
       if (myrank .eq. 0) then
         open(1,file=solver%infile_,status='unknown',form='formatted')
-        read(1,nml=random_a)
+        read(1,nml=random_as)
         close(1)
       endif
 
