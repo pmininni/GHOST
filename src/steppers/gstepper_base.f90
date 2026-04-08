@@ -56,7 +56,7 @@ module gstepperbase_mod
 
     subroutine step_interface(this, time, uin, uf, dt, uout)
       import :: GStepperBase, GStateComp, GP
-      class(GStepperBase), intent   (in) :: this
+      class(GStepperBase), intent(inout) :: this
       real      (kind=GP), intent   (in) :: time, dt
       type   (GStateComp), intent(inout) :: uin(:),uf(:)
       type   (GStateComp), intent(inout) :: uout(:) 
@@ -64,18 +64,18 @@ module gstepperbase_mod
 
     subroutine pstep_interface(this, time, uin, upin, dt, upout)
       import :: GStepperBase, GStateComp, GPStateComp, GP
-      class(GStepperBase), intent  (in)                      :: this
-      real     (kind=GP), intent   (in)                      :: time, dt
-      type  (GStateComp), intent(inout)                      :: uin(:)
-      type (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
+      class(GStepperBase), intent(inout)                      :: this
+      real      (kind=GP), intent   (in)                      :: time, dt
+      type   (GStateComp), intent(inout)                      :: uin(:)
+      type  (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
     end subroutine pstep_interface
 
     subroutine cstep_interface(this, time, uin, upin, uf, dt, uout, upout)
       import :: GStepperBase, GStateComp, GPStateComp, GP
-      class(GStepperBase), intent  (in)                      :: this
-      real     (kind=GP), intent   (in)                      :: time, dt
-      type  (GStateComp), intent(inout)                      :: uin(:),uf(:), uout(:)
-      type (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
+      class(GStepperBase), intent(inout)                      :: this
+      real      (kind=GP), intent   (in)                      :: time, dt
+      type   (GStateComp), intent(inout)                      :: uin(:),uf(:), uout(:)
+      type  (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
     end subroutine cstep_interface
   end interface
 

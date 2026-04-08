@@ -89,8 +89,8 @@ contains
   !! Subroutine to initialize the stepper
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_impl(this, traits)
-    class(CanutoStepper), intent (inout) :: this
-    type(GStepperTraits), intent    (in) :: traits
+    class(CanutoStepper), intent(inout) :: this
+    type(GStepperTraits), intent   (in) :: traits
     this%traits_ = traits;
   end subroutine init_impl
 
@@ -102,7 +102,7 @@ contains
 !$  use threads
     implicit none
 
-    class(CanutoStepper), intent   (in) :: this
+    class(CanutoStepper), intent(inout) :: this
     type    (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
     real       (kind=GP), intent   (in) :: time, dt
     real       (kind=GP)                :: eff_dt
@@ -148,7 +148,7 @@ contains
     use gpstate_mod
     implicit none
 
-    class(CanutoStepper), intent   (in)         :: this
+    class(CanutoStepper), intent(inout)         :: this
     type    (GStateComp), intent(inout)         :: uin (:)
     type   (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
     real       (kind=GP), intent   (in)         :: time, dt
@@ -193,14 +193,14 @@ contains
   !! Implementation function to take one *coupled* step for
   !! particles + fields. Feedback forces are computed if 
   !! needed. Both particles and fields are evolved
-  !! simultaneously in substepping stages.
+  !! simultaneously in the substepping stages.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine cstep_impl(this, time, uin, upin, uf, dt, uout, upout)
 !$  use threads
     use gpstate_mod
     implicit none
 
-    class(CanutoStepper), intent   (in)         :: this
+    class(CanutoStepper), intent(inout)         :: this
     type    (GStateComp), intent(inout)         :: uin (:), uf(:), uout(:)
     type    (GStateComp), allocatable           :: fdbk(:)
     type   (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)

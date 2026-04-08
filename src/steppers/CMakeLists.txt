@@ -1,7 +1,7 @@
 add_library(stepper_lib STATIC
   gstepper_base.f90
-#  gexrk_stepper.f90
   canuto_stepper.f90
+  gexrk_stepper.f90
   stepper_factory.f90
 )
 
