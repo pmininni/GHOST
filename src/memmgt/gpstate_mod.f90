@@ -6,16 +6,14 @@ module gpstate_mod
 
   ! ================= Base field data types =========================
   
-  ! Derived type for real space particle 
-  ! field components
+  ! Derived type for real space particle field components
   type, public :: GPStateComp
-    real(kind=GP)   , allocatable :: rcomp(:) ! real component
+    real(kind=GP)    , allocatable :: rcomp(:) ! real component
   end type GPStateComp
 
-  ! Derived type GPState, whose data 
-  ! is a 1d pointer array of GPStateComp's:
-  type, abstract :: GPState
-    type(GPStateComp), allocatable, dimension(:) :: rpstate
+  ! Derived type GPState, whose data is a vector of GPStateComp's
+  type, public :: GPState
+    type(GPStateComp), allocatable :: rpstate(:)
   end type GPState
 
 contains
@@ -23,7 +21,7 @@ contains
   ! ================= Allocation routines ===================
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Method to allocate real GPState data types
+  !! Method to allocate real GPStateComp data types
   !! nc = no.state components
   !! np = no. particles
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -49,7 +47,7 @@ contains
   end subroutine GPState_alloc
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Method to deallocate real GPState data types
+  !! Method to deallocate real GPStateComp data types
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine GPState_dealloc(pstate)
     use grid
@@ -68,7 +66,7 @@ contains
   end subroutine GPState_dealloc
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Method to resize real GPState data types
+  !! Method to resize real GPStateComp data types
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine GPState_resize(pstate,new_size,keep_data)
     use grid

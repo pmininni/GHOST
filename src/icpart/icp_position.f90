@@ -59,7 +59,7 @@ CONTAINS
     endif
     pind = int((stat-1)*lgmult+1)
     WRITE(lgext, lgfmtext) pind
-    CALL io_read(psolver,pstate,1,idir,'xlg',lgext)
+    CALL io_read(psolver,pstate,1,psolver%idir_,'xlg',lgext)
   end subroutine init_readpos
 
 

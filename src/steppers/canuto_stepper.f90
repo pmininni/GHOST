@@ -37,9 +37,10 @@ module canuto_stepper_mod
     ! Member data (extends GStepperBase member data)
     type(GStepperTraits)      :: traits_                     ! GStepper traits
   contains
-    procedure, public :: init !        => init_impl          ! initialize
-    procedure, public :: step          => step_impl          ! take one timestep
-    procedure, public :: pstep         => pstep_impl         ! take one part+field timestep
+    procedure, public :: init          => init_impl          ! initialize
+    procedure, public :: step          => step_impl          ! take one field timestep
+    procedure, public :: pstep         => pstep_impl         ! take one part  timestep
+    procedure, public :: cstep         => cstep_impl         ! take one part+field timestep
     procedure, public :: GStepper_ctor => CanutoStepper_ctor
     final             :: CanutoStepper_dtor
   end type CanutoStepper
@@ -87,21 +88,21 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Subroutine to initialize the stepper
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine init(this, traits)
-    class(CanutoStepper), intent (inout) :: this
-    type(GStepperTraits), intent    (in) :: traits
+  subroutine init_impl(this, traits)
+    class(CanutoStepper), intent(inout) :: this
+    type(GStepperTraits), intent   (in) :: traits
     this%traits_ = traits;
-  end subroutine init
+  end subroutine init_impl
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Implementation function to take one step
+  !! Implementation function to take one step of fields
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine step_impl(this, time, uin, uf, dt, uout)
 !$  use threads
     implicit none
 
-    class(CanutoStepper), intent   (in) :: this
+    class(CanutoStepper), intent(inout) :: this
     type    (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
     real       (kind=GP), intent   (in) :: time, dt
     real       (kind=GP)                :: eff_dt
@@ -134,15 +135,72 @@ contains
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Implementation function to take one step
-  !! for particles + fields
+  !! Implementation function to take one step of the particles.
+  !! This time stepper does not perform computation of feedback
+  !! forces on the fluid (one-way coupled), and evolves the
+  !! particles in a fixed velocity field during the substepping 
+  !! stages. This method is mainly inteded for manual
+  !! integration of multiple sets of (same type) one-way
+  !! coupled particles.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine pstep_impl(this, time, uin, upin, uf, dt, uout, upout)
+  subroutine pstep_impl(this, time, uin, upin, dt, upout)
 !$  use threads
     use gpstate_mod
     implicit none
 
-    class(CanutoStepper), intent   (in)         :: this
+    class(CanutoStepper), intent(inout)         :: this
+    type    (GStateComp), intent(inout)         :: uin (:)
+    type   (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
+    real       (kind=GP), intent   (in)         :: time, dt
+    real       (kind=GP)                        :: eff_dt
+    integer                                     :: i,j,k,o,state_size
+    integer                                     :: ic,ip,nparts
+    logical                                     :: bret
+       
+    if ( size (uin) .ne. this%traits_%nstate ) then
+      stop 'CanutoStepper::pstep: Inconsistent input state'
+    endif
+    if ( size(upin) .ne. this%traits_%npstate &
+    .or.size(upout) .ne. this%traits_%npstate  ) then
+      stop 'CanutoStepper::pstep: Inconsistent particle state'
+    endif
+    if ( .not. this%traits_%dopart ) then
+      stop 'CanutoStepper::pstep: The particle stepper was not initialized'
+    endif
+    if ( this%psolver_%hasfeedback_ ) then
+      stop 'CanutoStepper::pstep: Particles are not one-way coupled'
+    endif
+    nparts = size(upin(1)%rcomp)
+
+    do o = this%traits_%norder,1,-1
+      eff_dt = dt/real(o,kind=GP)
+      ! We compute dpdt; we assume that at input, upout has a copy of upin
+      call this%psolver_%dpdt(time, this%solver_, uin, upout, eff_dt, upout)
+      ! Update particles:
+      do ip = 1,this%traits_%npstate ! for each pstate comp
+        do k = 1, this%psolver_%nparts_
+          upout(ip)%rcomp(k) = upin(ip)%rcomp(k) + &
+                       eff_dt*upout(ip)%rcomp(k)
+        enddo
+      end do
+      ! Synch particles
+      call this%psolver_%end_stage(upin,upout)
+    end do ! end, o-loop
+  end subroutine pstep_impl
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Implementation function to take one *coupled* step for
+  !! particles + fields. Feedback forces are computed if 
+  !! needed. Both particles and fields are evolved
+  !! simultaneously in the substepping stages.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine cstep_impl(this, time, uin, upin, uf, dt, uout, upout)
+!$  use threads
+    use gpstate_mod
+    implicit none
+
+    class(CanutoStepper), intent(inout)         :: this
     type    (GStateComp), intent(inout)         :: uin (:), uf(:), uout(:)
     type    (GStateComp), allocatable           :: fdbk(:)
     type   (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
@@ -154,12 +212,19 @@ contains
        
     if ( size (uin) .ne. this%traits_%nstate &
      .or.size(uout) .ne. this%traits_%nstate  ) then
-      stop 'CanutoStepper::step: Inconsistent input state'
+      stop 'CanutoStepper::cstep: Inconsistent input state'
     endif
-    nparts = size(upin(1)%rcomp)
+    if ( size(upin) .ne. this%traits_%npstate &
+    .or.size(upout) .ne. this%traits_%npstate  ) then
+      stop 'CanutoStepper::cstep: Inconsistent particle state'
+    endif
+    if ( .not. this%traits_%dopart ) then
+      stop 'CanutoStepper::cstep: The particle stepper was not initialized'
+    endif
     if ( this%psolver_%hasfeedback_ ) then  ! We alloc arrays if we have feedback
       call GState_alloc(fdbk, this%traits_%nstate)
     endif
+    nparts = size(upin(1)%rcomp)
 
     do o = this%traits_%norder,1,-1
       eff_dt = dt/real(o,kind=GP)
@@ -200,6 +265,6 @@ contains
       call this%psolver_%end_stage(upin,upout)
     end do ! end, o-loop
     if ( this%psolver_%hasfeedback_ ) call GState_dealloc(fdbk)
-  end subroutine pstep_impl
+  end subroutine cstep_impl
 
 end module canuto_stepper_mod

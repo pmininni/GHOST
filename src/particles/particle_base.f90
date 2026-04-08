@@ -37,13 +37,14 @@ module particlebase_mod
   ! Define an abstract base class
   type, abstract :: ParticleBase
       type(GWorkspace), pointer           :: workspace_ => null()
-      integer                             :: myrank_   ! MPI rank
-      integer                             :: nprocs_   ! MPI procs
-      integer                             :: POSITION  ! start of position sector
-      integer                             :: ndim_     ! problem dimension
-      integer                             :: nc_       ! # vector field components
-      character(len=8), allocatable       :: sstate_(:)! state member names
-      character(len=128)                  :: infile_   ! config file name
+      integer                             :: myrank_     ! MPI rank
+      integer                             :: nprocs_     ! MPI procs
+      integer                             :: POSITION    ! start of position sector
+      integer                             :: ndim_       ! problem dimension
+      integer                             :: nc_         ! # vector field components
+      character(len=8), allocatable       :: sstate_(:)  ! state member names
+      character(len=128)                  :: infile_     ! config file name
+      character(len=128)                  :: odir_,idir_ ! I/O directories
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus_
       INTEGER                             :: iinterp_
       INTEGER                             :: iexchtype_

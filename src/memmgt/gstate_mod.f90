@@ -13,19 +13,17 @@ module gstate_mod
   
   ! Derived type for real space field components
   type, public :: GStateRealComp
-    real(kind=GP)   , allocatable :: rcomp(:,:,:) ! real component
+    real   (kind=GP), allocatable :: rcomp(:,:,:) ! real component
   end type GStateRealComp
 
-  ! Derived type GCState, whose data 
-  ! is a 1d pointer array of complex components:
-  type, abstract :: GCState
-    type    (GStateComp), allocatable, dimension(:) :: cstate
+  ! Derived type GCState, whose data is a vector of complex components
+  type, public :: GCState
+    type    (GStateComp), allocatable :: cstate(:)
   end type GCState
 
-  ! Derived type GRState, whose data 
-  ! is a 1d pointer array of real components:
-  type, abstract :: GRState
-    type(GStateRealComp), allocatable, dimension(:) :: rstate
+  ! Derived type GRState, whose data is a vector of real components
+  type, public :: GRState
+    type(GStateRealComp), allocatable :: rstate(:)
   end type GRState
 
 contains
@@ -50,7 +48,6 @@ contains
         endif
       enddo
     endif
-
     allocate( state(nc) )
     do i = 1,nc
       allocate( state(i)%ccomp(nz,ny,ista:iend) )
@@ -75,12 +72,11 @@ contains
         endif
       enddo
     endif
-
   end subroutine GState_dealloc
 
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Method to allocate real GState data types
+  !! Method to allocate real GStateComp data types
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine GStateReal_alloc(state, nc)
     use grid
@@ -89,10 +85,38 @@ contains
     type (GStateRealComp), allocatable, intent(inout) :: state(:)
     integer                           , intent   (in) :: nc
     integer                                           :: i
+
+    if ( allocated(state) ) then
+      do i = 1, size(state) 
+        if ( allocated(state(i)%rcomp) ) then
+          deallocate(state(i)%rcomp)
+        endif
+      enddo
+    endif
     allocate( state(nc) )
     do i = 1,nc
       allocate( state(i)%rcomp(nx,ny,ksta:kend) )
     end do
   end subroutine GStateReal_alloc
-  
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Method to deallocate real GStateComp data types
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine GStateReal_dealloc(state)
+    use grid
+    use mpivars
+    implicit none
+    type (GStateRealComp), allocatable, intent(inout) :: state(:)
+    integer                                           :: i
+
+    if ( allocated(state) ) then
+      do i = 1, size(state) 
+        if ( allocated(state(i)%rcomp) ) then
+          deallocate(state(i)%rcomp)
+        endif
+      enddo
+    endif
+  end subroutine GStateReal_dealloc
+
 end module gstate_mod
