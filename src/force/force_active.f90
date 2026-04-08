@@ -1,7 +1,6 @@
 ! =====================================================================
-! TODO change this tile into active scalar forcing
 ! NAME       : force_active.f90
-! DESCRIPTION: Forcing methods for active scalars in all VelocityBase
+! DESCRIPTION: Forcing methods for active scalars in all ActiveScalarBase
 !              solver classes. Each force needs an initial set up, and
 !              an update.
 !
@@ -73,7 +72,7 @@ CONTAINS
     integer                            :: i,j,k,n
 
     select type (solver)
-    class is (VelocityBase)
+    class is (ActiveScalarBase)
       if ( solver%numactivesc_ .eq. 0) then
         stop 'Force: Asking for active scalar forcing with nactivesc = 0'
       endif
@@ -124,7 +123,7 @@ CONTAINS
     namelist/ puff_fas / f0,x0,y0,z0,r0
     CALL solver%workspace_%get_real_tmp(R1,bret)    
     select type (solver)
-    class is (VelocityBase)
+    class is (ActiveScalarBase)
     if ( solver%numactivesc_ .eq. 0) then
       stop 'Force: Asking for active scalar forcing with nactivesc = 0'
     endif
@@ -208,7 +207,7 @@ CONTAINS
 
     namelist/ random_fas / f0,kup,kdn
     select type (solver)
-    class is (VelocityBase)
+    class is (ActiveScalarBase)
     if ( solver%numactivesc_ .eq. 0) then
       stop 'Force: Asking for active scalar forcing with nactivesc = 0'
     endif
@@ -334,8 +333,8 @@ CONTAINS
     integer                              :: n
 
     select type (solver)
-    class is (VelocityBase)
-      if (timef.eq.fastep) then
+    class is (ActiveScalarBase)
+      if (timef.eq.fstep) then
         do n = solver%ACTIVESC, solver%ACTIVESC+solver%numactivesc_-1
           if (myrank.eq.0) phase = 2*pi*randu(seed)
           call MPI_BCAST(phase,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
