@@ -5,13 +5,13 @@
 !              an update.
 !
 ! Forces avaliable:
-!   null_fs    : Null forcing of the passive scalar
-!   puff_fs    : Localized forcing of the passive scalar
-!   random_fs  : Random forcing
+!   null_fps    : Null forcing of the passive scalar
+!   puff_fps    : Localized forcing of the passive scalar
+!   random_fps  : Random forcing
 !
 ! Update methods available:
-!   constant_fs: Constant forcing (no method)
-!   shift_fs   : Instantaneous phase shift
+!   constant_fps: Constant forcing (no method)
+!   shift_fps   : Instantaneous phase shift
 !
 ! DATE       : 01/27/26 (PDM)
 ! =====================================================================
@@ -22,32 +22,32 @@ module force_passive
   IMPLICIT NONE
 
   ! ================= Forcing functions supported =====================
-  type, extends(forceBase) :: null_fs
+  type, extends(forceBase) :: null_fps
     contains
-      procedure :: init_GForce => init_nullfs
-  end type null_fs
-  type, extends(forceBase) :: puff_fs
+      procedure :: init_GForce => init_nullfps
+  end type null_fps
+  type, extends(forceBase) :: puff_fps
     contains
-      procedure :: init_GForce => init_pufffs
-  end type puff_fs
-  type, extends(forceBase) :: random_fs
+      procedure :: init_GForce => init_pufffps
+  end type puff_fps
+  type, extends(forceBase) :: random_fps
     contains
-      procedure :: init_GForce => init_randomfs
-  end type random_fs
-! type, extends(forceBase) :: userdef_fs
+      procedure :: init_GForce => init_randomfps
+  end type random_fps
+! type, extends(forceBase) :: userdef_fps
 !   contains
-!     procedure :: init_GForce => init_userdeffs
-! end type userdef_fs
+!     procedure :: init_GForce => init_userdeffps
+! end type userdef_fps
 
   ! ================= Update methods supported =======================
-  type, extends(forceUpdt) :: shiftupdt_fs
+  type, extends(forceUpdt) :: shiftupdt_fps
     contains
-      procedure :: update_GForce => update_shiftfs
-  end type shiftupdt_fs
-! type, extends(forceUpdt) :: userupdt_fs
+      procedure :: update_GForce => update_shiftfps
+  end type shiftupdt_fps
+! type, extends(forceUpdt) :: userupdt_fps
 !   contains
-!     procedure :: init_GForce => init_userupdtfs
-! end type userupdt_fs
+!     procedure :: init_GForce => init_userupdtfps
+! end type userupdt_fps
 
 CONTAINS
 
@@ -58,7 +58,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Null forcing
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine init_nullfs(this,solver,state)
+  subroutine init_nullfps(this,solver,state)
     use gstate_mod
     use hd_mod
     use grid
@@ -66,7 +66,7 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class     (null_fs), intent   (in) :: this
+    class     (null_fps), intent   (in) :: this
     class(EquationBase), intent   (in) :: solver
     type   (GStateComp), intent(inout) :: state(:)
     integer                            :: i,j,k,n
@@ -90,7 +90,7 @@ CONTAINS
     class default
       stop "Force: This solver does not support passive scalars"
     end select
-  end subroutine init_nullfs
+  end subroutine init_nullfps
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -98,9 +98,9 @@ CONTAINS
   !! (x0, y0, z0) with a FWHM of r0
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   f0        : vector with the amplitudes of the forcing
-  !   x0, y0, z0: vectors with the centers of the puffs
-  !   r0        : vector with the radii of the puffs
-  subroutine init_pufffs(this,solver,state)
+  !   x0, y0, z0: vectors with the centers of the puffps
+  !   r0        : vector with the radii of the puffps
+  subroutine init_pufffps(this,solver,state)
     use gstate_mod
     use hd_mod
     use grid
@@ -111,7 +111,7 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class     (puff_fs), intent   (in) :: this
+    class     (puff_fps), intent   (in) :: this
     class(EquationBase), intent   (in) :: solver
     type   (GStateComp), intent(inout) :: state(:)
     real      (kind=GP), pointer       :: R1(:,:,:)
@@ -120,7 +120,7 @@ CONTAINS
     integer                            :: i,j,k,n
     logical                            :: bret
 
-    namelist/ puff_fs / f0,x0,y0,z0,r0
+    namelist/ puff_fps / f0,x0,y0,z0,r0
     CALL solver%workspace_%get_real_tmp(R1,bret)    
     select type (solver)
     class is (VelocityBase)
@@ -134,7 +134,7 @@ CONTAINS
     allocate ( r0(solver%numpassive_) )
     if ( myrank .eq. 0 ) then
       open(1,file=solver%infile_,status='unknown',form="formatted")
-      read(1,NML=puff_fs)
+      read(1,NML=puff_fps)
       close(1)
     endif
     call mpi_bcast(f0,solver%numpassive_,GC_REAL,0,MPI_COMM_WORLD,ierr)
@@ -172,7 +172,7 @@ CONTAINS
     class default
       stop "Force: This solver does not support passive scalars"
     end select
-  end subroutine init_pufffs
+  end subroutine init_pufffps
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Random forcing
@@ -180,7 +180,7 @@ CONTAINS
   !   f0 : vector with the amplitudes of the forcing
   !   kdn: vector with minimum forcing wave number
   !   kup: vector with maximum forcing wave number
-  subroutine init_randomfs(this,solver,state)
+  subroutine init_randomfps(this,solver,state)
     use gstate_mod
     use hd_mod
     use random
@@ -195,7 +195,7 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class   (random_fs), intent   (in) :: this
+    class   (random_fps), intent   (in) :: this
     class(EquationBase), intent   (in) :: solver
     type   (GStateComp), intent(inout) :: state(:)
     real      (kind=GP), allocatable, dimension(:)  :: f0,kdn,kup
@@ -205,7 +205,7 @@ CONTAINS
     integer                            :: i,j,k,n
     logical                            :: bret
 
-    namelist/ random_fs / f0,kup,kdn
+    namelist/ random_fps / f0,kup,kdn
     select type (solver)
     class is (VelocityBase)
     if ( solver%numpassive_ .eq. 0) then
@@ -216,7 +216,7 @@ CONTAINS
     allocate ( kup(solver%numpassive_) )
     if ( myrank .eq. 0 ) then
       open(1,file=solver%infile_,status='unknown',form="formatted")
-      read(1,NML=random_fs)
+      read(1,NML=random_fps)
       close(1)
     endif
     call mpi_bcast(f0 ,solver%numpassive_,GC_REAL,0,MPI_COMM_WORLD,ierr)
@@ -306,7 +306,7 @@ CONTAINS
     class default
       stop "Force: This solver does not support passive scalars"
     end select
-  end subroutine init_randomfs
+  end subroutine init_randomfps
 
 
   ! ===================================================================
@@ -316,7 +316,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Instantaneous phase shift
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine update_shiftfs(this, force, solver, state)
+  subroutine update_shiftfps(this, force, solver, state)
     use pseudospec_fluid
     use equationbase_mod
     use commtypes
@@ -324,7 +324,7 @@ CONTAINS
     use status
     implicit none
     
-    class(shiftupdt_fs),   intent(inout) :: this
+    class(shiftupdt_fps),   intent(inout) :: this
     class   (forceBase),   intent   (in) :: force
     class(EquationBase),   intent   (in) :: solver
     type   (GStateComp),   intent(inout) :: state(:)
@@ -345,5 +345,5 @@ CONTAINS
     class default
       error stop "This solver does not support velocity forcing"
     end select
-  end subroutine update_shiftfs
+  end subroutine update_shiftfps
 end module force_passive

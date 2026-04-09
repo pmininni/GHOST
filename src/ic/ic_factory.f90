@@ -4,7 +4,7 @@
 ! This factory applies chain operation to create multiple initial
 ! conditions for all fields in a pde solver.
 !
-! DATE : 01/16/26 (PDM)
+! DATE : 04/08/26 (JBG)
 ! ===================================================================
 
 module ic_factory
@@ -65,6 +65,15 @@ CONTAINS
         allocate( null_b   :: new_object(i)%ic )
       case ('random_b')
         allocate( random_b :: new_object(i)%ic )
+      ! Active scalar ICs ---------------------    
+      case ('read_as')
+        allocate( read_as     :: new_object(i)%ic )
+      case ('constant_as')
+        allocate( constant_s :: new_object(i)%ic )
+      case ('puff_as')
+        allocate( puff_as     :: new_object(i)%ic )
+      case ('random_as')
+        allocate( random_as   :: new_object(i)%ic )
       ! Passive scalar ICs ---------------------    
       case ('read_s')
         allocate( read_s     :: new_object(i)%ic )

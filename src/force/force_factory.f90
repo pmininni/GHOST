@@ -12,6 +12,7 @@ module force_factory
   USE force_velocity
   USE force_magnetic
   USE force_passive
+  USE force_active
   
   IMPLICIT NONE
   
@@ -69,13 +70,20 @@ CONTAINS
         allocate( null_fb        :: new_object(i)%force )
       case ('random_fb')
         allocate( random_fb      :: new_object(i)%force )
-      ! Passive scalar forcing functions -------
-      case ('null_fs')
-        allocate( null_fs        :: new_object(i)%force )
-      case ('puff_fs')
-        allocate( puff_fs        :: new_object(i)%force )
-      case ('random_fs')
-        allocate( random_fs      :: new_object(i)%force )
+      ! Active scalar forcing functions -------
+      case ('null_fas')
+        allocate( null_fas        :: new_object(i)%force )
+      case ('puff_fas')
+        allocate( puff_fas        :: new_object(i)%force )
+      case ('random_fas')
+        allocate( random_fas      :: new_object(i)%force )
+      ! Passive scalar forcing functions ------- 
+      case ('null_fps')
+        allocate( null_fps        :: new_object(i)%force )
+      case ('puff_fps')
+        allocate( puff_fps        :: new_object(i)%force )
+      case ('random_fps')
+        allocate( random_fps      :: new_object(i)%force )
       case default
         stop 'Unknown forcing function'
       end select
@@ -99,11 +107,16 @@ CONTAINS
         allocate( shuffleupdt_fb :: new_object(i)%update )
         new_object(i)%update%binit_ = .FALSE.
         poolsz = poolsz + 6
-      ! Passive scalar forcing functions -------
-      case ('constant_fs')
+      ! Active scalar forcing functions -------
+      case ('constant_fas')
         if ( allocated(new_object(i)%update) ) deallocate(new_object(i)%update)
-      case ('shift_fs')
-        allocate( shiftupdt_fs   :: new_object(i)%update )
+      case ('shift_fas')
+        allocate( shiftupdt_fas   :: new_object(i)%update )
+      ! Passive scalar forcing functions -------
+      case ('constant_fps')
+        if ( allocated(new_object(i)%update) ) deallocate(new_object(i)%update)
+      case ('shift_fps')
+        allocate( shiftupdt_fas   :: new_object(i)%update )
       case default
         stop 'Unknown or undefined forcing update method'
       end select
