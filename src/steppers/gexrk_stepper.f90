@@ -39,9 +39,9 @@ module gexrk_stepper_mod
     logical                :: busing_butcher_= .true. ! using Butcher tableau?
     real    (kind=GP), allocatable, dimension  (:) :: alpha_, c_
     real    (kind=GP), allocatable, dimension(:,:) :: beta_
-    type (GCState   ), allocatable, dimension  (:) :: K_
+    type (GCStateArr), allocatable, dimension  (:) :: K_
     type (GStateComp), allocatable, dimension  (:) :: utmp_
-    type(GPState    ), allocatable, dimension  (:) :: pK_
+    type (GPStateArr), allocatable, dimension  (:) :: pK_
     type(GPStateComp), allocatable, dimension  (:) :: putmp_
   contains
     procedure, public  :: init          => init_impl   ! initialize
@@ -56,10 +56,10 @@ module gexrk_stepper_mod
     procedure, private :: step_butcher   ! take a field Butcher step
     procedure, private :: step_mixed     ! take a field mixed step
     procedure, private :: step_ssp       ! take a field SSP step
-!!$   procedure, private :: pstep_butcher  ! take a part  Butcher step
-!!$   procedure, private :: pstep_mixed    ! take a part  mixed step
-!!$   procedure, private :: pstep_ssp      ! take a part  SSP step
-!!$   procedure, private :: cstep_butcher  ! take a part+field Butcher step
+    procedure, private :: pstep_butcher  ! take a part  Butcher step
+    procedure, private :: pstep_mixed    ! take a part  mixed step
+    procedure, private :: pstep_ssp      ! take a part  SSP step
+    procedure, private :: cstep_butcher  ! take a part+field Butcher step
     procedure, private :: cstep_mixed    ! take a part+field mixed step
     procedure, private :: cstep_ssp      ! take a part+field SSP step
     procedure, private :: alloc_tmp      ! allocate tmp arrays
@@ -92,6 +92,7 @@ contains
       stop 'GExRKStepper::GExRKStepper_ctor: Worskpace not associated'
     endif
     call this%init(traits)
+    call this%alloc_tmp()
   end subroutine GExRKStepper_ctor
 
 
@@ -193,25 +194,13 @@ contains
   subroutine alloc_tmp(this)
     use gstate_mod
     class(GExRKStepper), intent(inout) :: this
-    logical                            :: bret
-    integer                            :: i
 
-    call this%dealloc_tmp()   ! deallocate tmp pointer arrays
-    call GState_alloc(this%utmp_, this%traits_%nstate)
-!!$    if ( this%traits_%dopart ) then
-!!$      call GPState_alloc(this%putmp_, this%traits_%npstate)
-!!$    endif
-    
+    call this%dealloc_tmp()    ! deallocate tmp arrays
+    call GState_alloc(this%utmp_, this%traits_%nstate)    
     select case ( this%traits_%itype )
       case (GEXRK_BUTCHER)
         call this%init_butcher()
-        allocate( this%K_(this%traits_%nstage - 1) )
-        do i = 1,this%traits_%nstage - 1
-          call GState_alloc(this%K_(i)%cstate, this%traits_%nstate)
-        end do
-!!$        if ( this%traits_%dopart ) then
-!!$          call GPState_alloc(this%pK_, this%traits_%npstate)
-!!$        endif
+        call GCStateArr_alloc(this%K_,this%traits_%nstage,this%traits_%nstate)
       case (GEXRK_MIXED)
         call this%init_mixed()
       case (GEXRK_SSP)
@@ -227,25 +216,12 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine dealloc_tmp(this)
     class(GExRKStepper), intent(inout) :: this
-    logical                            :: bret
     integer                            :: i
 
     call GState_dealloc (this%utmp_ )
     call GPState_dealloc(this%putmp_)
-    if ( allocated(this%K_) ) then
-      do i = 1, this%traits_%nstage - 1
-        if ( allocated(this%K_(i)%cstate ) ) then
-          call GState_dealloc(this%K_(i)%cstate)
-        end if
-      end do
-      deallocate( this%K_ )
-    end if
-!!$    if ( allocated(this%pK_) ) then
-!!$      do i = 1, this%traits_%nstage   
-!!$        if ( allocated(this%pK_(i)) ) deallocate(this%pK_(i))
-!!$      enddo
-!!$      deallocate(this%pK_)
-!!$    end if
+    if ( allocated(this%K_)  ) call GCStateArr_dealloc(this%K_ )
+    if ( allocated(this%pK_) ) call GPStateArr_dealloc(this%PK_)
   end subroutine dealloc_tmp
 
 
@@ -258,7 +234,6 @@ contains
     class(GExRKStepper), intent(inout) :: this
     type   (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
     real      (kind=GP), intent   (in) :: time, dt
-    logical                            :: bret
        
     if ( size(uin) .ne. this%traits_%nstate &
      .or.size(uout) .ne. this%traits_%nstate  ) then
@@ -288,7 +263,6 @@ contains
   !! coupled particles.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine pstep_impl(this, time, uin, upin, dt, upout)
-!$  use threads
     use gpstate_mod
     implicit none
 
@@ -296,10 +270,6 @@ contains
     type   (GStateComp), intent(inout)         :: uin (:)
     type  (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
     real      (kind=GP), intent   (in)         :: time, dt
-    real      (kind=GP)                        :: eff_dt
-    integer                                    :: i,j,k,o,state_size
-    integer                                    :: ic,ip,nparts
-    logical                                    :: bret
 
     if ( size (uin) .ne. this%traits_%nstate ) then
       stop 'GExRKStepper::pstep: Inconsistent input state'
@@ -317,11 +287,11 @@ contains
 
     select case ( this%traits_%itype )
       case (GEXRK_BUTCHER)
-!!$       call this%pstep_butcher(time, uin, upin, dt, upout)
+        call this%pstep_butcher(time, uin, upin, dt, upout)
       case (GEXRK_MIXED)
-!!$       call this%pstep_mixed  (time, uin, upin, dt, upout)
+        call this%pstep_mixed  (time, uin, upin, dt, upout)
       case (GEXRK_SSP)
-!!$       call this%pstep_ssp    (time, uin, upin, dt, upout)
+        call this%pstep_ssp    (time, uin, upin, dt, upout)
       case default
         stop 'GExRKStepper::pstep: Invalid stepper type'
     end select
@@ -337,12 +307,11 @@ contains
   subroutine cstep_impl(this, time, uin, upin, uf, dt, uout, upout)
     implicit none
 
-    class(GExRKStepper), intent(inout) :: this
+    class(GExRKStepper), intent(inout)         :: this
     type   (GStateComp), intent(inout)         :: uin (:), uf(:), uout(:)
     type   (GStateComp), allocatable           :: fdbk(:)
     type  (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
     real      (kind=GP), intent   (in)         :: time, dt
-    logical                                    :: bret
        
     if ( size(uin) .ne. this%traits_%nstate &
      .or.size(uout) .ne. this%traits_%nstate  ) then
@@ -358,7 +327,7 @@ contains
 
     select case ( this%traits_%itype )
       case (GEXRK_BUTCHER)
-!!$     call this%cstep_butcher(time, uin, upin, uf, dt, uout, upout)
+        call this%cstep_butcher(time, uin, upin, uf, dt, uout, upout)
       case (GEXRK_MIXED)
         call this%cstep_mixed  (time, uin, upin, uf, dt, uout, upout)
       case (GEXRK_SSP)
@@ -382,12 +351,11 @@ contains
     type   (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
     real      (kind=GP), intent   (in) :: time, dt
     real      (kind=GP)                :: tt
-    logical                            :: bret
     integer                            :: j,m,n
     ! alpha_ : time fractions for each stage
     ! beta_  : stage coefficient matrix 
     ! c_     : weights for final combination
-    ! K_     : stage data: 
+    ! K_     : stage data
    
     ! Compute stage data:
     do m = 1, this%traits_%nstage
@@ -405,74 +373,156 @@ contains
     ! Combine stages to get step update:
     uout = uin
     do m = 1, this%traits_%nstage  
-      do n = 1, this%traits_%nstate ! uout = uout + h * c_ * K:
+      do n = 1, this%traits_%nstate    ! uout = uout + h * c_ * K:
         call saxpby_c(uout(n)%ccomp, uout(n)%ccomp, 1.0_GP,          &
              this%K_(m)%cstate(n)%ccomp, this%c_(m)*dt)
       enddo
     enddo ! m-loop
   end subroutine step_butcher
 
-  
-!!$  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!$  !! Function to take one part+field GEXRK_BUTCHER step
-!!$  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!$  subroutine cstep_butcher(this, time, uin, puin, uf, dt, uout, puout)
-!!$!$  use threads
-!!$    implicit none
-!!$
-!!$    class(GExRKStepper), intent   (in) :: this
-!!$    type   (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
-!!$    type  (GPStateComp), intent(inout) :: puin(:), puout(:)
-!!$    complex   (kind=GP), pointer, dimension(:,:,:) :: sum
-!!$    real      (kind=GP), intent   (in) :: time, dt
-!!$    real      (kind=GP)                :: tt
-!!$    logical                            :: bret
-!!$    integer                            :: j,m,n
-!!$    ! alpha_ : time fractions for each stage
-!!$    ! beta_  : stage coefficient matrix 
-!!$    ! c_     : weights for final combination
-!!$    ! K_     : stage data: 
-!!$    ! pK_    : particle stage data: 
-!!$   
-!!$    ! Compute stage data:
-!!$    do m = 1, this%traits_%nstage
-!!$      do n = 1, this%traits_%nstate  ! set temp state
-!!$        this%utmp_(n) = uin(n)
-!!$      enddo
-!!$      do n = 1, this%traits_%npstate  ! set ptemp state
-!!$        this%putmp_(n) = puin(n)
-!!$      enddo
-!!$      do j = 1, m-1  ! utmp = utmp + h beta K_j
-!!$        do n = 1, this%traits_%nstate  ! set utmp
-!!$          call saxpby_c(this%utmp_(n), this%utmp_(n), 1.0_GP, this%K_(j)%cstate(n), this%beta_(m,j)*dt)
-!!$        enddo
-!!$        do n = 1, this%traits_%npstate  ! set utmp
-!!$          call saxpby_c(this%putmp_(n), this%putmp_(n), 1.0_GP, this%pK_(j)%rpstate(n), this%beta_(m,j)*dt)
-!!$        enddo
-!!$        tt = time + this%alpha_(m) * dt
-!!$        this%pcallback_( tt, this%utmp_, this%putmp_, uf, dt, K_(m)%cstate, pK_(m)%rpstate); 
-!!$      enddo ! j-loop
-!!$    enddo ! stage m loop
-!!$
-!!$    ! Combine stages to get step update:
-!!$    do n = 1, this%traits_%nstate  ! uout = uin
-!!$      uout(n) = uin(n)
-!!$    enddo
-!!$    do n = 1, this%traits_%npstate  ! uout = uin
-!!$      puout(n) = puin(n)
-!!$    enddo
-!!$
-!!$    do m = 1, this%traits_%nstage  
-!!$      do n = 1, this%traits_%nstate ! uout = uout + h * c_ * K:
-!!$        call saxpby_c(uout(n), uout(n), 1.0_GP, this%K_(m)%cstate(n), this%c_(m,j)*dt)
-!!$      enddo
-!!$      do n = 1, this%traits_%npstate ! uout = uout + h * c_ * K:
-!!$        call saxpby_c(puout(n), puout(n), 1.0_GP, this%pK_(m)%rpstate(n), this%c_(m,j)*dt)
-!!$      enddo
-!!$    enddo ! m-loop
-!!$  end subroutine cstep_butcher
 
-  
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Function to take one particle GEXRK_BUTCHER pstep
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine pstep_butcher(this, time, uin, upin, dt, upout)
+    use pseudospec_fluid
+    implicit none
+
+    class(GExRKStepper), intent(inout) :: this
+    type   (GStateComp), intent(inout) :: uin (:)
+    type  (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
+    real      (kind=GP), intent   (in) :: time, dt
+    real      (kind=GP)                :: tt
+    integer                            :: j,m,n,nparts
+    ! alpha_ : time fractions for each stage
+    ! beta_  : stage coefficient matrix 
+    ! c_     : weights for final combination
+    ! pK_    : particle stage data
+
+    stop 'GExRKStepper::pstep_butcher: GEXRK_BUTCHER not yet supported for particles!'
+
+    ! We allocate tmp arrays for particles here as we need the particle state size
+    nparts = size(upin(1)%rcomp)
+    call GPState_alloc(this%putmp_,this%traits_%npstate,nparts)
+    call GPStateArr_alloc(this%pK_,this%traits_%nstage,this%traits_%npstate,nparts)
+    
+    ! Compute stage data:
+    do m = 1, this%traits_%nstage
+      this%putmp_ = upin               ! set temp state
+      do j = 1, m-1                    ! putmp = putmp + h beta pK_j
+        do n = 1, this%traits_%npstate ! set putmp
+          call saxpby_r(this%putmp_(n)%rcomp, this%putmp_(n)%rcomp,  &
+               1.0_GP, this%pK_(j)%rpstate(n)%rcomp, this%beta_(m,j)*dt)
+        enddo
+        tt = time + this%alpha_(m) * dt
+        call this%psolver_%dpdt(tt,this%solver_,uin,this%putmp_,dt,this%pK_(m)%rpstate)
+      enddo ! j-loop
+    enddo ! stage m loop
+
+    ! Combine stages to get step update:
+    upout = upin
+    do m = 1, this%traits_%nstage  
+      do n = 1, this%traits_%npstate   ! upout = upout + h * c_ * pK:
+        call saxpby_r(upout(n)%rcomp, upout(n)%rcomp, 1.0_GP,        &
+             this%pK_(m)%rpstate(n)%rcomp, this%c_(m)*dt)
+      enddo
+    enddo ! m-loop
+
+    ! The following assumes we only need to sync particles at the end of a full step.
+    ! We probably need to sync during the substepping, and this%putmp_ and this%pK_
+    ! must be manually sync'd and maybe resized if using the NN interface.
+    call GPState_dealloc(this%putmp_)
+    call GPStateArr_dealloc(this%pK_)
+    call this%psolver_%end_stage(upin,upout)
+  end subroutine pstep_butcher
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Function to take one part+field GEXRK_BUTCHER step
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine cstep_butcher(this, time, uin, upin, uf, dt, uout, upout)
+    use pseudospec_fluid
+    implicit none
+
+    class(GExRKStepper), intent(inout) :: this
+    type   (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
+    type   (GStateComp), allocatable   :: fdbk(:)
+    type  (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
+    real      (kind=GP), intent   (in) :: time, dt
+    real      (kind=GP)                :: tt
+    integer                            :: j,m,n,ic,nparts
+    ! alpha_ : time fractions for each stage
+    ! beta_  : stage coefficient matrix 
+    ! c_     : weights for final combination
+    ! K_     : stage data
+    ! pK_    : particle stage data
+    ! fdbk   : feedback forces
+
+    stop 'GExRKStepper::cstep_butcher: GEXRK_BUTCHER not yet supported for part+fields!'
+
+    ! We allocate fdbk if we have feedback on the fluid
+    if ( this%psolver_%hasfeedback_ ) then
+      call GState_alloc(fdbk, this%traits_%nstate)
+    endif
+
+    ! We allocate tmp arrays for particles here as we need the particle state size
+    nparts = size(upin(1)%rcomp)
+    call GPState_alloc(this%putmp_,this%traits_%npstate,nparts)
+    call GPStateArr_alloc(this%pK_,this%traits_%nstage,this%traits_%npstate,nparts)
+    
+    ! Compute stage data:
+    ! Feedback should be computed here, as done in canuto::cstep
+    do m = 1, this%traits_%nstage
+      this%utmp_  = uin                ! set temp states
+      this%putmp_ = upin
+      do j = 1, m-1
+        do n = 1, this%traits_%nstate  ! set utmp  = utmp  + h beta K_j
+          call saxpby_c(this%utmp_(n)%ccomp,  this%utmp_(n)%ccomp,   &
+               1.0_GP, this%K_(j)%cstate(n)%ccomp,   this%beta_(m,j)*dt)
+        enddo
+        do n = 1, this%traits_%npstate ! set putmp = putmp + h beta pK_j
+          call saxpby_r(this%putmp_(n)%rcomp, this%putmp_(n)%rcomp,  &
+               1.0_GP, this%pK_(j)%rpstate(n)%rcomp, this%beta_(m,j)*dt)
+        enddo
+        tt = time + this%alpha_(m) * dt
+        ! If needed we include the feedback of the particles in the fluid in uf
+        if ( this%psolver_%hasfeedback_ ) then
+          call this%psolver_%feedback(this%putmp_,fdbk)
+          do ic = 1,this%traits_%nstate
+            fdbk(ic)%ccomp = fdbk(ic)%ccomp + uf(ic)%ccomp
+          end do
+          call this%solver_ %dudt(tt,this%utmp_,fdbk,dt,this%K_(m)%cstate)
+        else
+          call this%solver_ %dudt(tt,this%utmp_,  uf,dt,this%K_(m)%cstate)
+        end if
+        call this%psolver_%dpdt(tt,this%solver_,uin,this%putmp_,dt,this%pK_(m)%rpstate)
+      enddo ! j-loop
+    enddo ! stage m loop
+    
+    ! Combine stages to get step update:
+    uout  = uin
+    upout = upin
+    do m = 1, this%traits_%nstage  
+      do n = 1, this%traits_%nstate    ! uout  = uout  + h * c_ * K:
+        call saxpby_c(uout(n)%ccomp, uout(n)%ccomp, 1.0_GP,          &
+             this%K_(m)%cstate(n)%ccomp, this%c_(m)*dt)
+      enddo
+      do n = 1, this%traits_%npstate   ! upout = upout + h * c_ * pK:
+        call saxpby_r(upout(n)%rcomp, upout(n)%rcomp, 1.0_GP,        &
+             this%pK_(m)%rpstate(n)%rcomp, this%c_(m)*dt)
+      enddo
+    enddo ! m-loop
+    
+    ! The following assumes we only need to sync particles at the end of a full step.
+    ! We probably need to sync during the substepping, and this%putmp_ and this%pK_
+    ! must be manually sync'd and maybe resized if using the NN interface.
+    call GPState_dealloc(this%putmp_)
+    call GPStateArr_dealloc(this%pK_)
+    if ( this%psolver_%hasfeedback_ ) call GState_dealloc(fdbk)
+    call this%psolver_%end_stage(upin,upout)    
+  end subroutine cstep_butcher
+
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Function to take one GEXRK_MIXED step
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -482,11 +532,24 @@ contains
     class(GExRKStepper), intent   (in) :: this
     type   (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
     real      (kind=GP), intent   (in) :: time, dt
-    logical                            :: bret
     stop 'GExRKStepper::step_mixed: GEXRK_MIXED not yet supported!'
   end subroutine step_mixed
 
-  
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Function to take one particle GEXRK_MIXED pstep
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine pstep_mixed(this, time, uin, upin, dt, upout)
+    implicit none
+
+    class(GExRKStepper), intent   (in) :: this
+    type   (GStateComp), intent(inout) :: uin (:)
+    type  (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
+    real      (kind=GP), intent   (in) :: time, dt
+    stop 'GExRKStepper::pstep_mixed: GEXRK_MIXED not yet supported!'
+  end subroutine pstep_mixed
+
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Function to take one part+field GEXRK_MIXED step
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -495,9 +558,8 @@ contains
 
     class(GExRKStepper), intent   (in) :: this
     type   (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
-    type  (GPStateComp), intent(inout) :: upin(:), upout(:)
+    type  (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
     real      (kind=GP), intent   (in) :: time, dt
-    logical                            :: bret
     stop 'GExRKStepper::cstep_mixed: GEXRK_MIXED not yet supported!'
   end subroutine cstep_mixed
 
@@ -511,11 +573,24 @@ contains
     class(GExRKStepper), intent   (in) :: this
     type   (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
     real      (kind=GP), intent   (in) :: time, dt
-    logical                            :: bret
     stop 'GExRKStepper::step_ssp: GEXRK_SSP not yet supported!'
   end subroutine step_ssp
 
   
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Function to take one particle GEXRK_SSP pstep
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine pstep_ssp(this, time, uin, upin, dt, upout)
+    implicit none
+
+    class(GExRKStepper), intent   (in) :: this
+    type   (GStateComp), intent(inout) :: uin (:)
+    type  (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
+    real      (kind=GP), intent   (in) :: time, dt
+    stop 'GExRKStepper::pstep_ssp: GEXRK_SSP not yet supported!'
+  end subroutine pstep_ssp
+
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Function to take one part+field GEXRK_SSP step
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -524,9 +599,8 @@ contains
 
     class(GExRKStepper), intent   (in) :: this
     type   (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
-    type  (GPStateComp), intent(inout) :: upin(:), upout(:)
+    type  (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
     real      (kind=GP), intent   (in) :: time, dt
-    logical                            :: bret
     stop 'GExRKStepper::cstep_ssp: GEXRK_SSP not yet supported!'
   end subroutine cstep_ssp
 

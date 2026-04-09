@@ -16,19 +16,19 @@ module gstate_mod
     real   (kind=GP), allocatable :: rcomp(:,:,:) ! real component
   end type GStateRealComp
 
-  ! Derived type GCState, whose data is a vector of complex components
-  type, public :: GCState
+  ! Derived type GCStateArr, whose data is a 1D array of GStateComp's
+  type, public :: GCStateArr
     type    (GStateComp), allocatable :: cstate(:)
-  end type GCState
+  end type GCStateArr
 
-  ! Derived type GRState, whose data is a vector of real components
-  type, public :: GRState
+  ! Derived type GRStateArr, a 1D array of GStateRealComp's
+  type, public :: GRStateArr
     type(GStateRealComp), allocatable :: rstate(:)
-  end type GRState
+ end type GRStateArr
 
 contains
 
-  ! ================= Allocation routines ===================
+  ! ============ StateComp Allocation routines ==============
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Method to allocate complex GStateComp data types
@@ -118,5 +118,105 @@ contains
       enddo
     endif
   end subroutine GStateReal_dealloc
+
+
+  ! ============ StateArr Allocation routines ===============
+  
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Method to allocate complex GCStateArr data types
+  !! narr = no. of GStateComp's
+  !! nc   = no. state components in each GStateComp's
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine GCStateArr_alloc(state, narr, nc)
+    use grid
+    use mpivars
+    implicit none
+    type (GCStateArr), allocatable, intent(inout) :: state(:)
+    integer                       , intent   (in) :: nc, narr
+    integer                                       :: i
+
+    if ( allocated(state) ) then
+      do i = 1, size(state) 
+        if ( allocated(state(i)%cstate) ) then
+          call GState_dealloc(state(i)%cstate)
+        endif
+      enddo
+      deallocate(state)
+    endif
+    allocate( state(narr) )
+    do i = 1,narr
+      call GState_alloc(state(i)%cstate, nc)
+    end do
+  end subroutine GCStateArr_alloc
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Method to deallocate complex GCStateArr data types
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine GCStateArr_dealloc(state)
+    use grid
+    use mpivars
+    implicit none
+    type (GCStateArr), allocatable, intent(inout) :: state(:)
+    integer                                       :: i
+
+    if ( allocated(state) ) then
+      do i = 1, size(state) 
+        if ( allocated(state(i)%cstate) ) then
+          call GState_dealloc(state(i)%cstate)
+        endif
+      enddo
+      deallocate(state)
+    endif
+  end subroutine GCStateArr_dealloc
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Method to allocate real GRStateArr data types
+  !! narr = no. of GStateRealComp's
+  !! nc   = no. state components in each GStateRealComp's
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine GRStateArr_alloc(state, narr, nc)
+    use grid
+    use mpivars
+    implicit none
+    type (GRStateArr), allocatable, intent(inout) :: state(:)
+    integer                       , intent   (in) :: nc, narr
+    integer                                       :: i
+
+    if ( allocated(state) ) then
+      do i = 1, size(state) 
+        if ( allocated(state(i)%rstate) ) then
+          call GStateReal_dealloc(state(i)%rstate)
+        endif
+      enddo
+      deallocate(state)
+    endif
+    allocate( state(narr) )
+    do i = 1,narr
+      call GStateReal_alloc(state(i)%rstate, nc)
+    end do
+  end subroutine GRStateArr_alloc
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Method to deallocate real GRStateArr data types
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine GRtateArr_dealloc(state)
+    use grid
+    use mpivars
+    implicit none
+    type (GRStateArr), allocatable, intent(inout) :: state(:)
+    integer                                       :: i
+
+    if ( allocated(state) ) then
+      do i = 1, size(state) 
+        if ( allocated(state(i)%rstate) ) then
+          call GStateReal_dealloc(state(i)%rstate)
+        endif
+      enddo
+      deallocate(state)
+    endif
+  end subroutine GRtateArr_dealloc
 
 end module gstate_mod
