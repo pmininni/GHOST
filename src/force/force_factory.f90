@@ -78,12 +78,12 @@ CONTAINS
       case ('random_fas')
         allocate( random_fas      :: new_object(i)%force )
       ! Passive scalar forcing functions ------- 
-      case ('null_fps')
-        allocate( null_fps        :: new_object(i)%force )
-      case ('puff_fps')
-        allocate( puff_fps        :: new_object(i)%force )
-      case ('random_fps')
-        allocate( random_fps      :: new_object(i)%force )
+      case ('null_fs')
+        allocate( null_fs        :: new_object(i)%force )
+      case ('puff_fs')
+        allocate( puff_fs        :: new_object(i)%force )
+      case ('random_fs')
+        allocate( random_fs      :: new_object(i)%force )
       case default
         stop 'Unknown forcing function'
       end select
@@ -113,9 +113,9 @@ CONTAINS
       case ('shift_fas')
         allocate( shiftupdt_fas   :: new_object(i)%update )
       ! Passive scalar forcing functions -------
-      case ('constant_fps')
+      case ('constant_fs')
         if ( allocated(new_object(i)%update) ) deallocate(new_object(i)%update)
-      case ('shift_fps')
+      case ('shift_fs')
         allocate( shiftupdt_fas   :: new_object(i)%update )
       case default
         stop 'Unknown or undefined forcing update method'
