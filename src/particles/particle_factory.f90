@@ -11,6 +11,7 @@
 module particle_factory
   USE particlebase_mod
   USE lagpart_mod
+  USE inerpart_mod
 ! USE userdefinedparticle_mod
 
   IMPLICIT NONE
@@ -51,9 +52,9 @@ CONTAINS
         case ('lagpart')
           allocate(Gpart :: new_object)
           NUMTMPPART = 3
-!       case ('inerpart')
-!         allocate(inerpart :: new_object)
-!         NUMTMPPART = 3
+        case ('inerpart')
+          allocate(inerpart :: new_object)
+          NUMTMPPART = 3
 !       case ('maxey')
 !         allocate(maxeypart :: new_object)
 !         NUMTMPPART = 3

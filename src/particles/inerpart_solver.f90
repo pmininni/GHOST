@@ -1,0 +1,649 @@
+! =====================================================================
+! NAME       : inerpart_solver.f90
+! DESCRIPTION: Forms solver class for inertial particles, computing:
+!
+!              dx/dt = v_p
+!              dv_p/dt = (1/tau) * (u(x,t) - v_p) - grav * z_hat
+!
+!              State ordering is:
+!                x1 (x2, x3), v1 (v2, v3)
+!
+!              State sector ids are:
+!                POSITION (POSITION+1, POSITION+2)
+!                VELOCITY (VELOCITY+1, VELOCITY+2)
+!
+! INPUT FILE : For psolver='inerpart', looks for a "&inerpart"
+!              namelist with:
+!              tau     : Stokes time (particle response time)
+!              grav    : gravity acceleration (z-direction, positive
+!                        downward, default=0)
+!              gamma   : mass ratio m_f/m_p (default=0)
+!              donldrag: nonlinear drag flag (0=linear [default],
+!                        1=Wang & Maxey 1993 correction).
+!                        When enabled, nu is read from the PDE
+!                        solver.
+!
+! DATE       : 02/04/26
+! =====================================================================
+
+module inerpart_mod
+  use particlebase_mod
+  use gpstate_mod
+
+  implicit none
+
+  ! ================= Solver traits ===================================
+  type, public  :: InerTraits
+    real(kind=GP) :: tau      = 1.0_GP  ! Stokes time
+    real(kind=GP) :: grav     = 0.0_GP  ! gravity (z, positive downward)
+    real(kind=GP) :: gamma    = 0.0_GP  ! mass ratio m_f/m_p
+    real(kind=GP) :: nu       = 0.0_GP  ! fluid kinematic viscosity
+    real(kind=GP) :: invtau   = 1.0_GP  ! precomputed 1/tau
+    integer       :: donldrag = 0       ! 0=linear drag, 1=nonlinear (Wang & Maxey)
+    real(kind=GP) :: nld_rep  = 0.0_GP  ! precomputed NLD constant
+  end type
+
+  ! ================= Solver ==========================================
+  type, extends(VelocParticleBase) :: InerPart
+    ! Member data:
+    type  (InerTraits) :: traits_
+    REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:) :: vvdb_    ! VDB for velocity
+    REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:) :: gvtmp0_  ! VDB for velocity at t0
+  CONTAINS
+    procedure, public :: init          =>          init_impl
+    procedure, public :: dpdt          =>          dpdt_impl
+    procedure, public :: end_stage     =>     end_stage_impl
+    procedure, public :: feedback      =>      null_feedback
+    procedure, public :: write_pstate  =>  write_pstate_impl
+    procedure, public :: state_size    =>    state_size_impl
+    procedure, public :: part_ctor     =>      InerPart_ctor
+    final             :: InerPart_dtor
+  end type InerPart
+
+CONTAINS
+
+  ! ===================================================================
+  ! Solver initialization, this is where parameter files are read
+  ! ===================================================================
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Subroutine to initialize the solver.
+  !! Reads the &inerpart namelist and sets sector indices.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine init_impl(this)
+    use commtypes
+    class  (InerPart), intent (inout) :: this
+
+    integer            :: ierr, donldrag
+    real(kind=GP)      :: tau, grav, gamma
+    namelist/ inerpart / tau, grav, gamma, donldrag
+
+    this%POSITION = 1
+    this%VELOCITY = 4
+
+    ! Defaults
+    tau      = 1.0_GP
+    grav     = 0.0_GP
+    gamma    = 0.0_GP
+    donldrag = 0
+    if ( this%myrank_ .eq. 0 ) then
+      open(1,file=this%infile_,status='unknown',form="formatted")
+      read(1,NML=inerpart)
+      close(1)
+    endif
+    call MPI_BCAST(tau     ,1,GC_REAL,   0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(grav    ,1,GC_REAL,   0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(gamma   ,1,GC_REAL,   0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(donldrag,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+
+    this%traits_%tau      = tau
+    this%traits_%grav     = grav
+    this%traits_%gamma    = gamma
+    this%traits_%donldrag = donldrag
+    this%traits_%invtau   = 1.0_GP / tau
+  end subroutine init_impl
+
+  ! ===================================================================
+  ! Computation of RHS, the solver equations are defined here
+  ! ===================================================================
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Function to compute the rhs of the equations of motion
+  !! of inertial particles:
+  !!   dx/dt   = v_p
+  !!   dv_p/dt = (1/tau)*(u - v_p) - grav * z_hat
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SUBROUTINE dpdt_impl(this, time, pde, fluidstate, pstate, dt, dpdtout)
+    use equationbase_mod
+    use fft
+    IMPLICIT NONE
+    class    (InerPart),         intent(inout) :: this
+    class(EquationBase),         intent   (in) :: pde
+    real      (kind=GP),         intent   (in) :: time, dt
+    type   (GStateComp), target, intent   (in) :: fluidstate(:)
+    type  (GPStateComp),         intent   (in) :: pstate(:)
+    type  (GPStateComp),         intent(inout) :: dpdtout(:)
+    complex   (KIND=GP), pointer, DIMENSION(:,:,:) :: velc
+    real      (KIND=GP), pointer, DIMENSION(:,:,:) :: velr,tmp1,tmp2
+    real      (kind=GP)                            :: rmp, invtau, grav
+    real      (kind=GP)                            :: cdrag, rep, dx, dy, dz
+    integer                                        :: i,j,k
+    logical                                        :: bret
+
+    CALL GTStart(this%htimers_(GPTIME_STEP))
+    call this%workspace_%get_complex_tmp(velc,bret)
+    call this%workspace_%get_real_tmp   (velr,bret)
+    call this%workspace_%get_real_tmp   (tmp1,bret)
+    call this%workspace_%get_real_tmp   (tmp2,bret)
+    call AssignLagPos(this, pstate)
+
+    invtau = this%traits_%invtau
+    grav   = this%traits_%grav
+
+    select type (pde)
+    class is (VelocityBase)
+      if (this%nc_ .ne. pde%nc_) then
+        stop "InerPart: # of components of the particles and pdes must be equal"
+      endif
+
+      ! IMPORTANT: pstate and dpdtout alias the same array (the stepper
+      ! passes upout for both). We must be careful about ordering:
+      !   1. Interpolate fluid velocity to compute acceleration
+      !      while positions are still intact
+      !   2. Write position RHS (overwrites pstate(POSITION), but we're done)
+      !   3. Compute velocity RHS (reads particle velocity before overwrite)
+
+      ! Step 1: Interpolate fluid velocity to lvx_, lvy_, lvz_
+      rmp = 1.0_GP/(real(this%nd_(1),kind=GP)*real(this%nd_(2),kind=GP)* &
+                    real(this%nd_(3),kind=GP))
+      !$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      do i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        do j = 1,ny
+          do k = 1,nz
+            velc(k,j,i) = fluidstate(pde%VELOCITY  )%ccomp(k,j,i)*rmp
+          end do
+        end do
+      end do
+      call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
+      call EulerToLag(this,this%lvx_,this%nparts_,velr,.true. ,tmp1,tmp2)
+      !$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      do i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        do j = 1,ny
+          do k = 1,nz
+            velc(k,j,i) = fluidstate(pde%VELOCITY+1)%ccomp(k,j,i)*rmp
+          end do
+        end do
+      end do
+      call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
+      call EulerToLag(this,this%lvy_,this%nparts_,velr,.false.,tmp1,tmp2)
+      !$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      do i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        do j = 1,ny
+          do k = 1,nz
+            velc(k,j,i) = fluidstate(pde%VELOCITY+2)%ccomp(k,j,i)*rmp
+          end do
+        end do
+      end do
+      call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
+      call EulerToLag(this,this%lvz_,this%nparts_,velr,.false.,tmp1,tmp2)
+
+      ! Step 2: Position RHS: dx/dt = v_p
+      ! (overwrites pstate(POSITION), but positions are no longer needed)
+      do j = 1,this%nparts_
+        dpdtout(this%POSITION  )%rcomp(j) = pstate(this%VELOCITY  )%rcomp(j)*this%invdel_(1)
+        dpdtout(this%POSITION+1)%rcomp(j) = pstate(this%VELOCITY+1)%rcomp(j)*this%invdel_(2)
+        dpdtout(this%POSITION+2)%rcomp(j) = pstate(this%VELOCITY+2)%rcomp(j)*this%invdel_(3)
+      end do
+
+      ! Step 3: Velocity RHS: dv_p/dt = cdrag/tau * (u - v_p)
+      ! (reads pstate(VELOCITY) before overwriting it in the same expression)
+      if (this%traits_%donldrag .eq. 0) then
+        ! Linear Stokes drag
+        do j = 1,this%nparts_
+          dpdtout(this%VELOCITY  )%rcomp(j) = &
+            (this%lvx_(j) - pstate(this%VELOCITY  )%rcomp(j)) * invtau
+          dpdtout(this%VELOCITY+1)%rcomp(j) = &
+            (this%lvy_(j) - pstate(this%VELOCITY+1)%rcomp(j)) * invtau
+          dpdtout(this%VELOCITY+2)%rcomp(j) = &
+            (this%lvz_(j) - pstate(this%VELOCITY+2)%rcomp(j)) * invtau
+        end do
+      else
+        ! Nonlinear drag (Wang & Maxey 1993):
+        !   cdrag = 1 + 0.15 * Re_p^0.687
+        !         = 1 + rep * |u - v_p|^0.687
+        rep = this%traits_%nld_rep
+        do j = 1,this%nparts_
+          dx = this%lvx_(j) - pstate(this%VELOCITY  )%rcomp(j)
+          dy = this%lvy_(j) - pstate(this%VELOCITY+1)%rcomp(j)
+          dz = this%lvz_(j) - pstate(this%VELOCITY+2)%rcomp(j)
+          cdrag = 1.0_GP + rep * (dx**2 + dy**2 + dz**2) ** 0.3435_GP
+          dpdtout(this%VELOCITY  )%rcomp(j) = dx * cdrag * invtau
+          dpdtout(this%VELOCITY+1)%rcomp(j) = dy * cdrag * invtau
+          dpdtout(this%VELOCITY+2)%rcomp(j) = dz * cdrag * invtau
+        end do
+      endif
+
+      ! Add gravity in z-direction
+      if (grav .ne. 0.0_GP) then
+        do j = 1,this%nparts_
+          dpdtout(this%VELOCITY+2)%rcomp(j) = &
+            dpdtout(this%VELOCITY+2)%rcomp(j) - grav
+        end do
+      endif
+
+    class default
+      stop "inerpart: This solver does not support pdes without a velocity field"
+    end select
+
+    call this%workspace_%free_complex_tmp(velc)
+    call this%workspace_%free_real_tmp   (velr)
+    call this%workspace_%free_real_tmp   (tmp1)
+    call this%workspace_%free_real_tmp   (tmp2)
+    CALL GTAcc(this%htimers_(GPTIME_STEP))
+  END SUBROUTINE dpdt_impl
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Functions to compute fluid and particle couplings
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine null_feedback(this, pstate, feedback)
+    class  (InerPart), intent   (in) :: this
+    type(GPStateComp), intent   (in) :: pstate(:)
+    type (GStateComp), intent(inout) :: feedback(:)
+    return
+  end subroutine null_feedback
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Functions to synch particles after doing a time step
+  !! (VDB exchange only for now)
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine end_stage_impl(this, upin, upout)
+    use gpstate_mod
+    implicit none
+    class  (InerPart), intent(inout) :: this
+    type(GPStateComp), intent(inout) :: upin (:)
+    type(GPStateComp), intent(inout) :: upout(:)
+    integer :: j, m, ng
+
+    if (this%iexchtype_ .EQ. GPEXCHTYPE_VDB) then
+      ! Enforce x-y-z periodicity on updated positions
+      CALL MakePeriodicP(this,                                      &
+                         upout(this%POSITION  )%rcomp,              &
+                         upout(this%POSITION+1)%rcomp,              &
+                         upout(this%POSITION+2)%rcomp,              &
+                         this%nparts_, 7)
+      ! Consistency check
+      if (.NOT. PartNumConsistent(this, this%nparts_)) then
+        if (this%myrank_ .EQ. 0) then
+          WRITE(*,*) 'InerPart EndStage (VDB): inconsistent particle count'
+          print *,this%nparts_,this%maxparts_
+        end if
+      end if
+      ! Sync global VDB for the current positions (upout)
+      CALL GTStart(this%htimers_(GPTIME_COMM))
+      CALL this%gpcomm_%VDBSynch(this%vdb_   ,this%maxparts_,this%id_, &
+               upout(this%POSITION  )%rcomp,                           &
+               upout(this%POSITION+1)%rcomp,                           &
+               upout(this%POSITION+2)%rcomp,                           &
+               this%nparts_,this%ptmp0_)
+      ! Sync tmp VDB for the previous positions (upin)
+      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+               upin(this%POSITION  )%rcomp,                            &
+               upin(this%POSITION+1)%rcomp,                            &
+               upin(this%POSITION+2)%rcomp,                            &
+               this%nparts_,this%ptmp0_)
+      ! Sync global VDB for the current velocities (upout)
+      CALL this%gpcomm_%VDBSynch(this%vvdb_  ,this%maxparts_,this%id_, &
+               upout(this%VELOCITY  )%rcomp,                           &
+               upout(this%VELOCITY+1)%rcomp,                           &
+               upout(this%VELOCITY+2)%rcomp,                           &
+               this%nparts_,this%ptmp0_)
+      ! Sync tmp VDB for the previous velocities (upin)
+      CALL this%gpcomm_%VDBSynch(this%gvtmp0_,this%maxparts_,this%id_, &
+               upin(this%VELOCITY  )%rcomp,                            &
+               upin(this%VELOCITY+1)%rcomp,                            &
+               upin(this%VELOCITY+2)%rcomp,                            &
+               this%nparts_,this%ptmp0_)
+      CALL GTAcc(this%htimers_(GPTIME_COMM))
+      ! Get local particles based on position
+      CALL GetLocalWrk_aux(this,this%id_,                              &
+               upout(this%POSITION  )%rcomp,                           &
+               upout(this%POSITION+1)%rcomp,                           &
+               upout(this%POSITION+2)%rcomp,                           &
+               upin (this%POSITION  )%rcomp,                           &
+               upin (this%POSITION+1)%rcomp,                           &
+               upin (this%POSITION+2)%rcomp,                           &
+               this%nparts_,this%vdb_,this%gptmp0_,this%maxparts_)
+      ! Copy velocity data for local particles using the id array
+      do j = 1, this%nparts_
+        do m = 1, this%nc_
+          upout(this%VELOCITY+m-1)%rcomp(j) = this%vvdb_  (m, this%id_(j)+1)
+          upin (this%VELOCITY+m-1)%rcomp(j) = this%gvtmp0_(m, this%id_(j)+1)
+        end do
+      end do
+      ! Global particle-count sanity check
+      CALL MPI_ALLREDUCE(this%nparts_, ng, 1, MPI_INTEGER,          &
+                         MPI_SUM, this%comm_, this%ierr_)
+      if (this%myrank_ .EQ. 0 .AND. ng .NE. this%maxparts_) then
+        WRITE(*,*) 'InerPart EndStage (VDB): inconsistent d.b.: expected: ', &
+                   this%maxparts_, '; found: ', ng
+        CALL ascii_write_lag(this, 1, '.', 'xlgerr','000', 0.0_GP,  &
+                             this%maxparts_,this%vdb_)
+        STOP
+      end if
+    end if  ! GPEXCHTYPE_VDB
+  end subroutine end_stage_impl
+
+
+  ! ===================================================================
+  ! Output methods
+  ! ===================================================================
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Function to compute and write particle states.
+  !! Writes: positions (xlg), fluid velocity (vlg),
+  !!         inertial particle velocity (vip)
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine write_pstate_impl(this, time, pde, fluidstate, pstate)
+    use equationbase_mod
+    use particlebase_mod
+    use status
+    use pstatus
+    use fft
+    class    (InerPart),             intent(inout) :: this
+    class(EquationBase),             intent   (in) :: pde
+    type   (GStateComp), target ,    intent   (in) :: fluidstate(:)
+    type  (GPStateComp),             intent   (in) :: pstate(:)
+    real      (kind=GP),             intent   (in) :: time
+    complex   (kind=GP), pointer, dimension(:,:,:) :: velc
+    real      (kind=GP), pointer, dimension(:,:,:) :: velr,tmp1,tmp2
+    real      (kind=GP)                            :: rmp
+    integer                                        :: i,j,k
+    logical                                        :: bret
+
+    call this%workspace_%get_complex_tmp(velc,bret)
+    call this%workspace_%get_real_tmp   (velr,bret)
+    call this%workspace_%get_real_tmp   (tmp1,bret)
+    call this%workspace_%get_real_tmp   (tmp2,bret)
+    call AssignLagPos(this, pstate)
+
+    select type (pde)
+    class is (VelocityBase)
+      rmp = 1.0_GP/(real(this%nd_(1),kind=GP)*real(this%nd_(2),kind=GP)* &
+                    real(this%nd_(3),kind=GP))
+      ! Interpolate fluid velocity to particle positions
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,ny
+          DO k = 1,nz
+            velc(k,j,i) = fluidstate(pde%VELOCITY  )%ccomp(k,j,i)*rmp
+          END DO
+        END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
+      CALL EulerToLag(this,this%lvx_,this%nparts_,velr,.true. ,tmp1,tmp2)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,ny
+          DO k = 1,nz
+            velc(k,j,i) = fluidstate(pde%VELOCITY+1)%ccomp(k,j,i)*rmp
+          END DO
+        END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
+      CALL EulerToLag(this,this%lvy_,this%nparts_,velr,.false.,tmp1,tmp2)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+        DO j = 1,ny
+          DO k = 1,nz
+            velc(k,j,i) = fluidstate(pde%VELOCITY+2)%ccomp(k,j,i)*rmp
+          END DO
+        END DO
+      END DO
+      CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
+      CALL EulerToLag(this,this%lvz_,this%nparts_,velr,.false.,tmp1,tmp2)
+      ! Write positions and Lagrangian fluid velocity
+      WRITE(lgext,lgfmtext) pind
+      CALL io_write_pdb(this,1,this%odir_,'xlg',lgext,time)
+      CALL io_write_vec(this,1,this%odir_,'vlg',lgext,time)
+      ! Write inertial particle velocity
+      do j = 1,this%nparts_
+        this%lvx_(j) = pstate(this%VELOCITY  )%rcomp(j)
+        this%lvy_(j) = pstate(this%VELOCITY+1)%rcomp(j)
+        this%lvz_(j) = pstate(this%VELOCITY+2)%rcomp(j)
+      end do
+      CALL io_write_vec(this,1,this%odir_,'vip',lgext,time)
+    class default
+      stop "inerpart: This solver does not support pdes without a velocity field"
+    end select
+
+    call this%workspace_%free_complex_tmp(velc)
+    call this%workspace_%free_real_tmp   (velr)
+    call this%workspace_%free_real_tmp   (tmp1)
+    call this%workspace_%free_real_tmp   (tmp2)
+  end subroutine write_pstate_impl
+
+
+  ! ===================================================================
+  ! Solver specific methods
+  ! ===================================================================
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Constructor
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SUBROUTINE InerPart_ctor(this,infile, pde, workspace, pstate, pstate_cpy)
+    USE equationbase_mod
+    USE hd_mod,  ONLY: HDSolver
+    USE mhd_mod, ONLY: MHDSolver
+    USE moist_mod, ONLY: MOISTSolver
+    USE bouss_mod, ONLY: BOUSSSolver
+    USE var
+    USE grid
+    USE boxsize
+    USE mpivars
+    USE pstatus
+    USE commtypes
+    USE fftplans
+    USE pstatus
+    USE status
+    USE random
+    IMPLICIT NONE
+    CLASS  (InerPart), intent(inout)              :: this
+    class(EquationBase), intent   (in)            :: pde
+    type (GWorkspace), intent(inout), target      :: workspace
+    type(GPStateComp), intent(inout), allocatable :: pstate(:), pstate_cpy(:)
+    character(len=*) , intent   (in)              :: infile
+    integer                                       :: disp(3),lens(3),types(3)
+    integer                                       :: tsta,tend,num_components
+    integer                                       :: j,nc,szreal
+    logical                                       :: bret
+
+    this%infile_      =  infile
+    this%workspace_   => workspace
+    call pstatus_init(this%infile_)
+    this%idir_        =  pidir      ! input  directory
+    this%odir_        =  podir      ! output directory
+    this%hasfeedback_ = .false.
+    this%nc_          = 3
+    this%nparts_      = 0
+    this%npartsm_     = 0
+    this%nvdb_        = 0
+    this%comm_        = MPI_COMM_WORLD
+    this%maxparts_    = maxparts
+    this%nd_(1)       = nx
+    this%nd_(2)       = ny
+    this%nd_(3)       = nz
+    this%delta_(1)    = 2*pi*Lx/real(nx,kind=GP)
+    this%delta_(2)    = 2*pi*Ly/real(ny,kind=GP)
+    this%delta_(3)    = 2*pi*Lz/real(nz,kind=GP)
+    this%invdel_(1)   = real(nx,kind=GP)/(2*pi*Lx)
+    this%invdel_(2)   = real(ny,kind=GP)/(2*pi*Ly)
+    this%invdel_(3)   = real(nz,kind=GP)/(2*pi*Lz)
+    this%seedfile_    = lgseedfile
+    this%iinterp_     = 3
+    this%itorder_     = 2
+    this%intorder_    = max(intorder,1)
+    this%iseed_       = 1000
+    this%istep_       = 0
+    this%iexchtype_   = ilgexchtype
+    this%iouttype_    = ilgouttype
+    this%bcollective_ = ilgcoll
+    this%itimetype_   = GT_WTIME
+    this%wrtunit_     = ilgwrtunit
+    CALL SetRandSeed (this, seed )
+    CALL prandom_seed(this%iseed_)
+    CALL MPI_COMM_SIZE(this%comm_,this%nprocs_,this%ierr_)
+    CALL MPI_COMM_RANK(this%comm_,this%myrank_,this%ierr_)
+
+    IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
+      this%partbuff_ = maxparts
+    ELSE IF (this%iexchtype_.EQ.GPEXCHTYPE_NN) THEN
+      this%partbuff_      = 1 + (maxparts - 1)/this%nprocs_
+      this%partchunksize_ = (this%partbuff_ + 9)/10
+      this%partbuff_      =  this%partbuff_ + this%partchunksize_
+      IF ((this%bcollective_.EQ.0).AND.(this%myrank_.EQ.0)) THEN
+        this%partbuff_   = maxparts
+      END IF
+      this%stepcounter_ = 0
+    END IF
+
+    ! Initialize timers
+    DO j = 1, GPMAXTIMERS
+      CALL GTInitHandle(this%htimers_(j),this%itimetype_)
+      IF ( this%htimers_(j).EQ.GTNULLHANDLE ) THEN
+        WRITE(*,*) 'InerPart_ctor: Not enough timers available'
+        STOP
+      ENDIF
+    ENDDO
+
+    ! Initialize communicators
+    CALL this%gpcomm_%GPartComm_ctor(GPCOMM_INTRFC_SF,this%partbuff_, &
+         this%nd_,this%intorder_-1,this%comm_,this%htimers_(GPTIME_COMM))
+    CALL this%gpcomm_%SetCacheParam(csize,nstrip)
+    CALL this%gpcomm_%Init()
+
+    this%libnds_(1,1) = 1
+    this%libnds_(1,2) = nx
+    this%lxbnds_(1,1) = 0.0_GP
+    this%lxbnds_(1,2) = real(nx,kind=GP)
+    this%libnds_(2,1) = 1
+    this%libnds_(2,2) = ny
+    this%lxbnds_(2,1) = 0.0_GP
+    this%lxbnds_(2,2) = real(ny,kind=GP)
+    this%libnds_(3,1) = ksta
+    this%libnds_(3,2) = kend
+    this%lxbnds_(3,1) = real(ksta-1,kind=GP)
+    this%lxbnds_(3,2) = real(kend-1,kind=GP) + 1.0_GP
+    CALL range(1,nx,nprocs,myrank,tsta,tend)
+    this%tibnds_(1,1) = 1
+    this%tibnds_(1,2) = nz
+    this%tibnds_(2,1) = 1
+    this%tibnds_(2,2) = ny
+    this%tibnds_(3,1) = tsta
+    this%tibnds_(3,2) = tend
+    DO j = 1,3
+      this%gext_ (j) = real(this%nd_(j),kind=GP)
+    ENDDO
+
+    ! Call init (reads &inerpart namelist, sets POSITION/VELOCITY)
+    call this%init()
+
+    ! If nonlinear drag is enabled, get nu from the PDE solver
+    if (this%traits_%donldrag .eq. 1) then
+      select type (pde)
+        type is (HDSolver)
+          this%traits_%nu = pde%traits_%nu
+        type is (MHDSolver)
+          this%traits_%nu = pde%traits_%nu
+        type is (BOUSSSolver)
+          this%traits_%nu = pde%traits_%nu
+        type is (MOISTSolver)
+          this%traits_%nu = pde%traits_%nu
+        class default
+          stop "InerPart_ctor: nonlinear drag not supported by the selected PDE solver"
+      end select
+      this%traits_%nld_rep = 0.15_GP * &
+        (18.0_GP * this%traits_%tau * this%traits_%gamma &
+        / this%traits_%nu) ** 0.3435_GP
+    endif
+
+    ! Instantiate interp operation
+    CALL this%intop_%GPSplineInt_ctor(3,this%nd_,this%libnds_,this%lxbnds_, &
+         this%tibnds_,this%intorder_,this%partbuff_,this%gpcomm_,&
+         this%htimers_(GPTIME_DATAEX),this%htimers_(GPTIME_TRANSP))
+
+    ! Allocate particle arrays
+    CALL MPI_TYPE_SIZE(GC_REAL,szreal,this%ierr_)
+    ALLOCATE(this%id_      (this%partbuff_))
+    ALLOCATE(this%tmpint_  (this%partbuff_))
+    ALLOCATE(this%ptmp0_ (3,this%partbuff_))
+    ALLOCATE(this%gptmp0_(3,this%partbuff_))
+    num_components = this%state_size()  ! Returns 6
+    CALL GPState_alloc(pstate    , num_components, this%partbuff_)
+    CALL GPState_alloc(pstate_cpy, num_components, this%partbuff_)
+    ! Zero-initialize velocity state components
+    DO j = 1, this%partbuff_
+      pstate    (this%VELOCITY  )%rcomp(j) = 0.0_GP
+      pstate    (this%VELOCITY+1)%rcomp(j) = 0.0_GP
+      pstate    (this%VELOCITY+2)%rcomp(j) = 0.0_GP
+      pstate_cpy(this%VELOCITY  )%rcomp(j) = 0.0_GP
+      pstate_cpy(this%VELOCITY+1)%rcomp(j) = 0.0_GP
+      pstate_cpy(this%VELOCITY+2)%rcomp(j) = 0.0_GP
+    END DO
+    call this%workspace_%set_nparts(this%partbuff_)
+    call this%workspace_%init_pcomp_arrays(this%partbuff_)
+    call this%workspace_%get_pcomp_tmp(this%lvx_,bret)
+    call this%workspace_%get_pcomp_tmp(this%lvy_,bret)
+    call this%workspace_%get_pcomp_tmp(this%lvz_,bret)
+    IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
+      ALLOCATE(this%vdb_   (3,this%partbuff_))
+      ALLOCATE(this%vvdb_  (3,this%partbuff_))
+      ALLOCATE(this%gvtmp0_(3,this%partbuff_))
+    ENDIF
+  END SUBROUTINE InerPart_ctor
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Destructor
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SUBROUTINE InerPart_dtor(this)
+    IMPLICIT NONE
+    TYPE(InerPart),INTENT(INOUT) :: this
+    integer                      :: j
+    IF ( ALLOCATED    (this%id_) ) DEALLOCATE    (this%id_)
+    IF ( ALLOCATED(this%tmpint_) ) DEALLOCATE(this%tmpint_)
+    IF ( ALLOCATED   (this%idm_) ) DEALLOCATE   (this%idm_)
+    IF ( ALLOCATED   (this%vdb_) ) DEALLOCATE   (this%vdb_)
+    IF ( ALLOCATED (this%ptmp0_) ) DEALLOCATE (this%ptmp0_)
+    IF ( ALLOCATED(this%gptmp0_) ) DEALLOCATE(this%gptmp0_)
+    IF ( ALLOCATED (this%vvdb_)  ) DEALLOCATE  (this%vvdb_)
+    IF ( ALLOCATED(this%gvtmp0_) ) DEALLOCATE(this%gvtmp0_)
+    IF ( ASSOCIATED   (this%px_) ) NULLIFY       (this%px_)
+    IF ( ASSOCIATED   (this%py_) ) NULLIFY       (this%py_)
+    IF ( ASSOCIATED   (this%pz_) ) NULLIFY       (this%pz_)
+    IF ( ASSOCIATED(this%lvx_) ) CALL this%workspace_%free_pcomp_tmp(this%lvx_)
+    IF ( ASSOCIATED(this%lvy_) ) CALL this%workspace_%free_pcomp_tmp(this%lvy_)
+    IF ( ASSOCIATED(this%lvz_) ) CALL this%workspace_%free_pcomp_tmp(this%lvz_)
+    DO j = 1, GPMAXTIMERS
+      CALL GTFree(this%htimers_(j))
+    ENDDO
+  END SUBROUTINE InerPart_dtor
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Function to compute number of state members (equations)
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  PURE function state_size_impl(this) result(num)
+    class(InerPart), intent(in) :: this
+    integer                     :: num
+    num = 2 * this%nc_          ! 3 positions + 3 velocities
+  end function state_size_impl
+
+end module inerpart_mod

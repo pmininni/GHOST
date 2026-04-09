@@ -8,6 +8,7 @@ add_library(particles_lib STATIC
   ${GEN_SPLINE}
   particle_base.f90
   lagpart_solver.f90
+  inerpart_solver.f90
   particle_factory.f90
 )
 
