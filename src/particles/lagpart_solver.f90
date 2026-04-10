@@ -32,7 +32,6 @@ module lagpart_mod
   ! Define class:
   type, extends(VelocParticleBase) :: GPart 
     ! Member data:
-    logical           :: binit_ = .false. ! is initialized?
     type  (NHTraits)  :: traits_
   CONTAINS
     procedure, public :: init          =>          init_impl ! init method
@@ -148,7 +147,7 @@ CONTAINS
     type(GPStateComp), intent(inout) :: upin (:) ! state at t0
     type(GPStateComp), intent(inout) :: upout(:) ! state after sub-stage
     integer :: j, ng
-    ! Branch 1: Nearest-neighbour (NN) exchange
+    ! Branch 1: Nearest-neighbour (NN) exchange -------------------------
     if (this%iexchtype_ .EQ. GPEXCHTYPE_NN) then
       ! We first enforce periodicity in x-y only
       CALL MakePeriodicP(this,                                         &
@@ -186,7 +185,7 @@ CONTAINS
                upin(this%POSITION  )%rcomp,                            &
                upin(this%POSITION+1)%rcomp,                            &
                upin(this%POSITION+2)%rcomp,                            &
-               this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), GPEXCH_END)
+               this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), GPEXCH_END )
       CALL GTAcc(this%htimers_(GPTIME_COMM))
       ! x-y periodicity already enforced, we enforce z in upout and upin
       CALL MakePeriodicZ(this,                                         &

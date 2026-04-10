@@ -4,6 +4,10 @@
 !
 !              dx/dt = v_p
 !              dv_p/dt = (1/tau) * (u(x,t) - v_p) - grav * z_hat
+!                     or (1 + 0.15 Re_p^0.687) /tau (U(X(t)) - V(X(t)))
+!                     if nonlinear drag is used (see Wang & Maxey 1993),
+!                     where Re_p = (18 tau gamma/nu)^(1/2) |U - V|, and
+!                     |U - V| = [(Ux-Vx)^2+(Uy-Vy)^2+(Uz-Vz)^2]^(1/2).    
 !
 !              State ordering is:
 !                x1 (x2, x3), v1 (v2, v3)
@@ -15,13 +19,13 @@
 ! INPUT FILE : For psolver='inerpart', looks for a "&inerpart"
 !              namelist with:
 !              tau     : Stokes time (particle response time)
+!              dograv  : .false.=no gravity [default], .true.=gravity
 !              grav    : gravity acceleration (z-direction, positive
 !                        downward, default=0)
-!              gamma   : mass ratio m_f/m_p (default=0)
-!              donldrag: nonlinear drag flag (0=linear [default],
-!                        1=Wang & Maxey 1993 correction).
-!                        When enabled, nu is read from the PDE
-!                        solver.
+!              donldrag: nonlinear drag (NLD) (.false.=linear [default],
+!                        .true.=Wang & Maxey 1993 correction).
+!                        When true, nu is obtained from the PDE solver.
+!              gamma   : mass ratio m_f/m_p (default=1, only for NLD)
 !
 ! DATE       : 02/04/26
 ! =====================================================================
@@ -36,10 +40,11 @@ module inerpart_mod
   type, public  :: InerTraits
     real(kind=GP) :: tau      = 1.0_GP  ! Stokes time
     real(kind=GP) :: grav     = 0.0_GP  ! gravity (z, positive downward)
-    real(kind=GP) :: gamma    = 0.0_GP  ! mass ratio m_f/m_p
+    real(kind=GP) :: gamma    = 1.0_GP  ! mass ratio m_f/m_p
     real(kind=GP) :: nu       = 0.0_GP  ! fluid kinematic viscosity
     real(kind=GP) :: invtau   = 1.0_GP  ! precomputed 1/tau
-    integer       :: donldrag = 0       ! 0=linear drag, 1=nonlinear (Wang & Maxey)
+    logical       :: dograv   = .false. ! .false.=no gravity, .true.=grav
+    logical       :: donldrag = .false. ! .false.=linear drag, .true.=NLD
     real(kind=GP) :: nld_rep  = 0.0_GP  ! precomputed NLD constant
   end type
 
@@ -47,8 +52,6 @@ module inerpart_mod
   type, extends(VelocParticleBase) :: InerPart
     ! Member data:
     type  (InerTraits) :: traits_
-    REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:) :: vvdb_    ! VDB for velocity
-    REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:) :: gvtmp0_  ! VDB for velocity at t0
   CONTAINS
     procedure, public :: init          =>          init_impl
     procedure, public :: dpdt          =>          dpdt_impl
@@ -73,34 +76,36 @@ CONTAINS
   subroutine init_impl(this)
     use commtypes
     class  (InerPart), intent (inout) :: this
-
-    integer            :: ierr, donldrag
-    real(kind=GP)      :: tau, grav, gamma
-    namelist/ inerpart / tau, grav, gamma, donldrag
+    real    (kind=GP)                 :: tau, grav, gamma
+    integer                           :: ierr
+    logical                           :: dograv, donldrag
+    namelist/ inerpart / tau, grav, gamma, dograv, donldrag
 
     this%POSITION = 1
     this%VELOCITY = 4
-
     ! Defaults
     tau      = 1.0_GP
     grav     = 0.0_GP
-    gamma    = 0.0_GP
-    donldrag = 0
+    gamma    = 1.0_GP
+    dograv   = .false.
+    donldrag = .false.
     if ( this%myrank_ .eq. 0 ) then
       open(1,file=this%infile_,status='unknown',form="formatted")
       read(1,NML=inerpart)
       close(1)
     endif
-    call MPI_BCAST(tau     ,1,GC_REAL,   0,MPI_COMM_WORLD,ierr)
-    call MPI_BCAST(grav    ,1,GC_REAL,   0,MPI_COMM_WORLD,ierr)
-    call MPI_BCAST(gamma   ,1,GC_REAL,   0,MPI_COMM_WORLD,ierr)
-    call MPI_BCAST(donldrag,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(tau     ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(grav    ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(gamma   ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(dograv  ,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(donldrag,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
 
-    this%traits_%tau      = tau
-    this%traits_%grav     = grav
-    this%traits_%gamma    = gamma
+    this%traits_%     tau = tau
+    this%traits_%    grav = grav
+    this%traits_%   gamma = gamma
+    this%traits_%  dograv = dograv
     this%traits_%donldrag = donldrag
-    this%traits_%invtau   = 1.0_GP / tau
+    this%traits_%  invtau = 1.0_GP / tau
   end subroutine init_impl
 
   ! ===================================================================
@@ -111,7 +116,7 @@ CONTAINS
   !! Function to compute the rhs of the equations of motion
   !! of inertial particles:
   !!   dx/dt   = v_p
-  !!   dv_p/dt = (1/tau)*(u - v_p) - grav * z_hat
+  !!   dv_p/dt = (1/tau)*(u - v_p) - grav * z_hat (or nonlinear-drag)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   SUBROUTINE dpdt_impl(this, time, pde, fluidstate, pstate, dt, dpdtout)
     use equationbase_mod
@@ -135,7 +140,7 @@ CONTAINS
     call this%workspace_%get_real_tmp   (velr,bret)
     call this%workspace_%get_real_tmp   (tmp1,bret)
     call this%workspace_%get_real_tmp   (tmp2,bret)
-    call AssignLagPos(this, pstate)
+    call AssignLagPos(this, pstate) ! We assign px_,py_,pz_ to the pstate
 
     invtau = this%traits_%invtau
     grav   = this%traits_%grav
@@ -146,8 +151,8 @@ CONTAINS
         stop "InerPart: # of components of the particles and pdes must be equal"
       endif
 
-      ! IMPORTANT: pstate and dpdtout alias the same array (the stepper
-      ! passes upout for both). We must be careful about ordering:
+      ! IMPORTANT: pstate and dpdtout may alias the same array (the stepper
+      ! can pass upout for both). We must be careful about ordering:
       !   1. Interpolate fluid velocity to compute acceleration
       !      while positions are still intact
       !   2. Write position RHS (overwrites pstate(POSITION), but we're done)
@@ -191,16 +196,16 @@ CONTAINS
       call EulerToLag(this,this%lvz_,this%nparts_,velr,.false.,tmp1,tmp2)
 
       ! Step 2: Position RHS: dx/dt = v_p
-      ! (overwrites pstate(POSITION), but positions are no longer needed)
+      ! (may overwrite pstate(POSITION) depending on the stepper call)
       do j = 1,this%nparts_
-        dpdtout(this%POSITION  )%rcomp(j) = pstate(this%VELOCITY  )%rcomp(j)*this%invdel_(1)
-        dpdtout(this%POSITION+1)%rcomp(j) = pstate(this%VELOCITY+1)%rcomp(j)*this%invdel_(2)
-        dpdtout(this%POSITION+2)%rcomp(j) = pstate(this%VELOCITY+2)%rcomp(j)*this%invdel_(3)
+        dpdtout(this%POSITION  )%rcomp(j)=pstate(this%VELOCITY  )%rcomp(j)*this%invdel_(1)
+        dpdtout(this%POSITION+1)%rcomp(j)=pstate(this%VELOCITY+1)%rcomp(j)*this%invdel_(2)
+        dpdtout(this%POSITION+2)%rcomp(j)=pstate(this%VELOCITY+2)%rcomp(j)*this%invdel_(3)
       end do
 
       ! Step 3: Velocity RHS: dv_p/dt = cdrag/tau * (u - v_p)
-      ! (reads pstate(VELOCITY) before overwriting it in the same expression)
-      if (this%traits_%donldrag .eq. 0) then
+      ! (reads pstate(VELOCITY) before it may be overwritten by some steppers)
+      if ( .not. this%traits_%donldrag ) then
         ! Linear Stokes drag
         do j = 1,this%nparts_
           dpdtout(this%VELOCITY  )%rcomp(j) = &
@@ -227,7 +232,7 @@ CONTAINS
       endif
 
       ! Add gravity in z-direction
-      if (grav .ne. 0.0_GP) then
+      if ( this%traits_%dograv ) then
         do j = 1,this%nparts_
           dpdtout(this%VELOCITY+2)%rcomp(j) = &
             dpdtout(this%VELOCITY+2)%rcomp(j) - grav
@@ -259,7 +264,6 @@ CONTAINS
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Functions to synch particles after doing a time step
-  !! (VDB exchange only for now)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine end_stage_impl(this, upin, upout)
     use gpstate_mod
@@ -267,8 +271,86 @@ CONTAINS
     class  (InerPart), intent(inout) :: this
     type(GPStateComp), intent(inout) :: upin (:)
     type(GPStateComp), intent(inout) :: upout(:)
-    integer :: j, m, ng
+    integer                          :: j, ng
 
+    ! Branch 1: Nearest-neighbour (NN) exchange -------------------------
+    if (this%iexchtype_ .EQ. GPEXCHTYPE_NN) then
+      ! We first enforce periodicity in x-y only
+      CALL MakePeriodicP(this,                                         &
+                         upout(this%POSITION  )%rcomp,                 &
+                         upout(this%POSITION+1)%rcomp,                 &
+                         upout(this%POSITION+2)%rcomp,                 &
+                         this%nparts_, 3)
+      ! We identify particles that have left the local slab in z
+      CALL GTStart(this%htimers_(GPTIME_COMM))
+      CALL this%gpcomm_%IdentifyExchV(this%id_,                        &
+               upout(this%POSITION+2)%rcomp,                           &
+               this%nparts_, ng, this%lxbnds_(3,1),  this%lxbnds_(3,2))
+      ! We resize internal buffers if the exchange set is too large
+      if (ng .GT. this%partbuff_) then
+        if (this%myrank_ .EQ. 0) then
+          WRITE(*,'(A,I0,A,I0,A,I0,A,I0)') &
+            'EndStage: Rank ', this%myrank_, ' resizing: nparts=', ng, &
+            ' | partbuff=', this%partbuff_, ' --> ', this%partbuff_ +  &
+            (1 + (ng - this%partbuff_) / this%partchunksize_) * this%partchunksize_
+        end if
+        this%partbuff_ = this%partbuff_ + (1 + (ng - this%partbuff_) / &
+               this%partchunksize_) * this%partchunksize_
+        call ResizeArrays  (this ,this%partbuff_,.true.)
+        call GPState_resize(upin ,this%partbuff_)
+        call GPState_resize(upout,this%partbuff_)
+      end if
+      ! Exchange current positions (upout) across MPI tasks
+      CALL this%gpcomm_%PartExchangeV(this%id_,                        &
+               upout(this%POSITION  )%rcomp,                           &
+               upout(this%POSITION+1)%rcomp,                           &
+               upout(this%POSITION+2)%rcomp,                           &
+               this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), GPEXCH_INIT)
+      ! Exchange the current velocity (upout)
+      CALL this%gpcomm_%PartExchangeV(this%id_,                        &
+               upout(this%VELOCITY  )%rcomp,                           &
+               upout(this%VELOCITY+1)%rcomp,                           &
+               upout(this%VELOCITY+2)%rcomp,                           &
+               this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), GPEXCH_UPDT)
+      ! Exchange the previous positions (upin)
+      CALL this%gpcomm_%PartExchangeV(this%id_,                        &
+               upin (this%POSITION  )%rcomp,                           &
+               upin (this%POSITION+1)%rcomp,                           &
+               upin (this%POSITION+2)%rcomp,                           &
+               this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), GPEXCH_UPDT)
+      ! Exchange the previous velocity (upin)
+      CALL this%gpcomm_%PartExchangeV(this%id_,                        &
+               upin (this%VELOCITY  )%rcomp,                           &
+               upin (this%VELOCITY+1)%rcomp,                           &
+               upin (this%VELOCITY+2)%rcomp,                           &
+               this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), GPEXCH_END )
+      CALL GTAcc(this%htimers_(GPTIME_COMM))
+      ! x-y periodicity already enforced, we enforce z in upout and upin
+      CALL MakePeriodicZ(this,                                         &
+                         upout(this%POSITION+2)%rcomp,                 &
+                         upin (this%POSITION+2)%rcomp,                 &
+                         this%nparts_)
+      ! Buffer shrink
+      if (this%stepcounter_ .GE. GPSWIPERATE) then
+        if ((this%bcollective_ .EQ. 1) .OR. (this%myrank_ .NE. 0)) then
+          ng = this%partbuff_ - this%nparts_
+          ng = this%partbuff_ - (ng/this%partchunksize_-1)*this%partchunksize_
+          if (ng .LT. this%partbuff_) then
+            WRITE(*,'(A,I0,A,I0,A,I0,A,I0)') 'EndStage: Rank ',        &
+              this%myrank_, ' shrinking: nparts=', this%nparts_,       &
+              ' | partbuff=', this%partbuff_, ' --> ', ng
+            this%partbuff_ = ng
+            call ResizeArrays  (this ,this%partbuff_,.true.)
+            call GPState_resize(upin ,this%partbuff_)
+            call GPState_resize(upout,this%partbuff_)
+          end if
+        end if
+        this%stepcounter_ = 1
+      else
+        this%stepcounter_ = this%stepcounter_ + 1
+      end if
+    end if  ! GPEXCHTYPE_NN
+    ! Branch 2: Voxel Database (VDB) exchange ---------------------------
     if (this%iexchtype_ .EQ. GPEXCHTYPE_VDB) then
       ! Enforce x-y-z periodicity on updated positions
       CALL MakePeriodicP(this,                                      &
@@ -290,26 +372,36 @@ CONTAINS
                upout(this%POSITION+1)%rcomp,                           &
                upout(this%POSITION+2)%rcomp,                           &
                this%nparts_,this%ptmp0_)
-      ! Sync tmp VDB for the previous positions (upin)
+      ! Sync current velocities (unpout) into gptmp0_ and extract locally
       CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
-               upin(this%POSITION  )%rcomp,                            &
-               upin(this%POSITION+1)%rcomp,                            &
-               upin(this%POSITION+2)%rcomp,                            &
-               this%nparts_,this%ptmp0_)
-      ! Sync global VDB for the current velocities (upout)
-      CALL this%gpcomm_%VDBSynch(this%vvdb_  ,this%maxparts_,this%id_, &
                upout(this%VELOCITY  )%rcomp,                           &
                upout(this%VELOCITY+1)%rcomp,                           &
                upout(this%VELOCITY+2)%rcomp,                           &
                this%nparts_,this%ptmp0_)
-      ! Sync tmp VDB for the previous velocities (upin)
-      CALL this%gpcomm_%VDBSynch(this%gvtmp0_,this%maxparts_,this%id_, &
-               upin(this%VELOCITY  )%rcomp,                            &
-               upin(this%VELOCITY+1)%rcomp,                            &
-               upin(this%VELOCITY+2)%rcomp,                            &
+      CALL CopyLocalWrk(this,                                          &
+               upout(this%VELOCITY  )%rcomp,                           &
+               upout(this%VELOCITY+1)%rcomp,                           &
+               upout(this%VELOCITY+2)%rcomp,                           &
+               this%vdb_,this%gptmp0_,this%maxparts_)
+      ! Sync previous velocities (upin) into gptmp0_ and extract locally
+      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+               upin (this%VELOCITY  )%rcomp,                           &
+               upin (this%VELOCITY+1)%rcomp,                           &
+               upin (this%VELOCITY+2)%rcomp,                           &
+               this%nparts_,this%ptmp0_)
+      CALL CopyLocalWrk(this,                                          &
+               upin (this%VELOCITY  )%rcomp,                           &
+               upin (this%VELOCITY+1)%rcomp,                           &
+               upin (this%VELOCITY+2)%rcomp,                           &
+               this%vdb_,this%gptmp0_,this%maxparts_)
+      ! Sync gptmp VDB for the previous positions (upin)
+      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
+               upin (this%POSITION  )%rcomp,                           &
+               upin (this%POSITION+1)%rcomp,                           &
+               upin (this%POSITION+2)%rcomp,                           &
                this%nparts_,this%ptmp0_)
       CALL GTAcc(this%htimers_(GPTIME_COMM))
-      ! Get local particles based on position
+      ! Get local particles (upout and upin) based on positions
       CALL GetLocalWrk_aux(this,this%id_,                              &
                upout(this%POSITION  )%rcomp,                           &
                upout(this%POSITION+1)%rcomp,                           &
@@ -318,20 +410,13 @@ CONTAINS
                upin (this%POSITION+1)%rcomp,                           &
                upin (this%POSITION+2)%rcomp,                           &
                this%nparts_,this%vdb_,this%gptmp0_,this%maxparts_)
-      ! Copy velocity data for local particles using the id array
-      do j = 1, this%nparts_
-        do m = 1, this%nc_
-          upout(this%VELOCITY+m-1)%rcomp(j) = this%vvdb_  (m, this%id_(j)+1)
-          upin (this%VELOCITY+m-1)%rcomp(j) = this%gvtmp0_(m, this%id_(j)+1)
-        end do
-      end do
       ! Global particle-count sanity check
-      CALL MPI_ALLREDUCE(this%nparts_, ng, 1, MPI_INTEGER,          &
+      CALL MPI_ALLREDUCE(this%nparts_, ng, 1, MPI_INTEGER,             &
                          MPI_SUM, this%comm_, this%ierr_)
       if (this%myrank_ .EQ. 0 .AND. ng .NE. this%maxparts_) then
         WRITE(*,*) 'InerPart EndStage (VDB): inconsistent d.b.: expected: ', &
                    this%maxparts_, '; found: ', ng
-        CALL ascii_write_lag(this, 1, '.', 'xlgerr','000', 0.0_GP,  &
+        CALL ascii_write_lag(this, 1, '.', 'xlgerr','000', 0.0_GP,     &
                              this%maxparts_,this%vdb_)
         STOP
       end if
@@ -440,8 +525,8 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   SUBROUTINE InerPart_ctor(this,infile, pde, workspace, pstate, pstate_cpy)
     USE equationbase_mod
-    USE hd_mod,  ONLY: HDSolver
-    USE mhd_mod, ONLY: MHDSolver
+    USE hd_mod,    ONLY: HDSolver
+    USE mhd_mod,   ONLY: MHDSolver
     USE moist_mod, ONLY: MOISTSolver
     USE bouss_mod, ONLY: BOUSSSolver
     USE var
@@ -468,8 +553,8 @@ CONTAINS
     this%infile_      =  infile
     this%workspace_   => workspace
     call pstatus_init(this%infile_)
-    this%idir_        =  pidir      ! input  directory
-    this%odir_        =  podir      ! output directory
+    this%idir_        =  idir      ! input  directory
+    this%odir_        =  odir      ! output directory
     this%hasfeedback_ = .false.
     this%nc_          = 3
     this%nparts_      = 0
@@ -487,7 +572,7 @@ CONTAINS
     this%invdel_(2)   = real(ny,kind=GP)/(2*pi*Ly)
     this%invdel_(3)   = real(nz,kind=GP)/(2*pi*Lz)
     this%seedfile_    = lgseedfile
-    this%iinterp_     = 3
+    this%iinterp_     = 3          ! fixed for now
     this%itorder_     = 2
     this%intorder_    = max(intorder,1)
     this%iseed_       = 1000
@@ -514,7 +599,7 @@ CONTAINS
       this%stepcounter_ = 0
     END IF
 
-    ! Initialize timers
+    ! Initialize timers (get handles):
     DO j = 1, GPMAXTIMERS
       CALL GTInitHandle(this%htimers_(j),this%itimetype_)
       IF ( this%htimers_(j).EQ.GTNULLHANDLE ) THEN
@@ -556,7 +641,7 @@ CONTAINS
     call this%init()
 
     ! If nonlinear drag is enabled, get nu from the PDE solver
-    if (this%traits_%donldrag .eq. 1) then
+    if ( this%traits_%donldrag ) then
       select type (pde)
         type is (HDSolver)
           this%traits_%nu = pde%traits_%nu
@@ -604,8 +689,6 @@ CONTAINS
     call this%workspace_%get_pcomp_tmp(this%lvz_,bret)
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
       ALLOCATE(this%vdb_   (3,this%partbuff_))
-      ALLOCATE(this%vvdb_  (3,this%partbuff_))
-      ALLOCATE(this%gvtmp0_(3,this%partbuff_))
     ENDIF
   END SUBROUTINE InerPart_ctor
 
@@ -623,8 +706,6 @@ CONTAINS
     IF ( ALLOCATED   (this%vdb_) ) DEALLOCATE   (this%vdb_)
     IF ( ALLOCATED (this%ptmp0_) ) DEALLOCATE (this%ptmp0_)
     IF ( ALLOCATED(this%gptmp0_) ) DEALLOCATE(this%gptmp0_)
-    IF ( ALLOCATED (this%vvdb_)  ) DEALLOCATE  (this%vvdb_)
-    IF ( ALLOCATED(this%gvtmp0_) ) DEALLOCATE(this%gvtmp0_)
     IF ( ASSOCIATED   (this%px_) ) NULLIFY       (this%px_)
     IF ( ASSOCIATED   (this%py_) ) NULLIFY       (this%py_)
     IF ( ASSOCIATED   (this%pz_) ) NULLIFY       (this%pz_)
