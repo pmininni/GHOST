@@ -7,7 +7,7 @@
 !   read_s    : Reads passive scalars from input files numbered by stat
 !   constant_s: Uniform passive scalar
 !   puff_s    : Localized concentration
-!   random_sp  : Random concentration
+!   random_s  : Random concentration
 !
 ! DATE       : 01/26/26 (PDM)
 ! =====================================================================

@@ -353,10 +353,10 @@ CONTAINS
     ! Branch 2: Voxel Database (VDB) exchange ---------------------------
     if (this%iexchtype_ .EQ. GPEXCHTYPE_VDB) then
       ! Enforce x-y-z periodicity on updated positions
-      CALL MakePeriodicP(this,                                      &
-                         upout(this%POSITION  )%rcomp,              &
-                         upout(this%POSITION+1)%rcomp,              &
-                         upout(this%POSITION+2)%rcomp,              &
+      CALL MakePeriodicP(this,                                         &
+                         upout(this%POSITION  )%rcomp,                 &
+                         upout(this%POSITION+1)%rcomp,                 &
+                         upout(this%POSITION+2)%rcomp,                 &
                          this%nparts_, 7)
       ! Consistency check
       if (.NOT. PartNumConsistent(this, this%nparts_)) then

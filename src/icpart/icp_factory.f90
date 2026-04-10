@@ -10,7 +10,7 @@
 module icp_factory
   USE icpbase_mod
   USE icp_position
-! USE icp_velocity
+!  USE icp_velocity
   
   IMPLICIT NONE
   
@@ -54,13 +54,13 @@ CONTAINS
         allocate( rand_pos    :: new_object(i)%icp )
 !!$      ! Velocity ICs ---------------------    
 !!$      case ('read_v')
-!!$        allocate( read_vel    :: new_object(i)%ic )
+!!$        allocate( read_vel    :: new_object(i)%icp )
 !!$      case ('null_v')
-!!$        allocate( null_vel    :: new_object(i)%ic )
+!!$        allocate( null_vel    :: new_object(i)%icp )
 !!$      case ('fluid_v')
-!!$        allocate( fluid_vel   :: new_object(i)%ic )
+!!$        allocate( fluid_vel   :: new_object(i)%icp )
 !!$      case ('thermal_v')
-!!$        allocate( thermal_vel :: new_object(i)%ic )
+!!$        allocate( thermal_vel :: new_object(i)%icp )
       case default
         stop 'Unknown initial conditions'
       end select

@@ -21,22 +21,19 @@ module ic_active
   ! ================= Initial conditions supported ====================
   type, extends(icBase) :: read_as
     contains
-      procedure :: init_GState => init_reads
+      procedure :: init_GState => init_readas
   end type read_as
-
   type, extends(icBase) :: constant_as
     contains
-      procedure :: init_GState => init_constants
+      procedure :: init_GState => init_constantas
   end type constant_as
-
   type, extends(icBase) :: puff_as
     contains
-      procedure :: init_GState => init_puffs
+      procedure :: init_GState => init_puffas
   end type puff_as
-
   type, extends(icBase) :: random_as
     contains
-      procedure :: init_GState => init_randoms
+      procedure :: init_GState => init_randomas
   end type random_as
 
 contains
@@ -48,7 +45,7 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Read the active scalars from restart files
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine init_reads(this,solver,state)
+  subroutine init_readas(this,solver,state)
     use gstate_mod
     use iovar
     use status
@@ -57,9 +54,9 @@ contains
     use commtypes
     implicit none
 
-    class(read_as), intent(in)                  :: this
+    class     (read_as), intent(in)            :: this
     class(EquationBase), intent(in)            :: solver
-    type(GStateComp), intent(inout)            :: state(:)
+    type   (GStateComp), intent(inout)         :: state(:)
     real(kind=GP), pointer, dimension(:,:,:)   :: R1
     integer                                    :: i
     logical                                    :: bret
@@ -67,37 +64,27 @@ contains
     if ((stat .eq. 0) .and. (solver%myrank_ .eq. 0)) then
       error stop 'Cannot read files if starting a new run with stat=0'
     endif
-
     call solver%workspace_%get_real_tmp(R1,bret)
-
     select type (solver)
     class is (ActiveScalarBase)
-
-      if (solver%numactivesc_ .eq. 0) then
-        error stop 'IC: Asking to read active scalar ICs with numactivesc = 0'
-      endif
-
       tind = int(stat)
       write(ext, fmtext) tind
-
       do i = solver%ACTIVESC, solver%ACTIVESC + solver%numactivesc_ - 1
         call io_read(1,idir,trim(solver%sstate_(i)),ext,solver%planio_,R1)
         call fftp3d_real_to_complex(planrc,R1,state(i)%ccomp,MPI_COMM_WORLD)
       end do
-
     class default
       error stop 'IC: This solver does not support active scalars'
     end select
-
     call solver%workspace_%free_real_tmp(R1)
-  end subroutine init_reads
+  end subroutine init_readas
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Constant active scalar
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   c0 : vector with the amplitudes of the active scalars
-  subroutine init_constants(this,solver,state)
+  subroutine init_constantas(this,solver,state)
     use gstate_mod
     use grid
     use commtypes
@@ -105,31 +92,22 @@ contains
 !$  use threads
     implicit none
 
-    class(constant_as), intent(in)              :: this
+    class (constant_as), intent(in)            :: this
     class(EquationBase), intent(in)            :: solver
-    type(GStateComp), intent(inout)            :: state(:)
+    type   (GStateComp), intent(inout)         :: state(:)
     real(kind=GP), allocatable                 :: c0(:)
     integer                                    :: i,j,k,n
 
     namelist /constant_as/ c0
-
     select type (solver)
     class is (ActiveScalarBase)
-
-      if (solver%numactivesc_ .eq. 0) then
-        error stop 'IC: Asking for active scalar ICs with numactivesc = 0'
-      endif
-
       allocate(c0(solver%numactivesc_))
-
       if (myrank .eq. 0) then
         open(1,file=solver%infile_,status='unknown',form='formatted')
         read(1,nml=constant_as)
         close(1)
       endif
-
       call mpi_bcast(c0,solver%numactivesc_,GC_REAL,0,MPI_COMM_WORLD,ierr)
-
       do n = solver%ACTIVESC, solver%ACTIVESC + solver%numactivesc_ - 1
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         do i = ista,iend
@@ -140,17 +118,15 @@ contains
             end do
           end do
         end do
-
         if (myrank .eq. 0) then
           state(n)%ccomp(1,1,1) = c0(n-solver%ACTIVESC+1) * &
-                                  real(nx,kind=GP) * real(ny,kind=GP) * real(nz,kind=GP)
+                real(nx,kind=GP) * real(ny,kind=GP) * real(nz,kind=GP)
         endif
       end do
-
     class default
       error stop 'IC: This solver does not support active scalars'
     end select
-  end subroutine init_constants
+  end subroutine init_constantas
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -160,7 +136,7 @@ contains
   !   c0        : vector with the amplitudes
   !   x0, y0, z0: vectors with the centers
   !   r0        : vector with the radii
-  subroutine init_puffs(this,solver,state)
+  subroutine init_puffas(this,solver,state)
     use gstate_mod
     use grid
     use mpivars
@@ -170,44 +146,34 @@ contains
 !$  use threads
     implicit none
 
-    class(puff_as), intent(in)                  :: this
+    class     (puff_as), intent(in)            :: this
     class(EquationBase), intent(in)            :: solver
-    type(GStateComp), intent(inout)            :: state(:)
+    type   (GStateComp), intent(inout)         :: state(:)
     real(kind=GP), pointer                     :: R1(:,:,:)
-    real(kind=GP), allocatable                 :: c0(:),x0(:),y0(:),z0(:),r0(:)
+    real(kind=GP), allocatable, dimension(:)   :: c0,x0,y0,z0,r0
     double precision                           :: tmp
     integer                                    :: i,j,k,n
     logical                                    :: bret
 
     namelist /puff_as/ c0,x0,y0,z0,r0
-
     call solver%workspace_%get_real_tmp(R1,bret)
-
     select type (solver)
     class is (ActiveScalarBase)
-
-      if (solver%numactivesc_ .eq. 0) then
-        error stop 'IC: Asking for active scalar ICs with numactivesc = 0'
-      endif
-
       allocate(c0(solver%numactivesc_))
       allocate(x0(solver%numactivesc_))
       allocate(y0(solver%numactivesc_))
       allocate(z0(solver%numactivesc_))
       allocate(r0(solver%numactivesc_))
-
       if (myrank .eq. 0) then
         open(1,file=solver%infile_,status='unknown',form='formatted')
         read(1,nml=puff_as)
         close(1)
       endif
-
       call mpi_bcast(c0,solver%numactivesc_,GC_REAL,0,MPI_COMM_WORLD,ierr)
       call mpi_bcast(x0,solver%numactivesc_,GC_REAL,0,MPI_COMM_WORLD,ierr)
       call mpi_bcast(y0,solver%numactivesc_,GC_REAL,0,MPI_COMM_WORLD,ierr)
       call mpi_bcast(z0,solver%numactivesc_,GC_REAL,0,MPI_COMM_WORLD,ierr)
       call mpi_bcast(r0,solver%numactivesc_,GC_REAL,0,MPI_COMM_WORLD,ierr)
-
       do n = solver%ACTIVESC, solver%ACTIVESC + solver%numactivesc_ - 1
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
         do k = ksta,kend
@@ -221,11 +187,9 @@ contains
             end do
           end do
         end do
-
         call fftp3d_real_to_complex(planrc,R1,state(n)%ccomp,MPI_COMM_WORLD)
         call variance(state(n)%ccomp,tmp,1)
         call mpi_bcast(tmp,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
-
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         do i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -237,22 +201,20 @@ contains
           end do
         end do
       end do
-
     class default
       error stop 'IC: This solver does not support active scalars'
     end select
-
     call solver%workspace_%free_real_tmp(R1)
-  end subroutine init_puffs
+  end subroutine init_puffas
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Random active scalar
+  !! Random active scalar concentration
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   c0 : vector with the amplitudes
   !   kdn: vector with minimum wave number
   !   kup: vector with maximum wave number
-  subroutine init_randoms(this,solver,state)
+  subroutine init_randomas(this,solver,state)
     use gstate_mod
     use random
     use grid
@@ -266,45 +228,34 @@ contains
 !$  use threads
     implicit none
 
-    class(random_as), intent(in)                :: this
+    class   (random_as), intent(in)            :: this
     class(EquationBase), intent(in)            :: solver
-    type(GStateComp), intent(inout)            :: state(:)
-    real(kind=GP), allocatable                 :: c0(:),kdn(:),kup(:)
+    type   (GStateComp), intent(inout)         :: state(:)
+    real(kind=GP), allocatable, dimension(:)   :: c0,kdn,kup
     real(kind=GP)                              :: skup,skdn
     real(kind=GP)                              :: dump,phase
     double precision                           :: tmp
     integer                                    :: i,j,k,n
 
     namelist /random_as/ c0,kup,kdn
-
     select type (solver)
     class is (ActiveScalarBase)
-
-      if (solver%numactivesc_ .eq. 0) then
-        error stop 'IC: Asking for active scalar ICs with numactivesc = 0'
-      endif
-
       allocate(c0 (solver%numactivesc_))
       allocate(kdn(solver%numactivesc_))
       allocate(kup(solver%numactivesc_))
-
       if (myrank .eq. 0) then
         open(1,file=solver%infile_,status='unknown',form='formatted')
         read(1,nml=random_as)
         close(1)
       endif
-
       call mpi_bcast(c0 ,solver%numactivesc_,GC_REAL,0,MPI_COMM_WORLD,ierr)
       call mpi_bcast(kdn,solver%numactivesc_,GC_REAL,0,MPI_COMM_WORLD,ierr)
       call mpi_bcast(kup,solver%numactivesc_,GC_REAL,0,MPI_COMM_WORLD,ierr)
-
       do n = solver%ACTIVESC, solver%ACTIVESC + solver%numactivesc_ - 1
         skdn = kdn(n-solver%ACTIVESC+1)
         skup = kup(n-solver%ACTIVESC+1)
-
         if (ista .eq. 1) then
           state(n)%ccomp(1,1,1) = 0.0_GP
-
           do j = 2,ny/2+1
             if ((kk2(1,j,1) .le. skup**2) .and. (kk2(1,j,1) .ge. skdn**2)) then
               dump = 1.0_GP/sqrt(kk2(1,j,1))
@@ -316,7 +267,6 @@ contains
               state(n)%ccomp(1,ny-j+2,1) = 0.0_GP
             endif
           end do
-
           do k = 2,nz/2+1
             if ((kk2(k,1,1) .le. skup**2) .and. (kk2(k,1,1) .ge. skdn**2)) then
               dump = 1.0_GP/sqrt(kk2(k,1,1))
@@ -328,7 +278,6 @@ contains
               state(n)%ccomp(nz-k+2,1,1) = 0.0_GP
             endif
           end do
-
           do j = 2,ny
             do k = 2,nz/2+1
               if ((kk2(k,j,1) .le. skup**2) .and. (kk2(k,j,1) .ge. skdn**2)) then
@@ -342,7 +291,6 @@ contains
               endif
             end do
           end do
-
           do i = 2,iend
             do j = 1,ny
               do k = 1,nz
@@ -356,9 +304,7 @@ contains
               end do
             end do
           end do
-
         else
-
           do i = ista,iend
             do j = 1,ny
               do k = 1,nz
@@ -372,12 +318,9 @@ contains
               end do
             end do
           end do
-
         endif
-
         call variance(state(n)%ccomp,tmp,1)
         call mpi_bcast(tmp,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
-
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         do i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -389,10 +332,9 @@ contains
           end do
         end do
       end do
-
     class default
       error stop 'IC: This solver does not support active scalars'
     end select
-  end subroutine init_randoms
+  end subroutine init_randomas
 
 end module ic_active

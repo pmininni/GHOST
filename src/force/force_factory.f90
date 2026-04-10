@@ -70,13 +70,13 @@ CONTAINS
         allocate( null_fb        :: new_object(i)%force )
       case ('random_fb')
         allocate( random_fb      :: new_object(i)%force )
-      ! Active scalar forcing functions -------
+      ! Active scalar forcing functions --------
       case ('null_fas')
-        allocate( null_fas        :: new_object(i)%force )
+        allocate( null_fas       :: new_object(i)%force )
       case ('puff_fas')
-        allocate( puff_fas        :: new_object(i)%force )
+        allocate( puff_fas       :: new_object(i)%force )
       case ('random_fas')
-        allocate( random_fas      :: new_object(i)%force )
+        allocate( random_fas     :: new_object(i)%force )
       ! Passive scalar forcing functions ------- 
       case ('null_fs')
         allocate( null_fs        :: new_object(i)%force )
@@ -107,16 +107,16 @@ CONTAINS
         allocate( shuffleupdt_fb :: new_object(i)%update )
         new_object(i)%update%binit_ = .FALSE.
         poolsz = poolsz + 6
-      ! Active scalar forcing functions -------
+      ! Active scalar forcing functions --------
       case ('constant_fas')
         if ( allocated(new_object(i)%update) ) deallocate(new_object(i)%update)
       case ('shift_fas')
-        allocate( shiftupdt_fas   :: new_object(i)%update )
+        allocate( shiftupdt_fas  :: new_object(i)%update )
       ! Passive scalar forcing functions -------
       case ('constant_fs')
         if ( allocated(new_object(i)%update) ) deallocate(new_object(i)%update)
       case ('shift_fs')
-        allocate( shiftupdt_fas   :: new_object(i)%update )
+        allocate( shiftupdt_fas  :: new_object(i)%update )
       case default
         stop 'Unknown or undefined forcing update method'
       end select

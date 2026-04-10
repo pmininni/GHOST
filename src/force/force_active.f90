@@ -34,20 +34,12 @@ module force_active
     contains
       procedure :: init_GForce => init_randomfas
   end type random_fas
-! type, extends(forceBase) :: userdef_fas
-!   contains
-!     procedure :: init_GForce => init_userdeffas
-! end type userdef_fas
 
   ! ================= Update methods supported =======================
   type, extends(forceUpdt) :: shiftupdt_fas
     contains
       procedure :: update_GForce => update_shiftfas
   end type shiftupdt_fas
-! type, extends(forceUpdt) :: userupdt_fas
-!   contains
-!     procedure :: init_GForce => init_userupdtfas
-! end type userupdt_fas
 
 CONTAINS
 
@@ -66,16 +58,13 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class     (null_fas), intent   (in) :: this
+    class    (null_fas), intent   (in) :: this
     class(EquationBase), intent   (in) :: solver
     type   (GStateComp), intent(inout) :: state(:)
     integer                            :: i,j,k,n
 
     select type (solver)
     class is (ActiveScalarBase)
-      if ( solver%numactivesc_ .eq. 0) then
-        stop 'Force: Asking for active scalar forcing with nactivesc = 0'
-      endif
       do n = solver%ACTIVESC, solver%ACTIVESC+solver%numactivesc_-1    
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend
@@ -111,7 +100,7 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class     (puff_fas), intent   (in) :: this
+    class    (puff_fas), intent   (in) :: this
     class(EquationBase), intent   (in) :: solver
     type   (GStateComp), intent(inout) :: state(:)
     real      (kind=GP), pointer       :: R1(:,:,:)
@@ -124,9 +113,6 @@ CONTAINS
     CALL solver%workspace_%get_real_tmp(R1,bret)    
     select type (solver)
     class is (ActiveScalarBase)
-    if ( solver%numactivesc_ .eq. 0) then
-      stop 'Force: Asking for active scalar forcing with nactivesc = 0'
-    endif
     allocate ( f0(solver%numactivesc_) )
     allocate ( x0(solver%numactivesc_) )
     allocate ( y0(solver%numactivesc_) )
@@ -208,9 +194,6 @@ CONTAINS
     namelist/ random_fas / f0,kup,kdn
     select type (solver)
     class is (ActiveScalarBase)
-    if ( solver%numactivesc_ .eq. 0) then
-      stop 'Force: Asking for active scalar forcing with nactivesc = 0'
-    endif
     allocate ( f0 (solver%numactivesc_) )
     allocate ( kdn(solver%numactivesc_) )
     allocate ( kup(solver%numactivesc_) )
@@ -343,7 +326,7 @@ CONTAINS
         end do
       endif
     class default
-      error stop "This solver does not support velocity forcing"
+      error stop "This solver does not support active scalar forcing"
     end select
   end subroutine update_shiftfas
 end module force_active

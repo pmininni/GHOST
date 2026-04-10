@@ -84,10 +84,10 @@ CONTAINS
     ! Note: each record (line) consists of x y z real positions
     ! within [0,NX-1]x[0,NY-1]x[0,NZ-1] box or the equivalent
     ! in box units depending on wrtunit_ class options.
-    OPEN(UNIT=5,FILE=trim(psolver%seedfile_),STATUS='OLD',ACTION='READ', &
+    OPEN(UNIT=5,FILE=trim(psolver%seedfile_),STATUS='OLD',ACTION='READ',   &
          IOSTAT=psolver%ierr_, IOMSG=psolver%serr_);
     IF ( psolver%ierr_ .NE. 0 ) THEN
-      WRITE(*,*)'Init_userpos: file:',trim(psolver%seedfile_),' err: ',  &
+      WRITE(*,*)'Init_userpos: file:',trim(psolver%seedfile_),' err: ',    &
          trim(psolver%serr_) 
       STOP
     ENDIF
@@ -208,7 +208,7 @@ CONTAINS
     CALL MPI_ALLREDUCE(psolver%nparts_,nt,1,MPI_INTEGER,MPI_SUM,psolver%comm_,  &
                        psolver%ierr_)
     IF ( psolver%myrank_.eq.0 .AND. nt.NE.psolver%maxparts_ ) THEN
-      WRITE(*,*) 'init_randompos: Inconsistent particle count: maxparts=',  &
+      WRITE(*,*) 'init_randompos: Inconsistent particle count: maxparts=',      &
       psolver%maxparts_,' total created: ',nt
       STOP
     ENDIF
