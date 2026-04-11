@@ -642,7 +642,7 @@ MODULE pseudospec_anisca
       INTEGER             :: i,j,k
       INTEGER, INTENT(IN) :: isc
       INTEGER             :: kmn,kmz
-      CHARACTER(len=100), INTENT(IN)           :: dir
+      CHARACTER(len=128), INTENT(IN)           :: dir
       CHARACTER(len=*),   INTENT(IN)           :: nmb
       CHARACTER(len=*),   INTENT(IN), OPTIONAL :: tail
       CHARACTER(len=1)                         :: si

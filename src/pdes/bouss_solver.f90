@@ -14,7 +14,6 @@
 !              the viscostiy and diffusivity of the active scalar, and kappa
 !              is a vector with the diffusivities of the passive scalar.
 !
-!
 !              State ordering is:
 !                v1, v2, v3, theta, s1, s2, ..., s_numpassive
 !
@@ -24,6 +23,9 @@
 !                PASSIVE  (PASSIVE+1, PASSIVE+2, ...): passive scalar sector
 !
 ! INPUT FILE : For solver='BOUSS', looks for a "&BOUSS" namelist with:
+!              fidir   : changes class binary input  dir (default: idir)
+!              fodir   : changes class binary output dir (default: odir)
+!              todir   : changes the class TXT output dir (default: '')
 !              nu      : fluid kinematic viscosity
 !              bkappa  : active scalar diffusivity
 !              bvfreq  : Brunt-Vaissala frequency (N)
@@ -97,6 +99,7 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_impl(this)
     USE commtypes
+    use status
     class  (BOUSSSolver), intent (inout) :: this
 
     ! Temporary data to read from namelists:
@@ -108,8 +111,10 @@ contains
     real(kind=GP)              :: xmom, xtemp
     real(kind=GP)              :: omegax, omegay, omegaz
     real(kind=GP), allocatable :: kappa(:)
+    character(len=128)         :: fidir, fodir, todir
 
     ! Required namelists:
+    namelist/ BOUSS      / fidir, fodir, todir
     namelist/ BOUSS      / nu, bkappa, bvfreq, xmom, xtemp
     namelist/ BOUSS      / dorot,  omegax, omegay, omegaz
     namelist/ BOUSS      / npassive, spectlod
@@ -118,7 +123,10 @@ contains
     call MPI_COMM_SIZE(MPI_COMM_WORLD,this%nprocs_,ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD,this%myrank_,ierr)
 
-    ! Get trait variables from input file:
+    ! Get I/O and trait variables from input file:
+    fidir    = idir ! Set the default to status idir
+    fodir    = odir ! Set the default to status odir
+    todir    = ''   ! Set the default to the current dir
     dorot    = .FALSE.
     spectlod = 1 ! standard lod
     nu       = 0.0
@@ -133,17 +141,20 @@ contains
       read(1,NML=BOUSS)
       close(1)
     endif
-    call mpi_bcast(nu       ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(bkappa   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(bvfreq   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(xmom     ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(xtemp    ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(dorot    ,1 ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(omegax   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(omegay   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(omegaz   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(npassive ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(spectlod ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(fidir    ,128,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(fodir    ,128,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(todir    ,128,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(nu       ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(bkappa   ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(bvfreq   ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(xmom     ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(xtemp    ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(dorot    ,1  ,MPI_LOGICAL  ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(omegax   ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(omegay   ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(omegaz   ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(npassive ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(spectlod ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
 
     this%numpassive_  = npassive
     this%numactivesc_ = 1
@@ -159,7 +170,10 @@ contains
       call mpi_bcast(kappa,npassive,GC_REAL,0,MPI_COMM_WORLD,ierr)
     endif
 
-    ! Set traits structure from inputfile data:
+    ! Set I/O and traits from inputfile data:
+    this%idir_  = fidir ! If present in &BOUSS, replaces the class default idir
+    this%odir_  = fodir ! If present in &BOUSS, replaces the class default odir
+    this%todir_ = todir ! If present in &BOUSS, replaces the class default todir
     this%traits_%   dorot = dorot
     this%traits_%spectlod = spectlod
     this%traits_%      nu = nu
@@ -441,16 +455,16 @@ contains
     if ( this%traits_%spectlod .ge. 2 ) then
       call heltrans(vx,vy,vz,-c1,-c2,-c3,ext,1)
       ! Write 2D spectra:
-      call spec2D  (vx,vy,vz,ext,odir,1,1)
-      call specsc2D(th,ext,odir,0,trim(this%sstate_(this%ACTIVESC)))
+      call spec2D  (vx,vy,vz,ext,this%odir_,1,1)
+      call specsc2D(th,ext,this%odir_,0,trim(this%sstate_(this%ACTIVESC)))
     endif
 
     ! Write Fourier modes:
     if ( this%traits_%spectlod .ge. 3 ) then
-      call write_fourier(vx,trim(this%sstate_(this%VELOCITY  )),ext,odir)
-      call write_fourier(vy,trim(this%sstate_(this%VELOCITY+1)),ext,odir)
-      call write_fourier(vz,trim(this%sstate_(this%VELOCITY+2)),ext,odir)
-      call write_fourier(th,trim(this%sstate_(this%ACTIVESC  )),ext,odir)
+      call write_fourier(vx,trim(this%sstate_(this%VELOCITY  )),ext,this%odir_)
+      call write_fourier(vy,trim(this%sstate_(this%VELOCITY+1)),ext,this%odir_)
+      call write_fourier(vz,trim(this%sstate_(this%VELOCITY+2)),ext,this%odir_)
+      call write_fourier(th,trim(this%sstate_(this%ACTIVESC  )),ext,this%odir_)
     endif
 
     ! Write PV spectra, horizontally-averaged data:
@@ -519,9 +533,9 @@ contains
   !! Convert input state name to index in state vector
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine sstate2istate_impl(this, sstate, istate) 
-    class (BOUSSSolver)              , intent   (in) :: this
-    character(len=8)              , intent   (in) :: sstate(:)
-    integer         , allocatable , intent(inout) :: istate(:)
+    class(BOUSSSolver), intent   (in) :: this
+    character  (len=8), intent   (in) :: sstate(:)
+    integer           , intent(inout) :: istate(:)
     integer                                       :: i,j
     if ( size(sstate) .ne. size(istate) ) then
       stop 'BOUSSSolver::sstate2istate_impl: Incompatible sstate and istate'
@@ -541,15 +555,11 @@ contains
   !! Get state variable names
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine get_sstate_impl(this, sstate) 
-    class  (BOUSSSolver)             , intent   (in) :: this
-    character (len=8), allocatable, intent(inout) :: sstate(:)
-    character(len=100)                            :: snum
-    character(len=1)                              :: comp(3)
-    integer                                       :: j
-    if ( size(sstate) .lt. this%state_size() ) then
-      deallocate(sstate)
-      allocate(sstate(this%state_size()))
-    endif
+    class(BOUSSSolver), intent   (in) :: this
+    character  (len=8), intent(inout) :: sstate(:)
+    character(len=100)                :: snum
+    character(len=1)                  :: comp(3)
+    integer                           :: j
     comp = ['x', 'y', 'z']
     do j = this%VELOCITY,this%VELOCITY+this%nc_-1
        sstate(j) = 'v' // comp(j-this%VELOCITY+1)

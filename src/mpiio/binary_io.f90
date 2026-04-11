@@ -89,7 +89,7 @@
       REAL(KIND=GP),INTENT(OUT) :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
       INTEGER, INTENT(IN)            :: unit
       INTEGER                        :: fh
-      CHARACTER(len=100), INTENT(IN) :: dir
+      CHARACTER(len=128), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname
 
@@ -158,7 +158,7 @@
       REAL(KIND=GP), INTENT(INOUT) :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
       INTEGER, INTENT(IN)            :: unit
       INTEGER                        :: fh
-      CHARACTER(len=100), INTENT(IN) :: dir
+      CHARACTER(len=128), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname
 
@@ -259,7 +259,7 @@
       COMPLEX(KIND=GP), INTENT(OUT) :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
       INTEGER, INTENT(IN)            :: unit
       INTEGER                        :: fh
-      CHARACTER(len=100), INTENT(IN) :: dir
+      CHARACTER(len=128), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname
 
@@ -307,7 +307,7 @@
       COMPLEX(KIND=GP), INTENT(IN) :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
       INTEGER, INTENT(IN)            :: unit
       INTEGER                        :: fh
-      CHARACTER(len=100), INTENT(IN) :: dir
+      CHARACTER(len=128), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname
 
@@ -329,4 +329,3 @@
 
       RETURN
       END SUBROUTINE io_writec
-    

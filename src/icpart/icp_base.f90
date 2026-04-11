@@ -21,13 +21,17 @@ module icpbase_mod
   end type icpChain
   
   abstract interface
-    subroutine init_GPState_interface(this, psolver, pstate)
+    subroutine init_GPState_interface(this,pde,fluidstate,psolver,pstate)
+      USE equationbase_mod
       USE particlebase_mod
       USE gpstate_mod
+      USE gstate_mod
       import :: icpBase
-      class     (icpBase), intent   (in) :: this
-      class(ParticleBase), intent(inout) :: psolver
-      type  (GPStateComp), intent(inout) :: pstate(:)
+      class     (icpBase),         intent   (in) :: this
+      class(EquationBase),         intent   (in) :: pde
+      type   (GStateComp), target, intent   (in) :: fluidstate(:) 
+      class(ParticleBase),         intent(inout) :: psolver
+      type  (GPStateComp),         intent(inout) :: pstate(:)
     end subroutine
   end interface
 
@@ -38,19 +42,21 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Initializes all states from a list of ICPs
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine init_allpstates(chain, psolver, pstate)
+  subroutine init_allpstates(chain,pde,fluidstate,psolver,pstate)
+    USE equationbase_mod
     USE particlebase_mod
     USE gpstate_mod
+    USE gstate_mod
     implicit none
     type     (icpChain), intent   (in) :: chain(:)
+    class(EquationBase), intent   (in) :: pde
+    type   (GStateComp), intent   (in) :: fluidstate(:) 
     class(ParticleBase), intent(inout) :: psolver
     type  (GPstateComp), intent(inout) :: pstate(:)
     integer                            :: i
     do i = 1,size(chain)
-      call chain(i)%icp%init_GPState(psolver,pstate)
+      call chain(i)%icp%init_GPState(pde,fluidstate,psolver,pstate)
     end do
   end subroutine init_allpstates
   
 end module icpbase_mod
-
-

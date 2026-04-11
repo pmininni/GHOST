@@ -1383,7 +1383,7 @@ MODULE pseudospec_aniso
       INTEGER, INTENT(IN) :: kin,hel
       INTEGER             :: i,j,k
       INTEGER             :: kmn,kmz
-      CHARACTER(len=100), INTENT(IN) :: dir
+      CHARACTER(len=128), INTENT(IN) :: dir
       CHARACTER(len=*),   INTENT(IN) :: nmb
 
 !
@@ -1667,7 +1667,7 @@ MODULE pseudospec_aniso
       COMPLEX(KIND=GP), DIMENSION(nz,ny)                 ::     ut3
       REAL                :: tmp
       INTEGER             :: i,j,k
-      CHARACTER(len=100), INTENT(IN) :: dir
+      CHARACTER(len=128), INTENT(IN) :: dir
       CHARACTER(len=*),   INTENT(IN) :: nmb,fname
 
       tmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))

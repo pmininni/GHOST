@@ -12,8 +12,8 @@
 !
 ! General status flags for all pde/time integrators
 ! Reads a "&status" namelist with:    
-!  idir : directory for unformatted input
-!  odir : directory for unformatted output
+!  idir : default directory for unformatted input
+!  odir : default directory for unformatted output
 !  stat : = 0 starts a new run
 !         OR  gives the number of the file used to continue a run
 !  mult : time step multiplier
@@ -74,8 +74,8 @@
          cstep = cstep*mult
          fstep = int(cort/dt)
       ENDIF
-      CALL MPI_BCAST(idir ,100,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(odir ,100,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(idir ,128,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(odir ,128,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(stat ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(mult ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(bench,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)

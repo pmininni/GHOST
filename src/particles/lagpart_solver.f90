@@ -56,7 +56,9 @@ CONTAINS
   subroutine init_impl(this)
     use commtypes
     class  (GPart), intent (inout) :: this
-    this%POSITION = 1                        ! start of position sector
+    this%POSITION    = 1           ! start of position sector
+    this%sstate_pos_ = 'xlg'       ! state name of positions
+    this%sstate_lag_ = 'vlg'       ! state name of Lagrangian velocities
   end subroutine init_impl
   
   ! ===================================================================
@@ -70,6 +72,7 @@ CONTAINS
   SUBROUTINE dpdt_impl(this, time, pde, fluidstate, pstate, dt, dpdtout)
     use equationbase_mod
     use fft
+!$  use threads
     IMPLICIT NONE
     class       (GPart),         intent(inout) :: this
     class(EquationBase),         intent   (in) :: pde
@@ -258,8 +261,9 @@ CONTAINS
       if (this%myrank_ .EQ. 0 .AND. ng .NE. this%maxparts_) then
         WRITE(*,*) 'EndStage (VDB): inconsistent d.b.: expected: ',    &
                    this%maxparts_, '; found: ', ng
-        CALL ascii_write_lag(this, 1, '.', 'xlgerr','000', 0.0_GP,     &
-                             this%maxparts_,this%vdb_)
+        CALL ascii_write_lag(this,1,this%odir_,                        &
+             trim(this%sstate_pos_) // 'err', '000', 0.0_GP,           &
+             this%maxparts_, this%vdb_)
         STOP
       end if
     end if  ! GPEXCHTYPE_VDB
@@ -335,8 +339,8 @@ CONTAINS
       CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
       CALL EulerToLag(this,this%lvz_,this%nparts_,velr,.false.,tmp1,tmp2)
       WRITE(lgext,lgfmtext) pind
-      CALL io_write_pdb(this,1,this%odir_,'xlg',lgext,time)
-      CALL io_write_vec(this,1,this%odir_,'vlg',lgext,time)
+      CALL io_write_pdb(this,1,this%odir_,trim(this%sstate_pos_),lgext,time)
+      CALL io_write_vec(this,1,this%odir_,trim(this%sstate_lag_),lgext,time)
     class default
       stop "Lagpart: This solver does not support pdes without a velocity field"
     end select
@@ -378,8 +382,8 @@ CONTAINS
     logical                                         :: bret
 
     this%infile_      =  infile    ! input file
-    this%idir_        =  idir      ! input  directory
-    this%odir_        =  odir      ! output directory
+    this%idir_        =  pde%idir_ ! input  directory, same as in the pde class
+    this%odir_        =  pde%odir_ ! output directory, same as in the pde class
     this%workspace_   => workspace
     call pstatus_init(this%infile_)
     this%hasfeedback_ = .false.    ! No feedback on fluid
@@ -518,7 +522,7 @@ CONTAINS
     ENDDO
   END SUBROUTINE GPart_dtor
 
-  
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Function to compute number of state members (equations)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

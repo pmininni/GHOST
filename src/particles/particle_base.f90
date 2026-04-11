@@ -42,9 +42,10 @@ module particlebase_mod
       integer                             :: POSITION    ! start of position sector
       integer                             :: ndim_       ! problem dimension
       integer                             :: nc_         ! # vector field components
-      character(len=8), allocatable       :: sstate_(:)  ! state member names
+      character(len=8)                    :: sstate_pos_ ! state name of positions
+      character(len=8)                    :: sstate_lag_ ! state name of lag velocities
       character(len=128)                  :: infile_     ! config file name
-      character(len=128)                  :: odir_,idir_ ! I/O directories
+      character(len=128)                  :: odir_,idir_ ! internal class I/O dirs
       INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus_
       INTEGER                             :: iinterp_
       INTEGER                             :: iexchtype_
@@ -85,7 +86,8 @@ module particlebase_mod
   end type ParticleBase
 
   type, abstract, extends(ParticleBase)      :: VelocParticleBase
-      integer                             :: VELOCITY  ! start of velocity sector
+      integer                             :: VELOCITY    ! start of velocity sector
+      character(len=8)                    :: sstate_vel_ ! state name of velocity
   end type VelocParticleBase
 
   abstract interface
@@ -491,7 +493,7 @@ CONTAINS
     INTEGER,INTENT(IN)                   :: np
     INTEGER                              :: fh,nerr,nt,nv,szreal
     INTEGER(kind=MPI_OFFSET_KIND)        :: offset
-    CHARACTER(len=100),INTENT(IN)        :: dir
+    CHARACTER(len=128),INTENT(IN)        :: dir
     CHARACTER(len=*),INTENT(IN)          :: nmb
     CHARACTER(len=*),INTENT(IN)          :: spref
     INTEGER                              :: j,gc,lc
@@ -511,7 +513,8 @@ CONTAINS
       STOP
     ENDIF
     offset = 0
-    CALL MPI_FILE_WRITE_AT_ALL(fh,offset,real(this%maxparts_,kind=GP),1,GC_REAL,this%istatus_,this%ierr_)
+    CALL MPI_FILE_WRITE_AT_ALL(fh,offset,real(this%maxparts_,kind=GP),1,GC_REAL,this%istatus_,       &
+         this%ierr_)
     offset = szreal
     CALL MPI_FILE_WRITE_AT_ALL(fh,offset,time   ,1,GC_REAL,this%istatus_,this%ierr_)
     gc = 0
@@ -571,7 +574,7 @@ CONTAINS
     INTEGER,INTENT(IN)                   :: iunit
     INTEGER,INTENT(IN)                   :: np
     INTEGER                              :: fh,nerr,nv
-    CHARACTER(len=100),INTENT(IN)        :: dir
+    CHARACTER(len=128),INTENT(IN)        :: dir
     CHARACTER(len=*),INTENT(IN)          :: nmb
     CHARACTER(len=*),INTENT(IN)          :: spref
     INTEGER                              :: j
@@ -723,7 +726,7 @@ CONTAINS
     INTEGER                                   :: fh,j,ng
     INTEGER                                   :: bcoll,iotype
     INTEGER(kind=MPI_OFFSET_KIND)             :: offset
-    CHARACTER(len=100),INTENT   (IN)          :: dir
+    CHARACTER(len=128),INTENT   (IN)          :: dir
     CHARACTER(len=*)  ,INTENT   (IN)          :: nmb
     CHARACTER(len=*)  ,INTENT   (IN)          :: spref
 
@@ -1112,7 +1115,200 @@ CONTAINS
     ENDIF
   END SUBROUTINE ascii_read_pdb
 
-  
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!  METHOD     : io_readvec
+  !!  DESCRIPTION: Reads a 3-component Lagrangian vector field from
+  !!               file (same binary/ASCII format as xlg) and scatters
+  !!               the three components into pstate(start_index  ) (+1 +2).
+  !!               Must be called AFTER io_read has populated id_,
+  !!               nparts_, and (for VDB) vdb_, so that the correct
+  !!               local-to-global particle mapping is already known.
+  !!               This is the main entry point for both binary and
+  !!               ASCII reads.
+  !!  ARGUMENTS  :
+  !!    this        : 'this' class instance
+  !!    pstate      : particle state array (read positions must already
+  !!                  be loaded; provides context for NN id_ mapping)
+  !!    iunit       : Fortran unit number to use for sequential I/O
+  !!    dir         : input directory
+  !!    spref       : filename prefix (e.g. 'vip')
+  !!    nmb         : time index string; if len_trim(nmb)==0, spref is
+  !!                  treated as a fully-resolved filename and dir is
+  !!                  ignored (same convention as io_read)
+  !!    start_index : first pstate index to fill (e.g. this%VELOCITY)
+  !!    opiotype    : optional; overrides iouttype_ if present
+  !!    opbcoll     : optional; overrides bcollective_ if present
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SUBROUTINE io_readvec(this, pstate, iunit, dir, spref, nmb, &
+                        start_index, opiotype, opbcoll)
+    USE gpstate_mod
+    USE fprecision
+    USE commtypes
+    USE mpivars
+!$  USE threads
+    IMPLICIT NONE
+    CLASS(ParticleBase)    ,INTENT(INOUT)          :: this
+    TYPE  (GPStateComp)    ,INTENT(INOUT)          :: pstate(:)
+    INTEGER,INTENT(IN)                             :: iunit
+    INTEGER,INTENT(IN)                             :: start_index
+    INTEGER,INTENT(IN),OPTIONAL                    :: opiotype, opbcoll
+    CHARACTER(len=128),INTENT(IN)                  :: dir
+    CHARACTER(len=*)  ,INTENT(IN)                  :: nmb
+    CHARACTER(len=*)  ,INTENT(IN)                  :: spref
+    REAL(KIND=GP)                                  :: time
+    INTEGER                                        :: bcoll, iotype, j, ng
+    INTEGER                                        :: ht
+
+    ! Resolve I/O mode overrides
+    IF ( present(opiotype) ) THEN
+      iotype = opiotype
+    ELSE
+      iotype = this%iouttype_
+    ENDIF
+    IF ( present(opbcoll) ) THEN
+      bcoll = opbcoll
+    ELSE
+      bcoll = this%bcollective_
+    ENDIF
+
+    ! Read global vector data into gptmp0_(3, maxparts_).
+    ! We reuse the same low-level readers as io_read; they expect a
+    ! (3, maxparts_) scratch array and populate it in global particle-
+    ! id order. For the NN collective path we read into gptmp0_ via
+    ! binary_read_pdb_co (which already handles the NN id-based
+    ! scatter into a local array); for all other paths we call the
+    ! same t0/ASCII readers used by io_read.
+    CALL GTStart(this%htimers_(GPTIME_GPREAD))
+    IF ( iotype .EQ. 0 ) THEN   ! Binary files
+      IF ( bcoll .EQ. 1 ) THEN  ! Collective binary
+        IF ( this%iexchtype_ .EQ. GPEXCHTYPE_NN ) THEN
+          ! binary_read_pdb_co handles the NN case internally: it
+          ! reads chunks collectively and keeps only the records
+          ! whose global index matches a local id_, storing them
+          ! compactly in gptmp0_(:, 1:nparts_).
+          IF (len_trim(nmb).gt.0) THEN
+            CALL binary_read_pdb_co(this, iunit,                      &
+                 trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag', &
+                 time, this%gptmp0_)
+          ELSE
+            CALL binary_read_pdb_co(this, iunit, trim(spref),         &
+                 time, this%gptmp0_)
+          ENDIF
+          ! gptmp0_(:, j) now holds the vector for local particle j.
+          ! We copy directly into pstate slots.
+!$omp parallel do
+          DO j = 1, this%nparts_
+            pstate(start_index  )%rcomp(j) = this%gptmp0_(1,j)
+            pstate(start_index+1)%rcomp(j) = this%gptmp0_(2,j)
+            pstate(start_index+2)%rcomp(j) = this%gptmp0_(3,j)
+          ENDDO
+        ELSE  ! GPEXCHTYPE_VDB, collective binary
+          IF (len_trim(nmb).gt.0) THEN
+            CALL binary_read_pdb_co(this, iunit,                      &
+                 trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag', &
+                 time, this%gptmp0_)
+          ELSE
+            CALL binary_read_pdb_co(this, iunit, trim(spref),         &
+                 time, this%gptmp0_)
+          ENDIF
+          ! gptmp0_ holds the full global vector; scatter via vdb_.
+          CALL CopyLocalWrk(this,                                      &
+               pstate(start_index  )%rcomp,                            &
+               pstate(start_index+1)%rcomp,                            &
+               pstate(start_index+2)%rcomp,                            &
+               this%vdb_, this%gptmp0_, this%maxparts_)
+        ENDIF  ! iexchtype
+      ELSE  ! Non-collective (task-0) binary
+        IF (len_trim(nmb).gt.0) THEN
+          CALL binary_read_pdb_t0(this, iunit,                         &
+               trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag', &
+               time, this%gptmp0_)
+        ELSE
+          CALL binary_read_pdb_t0(this, iunit, trim(spref),            &
+               time, this%gptmp0_)
+        ENDIF
+        ! After binary_read_pdb_t0: for VDB the global data is
+        ! broadcast and sits in gptmp0_; for NN the data has been
+        ! scatter-communicated, so gptmp0_(:, 1:nparts_) is local.
+        CALL io_readvec_scatter_(this, pstate, start_index)
+      ENDIF  ! bcoll
+    ELSE  ! ASCII files
+      IF (len_trim(nmb).gt.0) THEN
+        CALL ascii_read_pdb(this, iunit,                               &
+             trim(dir) // '/' // trim(spref) // '.' // nmb // '.txt', &
+             time, this%gptmp0_)
+      ELSE
+        CALL ascii_read_pdb(this, iunit, trim(spref),                  &
+             time, this%gptmp0_)
+      ENDIF
+      ! ascii_read_pdb always broadcasts to all ranks, so gptmp0_
+      ! holds the full global array on every rank.
+      CALL io_readvec_scatter_(this, pstate, start_index)
+    ENDIF  ! iotype
+    CALL GTAcc(this%htimers_(GPTIME_GPREAD))
+    ! Sanity check: global particle count must still equal maxparts_
+    CALL MPI_ALLREDUCE(this%nparts_, ng, 1, MPI_INTEGER,               &
+                       MPI_SUM, this%comm_, this%ierr_)
+    IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_ ) THEN
+      WRITE(*,*) 'io_readvec: inconsistent d.b. after read of ', trim(spref), &
+                 ': expected: ', this%maxparts_, '; found: ', ng
+      STOP
+    ENDIF
+  END SUBROUTINE io_readvec
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!  METHOD     : io_readvec_scatter_ (private helper)
+  !!  DESCRIPTION: After a non-collective (t0 or ASCII) read has
+  !!               filled gptmp0_(3, maxparts_) with the global
+  !!               vector data (broadcast to all ranks for VDB,
+  !!               scatter-communicated for NN), copy the locally-
+  !!               owned records into the three pstate slots.
+  !!               For VDB: gptmp0_ is a full global array; we walk
+  !!               vdb_ to identify which particles this rank owns,
+  !!               exactly as CopyLocalWrk does, but into pstate.
+  !!               For NN:  binary_read_pdb_t0 already called
+  !!               PartScatterV internally, so gptmp0_(:,1:nparts_)
+  !!               already contains only local data in compact form.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SUBROUTINE io_readvec_scatter_(this, pstate, start_index)
+    USE gpstate_mod
+    USE fprecision
+    USE commtypes
+    IMPLICIT NONE
+    CLASS(ParticleBase) ,INTENT(INOUT) :: this
+    TYPE  (GPStateComp) ,INTENT(INOUT) :: pstate(:)
+    INTEGER             ,INTENT(IN)    :: start_index
+    INTEGER                            :: j
+
+    IF ( this%iexchtype_ .EQ. GPEXCHTYPE_VDB ) THEN
+      ! gptmp0_ is a full (3, maxparts_) global array on every rank.
+      ! Use vdb_ (which records the position of every particle in
+      ! global id order) to decide which belong to this z-slab.
+      CALL CopyLocalWrk(this,                                          &
+           pstate(start_index  )%rcomp,                                &
+           pstate(start_index+1)%rcomp,                                &
+           pstate(start_index+2)%rcomp,                                &
+           this%vdb_, this%gptmp0_, this%maxparts_)
+    ELSE  ! GPEXCHTYPE_NN
+      ! binary_read_pdb_t0 called PartScatterV for the position data, but
+      ! that scatter applied to ptmp0_, not gptmp0_.  However, for the
+      ! NN/non-collective path, task 0 holds the entire file and PartScatterV
+      ! distributes each particle to the rank that owns its z-slab.  For a 
+      ! *vector* file we followed the same binary_read_pdb_t0 call, which 
+      ! internally called PartScatterV on our gptmp0_ array. So
+      ! gptmp0_(:,1:nparts_) now contains only the locally-owned records.
+!$omp parallel do
+      DO j = 1, this%nparts_
+        pstate(start_index  )%rcomp(j) = this%gptmp0_(1,j)
+        pstate(start_index+1)%rcomp(j) = this%gptmp0_(2,j)
+        pstate(start_index+2)%rcomp(j) = this%gptmp0_(3,j)
+      ENDDO
+
+    ENDIF
+  END SUBROUTINE io_readvec_scatter_  
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!  METHOD     : EulerToLag
   !!  DESCRIPTION: Computes the Eulerian to Lagrangian
@@ -1693,7 +1889,6 @@ CONTAINS
 
     CALL this%intop_ %ResizeArrays(new_size,onlyinc)
     CALL this%gpcomm_%ResizeArrays(new_size,onlyinc)
-
     RETURN 
   END SUBROUTINE ResizeArrays
 

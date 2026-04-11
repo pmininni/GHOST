@@ -18,6 +18,8 @@
 !
 ! INPUT FILE : For psolver='inerpart', looks for a "&inerpart"
 !              namelist with:
+!              pidir   : changes class binary input  dir (default: status idir)
+!              podir   : changes class binary output dir (default: status odir)
 !              tau     : Stokes time (particle response time)
 !              dograv  : .false.=no gravity [default], .true.=gravity
 !              grav    : gravity acceleration (z-direction, positive
@@ -27,7 +29,7 @@
 !                        When true, nu is obtained from the PDE solver.
 !              gamma   : mass ratio m_f/m_p (default=1, only for NLD)
 !
-! DATE       : 02/04/26
+! DATE       : 04/02/26 (BLE)
 ! =====================================================================
 
 module inerpart_mod
@@ -51,7 +53,7 @@ module inerpart_mod
   ! ================= Solver ==========================================
   type, extends(VelocParticleBase) :: InerPart
     ! Member data:
-    type  (InerTraits) :: traits_
+    type (InerTraits) :: traits_
   CONTAINS
     procedure, public :: init          =>          init_impl
     procedure, public :: dpdt          =>          dpdt_impl
@@ -75,15 +77,18 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_impl(this)
     use commtypes
-    class  (InerPart), intent (inout) :: this
-    real    (kind=GP)                 :: tau, grav, gamma
-    integer                           :: ierr
-    logical                           :: dograv, donldrag
-    namelist/ inerpart / tau, grav, gamma, dograv, donldrag
+    class   (InerPart), intent (inout) :: this
+    real     (kind=GP)                 :: tau, grav, gamma
+    integer                            :: ierr
+    logical                            :: dograv, donldrag
+    character(len=128)                 :: pidir, podir
+    namelist/ inerpart / pidir, podir, tau, grav, gamma, dograv, donldrag
 
     this%POSITION = 1
-    this%VELOCITY = 4
+    this%VELOCITY = this%POSITION + this%nc_
     ! Defaults
+    pidir    = this%idir_ ! Set to the pde class idir at ctor
+    podir    = this%odir_ ! Set to the pde class idir at ctor
     tau      = 1.0_GP
     grav     = 0.0_GP
     gamma    = 1.0_GP
@@ -94,12 +99,19 @@ CONTAINS
       read(1,NML=inerpart)
       close(1)
     endif
-    call MPI_BCAST(tau     ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
-    call MPI_BCAST(grav    ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
-    call MPI_BCAST(gamma   ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
-    call MPI_BCAST(dograv  ,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
-    call MPI_BCAST(donldrag,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(pidir   ,128,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(podir   ,128,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(tau     ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(grav    ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(gamma   ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(dograv  ,1  ,MPI_LOGICAL  ,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(donldrag,1  ,MPI_LOGICAL  ,0,MPI_COMM_WORLD,ierr)
 
+    this%idir_ = pidir ! If present in &inerpart, replaces the class default idir
+    this%odir_ = podir ! If present in &inerpart, replaces the class default odir
+    this%sstate_pos_ = 'xlg' ! state name of positions
+    this%sstate_lag_ = 'vlg' ! state name of Lagrangian velocities
+    this%sstate_vel_ = 'vip' ! state name of particles velocities
     this%traits_%     tau = tau
     this%traits_%    grav = grav
     this%traits_%   gamma = gamma
@@ -416,8 +428,8 @@ CONTAINS
       if (this%myrank_ .EQ. 0 .AND. ng .NE. this%maxparts_) then
         WRITE(*,*) 'InerPart EndStage (VDB): inconsistent d.b.: expected: ', &
                    this%maxparts_, '; found: ', ng
-        CALL ascii_write_lag(this, 1, '.', 'xlgerr','000', 0.0_GP,     &
-                             this%maxparts_,this%vdb_)
+        CALL ascii_write_lag(this, 1, '.', trim(this%sstate_pos_) // 'err',  &
+             '000', 0.0_GP, this%maxparts_,this%vdb_)
         STOP
       end if
     end if  ! GPEXCHTYPE_VDB
@@ -496,15 +508,15 @@ CONTAINS
       CALL EulerToLag(this,this%lvz_,this%nparts_,velr,.false.,tmp1,tmp2)
       ! Write positions and Lagrangian fluid velocity
       WRITE(lgext,lgfmtext) pind
-      CALL io_write_pdb(this,1,this%odir_,'xlg',lgext,time)
-      CALL io_write_vec(this,1,this%odir_,'vlg',lgext,time)
+      CALL io_write_pdb(this,1,this%odir_,trim(this%sstate_pos_),lgext,time)
+      CALL io_write_vec(this,1,this%odir_,trim(this%sstate_lag_),lgext,time)
       ! Write inertial particle velocity
       do j = 1,this%nparts_
         this%lvx_(j) = pstate(this%VELOCITY  )%rcomp(j)
         this%lvy_(j) = pstate(this%VELOCITY+1)%rcomp(j)
         this%lvz_(j) = pstate(this%VELOCITY+2)%rcomp(j)
       end do
-      CALL io_write_vec(this,1,this%odir_,'vip',lgext,time)
+      CALL io_write_vec(this,1,this%odir_,trim(this%sstate_vel_),lgext,time)
     class default
       stop "inerpart: This solver does not support pdes without a velocity field"
     end select
@@ -553,10 +565,10 @@ CONTAINS
     this%infile_      =  infile
     this%workspace_   => workspace
     call pstatus_init(this%infile_)
-    this%idir_        =  idir      ! input  directory
-    this%odir_        =  odir      ! output directory
+    this%idir_        =  pde%idir_ ! input  directory, same as in the pde class
+    this%odir_        =  pde%odir_ ! output directory, same as in the pde class
     this%hasfeedback_ = .false.
-    this%nc_          = 3
+    this%nc_          = 3          ! fixed for now
     this%nparts_      = 0
     this%npartsm_     = 0
     this%nvdb_        = 0
@@ -637,7 +649,7 @@ CONTAINS
       this%gext_ (j) = real(this%nd_(j),kind=GP)
     ENDDO
 
-    ! Call init (reads &inerpart namelist, sets POSITION/VELOCITY)
+    ! Call init (reads &inerpart namelist, sets POSITION/VELOCITY indices)
     call this%init()
 
     ! If nonlinear drag is enabled, get nu from the PDE solver

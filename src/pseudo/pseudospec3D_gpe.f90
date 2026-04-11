@@ -2011,7 +2011,7 @@
       IMPLICIT NONE
 
       REAL(KIND=GP), INTENT(OUT), DIMENSION(nx,ny,ksta:kend)  :: r1,r2
-      CHARACTER(len=100), INTENT(IN) :: dir
+      CHARACTER(len=128), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
       TYPE(IOPLAN),INTENT  (IN)      :: plan
 

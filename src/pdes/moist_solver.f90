@@ -27,19 +27,22 @@
 !                PASSIVE  (PASSIVE+1, PASSIVE+2, ...): passive scalar sector
 !
 ! INPUT FILE : For solver='MOIST', looks for a "&MOIST" namelist with:
-!              nu        : fluid kinematic viscosity
-!              bkappa    : active scalar diffusivity
-!              bvuns     : Unsaturated multiplicative coefficient
-!              bvsat     : Saturated multiplicative coefficient
-!              bvfreq    : Base Brunt-Vaisala frequency
-!              xmom      : factor multiplying buoyancy force in momentum eq.
-!              xtemp     : factor multiplying vertical veloc in temp. eq.
-!              dorot     : do rotation = .TRUE. or .FALSE.
-!              omegax    : amplitude of the uniform rotation along x
-!              omegay    : amplitude of the uniform rotation along y
-!              omegaz    : amplitude of the uniform rotation along z
-!              npassive  : number of passive scalars (default=0)
-!              spectlod  : spectral output level of detail (in [1,4]):
+!              fidir   : changes class binary input  dir (default: idir)
+!              fodir   : changes class binary output dir (default: odir)
+!              todir   : changes the class TXT output dir (default: '')
+!              nu      : fluid kinematic viscosity
+!              bkappa  : active scalar diffusivity
+!              bvuns   : Unsaturated multiplicative coefficient
+!              bvsat   : Saturated multiplicative coefficient
+!              bvfreq  : Base Brunt-Vaisala frequency
+!              xmom    : factor multiplying buoyancy force in momentum eq.
+!              xtemp   : factor multiplying vertical veloc in temp. eq.
+!              dorot   : do rotation = .TRUE. or .FALSE.
+!              omegax  : amplitude of the uniform rotation along x
+!              omegay  : amplitude of the uniform rotation along y
+!              omegaz  : amplitude of the uniform rotation along z
+!              npassive: number of passive scalars (default=0)
+!              spectlod: spectral output level of detail (in [1,4]):
 !                          1: All 1d spectra, KE and PE fluxes
 !                          2: 2D spectra, helicity flluxes
 !                          3: KE Fourier modes
@@ -104,6 +107,7 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_impl(this)
     USE commtypes
+    use status
     class  (MOISTSolver), intent (inout) :: this
 
     ! Temporary data to read from namelists:
@@ -115,6 +119,7 @@ contains
     real(kind=GP)              :: xmom, xtemp
     real(kind=GP)              :: omegax, omegay, omegaz
     real(kind=GP), allocatable :: kappa(:)
+    character(len=128)         :: fidir, fodir, todir
 
     ! Required namelists:
     namelist/ MOIST   / nu, bkappa, bvuns, bvsat, bvfreq, xmom, xtemp
@@ -124,7 +129,10 @@ contains
     call MPI_COMM_SIZE(MPI_COMM_WORLD,this%nprocs_,ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD,this%myrank_,ierr)
 
-    ! Get trait variables from input file:
+    ! Get I/O and trait variables from input file:
+    fidir    = idir ! Set the default to status idir
+    fodir    = odir ! Set the default to status odir
+    todir    = ''   ! Set the default to the current dir
     dorot    = .FALSE.
     spectlod = 1 ! standard lod
     nu       = 0.0_GP
@@ -141,19 +149,22 @@ contains
       read(1,NML=MOIST)
       close(1)
     endif
-    call mpi_bcast(nu       ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(bkappa   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(bvuns    ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(bvsat    ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(bvfreq   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(xmom     ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(xtemp    ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(dorot    ,1 ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(omegax   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(omegay   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(omegaz   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(npassive ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(spectlod ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(fidir    ,128,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(fodir    ,128,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(todir    ,128,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(nu       ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(bkappa   ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(bvuns    ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(bvsat    ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(bvfreq   ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(xmom     ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(xtemp    ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(dorot    ,1  ,MPI_LOGICAL  ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(omegax   ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(omegay   ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(omegaz   ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(npassive ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(spectlod ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
 
     this%numpassive_ = npassive
     this%numactivesc_  = 2
@@ -168,7 +179,10 @@ contains
       call mpi_bcast(kappa,npassive,GC_REAL,0,MPI_COMM_WORLD,ierr)
     endif
 
-    ! Set traits structure from inputfile data:
+    ! Set I/O and traits from inputfile data:
+    this%idir_  = fidir ! If present in &HD, replaces the class default idir
+    this%odir_  = fodir ! If present in &HD, replaces the class default odir
+    this%todir_ = todir ! If present in &HD, replaces the class default todir
     this%traits_%   dorot = dorot
     this%traits_%spectlod = spectlod
     this%traits_%      nu = nu
@@ -502,18 +516,18 @@ contains
     if ( this%traits_%spectlod .ge. 2 ) then
       call heltrans(vx,vy,vz,-c1,-c2,-c3,ext,1)
       ! Write 2D spectra:
-      call spec2D  (vx,vy,vz,ext,odir,1,1)
-      call specsc2D(th1,ext,odir,0,trim(this%sstate_(this%ACTIVESC  )))
-      call specsc2D(th2,ext,odir,0,trim(this%sstate_(this%ACTIVESC+1)))
+      call spec2D  (vx,vy,vz,ext,this%odir_,1,1)
+      call specsc2D(th1,ext,this%odir_,0,trim(this%sstate_(this%ACTIVESC  )))
+      call specsc2D(th2,ext,this%odir_,0,trim(this%sstate_(this%ACTIVESC+1)))
     endif
 
     ! Write Fourier modes:
     if ( this%traits_%spectlod .ge. 3 ) then
-      call write_fourier(vx, trim(this%sstate_(this%VELOCITY  )),ext,odir)
-      call write_fourier(vy, trim(this%sstate_(this%VELOCITY+1)),ext,odir)
-      call write_fourier(vz, trim(this%sstate_(this%VELOCITY+2)),ext,odir)
-      call write_fourier(th1,trim(this%sstate_(this%ACTIVESC  )),ext,odir)
-      call write_fourier(th2,trim(this%sstate_(this%ACTIVESC+1)),ext,odir)
+      call write_fourier(vx, trim(this%sstate_(this%VELOCITY  )),ext,this%odir_)
+      call write_fourier(vy, trim(this%sstate_(this%VELOCITY+1)),ext,this%odir_)
+      call write_fourier(vz, trim(this%sstate_(this%VELOCITY+2)),ext,this%odir_)
+      call write_fourier(th1,trim(this%sstate_(this%ACTIVESC  )),ext,this%odir_)
+      call write_fourier(th2,trim(this%sstate_(this%ACTIVESC+1)),ext,this%odir_)
     endif
 
     call this%workspace_%free_complex_tmp(c1)
@@ -593,25 +607,15 @@ contains
   !! Get state variable names
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine get_sstate_impl(this, sstate)
-    class(MOISTSolver), intent(in)              :: this
-    character(len=8), allocatable, intent(inout):: sstate(:)
-    character(len=8)                            :: name
-    character(len=1)                            :: comp(3)
-    integer                                     :: j
-
-    if (.not. allocated(sstate)) then
-      allocate(sstate(this%state_size()))
-    else if (size(sstate) /= this%state_size()) then
-      deallocate(sstate)
-      allocate(sstate(this%state_size()))
-    end if
-
+    class(MOISTSolver), intent   (in) :: this
+    character  (len=8), intent(inout) :: sstate(:)
+    character  (len=8)                :: name
+    character  (len=1)                :: comp(3)
+    integer                           :: j
     comp = ['x', 'y', 'z']
-    ! Velocity components
     do j = 1, this%nc_
       sstate(this%VELOCITY + j - 1) = 'v' // comp(j)
     end do
-    ! Active scalars
     sstate(this%ACTIVESC  ) = 'bu'
     sstate(this%ACTIVESC+1) = 'bs'
     ! Passive scalars

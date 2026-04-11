@@ -13,6 +13,9 @@
 !                PASSIVE  ( PASSIVE+1,  PASSIVE+2, ...)
 !
 ! INPUT FILE : For solver='HD', looks for a "&HD" namelist with:
+!              fidir   : changes class binary input  dir (default: idir)
+!              fodir   : changes class binary output dir (default: odir)
+!              todir   : changes the class TXT output dir (default: '')
 !              nu      : fluid kinematic viscosity
 !              dorot   : do rotation, = .TRUE. or .FALSE.
 !              omegax  : amplitude of the uniform rotation along x
@@ -75,9 +78,11 @@ CONTAINS
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Subroutine to initialize the solver
+  !! Reads the &HD and &passive namelists and sets sector indices
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_impl(this)
     use commtypes
+    use status
     class  (HDSolver), intent (inout) :: this
 
     ! Temporary data to read from namelists:
@@ -87,15 +92,20 @@ CONTAINS
     integer                    :: ierr
     real(kind=GP)              :: nu, omegax, omegay, omegaz
     real(kind=GP), allocatable :: kappa(:)
+    character(len=128)         :: fidir, fodir, todir
 
     ! Required namelists:
-    namelist/ HD      / nu, dorot, omegax, omegay, omegaz, npassive, spectlod
+    namelist/ HD      / fidir, fodir, todir, nu, dorot
+    namelist/ HD      / omegax, omegay, omegaz, npassive, spectlod
     namelist/ passive / kappa
 
     call MPI_COMM_SIZE(MPI_COMM_WORLD,this%nprocs_,ierr)
     call MPI_COMM_RANK(MPI_COMM_WORLD,this%myrank_,ierr)
 
-    ! Get trait variables from input file:
+    ! Get I/O and trait variables from input file:
+    fidir    = idir ! Set the default to status idir
+    fodir    = odir ! Set the default to status odir
+    todir    = ''   ! Set the default to the current dir
     dorot    = .FALSE.
     spectlod = 1 ! standard lod
     nu       = 0.0
@@ -105,13 +115,16 @@ CONTAINS
       read(1,NML=HD)
       close(1)
     endif
-    call mpi_bcast(nu       ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(dorot    ,1 ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(omegax   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(omegay   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(omegaz   ,1 ,GC_REAL,    0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(npassive ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-    call mpi_bcast(spectlod ,1 ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(fidir    ,128,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(fodir    ,128,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(todir    ,128,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(nu       ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(dorot    ,1  ,MPI_LOGICAL  ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(omegax   ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(omegay   ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(omegaz   ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(npassive ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+    call mpi_bcast(spectlod ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
     this%numpassive_ = npassive
     if ( npassive .gt. 0 ) then
       allocate(kappa(npassive))
@@ -124,7 +137,10 @@ CONTAINS
       call mpi_bcast(kappa,npassive,GC_REAL,0,MPI_COMM_WORLD,ierr)
     endif
 
-    ! Set traits from inputfile data:
+    ! Set I/O and traits from inputfile data:
+    this%idir_  = fidir ! If present in &HD, replaces the class default idir
+    this%odir_  = fodir ! If present in &HD, replaces the class default odir
+    this%todir_ = todir ! If present in &HD, replaces the class default todir
     this%traits_%   dorot = dorot
     this%traits_%spectlod = spectlod
     this%traits_%      nu = nu
@@ -329,12 +345,12 @@ CONTAINS
       call entperp(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy fluxq
       if ( this%traits_%spectlod .ge. 2 ) then
         call heltrans(vx,vy,vz,-c1,-c2,-c3,ext,1)
-        call spec2D(vx,vy,vz,ext,odir,1,1)
+        call spec2D(vx,vy,vz,ext,this%odir_,1,1)
       endif
       if ( this%traits_%spectlod .ge. 3 ) then
-        call write_fourier(vx,'vx',ext,odir)
-        call write_fourier(vy,'vy',ext,odir)
-        call write_fourier(vz,'vz',ext,odir)
+        call write_fourier(vx,'vx',ext,this%odir_)
+        call write_fourier(vy,'vy',ext,this%odir_)
+        call write_fourier(vz,'vz',ext,this%odir_)
       endif
     endif
     call this%workspace_%free_complex_tmp(c1)
@@ -388,9 +404,9 @@ CONTAINS
   !! Convert input state name to index in state vector
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine sstate2istate_impl(this, sstate, istate) 
-    class (HDSolver)              , intent   (in) :: this
-    character(len=8)              , intent   (in) :: sstate(:)
-    integer         , allocatable , intent(inout) :: istate(:)
+    class (HDSolver), intent   (in) :: this
+    character(len=8), intent   (in) :: sstate(:)
+    integer         , intent(inout) :: istate(:)
     integer                                       :: i,j
     if ( size(sstate) .ne. size(istate) ) then
       stop 'HDSolver::sstate2istate_impl: Incompatible sstate and istate'
@@ -410,11 +426,11 @@ CONTAINS
   !! Get state variable names
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine get_sstate_impl(this, sstate) 
-    class  (HDSolver)             , intent   (in) :: this
-    character (len=8), allocatable, intent(inout) :: sstate(:)
-    character(len=100)                            :: snum
-    character(len=1)                              :: comp(3)
-    integer                                       :: j
+    class  (HDSolver), intent   (in) :: this
+    character (len=8), intent(inout) :: sstate(:)
+    character(len=100)               :: snum
+    character(len=1)                 :: comp(3)
+    integer                          :: j
     comp = ['x', 'y', 'z']
     do j = this%VELOCITY,this%VELOCITY+this%nc_-1
        sstate(j) = 'v' // comp(j-this%VELOCITY+1)

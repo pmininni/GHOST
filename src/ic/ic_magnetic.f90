@@ -74,7 +74,7 @@ CONTAINS
       tind = int(stat)
       WRITE(ext, fmtext) tind
       do i = solver%MAGNETIC,solver%MAGNETIC+solver%nc_-1
-        call io_read(1,idir,trim(solver%sstate_(i)),ext,solver%planio_,R1)
+        call io_read(1,solver%idir_,trim(solver%sstate_(i)),ext,solver%planio_,R1)
         call fftp3d_real_to_complex(planrc,R1,state(i)%ccomp,MPI_COMM_WORLD)
       end do
     class default

@@ -47,7 +47,7 @@
       character  (len=*), intent(in) :: infile_
       NAMELIST / pstatus / maxparts,lgmult,ilgintrptype
       NAMELIST / pstatus / ilgexchtype,ilgouttype,ilgwrtunit,intorder
-      NAMELIST / pstatus / ilgcoll,ilgfpfiletype,slgfpfile,lgseedfile
+      NAMELIST / pstatus / ilgcoll,slgfpfile,lgseedfile
 
       maxparts     = 1000
       ilgintrptype = GPINTRP_CSPLINE
@@ -58,7 +58,6 @@
       lgmult       = 1
       lgseedfile   = 'user_seed_file.dat'
       ilgcoll      = 1
-      ilgfpfiletype= 0
       slgfpfile    = 'xlgInitRndSeed.000.txt'
       IF (myrank.eq.0) THEN
          OPEN(1,file='parameter.inp',status='unknown',form="formatted")
@@ -76,7 +75,6 @@
         CALL MPI_BCAST(ilgwrtunit   ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
         CALL MPI_BCAST(intorder     ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
         CALL MPI_BCAST(ilgcoll      ,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-        CALL MPI_BCAST(ilgfpfiletype,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
         CALL MPI_BCAST(slgfpfile ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
         CALL MPI_BCAST(lgseedfile,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
         IF ( mod(tstep,lgmult).NE.0 ) THEN

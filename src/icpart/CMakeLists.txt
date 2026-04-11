@@ -1,7 +1,7 @@
 add_library(icp_lib STATIC
   icp_base.f90
   icp_position.f90
-  #icp_velocity.f90
+  icp_velocity.f90
   icp_factory.f90
 )
 

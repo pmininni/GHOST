@@ -17,10 +17,12 @@ module equationbase_mod
   type, abstract :: EquationBase
       type(GWorkspace), pointer     :: workspace_ => null()
       type    (ioplan), pointer     :: planio_    => null()
-      integer                       :: myrank_   ! MPI rank
-      integer                       :: nprocs_   ! MPI rank 
-      character(len=8), allocatable :: sstate_(:)! state member nanes
-      character(len=128)            :: infile_   ! config file name
+      integer                       :: myrank_     ! MPI rank
+      integer                       :: nprocs_     ! MPI rank 
+      character(len=8), allocatable :: sstate_(:)  ! state member nanes
+      character(len=128)            :: infile_     ! config file name
+      character(len=128)            :: odir_,idir_ ! internal class I/O directories
+      character(len=128)            :: todir_      ! internal class TXT output dir
     contains
       procedure(Solver_ctor_interface), deferred :: Solver_ctor ! Constructor
       procedure(init_interface),        deferred :: init        ! init method
@@ -232,7 +234,7 @@ CONTAINS
         end do
       end do
       call fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
-      call io_write(1,odir,trim(this%sstate_(nc)),ext,planio,R1)
+      call io_write(1,this%odir_,trim(this%sstate_(nc)),ext,planio,R1)
     end do
     if ( outs .ge. 1) then
       call this%workspace_%get_complex_tmp(C2,bret)
@@ -261,9 +263,9 @@ CONTAINS
         call fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
         call fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
         call fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
-        call io_write(1,odir,'wx',ext,planio,R1)
-        call io_write(1,odir,'wy',ext,planio,R2)
-        call io_write(1,odir,'wz',ext,planio,R3)
+        call io_write(1,this%odir_,'wx',ext,planio,R1)
+        call io_write(1,this%odir_,'wy',ext,planio,R2)
+        call io_write(1,this%odir_,'wz',ext,planio,R3)
         select type (this)
         class is (MagneticBase)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -283,9 +285,9 @@ CONTAINS
           call fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
           call fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
           call fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
-          call io_write(1,odir,'bx',ext,planio,R1)
-          call io_write(1,odir,'by',ext,planio,R2)
-          call io_write(1,odir,'bz',ext,planio,R3)
+          call io_write(1,this%odir_,'bx',ext,planio,R1)
+          call io_write(1,this%odir_,'by',ext,planio,R2)
+          call io_write(1,this%odir_,'bz',ext,planio,R3)
           if ( outs .eq. 2 ) then
             call laplak3(C1,C4)
             call laplak3(C2,C5)
@@ -293,9 +295,9 @@ CONTAINS
             call fftp3d_complex_to_real(plancr,C4,R1,MPI_COMM_WORLD)
             call fftp3d_complex_to_real(plancr,C5,R2,MPI_COMM_WORLD)
             call fftp3d_complex_to_real(plancr,C6,R3,MPI_COMM_WORLD)
-            call io_write(1,odir,'jx',ext,planio,-R1)
-            call io_write(1,odir,'jy',ext,planio,-R2)
-            call io_write(1,odir,'jz',ext,planio,-R3)
+            call io_write(1,this%odir_,'jx',ext,planio,-R1)
+            call io_write(1,this%odir_,'jy',ext,planio,-R2)
+            call io_write(1,this%odir_,'jz',ext,planio,-R3)
           endif
         end select
       end select 

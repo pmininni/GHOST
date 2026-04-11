@@ -16,6 +16,7 @@
 
 module icp_position
   use icpbase_mod
+  use equationbase_mod
   use particlebase_mod
 
   IMPLICIT NONE
@@ -43,23 +44,25 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Read particle positions from restart files
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine init_readpos(this,psolver,pstate)
+  subroutine init_readpos(this,pde,fluidstate,psolver,pstate)
     use gpstate_mod
     use status
     use pstatus
     use filefmt
     use commtypes
     implicit none
-    class    (read_pos), intent   (in)   :: this
-    class(ParticleBase), intent(inout)   :: psolver
-    type  (GPStateComp), intent(inout)   :: pstate(:)
+    class    (read_pos),         intent   (in) :: this
+    class(EquationBase),         intent   (in) :: pde
+    type   (GStateComp), target, intent   (in) :: fluidstate(:) 
+    class(ParticleBase),         intent(inout) :: psolver
+    type  (GPStateComp),         intent(inout) :: pstate(:)
 
     if ((stat .eq. 0).and.(psolver%myrank_ .eq. 0)) then
       stop 'Cannot read restart files if starting a new run with stat=0'
     endif
     pind = int((stat-1)*lgmult+1)
     WRITE(lgext, lgfmtext) pind
-    CALL io_read(psolver,pstate,1,psolver%idir_,'xlg',lgext)
+    CALL io_read(psolver,pstate,1,psolver%idir_,trim(psolver%sstate_pos_),lgext)
   end subroutine init_readpos
 
 
@@ -68,18 +71,20 @@ CONTAINS
   !! outside the one used for reading must be resized to the
   !! size of arrays in pstate after calling this routine.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine init_userpos(this,psolver,pstate)
+  subroutine init_userpos(this,pde,fluidstate,psolver,pstate)
     use gpstate_mod
     use status
     use pstatus
     use filefmt
     use commtypes
     implicit none
-    class    (user_pos), intent   (in)   :: this
-    class(ParticleBase), intent(inout)   :: psolver
-    type  (GPStateComp), intent(inout)   :: pstate(:)
-    integer                              :: nl,nt
-    real(kind=GP)                        :: x,y,z
+    class    (user_pos),         intent   (in) :: this
+    class(EquationBase),         intent   (in) :: pde
+    type   (GStateComp), target, intent   (in) :: fluidstate(:) 
+    class(ParticleBase),         intent(inout) :: psolver
+    type  (GPStateComp),         intent(inout) :: pstate(:)
+    real      (kind=GP)                        :: x,y,z
+    integer                                    :: nl,nt
 
     ! Note: each record (line) consists of x y z real positions
     ! within [0,NX-1]x[0,NY-1]x[0,NZ-1] box or the equivalent
@@ -158,15 +163,17 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Initialize particle positions randomly
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine init_randompos(this,psolver,pstate)
+  subroutine init_randompos(this,pde,fluidstate,psolver,pstate)
     use gpstate_mod
     use random
     implicit none
-    class    (rand_pos), intent   (in)   :: this
-    class(ParticleBase), intent(inout)   :: psolver
-    type  (GPStateComp), intent(inout)   :: pstate(:)
-    integer                              :: ib,ie,j,iwrk1,iwrk2,nt
-    real(kind=GP)                        :: c,r,x1,x2
+    class    (rand_pos),         intent   (in) :: this
+    class(EquationBase),         intent   (in) :: pde
+    type   (GStateComp), target, intent   (in) :: fluidstate(:) 
+    class(ParticleBase),         intent(inout) :: psolver
+    type  (GPStateComp),         intent(inout) :: pstate(:)
+    real      (kind=GP)                        :: c,r,x1,x2
+    integer                                    :: ib,ie,j,iwrk1,iwrk2,nt
 
     ! Note: Box is [0,N-1]^3.
     ! All tasks write to _global_ grid, expecting a VDBSynch afterwards
@@ -227,13 +234,19 @@ CONTAINS
         psolver%ptmp0_(1,:) = psolver%vdb_(1,:)*psolver%delta_(1)
         psolver%ptmp0_(2,:) = psolver%vdb_(2,:)*psolver%delta_(2)
         psolver%ptmp0_(3,:) = psolver%vdb_(3,:)*psolver%delta_(3)
-        CALL ascii_write_lag(psolver,1,'.','xlgInitRndSeed','000',0.0_GP,       &
-                             psolver%maxparts_,psolver%ptmp0_(1,:),             &
-                             psolver%ptmp0_(2,:),psolver%ptmp0_(3,:))
+        CALL ascii_write_lag(psolver, 1, '.',                                   &
+                             trim(psolver%sstate_pos_) // 'InitRndSeed',        &
+                            '000',0.0_GP,psolver%maxparts_,                     &
+                             psolver%ptmp0_(1,:),                               &
+                             psolver%ptmp0_(2,:),                               &
+                             psolver%ptmp0_(3,:))
       ELSE
-        CALL ascii_write_lag(psolver,1,'.','xlgInitRndSeed','000',0.0_GP,       &
-                             psolver%maxparts_,psolver%vdb_(1,:),               &
-                             psolver%vdb_(2,:),psolver%vdb_(3,:))
+        CALL ascii_write_lag(psolver,1,'.',                                     &
+                             trim(psolver%sstate_pos_) // 'InitRndSeed',        &
+                             '000',0.0_GP,psolver%maxparts_,                    &
+                             psolver%vdb_(1,:),                                 &
+                             psolver%vdb_(2,:),                                 &
+                             psolver%vdb_(3,:))
       ENDIF
     ENDIF
     IF ( .NOT. PartNumConsistent(psolver,psolver%nparts_) ) THEN
