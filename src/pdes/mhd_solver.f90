@@ -384,24 +384,24 @@ CONTAINS
     my => uf (this%MAGNETIC+1)%ccomp
     mz => uf (this%MAGNETIC+2)%ccomp
     if ( .not. this%traits_%dohall ) then
-      CALL mhdcheck(vx,vy,vz,ax,ay,az,t,dt,this%traits_%epsilon,1,1,0)
+      CALL mhdcheck(vx,vy,vz,ax,ay,az,t,dt,this%traits_%epsilon,1,1,0,this%todir_)
     else
-      CALL mhdcheck(vx,vy,vz,ax,ay,az,t,dt,this%traits_%epsilon,1,2,0)
+      CALL mhdcheck(vx,vy,vz,ax,ay,az,t,dt,this%traits_%epsilon,1,2,0,this%todir_)
     endif
     CALL cross(vx,vy,vz,fx,fy,fz,eps,1)
     CALL cross(ax,ay,az,mx,my,mz,epm,0)
     CALL maxabs(vx,vy,vz,rmp,0)
     CALL maxabs(ax,ay,az,rmq,1)
     IF (myrank.eq.0) THEN
-      OPEN(1,file='injection.txt',position='append')
+      OPEN(1,file=trim(this%todir_) // '/injection.txt',position='append')
       WRITE(1,FMT='(E13.6,E22.14,E22.14)') (t-1)*dt,eps,epm
       CLOSE(1)
-      OPEN(1,file='maximum.txt',position='append')
-      WRITE(1,FMT='(E13.6,E13.6,E13.6)') (t-1)*dt,rmp,rmq
+      OPEN(1,file=trim(this%todir_) // '/maximum.txt',position='append')
+      WRITE(1,FMT='(E13.6,E13.6,E13.6)'  ) (t-1)*dt,rmp,rmq
       CLOSE(1)
     ENDIF
     do i = this%PASSIVE, this%PASSIVE+this%numpassive_-1
-      call pscheck(uin(i)%ccomp,uf(i)%ccomp,t,dt,trim(this%sstate_(i)))
+      call pscheck(uin(i)%ccomp,uf(i)%ccomp,t,dt,this%todir_,trim(this%sstate_(i)))
     end do
   end subroutine global_impl
 
@@ -432,13 +432,13 @@ CONTAINS
     ax => uin(this%MAGNETIC  )%ccomp
     ay => uin(this%MAGNETIC+1)%ccomp
     az => uin(this%MAGNETIC+2)%ccomp
-    CALL spectrum(vx,vy,vz,ext,1,1)
-    CALL spectrum(ax,ay,az,ext,0,1)
+    CALL spectrum(vx,vy,vz,this%todir_,ext,1,1)
+    CALL spectrum(ax,ay,az,this%todir_,ext,0,1)
     if ( this%traits_%doB0 ) then
-      CALL specpara(vx,vy,vz,ext,1,1)
-      CALL specpara(ax,ay,az,ext,0,1)
-      CALL specperp(vx,vy,vz,ext,1,1)
-      CALL specperp(ax,ay,az,ext,0,1)
+      CALL specpara(vx,vy,vz,this%todir_,ext,1,1)
+      CALL specpara(ax,ay,az,this%todir_,ext,0,1)
+      CALL specperp(vx,vy,vz,this%todir_,ext,1,1)
+      CALL specperp(ax,ay,az,this%todir_,ext,0,1)
     endif
     if (  this%traits_%dohall ) then
       call this%workspace_%get_complex_tmp(C1,bret)
@@ -453,10 +453,10 @@ CONTAINS
           END DO
         END DO
       END DO
-      CALL spectrum(C1,C2,C3,ext,2,1)
+      CALL spectrum(C1,C2,C3,this%todir_,ext,2,1)
       if ( this%traits_%doB0 ) then
-        CALL specpara(C1,C2,C3,ext,2,1)
-        CALL specperp(C1,C2,C3,ext,2,1)
+        CALL specpara(C1,C2,C3,this%todir_,ext,2,1)
+        CALL specperp(C1,C2,C3,this%todir_,ext,2,1)
       endif
       call this%workspace_%free_complex_tmp(C1)
       call this%workspace_%free_complex_tmp(C2)
@@ -464,10 +464,10 @@ CONTAINS
     endif
     if ( this%numpassive_ .gt. 0) then
       do i = this%PASSIVE, this%PASSIVE+this%numpassive_-1
-        call spectrsc(uin(i)%ccomp,ext,0,trim(this%sstate_(i)))
+        call spectrsc(uin(i)%ccomp,this%todir_,ext,0,trim(this%sstate_(i)))
         if ( this%traits_%doB0 ) then
-          call specscpa(uin(i)%ccomp,ext,0,trim(this%sstate_(i)))
-          call specscpe(uin(i)%ccomp,ext,0,trim(this%sstate_(i)))
+          call specscpa(uin(i)%ccomp,this%todir_,ext,0,trim(this%sstate_(i)))
+          call specscpe(uin(i)%ccomp,this%todir_,ext,0,trim(this%sstate_(i)))
         endif
       end do
     endif

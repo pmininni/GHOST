@@ -291,7 +291,7 @@ MODULE pseudospec_scalar
       END SUBROUTINE product
 
 !*****************************************************************
-      SUBROUTINE spectrsc(a,nmb,isc,tail)
+      SUBROUTINE spectrsc(a,path,nmb,isc,tail)
 !-----------------------------------------------------------------
 !
 ! Computes the passive/active scalar power spectrum.
@@ -305,6 +305,7 @@ MODULE pseudospec_scalar
 !
 ! Parameters
 !     a    : input matrix with the scalar
+!     path : path for the output
 !     nmb  : the extension used when writting the file
 !     isc  : index to specify which scalar the spectrum 
 !            represents; modifies output file name. If 
@@ -324,7 +325,7 @@ MODULE pseudospec_scalar
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
       INTEGER,          INTENT(IN)                             :: isc
       INTEGER                                :: i
-      CHARACTER(len=*), INTENT(IN)           :: nmb
+      CHARACTER(len=*), INTENT(IN)           :: path,nmb
       CHARACTER(len=*), INTENT(IN), OPTIONAL :: tail
       CHARACTER(len=1)                       :: si
       CHARACTER(len=128)                     :: fname
@@ -350,7 +351,8 @@ MODULE pseudospec_scalar
          if (present(tail)) then
             fname = trim(adjustl(fname)) // '_' // trim(adjustl(tail))
          endif
-         OPEN(1,file= trim(adjustl(fname)) // '.' // nmb // '.txt')
+         OPEN(1,file= trim(path) // '/' // trim(adjustl(fname)) // '.' &
+              // nmb // '.txt')
          DO i=1,nmax/2+1
             WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Ek(i)/Dkk
          END DO
@@ -457,7 +459,7 @@ MODULE pseudospec_scalar
       END SUBROUTINE spectrscc
 
 !*****************************************************************
-      SUBROUTINE sctrans(a,b,nmb,isc,tail)
+      SUBROUTINE sctrans(a,b,path,nmb,isc,tail)
 !-----------------------------------------------------------------
 !
 ! Computes the scalar transfer in Fourier space in 3D.
@@ -473,6 +475,7 @@ MODULE pseudospec_scalar
 ! Parameters
 !     a   : scalar
 !     b   : nonlinear term
+!     path: path for the output
 !     nmb : the extension used when writting the file
 !     isc : if doing multi-scalar, gives index of scalar 
 !           whose transfer is being computed (1, 2, or 3) and
@@ -498,7 +501,7 @@ MODULE pseudospec_scalar
       INTEGER         , INTENT(IN)           :: isc
       INTEGER          :: i,j,k
       INTEGER          :: kmn
-      CHARACTER(len=*), INTENT(IN)           :: nmb
+      CHARACTER(len=*), INTENT(IN)           :: path,nmb
       CHARACTER(len=*), INTENT(IN), OPTIONAL :: tail
       CHARACTER(len=128)                     :: fname
       CHARACTER(len=1)                       :: si
@@ -575,7 +578,8 @@ MODULE pseudospec_scalar
          if (present(tail)) then
             fname = trim(adjustl(fname)) // '_' // trim(adjustl(tail))
          endif
-         OPEN(1,file= trim(adjustl(fname)) // '.' // nmb // '.txt')
+         OPEN(1,file= trim(path) // '/' // trim(adjustl(fname)) // '.' &
+              // nmb // '.txt')
          DO i=1,nmax/2+1
             WRITE(1,FMT='(E13.6,E23.15)') Dkk*i,Ektot(i)/Dkk
          END DO
@@ -585,7 +589,7 @@ MODULE pseudospec_scalar
       END SUBROUTINE sctrans
 
 !*****************************************************************
-      SUBROUTINE difucx(a,b,nmb,tail)
+      SUBROUTINE difucx(a,b,path,nmb,tail)
 !-----------------------------------------------------------------
 !
 ! Computes the mean profiles in x of the velocity, the 
@@ -598,6 +602,7 @@ MODULE pseudospec_scalar
 ! Parameters
 !     a    : vector field component in the x-direction
 !     b    : scalar field
+!     path : path for the output
 !     nmb  : the extension used when writting the file
 !     tail : Appends tail at the end of the file name [optional]
 !
@@ -619,7 +624,7 @@ MODULE pseudospec_scalar
       REAL(KIND=GP), DIMENSION(nx) :: mth,mv,mthv
       REAL(KIND=GP)                :: tmp,tmq
       INTEGER                      :: i,j,k
-      CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=*), INTENT(IN) :: path,nmb
       CHARACTER(len=*), INTENT(IN), OPTIONAL :: tail
       CHARACTER(len=128)                     :: fname
 
@@ -680,9 +685,10 @@ MODULE pseudospec_scalar
          if (present(tail)) then
             fname = trim(adjustl(fname)) // '_' // trim(adjustl(tail))
          endif
-         OPEN(1,file= trim(adjustl(fname)) // '.' // nmb // '.txt')
+         OPEN(1,file= trim(path) // '/' // trim(adjustl(fname)) // '.' &
+              // nmb // '.txt')
          DO i = 1,nx
-            WRITE(1,40) 2*pi*Lx*(real(i,kind=GP)-1)/real(nx,kind=GP), &
+            WRITE(1,40) 2*pi*Lx*(real(i,kind=GP)-1)/real(nx,kind=GP),  &
                         mv(i),mth(i),mthv(i)
          END DO
          CLOSE(1) 
@@ -693,7 +699,7 @@ MODULE pseudospec_scalar
       END SUBROUTINE difucx
 
 !*****************************************************************
-      SUBROUTINE difucz(a,b,nmb,tail)
+      SUBROUTINE difucz(a,b,path,nmb,tail)
 !-----------------------------------------------------------------
 !
 ! Computes the mean profiles in z of the velocity, the 
@@ -706,6 +712,7 @@ MODULE pseudospec_scalar
 ! Parameters
 !     a    : vector field component in the z-direction
 !     b    : scalar field
+!     path : path for the output
 !     nmb  : the extension used when writting the file
 !     tail : Appends tail at the end of the file name [optional]
 !
@@ -727,7 +734,7 @@ MODULE pseudospec_scalar
       REAL(KIND=GP), DIMENSION(nz) :: mth,mv,mthv
       REAL(KIND=GP)                :: tmp,tmq
       INTEGER                      :: i,j,k
-      CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=*), INTENT(IN) :: path,nmb
       CHARACTER(len=*), INTENT(IN), OPTIONAL :: tail
       CHARACTER(len=128)                     :: fname
 
@@ -788,9 +795,10 @@ MODULE pseudospec_scalar
          if (present(tail)) then
             fname = trim(adjustl(fname)) // '_' // trim(adjustl(tail))
          endif
-         OPEN(1,file= trim(adjustl(fname)) // '.' // nmb // '.txt')
+         OPEN(1,file= trim(path) // '/' // trim(adjustl(fname)) // '.' &
+              // nmb // '.txt')
          DO k = 1,nz
-            WRITE(1,50) 2*pi*Lz*(real(k,kind=GP)-1)/real(nz,kind=GP), &
+            WRITE(1,50) 2*pi*Lz*(real(k,kind=GP)-1)/real(nz,kind=GP),  &
                         mv(k),mth(k),mthv(k)
          END DO
          CLOSE(1) 
@@ -809,7 +817,7 @@ MODULE pseudospec_phd
    CONTAINS
 
 !*****************************************************************
-      SUBROUTINE pscheck(a,b,t,dt,ext)
+      SUBROUTINE pscheck(a,b,t,dt,path,ext)
 !-----------------------------------------------------------------
 !
 ! Writes a global file with quantities relevant for a passive
@@ -819,11 +827,12 @@ MODULE pseudospec_phd
 ! 'scalar.txt':  time, <theta^2>, <|grad(theta)|^2>, injection rate
 !
 ! Parameters
-!     a  : scalar concentration
-!     b  : source of the scalar
-!     t  : number of time steps made
-!     dt : time step
-!     ext: file extension [optional]
+!     a   : scalar concentration
+!     b   : source of the scalar
+!     t   : number of time steps made
+!     dt  : time step
+!     path: path for the output
+!     ext : file extension [optional]
 !
       USE fprecision
       USE grid
@@ -835,6 +844,7 @@ MODULE pseudospec_phd
       REAL(KIND=GP), INTENT(IN) :: dt
       INTEGER, INTENT(IN)       :: t
       INTEGER                   :: i,j,k
+      CHARACTER(len=*), INTENT(IN)           :: path
       CHARACTER(len=*), INTENT(IN), OPTIONAL :: ext
       CHARACTER(len=128)        :: fname
 
@@ -856,7 +866,8 @@ MODULE pseudospec_phd
          else
             fname = 'scalar.txt'
          endif
-         OPEN(1,file=trim(adjustl(fname)),position='append')
+         OPEN(1,file=trim(path) // '/' // trim(adjustl(fname)), &
+              position='append')
          WRITE(1,10) (t-1)*dt,eng,ens,pot
    10    FORMAT( E13.6,E22.14,E22.14,E22.14 )
          CLOSE(1)

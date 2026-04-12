@@ -26,7 +26,7 @@ MODULE pseudospec_aniso
    CONTAINS
 
 !*****************************************************************
-      SUBROUTINE specpara(a,b,c,nmb,kin,hel)
+      SUBROUTINE specpara(a,b,c,path,nmb,kin,hel)
 !-----------------------------------------------------------------
 !
 ! Computes the reduced energy and helicity power spectrum 
@@ -50,15 +50,16 @@ MODULE pseudospec_aniso
 !   [Generalized helicity in Hall-MHD]
 !
 ! Parameters
-!     a  : input matrix in the x-direction
-!     b  : input matrix in the y-direction
-!     c  : input matrix in the z-direction
-!     nmb: the extension used when writting the file
-!     kin: =2 skips energy spectrum computation
-!          =1 computes the kinetic spectrum
-!          =0 computes the magnetic spectrum
-!     hel: =1 computes the helicity spectrum
-!          =0 skips helicity spectrum computation
+!     a   : input matrix in the x-direction
+!     b   : input matrix in the y-direction
+!     c   : input matrix in the z-direction
+!     path: path for the output
+!     nmb : the extension used when writting the file
+!     kin : =2 skips energy spectrum computation
+!           =1 computes the kinetic spectrum
+!           =0 computes the magnetic spectrum
+!     hel : =1 computes the helicity spectrum
+!           =0 skips helicity spectrum computation
 !
       USE fprecision
       USE commtypes
@@ -80,7 +81,7 @@ MODULE pseudospec_aniso
       INTEGER, INTENT(IN) :: kin,hel
       INTEGER             :: i,j,k
       INTEGER             :: kmn
-      CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=*), INTENT(IN) :: path,nmb
 
 !
 ! Sets Ek to zero
@@ -231,9 +232,9 @@ MODULE pseudospec_aniso
                          MPI_COMM_WORLD,ierr)
          IF (myrank.eq.0) THEN
             IF (kin.eq.1) THEN
-               OPEN(1,file='kspecpara.' // nmb // '.txt')
+               OPEN(1,file=trim(path) // '/kspecpara.' // nmb // '.txt')
             ELSE
-               OPEN(1,file='mspecpara.' // nmb // '.txt')
+               OPEN(1,file=trim(path) // '/mspecpara.' // nmb // '.txt')
             ENDIF
             DO k = 1,nz/2+1
                WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') &
@@ -321,11 +322,11 @@ MODULE pseudospec_aniso
                          0,MPI_COMM_WORLD,ierr)
          IF (myrank.eq.0) THEN
             IF (kin.eq.1) THEN
-               OPEN(1,file='khelipara.' // nmb // '.txt')
+               OPEN(1,file=trim(path) // '/khelipara.' // nmb // '.txt')
             ELSE IF (kin.eq.0) THEN
-               OPEN(1,file='mhelipara.' // nmb // '.txt')
+               OPEN(1,file=trim(path) // '/mhelipara.' // nmb // '.txt')
             ELSE
-               OPEN(1,file='ghelipara.' // nmb // '.txt')
+               OPEN(1,file=trim(path) // '/ghelipara.' // nmb // '.txt')
             ENDIF
             DO k = 1,nz/2+1
                WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') &
@@ -339,7 +340,7 @@ MODULE pseudospec_aniso
       END SUBROUTINE specpara
 
 !*****************************************************************
-      SUBROUTINE specperp(a,b,c,nmb,kin,hel)
+      SUBROUTINE specperp(a,b,c,path,nmb,kin,hel)
 !-----------------------------------------------------------------
 !
 ! Computes the reduced energy and helicity power spectrum 
@@ -363,15 +364,16 @@ MODULE pseudospec_aniso
 ! 'gheliperp.XXX.txt': kp, G(kz),   g(kp,kz=0),      g(kp,kz=0)
 !
 ! Parameters
-!     a  : input matrix in the x-direction
-!     b  : input matrix in the y-direction
-!     c  : input matrix in the z-direction
-!     nmb: the extension used when writting the file
-!     kin: =2 skips energy spectrum computation
-!          =1 computes the kinetic spectrum
-!          =0 computes the magnetic spectrum
-!     hel: =1 computes the helicity spectrum
-!          =0 skips helicity spectrum computation
+!     a   : input matrix in the x-direction
+!     b   : input matrix in the y-direction
+!     c   : input matrix in the z-direction
+!     path: path for the output
+!     nmb : the extension used when writting the file
+!     kin : =2 skips energy spectrum computation
+!           =1 computes the kinetic spectrum
+!           =0 computes the magnetic spectrum
+!     hel : =1 computes the helicity spectrum
+!           =0 skips helicity spectrum computation
 !
       USE fprecision
       USE commtypes
@@ -393,7 +395,7 @@ MODULE pseudospec_aniso
       INTEGER, INTENT(IN) :: kin,hel
       INTEGER             :: i,j,k
       INTEGER             :: kmn
-      CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=*), INTENT(IN) :: path,nmb
 
 !
 ! Sets Ek to zero
@@ -567,9 +569,9 @@ MODULE pseudospec_aniso
                          MPI_SUM,0,MPI_COMM_WORLD,ierr)
          IF (myrank.eq.0) THEN
             IF (kin.eq.1) THEN
-               OPEN(1,file='kspecperp.' // nmb // '.txt')
+               OPEN(1,file=trim(path) // '/kspecperp.' // nmb // '.txt')
             ELSE
-               OPEN(1,file='mspecperp.' // nmb // '.txt')
+               OPEN(1,file=trim(path) // '/mspecperp.' // nmb // '.txt')
             ENDIF
             DO j = 1,nmaxperp/2+1
                WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') &
@@ -672,11 +674,11 @@ MODULE pseudospec_aniso
                          MPI_SUM,0,MPI_COMM_WORLD,ierr)
          IF (myrank.eq.0) THEN
             IF (kin.eq.1) THEN
-               OPEN(1,file='kheliperp.' // nmb // '.txt')
+               OPEN(1,file=trim(path) // '/kheliperp.' // nmb // '.txt')
             ELSE IF (kin.eq.0) THEN
-               OPEN(1,file='mheliperp.' // nmb // '.txt')
+               OPEN(1,file=trim(path) // '/mheliperp.' // nmb // '.txt')
             ELSE
-               OPEN(1,file='gheliperp.' // nmb // '.txt')
+               OPEN(1,file=trim(path) // '/gheliperp.' // nmb // '.txt')
             ENDIF
             DO j = 1,nmaxperp/2+1
                WRITE(1,FMT='(E13.6,E23.15,E23.15,E23.15)') Dkk*(j-1),   &
@@ -690,7 +692,7 @@ MODULE pseudospec_aniso
       END SUBROUTINE specperp
 
 !****************************************************************
-      SUBROUTINE entpara(a,b,c,d,e,f,nmb,kin)
+      SUBROUTINE entpara(a,b,c,d,e,f,path,nmb,kin)
 !-----------------------------------------------------------------
 !
 ! Computes the energy transfer in the direction parallel 
@@ -708,16 +710,17 @@ MODULE pseudospec_aniso
 ! 'jtranpara.XXX.txt': kz, Hj(kz) (Lorentz force work)
 !
 ! Parameters
-!     a  : field component in the x-direction
-!     b  : field component in the y-direction
-!     c  : field component in the z-direction
-!     d  : nonlinear term in the x-direction
-!     e  : nonlinear term in the y-direction
-!     f  : nonlinear term in the z-direction
-!     nmb: the extension used when writting the file
-!     kin: =0 computes the magnetic energy transfer
-!          =1 computes the kinetic energy transfer
-!          =2 computes the Lorentz force transfer
+!     a   : field component in the x-direction
+!     b   : field component in the y-direction
+!     c   : field component in the z-direction
+!     d   : nonlinear term in the x-direction
+!     e   : nonlinear term in the y-direction
+!     f   : nonlinear term in the z-direction
+!     path: path for the output
+!     nmb : the extension used when writting the file
+!     kin : =0 computes the magnetic energy transfer
+!           =1 computes the kinetic energy transfer
+!           =2 computes the Lorentz force transfer
 !
       USE fprecision
       USE commtypes
@@ -737,7 +740,7 @@ MODULE pseudospec_aniso
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
       INTEGER             :: kmn
-      CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=*), INTENT(IN) :: path,nmb
 
 !
 ! Sets Ek to zero
@@ -863,11 +866,11 @@ MODULE pseudospec_aniso
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          IF (kin.eq.0) THEN
-            OPEN(1,file='mtranpara.' // nmb // '.txt')
+            OPEN(1,file=trim(path) // '/mtranpara.' // nmb // '.txt')
          ELSEIF (kin.eq.1) THEN
-            OPEN(1,file='ktranpara.' // nmb // '.txt')
+            OPEN(1,file=trim(path) // '/ktranpara.' // nmb // '.txt')
          ELSE
-            OPEN(1,file='jtranpara.' // nmb // '.txt')
+            OPEN(1,file=trim(path) // '/jtranpara.' // nmb // '.txt')
          ENDIF
          DO k = 1,nz/2+1
             WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Ektot(k)*Lz
@@ -879,7 +882,7 @@ MODULE pseudospec_aniso
       END SUBROUTINE entpara
 
 !*****************************************************************
-      SUBROUTINE entperp(a,b,c,d,e,f,nmb,kin)
+      SUBROUTINE entperp(a,b,c,d,e,f,path,nmb,kin)
 !-----------------------------------------------------------------
 !
 ! Computes the energy transfer in the direction perpendicular
@@ -897,16 +900,17 @@ MODULE pseudospec_aniso
 ! 'jtranperp.XXX.txt': kp, Hj(kp) (Lorentz force work)
 !
 ! Parameters
-!     a  : field component in the x-direction
-!     b  : field component in the y-direction
-!     c  : field component in the z-direction
-!     d  : nonlinear term in the x-direction
-!     e  : nonlinear term in the y-direction
-!     f  : nonlinear term in the z-direction
-!     nmb: the extension used when writting the file
-!     kin: =0 computes the magnetic energy transfer
-!          =1 computes the kinetic energy transfer
-!          =2 computes the Lorentz force transfer
+!     a   : field component in the x-direction
+!     b   : field component in the y-direction
+!     c   : field component in the z-direction
+!     d   : nonlinear term in the x-direction
+!     e   : nonlinear term in the y-direction
+!     f   : nonlinear term in the z-direction
+!     path: path for the output
+!     nmb : the extension used when writting the file
+!     kin : =0 computes the magnetic energy transfer
+!           =1 computes the kinetic energy transfer
+!           =2 computes the Lorentz force transfer
 !
       USE fprecision
       USE commtypes
@@ -926,7 +930,7 @@ MODULE pseudospec_aniso
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
       INTEGER             :: kmn
-      CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=*), INTENT(IN) :: path,nmb
 
 !
 ! Sets Ek to zero
@@ -1052,11 +1056,11 @@ MODULE pseudospec_aniso
                       MPI_SUM,0,MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          IF (kin.eq.0) THEN
-            OPEN(1,file='mtranperp.' // nmb // '.txt')
+            OPEN(1,file=trim(path) // '/mtranperp.' // nmb // '.txt')
          ELSEIF (kin.eq.1) THEN
-            OPEN(1,file='ktranperp.' // nmb // '.txt')
+            OPEN(1,file=trim(path) // '/ktranperp.' // nmb // '.txt')
          ELSE
-            OPEN(1,file='jtranperp.' // nmb // '.txt')
+            OPEN(1,file=trim(path) // '/jtranperp.' // nmb // '.txt')
          ENDIF
          DO j = 1,nmaxperp/2+1
             WRITE(1,FMT='(E13.6,E23.15)') Dkk*(j-1),Ektot(j)/Dkk
@@ -1068,7 +1072,7 @@ MODULE pseudospec_aniso
       END SUBROUTINE entperp
 
 !*****************************************************************
-      SUBROUTINE heltpara(a,b,c,d,e,f,nmb,kin)
+      SUBROUTINE heltpara(a,b,c,d,e,f,path,nmb,kin)
 !-----------------------------------------------------------------
 !
 ! Computes the helicity transfer in the direction parallel 
@@ -1085,15 +1089,16 @@ MODULE pseudospec_aniso
 ! 'hmtranpara.XXX.txt': kz, TH_b(kz) (magnetic helicity transfer)
 !
 ! Parameters
-!     a  : field component in the x-direction (v or a)
-!     b  : field component in the y-direction (v or a)
-!     c  : field component in the z-direction (v or a)
-!     d  : nonlinear term in the x-direction
-!     e  : nonlinear term in the y-direction
-!     f  : nonlinear term in the z-direction
-!     nmb: the extension used when writting the file
-!     kin: =0 computes the magnetic helicity transfer
-!          =1 computes the kinetic helicity transfer
+!     a   : field component in the x-direction (v or a)
+!     b   : field component in the y-direction (v or a)
+!     c   : field component in the z-direction (v or a)
+!     d   : nonlinear term in the x-direction
+!     e   : nonlinear term in the y-direction
+!     f   : nonlinear term in the z-direction
+!     path: path for the output
+!     nmb : the extension used when writting the file
+!     kin : =0 computes the magnetic helicity transfer
+!           =1 computes the kinetic helicity transfer
 !
       USE fprecision
       USE commtypes
@@ -1114,7 +1119,7 @@ MODULE pseudospec_aniso
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
       INTEGER             :: kmn
-      CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=*), INTENT(IN) :: path,nmb
 
 !
 ! Sets Hk to zero
@@ -1186,9 +1191,9 @@ MODULE pseudospec_aniso
                       MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          IF (kin.eq.0) THEN
-            OPEN(1,file='hmtranpara.' // nmb // '.txt')
+            OPEN(1,file=trim(path) // '/hmtranpara.' // nmb // '.txt')
          ELSE
-            OPEN(1,file='hktranpara.' // nmb // '.txt')
+            OPEN(1,file=trim(path) // '/hktranpara.' // nmb // '.txt')
          ENDIF
          DO k = 1,nz/2+1
             WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Hktot(k)*Lz
@@ -1200,7 +1205,7 @@ MODULE pseudospec_aniso
       END SUBROUTINE heltpara
 
 !*****************************************************************
-      SUBROUTINE heltperp(a,b,c,d,e,f,nmb,kin)
+      SUBROUTINE heltperp(a,b,c,d,e,f,path,nmb,kin)
 !-----------------------------------------------------------------
 !
 ! Computes the helicity transfer in the direction perpendicular
@@ -1217,15 +1222,16 @@ MODULE pseudospec_aniso
 ! 'hmtranperp.XXX.txt': kp, TH_b(kp) (magnetic helicity transfer)
 !
 ! Parameters
-!     a  : field component in the x-direction (v or a)
-!     b  : field component in the y-direction (v or a)
-!     c  : field component in the z-direction (v or a)
-!     d  : nonlinear term in the x-direction
-!     e  : nonlinear term in the y-direction
-!     f  : nonlinear term in the z-direction
-!     nmb: the extension used when writting the file
-!     kin: =0 computes the magnetic helicity transfer
-!          =1 computes the kinetic helicity transfer
+!     a   : field component in the x-direction (v or a)
+!     b   : field component in the y-direction (v or a)
+!     c   : field component in the z-direction (v or a)
+!     d   : nonlinear term in the x-direction
+!     e   : nonlinear term in the y-direction
+!     f   : nonlinear term in the z-direction
+!     path: path for the output
+!     nmb : the extension used when writting the file
+!     kin : =0 computes the magnetic helicity transfer
+!           =1 computes the kinetic helicity transfer
 !
       USE fprecision
       USE commtypes
@@ -1246,7 +1252,7 @@ MODULE pseudospec_aniso
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
       INTEGER             :: kmn
-      CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=*), INTENT(IN) :: path,nmb
 
 !
 ! Sets Hk to zero
@@ -1318,9 +1324,9 @@ MODULE pseudospec_aniso
                       MPI_SUM,0,MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          IF (kin.eq.0) THEN
-            OPEN(1,file='hmtranperp.' // nmb // '.txt')
+            OPEN(1,file=trim(path) // '/hmtranperp.' // nmb // '.txt')
          ELSE
-            OPEN(1,file='hktranperp.' // nmb // '.txt')
+            OPEN(1,file=trim(path) // '/hktranperp.' // nmb // '.txt')
          ENDIF
          DO j = 1,nmaxperp/2+1
             WRITE(1,FMT='(E13.6,E23.15)') Dkk*(j-1),Hktot(j)/Dkk

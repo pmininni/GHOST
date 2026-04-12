@@ -296,15 +296,15 @@ CONTAINS
     fx => uf (this%VELOCITY  )%ccomp
     fy => uf (this%VELOCITY+1)%ccomp
     fz => uf (this%VELOCITY+2)%ccomp
-    call hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,0)
+    call hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,0,this%todir_)
     call maxabs(vx,vy,vz,rmp,0)
     if (myrank.eq.0) THEN
-      open(1,file='maximum.txt',position='append')
+      open(1,file=trim(this%todir_) // '/maximum.txt',position='append')
       write(1,FMT='(E13.6,E13.6)') (t-1)*dt,rmp
       close(1)
     endif
     do i = this%PASSIVE, this%PASSIVE+this%numpassive_-1
-      call pscheck(uin(i)%ccomp,uf(i)%ccomp,t,dt,trim(this%sstate_(i)))
+      call pscheck(uin(i)%ccomp,uf(i)%ccomp,t,dt,this%todir_,trim(this%sstate_(i)))
     end do   
   end subroutine global_impl
 
@@ -332,19 +332,19 @@ CONTAINS
     vx => uin(this%VELOCITY  )%ccomp
     vy => uin(this%VELOCITY+1)%ccomp
     vz => uin(this%VELOCITY+2)%ccomp
-    call spectrum(vx,vy,vz,ext,1,1)
+    call spectrum(vx,vy,vz,this%todir_,ext,1,1)
     call this%workspace_%get_complex_tmp(c1,bret)
     call this%workspace_%get_complex_tmp(c2,bret)
     call this%workspace_%get_complex_tmp(c3,bret)
-    call gradre3(vx,vy,vz,c1,c2,c3)            ! Computes v.Grad(v)
-    call entrans(vx,vy,vz,-c1,-c2,-c3,ext,1)   ! Writes the energy flux
+    call gradre3(vx,vy,vz,c1,c2,c3)                      ! Computes v.Grad(v)
+    call entrans(vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1) ! Writes the energy flux
     if ( this%traits_%dorot ) then
-      call specpara(vx,vy,vz,ext,1,1)
-      call specperp(vx,vy,vz,ext,1,1)
-      call entpara(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy flux
-      call entperp(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy fluxq
+      call specpara(vx,vy,vz,this%todir_,ext,1,1)
+      call specperp(vx,vy,vz,this%todir_,ext,1,1)
+      call entpara(vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1) ! Writes energy flux
+      call entperp(vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1) ! Writes energy flux
       if ( this%traits_%spectlod .ge. 2 ) then
-        call heltrans(vx,vy,vz,-c1,-c2,-c3,ext,1)
+        call heltrans(vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1)
         call spec2D(vx,vy,vz,ext,this%odir_,1,1)
       endif
       if ( this%traits_%spectlod .ge. 3 ) then
@@ -358,10 +358,10 @@ CONTAINS
     call this%workspace_%free_complex_tmp(c3)
     if ( this%numpassive_ .gt. 0) then
       do i = this%PASSIVE, this%PASSIVE+this%numpassive_-1
-        call spectrsc(uin(i)%ccomp,ext,0,trim(this%sstate_(i)))
+        call spectrsc(uin(i)%ccomp,this%todir_,ext,0,trim(this%sstate_(i)))
         if ( this%traits_%dorot ) then
-          call specscpa(uin(i)%ccomp,ext,0,trim(this%sstate_(i)))
-          call specscpe(uin(i)%ccomp,ext,0,trim(this%sstate_(i)))
+          call specscpa(uin(i)%ccomp,this%todir_,ext,0,trim(this%sstate_(i)))
+          call specscpe(uin(i)%ccomp,this%todir_,ext,0,trim(this%sstate_(i)))
         endif
       end do
     endif

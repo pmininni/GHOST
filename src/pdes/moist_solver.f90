@@ -1,5 +1,5 @@
 ! =====================================================================
-! NAME       : moist_ths_solver.f90   (temporary)
+! NAME       : moist_solver.f90
 ! DESCRIPTION: Forms class for moist Boussinesq solvers, computing:
 !
 !              dv/dt + (w + 2 Omega) x v = - Grad p + 
@@ -435,9 +435,9 @@ contains
     fth1 => uf (this%ACTIVESC  )%ccomp
     fth2 => uf (this%ACTIVESC+1)%ccomp
 
-    call hdcheck(vx, vy, vz, fx, fy, fz, t, dt, 1, 1)
-    call pscheck(th1, fth1, t, dt, trim(this%sstate_(this%ACTIVESC  )))
-    call pscheck(th2, fth2, t, dt, trim(this%sstate_(this%ACTIVESC+1)))
+    call hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,1,this%todir_)
+    call pscheck(th1,fth1,t,dt,this%todir_,trim(this%sstate_(this%ACTIVESC  )))
+    call pscheck(th2,fth2,t,dt,this%todir_,trim(this%sstate_(this%ACTIVESC+1)))
 
     call maxabs(vx,vy,vz,rmp1,0) ! max |vorticity|
     call derivk3(th1, c1, 1)
@@ -449,13 +449,13 @@ contains
     call derivk3(th2,c3,3)
     call maxabs(c1,c2,c3,rmq2,2) ! max |Grad bs|
     if (myrank.eq.0) then
-      open(1,file='maximum.txt',position='append')
+      open(1,file=trim(this%todir_) // '/maximum.txt',position='append')
       write(1,FMT='(E13.6,E13.6,E13.6,E13.6)') (t-1)*dt,rmp1,rmq1,rmq2
       close(1)
     endif
 
     do i = this%PASSIVE, this%PASSIVE+this%numpassive_-1
-      call pscheck(uin(i)%ccomp,uf(i)%ccomp,t,dt,trim(this%sstate_(i)))
+      call pscheck(uin(i)%ccomp,uf(i)%ccomp,t,dt,this%todir_,trim(this%sstate_(i)))
     end do   
 
     call this%workspace_%free_complex_tmp(c1)
@@ -494,27 +494,27 @@ contains
     vz  => uin(this%VELOCITY+2)%ccomp
     th1 => uin(this%ACTIVESC  )%ccomp
     th2 => uin(this%ACTIVESC+1)%ccomp
-    call spectrum(vx,vy,vz,ext,1,1)
+    call spectrum(vx,vy,vz,this%todir_,ext,1,1)
     call this%workspace_%get_complex_tmp(c1,bret)
     call this%workspace_%get_complex_tmp(c2,bret)
     call this%workspace_%get_complex_tmp(c3,bret)
-    call gradre3(vx,vy,vz,c1,c2,c3)          ! Computes v.Grad(v)
-    call entrans(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy flux
+    call gradre3(vx,vy,vz,c1,c2,c3)                      ! Computes v.Grad(v)
+    call entrans(vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1) ! Writes the energy flux
     
-    call specpara(vx,vy,vz,ext,1,1)
-    call specperp(vx,vy,vz,ext,1,1)
-    call spectrsc(th1,ext,0,trim(this%sstate_(this%ACTIVESC  )))
-    call specscpa(th1,ext,0,trim(this%sstate_(this%ACTIVESC  )))
-    call specscpe(th1,ext,0,trim(this%sstate_(this%ACTIVESC  )))
-    call spectrsc(th2,ext,1,trim(this%sstate_(this%ACTIVESC+1)))
-    call specscpa(th2,ext,1,trim(this%sstate_(this%ACTIVESC+1)))
-    call specscpe(th2,ext,1,trim(this%sstate_(this%ACTIVESC+1)))
-    call entpara(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy flux
-    call entperp(vx,vy,vz,-c1,-c2,-c3,ext,1) ! Writes the energy flux
+    call specpara(vx,vy,vz,this%todir_,ext,1,1)
+    call specperp(vx,vy,vz,this%todir_,ext,1,1)
+    call spectrsc(th1,this%todir_,ext,0,trim(this%sstate_(this%ACTIVESC  )))
+    call specscpa(th1,this%todir_,ext,0,trim(this%sstate_(this%ACTIVESC  )))
+    call specscpe(th1,this%todir_,ext,0,trim(this%sstate_(this%ACTIVESC  )))
+    call spectrsc(th2,this%todir_,ext,1,trim(this%sstate_(this%ACTIVESC+1)))
+    call specscpa(th2,this%todir_,ext,1,trim(this%sstate_(this%ACTIVESC+1)))
+    call specscpe(th2,this%todir_,ext,1,trim(this%sstate_(this%ACTIVESC+1)))
+    call entpara(vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1) ! Writes energy flux
+    call entperp(vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1) ! Writes energy flux
 
     ! Write helicity fluxes, 2D spectra:
     if ( this%traits_%spectlod .ge. 2 ) then
-      call heltrans(vx,vy,vz,-c1,-c2,-c3,ext,1)
+      call heltrans(vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1)
       ! Write 2D spectra:
       call spec2D  (vx,vy,vz,ext,this%odir_,1,1)
       call specsc2D(th1,ext,this%odir_,0,trim(this%sstate_(this%ACTIVESC  )))
@@ -535,10 +535,10 @@ contains
     call this%workspace_%free_complex_tmp(c3)
     if ( this%numpassive_ .gt. 0) then
       do i = this%PASSIVE, this%PASSIVE+this%numpassive_-1
-        call spectrsc(uin(i)%ccomp,ext,0,trim(this%sstate_(i)))
+        call spectrsc(uin(i)%ccomp,this%todir_,ext,0,trim(this%sstate_(i)))
         if ( this%traits_%dorot ) then
-          call specscpa(uin(i)%ccomp,ext,0,trim(this%sstate_(i)))
-          call specscpe(uin(i)%ccomp,ext,0,trim(this%sstate_(i)))
+          call specscpa(uin(i)%ccomp,this%todir_,ext,0,trim(this%sstate_(i)))
+          call specscpe(uin(i)%ccomp,this%todir_,ext,0,trim(this%sstate_(i)))
         endif
       end do
     endif

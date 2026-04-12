@@ -344,7 +344,7 @@ MODULE pseudospec_magnetic
       END SUBROUTINE gauge3
 
 !*****************************************************************
-      SUBROUTINE crosspec(a,b,c,d,e,f,nmb)
+      SUBROUTINE crosspec(a,b,c,d,e,f,path,nmb)
 !-----------------------------------------------------------------
 !
 ! Computes the cross-helicity spectrum. Normalization of the
@@ -356,13 +356,14 @@ MODULE pseudospec_magnetic
 ! 'cspectrum.XXX.txt': k, C(k)
 !
 ! Parameters
-!     a  : velocity in the x-direction
-!     b  : velocity in the y-direction
-!     c  : velocity in the z-direction
-!     d  : magnetic potential in the x-direction
-!     e  : magnetic potential in the y-direction
-!     f  : magnetic potential in the z-direction
-!     nmb: the extension used when writting the file
+!     a   : velocity in the x-direction
+!     b   : velocity in the y-direction
+!     c   : velocity in the z-direction
+!     d   : magnetic potential in the x-direction
+!     e   : magnetic potential in the y-direction
+!     f   : magnetic potential in the z-direction
+!     path: path for the output
+!     nmb : the extension used when writting the file
 !
       USE kes
       USE grid
@@ -376,7 +377,7 @@ MODULE pseudospec_magnetic
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
       INTEGER                      :: i
-      CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=*), INTENT(IN) :: path,nmb
 
 !
 ! Computes the cross-helicity spectrum
@@ -386,7 +387,7 @@ MODULE pseudospec_magnetic
 ! Exports the spectrum to a file
 !
       IF (myrank.eq.0) THEN
-         OPEN(1,file='cspectrum.' // nmb // '.txt')
+         OPEN(1,file=trim(path) // '/cspectrum.' // nmb // '.txt')
          DO i=1,nmax/2+1
             WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Cktot(i)/Dkk
          END DO
@@ -517,7 +518,7 @@ MODULE pseudospec_mhd
    CONTAINS
 
 !*****************************************************************
-      SUBROUTINE mhdcheck(a,b,c,ma,mb,mc,t,dt,ep,hel,crs,chk)
+      SUBROUTINE mhdcheck(a,b,c,ma,mb,mc,t,dt,ep,hel,crs,chk,path)
 !-----------------------------------------------------------------
 !
 ! Consistency check for the conservation of the total
@@ -531,22 +532,23 @@ MODULE pseudospec_mhd
 ! 'divergence.txt' [OPTIONAL]: time, <(div.v)^2>, <(div.a)^2>
 !
 ! Parameters
-!     a  : velocity field in the x-direction
-!     b  : velocity field in the y-direction
-!     c  : velocity field in the z-direction
-!     ma : vector potential in the x-direction
-!     mb : vector potential in the y-direction
-!     mc : vector potential in the z-direction
-!     t  : number of time steps made
-!     dt : time step
-!     ep : Hall term epsilon
-!     hel: =0 skips helicity computation
-!          =1 computes the helicity
-!     crs: =0 skips cross helicity computation
-!          =1 computes cross helicity
-!          =2 computes cross and generalized helicity
-!     chk: =0 skips divergency check
-!          =1 performs divergency check
+!     a   : velocity field in the x-direction
+!     b   : velocity field in the y-direction
+!     c   : velocity field in the z-direction
+!     ma  : vector potential in the x-direction
+!     mb  : vector potential in the y-direction
+!     mc  : vector potential in the z-direction
+!     t   : number of time steps made
+!     dt  : time step
+!     ep  : Hall term epsilon
+!     hel : =0 skips helicity computation
+!           =1 computes the helicity
+!     crs : =0 skips cross helicity computation
+!           =1 computes cross helicity
+!           =2 computes cross and generalized helicity
+!     chk : =0 skips divergency check
+!           =1 performs divergency check
+!     path: path for the output
 !
       USE fprecision
       USE commtypes
@@ -567,6 +569,7 @@ MODULE pseudospec_mhd
       INTEGER, INTENT(IN) :: hel,crs,chk
       INTEGER, INTENT(IN) :: t
       INTEGER             :: i,j,k
+      CHARACTER(len=*), INTENT(IN) :: path
 
       divk = 0.0D0
       divm = 0.0D0
@@ -695,30 +698,30 @@ MODULE pseudospec_mhd
 ! Creates external files to store the results
 !
       IF (myrank.eq.0) THEN
-         OPEN(1,file='balance.txt',position='append')
+         OPEN(1,file=trim(path) // '/balance.txt',position='append')
          WRITE(1,10) (t-1)*dt,eng,ens,cur
    10    FORMAT( E13.6,E22.14,E22.14,E22.14 )
          CLOSE(1)
-         OPEN(1,file='energy.txt',position='append')
+         OPEN(1,file=trim(path) // '/energy.txt',position='append')
          WRITE(1,10) (t-1)*dt,engk,engm
          CLOSE(1)
          IF (hel.eq.1) THEN
-            OPEN(1,file='helicity.txt',position='append')
+            OPEN(1,file=trim(path) // '/helicity.txt',position='append')
             WRITE(1,10) (t-1)*dt,helk,helm
             CLOSE(1)
          ENDIF
          IF (crs.eq.1) THEN
-            OPEN(1,file='cross.txt',position='append')
+            OPEN(1,file=trim(path) // '/cross.txt',position='append')
             WRITE(1,10) (t-1)*dt,crh,asq
             CLOSE(1)
          ELSE IF (crs.eq.2) THEN
-            OPEN(1,file='cross.txt',position='append')
+            OPEN(1,file=trim(path) // '/cross.txt',position='append')
             WRITE(1,30) (t-1)*dt,crh,asq,helg,g1sq,g2sq
    30       FORMAT( E13.6,E22.14,E22.14,E22.14,E22.14,E22.14 )
             CLOSE(1)
          ENDIF
          IF (chk.eq.1) THEN
-            OPEN(1,file='divergence.txt',position='append')
+            OPEN(1,file=trim(path) // '/divergence.txt',position='append')
             WRITE(1,10) (t-1)*dt,divk,divm
             CLOSE(1)
          ENDIF

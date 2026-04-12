@@ -29,7 +29,7 @@ MODULE pseudospec_anisca
    CONTAINS
 
 !*****************************************************************
-      SUBROUTINE specscpa(a,nmb,isc,tail)
+      SUBROUTINE specscpa(a,path,nmb,isc,tail)
 !-----------------------------------------------------------------
 !
 ! Computes the reduced power spectrum of the passive scalar in
@@ -46,6 +46,7 @@ MODULE pseudospec_anisca
 !
 ! Parameters
 !     a    : input matrix with the passive scalar
+!     path : path for the output
 !     nmb  : the extension used when writting the file
 !     isc  : index to specify which scalar the spectrum 
 !            represents; modifies output file name
@@ -68,7 +69,7 @@ MODULE pseudospec_anisca
       INTEGER,          INTENT(IN)                           :: isc
       INTEGER          :: i,j,k
       INTEGER          :: kmn
-      CHARACTER(len=*), INTENT(IN)           :: nmb
+      CHARACTER(len=*), INTENT(IN)           :: path,nmb
       CHARACTER(len=*), INTENT(IN), OPTIONAL :: tail
       CHARACTER(len=1)                       :: si
       CHARACTER(len=128)                     :: fname
@@ -130,7 +131,7 @@ MODULE pseudospec_anisca
 ! Computes the reduction between nodes
 ! and exports the result to a file
 !
-      CALL MPI_REDUCE(Ek,Ektot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+      CALL MPI_REDUCE(Ek,Ektot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0,  &
                       MPI_COMM_WORLD,ierr)
       IF ( myrank.eq.0 ) THEN
          IF ( isc.ge.0 ) THEN
@@ -146,7 +147,8 @@ MODULE pseudospec_anisca
          if (present(tail)) then
             fname = trim(adjustl(fname)) // '_' // trim(adjustl(tail))
          endif
-         OPEN(1,file= trim(adjustl(fname)) // '.' // nmb // '.txt')
+         OPEN(1,file= trim(path) // '/' // trim(adjustl(fname)) // '.' &
+              // nmb // '.txt')
          DO k = 1,nz/2+1
             WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Ektot(k)*Lz
          END DO
@@ -157,7 +159,7 @@ MODULE pseudospec_anisca
       END SUBROUTINE specscpa
 
 !*****************************************************************
- SUBROUTINE specscpe(a,nmb,isc,tail)
+ SUBROUTINE specscpe(a,path,nmb,isc,tail)
 !-----------------------------------------------------------------
 !
 ! Computes the reduced power spectrum of the passive scalar 
@@ -177,6 +179,7 @@ MODULE pseudospec_anisca
 !
 ! Parameters   
 !     a    : input matrix with the passive scalar
+!     path : path for the output
 !     nmb  : the extension used when writting the file
 !     isc  : index to specify which scalar the spectrum 
 !            represents; modifies output file name
@@ -193,7 +196,7 @@ MODULE pseudospec_anisca
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
       INTEGER,          INTENT(IN)           :: isc
       INTEGER                                :: j
-      CHARACTER(len=*), INTENT(IN)           :: nmb
+      CHARACTER(len=*), INTENT(IN)           :: path,nmb
       CHARACTER(len=*), INTENT(IN), OPTIONAL :: tail
       CHARACTER(len=1)                       :: si
       CHARACTER(len=128)                     :: fname
@@ -219,7 +222,8 @@ MODULE pseudospec_anisca
          if (present(tail)) then
             fname = trim(adjustl(fname)) // '_'// trim(adjustl(tail))
          endif
-         OPEN(1,file= trim(adjustl(fname)) // '.' // nmb // '.txt')
+         OPEN(1,file= trim(path) // '/' // trim(adjustl(fname)) // '.' &
+              // nmb // '.txt')
          DO j = 1,nmaxperp/2+1
             WRITE(1,FMT='(E23.15,E23.15,E23.15)') Dkk*(j-1), &
                                  Ektot(j)/Dkk, Eptot(j)/Dkk
@@ -342,7 +346,7 @@ MODULE pseudospec_anisca
       END SUBROUTINE specscpec
 
 !*****************************************************************
-      SUBROUTINE sctpara(a,b,nmb,isc,tail)
+      SUBROUTINE sctpara(a,b,path,nmb,isc,tail)
 !-----------------------------------------------------------------
 !
 ! Computes the transfer function for the passive scalar in 
@@ -359,11 +363,12 @@ MODULE pseudospec_anisca
 ! 'sNtranpara.XXX.txt': kz, Ts(kz) (same for the N-th scalar)
 !
 ! Parameters
-!     a  : passive scalar
-!     b  : nonlinear term
-!     nmb: the extension used when writting the file
-!     isc: scalar id, used if isc >= 0
-!     tail : Appends tail at the end of the file name [optional]
+!     a   : passive scalar
+!     b   : nonlinear term
+!     path: path for the output
+!     nmb : the extension used when writting the file
+!     isc : scalar id, used if isc >= 0
+!     tail: Appends tail at the end of the file name [optional]
 !
       USE fprecision
       USE commtypes
@@ -382,7 +387,7 @@ MODULE pseudospec_anisca
       INTEGER         , INTENT(IN)                             :: isc
       INTEGER          :: i,j,k
       INTEGER          :: kmn
-      CHARACTER(len=*), INTENT(IN)           :: nmb
+      CHARACTER(len=*), INTENT(IN)           :: path,nmb
       CHARACTER(len=*), INTENT(IN), OPTIONAL :: tail
       CHARACTER(len=1)                       :: si
       CHARACTER(len=128)                     :: fname
@@ -444,7 +449,7 @@ MODULE pseudospec_anisca
 ! Computes the reduction between nodes
 ! and exports the result to a file
 !
-      CALL MPI_REDUCE(Ek,Ektot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
+      CALL MPI_REDUCE(Ek,Ektot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0,  &
                       MPI_COMM_WORLD,ierr)
       IF ( myrank.eq.0 ) THEN
          IF ( isc.ge.0 ) THEN
@@ -460,7 +465,8 @@ MODULE pseudospec_anisca
          if (present(tail)) then
             fname = trim(adjustl(fname)) // '_' // trim(adjustl(tail))
          endif
-         OPEN(1,file= trim(adjustl(fname)) // '.' // nmb // '.txt')
+         OPEN(1,file= trim(path) // '/' // trim(adjustl(fname)) // '.' &
+              // nmb // '.txt')
          DO k = 1,nz/2+1
             WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Ektot(k)*Lz
          END DO
@@ -471,7 +477,7 @@ MODULE pseudospec_anisca
       END SUBROUTINE sctpara
 
 !*****************************************************************
-      SUBROUTINE sctperp(a,b,nmb,isc,tail)
+      SUBROUTINE sctperp(a,b,path,nmb,isc,tail)
 !-----------------------------------------------------------------
 !
 ! Computes the transfer function for the passive scalar in 
@@ -489,11 +495,12 @@ MODULE pseudospec_anisca
 ! 'sNtranperp.XXX.txt': kp, Ts(kp) (same for the N-th scalar)
 !
 ! Parameters
-!     a  : passive scalar
-!     b  : nonlinear term
-!     nmb: the extension used when writting the file
-!     isc: scalar id, used if isc >= 0
-!     tail : Appends tail at the end of the file name [optional]
+!     a   : passive scalar
+!     b   : nonlinear term
+!     path: path for the output
+!     nmb : the extension used when writting the file
+!     isc : scalar id, used if isc >= 0
+!     tail: Appends tail at the end of the file name [optional]
 !
       USE fprecision
       USE commtypes
@@ -509,10 +516,10 @@ MODULE pseudospec_anisca
       DOUBLE PRECISION :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
       REAL(KIND=GP)    :: tmp
-      INTEGER         , INTENT(IN)                            :: isc
+      INTEGER         , INTENT(IN)                             :: isc
       INTEGER          :: i,j,k
       INTEGER          :: kmn
-      CHARACTER(len=*), INTENT(IN)           :: nmb
+      CHARACTER(len=*), INTENT(IN)           :: path,nmb
       CHARACTER(len=*), INTENT(IN), OPTIONAL :: tail
       CHARACTER(len=1)                       :: si
       CHARACTER(len=128)                     :: fname
@@ -590,7 +597,8 @@ MODULE pseudospec_anisca
          if (present(tail)) then
             fname = trim(adjustl(fname)) // '_' // trim(adjustl(tail))
          endif
-         OPEN(1,file= trim(adjustl(fname)) // '.' // nmb // '.txt')
+         OPEN(1,file= trim(path) // '/' //trim(adjustl(fname)) // '.' &
+              // nmb // '.txt')
          DO j = 1,nmaxperp/2+1
             WRITE(1,FMT='(E13.6,E23.15)') Dkk*(j-1),Ektot(j)/Dkk
          END DO
@@ -620,11 +628,11 @@ MODULE pseudospec_anisca
 ! 'odir/sNspec2D.XXX.out': Same for the N-th scalar
 !
 ! Parameters
-!     a  : input matrix with the passive scalar
-!     nmb: the extension used when writting the file
-!     dir: directory where the files are written
-!     isc: if > 0, changes filename prefix
-!     tail : Appends tail at the end of the file name [optional]
+!     a   : input matrix with the passive scalar
+!     nmb : the extension used when writting the file
+!     dir : directory where the files are written
+!     isc : if > 0, changes filename prefix
+!     tail: Appends tail at the end of the file name [optional]
 !
       USE fprecision
       USE commtypes

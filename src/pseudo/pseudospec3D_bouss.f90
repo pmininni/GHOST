@@ -12,7 +12,6 @@
 !
 ! 2011 D. Rosenberg
 !      NCAR
-!
 !=================================================================
 
 module pseudospec_bouss
@@ -42,13 +41,13 @@ module pseudospec_bouss
 !    itype == 10: H.A. of correlation: <u_z \theta>_perp
 !
 ! Parameters
-!     gsh: return array, funcion of z of size >= N
-!     u  : input x-velocity, Fourier coeffs
-!     v  : input y-velocity, Fourier coeffs
-!     w  : input z-velocity, Fourier coeffs
-!     s  : input scalar density/temperature, Fourier coeffs
-!     fo : Coriolis parameter (usually == 2\Omega)
-!     bv : Brunt-Vaisala frequency
+!     gsh  : return array, funcion of z of size >= N
+!     u    : input x-velocity, Fourier coeffs
+!     v    : input y-velocity, Fourier coeffs
+!     w    : input z-velocity, Fourier coeffs
+!     s    : input scalar density/temperature, Fourier coeffs
+!     fo   : Coriolis parameter (usually == 2\Omega)
+!     bv   : Brunt-Vaisala frequency
 !     itype: which quantity to compute
 !
       USE fprecision
@@ -557,7 +556,7 @@ module pseudospec_bouss
       end subroutine havgcomp
 
 !*****************************************************************
-      subroutine havgwrite(itype,spref,nmb,u,v,w,s,fo,bv)
+      subroutine havgwrite(itype,path,spref,nmb,u,v,w,s,fo,bv)
 !-----------------------------------------------------------------
 !
 ! computes horizontal average of quantity itype (specified in 
@@ -570,6 +569,7 @@ module pseudospec_bouss
 !         
 ! parameters
 !     itype : quantity id
+!     path  : path for the output
 !     spref : filename prefix
 !     nmb   : output interval id extension
 !     u     : input x-velocity, fourier coeffs
@@ -594,13 +594,14 @@ module pseudospec_bouss
       complex(kind=gp), intent(in), dimension(nz,ny,ista:iend) :: w,s
       real(kind=gp),    intent(in)      :: fo, bv
       double precision, dimension(nz)   :: gsh
-      character(len=*), intent(in)      :: nmb,spref
+      character(len=*), intent(in)      :: path,nmb,spref
       integer,intent(in)                :: itype
       integer                           :: k
 
       call havgcomp(gsh,u,v,w,s,fo,bv,itype) 
       if (myrank.eq.0) then
-         open(1,file=trim(spref) // '.' // trim(nmb) // '.txt')
+         open(1,file=trim(path) // '/' // trim(spref) // '.' //         &
+              trim(nmb) // '.txt')
          do k = 1,nz
          write(1,10) 2*pi*lz*(real(k,kind=gp)-1)/real(nz,kind=gp), gsh(k)
          end do
@@ -612,7 +613,7 @@ module pseudospec_bouss
       end subroutine havgwrite
 
 !*****************************************************************
-      subroutine tbouss(u, v, w, s, t, dt, fo, bv)
+      subroutine tbouss(u, v, w, s, t, dt, fo, bv, path)
 !-----------------------------------------------------------------
 !
 ! Computes the volume-average and max/min of quantities computed in
@@ -635,14 +636,15 @@ module pseudospec_bouss
 !    col== 12: hor. avg. of correlation: <u_z \theta>
 !        
 ! Parameters
-!     u  : input x-velocity, Fourier coeffs
-!     v  : input y-velocity, Fourier coeffs
-!     w  : input z-velocity, Fourier coeffs
-!     s  : input scalar density/temperature, Fourier coeffs
-!     t  : number of time steps made
-!     dt : time step
-!     fo : Coriolis parameter (usually == 2\Omega)
-!     bv : Brunt-Vaisala frequency
+!     u   : input x-velocity, Fourier coeffs
+!     v   : input y-velocity, Fourier coeffs
+!     w   : input z-velocity, Fourier coeffs
+!     s   : input scalar density/temperature, Fourier coeffs
+!     t   : number of time steps made
+!     dt  : time step
+!     fo  : Coriolis parameter (usually == 2\Omega)
+!     bv  : Brunt-Vaisala frequency
+!     path: path for the output
 !
       use fprecision
       use commtypes
@@ -663,6 +665,7 @@ module pseudospec_bouss
       double precision, dimension(nz) :: gsh
       integer, intent(in)             :: t
       integer                         :: i
+      character(len=*), intent(in)    :: path
 
       gxavg  = 0.0D0
       gxmax  = 0.0D0
@@ -682,7 +685,7 @@ module pseudospec_bouss
 !
 ! Output averaged quantities as a fcn of t:
       if (myrank.eq.0) then
-         open(1,file='tboussavg.txt',position='append')
+         open(1,file=trim(path) // '/tboussavg.txt',position='append')
          write(1,20) (t-1)*dt,gxavg(1),gxavg (2),gxavg (3),gxavg(4), &
                               gxavg(5),gxavg (6),gxavg (7),gxavg(8), &
                               gxavg(9),gxavg(10),gxavg(11)
@@ -691,7 +694,7 @@ module pseudospec_bouss
 !
 ! Output max quantities as a fcn of t:
       if (myrank.eq.0) then
-         open(1,file='tboussmax.txt',position='append')
+         open(1,file=trim(path) // '/tboussmax.txt',position='append')
          write(1,20) (t-1)*dt,gxmax(1),gxmax (2),gxmax (3),gxmax(4), &
                               gxmax(5),gxmax (6),gxmax (7),gxmax(8), &
                               gxmax(9),gxmax(10),gxmax(11)
@@ -700,7 +703,7 @@ module pseudospec_bouss
 !
 ! Output min quantities as a fcn of t:
       if (myrank.eq.0) then
-         open(1,file='tboussmin.txt',position='append')
+         open(1,file=trim(path) // '/tboussmin.txt',position='append')
          write(1,20) (t-1)*dt,gxmin(1),gxmin (2),gxmin (3),gxmin(4), &
                               gxmin(5),gxmin (6),gxmin (7),gxmin(8), &
                               gxmin(9),gxmin(10),gxmin(11)
@@ -712,7 +715,7 @@ module pseudospec_bouss
       end subroutine tbouss
 
 !*****************************************************************
-      subroutine spectpv(u,v,w,s,nmb)
+      subroutine spectpv(u,v,w,s,path,nmb)
 !-----------------------------------------------------------------
 !
 ! Computes the potential vorticity power spectrum as a function
@@ -727,6 +730,7 @@ module pseudospec_bouss
 ! Parameters
 !     u,v,w  : input matrix with the 1,2,3 velocity components;
 !     s      : input matrix with the scalar density/temperature
+!     path   : path for the output
 !     nmb    : the extension used when writting the file
 !
       use fprecision
@@ -746,7 +750,7 @@ module pseudospec_bouss
       real(kind=gp)     :: tmp
       integer           :: i,j,k
       integer           :: kmn
-      character(len=*), intent(in) :: nmb
+      character(len=*), intent(in) :: path,nmb
 !
 ! Compute vorticity:
       call rotor3(v,w,c1,1)
@@ -805,7 +809,7 @@ module pseudospec_bouss
 ! Exports the spectrum to a file
 !
       if (myrank.eq.0) then
-         open(1,file='pvspectrum.' // nmb // '.txt')
+         open(1,file=trim(path) // '/pvspectrum.' // nmb // '.txt')
          do k = 1,nz/2+1
             write(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Ektot(k)
          end do

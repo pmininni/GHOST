@@ -1067,7 +1067,7 @@ MODULE pseudospec_fluid
       END SUBROUTINE maxabs
 
 !*****************************************************************
-      SUBROUTINE spectrum(a,b,c,nmb,kin,hel)
+      SUBROUTINE spectrum(a,b,c,path,nmb,kin,hel)
 !-----------------------------------------------------------------
 !
 ! Computes the energy and helicity power spectrum.
@@ -1083,15 +1083,16 @@ MODULE pseudospec_fluid
 ! 'ghelicity.XXX.txt': k, G(k)  (generalized helicity in Hall-MHD)
 !
 ! Parameters
-!     a  : input matrix in the x-direction
-!     b  : input matrix in the y-direction
-!     c  : input matrix in the z-direction
-!     nmb: the extension used when writting the file
-!     kin: =0 computes the magnetic spectrum
-!          =1 computes the kinetic spectrum
-!          =2 skips energy spectrum computation
-!     hel: =0 skips helicity spectrum computation
-!          =1 computes the helicity spectrum
+!     a   : input matrix in the x-direction
+!     b   : input matrix in the y-direction
+!     c   : input matrix in the z-direction
+!     path: path for the output
+!     nmb : the extension used when writting the file
+!     kin : =0 computes the magnetic spectrum
+!           =1 computes the kinetic spectrum
+!           =2 skips energy spectrum computation
+!     hel : =0 skips helicity spectrum computation
+!           =1 computes the helicity spectrum
 !
       USE kes
       USE grid
@@ -1104,7 +1105,7 @@ MODULE pseudospec_fluid
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       INTEGER, INTENT(IN)          :: kin,hel
       INTEGER                      :: i
-      CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=*), INTENT(IN) :: path,nmb
 
 !
 ! Computes the energy and/or helicity spectra
@@ -1116,9 +1117,9 @@ MODULE pseudospec_fluid
       IF (kin.le.1) THEN
          IF (myrank.eq.0) THEN
             IF (kin.eq.1) THEN
-               OPEN(1,file='kspectrum.' // nmb // '.txt')
+               OPEN(1,file=trim(path) // '/kspectrum.' // nmb // '.txt')
             ELSE
-               OPEN(1,file='mspectrum.' // nmb // '.txt')
+               OPEN(1,file=trim(path) // '/mspectrum.' // nmb // '.txt')
             ENDIF
             DO i=1,nmax/2+1
                WRITE(1,FMT='(E13.6,E23.15)') Dkk*i,.5_GP*Ek(i)/Dkk
@@ -1132,11 +1133,11 @@ MODULE pseudospec_fluid
       IF (hel.eq.1) THEN
          IF (myrank.eq.0) THEN
             IF (kin.eq.1) THEN
-               OPEN(1,file='khelicity.' // nmb // '.txt')
+               OPEN(1,file=trim(path) // '/khelicity.' // nmb // '.txt')
             ELSE IF (kin.eq.0) THEN
-               OPEN(1,file='mhelicity.' // nmb // '.txt')
+               OPEN(1,file=trim(path) // '/mhelicity.' // nmb // '.txt')
             ELSE
-               OPEN(1,file='ghelicity.' // nmb // '.txt')
+               OPEN(1,file=trim(path) // '/ghelicity.' // nmb // '.txt')
             ENDIF
             DO i=1,nmax/2+1
                WRITE(1,FMT='(E13.6,E23.15)') Dkk*i,Hk(i)/Dkk
@@ -1377,7 +1378,7 @@ MODULE pseudospec_fluid
       END SUBROUTINE spectrumc
 
 !*****************************************************************
-      SUBROUTINE spectr1d(a,nmb,spref,cmp,dir)
+      SUBROUTINE spectr1d(a,path,nmb,spref,cmp,dir)
 !-----------------------------------------------------------------
 !
 ! Computes the 1D longitudinal or transverse kinetic energy 
@@ -1395,6 +1396,7 @@ MODULE pseudospec_fluid
 !
 ! Parameters
 !     a    : input matrix with a field component
+!     path : path for the output
 !     nmb  : the extension used when writting the file
 !     spref: filename prefix
 !     cmp  : =1 the input matrix is v_x
@@ -1424,7 +1426,7 @@ MODULE pseudospec_fluid
       INTEGER             :: n(3)
       INTEGER             :: kmn
       CHARACTER(len=3)    :: coord
-      CHARACTER(len=*), INTENT(IN) :: nmb,spref
+      CHARACTER(len=*), INTENT(IN) :: path,nmb,spref
 
 !
 ! Sets Ek to zero
@@ -1569,14 +1571,14 @@ MODULE pseudospec_fluid
 ! Computes the reduction between nodes
 ! and exports the result to a file
 !
-      CALL MPI_REDUCE(Ek,Ektot,nmax/2+1,MPI_DOUBLE_PRECISION, &
+      CALL MPI_REDUCE(Ek,Ektot,nmax/2+1,MPI_DOUBLE_PRECISION,     &
                       MPI_SUM,0,MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          coord = 'xyz'
          n  = (/nx,ny,nz/)
          Dn = (/Dkx,Dky,Dkz/)
-         OPEN(1,file=trim(spref) // 'spec1d' // coord(cmp:cmp) &
-              // coord(dir:dir) // '.' // nmb // '.txt')
+         OPEN(1,file=trim(path) // '/' // trim(spref) // 'spec1d' &
+              // coord(cmp:cmp) // coord(dir:dir) // '.' // nmb // '.txt')
          DO i=1,n(dir)/2+1
             WRITE(1,FMT='(E13.6,E23.15)') &
                   Dn(dir)*(i-1),.5_GP*Ektot(i)/Dn(dir)
@@ -1588,7 +1590,7 @@ MODULE pseudospec_fluid
       END SUBROUTINE spectr1d
 
 !*****************************************************************
-      SUBROUTINE entrans(a,b,c,d,e,f,nmb,kin)
+      SUBROUTINE entrans(a,b,c,d,e,f,path,nmb,kin)
 !-----------------------------------------------------------------
 !
 ! Computes the energy (or cross-helicity) transfer in Fourier
@@ -1605,18 +1607,19 @@ MODULE pseudospec_fluid
 ! 'mcrostran.XXX.txt': k, TC_b(k) (magnetic cross-helicity transfer)
 !
 ! Parameters
-!     a  : field component in the x-direction
-!     b  : field component in the y-direction
-!     c  : field component in the z-direction
-!     d  : nonlinear term in the x-direction
-!     e  : nonlinear term in the y-direction
-!     f  : nonlinear term in the z-direction
-!     nmb: the extension used when writting the file
-!     kin: =0 computes the magnetic energy transfer
-!          =1 computes the kinetic energy transfer
-!          =2 computes the Lorentz force work (energy transfer)
-!          =3 computes the magnetic cross-helicity transfer
-!          =4 computes the kinetic cross-helicity transfer
+!     a   : field component in the x-direction
+!     b   : field component in the y-direction
+!     c   : field component in the z-direction
+!     d   : nonlinear term in the x-direction
+!     e   : nonlinear term in the y-direction
+!     f   : nonlinear term in the z-direction
+!     path: path for the output
+!     nmb : the extension used when writting the file
+!     kin : =0 computes the magnetic energy transfer
+!           =1 computes the kinetic energy transfer
+!           =2 computes the Lorentz force work (energy transfer)
+!           =3 computes the magnetic cross-helicity transfer
+!           =4 computes the kinetic cross-helicity transfer
 !
       USE fprecision
       USE commtypes
@@ -1636,7 +1639,7 @@ MODULE pseudospec_fluid
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
       INTEGER             :: kmn
-      CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=*), INTENT(IN) :: path,nmb
 
 !
 ! Sets Ek to zero
@@ -1762,15 +1765,15 @@ MODULE pseudospec_fluid
                       MPI_SUM,0,MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          IF (kin.eq.0) THEN
-            OPEN(1,file='mtransfer.' // nmb // '.txt')
+            OPEN(1,file=trim(path) // '/mtransfer.' // nmb // '.txt')
          ELSEIF (kin.eq.1) THEN
-            OPEN(1,file='ktransfer.' // nmb // '.txt')
+            OPEN(1,file=trim(path) // '/ktransfer.' // nmb // '.txt')
          ELSEIF (kin.eq.2) THEN
-            OPEN(1,file='jtransfer.' // nmb // '.txt')
+            OPEN(1,file=trim(path) // '/jtransfer.' // nmb // '.txt')
          ELSEIF (kin.eq.3) THEN
-            OPEN(1,file='mcrostran.' // nmb // '.txt')
+            OPEN(1,file=trim(path) // '/mcrostran.' // nmb // '.txt')
          ELSEIF (kin.eq.4) THEN
-            OPEN(1,file='kcrostran.' // nmb // '.txt')
+            OPEN(1,file=trim(path) // '/kcrostran.' // nmb // '.txt')
          ENDIF
          DO i=1,nmax/2+1
             WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Ektot(i)/Dkk
@@ -1782,7 +1785,7 @@ MODULE pseudospec_fluid
       END SUBROUTINE entrans
 
 !*****************************************************************
-      SUBROUTINE heltrans(a,b,c,d,e,f,nmb,kin)
+      SUBROUTINE heltrans(a,b,c,d,e,f,path,nmb,kin)
 !-----------------------------------------------------------------
 !
 ! Computes the helicity transfer in Fourier space in 3D.
@@ -1796,15 +1799,16 @@ MODULE pseudospec_fluid
 ! 'hmtransfer.XXX.txt': k, TH_b(k) (transfer of magnetic helicity)
 !
 ! Parameters
-!     a  : field component in the x-direction (v or a)
-!     b  : field component in the y-direction (v or a)
-!     c  : field component in the z-direction (v or a)
-!     d  : nonlinear term in the x-direction
-!     e  : nonlinear term in the y-direction
-!     f  : nonlinear term in the z-direction
-!     nmb: the extension used when writting the file
-!     kin: =0 computes the magnetic helicity transfer
-!          =1 computes the kinetic helicity transfer
+!     a   : field component in the x-direction (v or a)
+!     b   : field component in the y-direction (v or a)
+!     c   : field component in the z-direction (v or a)
+!     d   : nonlinear term in the x-direction
+!     e   : nonlinear term in the y-direction
+!     f   : nonlinear term in the z-direction
+!     path: path for the output
+!     nmb : the extension used when writting the file
+!     kin : =0 computes the magnetic helicity transfer
+!           =1 computes the kinetic helicity transfer
 !
       USE fprecision
       USE commtypes
@@ -1825,7 +1829,7 @@ MODULE pseudospec_fluid
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
       INTEGER             :: kmn
-      CHARACTER(len=*), INTENT(IN) :: nmb
+      CHARACTER(len=*), INTENT(IN) :: path,nmb
 
 !
 ! Sets Hk to zero
@@ -1897,9 +1901,9 @@ MODULE pseudospec_fluid
                       MPI_SUM,0,MPI_COMM_WORLD,ierr)
       IF (myrank.eq.0) THEN
          IF (kin.eq.0) THEN
-            OPEN(1,file='hmtransfer.' // nmb // '.txt')
+            OPEN(1,file=trim(path) // '/hmtransfer.' // nmb // '.txt')
          ELSE
-            OPEN(1,file='hktransfer.' // nmb // '.txt')
+            OPEN(1,file=trim(path) // '/hktransfer.' // nmb // '.txt')
          ENDIF
          DO i=1,nmax/2+1
             WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Hktot(i)/Dkk
@@ -1911,7 +1915,7 @@ MODULE pseudospec_fluid
       END SUBROUTINE heltrans
 
 !*****************************************************************
-      SUBROUTINE pspectrum(a,fnout,svmax)
+      SUBROUTINE pspectrum(a,path,fnout,svmax)
 !-----------------------------------------------------------------
 !
 ! Computes the 'power' spectrum of specified scalar quantity.
@@ -1921,6 +1925,7 @@ MODULE pseudospec_fluid
 !
 ! Parameters
 !     a    : input complex array
+!     path : path for the output
 !     fnout: output file name 
 !     svmax: number of spectral values to output
 !
@@ -1933,9 +1938,9 @@ MODULE pseudospec_fluid
 
       DOUBLE PRECISION, DIMENSION(nmax/2+1)                    :: Ek
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
-      INTEGER         , INTENT(IN)                           :: svmax
-      INTEGER                                                :: i,imax
-      CHARACTER(len=*), INTENT(IN)                           :: fnout
+      INTEGER         , INTENT(IN)                         :: svmax
+      INTEGER                                              :: i,imax
+      CHARACTER(len=*), INTENT(IN)                         :: path,fnout
 !
 ! Computes the energy and/or helicity spectra
       CALL pspectrumc(a,Ek)
@@ -1944,7 +1949,7 @@ MODULE pseudospec_fluid
 !
       IF (myrank.eq.0) THEN
          imax = min(svmax,nmax/2+1)
-         OPEN(1,file=trim(fnout))
+         OPEN(1,file=trim(path) // '/' // trim(fnout))
          DO i=1,imax
             WRITE(1,FMT='(E13.6,E23.15)')  Dkk*i,Ek(i)/Dkk
          END DO
@@ -2118,7 +2123,7 @@ MODULE pseudospec_hd
    CONTAINS
 
 !*****************************************************************
-      SUBROUTINE hdcheck(a,b,c,d,e,f,t,dt,hel,chk)
+      SUBROUTINE hdcheck(a,b,c,d,e,f,t,dt,hel,chk,path)
 !-----------------------------------------------------------------
 !
 ! Consistency check for the conservation of energy, 
@@ -2130,18 +2135,19 @@ MODULE pseudospec_hd
 ! 'divergence.txt' [OPTIONAL]: time, <(div.v)^2>
 !
 ! Parameters
-!     a  : velocity field in the x-direction
-!     b  : velocity field in the y-direction
-!     c  : velocity field in the z-direction
-!     d  : force in the x-direction
-!     e  : force in the y-direction
-!     f  : force in the z-direction
-!     t  : number of time steps made
-!     dt : time step
-!     hel: =0 skips kinetic helicity computation
-!          =1 computes the kinetic helicity
-!     chk: =0 skips divergency check
-!          =1 performs divergency check
+!     a   : velocity field in the x-direction
+!     b   : velocity field in the y-direction
+!     c   : velocity field in the z-direction
+!     d   : force in the x-direction
+!     e   : force in the y-direction
+!     f   : force in the z-direction
+!     t   : number of time steps made
+!     dt  : time step
+!     hel : =0 skips kinetic helicity computation
+!           =1 computes the kinetic helicity
+!     chk : =0 skips divergency check
+!           =1 performs divergency check
+!     path: path for the output
 !
       USE fprecision
       USE commtypes
@@ -2160,6 +2166,7 @@ MODULE pseudospec_hd
       INTEGER, INTENT(IN) :: hel,chk
       INTEGER, INTENT(IN) :: t
       INTEGER             :: i,j,k
+      CHARACTER(len=*), INTENT(IN) :: path
 
       div = 0.0D0
       tmp = 0.0D0
@@ -2222,17 +2229,17 @@ MODULE pseudospec_hd
 ! Creates external files to store the results
 !
       IF (myrank.eq.0) THEN
-         OPEN(1,file='balance.txt',position='append')
+         OPEN(1,file=trim(path) // '/balance.txt',position='append')
          WRITE(1,10) (t-1)*dt,eng,ens,pot
    10    FORMAT( E13.6,E26.18,E26.18,E26.18 )
          CLOSE(1)
          IF (hel.eq.1) THEN
-            OPEN(1,file='helicity.txt',position='append')
+            OPEN(1,file=trim(path) // '/helicity.txt',position='append')
             WRITE(1,FMT='(E13.6,E26.18)') (t-1)*dt,khe
             CLOSE(1)
          ENDIF
          IF (chk.eq.1) THEN
-            OPEN(1,file='divergence.txt',position='append')
+            OPEN(1,file=trim(path) // '/divergence.txt',position='append')
             WRITE(1,FMT='(E13.6,E26.18)') (t-1)*dt,div
             CLOSE(1)
          ENDIF
@@ -2375,9 +2382,7 @@ MODULE pseudospec_strain
         END DO
       ENDIF
 
-
       IF ( inorm.GT.0 ) THEN
-        
         tmp = REAL(nx,KIND=GP)*REAL(ny,KIND=GP)*REAL(nz,KIND=GP)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend

@@ -383,8 +383,8 @@ contains
     fz => uf (this%VELOCITY+2)%ccomp
     fs => uf (this%ACTIVESC  )%ccomp
 
-    call hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,0)
-    call pscheck(th,fs,t,dt,trim(this%sstate_(this%ACTIVESC)))
+    call hdcheck(vx,vy,vz,fx,fy,fz,t,dt,1,0,this%todir_)
+    call pscheck(th,fs,t,dt,this%todir_,trim(this%sstate_(this%ACTIVESC)))
 
     call maxabs(vx,vy,vz,rmp,0) ! max |vorticity|
     call derivk3(th,c1,1)
@@ -392,13 +392,13 @@ contains
     call derivk3(th,c3,3)
     call maxabs(c1,c2,c3,rmq,2) ! max |Grad th|
     IF (myrank.eq.0) THEN
-      open(1,file='maximum.txt',position='append')
+      open(1,file=trim(this%todir_) // '/maximum.txt',position='append')
       write(1,FMT='(E13.6,E13.6,E13.6)') (t-1)*dt,rmp,rmq
       close(1)
     endif
 
     do i = this%PASSIVE, this%PASSIVE+this%numpassive_-1
-      call pscheck(uin(i)%ccomp,uf(i)%ccomp,t,dt,trim(this%sstate_(i)))
+      call pscheck(uin(i)%ccomp,uf(i)%ccomp,t,dt,this%todir_,trim(this%sstate_(i)))
     end do   
 
     call this%workspace_%free_complex_tmp(c1)
@@ -436,24 +436,24 @@ contains
     vy => uin(this%VELOCITY+1)%ccomp
     vz => uin(this%VELOCITY+2)%ccomp
     th => uin(this%ACTIVESC  )%ccomp
-    call spectrum(vx,vy,vz,ext,1,1)
+    call spectrum(vx,vy,vz,this%todir_,ext,1,1)
     call this%workspace_%get_complex_tmp(c1,bret)
     call this%workspace_%get_complex_tmp(c2,bret)
     call this%workspace_%get_complex_tmp(c3,bret)
-    call gradre3(vx,vy,vz,c1,c2,c3)            ! Computes v.Grad(v)
-    call entrans(vx,vy,vz,-c1,-c2,-c3,ext,1)   ! Writes the energy flux
+    call gradre3(vx,vy,vz,c1,c2,c3)                      ! Computes v.Grad(v)
+    call entrans(vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1) ! Writes the energy flux
 
-    call specpara(vx,vy,vz,ext,1,1)
-    call specperp(vx,vy,vz,ext,1,1)
-    call spectrsc(th,ext,0,trim(this%sstate_(this%ACTIVESC)))
-    call specscpa(th,ext,0,trim(this%sstate_(this%ACTIVESC)))
-    call specscpe(th,ext,0,trim(this%sstate_(this%ACTIVESC)))
-    call entpara (vx,vy,vz,-c1,-c2,-c3,ext,1)  ! Writes the energy flux
-    call entperp (vx,vy,vz,-c1,-c2,-c3,ext,1)  ! Writes the energy flux
+    call specpara(vx,vy,vz,this%todir_,ext,1,1)
+    call specperp(vx,vy,vz,this%todir_,ext,1,1)
+    call spectrsc(th,this%todir_,ext,0,trim(this%sstate_(this%ACTIVESC)))
+    call specscpa(th,this%todir_,ext,0,trim(this%sstate_(this%ACTIVESC)))
+    call specscpe(th,this%todir_,ext,0,trim(this%sstate_(this%ACTIVESC)))
+    call entpara (vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1) ! Energy flux
+    call entperp (vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1) ! Energy flux
 
     ! Write helicity fluxes, 2D spectra:
     if ( this%traits_%spectlod .ge. 2 ) then
-      call heltrans(vx,vy,vz,-c1,-c2,-c3,ext,1)
+      call heltrans(vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1)
       ! Write 2D spectra:
       call spec2D  (vx,vy,vz,ext,this%odir_,1,1)
       call specsc2D(th,ext,this%odir_,0,trim(this%sstate_(this%ACTIVESC)))
@@ -469,17 +469,17 @@ contains
 
     ! Write PV spectra, horizontally-averaged data:
     if ( this%traits_%spectlod .ge. 4 ) then
-      call spectpv(vx,vy,vz,th,ext)
-      call havgwrite(0,'shear'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! shear
-      call havgwrite(1,'tgradz' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! dtheta/dz
-      call havgwrite(2,'hawdtdz',ext,vx,vy,vz,th,omegaz,bvfreq) ! u_z*dtheta/dz
-      call havgwrite(3,'hahke'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! hor. k.e.
-      call havgwrite(4,'havke'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! vert. k.e.
-      call havgwrite(5,'haphel' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! perp. helicity
-      call havgwrite(6,'haomzt' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! ometa_z*theta
-      call havgwrite(7,'hapv2'  ,ext,vx,vy,vz,th,omegaz,bvfreq) ! pot'l vorticity^2
-      call havgwrite(8,'hasuph' ,ext,vx,vy,vz,th,omegaz,bvfreq) ! super-helicity
-      call havgwrite(9,'hari'   ,ext,vx,vy,vz,th,omegaz,bvfreq) ! Richardson no.
+      call spectpv(vx,vy,vz,th,this%todir_,ext)
+      call havgwrite(0,'shear'  ,this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! shear
+      call havgwrite(1,'tgradz' ,this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! dtheta/dz
+      call havgwrite(2,'hawdtdz',this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! u_z*dtheta/dz
+      call havgwrite(3,'hahke'  ,this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! hor. k.e.
+      call havgwrite(4,'havke'  ,this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! vert. k.e.
+      call havgwrite(5,'haphel' ,this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! perp. helicity
+      call havgwrite(6,'haomzt' ,this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! ometa_z*theta
+      call havgwrite(7,'hapv2'  ,this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! PV^2
+      call havgwrite(8,'hasuph' ,this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! super-helicity
+      call havgwrite(9,'hari'   ,this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! Richardson no.
     endif
 
     call this%workspace_%free_complex_tmp(c1)
@@ -487,10 +487,10 @@ contains
     call this%workspace_%free_complex_tmp(c3)
     if ( this%numpassive_ .gt. 0) then
       do i = this%PASSIVE, this%PASSIVE+this%numpassive_-1
-        call spectrsc(uin(i)%ccomp,ext,0,trim(this%sstate_(i)))
+        call spectrsc(uin(i)%ccomp,this%todir_,ext,0,trim(this%sstate_(i)))
         if ( this%traits_%dorot ) then
-          call specscpa(uin(i)%ccomp,ext,0,trim(this%sstate_(i)))
-          call specscpe(uin(i)%ccomp,ext,0,trim(this%sstate_(i)))
+          call specscpa(uin(i)%ccomp,this%todir_,ext,0,trim(this%sstate_(i)))
+          call specscpe(uin(i)%ccomp,this%todir_,ext,0,trim(this%sstate_(i)))
         endif
       end do
     endif
