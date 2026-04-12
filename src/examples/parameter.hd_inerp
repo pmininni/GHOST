@@ -1,6 +1,7 @@
 ! Example of parameter.inp
 ! Rename this file as 'parameter.inp' and place it in the same
-! directory as the GHOST executable to do an HD simulation.
+! directory as the GHOST executable to do an HD simulation
+! with inertial particles (inerpart).
 
 ! Grid resolution
 &grid
@@ -60,7 +61,7 @@ spectlod = 1     ! spectral output level of detail [1-3]
 ! Use "read_v" if restarting from a previous file with stat > 0
 ! If stat > 0 and the ICs are not "read_v", GHOST resets the flow.
 &initial_conditions
-iclist = "null_v"
+iclist = "abc_v"
 /
 
 ! Forcing. List separated by ';', each forcing is a pair of
@@ -68,13 +69,59 @@ iclist = "null_v"
 ! Forcings for v: null_fv, tg_fv, abc_fv, random_fv
 ! Updates for fv: constant_fv, shift_fv, shuffle_fv
 &forcing
-forces = "tg_fv,constant_fv"
+forces = "abc_fv,constant_fv"
 /
 
 ! IC and forcing specific parameters, in namelists with their names:
-! Parameters for Taylor-Green velocity forcing
-&tg_fv
-f0 = 0.37714265  ! amplitude of the mechanical forcing
+! Parameters for ABC initial conditions
+&abc_v
+u0 = 1.00        ! normalized amplitude of the velocity 
 kdn = 1.00       ! minimum wavenumber
 kup = 2.00       ! maximum wavenumber
+A = 1.00         ! A amplitude in ABC
+B = 1.00         ! B amplitude in ABC
+C = 1.00         ! C amplitude in ABC
+/
+
+! Parameters for ABC velocity forcing
+&abc_fv
+f0 = 1.00        ! amplitude of the mechanical forcing
+kdn = 1.00       ! minimum wavenumber
+kup = 2.00       ! maximum wavenumber
+A = 1.00         ! A amplitude in ABC
+B = 1.00         ! B amplitude in ABC
+C = 1.00         ! C amplitude in ABC
+/
+
+! Particles general configuration flags
+&pstatus
+maxparts   = 1000 ! Maximum number of particles
+lgmult     = 10   ! Multiplier for part output (must divide tstep evenly)
+ilgexchtype = 1   ! Boundary exchange type: 0 (nearest-neighbor); 1 (VDB)
+ilgwrtunit = 1    ! write positions in box (=1) or grid (=0) units
+ilgouttype = 0    ! Particle output type: 0=binary; 1=ASCII
+ilgcoll    = 1    ! 1=binary collective I/O; 0=task 0 binary (posix) I/O
+/
+
+! Particle solver
+&particles
+psolver = "inerpart" ! Solver name, reads a namelist with the same name
+/
+
+! inerpart solver specific parameters
+&inerpart
+tau = 0.1         ! Stokes time
+dograv = .FALSE.  ! Compute gravity force if .TRUE.
+donldrag= .FALSE. ! Compute nonlinear drag (NLD) if .TRUE.
+grav = 0.00       ! Effective gravity acceleration
+gamma = 1.00      ! Fluid to particle mass ratio (ignored if not doing NLD)
+/
+
+! Initial conditions for particles. List separated by ';' to set up ICs.
+! For the position, ICs can be: read_x, user_x, random_x
+! For the velocity, ICs can be: read_v, fluid_v, null_v, thermal_v
+! Use "read_x;read_v" if restarting from a previous file with stat > 0
+! If stat > 0 and the ICs are not "read", GHOST resets the particles.
+&part_initial_conditions
+iclist = "random_x;fluid_v"
 /

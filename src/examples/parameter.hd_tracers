@@ -1,6 +1,7 @@
 ! Example of parameter.inp
 ! Rename this file as 'parameter.inp' and place it in the same
-! directory as the GHOST executable to do an HD simulation.
+! directory as the GHOST executable to do an HD simulation
+! with Lagrangian particles (tracers).
 
 ! Grid resolution
 &grid
@@ -77,4 +78,27 @@ forces = "tg_fv,constant_fv"
 f0 = 0.37714265  ! amplitude of the mechanical forcing
 kdn = 1.00       ! minimum wavenumber
 kup = 2.00       ! maximum wavenumber
+/
+
+! Particles general configuration flags
+&pstatus
+maxparts   = 1000 ! Maximum number of particles
+lgmult     = 10   ! Multiplier for part output (must divide tstep evenly)
+ilgexchtype = 1   ! Boundary exchange type: 0 (nearest-neighbor); 1 (VDB)
+ilgwrtunit = 1    ! write positions in box (=1) or grid (=0) units
+ilgouttype = 0    ! Particle output type: 0=binary; 1=ASCII
+ilgcoll    = 1    ! 1=binary collective I/O; 0=task 0 binary (posix) I/O
+/
+
+! Particle solver
+&particles
+psolver = "lagpart" ! Solver name, tracers do not have extra params
+/
+
+! Initial conditions for particles. List separated by ';' to set up ICs.
+! For the position, ICs can be: read_x, user_x, random_x
+! Use "read_x" if restarting from a previous file with stat > 0
+! If stat > 0 and the ICs are not "read_x", GHOST resets the particles.
+&part_initial_conditions
+iclist = "random_x"
 /

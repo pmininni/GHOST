@@ -1,3 +1,8 @@
+! Example of parameter.inp
+! Rename this file as 'parameter.inp' and place it in the same
+! directory as the GHOST executable to do a Boussinesq simulation
+! in an anisotropic domain.
+
 ! Grid resolution
 &grid
 nx = 256
@@ -16,32 +21,38 @@ Lz = 0.50        ! Length of the box in z
 &status
 idir = "outs"
 odir = "outs"
-stat = 77         ! last binary file if restarting an old run
+stat = 0         ! last binary file if restarting an old run
 mult = 1         ! decreases the time step
 bench = 0        ! benchmark mode if 1
-outs = 0         ! controls the amount of output
-dt = 1.25e-3        ! time step
-step = 29001       ! total number of steps
+outs = 0         ! controls the amount of binary output
+dt = 1.25e-3     ! time step
+step = 3001      ! total number of steps
 tstep = 250      ! number of steps between binary output
 sstep = 125      ! number of steps between spectrum output
-cstep = 20        ! number of steps between writing global quantities
-cort = 1000       ! global correlation time for random forcing methods
+cstep = 10       ! number of steps between writing global quantities
+cort = 1000      ! global correlation time for random forcing methods
 seed = 1000      ! global seed for random number generators
+/
+
+! Time stepping method
+&stepper
+sname  = "TRADITIONAL" ! TRADITIONAL or GEXRK
+norder = 2             ! order
 /
 
 ! Solver
 &pdes
-solver = "BOUSS"    ! Solver name, reads a namelist with the same name
+solver = "BOUSS" ! Solver name, reads a namelist with the same name
 /
 
 ! BOUSS solver specific parameters
 &BOUSS
-nu  = 2.24e-3      ! kinematic viscosity
+nu  = 2.2e-3     ! kinematic viscosity
+bkappa = 2.2e-3  ! active scalar diffusivity
+bvfreq = 10      ! Brunt-Vaissala frequency (N)
+xmom = 1         ! factor multiplying buoyancy force in momentum eq
+xtemp = 1        ! factor multiplying vertical veloc in the temp eq
 dorot = .FALSE.  ! do rotation
-bkappa = 2.24e-3
-bvfreq = 10
-xmom = -1
-xtemp = -1
 omegax = 0.0     ! rotation in x (ignored if dorot is FALSE)
 omegay = 0.0     ! rotation in y (ignored if dorot is FALSE)
 omegaz = 0.0     ! rotation in z (ignored if dorot is FALSE)
@@ -50,25 +61,22 @@ spectlod = 1     ! spectral output level of detail ([1,4])
 /
 
 ! Initial conditions. List separated by ';' to set up ICs.
-! For v, ICs can be: read_v, null_v, tg_v, abc_v, random_v
-! Use "read_v" if restarting from a previous file with stat > 0
-! If stat > 0 and the ICs are not "read_v", GHOST resets the flow.
+! For v , ICs can be: read_v, null_v, tg_v, abc_v, random_v
+! For as, ICs can be: read_as, constant_as, puff_as, random_as
+! Use "read_v;read_as" if restarting from a file with stat > 0
+! If stat > 0 and some ICs are not "read_?", GHOST resets that field.
 &initial_conditions
-iclist = "null_v"
-/
-
-! Stepper parameters
-&stepper
-  sname  = 'TRADITIONAL'
-  norder = 2
+iclist = "null_v;null_as"
 /
 
 ! Forcing. List separated by ';', each forcing is a pair of
 ! methods separated by ',': an initial forcing, and an update scheme
-! Forcings for v: null_fv, tg_fv, abc_fv, random_fv
-! Updates for fv: constant_fv, shift_fv, shuffle_fv
+! Forcings for  v: null_fv, tg_fv, abc_fv, random_fv
+! Updates for  fv: constant_fv, shift_fv, shuffle_fv
+! Forcings for as: null_fas, puff_fas, random_fas 
+! Updates for fas: constant_fas, shift_fas
 &forcing
-forces = "tg_fv,constant_fv"
+forces = "tg_fv,constant_fv;null_fas,constant_fas"
 /
 
 ! IC and forcing specific parameters, in namelists with their names:
