@@ -46,9 +46,6 @@ CONTAINS
       call MPI_BCAST(psolver,64,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       ! Clauses for each solver class
       select case (trim(adjustl(psolver)))
-!       case ('none')
-!         if (allocated(new_object)) deallocate(new_object)
-!         NUMTMPPART = 0
         case ('lagpart')
           allocate(Gpart :: new_object)
           NUMTMPPART = 3
@@ -68,7 +65,6 @@ CONTAINS
           stop 'Particle factory :: init_particles_from_file: Unknown solver name'
       end select
     else ! Not running with particles
-!     if (allocated(new_object)) deallocate(new_object)
       NUMTMPPART = 0
     endif
   end function init_particles_from_file

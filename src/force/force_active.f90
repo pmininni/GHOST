@@ -326,7 +326,7 @@ CONTAINS
         end do
       endif
     class default
-      error stop "This solver does not support active scalar forcing"
+      error stop "Force_updt: This solver does not support active scalar forcing"
     end select
   end subroutine update_shiftfas
 end module force_active

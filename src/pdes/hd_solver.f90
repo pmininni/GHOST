@@ -105,7 +105,7 @@ CONTAINS
     ! Get I/O and trait variables from input file:
     fidir    = idir ! Set the default to status idir
     fodir    = odir ! Set the default to status odir
-    todir    = ''   ! Set the default to the current dir
+    todir    = '.'  ! Set the default to the current dir
     dorot    = .FALSE.
     spectlod = 1 ! standard lod
     nu       = 0.0

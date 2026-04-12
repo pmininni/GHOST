@@ -169,7 +169,7 @@
       field_nxt = field  ! We update nxt to work with I/O and all steppers
       CALL init_forcing(forcemethod,fluid,force)
       if (dopart) then
-         CALL init_allpstates(icplist,particle,part)
+         CALL init_allpstates(icplist,fluid,field,particle,part)
 	 if (size(part(1)%rcomp) .ne. size(part_nxt(1)%rcomp)) then
 	   call GPState_resize(part_nxt,particle%partbuff_) ! We resize part_nxt
 	 endif

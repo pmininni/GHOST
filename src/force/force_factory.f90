@@ -11,8 +11,8 @@ module force_factory
   USE forcebase_mod
   USE force_velocity
   USE force_magnetic
-  USE force_passive
   USE force_active
+  USE force_passive
   
   IMPLICIT NONE
   
@@ -116,7 +116,7 @@ CONTAINS
       case ('constant_fs')
         if ( allocated(new_object(i)%update) ) deallocate(new_object(i)%update)
       case ('shift_fs')
-        allocate( shiftupdt_fas  :: new_object(i)%update )
+        allocate( shiftupdt_fs  :: new_object(i)%update )
       case default
         stop 'Unknown or undefined forcing update method'
       end select

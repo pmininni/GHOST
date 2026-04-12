@@ -130,6 +130,7 @@ CONTAINS
     call psolver%workspace_%get_real_tmp   (velr,bret)
     call psolver%workspace_%get_real_tmp   (tmp1,bret)
     call psolver%workspace_%get_real_tmp   (tmp2,bret)
+    call AssignLagPos(psolver, pstate) ! We assign px_,py_,pz_ to the pstate
 
     select type (pde)
     class is (VelocityBase)
