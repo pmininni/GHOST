@@ -1844,7 +1844,8 @@ CONTAINS
     LOGICAL      ,INTENT(IN)                       :: onlyinc
     LOGICAL      ,INTENT(IN)          ,OPTIONAL    :: exc
     INTEGER                                        :: n
-    
+    LOGICAL                                        :: bret,assocptr(3)
+
     n = SIZE(this%id_)
     IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
       CALL Resize_IntArray(this%id_,new_size,.true.)
@@ -1863,11 +1864,27 @@ CONTAINS
     END IF
 
     ! Resize workspace
+    assocptr = .false.
     n = this%workspace_%get_nparts()
+    IF ( ASSOCIATED(this%lvx_) ) THEN
+      assocptr(1) = .true.
+      call this%workspace_%free_pcomp_tmp(this%lvx_)
+    END IF
+    IF ( ASSOCIATED(this%lvy_) ) THEN
+      assocptr(2) = .true.
+      call this%workspace_%free_pcomp_tmp(this%lvy_)
+    END IF
+    IF ( ASSOCIATED(this%lvz_) ) THEN
+      assocptr(3) = .true.
+      call this%workspace_%free_pcomp_tmp(this%lvz_)
+    END IF
     IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
       call this%workspace_%resize_pcomp_arrays(new_size,.false.)
       call this%workspace_%set_nparts(new_size)
     END IF
+    IF (assocptr(1)) call this%workspace_%get_pcomp_tmp(this%lvx_,bret)
+    IF (assocptr(2)) call this%workspace_%get_pcomp_tmp(this%lvy_,bret)
+    IF (assocptr(3)) call this%workspace_%get_pcomp_tmp(this%lvz_,bret)
 
     ! Resize VDB
     IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN

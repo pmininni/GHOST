@@ -16,7 +16,7 @@
 !  3. resize_pcomp_arrays(new_size [, keep_data]): Reallocates every
 !     array in the pool to new_size, optionally preserving existing
 !     values up to min(old,new). Pointers obtained via get_pcomp_tmp
-!     remain valid after resize.
+!     may remain valid after resize (but this is not fully enforced).
 ! ===================================================================
 
 module class_GWorkspace3D
