@@ -137,8 +137,8 @@ CONTAINS
     class    (InerPart),         intent(inout) :: this
     class(EquationBase),         intent   (in) :: pde
     real      (kind=GP),         intent   (in) :: time, dt
-    type   (GStateComp), target, intent   (in) :: fluidstate(:)
-    type  (GPStateComp),         intent   (in) :: pstate(:)
+    type   (GStateComp),         intent   (in) :: fluidstate(:)
+    type  (GPStateComp), target ,intent   (in) :: pstate(:)
     type  (GPStateComp),         intent(inout) :: dpdtout(:)
     complex   (KIND=GP), pointer, DIMENSION(:,:,:) :: velc
     real      (KIND=GP), pointer, DIMENSION(:,:,:) :: velr,tmp1,tmp2
@@ -352,7 +352,7 @@ CONTAINS
               this%myrank_, ' shrinking: nparts=', this%nparts_,       &
               ' | partbuff=', this%partbuff_, ' --> ', ng
             this%partbuff_ = ng
-            call ResizeArrays  (this ,this%partbuff_,.true.)
+            call ResizeArrays  (this ,this%partbuff_,.false.)
             call GPState_resize(upin ,this%partbuff_)
             call GPState_resize(upout,this%partbuff_)
           end if
@@ -453,8 +453,8 @@ CONTAINS
     use fft
     class    (InerPart),             intent(inout) :: this
     class(EquationBase),             intent   (in) :: pde
-    type   (GStateComp), target ,    intent   (in) :: fluidstate(:)
-    type  (GPStateComp),             intent   (in) :: pstate(:)
+    type   (GStateComp),             intent   (in) :: fluidstate(:)
+    type  (GPStateComp), target ,    intent   (in) :: pstate(:)
     real      (kind=GP),             intent   (in) :: time
     complex   (kind=GP), pointer, dimension(:,:,:) :: velc
     real      (kind=GP), pointer, dimension(:,:,:) :: velr,tmp1,tmp2

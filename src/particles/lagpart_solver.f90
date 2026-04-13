@@ -77,8 +77,8 @@ CONTAINS
     class       (GPart),         intent(inout) :: this
     class(EquationBase),         intent   (in) :: pde
     real      (kind=GP),         intent   (in) :: time, dt
-    type   (GStateComp), target, intent   (in) :: fluidstate(:)
-    type  (GPStateComp),         intent   (in) :: pstate(:)
+    type   (GStateComp),         intent   (in) :: fluidstate(:)
+    type  (GPStateComp), target ,intent   (in) :: pstate(:)
     type  (GPStateComp),         intent(inout) :: dpdtout(:)
     complex   (KIND=GP), pointer, DIMENSION(:,:,:) :: velc
     real      (KIND=GP), pointer, DIMENSION(:,:,:) :: velr,tmp1,tmp2
@@ -165,12 +165,10 @@ CONTAINS
                this%nparts_, ng, this%lxbnds_(3,1),  this%lxbnds_(3,2))
       ! We resize internal buffers if the exchange set is too large
       if (ng .GT. this%partbuff_) then
-        if (this%myrank_ .EQ. 0) then
-          WRITE(*,'(A,I0,A,I0,A,I0,A,I0)') &
-            'EndStage: Rank ', this%myrank_, ' resizing: nparts=', ng, &
-            ' | partbuff=', this%partbuff_, ' --> ', this%partbuff_ +  &
-            (1 + (ng - this%partbuff_) / this%partchunksize_) * this%partchunksize_
-        end if
+        WRITE(*,'(A,I0,A,I0,A,I0,A,I0)') &
+          'EndStage: Rank ', this%myrank_, ' resizing: nparts=', ng,   &
+          ' | partbuff=', this%partbuff_, ' --> ', this%partbuff_ +    &
+          (1 + (ng - this%partbuff_) / this%partchunksize_) * this%partchunksize_
         this%partbuff_ = this%partbuff_ + (1 + (ng - this%partbuff_) / &
                this%partchunksize_) * this%partchunksize_
         call ResizeArrays  (this ,this%partbuff_,.true.)
@@ -205,7 +203,7 @@ CONTAINS
               this%myrank_, ' shrinking: nparts=', this%nparts_,       &
               ' | partbuff=', this%partbuff_, ' --> ', ng
             this%partbuff_ = ng
-            call ResizeArrays  (this ,this%partbuff_,.true.)
+            call ResizeArrays  (this ,this%partbuff_,.false.)
             call GPState_resize(upin ,this%partbuff_)
             call GPState_resize(upout,this%partbuff_)
           end if
@@ -285,8 +283,8 @@ CONTAINS
     use fft
     class       (GPart),             intent(inout) :: this
     class(EquationBase),             intent   (in) :: pde
-    type   (GStateComp), target ,    intent   (in) :: fluidstate(:)
-    type  (GPStateComp),             intent   (in) :: pstate(:)
+    type   (GStateComp),             intent   (in) :: fluidstate(:)
+    type  (GPStateComp), target ,    intent   (in) :: pstate(:)
     real      (kind=GP),             intent   (in) :: time
     complex   (kind=GP), pointer, dimension(:,:,:) :: velc
     real      (kind=GP), pointer, dimension(:,:,:) :: velr,tmp1,tmp2

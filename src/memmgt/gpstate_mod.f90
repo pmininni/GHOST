@@ -72,12 +72,12 @@ contains
     use grid
     use mpivars
     implicit none
-    type(GPStateComp), intent(inout)        :: pstate(:)
-    real(kind=GP)    , allocatable          :: tmp(:)
-    integer          , intent(in)           :: new_size
-    logical          , intent(in), optional :: keep_data
-    logical                                 :: do_keep
-    integer                                 :: i,copy_n
+    type(GPStateComp), intent(inout), target :: pstate(:)
+    real(kind=GP)    , allocatable           :: tmp(:)
+    integer          , intent(in)            :: new_size
+    logical          , intent(in), optional  :: keep_data
+    logical                                  :: do_keep
+    integer                                  :: i,copy_n
 
     do_keep = .TRUE.
     if (present(keep_data)) do_keep = keep_data    
@@ -150,12 +150,12 @@ contains
     use grid
     use mpivars
     implicit none
-    type(GPStateArr), intent(inout)        :: pstate(:)
-    real(kind=GP)   , allocatable          :: tmp(:)
-    integer         , intent(in)           :: new_size
-    logical         , intent(in), optional :: keep_data
-    logical                                :: do_keep
-    integer                                :: i,j,copy_n
+    type(GPStateArr), intent(inout), target :: pstate(:)
+    integer         , intent(in)            :: new_size
+    logical         , intent(in), optional  :: keep_data
+    logical                                 :: do_keep
+    real(kind=GP)   , allocatable           :: tmp(:)
+    integer                                 :: i,j,copy_n
 
     do_keep = .TRUE.
     if (present(keep_data)) do_keep = keep_data    
@@ -167,7 +167,7 @@ contains
       if ( allocated(pstate(i)%rpstate(j)%rcomp) ) then
         copy_n = min(size(pstate(i)%rpstate(j)%rcomp), new_size)
         allocate(tmp(new_size))
-        if (do_keep) tmp(1:copy_n) = pstate(i)%rpstate(j)%rcomp
+        if (do_keep) tmp(1:copy_n) = pstate(i)%rpstate(j)%rcomp(1:copy_n)
         call MOVE_ALLOC(tmp, pstate(i)%rpstate(j)%rcomp)
       endif
       end do

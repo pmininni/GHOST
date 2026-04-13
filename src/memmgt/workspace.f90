@@ -35,17 +35,17 @@ module class_GWorkspace3D
 
   ! Derived type for Real (GP) 3D array entry
   type, EXTENDS(ArrayEntry_Base)  :: RealEntry
-    real(kind=GP), ALLOCATABLE    :: array(:, :, :)
+    real   (kind=GP), allocatable :: array(:, :, :)
   end type RealEntry
 
   ! Derived type for Complex (GP) 3D array entry
   type, EXTENDS(ArrayEntry_Base)  :: ComplexEntry
-    complex(kind=GP), ALLOCATABLE :: array(:, :, :)
+    complex(kind=GP), allocatable :: array(:, :, :)
   end type ComplexEntry
 
   ! Derived type for 'particle' component entry
   type, EXTENDS(ArrayEntry_Base)  :: PCompEntry
-    real(kind=GP), ALLOCATABLE    :: array(:)
+    real   (kind=GP), allocatable :: array(:)
   end type PCompEntry
   
   ! ================= Workspace =======================================
@@ -180,12 +180,12 @@ CONTAINS
   ! new_size) are preserved.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine resize_pcomp_arrays(this, new_size, keep_data)
-    CLASS(GWorkspace), intent(inout)        :: this
-    integer          , intent(in)           :: new_size
-    logical          , intent(in), optional :: keep_data
-    logical                                 :: do_keep
-    real(kind=GP)    , allocatable          :: tmp(:)
-    integer                                 :: i, copy_n
+    CLASS(GWorkspace), intent(inout), target :: this
+    integer          , intent(in)            :: new_size
+    logical          , intent(in), optional  :: keep_data
+    logical                                  :: do_keep
+    real(kind=GP)    , allocatable           :: tmp(:)
+    integer                                  :: i, copy_n
  
     if (.NOT. this%pcomp_initialised_) &
       stop 'resize_pcomp_arrays: call init_pcomp_arrays first.'
@@ -236,10 +236,10 @@ CONTAINS
   ! arrays in the pool intended for permanent storage.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine add_real_entries(this, num_new)
-    CLASS(GWorkspace), intent(inout)          :: this
-    integer          , intent(in)             :: num_new
+    CLASS(GWorkspace), intent(inout), target  :: this
+    integer          , intent   (in)          :: num_new
     integer                                   :: i
-    type(RealEntry)  , ALLOCATABLE            :: tmp_copy(:)
+    type(RealEntry)  , allocatable            :: tmp_copy(:)
 
     if (num_new<= 0) THEN
       stop 'add_real_entries: real pool size must be positive.'
@@ -281,10 +281,10 @@ CONTAINS
   ! arrays in the pool intended for permanent storage.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine add_complex_entries(this, num_new)
-    CLASS(GWorkspace), intent(inout)          :: this
-    integer          , intent(in)             :: num_new
-    integer                                   :: i
-    type(ComplexEntry) , ALLOCATABLE          :: tmp_copy(:)
+    CLASS (GWorkspace), intent(inout), target  :: this
+    integer           , intent   (in)          :: num_new
+    integer                                    :: i
+    type(ComplexEntry), allocatable            :: tmp_copy(:)
 
     if (num_new<= 0) THEN
       stop 'add_complex_entries: complex pool size must be positive.'

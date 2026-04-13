@@ -115,8 +115,8 @@ module particlebase_mod
        class(ParticleBase),         intent(inout) :: this
        class(EquationBase),         intent   (in) :: pde
        real      (kind=GP),         intent   (in) :: time, dt
-       type   (GStateComp), target, intent   (in) :: fluidstate(:)
-       type  (GPStateComp),         intent   (in) :: pstate(:) 
+       type   (GStateComp),         intent   (in) :: fluidstate(:)
+       type  (GPStateComp), target, intent   (in) :: pstate(:) 
        type  (GPStateComp),         intent(inout) :: dpdtout(:) 
      end subroutine dpdt_interface
 
@@ -144,8 +144,8 @@ module particlebase_mod
        class(ParticleBase),         intent(inout) :: this
        class(EquationBase),         intent   (in) :: pde
        real      (kind=GP),         intent   (in) :: time
-       type   (GStateComp), target, intent   (in) :: fluidstate(:)
-       type  (GPStateComp),         intent   (in) :: pstate(:) 
+       type   (GStateComp),         intent   (in) :: fluidstate(:)
+       type  (GPStateComp), target, intent   (in) :: pstate(:) 
      end subroutine write_interface
 
      function state_size_interface(this) result(num)
@@ -205,18 +205,12 @@ CONTAINS
     use gpstate_mod
     CLASS(ParticleBase) ,INTENT(INOUT)      :: this
     type  (GPStateComp), intent(in), target :: pstate(:)
-    if (.not. associated (this%px_, pstate(this%POSITION  )%rcomp)) then
-      nullify (this%px_)
-      this%px_ => pstate(this%POSITION  )%rcomp
-    endif
-    if (.not. associated (this%py_, pstate(this%POSITION+1)%rcomp)) then
-      nullify (this%py_)
-      this%py_ => pstate(this%POSITION+1)%rcomp
-    endif
-    if (.not. associated (this%pz_, pstate(this%POSITION+2)%rcomp)) then
-      nullify (this%pz_)
-      this%pz_ => pstate(this%POSITION+2)%rcomp
-    endif
+    nullify (this%px_)
+    this%px_ => pstate(this%POSITION  )%rcomp
+    nullify (this%py_)
+    this%py_ => pstate(this%POSITION+1)%rcomp
+    nullify (this%pz_)
+    this%pz_ => pstate(this%POSITION+2)%rcomp
   END SUBROUTINE AssignLagPos
 
 
@@ -1850,7 +1844,7 @@ CONTAINS
     LOGICAL      ,INTENT(IN)                       :: onlyinc
     LOGICAL      ,INTENT(IN)          ,OPTIONAL    :: exc
     INTEGER                                        :: n
-
+    
     n = SIZE(this%id_)
     IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
       CALL Resize_IntArray(this%id_,new_size,.true.)
