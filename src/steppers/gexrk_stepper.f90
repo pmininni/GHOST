@@ -1,5 +1,5 @@
 ! =====================================================================
-! NAME       : gexrk.f90
+! NAME       : gexrk_stepper.f90
 !  
 !              Performs time stepping using explicit RK with user-specified
 !              order and number of stages. Currently stepper supports
@@ -350,7 +350,7 @@ contains
     class(GExRKStepper), intent(inout) :: this
     type   (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
     real      (kind=GP), intent   (in) :: time, dt
-    real      (kind=GP)                :: tt
+    real      (kind=GP)                :: tt, eff_dt
     integer                            :: j,m,n
     ! alpha_ : time fractions for each stage
     ! beta_  : stage coefficient matrix 
@@ -361,19 +361,20 @@ contains
     do m = 1, this%traits_%nstage
       this%utmp_ = uin                 ! set temp state
       do j = 1, m-1                    ! utmp = utmp + h beta K_j
-        do n = 1, this%traits_%nstate  ! set utmp
+        do n = 1, this%traits_%nstate  ! set utmp components
           call saxpby_c(this%utmp_(n)%ccomp, this%utmp_(n)%ccomp,    &
                1.0_GP, this%K_(j)%cstate(n)%ccomp, this%beta_(m,j)*dt)
         enddo
-        tt = time + this%alpha_(m) * dt
-        call this%solver_%dudt(tt,this%utmp_,uf,dt,this%K_(m)%cstate ) 
       enddo ! j-loop
+      tt = time + this%alpha_(m) * dt  ! dudt called AFTER j-loop
+      eff_dt    = this%alpha_(m) * dt
+      call this%solver_%dudt(tt,this%utmp_,uf,eff_dt,this%K_(m)%cstate) 
     enddo ! stage m loop
 
     ! Combine stages to get step update:
     uout = uin
     do m = 1, this%traits_%nstage  
-      do n = 1, this%traits_%nstate    ! uout = uout + h * c_ * K:
+      do n = 1, this%traits_%nstate    ! uout = uout + h * c_m * K_m
         call saxpby_c(uout(n)%ccomp, uout(n)%ccomp, 1.0_GP,          &
              this%K_(m)%cstate(n)%ccomp, this%c_(m)*dt)
       enddo
@@ -392,7 +393,7 @@ contains
     type   (GStateComp), intent(inout) :: uin (:)
     type  (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
     real      (kind=GP), intent   (in) :: time, dt
-    real      (kind=GP)                :: tt
+    real      (kind=GP)                :: tt, eff_dt
     integer                            :: j,m,n,nparts
     ! alpha_ : time fractions for each stage
     ! beta_  : stage coefficient matrix 
@@ -410,19 +411,20 @@ contains
     do m = 1, this%traits_%nstage
       this%putmp_ = upin               ! set temp state
       do j = 1, m-1                    ! putmp = putmp + h beta pK_j
-        do n = 1, this%traits_%npstate ! set putmp
+        do n = 1, this%traits_%npstate ! set putmp components
           call saxpby_r(this%putmp_(n)%rcomp, this%putmp_(n)%rcomp,  &
                1.0_GP, this%pK_(j)%rpstate(n)%rcomp, this%beta_(m,j)*dt)
         enddo
-        tt = time + this%alpha_(m) * dt
-        call this%psolver_%dpdt(tt,this%solver_,uin,this%putmp_,dt,this%pK_(m)%rpstate)
       enddo ! j-loop
+      tt = time + this%alpha_(m) * dt  ! dpdt called AFTER j-loop
+      eff_dt    = this%alpha_(m) * dt
+      call this%psolver_%dpdt(tt,this%solver_,uin,this%putmp_,eff_dt,this%pK_(m)%rpstate)
     enddo ! stage m loop
 
     ! Combine stages to get step update:
     upout = upin
     do m = 1, this%traits_%nstage  
-      do n = 1, this%traits_%npstate   ! upout = upout + h * c_ * pK:
+      do n = 1, this%traits_%npstate   ! upout = upout + h * c_m * pK_m
         call saxpby_r(upout(n)%rcomp, upout(n)%rcomp, 1.0_GP,        &
              this%pK_(m)%rpstate(n)%rcomp, this%c_(m)*dt)
       enddo
@@ -449,7 +451,7 @@ contains
     type   (GStateComp), allocatable   :: fdbk(:)
     type  (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
     real      (kind=GP), intent   (in) :: time, dt
-    real      (kind=GP)                :: tt
+    real      (kind=GP)                :: tt, eff_dt
     integer                            :: j,m,n,ic,nparts
     ! alpha_ : time fractions for each stage
     ! beta_  : stage coefficient matrix 
@@ -484,30 +486,31 @@ contains
           call saxpby_r(this%putmp_(n)%rcomp, this%putmp_(n)%rcomp,  &
                1.0_GP, this%pK_(j)%rpstate(n)%rcomp, this%beta_(m,j)*dt)
         enddo
-        tt = time + this%alpha_(m) * dt
-        ! If needed we include the feedback of the particles in the fluid in uf
-        if ( this%psolver_%hasfeedback_ ) then
-          call this%psolver_%feedback(this%putmp_,fdbk)
-          do ic = 1,this%traits_%nstate
-            fdbk(ic)%ccomp = fdbk(ic)%ccomp + uf(ic)%ccomp
-          end do
-          call this%solver_ %dudt(tt,this%utmp_,fdbk,dt,this%K_(m)%cstate)
-        else
-          call this%solver_ %dudt(tt,this%utmp_,  uf,dt,this%K_(m)%cstate)
-        end if
-        call this%psolver_%dpdt(tt,this%solver_,uin,this%putmp_,dt,this%pK_(m)%rpstate)
       enddo ! j-loop
+      tt = time + this%alpha_(m) * dt  ! feedback and d/dt called AFTER j-loop
+      eff_dt    = this%alpha_(m) * dt
+      ! If needed we include the feedback of the particles in the fluid in uf
+      if ( this%psolver_%hasfeedback_ ) then
+        call this%psolver_%feedback(this%putmp_,fdbk)
+        do ic = 1,this%traits_%nstate
+          fdbk(ic)%ccomp = fdbk(ic)%ccomp + uf(ic)%ccomp
+        end do
+        call this%solver_%dudt(tt,this%utmp_,fdbk,eff_dt,this%K_(m)%cstate)
+      else
+        call this%solver_%dudt(tt,this%utmp_,  uf,eff_dt,this%K_(m)%cstate)
+      end if
+      call this%psolver_%dpdt(tt,this%solver_,uin,this%putmp_,eff_dt,this%pK_(m)%rpstate)
     enddo ! stage m loop
     
     ! Combine stages to get step update:
     uout  = uin
     upout = upin
     do m = 1, this%traits_%nstage  
-      do n = 1, this%traits_%nstate    ! uout  = uout  + h * c_ * K:
+      do n = 1, this%traits_%nstate    ! uout  = uout  + h * c_m * K_m
         call saxpby_c(uout(n)%ccomp, uout(n)%ccomp, 1.0_GP,          &
              this%K_(m)%cstate(n)%ccomp, this%c_(m)*dt)
       enddo
-      do n = 1, this%traits_%npstate   ! upout = upout + h * c_ * pK:
+      do n = 1, this%traits_%npstate   ! upout = upout + h * c_m * pK_m
         call saxpby_r(upout(n)%rcomp, upout(n)%rcomp, 1.0_GP,        &
              this%pK_(m)%rpstate(n)%rcomp, this%c_(m)*dt)
       enddo
