@@ -1785,7 +1785,6 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   LOGICAL FUNCTION PartNumConsistent(this,nlocal,gsum)
      CLASS(ParticleBase) ,INTENT(INOUT)            :: this 
-     REAL                                          :: rbal      
      INTEGER,INTENT(IN)                            :: nlocal
      INTEGER,INTENT(OUT),OPTIONAL                  :: gsum
      INTEGER                                       :: ng

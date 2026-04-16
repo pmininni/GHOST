@@ -35,6 +35,7 @@
       USE status
       USE pstatus
       USE gtimer
+      USE gbench
       USE ic_factory
       USE force_factory
       USE equation_factory
@@ -44,26 +45,20 @@
       IMPLICIT NONE
 
 ! Arrays for the field and particle states, workspace, I/O, and solver classes
-      TYPE(GStateComp),    ALLOCATABLE :: field(:),field_nxt(:),force (:)
-      TYPE(GPStateComp),   ALLOCATABLE :: part (:),part_nxt (:)
-      TYPE(GWorkspace)                 :: workspace
-      TYPE(IOPLAN)                     :: planio
+      TYPE   (GStateComp), ALLOCATABLE :: field(:),field_nxt(:),force (:)
+      TYPE  (GPStateComp), ALLOCATABLE :: part (:),part_nxt (:)
+      TYPE   (GWorkspace)              :: workspace
+      TYPE       (ioplan)              :: planio
       CLASS(EquationBase), ALLOCATABLE :: fluid
       CLASS(ParticleBase), ALLOCATABLE :: particle
       CLASS(GStepperBase), ALLOCATABLE :: stepper
-      CLASS(icChain),      ALLOCATABLE :: iclist(:)
-      CLASS(forceChain),   ALLOCATABLE :: forcemethod(:)
-      CLASS(icpChain),     ALLOCATABLE :: icplist(:)
+      CLASS     (icChain), ALLOCATABLE :: iclist(:)
+      CLASS  (forceChain), ALLOCATABLE :: forcemethod(:)
+      CLASS    (icpChain), ALLOCATABLE :: icplist(:)
 
 ! Auxiliary variables
       REAL(KIND=GP) :: time
-      INTEGER       :: t
-      INTEGER       :: num_components
-      INTEGER       :: idevice, iret, ncuda, ngcuda, ppn
-      INTEGER       :: ihcpu1,ihcpu2
-      INTEGER       :: ihomp1,ihomp2
-      INTEGER       :: ihwtm1,ihwtm2
-      LOGICAL       :: bbenchexist
+      INTEGER       :: t, num_components
 
 ! Initialization
 ! Initializes the MPI and I/O libraries
@@ -113,9 +108,8 @@
          icplist = init_icp_from_file('parameter.inp')
       endif
 
-! Initializes the FFT library. This must be done at
-! this stage as it requires the variable "bench" to
-! be properly initialized.
+! Initializes the FFT library. This must be done at this
+! stage as it requires status and benchmark initialization.
 ! Use FFTW_ESTIMATE or FFTW_MEASURE in short runs
 ! Use FFTW_PATIENT or FFTW_EXHAUSTIVE in long runs
       nth = 1
@@ -123,14 +117,9 @@
 #if !defined(DEF_GHOST_CUDA_)
 !$    CALL fftp3d_init_threads(ierr)
 #endif
+      CALL GTBenchInit(bench,ihcpu1,ihomp1,ihwtm1,ihcpu2,ihomp2,ihwtm2)
       IF (bench.eq.2) THEN
-         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-         CALL GTInitHandle(ihcpu2,GT_CPUTIME)
-         CALL GTInitHandle(ihomp2,GT_OMPTIME)
-         CALL GTInitHandle(ihwtm2,GT_WTIME)
-         CALL GTStart(ihcpu2)
-         CALL GTStart(ihomp2)
-         CALL GTStart(ihwtm2)
+         CALL GTStart(ihcpu2); CALL GTStart(ihomp2); CALL GTStart(ihwtm2)
       ENDIF
       CALL fftp3d_create_plan(planrc,(/nx,ny,nz/),FFTW_REAL_TO_COMPLEX, &
                              FFTW_ESTIMATE)
@@ -138,9 +127,7 @@
                              FFTW_ESTIMATE)
       IF (bench.eq.2) THEN
          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-         CALL GTStop(ihcpu2)
-         CALL GTStop(ihomp2)
-         CALL GTStop(ihwtm2)
+         CALL GTStop(ihcpu2);  CALL GTStop(ihomp2);  CALL GTStop(ihwtm2)
       ENDIF
 
 ! Initial states
@@ -184,24 +171,11 @@
       endif
 
 ! Time integration scheme starts here.
-! If we are doing a benchmark, we measure
-! cputime before starting.
+! If we are doing a benchmark, we measure cputime before
+! starting. We also re-inititialize the fftp timers.
       IF (bench.eq.1) THEN
-         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-         CALL GTInitHandle(ihcpu1,GT_CPUTIME)
-         CALL GTInitHandle(ihomp1,GT_OMPTIME)
-         CALL GTInitHandle(ihwtm1,GT_WTIME)
-         ffttime  = 0.D00 ! re-inititialize fftp timers
-         tratime  = 0.0D0
-         comtime  = 0.D00
-         tottime  = 0.0D0
-#if defined(DEF_GHOST_CUDA_)
-         memtime  = 0.0D0
-         asstime  = 0.D00
-#endif
-         CALL GTStart(ihcpu1)
-         CALL GTStart(ihomp1)
-         CALL GTStart(ihwtm1)
+         ffttime  = 0.D00; tratime  = 0.0D0; comtime  = 0.D00; tottime  = 0.0D0
+         CALL GTStart(ihcpu1); CALL GTStart(ihomp1); CALL GTStart(ihwtm1)
       ENDIF
 
  RK : DO t = ini,step
@@ -245,78 +219,32 @@
 	    field = field_nxt
             CALL stepper%gstep(time, field, force, dt, field_nxt)
 	 endif
-         timet = timet+1
-         timep = timep+1
-         timec = timec+1
-         times = times+1
+         timet = timet+1; timep = timep+1; timec = timec+1; times = times+1
       END DO RK
 
-! Computes the benchmark
-
+! Finishes and writes the benchmark results
       IF (bench.gt.0) THEN
          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
-         CALL GTStop(ihcpu1)
-         CALL GTStop(ihomp1)
-         CALL GTStop(ihwtm1)
-         inquire( file='benchmark.txt', exist=bbenchexist )
-         IF (myrank.eq.0) THEN
-            OPEN(1,file='benchmark.txt',position='append')
-#if defined(DEF_GHOST_CUDA_)
-            IF ( .NOT. bbenchexist ) THEN
-               WRITE(1,*) &
-	       '# nx ny nz nsteps nprocs nth nstrm TCPU TOMP TWTIME TFFT TTRA TCOM TMEM TASS TTOT'
-            ENDIF
-            WRITE(1,*) nx,ny,nz,(step-ini+1),nprocs,nth, &
-                       nstreams                        , &
-                       GTGetTime(ihcpu1)/(step-ini+1)  , &
-                       GTGetTime(ihomp1)/(step-ini+1)  , &
-                       GTGetTime(ihwtm1)/(step-ini+1)  , &
-                       ffttime/(step-ini+1), tratime/(step-ini+1), &
-                       comtime/(step-ini+1), memtime/(step-ini+1), &
-                       asstime/(step-ini+1), tottime/(step-ini+1)
-            WRITE(*,*) 'wtime=', GTGetTime(ihwtm1)/(step-ini+1),   &
-	               ' fft=', ffttime/(step-ini+1),    &
-		       ' transp=',tratime/(step-ini+1),  &
-		       ' comm=',comtime/(step-ini+1),    &
-		       ' mem=', memtime/(step-ini+1),    &
-		       ' ttot=',tottime/(step-ini+1)
-#else
-            IF ( .NOT. bbenchexist ) THEN
-               WRITE(1,*) &
-	       '# nx ny nz nsteps nprocs nth TCPU TOMP TWTIME TFFT TTRA TCOM TTOT'
-            ENDIF
-            WRITE(1,*) nx,ny,nz,(step-ini+1),nprocs,nth, &
-                       GTGetTime(ihcpu1)/(step-ini+1),   &
-                       GTGetTime(ihomp1)/(step-ini+1),   &
-                       GTGetTime(ihwtm1)/(step-ini+1),   &
-                       ffttime/(step-ini+1), tratime/(step-ini+1), &
-                       comtime/(step-ini+1), tottime/(step-ini+1)
-            WRITE(*,*) 'wtime=', GTGetTime(ihwtm1)/(step-ini+1),   &
-	               ' fft=', ffttime/(step-ini+1),    &
-		       ' transp=',tratime/(step-ini+1),  &
-		       ' comm=',comtime/(step-ini+1),    &
-		       ' mem=',0.0, ' ttot=',tottime/(step-ini+1)
-#endif
-            IF (bench.eq.2) THEN
-               WRITE(1,*) 'FFTW: Create_plan = ',      &
-                       GTGetTime(ihcpu2)/(step-ini+1), &
-                       GTGetTime(ihomp2)/(step-ini+1), &
-                       GTGetTime(ihwtm2)/(step-ini+1)
-            ENDIF
-            CLOSE(1)
-         ENDIF
+         CALL GTStop(ihcpu1); CALL GTStop(ihomp1); CALL GTStop(ihwtm1)
+      ENDIF
+      CALL GTBenchReport(bench,myrank,ini,step,ihcpu1,ihomp1,ihwtm1,             &
+               ihcpu2,ihomp2,ihwtm2)
+      IF (dopart) THEN
+        rbal = rbal + GetLoadBal(particle) ! Get load balancing
+        CALL GTBenchReportParticles(bench, myrank, ini, step, maxparts, rbal,    &
+             [ GetTime(particle,GPTIME_STEP),   GetTime(particle,GPTIME_COMM),   &
+	       GetTime(particle,GPTIME_SPLINE), GetTime(particle,GPTIME_TRANSP), &
+	       GetTime(particle,GPTIME_DATAEX), GetTime(particle,GPTIME_INTERP), &
+	       GetTime(particle,GPTIME_PUPDATE) ], 'gpbenchmark.txt')
       ENDIF
 
-!
-! End of MAIN3D
-
+! End of main
       CALL GTFree(ihcpu1)
       CALL GTFree(ihomp1)
       CALL GTFree(ihwtm1)
       CALL GTFree(ihcpu2)
       CALL GTFree(ihomp2)
       CALL GTFree(ihwtm2)
-
       CALL MPI_FINALIZE(ierr)
       CALL fftp3d_destroy_plan(plancr)
       CALL fftp3d_destroy_plan(planrc)
