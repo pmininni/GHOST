@@ -10,7 +10,11 @@
 !              State sector ids are:
 !                POSITION (POSITION+1, POSITION+2)
 !
-! INPUT FILE : no specific namelist for particles='lagpart'
+! INPUT FILE : For psolver='lagpart', looks for a "&lagpart"
+!              namelist with:
+!              partlod: particle output level of detail (default=1):
+!                         2: Lagrangian vorticity (wlg),
+!                            strain-rate tensor (s11,s12,s13,s22,s23)
 !
 !
 ! DATE       : 19/02/26 (PDM)
@@ -24,6 +28,7 @@ module lagpart_mod
 
   ! ================= Solver traits ===================================
   type, public  :: NHTraits
+    integer       :: partlod     = 1       ! particle output level of detail
   end type
 
   ! ================= Global parameters ===============================
@@ -56,9 +61,21 @@ CONTAINS
   subroutine init_impl(this)
     use commtypes
     class  (GPart), intent (inout) :: this
+    integer                        :: ierr, partlod
+    namelist/ lagpart / partlod
+
     this%POSITION    = 1           ! start of position sector
     this%sstate_pos_ = 'xlg'       ! state name of positions
     this%sstate_lag_ = 'vlg'       ! state name of Lagrangian velocities
+    ! Defaults
+    partlod  = 1
+    if ( this%myrank_ .eq. 0 ) then
+      open(1,file=this%infile_,status='unknown',form="formatted")
+      read(1,NML=lagpart)
+      close(1)
+    endif
+    call MPI_BCAST(partlod ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+    this%traits_%partlod = partlod
   end subroutine init_impl
   
   ! ===================================================================
@@ -278,6 +295,7 @@ CONTAINS
   subroutine write_pstate_impl(this, time, pde, fluidstate, pstate)
     use equationbase_mod
     use particlebase_mod
+    use pseudospec_fluid
     use status
     use pstatus
     use fft
@@ -286,12 +304,12 @@ CONTAINS
     type   (GStateComp),             intent   (in) :: fluidstate(:)
     type  (GPStateComp), target ,    intent   (in) :: pstate(:)
     real      (kind=GP),             intent   (in) :: time
-    complex   (kind=GP), pointer, dimension(:,:,:) :: velc
+    complex   (kind=GP), pointer, dimension(:,:,:) :: velc, velc2
     real      (kind=GP), pointer, dimension(:,:,:) :: velr,tmp1,tmp2
     real      (kind=GP)                            :: rmp
     integer                                        :: i,j,k
     logical                                        :: bret
-    
+
     call this%workspace_%get_complex_tmp(velc,bret)
     call this%workspace_%get_real_tmp   (velr,bret)
     call this%workspace_%get_real_tmp   (tmp1,bret)
@@ -300,7 +318,7 @@ CONTAINS
 
     select type (pde)
     class is (VelocityBase)
-      ! Set the lac vec to the Lagrangian velocities so output doesn't give 0: 
+      ! Set the lag vec to the Lagrangian velocities so output doesn't give 0:
       rmp = 1.0_GP/(real(this%nd_(1),kind=GP)*real(this%nd_(2),kind=GP)* &
                     real(this%nd_(3),kind=GP))
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -339,10 +357,126 @@ CONTAINS
       WRITE(lgext,lgfmtext) pind
       CALL io_write_pdb(this,1,this%odir_,trim(this%sstate_pos_),lgext,time)
       CALL io_write_vec(this,1,this%odir_,trim(this%sstate_lag_),lgext,time)
+! partlod >= 2: write Lagrangian vorticity and strain-rate tensor
+      if ( this%traits_%partlod .ge. 2 ) then
+! Write Lagrangian vorticity components
+        CALL rotor3(fluidstate(pde%VELOCITY+1)%ccomp, &
+                    fluidstate(pde%VELOCITY+2)%ccomp, velc, 1)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              velc(k,j,i) = velc(k,j,i)*rmp
+            END DO
+          END DO
+        END DO
+        CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
+        CALL EulerToLag(this,this%lvx_,this%nparts_,velr,.false.,tmp1,tmp2)
+        CALL rotor3(fluidstate(pde%VELOCITY  )%ccomp, &
+                    fluidstate(pde%VELOCITY+2)%ccomp, velc, 2)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              velc(k,j,i) = velc(k,j,i)*rmp
+            END DO
+          END DO
+        END DO
+        CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
+        CALL EulerToLag(this,this%lvy_,this%nparts_,velr,.false.,tmp1,tmp2)
+        CALL rotor3(fluidstate(pde%VELOCITY  )%ccomp, &
+                    fluidstate(pde%VELOCITY+1)%ccomp, velc, 3)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              velc(k,j,i) = velc(k,j,i)*rmp
+            END DO
+          END DO
+        END DO
+        CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
+        CALL EulerToLag(this,this%lvz_,this%nparts_,velr,.false.,tmp1,tmp2)
+        CALL io_write_vec(this,1,this%odir_,'wlg',lgext,time)
+! Write strain-rate tensor components
+        call this%workspace_%get_complex_tmp(velc2,bret)
+        ! S11 = dv_x/dx
+        CALL derivk3(fluidstate(pde%VELOCITY)%ccomp, velc, 1)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              velc(k,j,i) = velc(k,j,i)*rmp
+            END DO
+          END DO
+        END DO
+        CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
+        CALL io_write_euler(this,1,this%odir_,'s11',lgext,time,velr,.false.,tmp1,tmp2)
+        ! S12 = 0.5*(dv_x/dy + dv_y/dx)
+        CALL derivk3(fluidstate(pde%VELOCITY  )%ccomp, velc,  2)
+        CALL derivk3(fluidstate(pde%VELOCITY+1)%ccomp, velc2, 1)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              velc(k,j,i) = 0.5_GP*(velc(k,j,i)+velc2(k,j,i))*rmp
+            END DO
+          END DO
+        END DO
+        CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
+        CALL io_write_euler(this,1,this%odir_,'s12',lgext,time,velr,.false.,tmp1,tmp2)
+        ! S13 = 0.5*(dv_x/dz + dv_z/dx)
+        CALL derivk3(fluidstate(pde%VELOCITY  )%ccomp, velc,  3)
+        CALL derivk3(fluidstate(pde%VELOCITY+2)%ccomp, velc2, 1)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              velc(k,j,i) = 0.5_GP*(velc(k,j,i)+velc2(k,j,i))*rmp
+            END DO
+          END DO
+        END DO
+        CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
+        CALL io_write_euler(this,1,this%odir_,'s13',lgext,time,velr,.false.,tmp1,tmp2)
+        ! S22 = dv_y/dy
+        CALL derivk3(fluidstate(pde%VELOCITY+1)%ccomp, velc, 2)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              velc(k,j,i) = velc(k,j,i)*rmp
+            END DO
+          END DO
+        END DO
+        CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
+        CALL io_write_euler(this,1,this%odir_,'s22',lgext,time,velr,.false.,tmp1,tmp2)
+        ! S23 = 0.5*(dv_y/dz + dv_z/dy)
+        CALL derivk3(fluidstate(pde%VELOCITY+1)%ccomp, velc,  3)
+        CALL derivk3(fluidstate(pde%VELOCITY+2)%ccomp, velc2, 2)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+          DO j = 1,ny
+            DO k = 1,nz
+              velc(k,j,i) = 0.5_GP*(velc(k,j,i)+velc2(k,j,i))*rmp
+            END DO
+          END DO
+        END DO
+        CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
+        CALL io_write_euler(this,1,this%odir_,'s23',lgext,time,velr,.false.,tmp1,tmp2)
+        call this%workspace_%free_complex_tmp(velc2)
+      endif
+
     class default
       stop "Lagpart: This solver does not support pdes without a velocity field"
     end select
-   
+
     call this%workspace_%free_complex_tmp(velc)
     call this%workspace_%free_real_tmp   (velr)
     call this%workspace_%free_real_tmp   (tmp1)
