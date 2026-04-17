@@ -384,21 +384,22 @@ CONTAINS
   !!  DESCRIPTION: Converts specified Eulerian real-space variable to
   !!               a Lagrangian quantity by interpolating to particle positions;
   !!               does write of Lagrangian variable to file, depending on 
-  !!               class settings.
+  !!               class settings. This routine overwrites lvx,lvy in the class.
   !!  ARGUMENTS  :
-  !!    this    : 'this' class instance
-  !!    iunit   : unit number
-  !!    dir     : output directory
-  !!    fname   : filename prefix
-  !!    nmb     : time index
-  !!    time    : real time
-  !!    evar    : Eulerian data from which to compute Lagrangian 
-  !!              quantity: theta(y) = theta(x(y),t). Interpolation
-  !!              of evar is done internally before write. Note that
-  !!              data in evar is lost on exit.
-  !!    doupdate: if true, do interp point update in interpolator; else don't
+  !!    this     : 'this' class instance
+  !!    iunit    : unit number
+  !!    dir      : output directory
+  !!    fname    : filename prefix
+  !!    nmb      : time index
+  !!    time     : real time
+  !!    evar     : Eulerian data from which to compute Lagrangian 
+  !!               quantity: theta(y) = theta(x(y),t). Interpolation
+  !!               of evar is done internally before write. Note that
+  !!               data in evar is lost on exit.
+  !!    doupdate : if true, do interp point update in interpolator; else don't
+  !!    tmp1,tmp2: tmp arrays
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE io_write_euler(this, iunit, dir, spref, nmb, time, evar, doupdate)
+  SUBROUTINE io_write_euler(this, iunit, dir, spref, nmb, time, evar, doupdate, tmp1, tmp2)
     USE grid
     USE fprecision
     USE commtypes
@@ -406,8 +407,7 @@ CONTAINS
     IMPLICIT NONE
     CLASS(ParticleBase) ,INTENT(INOUT)                     :: this
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: evar
-    REAL(KIND=GP),pointer      ,DIMENSION(:,:,:)           :: tmp1,tmp2
-    REAL(KIND=GP),pointer      ,DIMENSION(:)               :: lagtmp0,lagtmp1
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:,:,:)           :: tmp1,tmp2
     REAL(KIND=GP),INTENT   (IN)                            :: time
     INTEGER      ,INTENT   (IN)                            :: iunit
     INTEGER                                                :: fh,offset,nt,szint,szreal
@@ -419,34 +419,26 @@ CONTAINS
     CHARACTER(len=1024)                                    :: sfile
     logical                                                :: bret
 
-    call this%workspace_%get_real_tmp (tmp1,bret)
-    call this%workspace_%get_real_tmp (tmp2,bret)
-    call this%workspace_%get_pcomp_tmp(lagtmp0,bret)
-    call this%workspace_%get_pcomp_tmp(lagtmp1,bret)
-    CALL EulerToLag(this,lagtmp1,this%nparts_,evar,doupdate,tmp1,tmp2)
+    CALL EulerToLag(this,this%lvy_,this%nparts_,evar,doupdate,tmp1,tmp2)
     CALL GTInitHandle(ht,GT_WTIME)
 
     ! If doing non-collective binary or ascii writes, synch up vector:
     IF ( this%iouttype_.EQ.0 .AND. this%bcollective_.EQ.0 .OR. this%iouttype_.EQ.1 ) THEN
-       CALL this%gpcomm_%LagSynch_t0(lagtmp0,this%maxparts_,this%id_,lagtmp1,this%nparts_)
+       CALL this%gpcomm_%LagSynch_t0(this%lvx_,this%maxparts_,this%id_,this%lvy_,this%nparts_)
     ENDIF
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
       IF ( this%bcollective_.EQ. 1 ) THEN
-        CALL binary_write_lag_co(this,iunit,dir,spref,nmb,time, this%nparts_, lagtmp1)
+        CALL binary_write_lag_co(this,iunit,dir,spref,nmb,time, this%nparts_, this%lvy_)
       ELSE
-        CALL binary_write_lag_t0(this,iunit,dir,spref,nmb,time,this%maxparts_,lagtmp0)
+        CALL binary_write_lag_t0(this,iunit,dir,spref,nmb,time,this%maxparts_,this%lvx_)
       ENDIF
     ELSE
-      CALL ascii_write_lag      (this,iunit,dir,spref,nmb,time,this%maxparts_,lagtmp0)
+      CALL ascii_write_lag      (this,iunit,dir,spref,nmb,time,this%maxparts_,this%lvx_)
     ENDIF
     CALL GTStop(ht)
     if(this%myrank_.eq.0) write(*,*)'io_write_euler: file: ', spref,'  write time: ', GTGetTime(ht)
     CALL GTFree(ht)
-    call this%workspace_%free_real_tmp (tmp1)
-    call this%workspace_%free_real_tmp (tmp2)
-    call this%workspace_%free_pcomp_tmp(lagtmp0)
-    call this%workspace_%free_pcomp_tmp(lagtmp1)
   END SUBROUTINE io_write_euler
 
 
@@ -1785,6 +1777,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   LOGICAL FUNCTION PartNumConsistent(this,nlocal,gsum)
      CLASS(ParticleBase) ,INTENT(INOUT)            :: this 
+     REAL                                          :: rbal      
      INTEGER,INTENT(IN)                            :: nlocal
      INTEGER,INTENT(OUT),OPTIONAL                  :: gsum
      INTEGER                                       :: ng

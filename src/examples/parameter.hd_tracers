@@ -92,7 +92,12 @@ ilgcoll    = 1    ! 1=binary collective I/O; 0=task 0 binary (posix) I/O
 
 ! Particle solver
 &particles
-psolver = "lagpart" ! Solver name, tracers do not have extra params
+psolver = "lagpart" ! Solver name, reads a namelist with the same name
+/
+
+! lagpart solver specific parameters
+&lagpart
+partlod = 1       ! particle output level of detail
 /
 
 ! Initial conditions for particles. List separated by ';' to set up ICs.
