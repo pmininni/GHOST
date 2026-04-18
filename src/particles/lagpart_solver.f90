@@ -525,7 +525,6 @@ CONTAINS
     this%idir_        =  pde%idir_ ! input  directory, same as in the pde class
     this%odir_        =  pde%odir_ ! output directory, same as in the pde class
     this%workspace_   => workspace
-    call pstatus_init(this%infile_)
     this%hasfeedback_ = .false.    ! No feedback on fluid
     this%nc_          = 3          ! fixed for now
     this%nparts_      = 0 
