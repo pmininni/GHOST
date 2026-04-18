@@ -115,21 +115,6 @@ CONTAINS
   ! ===================================================================
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Base constructor: 
-  !! must be called from each child constructor
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine Solver_base_ctor(this, infile, workspace, plan)
-    use class_GWorkspace3D
-    use iovar
-    class(EquationBase), intent(inout)         :: this
-    type(GWorkspace)   , intent(inout), target :: workspace
-    type(ioplan)       , intent(inout), target :: plan
-    character(len=*)   , intent   (in)         :: infile
-    this%workspace_ => workspace
-  end subroutine Solver_base_ctor
-
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Concrete method to compute RHS for all passive scalars
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine rhs_passive(this, uin, uf, kappa, dudt)

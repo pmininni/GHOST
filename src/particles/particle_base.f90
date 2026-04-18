@@ -83,6 +83,38 @@ module particlebase_mod
       procedure(feedback_interface)  , deferred :: feedback
       procedure(write_interface),      deferred :: write_pstate
       procedure(state_size_interface), deferred :: state_size  ! Number of states
+      procedure, public                         :: SetRandSeed
+      procedure, public                         :: GetRandSeed
+      procedure, public                         :: AssignLagPos
+      procedure, public                         :: io_write_pdb
+      procedure, public                         :: io_write_vec
+      procedure, public                         :: io_write_euler
+      procedure, public                         :: binary_write_lag_co
+      procedure, public                         :: binary_write_lag_t0
+      procedure, public                         :: ascii_write_lag
+      procedure, public                         :: io_read
+      procedure, public                         :: binary_read_id_co
+      procedure, public                         :: binary_read_pdb_co
+      procedure, public                         :: binary_read_pdb_t0
+      procedure, public                         :: ascii_read_pdb
+      procedure, public                         :: io_readvec
+      procedure, public                         :: io_readvec_scatter_
+      procedure, public                         :: EulerToLag
+      procedure, public                         :: MakePeriodicP
+      procedure, public                         :: MakePeriodicZ
+      procedure, public                         :: MakePeriodicExt
+      procedure, public                         :: Part_Delete
+      procedure, public                         :: GetLocalWrk
+      procedure, public                         :: GetLocalWrk_aux
+      procedure, public                         :: CopyLocalWrk
+      procedure, public                         :: GetVDB
+      procedure, public                         :: GetVel
+      procedure, public                         :: GetTime
+      procedure, public                         :: GetNParts
+      procedure, public                         :: GetLoadBal
+      procedure, public                         :: PartNumConsistent
+      procedure, public                         :: R3toR3
+      procedure, public                         :: ResizeArrays
   end type ParticleBase
 
   type, abstract, extends(ParticleBase)      :: VelocParticleBase
