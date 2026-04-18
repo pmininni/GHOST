@@ -28,8 +28,9 @@
 !                        When true, nu is obtained from the PDE solver.
 !              gamma   : mass ratio m_f/m_p (default=1, only for NLD)
 !              partlod : particle output level of detail (default=1):
-!                          2: Lagrangian vorticity (wlg),
-!                             strain-rate tensor (s11,s12,s13,s22,s23)
+!                         1: position (xlg), part veloc (vip), fluid veloc (vlg)
+!                         2: Lagrangian vorticity (wlg),
+!                            strain-rate tensor (s11,s12,s13,s22,s23)
 !
 ! DATE       : 04/02/26 (BLE)
 ! =====================================================================

@@ -14,9 +14,9 @@
 !              pidir   : changes class binary input  dir (default: status idir)
 !              podir   : changes class binary output dir (default: status odir)
 !              partlod : particle output level of detail (default=1):
+!                         1: position (xlg), fluid velocity (vlg)
 !                         2: Lagrangian vorticity (wlg),
 !                            strain-rate tensor (s11,s12,s13,s22,s23)
-!
 !
 ! DATE       : 19/02/26 (PDM)
 ! =====================================================================
