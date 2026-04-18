@@ -117,7 +117,7 @@ CONTAINS
     call this%workspace_%get_real_tmp   (velr,bret)
     call this%workspace_%get_real_tmp   (tmp1,bret)
     call this%workspace_%get_real_tmp   (tmp2,bret)
-    call AssignLagPos(this, pstate) ! We assign px_,py_,pz_ to the pstate
+    call this%AssignLagPos(pstate) ! We assign px_,py_,pz_ to the pstate
 
     select type (pde)
     class is (VelocityBase)
@@ -140,7 +140,7 @@ CONTAINS
           end do
         end do
         call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-        call EulerToLag(this,dpdtout(this%POSITION+m-1)%rcomp,this%nparts_, &
+        call this%EulerToLag(dpdtout(this%POSITION+m-1)%rcomp,this%nparts_, &
                         velr,doupdate(m),tmp1,tmp2)
       end do
     class default
@@ -179,11 +179,9 @@ CONTAINS
     ! Branch 1: Nearest-neighbour (NN) exchange -------------------------
     if (this%iexchtype_ .EQ. GPEXCHTYPE_NN) then
       ! We first enforce periodicity in x-y only
-      CALL MakePeriodicP(this,                                         &
-                         upout(this%POSITION  )%rcomp,                 &
-                         upout(this%POSITION+1)%rcomp,                 &
-                         upout(this%POSITION+2)%rcomp,                 &
-                         this%nparts_, 3)
+      CALL this%MakePeriodicP(upout(this%POSITION  )%rcomp,            &
+                              upout(this%POSITION+1)%rcomp,            &
+                              upout(this%POSITION+2)%rcomp, this%nparts_, 3)
       ! We identify particles that have left the local slab in z
       CALL GTStart(this%htimers_(GPTIME_COMM))
       CALL this%gpcomm_%IdentifyExchV(this%id_,                        &
@@ -215,10 +213,8 @@ CONTAINS
                this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), GPEXCH_END )
       CALL GTAcc(this%htimers_(GPTIME_COMM))
       ! x-y periodicity already enforced, we enforce z in upout and upin
-      CALL MakePeriodicZ(this,                                         &
-                         upout(this%POSITION+2)%rcomp,                 &
-                         upin (this%POSITION+2)%rcomp,                 &
-                         this%nparts_)
+      CALL this%MakePeriodicZ(upout(this%POSITION+2)%rcomp,           &
+                              upin (this%POSITION+2)%rcomp, this%nparts_)
       ! Buffer shrink
       if (this%stepcounter_ .GE. GPSWIPERATE) then
         if ((this%bcollective_ .EQ. 1) .OR. (this%myrank_ .NE. 0)) then
@@ -242,13 +238,11 @@ CONTAINS
     ! Branch 2: Voxel Database (VDB) exchange ---------------------------
     if (this%iexchtype_ .EQ. GPEXCHTYPE_VDB) then
       ! x-y-z periodicity on updated positions
-      CALL MakePeriodicP(this,                                         &
-                         upout(this%POSITION  )%rcomp,                 &
-                         upout(this%POSITION+1)%rcomp,                 &
-                         upout(this%POSITION+2)%rcomp,                 &
-                         this%nparts_, 7)
+      CALL this%MakePeriodicP(upout(this%POSITION  )%rcomp,            &
+                              upout(this%POSITION+1)%rcomp,            &
+                              upout(this%POSITION+2)%rcomp, this%nparts_, 7)
       ! Consistency check:
-      if (.NOT. PartNumConsistent(this, this%nparts_)) then
+      if (.NOT. this%PartNumConsistent(this%nparts_)) then
         if (this%myrank_ .EQ. 0) then
           WRITE(*,*) 'EndStage_impl (VDB): inconsistent particle count'
           print *,this%nparts_,this%maxparts_
@@ -256,7 +250,7 @@ CONTAINS
       end if
       ! Sync global VDB for the current positions (upout)
       CALL GTStart(this%htimers_(GPTIME_COMM))
-      CALL this%gpcomm_%VDBSynch(this%vdb_   ,this%maxparts_,this%id_, &
+      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_,    &
                upout(this%POSITION  )%rcomp,                           &
                upout(this%POSITION+1)%rcomp,                           &
                upout(this%POSITION+2)%rcomp,                           &
@@ -271,7 +265,7 @@ CONTAINS
       ! If using VDB, get local particles to work on:
       ! GetLocalWrk_aux also synchronizes auxiliary RK arrays, 
       ! and is needed if the call is done in the middle of a RK step
-      CALL GetLocalWrk_aux(this,this%id_,                              &
+      CALL this%GetLocalWrk_aux(this%id_,                              &
                upout(this%POSITION  )%rcomp,                           &
                upout(this%POSITION+1)%rcomp,                           &
                upout(this%POSITION+2)%rcomp,                           &
@@ -285,7 +279,7 @@ CONTAINS
       if (this%myrank_ .EQ. 0 .AND. ng .NE. this%maxparts_) then
         WRITE(*,*) 'EndStage (VDB): inconsistent d.b.: expected: ',    &
                    this%maxparts_, '; found: ', ng
-        CALL ascii_write_lag(this,1,this%odir_,                        &
+        CALL this%ascii_write_lag(1,this%odir_,                        &
              trim(this%sstate_pos_) // 'err', '000', 0.0_GP,           &
              this%maxparts_, this%vdb_)
         STOP
@@ -323,7 +317,7 @@ CONTAINS
     call this%workspace_%get_real_tmp   (velr,bret)
     call this%workspace_%get_real_tmp   (tmp1,bret)
     call this%workspace_%get_real_tmp   (tmp2,bret)
-    call AssignLagPos(this, pstate)
+    call this%AssignLagPos(pstate)
 
     select type (pde)
     class is (VelocityBase)
@@ -340,7 +334,7 @@ CONTAINS
         END DO
       END DO
       CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-      CALL EulerToLag(this,this%lvx_,this%nparts_,velr,.true. ,tmp1,tmp2)
+      CALL this%EulerToLag(this%lvx_,this%nparts_,velr,.true. ,tmp1,tmp2)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -351,7 +345,7 @@ CONTAINS
         END DO
       END DO
       CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-      CALL EulerToLag(this,this%lvy_,this%nparts_,velr,.false.,tmp1,tmp2)
+      CALL this%EulerToLag(this%lvy_,this%nparts_,velr,.false.,tmp1,tmp2)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -362,10 +356,10 @@ CONTAINS
         END DO
       END DO
       CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-      CALL EulerToLag(this,this%lvz_,this%nparts_,velr,.false.,tmp1,tmp2)
+      CALL this%EulerToLag(this%lvz_,this%nparts_,velr,.false.,tmp1,tmp2)
       WRITE(lgext,lgfmtext) pind
-      CALL io_write_pdb(this,1,this%odir_,trim(this%sstate_pos_),lgext,time)
-      CALL io_write_vec(this,1,this%odir_,trim(this%sstate_lag_),lgext,time)
+      CALL this%io_write_pdb(1,this%odir_,trim(this%sstate_pos_),lgext,time)
+      CALL this%io_write_vec(1,this%odir_,trim(this%sstate_lag_),lgext,time)
 ! partlod >= 2: write Lagrangian vorticity and strain-rate tensor
       if ( this%traits_%partlod .ge. 2 ) then
 ! Write Lagrangian vorticity components
@@ -381,7 +375,7 @@ CONTAINS
           END DO
         END DO
         CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-        CALL EulerToLag(this,this%lvx_,this%nparts_,velr,.false.,tmp1,tmp2)
+        CALL this%EulerToLag(this%lvx_,this%nparts_,velr,.false.,tmp1,tmp2)
         CALL rotor3(fluidstate(pde%VELOCITY  )%ccomp, &
                     fluidstate(pde%VELOCITY+2)%ccomp, velc, 2)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -394,7 +388,7 @@ CONTAINS
           END DO
         END DO
         CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-        CALL EulerToLag(this,this%lvy_,this%nparts_,velr,.false.,tmp1,tmp2)
+        CALL this%EulerToLag(this%lvy_,this%nparts_,velr,.false.,tmp1,tmp2)
         CALL rotor3(fluidstate(pde%VELOCITY  )%ccomp, &
                     fluidstate(pde%VELOCITY+1)%ccomp, velc, 3)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -407,8 +401,8 @@ CONTAINS
           END DO
         END DO
         CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-        CALL EulerToLag(this,this%lvz_,this%nparts_,velr,.false.,tmp1,tmp2)
-        CALL io_write_vec(this,1,this%odir_,'wlg',lgext,time)
+        CALL this%EulerToLag(this%lvz_,this%nparts_,velr,.false.,tmp1,tmp2)
+        CALL this%io_write_vec(1,this%odir_,'wlg',lgext,time)
 ! Write strain-rate tensor components
         call this%workspace_%get_complex_tmp(velc2,bret)
         ! S11 = dv_x/dx
@@ -423,7 +417,7 @@ CONTAINS
           END DO
         END DO
         CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-        CALL io_write_euler(this,1,this%odir_,'s11',lgext,time,velr,.false.,tmp1,tmp2)
+        CALL this%io_write_euler(1,this%odir_,'s11',lgext,time,velr,.false.,tmp1,tmp2)
         ! S12 = 0.5*(dv_x/dy + dv_y/dx)
         CALL derivk3(fluidstate(pde%VELOCITY  )%ccomp, velc,  2)
         CALL derivk3(fluidstate(pde%VELOCITY+1)%ccomp, velc2, 1)
@@ -437,7 +431,7 @@ CONTAINS
           END DO
         END DO
         CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-        CALL io_write_euler(this,1,this%odir_,'s12',lgext,time,velr,.false.,tmp1,tmp2)
+        CALL this%io_write_euler(1,this%odir_,'s12',lgext,time,velr,.false.,tmp1,tmp2)
         ! S13 = 0.5*(dv_x/dz + dv_z/dx)
         CALL derivk3(fluidstate(pde%VELOCITY  )%ccomp, velc,  3)
         CALL derivk3(fluidstate(pde%VELOCITY+2)%ccomp, velc2, 1)
@@ -451,7 +445,7 @@ CONTAINS
           END DO
         END DO
         CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-        CALL io_write_euler(this,1,this%odir_,'s13',lgext,time,velr,.false.,tmp1,tmp2)
+        CALL this%io_write_euler(1,this%odir_,'s13',lgext,time,velr,.false.,tmp1,tmp2)
         ! S22 = dv_y/dy
         CALL derivk3(fluidstate(pde%VELOCITY+1)%ccomp, velc, 2)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -464,7 +458,7 @@ CONTAINS
           END DO
         END DO
         CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-        CALL io_write_euler(this,1,this%odir_,'s22',lgext,time,velr,.false.,tmp1,tmp2)
+        CALL this%io_write_euler(1,this%odir_,'s22',lgext,time,velr,.false.,tmp1,tmp2)
         ! S23 = 0.5*(dv_y/dz + dv_z/dy)
         CALL derivk3(fluidstate(pde%VELOCITY+1)%ccomp, velc,  3)
         CALL derivk3(fluidstate(pde%VELOCITY+2)%ccomp, velc2, 2)
@@ -478,7 +472,7 @@ CONTAINS
           END DO
         END DO
         CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-        CALL io_write_euler(this,1,this%odir_,'s23',lgext,time,velr,.false.,tmp1,tmp2)
+        CALL this%io_write_euler(1,this%odir_,'s23',lgext,time,velr,.false.,tmp1,tmp2)
         call this%workspace_%free_complex_tmp(velc2)
       endif
     class default
@@ -552,8 +546,7 @@ CONTAINS
     this%bcollective_ = ilgcoll
     this%itimetype_   = GT_WTIME
     this%wrtunit_     = ilgwrtunit
-    CALL SetRandSeed (this, seed )
-    CALL prandom_seed(this%iseed_)
+    CALL this%SetRandSeed(seed)
     CALL MPI_COMM_SIZE(this%comm_,this%nprocs_,this%ierr_)
     CALL MPI_COMM_RANK(this%comm_,this%myrank_,this%ierr_)
  

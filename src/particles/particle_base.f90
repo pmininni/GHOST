@@ -313,10 +313,10 @@ CONTAINS
            this%ptmp0_(1,:) = this%px_*this%delta_(1)
            this%ptmp0_(2,:) = this%py_*this%delta_(2)
            this%ptmp0_(3,:) = this%pz_*this%delta_(3)
-           CALL binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%nparts_, &
+           CALL this%binary_write_lag_co(iunit,dir,spref,nmb,time,this%nparts_, &
                 this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
         ELSE
-           CALL binary_write_lag_co(this,iunit,dir,spref,nmb,time,this%nparts_, &
+           CALL this%binary_write_lag_co(iunit,dir,spref,nmb,time,this%nparts_, &
                 this%px_,this%py_,this%pz_)
         ENDIF
       ELSE
@@ -326,7 +326,7 @@ CONTAINS
            this%ptmp0_(2,:) = this%ptmp0_(2,:)*this%delta_(2)
            this%ptmp0_(3,:) = this%ptmp0_(3,:)*this%delta_(3)
         ENDIF
-        CALL binary_write_lag_t0(this,iunit,dir,spref,nmb,time,this%maxparts_, &
+        CALL this%binary_write_lag_t0(iunit,dir,spref,nmb,time,this%maxparts_,  &
                 this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
       ENDIF
     ELSE
@@ -336,7 +336,7 @@ CONTAINS
          this%ptmp0_(2,:) = this%ptmp0_(2,:)*this%delta_(2)
          this%ptmp0_(3,:) = this%ptmp0_(3,:)*this%delta_(3)
       ENDIF
-      CALL ascii_write_lag(this,iunit,dir,spref,nmb,time,this%maxparts_, &
+      CALL this%ascii_write_lag(iunit,dir,spref,nmb,time,this%maxparts_, &
            this%ptmp0_(1,:),this%ptmp0_(2,:),this%ptmp0_(3,:))
     ENDIF
 
@@ -378,7 +378,7 @@ CONTAINS
     CHARACTER(len=*),INTENT(IN)        :: spref
     INTEGER                            :: gsum,ht,j
 
-    IF ( .NOT.PartNumConsistent(this,this%nparts_,gsum) ) THEN
+    IF ( .NOT.this%PartNumConsistent(this%nparts_,gsum) ) THEN
       write(*,*)'io_write_vec: global sum=',gsum,' maxparts=',this%maxparts_
       IF ( this%myrank_.eq.0 ) THEN
         WRITE(*,*) 'io_write_vec: Inconsistent particle count'
@@ -395,14 +395,14 @@ CONTAINS
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
        IF ( this%bcollective_.EQ. 1 ) THEN
-        CALL binary_write_lag_co(this,iunit,dir,spref,nmb,time, this%nparts_,   &
+        CALL this%binary_write_lag_co(iunit,dir,spref,nmb,time, this%nparts_,   &
                                  this%lvx_,this%lvy_,this%lvz_)
       ELSE
-        CALL binary_write_lag_t0(this,iunit,dir,spref,nmb,time, this%maxparts_, &
+        CALL this%binary_write_lag_t0(iunit,dir,spref,nmb,time, this%maxparts_, &
                                  this%gptmp0_(1,:),this%gptmp0_(2,:),this%gptmp0_(3,:));
       ENDIF
     ELSE
-      CALL ascii_write_lag(this,iunit,dir,spref,nmb,time,       this%maxparts_, &
+      CALL this%ascii_write_lag(iunit,dir,spref,nmb,time,       this%maxparts_, &
                                  this%gptmp0_(1,:),this%gptmp0_(2,:),this%gptmp0_(3,:));
     ENDIF
     CALL GTStop(ht)
@@ -451,7 +451,7 @@ CONTAINS
     CHARACTER(len=1024)                          :: sfile
     logical                                      :: bret
 
-    CALL EulerToLag(this,this%lvy_,this%nparts_,evar,doupdate,tmp1,tmp2)
+    CALL this%EulerToLag(this%lvy_,this%nparts_,evar,doupdate,tmp1,tmp2)
     CALL GTInitHandle(ht,GT_WTIME)
 
     ! If doing non-collective binary or ascii writes, synch up vector:
@@ -461,12 +461,12 @@ CONTAINS
 
     IF ( this%iouttype_ .EQ. 0 ) THEN
       IF ( this%bcollective_.EQ. 1 ) THEN
-        CALL binary_write_lag_co(this,iunit,dir,spref,nmb,time, this%nparts_, this%lvy_)
+        CALL this%binary_write_lag_co(iunit,dir,spref,nmb,time, this%nparts_, this%lvy_)
       ELSE
-        CALL binary_write_lag_t0(this,iunit,dir,spref,nmb,time,this%maxparts_,this%lvx_)
+        CALL this%binary_write_lag_t0(iunit,dir,spref,nmb,time,this%maxparts_,this%lvx_)
       ENDIF
     ELSE
-      CALL ascii_write_lag      (this,iunit,dir,spref,nmb,time,this%maxparts_,this%lvx_)
+      CALL this%ascii_write_lag      (iunit,dir,spref,nmb,time,this%maxparts_,this%lvx_)
     ENDIF
     CALL GTStop(ht)
     if(this%myrank_.eq.0) write(*,*)'io_write_euler: file: ', spref,'  write time: ', GTGetTime(ht)
@@ -762,18 +762,18 @@ CONTAINS
     IF (this%iexchtype_.EQ.GPEXCHTYPE_NN) THEN
       IF (bcoll.EQ.1) THEN
         IF (len_trim(nmb).gt.0 ) THEN
-          CALL binary_read_id_co(this,iunit, trim(dir)          &
+          CALL this%binary_read_id_co(iunit, trim(dir)          &
               // '/' // trim(spref) // '.' // nmb //'.lag')
         ELSE
-          CALL binary_read_id_co(this,iunit, trim(spref))
+          CALL this%binary_read_id_co(iunit, trim(spref))
         ENDIF
       ELSE
         IF (len_trim(nmb).gt.0 ) THEN
-          CALL binary_read_pdb_t0(this,iunit, trim(dir)         &
+          CALL this%binary_read_pdb_t0(iunit, trim(dir)         &
               // '/' // trim(spref) // '.' // nmb //'.lag',     &
               time,this%ptmp0_,.true.)
         ELSE
-          CALL binary_read_pdb_t0(this,iunit, trim(spref),      &
+          CALL this%binary_read_pdb_t0(iunit, trim(spref),      &
               time,this%ptmp0_,.true.)
         END IF
       END IF
@@ -782,31 +782,31 @@ CONTAINS
       END IF
     END IF
 
-    CALL AssignLagPos(this, pstate)
+    CALL this%AssignLagPos(pstate)
     
     CALL GTStart(this%htimers_(GPTIME_GPREAD))
     IF ( iotype .EQ. 0 ) THEN   ! Binary files
       IF ( bcoll.EQ. 1 ) THEN   ! collective binary
         IF (len_trim(nmb).gt.0 ) THEN
-          CALL binary_read_pdb_co(this,iunit, trim(dir)         &
+          CALL this%binary_read_pdb_co(iunit, trim(dir)         &
               // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
         ELSE
-          CALL binary_read_pdb_co(this,iunit, trim(spref),  time,this%ptmp0_)
+          CALL this%binary_read_pdb_co(iunit, trim(spref),  time,this%ptmp0_)
         ENDIF
       ELSE                      ! master thread binary
         IF (len_trim(nmb).gt.0 ) THEN
-          CALL binary_read_pdb_t0(this,iunit, trim(dir)         &
+          CALL this%binary_read_pdb_t0(iunit, trim(dir)         &
               // '/' // trim(spref) // '.' // nmb // '.lag',time,this%ptmp0_)
         ELSE
-          CALL binary_read_pdb_t0(this,iunit, trim(spref),  time,this%ptmp0_)
+          CALL this%binary_read_pdb_t0(iunit, trim(spref),  time,this%ptmp0_)
         ENDIF
       ENDIF
     ELSE                        ! ASCII files
       IF (len_trim(nmb).gt.0 ) THEN
-        CALL ascii_read_pdb (this,iunit, trim(dir)              &
+        CALL this%ascii_read_pdb (iunit, trim(dir)              &
               // '/' // trim(spref) // '.' // nmb // '.txt',time,this%ptmp0_)
       ELSE
-        CALL ascii_read_pdb (this,iunit,trim(spref),        time,this%ptmp0_)
+        CALL this%ascii_read_pdb (iunit,trim(spref),        time,this%ptmp0_)
       ENDIF
     ENDIF
     ! rescale coordinates from box units
@@ -820,11 +820,11 @@ CONTAINS
     IF ( (this%iexchtype_.EQ.GPEXCHTYPE_VDB).AND.               &
     .NOT.(present(id).and.present(lx).and.present(ly).and.present(lz).and.present(nl)) ) THEN 
       ! Store in member data arrays
-      CALL GetLocalWrk(this,this%id_,this%px_,this%py_,this%pz_,&
+      CALL this%GetLocalWrk(this%id_,this%px_,this%py_,this%pz_,&
                              this%nparts_,this%ptmp0_,this%maxparts_)
     ELSE IF(this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
       ! Store in specified input arrays
-      CALL GetLocalWrk(this,id,lx,ly,lz, &
+      CALL this%GetLocalWrk(id,lx,ly,lz,                        &
                              nl,this%ptmp0_,this%maxparts_)
     ELSE IF (this%iexchtype_.EQ.GPEXCHTYPE_NN) THEN
       DO j = 1,this%nparts_
@@ -889,7 +889,7 @@ CONTAINS
     offset = 0
     CALL MPI_FILE_READ_AT_ALL(fh,offset,rvar,1,GC_REAL,this%istatus_,this%ierr_)    !  no.parts
     IF ( int(rvar).NE.this%maxparts_ ) THEN
-      WRITE(*,*) 'binary_read_pdb_count: Attempt to read incorrect number of particles: required:',&
+      WRITE(*,*) 'binary_read_pdb_count: Attempt to read incorrect number of particles: required:', &
                   this%maxparts_,' no. read: ',int(rvar)
       WRITE(*,*) 'binary_read_pdb_count: Error reading: ', trim(sfile)
       STOP
@@ -911,7 +911,7 @@ CONTAINS
         IF ((this%ptmp0_(3,j).GE.this%lxbnds_(3,1)).AND.(this%ptmp0_(3,j).LT.this%lxbnds_(3,2))) THEN
           IF (this%nparts_.GE.this%partbuff_) THEN
             this%partbuff_ = this%partbuff_ + this%partchunksize_
-            CALL ResizeArrays(this,this%partbuff_,.true.)
+            CALL this%ResizeArrays(this%partbuff_,.true.)
           END IF
           this%nparts_ = this%nparts_+1
           this%id_(this%nparts_) = j+nb-1
@@ -960,7 +960,7 @@ CONTAINS
     offset = 0
     CALL MPI_FILE_READ_AT_ALL(fh,offset,rvar,1,GC_REAL,this%istatus_,this%ierr_)    !  no.parts
     IF ( int(rvar).NE.this%maxparts_ ) THEN
-      WRITE(*,*) 'binary_read_pdb_co: Attempt to read incorrect number of particles: required:',&
+      WRITE(*,*) 'binary_read_pdb_co: Attempt to read incorrect number of particles: required:', &
                   this%maxparts_,' no. read: ',int(rvar)
       WRITE(*,*) 'binary_read_pdb_co: Error reading: ', trim(sfile)
       STOP
@@ -1071,7 +1071,7 @@ CONTAINS
                    ' | partbuff=', this%partbuff_, ' --> ', &
                    (1+this%nparts_/this%partchunksize_)*this%partchunksize_
           this%partbuff_ = (1+this%nparts_/this%partchunksize_)*this%partchunksize_
-          CALL ResizeArrays(this,this%partbuff_,.true.)
+          CALL this%ResizeArrays(this%partbuff_,.true.)
         END IF
       ELSE
         CALL this%gpcomm_%PartScatterV(this%id_,pdb(1,:),pdb(2,:),pdb(3,:),this%nparts_,this%tmpint_)
@@ -1107,7 +1107,7 @@ CONTAINS
     IF ( this%myrank_.EQ.0 ) THEN
       OPEN(iunit,file=trim(sfile),status='old',form='formatted',iostat=this%ierr_)
       IF ( this%ierr_.NE.0 ) THEN
-        WRITE(*,*)'ascii_read_pdb: could not open file for reading: ',&
+        WRITE(*,*)'ascii_read_pdb: could not open file for reading: ', &
         trim(sfile)
         STOP
       ENDIF
@@ -1115,7 +1115,7 @@ CONTAINS
       READ(iunit,*,iostat=this%ierr_) time
       IF ( nt.LT.this%maxparts_ ) THEN
         WRITE(*,*)this%myrank_, &
-          ': ascii_read_pdb: particle inconsistency: no. required=',&
+          ': ascii_read_pdb: particle inconsistency: no. required=',   &
           this%maxparts_,' no. found=',nt, &
           ' file=',trim(sfile)
         STOP
@@ -1128,7 +1128,7 @@ CONTAINS
     ENDIF
     CALL MPI_BCAST(pdb,3*this%maxparts_,GC_REAL,0,this%comm_,this%ierr_)
     IF ( this%ierr_.NE.MPI_SUCCESS ) THEN
-        WRITE(*,*)this%myrank_, ': ascii_read_pdb: Broadcast failed: file=',&
+        WRITE(*,*)this%myrank_, ': ascii_read_pdb: Broadcast failed: file=', &
         trim(sfile)
     ENDIF
   END SUBROUTINE ascii_read_pdb
@@ -1206,11 +1206,11 @@ CONTAINS
           ! whose global index matches a local id_, storing them
           ! compactly in gptmp0_(:, 1:nparts_).
           IF (len_trim(nmb).gt.0) THEN
-            CALL binary_read_pdb_co(this, iunit,                          &
+            CALL this%binary_read_pdb_co(iunit,                           &
                  trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag', &
                  time, this%gptmp0_)
           ELSE
-            CALL binary_read_pdb_co(this, iunit, trim(spref),             &
+            CALL this%binary_read_pdb_co(iunit, trim(spref),              &
                  time, this%gptmp0_)
           ENDIF
           ! gptmp0_(:, j) now holds the vector for local particle j.
@@ -1223,46 +1223,45 @@ CONTAINS
           ENDDO
         ELSE  ! GPEXCHTYPE_VDB, collective binary
           IF (len_trim(nmb).gt.0) THEN
-            CALL binary_read_pdb_co(this, iunit,                          &
+            CALL this%binary_read_pdb_co(iunit,                           &
                  trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag', &
                  time, this%gptmp0_)
           ELSE
-            CALL binary_read_pdb_co(this, iunit, trim(spref),             &
+            CALL this%binary_read_pdb_co(iunit, trim(spref),              &
                  time, this%gptmp0_)
           ENDIF
           ! gptmp0_ holds the full global vector; scatter via vdb_.
-          CALL CopyLocalWrk(this,                                         &
-               pstate(start_index  )%rcomp,                               &
-               pstate(start_index+1)%rcomp,                               &
-               pstate(start_index+2)%rcomp,                               &
-               this%vdb_, this%gptmp0_, this%maxparts_)
+          CALL this%CopyLocalWrk(pstate(start_index  )%rcomp,             &
+                                 pstate(start_index+1)%rcomp,             &
+                                 pstate(start_index+2)%rcomp,             &
+                                 this%vdb_, this%gptmp0_, this%maxparts_)
         ENDIF  ! iexchtype
       ELSE  ! Non-collective (task-0) binary
         IF (len_trim(nmb).gt.0) THEN
-          CALL binary_read_pdb_t0(this, iunit,                            &
+          CALL this%binary_read_pdb_t0(iunit,                             &
                trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',   &
                time, this%gptmp0_)
         ELSE
-          CALL binary_read_pdb_t0(this, iunit, trim(spref),               &
+          CALL this%binary_read_pdb_t0(iunit, trim(spref),                &
                time, this%gptmp0_)
         ENDIF
         ! After binary_read_pdb_t0: for VDB the global data is
         ! broadcast and sits in gptmp0_; for NN the data has been
         ! scatter-communicated, so gptmp0_(:, 1:nparts_) is local.
-        CALL io_readvec_scatter_(this, pstate, start_index)
+        CALL this%io_readvec_scatter_(pstate, start_index)
       ENDIF  ! bcoll
     ELSE  ! ASCII files
       IF (len_trim(nmb).gt.0) THEN
-        CALL ascii_read_pdb(this, iunit,                                  &
+        CALL this%ascii_read_pdb(iunit,                                   &
              trim(dir) // '/' // trim(spref) // '.' // nmb // '.txt',     &
              time, this%gptmp0_)
       ELSE
-        CALL ascii_read_pdb(this, iunit, trim(spref),                     &
+        CALL this%ascii_read_pdb(iunit, trim(spref),                      &
              time, this%gptmp0_)
       ENDIF
       ! ascii_read_pdb always broadcasts to all ranks, so gptmp0_
       ! holds the full global array on every rank.
-      CALL io_readvec_scatter_(this, pstate, start_index)
+      CALL this%io_readvec_scatter_(pstate, start_index)
     ENDIF  ! iotype
     CALL GTAcc(this%htimers_(GPTIME_GPREAD))
     ! Sanity check: global particle count must still equal maxparts_
@@ -1304,11 +1303,10 @@ CONTAINS
       ! gptmp0_ is a full (3, maxparts_) global array on every rank.
       ! Use vdb_ (which records the position of every particle in
       ! global id order) to decide which belong to this z-slab.
-      CALL CopyLocalWrk(this,                                          &
-           pstate(start_index  )%rcomp,                                &
-           pstate(start_index+1)%rcomp,                                &
-           pstate(start_index+2)%rcomp,                                &
-           this%vdb_, this%gptmp0_, this%maxparts_)
+      CALL this%CopyLocalWrk(pstate(start_index  )%rcomp,              &
+                             pstate(start_index+1)%rcomp,              &
+                             pstate(start_index+2)%rcomp,              &
+                             this%vdb_, this%gptmp0_, this%maxparts_)
     ELSE  ! GPEXCHTYPE_NN
       ! binary_read_pdb_t0 called PartScatterV for the position data, but
       ! that scatter applied to ptmp0_, not gptmp0_.  However, for the
@@ -1698,7 +1696,7 @@ CONTAINS
     INTEGER                                       :: j
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,npdb) :: pdb
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
-      IF ( .NOT.PartNumConsistent(this,this%nparts_) ) THEN
+      IF ( .NOT.this%PartNumConsistent(this%nparts_) ) THEN
           IF ( this%myrank_.eq.0 ) THEN
             WRITE(*,*) 'GetVDB: Inconsistent particle count'
             STOP
@@ -1733,7 +1731,7 @@ CONTAINS
     INTEGER      ,INTENT   (IN)                    :: nparts
     INTEGER                                        :: j
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,nparts):: lvel
-    IF ( .NOT.PartNumConsistent(this,this%nparts_) ) THEN
+    IF ( .NOT.this%PartNumConsistent(this%nparts_) ) THEN
       IF ( this%myrank_.eq.0 ) THEN
         WRITE(*,*) 'GetVel: Inconsistent particle count'
         STOP
