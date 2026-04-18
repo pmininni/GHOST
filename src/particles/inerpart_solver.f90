@@ -16,8 +16,7 @@
 !                POSITION (POSITION+1, POSITION+2)
 !                VELOCITY (VELOCITY+1, VELOCITY+2)
 !
-! INPUT FILE : For psolver='inerpart', looks for a "&inerpart"
-!              namelist with:
+! INPUT FILE : For psolver='inerpart', looks for a "&inerpart" namelist with:
 !              pidir   : changes class binary input  dir (default: status idir)
 !              podir   : changes class binary output dir (default: status odir)
 !              tau     : Stokes time (particle response time)
@@ -49,9 +48,9 @@ module inerpart_mod
     real(kind=GP) :: gamma    = 1.0_GP  ! mass ratio m_f/m_p
     real(kind=GP) :: nu       = 0.0_GP  ! fluid kinematic viscosity
     real(kind=GP) :: invtau   = 1.0_GP  ! precomputed 1/tau
+    real(kind=GP) :: nld_rep  = 0.0_GP  ! precomputed NLD constant
     logical       :: dograv   = .false. ! .false.=no gravity, .true.=grav
     logical       :: donldrag = .false. ! .false.=linear drag, .true.=NLD
-    real(kind=GP) :: nld_rep  = 0.0_GP  ! precomputed NLD constant
   end type
 
   ! ================= Solver ==========================================
@@ -86,13 +85,13 @@ CONTAINS
     integer                            :: ierr, partlod
     logical                            :: dograv, donldrag
     character(len=128)                 :: pidir, podir
-    namelist/ inerpart / pidir, podir, tau, grav, gamma, dograv, donldrag, partlod
+    namelist/ inerpart / pidir,podir,partlod,tau,grav,gamma,dograv,donldrag
 
     this%POSITION = 1
     this%VELOCITY = this%POSITION + this%nc_
     ! Defaults
     pidir    = this%idir_ ! Set to the pde class idir at ctor
-    podir    = this%odir_ ! Set to the pde class idir at ctor
+    podir    = this%odir_ ! Set to the pde class odir at ctor
     tau      = 1.0_GP
     grav     = 0.0_GP
     gamma    = 1.0_GP
@@ -257,7 +256,6 @@ CONTAINS
             dpdtout(this%VELOCITY+2)%rcomp(j) - grav
         end do
       endif
-
     class default
       stop "inerpart: This solver does not support pdes without a velocity field"
     end select
@@ -640,7 +638,6 @@ CONTAINS
         CALL io_write_euler(this,1,this%odir_,'s23',lgext,time,velr,.false.,tmp1,tmp2)
         call this%workspace_%free_complex_tmp(velc2)
       endif
-
     class default
       stop "inerpart: This solver does not support pdes without a velocity field"
     end select
@@ -687,10 +684,10 @@ CONTAINS
     logical                                       :: bret
 
     this%infile_      =  infile
-    this%workspace_   => workspace
-    call pstatus_init(this%infile_)
     this%idir_        =  pde%idir_ ! input  directory, same as in the pde class
     this%odir_        =  pde%odir_ ! output directory, same as in the pde class
+    this%workspace_   => workspace
+    call pstatus_init(this%infile_)
     this%hasfeedback_ = .false.
     this%nc_          = 3          ! fixed for now
     this%nparts_      = 0
@@ -788,11 +785,10 @@ CONTAINS
         type is (MOISTSolver)
           this%traits_%nu = pde%traits_%nu
         class default
-          stop "InerPart_ctor: nonlinear drag not supported by the selected PDE solver"
+          stop "InerPart_ctor: nonlinear drag not supported by this PDE solver"
       end select
-      this%traits_%nld_rep = 0.15_GP * &
-        (18.0_GP * this%traits_%tau * this%traits_%gamma &
-        / this%traits_%nu) ** 0.3435_GP
+      this%traits_%nld_rep = 0.15_GP * (18.0_GP * this%traits_%tau * &
+        this%traits_%gamma / this%traits_%nu) ** 0.3435_GP
     endif
 
     ! Instantiate interp operation
@@ -809,15 +805,6 @@ CONTAINS
     num_components = this%state_size()  ! Returns 6
     CALL GPState_alloc(pstate    , num_components, this%partbuff_)
     CALL GPState_alloc(pstate_cpy, num_components, this%partbuff_)
-    ! Zero-initialize velocity state components
-    DO j = 1, this%partbuff_
-      pstate    (this%VELOCITY  )%rcomp(j) = 0.0_GP
-      pstate    (this%VELOCITY+1)%rcomp(j) = 0.0_GP
-      pstate    (this%VELOCITY+2)%rcomp(j) = 0.0_GP
-      pstate_cpy(this%VELOCITY  )%rcomp(j) = 0.0_GP
-      pstate_cpy(this%VELOCITY+1)%rcomp(j) = 0.0_GP
-      pstate_cpy(this%VELOCITY+2)%rcomp(j) = 0.0_GP
-    END DO
     call this%workspace_%set_nparts(this%partbuff_)
     call this%workspace_%init_pcomp_arrays(this%partbuff_)
     call this%workspace_%get_pcomp_tmp(this%lvx_,bret)

@@ -405,19 +405,19 @@ CONTAINS
     USE commtypes
     USE mpivars
     IMPLICIT NONE
-    CLASS(ParticleBase) ,INTENT(INOUT)                     :: this
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(nx,ny,ksta:kend) :: evar
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:,:,:)           :: tmp1,tmp2
-    REAL(KIND=GP),INTENT   (IN)                            :: time
-    INTEGER      ,INTENT   (IN)                            :: iunit
-    INTEGER                                                :: fh,offset,nt,szint,szreal
-    INTEGER                                                :: ht,j
-    LOGICAL      ,INTENT   (IN)                            :: doupdate
-    CHARACTER(len=*), INTENT(IN)                           :: dir
-    CHARACTER(len=*)  , INTENT(IN)                         :: nmb
-    CHARACTER(len=*)  , INTENT(IN)                         :: spref
-    CHARACTER(len=1024)                                    :: sfile
-    logical                                                :: bret
+    CLASS(ParticleBase) ,INTENT(INOUT)           :: this
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:,:,:) :: evar
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:,:,:) :: tmp1,tmp2
+    REAL(KIND=GP),INTENT   (IN)                  :: time
+    INTEGER      ,INTENT   (IN)                  :: iunit
+    INTEGER                                      :: fh,offset,nt,szint,szreal
+    INTEGER                                      :: ht,j
+    LOGICAL      ,INTENT   (IN)                  :: doupdate
+    CHARACTER(len=*), INTENT(IN)                 :: dir
+    CHARACTER(len=*)  , INTENT(IN)               :: nmb
+    CHARACTER(len=*)  , INTENT(IN)               :: spref
+    CHARACTER(len=1024)                          :: sfile
+    logical                                      :: bret
 
     CALL EulerToLag(this,this%lvy_,this%nparts_,evar,doupdate,tmp1,tmp2)
     CALL GTInitHandle(ht,GT_WTIME)
@@ -1174,11 +1174,11 @@ CONTAINS
           ! whose global index matches a local id_, storing them
           ! compactly in gptmp0_(:, 1:nparts_).
           IF (len_trim(nmb).gt.0) THEN
-            CALL binary_read_pdb_co(this, iunit,                      &
+            CALL binary_read_pdb_co(this, iunit,                          &
                  trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag', &
                  time, this%gptmp0_)
           ELSE
-            CALL binary_read_pdb_co(this, iunit, trim(spref),         &
+            CALL binary_read_pdb_co(this, iunit, trim(spref),             &
                  time, this%gptmp0_)
           ENDIF
           ! gptmp0_(:, j) now holds the vector for local particle j.
@@ -1191,27 +1191,27 @@ CONTAINS
           ENDDO
         ELSE  ! GPEXCHTYPE_VDB, collective binary
           IF (len_trim(nmb).gt.0) THEN
-            CALL binary_read_pdb_co(this, iunit,                      &
+            CALL binary_read_pdb_co(this, iunit,                          &
                  trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag', &
                  time, this%gptmp0_)
           ELSE
-            CALL binary_read_pdb_co(this, iunit, trim(spref),         &
+            CALL binary_read_pdb_co(this, iunit, trim(spref),             &
                  time, this%gptmp0_)
           ENDIF
           ! gptmp0_ holds the full global vector; scatter via vdb_.
-          CALL CopyLocalWrk(this,                                      &
-               pstate(start_index  )%rcomp,                            &
-               pstate(start_index+1)%rcomp,                            &
-               pstate(start_index+2)%rcomp,                            &
+          CALL CopyLocalWrk(this,                                         &
+               pstate(start_index  )%rcomp,                               &
+               pstate(start_index+1)%rcomp,                               &
+               pstate(start_index+2)%rcomp,                               &
                this%vdb_, this%gptmp0_, this%maxparts_)
         ENDIF  ! iexchtype
       ELSE  ! Non-collective (task-0) binary
         IF (len_trim(nmb).gt.0) THEN
-          CALL binary_read_pdb_t0(this, iunit,                         &
-               trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag', &
+          CALL binary_read_pdb_t0(this, iunit,                            &
+               trim(dir) // '/' // trim(spref) // '.' // nmb // '.lag',   &
                time, this%gptmp0_)
         ELSE
-          CALL binary_read_pdb_t0(this, iunit, trim(spref),            &
+          CALL binary_read_pdb_t0(this, iunit, trim(spref),               &
                time, this%gptmp0_)
         ENDIF
         ! After binary_read_pdb_t0: for VDB the global data is
@@ -1221,11 +1221,11 @@ CONTAINS
       ENDIF  ! bcoll
     ELSE  ! ASCII files
       IF (len_trim(nmb).gt.0) THEN
-        CALL ascii_read_pdb(this, iunit,                               &
-             trim(dir) // '/' // trim(spref) // '.' // nmb // '.txt', &
+        CALL ascii_read_pdb(this, iunit,                                  &
+             trim(dir) // '/' // trim(spref) // '.' // nmb // '.txt',     &
              time, this%gptmp0_)
       ELSE
-        CALL ascii_read_pdb(this, iunit, trim(spref),                  &
+        CALL ascii_read_pdb(this, iunit, trim(spref),                     &
              time, this%gptmp0_)
       ENDIF
       ! ascii_read_pdb always broadcasts to all ranks, so gptmp0_
@@ -1234,7 +1234,7 @@ CONTAINS
     ENDIF  ! iotype
     CALL GTAcc(this%htimers_(GPTIME_GPREAD))
     ! Sanity check: global particle count must still equal maxparts_
-    CALL MPI_ALLREDUCE(this%nparts_, ng, 1, MPI_INTEGER,               &
+    CALL MPI_ALLREDUCE(this%nparts_, ng, 1, MPI_INTEGER,                  &
                        MPI_SUM, this%comm_, this%ierr_)
     IF ( this%myrank_.EQ.0 .AND. ng.NE.this%maxparts_ ) THEN
       WRITE(*,*) 'io_readvec: inconsistent d.b. after read of ', trim(spref), &

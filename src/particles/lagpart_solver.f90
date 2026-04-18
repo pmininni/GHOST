@@ -10,9 +10,10 @@
 !              State sector ids are:
 !                POSITION (POSITION+1, POSITION+2)
 !
-! INPUT FILE : For psolver='lagpart', looks for a "&lagpart"
-!              namelist with:
-!              partlod: particle output level of detail (default=1):
+! INPUT FILE : For psolver='lagpart', looks for a "&lagpart" namelist with:
+!              pidir   : changes class binary input  dir (default: status idir)
+!              podir   : changes class binary output dir (default: status odir)
+!              partlod : particle output level of detail (default=1):
 !                         2: Lagrangian vorticity (wlg),
 !                            strain-rate tensor (s11,s12,s13,s22,s23)
 !
@@ -28,7 +29,7 @@ module lagpart_mod
 
   ! ================= Solver traits ===================================
   type, public  :: NHTraits
-    integer       :: partlod     = 1       ! particle output level of detail
+    integer       :: partlod  = 1       ! particle output level of detail
   end type
 
   ! ================= Global parameters ===============================
@@ -62,19 +63,27 @@ CONTAINS
     use commtypes
     class  (GPart), intent (inout) :: this
     integer                        :: ierr, partlod
-    namelist/ lagpart / partlod
+    character(len=128)             :: pidir, podir
+    namelist/ lagpart / pidir,podir,partlod
 
     this%POSITION    = 1           ! start of position sector
-    this%sstate_pos_ = 'xlg'       ! state name of positions
-    this%sstate_lag_ = 'vlg'       ! state name of Lagrangian velocities
     ! Defaults
+    pidir    = this%idir_ ! Set to the pde class idir at ctor
+    podir    = this%odir_ ! Set to the pde class odir at ctor
     partlod  = 1
     if ( this%myrank_ .eq. 0 ) then
       open(1,file=this%infile_,status='unknown',form="formatted")
       read(1,NML=lagpart)
       close(1)
     endif
+    call MPI_BCAST(pidir   ,128,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(podir   ,128,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
     call MPI_BCAST(partlod ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+
+    this%idir_ = pidir ! If present in &lagpart, replaces the class default idir
+    this%odir_ = podir ! If present in &lagpart, replaces the class default odir
+    this%sstate_pos_ = 'xlg'       ! state name of positions
+    this%sstate_lag_ = 'vlg'       ! state name of Lagrangian velocities
     this%traits_%partlod = partlod
   end subroutine init_impl
   
@@ -472,7 +481,6 @@ CONTAINS
         CALL io_write_euler(this,1,this%odir_,'s23',lgext,time,velr,.false.,tmp1,tmp2)
         call this%workspace_%free_complex_tmp(velc2)
       endif
-
     class default
       stop "Lagpart: This solver does not support pdes without a velocity field"
     end select
@@ -600,7 +608,7 @@ CONTAINS
       this%gext_ (j) = real(this%nd_(j),kind=GP)
     ENDDO
 
-    ! Call init
+    ! Call init (reads &lagpart namelist, sets POSITION indices)
     call this%init()
 
     ! Instantiate interp operation. Remember that a valid timer 
