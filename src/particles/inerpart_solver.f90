@@ -306,12 +306,10 @@ CONTAINS
                this%nparts_, ng, this%lxbnds_(3,1),  this%lxbnds_(3,2))
       ! We resize internal buffers if the exchange set is too large
       if (ng .GT. this%partbuff_) then
-        if (this%myrank_ .EQ. 0) then
-          WRITE(*,'(A,I0,A,I0,A,I0,A,I0)') &
-            'EndStage: Rank ', this%myrank_, ' resizing: nparts=', ng, &
-            ' | partbuff=', this%partbuff_, ' --> ', this%partbuff_ +  &
-            (1 + (ng - this%partbuff_) / this%partchunksize_) * this%partchunksize_
-        end if
+        WRITE(*,'(A,I0,A,I0,A,I0,A,I0)') &
+          'EndStage: Rank ', this%myrank_, ' resizing: nparts=', ng,   &
+          ' | partbuff=', this%partbuff_, ' --> ', this%partbuff_ +    &
+          (1 + (ng - this%partbuff_) / this%partchunksize_) * this%partchunksize_
         this%partbuff_ = this%partbuff_ + (1 + (ng - this%partbuff_) / &
                this%partchunksize_) * this%partchunksize_
         call ResizeArrays  (this ,this%partbuff_,.true.)
