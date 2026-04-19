@@ -39,6 +39,7 @@ contains
           deallocate( pstate(i)%rcomp )
         endif
       end do
+      deallocate( pstate )
     endif 
     allocate( pstate(nc) )
     do i = 1,nc
@@ -62,6 +63,7 @@ contains
           deallocate( pstate(i)%rcomp )
         endif
       end do
+      deallocate( pstate )
     endif 
   end subroutine GPState_dealloc
 
@@ -116,6 +118,7 @@ contains
           call GPState_dealloc(pstate(i)%rpstate)
         endif
       end do
+      deallocate( pstate )
     endif 
     allocate( pstate(narr) )
     do i = 1,narr
@@ -140,6 +143,7 @@ contains
           call GPState_dealloc(pstate(i)%rpstate)
         endif
       end do
+      deallocate( pstate )
     endif 
   end subroutine GPStateArr_dealloc
 
