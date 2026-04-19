@@ -6,6 +6,8 @@
 !              only explicit RK schemes where norder=nstage, but the 
 !              class is designed to eventually accommodate both 
 !              GEXRK_MIXED (itype=2) and GEXRK_SSP (itype=3) types.
+!              Particles in this stepper are sync'd only at the end of
+!              a full time step.
 !              
 ! INPUT FILE : Stepper looks for a "&stepper" namelist with:
 !                sname   : 'GEXRK' to use this time stepper
@@ -218,10 +220,10 @@ contains
     class(GExRKStepper), intent(inout) :: this
     integer                            :: i
 
-    call GState_dealloc (this%utmp_ )
-    call GPState_dealloc(this%putmp_)
-    if ( allocated(this%K_)  ) call GCStateArr_dealloc(this%K_ )
-    if ( allocated(this%pK_) ) call GPStateArr_dealloc(this%PK_)
+    if ( allocated( this%utmp_) ) call GState_dealloc (this%utmp_ )
+    if ( allocated(this%putmp_) ) call GPState_dealloc(this%putmp_)
+    if ( allocated(    this%K_) ) call GCStateArr_dealloc(this%K_ )
+    if ( allocated(   this%pK_) ) call GPStateArr_dealloc(this%PK_)
   end subroutine dealloc_tmp
 
 
@@ -342,7 +344,6 @@ contains
   !! Function to take one GEXRK_BUTCHER step of fields
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine step_butcher(this, time, uin, uf, dt, uout)
-!$  use threads
     use pseudospec_fluid
     use gstate_mod
     implicit none
@@ -386,6 +387,7 @@ contains
   !! Function to take one particle GEXRK_BUTCHER pstep
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine pstep_butcher(this, time, uin, upin, dt, upout)
+    use class_GPartComm
     use pseudospec_fluid
     implicit none
 
@@ -400,10 +402,8 @@ contains
     ! c_     : weights for final combination
     ! pK_    : particle stage data
 
-    stop 'GExRKStepper::pstep_butcher: GEXRK_BUTCHER not yet supported for particles!'
-
     ! We allocate tmp arrays for particles here as we need the particle state size
-    nparts = size(upin(1)%rcomp)
+    nparts = this%psolver_%partbuff_
     call GPState_alloc(this%putmp_,this%traits_%npstate,nparts)
     call GPStateArr_alloc(this%pK_,this%traits_%nstage,this%traits_%npstate,nparts)
     
@@ -411,9 +411,9 @@ contains
     do m = 1, this%traits_%nstage
       this%putmp_ = upin               ! set temp state
       do j = 1, m-1                    ! putmp = putmp + h beta pK_j
+        eff_dt = this%beta_(m,j) * dt
         do n = 1, this%traits_%npstate ! set putmp components
-          call saxpby_r(this%putmp_(n)%rcomp, this%putmp_(n)%rcomp,  &
-               1.0_GP, this%pK_(j)%rpstate(n)%rcomp, this%beta_(m,j)*dt)
+          this%putmp_(n)%rcomp = this%putmp_(n)%rcomp+this%pK_(j)%rpstate(n)%rcomp*eff_dt
         enddo
       enddo ! j-loop
       tt = time + this%alpha_(m) * dt  ! dpdt called AFTER j-loop
@@ -421,7 +421,7 @@ contains
       call this%psolver_%dpdt(tt,this%solver_,uin,this%putmp_,eff_dt,this%pK_(m)%rpstate)
     enddo ! stage m loop
 
-    ! Combine stages to get step update:
+    ! Combine stages to get step update
     upout = upin
     do m = 1, this%traits_%nstage  
       do n = 1, this%traits_%npstate   ! upout = upout + h * c_m * pK_m
@@ -430,9 +430,9 @@ contains
       enddo
     enddo ! m-loop
 
-    ! The following assumes we only need to sync particles at the end of a full step.
-    ! We probably need to sync during the substepping, and this%putmp_ and this%pK_
-    ! must be manually sync'd and maybe resized if using the NN interface.
+    ! We now can deallocate the tmp arrays, and sync/resize upin, upout.
+    ! Note that this is the only sync done, if the particles move too fast
+    ! during the substepping stages (dt too long) this method may fail.
     call GPState_dealloc(this%putmp_)
     call GPStateArr_dealloc(this%pK_)
     call this%psolver_%end_stage(upin,upout)
@@ -443,6 +443,7 @@ contains
   !! Function to take one part+field GEXRK_BUTCHER step
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine cstep_butcher(this, time, uin, upin, uf, dt, uout, upout)
+    use class_GPartComm
     use pseudospec_fluid
     implicit none
 
@@ -460,20 +461,17 @@ contains
     ! pK_    : particle stage data
     ! fdbk   : feedback forces
 
-    stop 'GExRKStepper::cstep_butcher: GEXRK_BUTCHER not yet supported for part+fields!'
-
     ! We allocate fdbk if we have feedback on the fluid
     if ( this%psolver_%hasfeedback_ ) then
       call GState_alloc(fdbk, this%traits_%nstate)
     endif
 
     ! We allocate tmp arrays for particles here as we need the particle state size
-    nparts = size(upin(1)%rcomp)
+    nparts = this%psolver_%partbuff_
     call GPState_alloc(this%putmp_,this%traits_%npstate,nparts)
     call GPStateArr_alloc(this%pK_,this%traits_%nstage,this%traits_%npstate,nparts)
     
     ! Compute stage data:
-    ! Feedback should be computed here, as done in canuto::cstep
     do m = 1, this%traits_%nstage
       this%utmp_  = uin                ! set temp states
       this%putmp_ = upin
@@ -482,9 +480,9 @@ contains
           call saxpby_c(this%utmp_(n)%ccomp,  this%utmp_(n)%ccomp,   &
                1.0_GP, this%K_(j)%cstate(n)%ccomp,   this%beta_(m,j)*dt)
         enddo
+        eff_dt  = this%beta_(m,j) * dt
         do n = 1, this%traits_%npstate ! set putmp = putmp + h beta pK_j
-          call saxpby_r(this%putmp_(n)%rcomp, this%putmp_(n)%rcomp,  &
-               1.0_GP, this%pK_(j)%rpstate(n)%rcomp, this%beta_(m,j)*dt)
+          this%putmp_(n)%rcomp = this%putmp_(n)%rcomp+this%pK_(j)%rpstate(n)%rcomp*eff_dt
         enddo
       enddo ! j-loop
       tt = time + this%alpha_(m) * dt  ! feedback and d/dt called AFTER j-loop
@@ -502,23 +500,23 @@ contains
       call this%psolver_%dpdt(tt,this%solver_,uin,this%putmp_,eff_dt,this%pK_(m)%rpstate)
     enddo ! stage m loop
     
-    ! Combine stages to get step update:
+    ! Combine stages to get step update
     uout  = uin
     upout = upin
     do m = 1, this%traits_%nstage  
       do n = 1, this%traits_%nstate    ! uout  = uout  + h * c_m * K_m
         call saxpby_c(uout(n)%ccomp, uout(n)%ccomp, 1.0_GP,          &
              this%K_(m)%cstate(n)%ccomp, this%c_(m)*dt)
-      enddo
-      do n = 1, this%traits_%npstate   ! upout = upout + h * c_m * pK_m
-        call saxpby_r(upout(n)%rcomp, upout(n)%rcomp, 1.0_GP,        &
-             this%pK_(m)%rpstate(n)%rcomp, this%c_(m)*dt)
+     enddo
+     eff_dt = this%c_(m) * dt
+     do n = 1, this%traits_%npstate   ! upout = upout + h * c_m * pK_m
+        upout(n)%rcomp = upout(n)%rcomp + this%pK_(m)%rpstate(n)%rcomp * eff_dt
       enddo
     enddo ! m-loop
     
-    ! The following assumes we only need to sync particles at the end of a full step.
-    ! We probably need to sync during the substepping, and this%putmp_ and this%pK_
-    ! must be manually sync'd and maybe resized if using the NN interface.
+    ! We now can deallocate the tmp arrays, and sync/resize upin, upout.
+    ! Note that this is the only sync done, if the particles move too fast
+    ! during the substepping stages (dt too long) this method may fail.
     call GPState_dealloc(this%putmp_)
     call GPStateArr_dealloc(this%pK_)
     if ( this%psolver_%hasfeedback_ ) call GState_dealloc(fdbk)

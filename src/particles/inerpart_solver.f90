@@ -2,7 +2,7 @@
 ! NAME       : inerpart_solver.f90
 ! DESCRIPTION: Forms solver class for inertial particles, computing:
 !
-!              dx/dt = v_p
+!              dx/dt   = v_p
 !              dv_p/dt = (1/tau) * (u(x,t) - v_p) - grav * z_hat
 !                     or (1 + 0.15 Re_p^0.687) /tau (U(X(t)) - V(X(t)))
 !                     if nonlinear drag is used (see Wang & Maxey 1993),
@@ -141,14 +141,14 @@ CONTAINS
     use equationbase_mod
     use fft
     IMPLICIT NONE
-    class    (InerPart),         intent(inout) :: this
-    class(EquationBase),         intent   (in) :: pde
-    real      (kind=GP),         intent   (in) :: time, dt
-    type   (GStateComp),         intent   (in) :: fluidstate(:)
-    type  (GPStateComp), target ,intent   (in) :: pstate(:)
-    type  (GPStateComp),         intent(inout) :: dpdtout(:)
-    complex   (KIND=GP), pointer, DIMENSION(:,:,:) :: velc
-    real      (KIND=GP), pointer, DIMENSION(:,:,:) :: velr,tmp1,tmp2
+    class    (InerPart),             intent(inout) :: this
+    class(EquationBase),             intent   (in) :: pde
+    real      (kind=GP),             intent   (in) :: time, dt
+    type   (GStateComp),             intent   (in) :: fluidstate(:)
+    type  (GPStateComp), target ,    intent   (in) :: pstate(:)
+    type  (GPStateComp),             intent(inout) :: dpdtout(:)
+    complex   (KIND=GP), pointer, dimension(:,:,:) :: velc
+    real      (KIND=GP), pointer, dimension(:,:,:) :: velr,tmp1,tmp2
     real      (kind=GP)                            :: rmp, invtau, grav
     real      (kind=GP)                            :: cdrag, rep, dx, dy, dz
     integer                                        :: i,j,k
@@ -281,14 +281,16 @@ CONTAINS
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Functions to synch particles after doing a time step
+  !! Functions to sync particles after doing a time step.
+  !! Syncs only initial and final states, does not sync
+  !! tmp arrays that may be used by the stepper.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine end_stage_impl(this, upin, upout)
     use gpstate_mod
     implicit none
     class  (InerPart), intent(inout) :: this
-    type(GPStateComp), intent(inout) :: upin (:)
-    type(GPStateComp), intent(inout) :: upout(:)
+    type(GPStateComp), intent(inout) :: upin (:) ! state at t0
+    type(GPStateComp), intent(inout) :: upout(:) ! state after sub-stage
     integer                          :: j, ng
 
     ! Branch 1: Nearest-neighbour (NN) exchange -------------------------
@@ -426,7 +428,7 @@ CONTAINS
       if (this%myrank_ .EQ. 0 .AND. ng .NE. this%maxparts_) then
         WRITE(*,*) 'InerPart EndStage (VDB): inconsistent d.b.: expected: ', &
                    this%maxparts_, '; found: ', ng
-        CALL this%ascii_write_lag(1, '.', trim(this%sstate_pos_) // 'err',  &
+        CALL this%ascii_write_lag(1, '.', trim(this%sstate_pos_) // 'err',   &
              '000', 0.0_GP, this%maxparts_,this%vdb_)
         STOP
       end if

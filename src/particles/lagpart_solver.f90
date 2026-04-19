@@ -100,14 +100,14 @@ CONTAINS
     use fft
 !$  use threads
     IMPLICIT NONE
-    class       (GPart),         intent(inout) :: this
-    class(EquationBase),         intent   (in) :: pde
-    real      (kind=GP),         intent   (in) :: time, dt
-    type   (GStateComp),         intent   (in) :: fluidstate(:)
-    type  (GPStateComp), target ,intent   (in) :: pstate(:)
-    type  (GPStateComp),         intent(inout) :: dpdtout(:)
-    complex   (KIND=GP), pointer, DIMENSION(:,:,:) :: velc
-    real      (KIND=GP), pointer, DIMENSION(:,:,:) :: velr,tmp1,tmp2
+    class       (GPart),             intent(inout) :: this
+    class(EquationBase),             intent   (in) :: pde
+    real      (kind=GP),             intent   (in) :: time, dt
+    type   (GStateComp),             intent   (in) :: fluidstate(:)
+    type  (GPStateComp), target ,    intent   (in) :: pstate(:)
+    type  (GPStateComp),             intent(inout) :: dpdtout(:)
+    complex   (KIND=GP), pointer, dimension(:,:,:) :: velc
+    real      (KIND=GP), pointer, dimension(:,:,:) :: velr,tmp1,tmp2
     real      (kind=GP)                            :: rmp
     integer                                        :: i,j,k,m
     logical                                        :: bret,doupdate(this%nc_)
@@ -126,7 +126,7 @@ CONTAINS
       endif
       doupdate    = .false.
       doupdate(1) = .true.
-      rmp = 1.0_GP/(real(this%nd_(1),kind=GP)*real(this%nd_(2),kind=GP)* &
+      rmp = 1.0_GP/(real(this%nd_(1),kind=GP)*real(this%nd_(2),kind=GP)*    &
                     real(this%nd_(3),kind=GP))
       ! Find F(u*):
       do m = 1,this%nc_
@@ -167,7 +167,9 @@ CONTAINS
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Functions to synch particles after doing a time step
+  !! Functions to sync particles after doing a time step.
+  !! Syncs only initial and final states, does not sync
+  !! tmp arrays that may be used by the stepper.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine end_stage_impl(this, upin, upout)
     use gpstate_mod

@@ -159,7 +159,7 @@ module particlebase_mod
        type  (GPStateComp), intent(inout)         :: upin (:)
        type  (GPStateComp), intent(inout)         :: upout(:)
      end subroutine end_stage_interface
-     
+
      subroutine feedback_interface(this, pstate, feedback)
        use gstate_mod
        use gpstate_mod
@@ -168,7 +168,7 @@ module particlebase_mod
        type  (GPStateComp), intent   (in)         :: pstate(:)
        type   (GStateComp), intent(inout)         :: feedback(:)
      end subroutine feedback_interface
-     
+
      subroutine write_interface(this, time, pde, fluidstate, pstate)
        use equationbase_mod
        use gpstate_mod

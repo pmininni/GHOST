@@ -6,10 +6,11 @@
 !              Dynamics. This is a low storage time stepper
 !              for a specifiable order, though it is strictly
 !              speaking of full truncation order only for
-!              norder = 2, or for linear PDEs. Explicit number
+!              norder = 2, or for linear ODEs/PDEs. Explicit number
 !              of stages are not required. While norder > 2 may
 !              not yield a truncation of that order in nonlinear
-!              PDEs, it can still provide a benefit.
+!              PDEs, it can still provide a benefit. Particles in
+!              this stepper are sync'd at every substepper stage.
 !
 ! INPUT FILE : Stepper looks for a "&stepper" namelist with:
 !                sname   : 'TRADITIONAL' to use this time stepper
@@ -183,7 +184,7 @@ contains
                        eff_dt*upout(ip)%rcomp(k)
         enddo
       end do
-      ! Synch particles
+      ! Sync particles at each stage
       call this%psolver_%end_stage(upin,upout)
     end do ! end, o-loop
   end subroutine pstep_impl
@@ -261,7 +262,7 @@ contains
                        eff_dt*upout(ip)%rcomp(k)
         enddo
       end do
-      ! Synch particles
+      ! Sync particles at each stage
       call this%psolver_%end_stage(upin,upout)
     end do ! end, o-loop
     if ( this%psolver_%hasfeedback_ ) call GState_dealloc(fdbk)
