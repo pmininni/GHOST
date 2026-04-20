@@ -109,6 +109,7 @@ CONTAINS
     dorot    = .FALSE.
     spectlod = 1 ! standard lod
     nu       = 0.0
+    npassive = 0
     omegax   = 0.0_GP; omegay = 0.0_GP; omegaz = 0.0_GP
     if ( this%myrank_ .eq. 0 ) then
       open(1,file=this%infile_,status='unknown',form="formatted")
