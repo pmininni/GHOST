@@ -1286,7 +1286,7 @@ MODULE class_GSGSmodel
       INTEGER                             :: i,j,k
 
 !$omp parallel do if (this%iend-2.ge.nth) private (j,k)
-       DO i = 1,this%iend
+      DO i = this%ista,this%iend
 !$omp parallel do if (this%iend-2.lt.nth) private (k)
          DO j = 1,this%ny
            DO k = 1,this%nz
