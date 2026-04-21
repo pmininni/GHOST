@@ -43,7 +43,7 @@
            tmp = kx(1)**2+ky(j)**2
            IF (tmp.gt.tiny) THEN
               C2    (1,j,1) = -2.0*(omegaz/tmp)*C4(1,j,1) ! balanced pressure
-              fs    (1,j,1) = -cdump*kz(k)*C2(1,j,1)     ! theta
+              fs    (1,j,1) = -cdump*kz(1)*C2(1,j,1)     ! theta
               fs(1,ny-j+2,1) = conjg(fs(1,j,1))
            ENDIF
         ENDDO
