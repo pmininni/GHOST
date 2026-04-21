@@ -1,52 +1,36 @@
 GHOST code: Geophysical High Order Suite for Turbulence
 =======================================================
 
-The code and different solvers provided here numerically integrate the 
-hydrodynamic/magnetodydrodynamic/Hall-magnetodydrodynamic equations in 
-3 dimensions with periodic boundary conditions. Several solvers are 
-provided (check the makefile and the comments in 'main3D.fpp' for the 
-current list of supported solvers). A pseudo-spectral method is used 
-to compute spatial derivatives, while a Runge-Kutta method of 
-adjustable order is used to evolve the system in the time domain. To 
-compile, you need the FFTW library installed on your system (or
-Intel MKL, or cuFFT if using NVIDIA GPUs) and some flavor of MPI.
-Note that only serial transforms in the FFT packages are used, since
-many MPI versions of FFT libraries implement blocking communications.
-Instead, a non-blocking parallel FFT (FFTP) based on FFTW/MKL/cuFFT is
-used.
+The code and different solvers provided here numerically integrate 
+several PDEs and particles in periodic domains. Several solvers are
+provided (see the examples directory for different input files to
+integrate the different models available). A pseudo-spectral method 
+is used to compute spatial derivatives, while different time steppers
+of adjustable order can be used to evolve the system in the time
+domain. To compile, you need the FFTW library installed on your
+system (or other supported FFT libraries with compatible interfaces)
+and some flavor of MPI. Note that only serial transforms in the FFT
+packages are used, since many MPI versions of FFT libraries implement
+blocking communications. Instead, a custom non-blocking parallel FFT
+(FFTP) based on FFTW is used instead.
 
 1. Installing FFTW
 ==================
 
-The default compiling options in GHOST assume FFTW 3.x). The parallel
-FFT based on FFTW 3.x is in the directory 'fftp-3'. The API of FFTW
-2.x is incompatible with that of FFTW 3.x, and as a result also
-incompatible with fftp-3. To use FFTW 2.x, use the parallel library
-in the directory 'fftp-2' instead. Note that FFTW 3.x is faster,
-although how fast depends strongly on the alignment of arrays, and
-on whether the hardware supports SIMD instructions. For this to work,
-FFTW 3.x should be compiled with some form of SSE/SSE2/AVX/3dNow!/Altivec
-support (see the FFTW documentation), and a Fortran compiler that aligns
-arrays properly should be used to compile GHOST. The parallel library
-for FFTW 3.x uses more memory, so if you are running on a low-memory 
-environment use FFTW 2.x instead.
-
-To compile FFTW 2.x, 'cd' to the directory containing the source and 
-type
+The default compiling options in GHOST assume FFTW 3.x is installed
+in your system. FFTW can be downloaded from https://www.fftw.org/.
+You need both single and double precision libraries for GHOST. To
+compile FFTW, download the source files, 'cd' to the directory
+containing the source and type
 
 -------------------------------------------------------------------
-./configure --enable-type-prefix
-make
+./configure --enable-openmp --enable-threads
 make install
-make clean 
-./configure --enable-type-prefix --enable-float
+make distclean
+./configure --enable-openmp --enable-threads --enable-float
 make
 make install
 -------------------------------------------------------------------
-
-To build FFTW 3.x, use the same options but remove 
-'--enable-type-prefix', and do 'make distclean' instead of 
-'make clean' after the first pass.
 
 The first pass installs the double precision libraries, and the 
 second pass installs the single precision libraries. By default, 
@@ -55,186 +39,103 @@ etc. You can specify an installation prefix other than '/usr/local'
 (e.g. the user's home directory) by giving `configure' the option 
 '--prefix=PATH'.
 
-FFTW uses GCC by default if GNU compilers are present. GCC previous 
-to version 4.x adds two underscores to the name of external 
-functions and subroutines by default, a feature not common in most 
-vendor compilers. This can generate some problems when mixing C and 
-Fortran (see Section 2.2 for more details and workarounds). To use 
-vendor compilers, you can pass variables to the configure script. 
+FFTW uses GCC by default if GNU compilers are present. To use 
+other compilers, you can pass variables to the configure script. 
 In a Bourne-compatible shell, you can do that on the command line 
 like this:
 
 -------------------------------------------------------------------
-CC=pgcc CFLAGS='-fastsse' F77=pgf90 ./configure
+CC=pgcc CFLAGS='-fastsse' FC=pgf90 ./configure
 -------------------------------------------------------------------
 
-CFLAGS passes flags to the C compiler, and F77 sets the Fortran 
-compiler. On systems that have the 'env' program, you can do it 
-like this:
+CFLAGS passes flags to the C compiler, and FC sets the Fortran 
+compiler (use the 'env' command at the beginning of this line in
+C-like shells).
 
--------------------------------------------------------------------
-env CC=pgcc CFLAGS='-fastsse' F77=pgf90 ./configure
--------------------------------------------------------------------
+2. Installing MPI
+=================
 
-2. Using other FFTs
-===================
+GHOST needs some flavor of MPI to be installed in your system. If
+not provided by your operating system, you can download OpenMPI
+from https://www.open-mpi.org/, and follow the instructions there
+for installation.
 
-Intel MKL and cuFFT can be used instead of FFTW. To use Intel MKL, set
-'FFTP = fftp-mkl' in Makefile.in, and the path to the library. This
-option also allows for experimental offloading of the FFTs into GPUs.
-To use cuFFT, which also offloads FFTs into GPUs, see the instructions
-below.
-
-3. Compiling the code
-=====================
+3. Compilation
+==============
 
 3.1. Setting code options:
 
-The linear resolution is set before compilation in the file 
-Makefile.in. The lines 
+Most users can skip this section and move on to compilation in Sec.
+3.2. Basic compiling options are set in GHOST/UserConfig.cmake:
 
--------------------------------------------------------------------
-NX       = 64
-NY       = 64
-NZ       = 64
--------------------------------------------------------------------
-
-set the number of grid points in each direction (some solvers and
-options only work with NX=NY=NZ, and this option requires slightly
-less memory in some cases). A few more variables can be set in this
-file. The variable
-
--------------------------------------------------------------------
-ORD      = 2
+# ----------------------- Options / variants ----------------------
+option(P_HYBRID "Enable hybrid OpenMP"       OFF)
+set(PRECISION "SINGLE" CACHE STRING "Precision (SINGLE or DOUBLE)")
+set(FFTP "fftp-3"      CACHE STRING "FFT library (fftp-3, fftp-mkl)")
+set(IOLIB "mpiio"      CACHE STRING "IO library (mpiio)")
 -------------------------------------------------------------------
 
-controls the number of iterations in the Runge-Kutta method. 
+The most relevant option for users is PRECISION, which can be set
+to SINGLE or DOUBLE. FFTP can be used to change the underlying FFT
+library used at compile time. Note that GHOST 3.x now only supports
+mpi I/O for binary files.
 
-By default, GHOST uses a 2.pi-periodic box in all directions. To
-use anisotropic boxes, with 2.pi*(Lx,Ly,Lz) lengths in each
-direction, you can set
+The remaining options in this file are optional and the defaults give
+good performance in most computers. But if needed, you can set three
+more parameters for optimization purposes (again, the default values
+work fine in most computers, don't change the values if you are unsure
+about the meaning of these variables). The lines
 
--------------------------------------------------------------------
-BOXSIZE  = yes
--------------------------------------------------------------------
-
-The values of (Lx,Ly,Lz) can then be set in the input file at run
-time. Note some solvers may not fully support this option.
-
-The remaining options in this section are optional and the defaults 
-give good performance in most computers. But if needed, you can set 
-three more variables for optimization purposes in the file 
-Makefile.in (again, the default values work fine in most computers, 
-don't change the values if you are unsure about the meaning of 
-these variables). The lines
-
--------------------------------------------------------------------
-IKIND    = 8
-CSIZE    = 32
-NSTRIP   = 1
+# ----------------------- Advanced set up params ------------------
+set(IKIND 8  CACHE STRING "Integer kind")
+set(CSIZE 8  CACHE STRING "Cache size")
+set(NSTRIP 1 CACHE STRING "Strip mining")
 -------------------------------------------------------------------
 
-set the variables 'ikind', 'csize', and 'nstrip' used in the 
-parallel FFTs. 'IKIND' is the size of C pointers. For optimal 
-results, it should be 4 in 32-bits machines, and 8 in 64-bits 
-machines. 'CSIZE' is used by the parallel FFT to do cache-friendly 
-transpositions. The optimal value for a particular machine can be 
-adjusted doing benchmarks, but rule of thumb values are 8 if the L1 
-cache is smaller or equal to 64 kb, and 16 if the L1 cache is 
-larger than 64 kb (24 or 32 may be best in some processors with 
-large cache). The variable 'NSTRIP' controls strip mining during 
-the transpositions. The default value is 1 and in that case no 
-strip mining is done.
-
-Finally, if required, the users can change the number of digits 
-used to label spectrum, transfer and binary files. The variables 
-in the module 'filefmt' (in the file 'pseudo/pseudospec3D_mod.fpp') 
-control the length of the time label used to name these files. If 
-POSIX I/O is used, the length of the node label can be changed in 
-the module 'iovar' in the file 'posix/binary_mod.f90' (I am sorry 
-for releasing these hacks, but they can be useful if long 
-integrations are done, or when thousands of processors are used).
+set the variables 'ikind', 'csize', and 'nstrip' used in parallel
+FFTs. 'IKIND' should be ketp at 8. 'CSIZE' is used by the parallel
+FFT to do cache-friendly transpositions. The optimal value for a
+particular machine can be adjusted doing benchmarks, but rule of
+thumb values are 8 if the L1 cache is smaller or equal to 64 kb,
+and 16 if the L1 cache is larger than 64 kb (24 or 32 may be best
+in some processors). The variable 'NSTRIP' controls strip mining
+during the transpositions. The default value is 1 and in that case
+no strip mining is done.
 
 3.2 Compiling the code:
 
-Initial conditions for the fields and the external forcings are 
-defined in the files 'initial*.f90'. Examples of these files can 
-be found in the directory 'examples'. GHOST also provides a way
-for the user to define a way to update forcing functions in time
-(besides the three options already implemented: constant forcing,
-delta-correlated random-phase shifting, and slowly evolving random
-phases). To define a new updating scheme for the forcing functions,
-you can edit the file 'incscheme.f90' (see the directory 'examples'
-for more detailes).
-
-Note that the name of all files in the directory 'examples' finish
-with '_example-name'. To use any of these files, you must copy the
-file to the 'src' directory and remove the '_example-name' from
-the name of the file. As an example, to use the ABC initial
-conditions for the velocity field, from the 'src' directory you
-must do
-
+If all libraries and compilers are defined in your path, you can
+compile just by doing
+ 
 -------------------------------------------------------------------
-cp examples/initialv.f90_abc initialv.f90
+cd GHOST/build
+cmake ..
+make
 -------------------------------------------------------------------
 
-Check the makefile to see all paths and variables are correct. In 
-some computers where MPI or FFTW are already installed, problems 
-can be found if MPI and FFTW were compiled using different 
-compilers. GNU compilers previous to version 4.x add two 
-underscores to the name of external functions and subroutines, 
-while vendors compilers often add one underscore. To solve this 
-problem, if the variable 'UNDER' is set to 1 in the makefile, the 
-makefile runs a PERL script to add underscores as needed before 
-compiling. The file 'external' lists the names of external 
-functions and subroutines that need an extra underscore.
+This will create a GHOST executable file in GHOST/bin.
 
-WARNING: if you use 'UNDER=1' and compiling fails, remember to do 
-'make clean' or 'make dist' before compiling again or doing any 
-change to the source files. Failing to do so can result in extra 
-underscores added to the source files every time a 'make' is 
-attempted.
-
-The makefile builds by default the single precision HD solver using 
-MPI I/O and FFTP-3. This behavior can be changed passing variables 
-to make, or editing the makefile. As an example, to build the MHD 
-solver with double precision, POSIX I/O, and FFTP-2 you can do
+If CMake cannot find your libraries, or if you want to use specific
+compilers or library paths, you can set them by doing:
 
 -------------------------------------------------------------------
-make SOLVER=MHD PRECISION=DOUBLE IOLIB=posix FFTP=fftp-2
+cd GHOST/build
+CC=gcc FC=gfortran cmake .. -DCMAKE_PREFIX_PATH=/foo/openmpi \
+  -DFFTW3_ROOT=/foo/fftw
+make
 -------------------------------------------------------------------
 
-The path to the FFTW libraries can be changed passing make the 
-variable FFTWDIR. For a list of currently supported solvers, check 
-the file 'SOLVERS' and the makefile. In addition, the makefile 
-supports 'make clean', 'make dist', and extra options to make code 
-for data analysis after the runs are finished (these are: 
-'make trans', 'make triad', and 'make struc', each one also 
-supports the SOLVER, PRECISION, IOLIB, and FFTP variables; see the 
-file 'SOLVERS' and the makefile for more details).
+where /foo/openmpi is the path to the MPI libraries, and /foo/fftw
+is the path to the FFTW libraries.
 
 3.3 Parallelization models
 
 By default, GHOST uses 1D domain decomposition with pure MPI 
-parallelization. This behavior can be changed with two settings 
-in the Makefile.in file, or equivalently with two variables that 
-can be passed to make at compile time.
-
-3.3.1 Hybrid parallelization
-
-The code provides support for OpenMP-MPI hybridization, for use in
-supercomputers with multi-core processors and for simulations using 
-a large number of cores. When the variable
-
--------------------------------------------------------------------
-P_HYBRID=yes
--------------------------------------------------------------------
-
-is passed to make at compile time, a hybrid parallelization model 
-is used. Then, the number of MPI jobs and the number of threads in 
-each job can be set independently at run time. To define the number 
-of threads (in this example, set to 4 threads) in a Bourne-like 
-shell set the environment variable 
+parallelization. If hybrid parallelization was enabled at compile
+time, the number of MPI jobs and the number of threads in each job
+can be set independently at run time. To define the number of
+threads (in this example, set to 4 threads) in a Bourne-like shell,
+set the environment variable 
 
 -------------------------------------------------------------------
 export OMP_NUM_THREADS=4
@@ -251,55 +152,27 @@ binding are crucial. How to set processor affinity and binding is
 platform dependent; check the platform documentation where you are 
 running for more information.
 
-3.3.2 CUDA support
-
-GHOST has experimental support for GPU-based computation of FFTs 
-using CUDA. To use this option, the NVIDIA CUDA Toolkit (the CUDA 
-compilers plus the GPU-accelerated math libraries) must be 
-installed in the system. Paths to the CUDA compiler and libraries 
-must be declared in the file Makefile.in (check all the variables 
-defined in the section "CUDA compilers" of Makefile.in).
-
-To enable this option, pass the following variable to make at 
-compile time:
-
--------------------------------------------------------------------
-P_CUDA=yes
--------------------------------------------------------------------
-
-Only one GPU can be used per MPI task. In systems with multiple 
-GPUs, the GPU binded to a given MPI task should be the one with 
-the fastest access to the CPU in which the MPI task is running. 
-How to set affinity between CPUs and GPUs is platform dependent; 
-check the platform documentation where you are running for more 
-information.
-
 3.4 About the solvers:
 
-The main program 'main3D.fpp' includes files for the different 
-solvers at compile time from the directory 'include'. The files 
-in 'include' are named 'solver_component.f90' where 'solver' is 
-the name of the solver (in lowercase) and 'component' indicates 
-what action is done by the file. Most common components are
-
-validate : verifies compatibility of options with the solver
-global   : contains routines to compute global quantities
-spectrum : contains routines to compute spectra
-rkstep1  : first step of Runge-Kutta
-rkstep2  : second step of Runge-Kutta (contains the equations)
+Solvers, with their equations, output, and definitions, are defined
+in GHOST/src/pdes (for fluids) and GHOST/src/particles (for
+particles). Each solver has its own file, with its own methods
+(e.g., the incompressible Navier-Stokes equations are defined in
+GHOST/src/pdes/hd_solver.f90). See each solver file for more
+information.
 
 4. Running the code
 ===================
 
-The codes can be executed using mpirun or the correspondent vendor 
+GHOST can be executed using mpirun or the correspondent vendor
 equivalent. The first node then reads the parameters for the run 
 from the input file, and passes the values to the rest of the 
 nodes. 
 
 4.1. Input file:
 
-The input file for all the solvers is named 'parameter.txt'. The 
-file is separated into several 'lists', which have the following 
+The input file for all the solvers is named 'parameter.inp'. The 
+file is separated into several 'namelists', which have the following 
 syntax:
 
 -------------------------------------------------------------------
@@ -317,226 +190,234 @@ variable4 = 4.00 ! Another comment
 ...
 -------------------------------------------------------------------
 
-The number of lists required depends on the solver. An example with 
-the list of all variables for all the solvers is given in the 
-directory 'examples'. Note all variables are not needed for all the 
-solvers. The order of the lists in the file 'parameter.txt', and 
+The number of namelists required depends on the solver, initial
+conditions, and forcing methods selected. In GHOST/src/examples,
+there are several examples of input files to run GHOST with
+different solvers and configurations. As an example, to do a
+simulation with the incompressible Navier-Stokes solver and without
+particles, you can copy GHOST/src/examples/parameter.hd into
+parameter.inp:
+
+-------------------------------------------------------------------
+cd GHOST/bin
+cp ../src/examples/parameter.hd parameter.inp
+-------------------------------------------------------------------
+
+The order of the namelists in the file 'parameter.inp', and 
 the order of the variables inside each list, are not important. All 
-solvers need at least a list 'status' whith variables
+solvers need at least a namelist 'grid' whith parameters
+
+-------------------------------------------------------------------
+! Grid resolution
+&grid
+nx = 64
+ny = 64
+nz = 64
+/
+-------------------------------------------------------------------
+
+This sets the spatial resolution. The namelist 'boxparams' may not
+be present, in that case the simulation is performed in a (2 pi)^3
+periodic domain. If present, Lx, Ly, and Lz set the domain lengths
+in units of 2 pi:
+
+-------------------------------------------------------------------
+&boxparams
+Lx = 1.00        ! Length of the box in x
+Ly = 1.00        ! Length of the box in y
+Lz = 1.00        ! Length of the box in z
+-------------------------------------------------------------------
+
+All solvers require a 'status' namelist:
 
 -------------------------------------------------------------------
 &status
-idir = "/ptmp/run"
-odir = "/ptmp/run"
-stat = 0         ! status
-mult = 1         ! multiplier
-bench = 0        ! benchmark
-outs = 0         ! output
-mean = 0         ! mean field
-trans = 1        ! energy transfer
+&status
+idir = "outs"
+odir = "outs"
+stat = 0         ! last binary file if restarting an old run
+mult = 1         ! decreases the time step
+bench = 0        ! benchmark mode if 1
+outs = 0         ! controls the amount of binary output
+dt = 1e-3        ! time step
+step = 501       ! total number of steps
+tstep = 250      ! number of steps between binary output
+sstep = 250      ! number of steps between spectrum output
+cstep = 5        ! number of steps between writing global quantities
+cort = 0.2       ! global correlation time for random forcing methods
+seed = 1000      ! global seed for random number generators
 /
 -------------------------------------------------------------------
 
-The variables in this list are
+The most relevant variables in this namelist are:
 
-idir  : directory for binary input
-odir  : directory for binary output
-status: the number of the last binary file available if a 
-        simulation is restarted. If zero, a new simulation is done.
-multiplier: time step multiplier, should be 1 in most cases (if 
-        larger than one, the time step is divided by multiplier, 
-        and all 'step' variables multiplied by this variable).
-benchmark: if 1, performs a benchmark run.
-output: controls the amount of output written in the binary files.
-mean field : if 1, computes mean fields as the time average of the 
-        instantaneous fields
-energy transfer: if 1, computes energy transfer functions.
-
-All runs also read a list with parameters for the integration, 
-named 'parameter'
-
--------------------------------------------------------------------
-&parameter
-dt = 7.5e-4      ! time step
-step = 12005     ! number of steps
-tstep = 500      ! binary output
-sstep = 250      ! spectrum
-cstep = 10       ! global quantities
-rand = 1         ! random
-cort = 7.5e-4    ! correlation time
-seed = 1000      ! seed
-/
--------------------------------------------------------------------
-
-The variables in this list are
-
-dt  : sets the time step, which must satisfy the CFL condition 
-      dt <= 1/(u*n), where u is a characteristic speed, and n is 
-      the linear resolution.
-step: controls the total number of time steps the code will do.
+idir : directory for binary input
+odir : directory for binary output
+stat : the number of the last binary file available if a 
+       simulation is restarted. If zero, a new simulation is done.
+       If not zero, previous outputs are read if the initial
+       conditions to the fields are set to "read" (otherwise that
+       field can be reseted to a different state by the user).
+mult : time step multiplier, should be 1 in most cases (if 
+       larger than one, the time step is divided by multiplier, 
+       and all 'step' variables multiplied by this variable).
+bench: if >=1, performs a benchmark run.
+outs : controls the amount of output written in the binary files.
+dt   : sets the time step, which must satisfy the CFL condition 
+       dt <= 1/(u*n), where u is a characteristic speed, and n is 
+       the linear resolution.
+step : controls the total number of time steps the code will do.
 tstep, sstep, and cstep: number of time steps done between 
-      exporting global quantities (cstep), energy spectra (sstep), 
-      and binary files (tstep).
-rand: sets random or constant forcing.
-cort: correlation time for random forcing.
-seed: seed for the random number generator.
+       exporting global quantities (cstep), energy spectra (sstep), 
+       and binary files (tstep).
+cort : correlation time for random forcing methods/random processes.
+seed : seed for the random number generator.
 
-If solvers with a velocity field are used, GHOST reads initial
-parameters for the velocity field from the list 'velocity':
+All runs also read a namelist with parameters for the time stepper: 
 
 -------------------------------------------------------------------
-&velocity
-f0 = 0.37714265   ! mechanical forcing
-u0 = 1.00         ! amplitude
-kdn = 2.00        ! minimum wavenumber
-kup = 2.00        ! maximum wavenumber
-nu = 3.e-4        ! viscosity
-fparam0 = 0.90    ! free parameter for the forcing
-vparam0 = 0.90    ! free parameter for the velocity
+! Time stepping method
+&stepper
+sname  = "TRADITIONAL" ! TRADITIONAL or GEXRK
+norder = 2             ! order
+nstage = 2             ! number of stages
 /
 -------------------------------------------------------------------
 
-These variables are:
+The variables in this list are:
 
-f0  : amplitude of the external force.
-u0  : amplitude of the initial velocity field.
-kdn and kup: lower and upper bounds in Fourier space for the 
-      external force and/or the initial velocity field.
-nu  : kinematic viscosity
-fparam0-9: variables that can be used to adjust the amplitude of 
-individual terms in the expressions of the external force (e.g. 
-in the ABC or Roberts flows). See the files 'initialf*' in the 
-directory 'examples' for more details.
-vparam0-9: idem for the initial velocity field.
+sname : The time stepper (TRADITIONAL: a low storage RK method that
+        saves memory and time, of second order or of order=norder
+	only for linear problems; GEXRK: Explicity RK of order [1,4])
+norder, nstage: the order of the method (norder=stage for the moment)
 
-If solvers with magnetic fields are used, the following two lists 
-are read from 'parameter.txt'. The first list, 'dynamo', controls 
-the behavior of the run:
+The PDE solver is chosen with the 'Solver' namelist:
 
 -------------------------------------------------------------------
-&dynamo
-dyna = 0          ! dynamo
+! Solver
+&pdes
+solver = "HD"    ! Solver name, reads a namelist with the same name
 /
 -------------------------------------------------------------------
 
-with
-
-dynamo: if 1, reads the velocity from the binary files indicated 
-        by status, and generates initial conditions for the 
-        magnetic field for a dynamo run.
-
-The second list, 'magfield', sets properties of the initial 
-magnetic field and the electromotive forcing:
+Each solver reads a namelist with its own name. For incompressible
+Navier-Stokes (HD) the parameters are:
 
 -------------------------------------------------------------------
-&magfield
-m0 = 0.00         ! electromotive forcing
-a0 = 1.00         ! amplitude
-mkdn = 10.00      ! minimum wavenumber
-mkup = 20.00      ! maximum wavenumber
-mu = 2.e-3        ! diffusivity
-corr = 0          ! correlation
-mparam0 = 0.90    ! free parameter for the forcing
-aparam0 = 0.90    ! free parameter for the magnetic field
+! HD solver specific parameters
+&HD
+nu  = 3.e-3      ! kinematic viscosity
+dorot = .FALSE.  ! do rotation
+omegax = 0.0     ! rotation in x (ignored if dorot is FALSE)
+omegay = 0.0     ! rotation in y (ignored if dorot is FALSE)
+omegaz = 0.0     ! rotation in z (ignored if dorot is FALSE)
+npassive = 0     ! number of passive scalars
+spectlod = 1     ! spectral output level of detail [1-3]
+/
 -------------------------------------------------------------------
 
-and the variables are
+Finally, initial conditions and forcing are chosen with their own
+namelists:
 
-m0  : amplitude of the electromotive forcing
-a0  : amplitude of the initial vector potential
-mkdn and mkup: lower and upper bounds in Fourier space for the 
-      electromotive for and/or the initial magnetic field.
-nu  : magnetic diffusivity
-corr: correlation between the random phases of the mechanic and 
-      electromotive forcing (0 or 1).
-mparam0-9: variables that can be used to adjust the amplitude of 
-individual terms in the expressions of the external force (e.g. 
-in the ABC or Roberts flows). See the files 'initialf*' in the
-directory 'examples' for more details.
-aparam0-9: idem for the initial magnetic field. 
+-------------------------------------------------------------------
+! Initial conditions. List separated by ';' to set up ICs.
+! For v, ICs can be: read_v, null_v, tg_v, abc_v, random_v
+! Use "read_v" if restarting from a previous file with stat > 0
+! If stat > 0 and the ICs are not "read_v", GHOST resets the flow.
+&initial_conditions
+iclist = "null_v"
+/
 
-Similar lists are used for solvers with passive or active scalars,
-wave functions, etc. Some solvers may also need extra lists, e.g.,
-'uniformb', 'rotation', or 'hallparam'. See the file
-'examples/parameter.txt' and main3D.fpp for more details.
+! Forcing. List separated by ';', each forcing is a pair of
+! methods separated by ',': an initial forcing, and an update scheme
+! Forcings for v: null_fv, tg_fv, abc_fv, random_fv
+! Updates for fv: constant_fv, shift_fv, shuffle_fv
+&forcing
+forces = "tg_fv,constant_fv"
+/
 
-4.2. Output files:
+! IC and forcing specific parameters, in namelists with their names:
+! Parameters for Taylor-Green velocity forcing
+&tg_fv
+f0 = 0.37714265  ! amplitude of the mechanical forcing
+kdn = 1.00       ! minimum wavenumber
+kup = 2.00       ! maximum wavenumbe
+-------------------------------------------------------------------
+
+Note that each initial condition or forcing method may require its
+own namelist. 'null_v', that sets the initial velocity to zero, does
+not have parameters and as a result does not have an associated
+namelist.
+
+Similar lists are used for solvers with active scalars, magnetic
+fields, wave functions, particles, etc. See the examples in
+'GHOST/src/examples' for more details.
+
+4.3. Running:
+
+How to run GHOST depends on the system. A serial (no parallelization)
+run can be done just by doing:
+
+-------------------------------------------------------------------
+./GHOST
+-------------------------------------------------------------------
+
+in the directory where the executable is. To run in parallel, e.g.,
+using 4 MPI tasks, do:
+
+-------------------------------------------------------------------
+mpirun -np 4 ./GHOST
+-------------------------------------------------------------------
+
+4.3. Output files:
 
 When the code is not running in benchmark mode, it writes several 
-files with global quantities, spectra, and components of the fields.
-Global quantities and spectra are written to text files in the 
-directory where the binary was executed, while binary files are 
-written to the directory defined in the 'parameter.txt' file.
+files with global quantities, spectra, and field components. Global
+quantities and spectra are written to text files in the directory
+where the binary was executed (this default behavior can be changed
+in the input file), while binary files are written to the directory
+defined in the 'parameter.inp' file.
 
-If POSIX I/O is used, the binary files are named by the field name 
-and component, the node number, and a number that labels the time 
-of the snapshot of the field. As an example, the x-component of 
-the velocity field in the node 20 in a hydrodynamic simulation is 
-stored as 'vx.020.NNN.out', where NNN is proportional to the time 
-at which the snapshot was taken. The actual time can be computed as 
-t = dt*tstep*(NNN-1). If MPI I/O is used, the naming convention is 
-the same but there is no number for the node.
+Binary files are named by the field name and a number that labels the
+time snapshot. As an example, the x-component of the velocity field
+in a hydrodynamic simulation is stored as 'vx.NNN.out', where NNN
+is proportional to the time at which the snapshot was taken. The
+actual time can be computed as t = dt*tstep*(NNN-1). Examples on how
+to read these binary files (as well as particles binary files) are
+given in GHOST/contrib.
 
-Spectra of kinetic and magnetic energy are written to files named 
-'kspectrum.MMM.txt' and 'mspectrum.MMM.txt' respectively. Spectra 
-of kinetic and magnetic helicity are written to files 
-'khelicity.MMM.txt' and 'mhelicity.MMM.txt'. Extra files with 
+Energy spectra and other spectral quantities are written to files
+named  'kspectrum.MMMM.txt', 'mspectrum.MMMM.txt', and so on. Spectra 
+of kinetic or magnetic helicity are written to files
+'khelicity.MMMM.txt' and 'mhelicity.MMMM.txt'. Extra files with 
 the energy transfer function, or the spectrum in the parallel and 
 perpendicular directions (e.g., to the axis of rotation), are also 
-written by some of the solvers. Here, MMM is proportional to the 
-time at which the spectra were computed, and the actual time is
-given by t = dt*sstep*(MMM-1).
+written by some solvers. Here, MMMM is proportional to the time at
+which the spectra were computed, and the actual time is given by
+t = dt*sstep*(MMMM-1).
 
 The code also writes text files with quantities integrated over all 
-volume ('helicity.txt', 'balance.txt', etc.). When the external force
-is constant (rand=0 in 'parameter.txt'), the files 'balance.txt' and 
-'injection.txt' can be used to verify consistency of the code when 
-doing a simulation in a new machine. In a hydrodynamic run, the file 
-'balance.txt' has four columns with the time (t), two times the 
-energy (2.E), two times the enstrophy (2.Omega), and the energy 
-injection rate (eps). In general, they must satisfy the relation
+volume (e.g., 'helicity.txt', 'balance.txt', etc.). When the external
+force is constant, these files can be used to verify consistency of
+the code when doing a simulation in a new machine. In a hydrodynamic
+run, the file 'balance.txt' has four columns with the time (t), two
+times the energy (2.E), two times the enstrophy (2.Omega), and the
+energy injection rate (eps). These quantities must satisfy the
+relation
 
 dE/dt = -2.nu.Omega+eps
 
 where the time derivative of the energy can be computed using 
 centered finite differences.
 
-A description of the contents of all output files for a specific
-solver is automatically generated at compile time, named
-"README_output.txt", and placed in the same directory as the
-executable file (by default, ../bin). More details about the output
-files can be found in the comments in the source file (the text in
-"README_output.txt" indicates the specific source file in which the
-comments for a given output file can be found).
-
-Examples of simple scripts to read and plot output from GHOST using 
-Python, IDL, Matlab, and VAPOR, can be found in the directory 
-'ghost/contrib'. These examples also include some explanantions
-on the contents in the output files.
-
 5. References:
 
-The pseudospectral method with MPI parallelization is described 
-in: D.O. Gomez, P.D. Mininni, and P. Dmitruk; Phys. Scripta T116, 
-123 (2005).
-
-The hybrid parallelization scheme is described in: P.D. Mininni, 
-D.L. Rosenberg, R. Reddy, and A. Pouquet, Parallel Computing 37(6), 
-316 (2011).
+The main reference for GHOST, with a detailed description of the
+parallelization scheme, is: P.D. Mininni, D.L. Rosenberg, R. Reddy,
+and A. Pouquet, Parallel Computing 37(6), 316 (2011).
 
 The GPU implementation is described in: D. Rosenberg, P.D. Mininni,
 R. Reddy and A. Pouquet, Atmospheres 11, 178 (2020).
 
-We ask users to cite at least the second paper when referencing
-GHOST. If GPUs are used, please cite the third paper. The following
-papers can also be used for examples of usage of some of the solvers:
-
-HD solver: P.D. Mininni, A. Alexakis, and A. Pouquet, Phys. Rev. 
-E 77, 036306 (2008).
-
-MHD solver: P.D. Mininni and A. Pouquet, Phys. Rev. Lett. 99, 
-254502 (2007).
-
-Hall-MHD solver: P.D. Mininni, D.O. Gomez, and S.M. Mahajan; 
-Astrophys. J. 619, 1019 (2005).
-
+We ask users to cite at least the first paper when referencing
+GHOST. If GPUs are used, please also cite the second paper.

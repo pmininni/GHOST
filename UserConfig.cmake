@@ -7,7 +7,6 @@
 # -------------------------------------------------------------------
 
 # ----------------------- Options / variants ------------------------
-option(ARBSIZE  "Enable arbitrary box sizes" OFF)
 option(P_HYBRID "Enable hybrid OpenMP"       OFF)
 set(PRECISION "SINGLE" CACHE STRING "Precision (SINGLE or DOUBLE)")
 set(FFTP "fftp-3"      CACHE STRING "FFT library (fftp-3, fftp-mkl)")
