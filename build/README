@@ -4,6 +4,8 @@ To compile from this directory, do:
 cmake ..
 make
 
+You can also build in parallel using, e.g., "make -j4".
+
 If libraries are not in the path, use -DCMAKE_PREFIX_PATH
 and -DFFTW3_ROOT to set paths, e.g., from this directory do
 
