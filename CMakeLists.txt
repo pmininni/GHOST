@@ -20,15 +20,20 @@ file(MAKE_DIRECTORY "${BIN_DIR}")
 # ----------------------- Compiler options ---------------------------
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
     # Apply flags for all Fortran files
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O4 -funroll-loops")
-    #set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -gdwarf-2 -O0 -fno-omit-frame-pointer -fbacktrace -fcheck=bounds -finit-real=snan -finit-integer=-999999 -finit-logical=true -finit-character=0 -Wall -Wextra")
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O4 -funroll-loops \
+           -march=native")
+    # GNU debug flags
+    #set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -gdwarf-2 -O0 \
+    #      -fno-omit-frame-pointer -fbacktrace -fcheck=bounds \
+    #      -finit-real=snan -finit-integer=-999999 -finit-logical=true \
+    #      -finit-character=0 -Wall -Wextra")
     # Apply version-specific flags
     if(CMAKE_Fortran_COMPILER_VERSION VERSION_GREATER_EQUAL "9.0")
-    message(STATUS "GNU Fortran version is 9.0 or newer, enabling -fallow-argument-mismatch.")
+    message(STATUS "GNU Fortran version is 9.0 or newer, enabling argument-mismatch.")
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -w -fallow-argument-mismatch")
     endif()
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -no-prec-div
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -no-prec-div \
            -fp-model fast=2 -align -heap-arrays"
     )
     endif()
@@ -85,7 +90,7 @@ if(NOT IOLIB STREQUAL "mpiio")
 endif()
 
 # ---------------------- Compile definitions -------------------------
-set(SOLVER "HD"    CACHE STRING "Hack to build GHOST with any solver")
+set(SOLVER "GHOST" CACHE STRING "Builds GHOST with all solvers")
 add_library(project_defs INTERFACE)
 string(TOUPPER "${SOLVER}" SOLVER_UP)
 target_compile_definitions(project_defs INTERFACE "${SOLVER_UP}_SOL")
@@ -142,12 +147,12 @@ add_custom_target(project_preprocess
 )   
 
 # ---------------------- Source selection -----------------------------
-set(HD_SRC
+set(GHOST_SRC
    "${MAIN_SRC}"
 )
 
-if(SOLVER STREQUAL "HD")
-    set(SOLVER_SRC ${HD_SRC})
+if(SOLVER STREQUAL "GHOST")
+    set(SOLVER_SRC ${GHOST_SRC})
 endif()
 
 # ---------------------- Main executable ------------------------------
