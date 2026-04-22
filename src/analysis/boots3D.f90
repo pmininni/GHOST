@@ -11,7 +11,7 @@
 ! This is the 'boostrap regridding' procedure (BOOTS).
 !
 ! Note that the number of mpi tasks must be of the form 2^i * 
-! nx_new / nx_old, with i .ne. 1. For example, for nx_new = 384 and
+! nx_new / nx_old, with i .ne. 0. For example, for nx_new = 384 and
 ! nx_old = 128 possible num of tasks are 1, 6, 12, 24, 48, etc.
 !
 ! NOTATION: index 'i' is 'x' 
@@ -53,9 +53,9 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C1t
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: B1
 
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: vvt
-      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: br
-      REAL(KIND=GP)                                 :: fact, rmp, rmq, rms
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: vvt
+      REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: br
+      REAL(KIND=GP)                                    :: fact, rmp, rmq, rms
       
 !
 ! Auxiliary variables
@@ -77,11 +77,17 @@
 
       NAMELIST / regrid / idir, odir, fnlist, iswap, oswap, nxt, nyt, nzt
 
-! Initializes the MPI and I/O libraries considering all the tasks
-! and the biggest possible array size (i.e. the new dimensions)
+! Initialization
+! Initializes MPI
       CALL MPI_INIT(ierr)
       CALL MPI_COMM_SIZE(MPI_COMM_WORLD,nprocs,ierr)
       CALL MPI_COMM_RANK(MPI_COMM_WORLD,myrank,ierr)
+
+! Initializes the grid. This must be done early to have nx, ny, nz.
+      CALL grid_init('boots.inp')
+
+! Initializes I/O libraries considering all the tasks and
+! the biggest possible array size (i.e. the new dimensions)
       CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
       CALL range(1,nz,nprocs,myrank,ksta,kend)
       CALL io_init(myrank,(/nx,ny,nz/),ksta,kend,planio)
@@ -94,7 +100,7 @@
       nyt    = 0
       nzt    = 0
 !
-! Reads from the external file 'boots.txt' the 
+! Reads from the external file 'boots.inp' the remaining
 ! parameters that will be used to compute the transfer
 !     idir   : directory for unformatted input (field components)
 !     odir   : directory for unformatted output (prolongated data)
@@ -125,17 +131,23 @@
 
       ! Check input
       IF ( nxt .GT. nx .OR. nxt .LT. 1 ) THEN
-        IF ( myrank .eq. 0) PRINT*, 'MAIN: prolongation specification incorrect; input nxt must be less than Nx'
+        IF ( myrank .eq. 0) THEN
+	   PRINT*, 'BOOTS: prolongation specification incorrect; input nxt must be less than Nx'
+	ENDIF
         CALL MPI_Finalize(ierr)
         STOP  
       ENDIF
       IF ( nyt .GT. ny .OR. nyt .LT. 1 ) THEN
-        IF ( myrank .eq. 0) PRINT*, 'MAIN: prolongation specification incorrect; input nyt must be less than Ny'
+        IF ( myrank .eq. 0) THEN
+	   PRINT*, 'BOOTS: prolongation specification incorrect; input nyt must be less than Ny'
+	ENDIF
         CALL MPI_Finalize(ierr)
         STOP
       ENDIF
       IF ( nzt .GT. nz .OR. nzt .LT. 1 ) THEN
-        IF ( myrank .eq. 0) PRINT*, 'MAIN: prolongation specification incorrect; input nzt must be less than Nz'
+        IF ( myrank .eq. 0) THEN
+           PRINT*, 'BOOTS: prolongation specification incorrect; input nzt must be less than Nz'
+	ENDIF
         CALL MPI_Finalize(ierr)
         STOP
       ENDIF
@@ -147,7 +159,9 @@
             ( mod(nprocs*nxt, nx) .ne. 0 .OR. &
               IAND(nprocs*nxt/nx, nprocs*nxt/nx - 1) .ne. 0 .OR. &
               nprocs .eq. nx/nxt ) ) THEN
-        IF ( myrank .eq. 0) PRINT*, 'MAIN: number of tasks must be of the form 2^i * (nx_new/nx_old) with i =/= 1'
+        IF ( myrank .eq. 0) THEN
+	   PRINT*, 'BOOTS: number of tasks must be 1 or of the form 2^i * (nx_new/nx_old) with i =/= 0'
+	ENDIF
         CALL MPI_Finalize(ierr)
         STOP
       ENDIF
@@ -303,8 +317,7 @@
 
 !
 ! Prolongate in Fourier space:
-         fact = 1.0_GP/ \
-            (real(nxt,kind=GP)*real(nyt,kind=GP)*real(nzt,kind=GP))
+         fact = 1.0_GP/(real(nxt,kind=GP)*real(nyt,kind=GP)*real(nzt,kind=GP))
          B1 = 0.0
          DO i = itsta,itend
             DO j = 1,nyt/2
@@ -325,7 +338,6 @@
             END DO
          END DO
 
-#if 1
 ! Spherically truncate prolongated spectrum in Fourier space:
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
          DO i = ista,iend
@@ -336,7 +348,6 @@
                END DO
             END DO
          END DO
-#endif
 
 ! Compute inverse FFT of prolongated variable:
          CALL fftp3d_complex_to_real(plancr,B1,br,MPI_COMM_WORLD)

@@ -1,0 +1,29 @@
+! Example of boots.inp
+! Input file for BOOTS, the 'boostrap regridding' procedure.
+! Reads dataset, and computes dataset that is prolongated in
+! wavenumber space, and outputs to real space. The files to
+! be read are specified on input, as is the linear size of the
+! old grid; the output files are the originial files appended 
+! with the prolongation size 'PXXX-XXX-XXX'. To use this example
+! file, place it in the same directory as the BOOTS executable.
+
+! Grid resolution of the new grid (> than the old grid)
+&grid
+nx = 256    ! linear size of the new grid in x direction
+ny = 256    ! linear size of the new grid in y direction
+nz = 256    ! linear size of the new grid in  direction
+/
+
+! Remaining parameters to do the regridding
+! idir/odir are the directories for unformatted I/O
+! fnlist gives the file list to prolongate, separated by ';'
+&regrid
+idir = "outs"
+odir = "outs"
+fnlist = "vx.0001.out;vy.0001.out;vz.0001.out"
+iswap = 0   ! do endian swap on input?  (0=false, 1=true)
+oswap = 0   ! do endian swap on output? (0=false, 1=true)
+nxt = 64    ! original linear size of the old grid in x direction
+nyt = 64    ! original linear size of the old grid in y direction
+nzt = 64    ! original linear size of the old grid in z direction
+/

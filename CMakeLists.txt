@@ -3,7 +3,8 @@
 #
 # If libraries are not in the path, use -DCMAKE_PREFIX_PATH
 # and -DFFTW3_ROOT to set paths, e.g., from the build directory do
-# "cmake .. -DCMAKE_PREFIX_PATH=/opt/openmpi-5.0.8 -DFFTW3_ROOT=/opt/fftw-3.3.10"
+# "cmake .. -DCMAKE_PREFIX_PATH=/opt/openmpi-5.0.10 -DFFTW3_ROOT=/opt/fftw-3.3.10"
+# Compilers can be declared in bash using "export CC=gcc;export FC=gfortran"
 # -------------------------------------------------------------------
 
 cmake_minimum_required(VERSION 3.12)
@@ -121,9 +122,10 @@ target_include_directories(project_includes INTERFACE
 )
 
 # ---------------------- Subdirectories ------------------------------
+add_subdirectory("${SRC_DIR}/${FFTP}")
+add_subdirectory("${SRC_DIR}/pseudo")
 add_subdirectory("${SRC_DIR}/utils")
 add_subdirectory("${SRC_DIR}/mpiio")
-add_subdirectory("${SRC_DIR}/pseudo")
 add_subdirectory("${SRC_DIR}/memmgt")
 add_subdirectory("${SRC_DIR}/pdes")
 add_subdirectory("${SRC_DIR}/particles")
@@ -131,7 +133,7 @@ add_subdirectory("${SRC_DIR}/ic")
 add_subdirectory("${SRC_DIR}/force")
 add_subdirectory("${SRC_DIR}/icpart")
 add_subdirectory("${SRC_DIR}/steppers")
-add_subdirectory("${SRC_DIR}/${FFTP}")
+add_subdirectory("${SRC_DIR}/analysis")
 
 # ---------------------- Preprocess FPP sources ----------------------
 preprocess_fpp(GUTILS_SRC   "${SRC_DIR}/utils/gutils_mod.fpp")
@@ -146,17 +148,8 @@ add_custom_target(project_preprocess
     "${FFTMOD_SRC}" "${FFTP3D_SRC}"
 )   
 
-# ---------------------- Source selection -----------------------------
-set(GHOST_SRC
-   "${MAIN_SRC}"
-)
-
-if(SOLVER STREQUAL "GHOST")
-    set(SOLVER_SRC ${GHOST_SRC})
-endif()
-
 # ---------------------- Main executable ------------------------------
-add_executable(GHOST ${SOLVER_SRC})
+add_executable(GHOST ${MAIN_SRC})
 add_dependencies(GHOST project_preprocess timer_lib fftp_lib
     utils_lib pseudo_lib mpiio_lib memmgt_lib pdes_lib particles_lib
     ic_lib force_lib icp_lib stepper_lib
