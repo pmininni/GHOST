@@ -18,26 +18,26 @@ module ic_passive
   IMPLICIT NONE
 
   ! ================= Initial conditions supported ====================
-  type, extends(icBase) :: read_s
+  type, extends(icBase) :: icRead_s
     contains
       procedure :: init_GState => init_reads
-  end type read_s
-  type, extends(icBase) :: constant_s
+  end type icRead_s 
+  type, extends(icBase) :: icConstant_s
     contains
       procedure :: init_GState => init_constants
-  end type constant_s
-  type, extends(icBase) :: puff_s
+  end type icConstant_s 
+  type, extends(icBase) :: icPuff_s
     contains
       procedure :: init_GState => init_puffs
-  end type puff_s
-  type, extends(icBase) :: random_s
+  end type icPuff_s 
+  type, extends(icBase) :: icRandom_s
     contains
       procedure :: init_GState => init_randoms
-  end type random_s
-! type, extends(icBase) :: userdef_s
+  end type icRandom_s 
+! type, extends(icBase) :: icUserdef_s
 !   contains
 !     procedure :: init_GState => init_userdefs
-! end type userdef_s
+! end type icUserdef_s
 
 CONTAINS
 
@@ -58,7 +58,7 @@ CONTAINS
     use commtypes
     implicit none
 
-    class      (read_s), intent   (in)          :: this
+    class    (icRead_s), intent   (in)          :: this
     class(EquationBase), intent   (in)          :: solver
     type(GStateComp), intent(inout)             :: state(:)
     real   (kind=GP), pointer, dimension(:,:,:) :: R1
@@ -100,7 +100,7 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class  (constant_s), intent   (in) :: this
+    class(icConstant_s), intent   (in) :: this
     class(EquationBase), intent   (in) :: solver
     type   (GstateComp), intent(inout) :: state(:)
     real      (kind=GP), allocatable   :: c0(:)
@@ -158,7 +158,7 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class      (puff_s), intent   (in) :: this
+    class    (icPuff_s), intent   (in) :: this
     class(EquationBase), intent   (in) :: solver
     type   (GStateComp), intent(inout) :: state(:)
     real      (kind=GP), pointer       :: R1(:,:,:)
@@ -243,7 +243,7 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class    (random_s), intent   (in) :: this
+    class  (icRandom_s), intent   (in) :: this
     class(EquationBase), intent   (in) :: solver
     type   (GstateComp), intent(inout) :: state(:)
     real      (kind=GP), allocatable, dimension(:)  :: c0,kdn,kup

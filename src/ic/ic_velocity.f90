@@ -22,30 +22,30 @@ module ic_velocity
   IMPLICIT NONE
 
   ! ================= Initial conditions supported ====================
-  type, extends(icBase) :: read_v
+  type, extends(icBase) :: icRead_v
     contains
       procedure :: init_GState => init_readv
-  end type read_v
-  type, extends(icBase) :: null_v
+  end type icRead_v 
+  type, extends(icBase) :: icNull_v
     contains
       procedure :: init_GState => init_nullv
-  end type null_v
-  type, extends(icBase) :: tg_v
+  end type icNull_v 
+  type, extends(icBase) :: icTg_v
     contains
       procedure :: init_GState => init_tgv
-  end type tg_v
-  type, extends(icBase) :: abc_v
+  end type icTg_v 
+  type, extends(icBase) :: icAbc_v
     contains
       procedure :: init_GState => init_abcv
-  end type abc_v
-  type, extends(icBase) :: random_v
+  end type icAbc_v 
+  type, extends(icBase) :: icRandom_v
     contains
       procedure :: init_GState => init_randomv
-  end type random_v
-! type, extends(icBase) :: userdef_v
+  end type icRandom_v 
+! type, extends(icBase) :: icUserdef_v
 !   contains
 !     procedure :: init_GState => init_userdefv
-! end type userdef_v
+! end type icUserdef_v
 
 CONTAINS
 
@@ -66,12 +66,12 @@ CONTAINS
     use commtypes
     implicit none
 
-    class      (read_v), intent   (in)          :: this
+    class    (icRead_v), intent   (in)          :: this
     class(EquationBase), intent   (in)          :: solver
     type   (GStateComp), intent(inout)          :: state(:)
     real   (kind=GP), pointer, dimension(:,:,:) :: R1
-    integer                          :: i
-    logical                          :: bret
+    integer                                     :: i
+    logical                                     :: bret
 
     if ((stat .eq. 0).and.(solver%myrank_ .eq. 0)) then
       stop 'Cannot read files if starting a new run with stat=0'
@@ -103,7 +103,7 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class      (null_v), intent   (in) :: this
+    class    (icNull_v), intent   (in) :: this
     class(EquationBase), intent   (in) :: solver
     type   (GStateComp), intent(inout) :: state(:)
     integer                            :: i,j,k
@@ -146,7 +146,7 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class        (tg_v), intent   (in)       :: this
+    class      (icTg_v), intent   (in)       :: this
     class(EquationBase), intent   (in)       :: solver
     type   (GStateComp), intent(inout)       :: state(:)
     real(kind=GP), pointer, dimension(:,:,:) :: R1,R2
@@ -239,7 +239,7 @@ CONTAINS
 !$  use threads
     implicit none
 
-    class       (abc_v), intent   (in)       :: this
+    class     (icAbc_v), intent   (in)       :: this
     class(EquationBase), intent   (in)       :: solver
     type   (GstateComp), intent(inout)       :: state(:)
     real(kind=GP), pointer, dimension(:,:,:) :: R1,R2,R3
@@ -337,7 +337,7 @@ CONTAINS
 !$  use threads
     implicit none
 
-    class    (random_v), intent   (in)          :: this
+    class  (icRandom_v), intent   (in)          :: this
     class(EquationBase), intent   (in)          :: solver
     type   (GstateComp), intent(inout)          :: state(:)
     complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4

@@ -38,6 +38,9 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
            -fp-model fast=2 -align -heap-arrays")
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES "NVHPC")
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3")
+elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -flto -funroll-loops \
+           -Wno-incompatible-implicit-interfaces")
     endif()
 
 # ---------------------- Preprocessing function ----------------------

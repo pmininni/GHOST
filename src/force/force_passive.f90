@@ -22,22 +22,22 @@ module force_passive
   IMPLICIT NONE
 
   ! ================= Forcing functions supported =====================
-  type, extends(forceBase) :: null_fs
+  type, extends(forceBase) :: forceNull_fs
     contains
       procedure :: init_GForce => init_nullfs
-  end type null_fs
-  type, extends(forceBase) :: puff_fs
+  end type forceNull_fs 
+  type, extends(forceBase) :: forcePuff_fs
     contains
       procedure :: init_GForce => init_pufffs
-  end type puff_fs
-  type, extends(forceBase) :: random_fs
+  end type forcePuff_fs 
+  type, extends(forceBase) :: forceRandom_fs
     contains
       procedure :: init_GForce => init_randomfs
-  end type random_fs
-! type, extends(forceBase) :: userdef_fs
+  end type forceRandom_fs
+! type, extends(forceBase) :: forceUserdef_fs
 !   contains
 !     procedure :: init_GForce => init_userdeffs
-! end type userdef_fs
+! end type forceUserdef_fs
 
   ! ================= Update methods supported =======================
   type, extends(forceUpdt) :: shiftupdt_fs
@@ -66,7 +66,7 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class     (null_fs), intent   (in) :: this
+    class(forceNull_fs), intent   (in) :: this
     class(EquationBase), intent   (in) :: solver
     type   (GStateComp), intent(inout) :: state(:)
     integer                            :: i,j,k,n
@@ -111,7 +111,7 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class     (puff_fs), intent   (in) :: this
+    class(forcePuff_fs), intent   (in) :: this
     class(EquationBase), intent   (in) :: solver
     type   (GStateComp), intent(inout) :: state(:)
     real      (kind=GP), pointer       :: R1(:,:,:)
@@ -195,15 +195,15 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class   (random_fs), intent   (in) :: this
-    class(EquationBase), intent   (in) :: solver
-    type   (GStateComp), intent(inout) :: state(:)
-    real      (kind=GP), allocatable, dimension(:)  :: f0,kdn,kup
-    real      (kind=GP)                             :: skup,skdn
-    real      (kind=GP)                             :: dump,phase
-    double precision                   :: tmp
-    integer                            :: i,j,k,n
-    logical                            :: bret
+    class(forceRandom_fs), intent   (in) :: this
+    class  (EquationBase), intent   (in) :: solver
+    type     (GStateComp), intent(inout) :: state(:)
+    real        (kind=GP), allocatable, dimension(:)  :: f0,kdn,kup
+    real        (kind=GP)                :: skup,skdn
+    real        (kind=GP)                :: dump,phase
+    double precision                     :: tmp
+    integer                              :: i,j,k,n
+    logical                              :: bret
 
     namelist/ random_fs / f0,kup,kdn
     select type (solver)

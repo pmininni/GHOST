@@ -22,22 +22,22 @@ module ic_magnetic
   IMPLICIT NONE
 
   ! ================= Initial conditions supported ====================
-  type, extends(icBase) :: read_b
+  type, extends(icBase) :: icRead_b
     contains
       procedure :: init_GState => init_readb
-  end type read_b 
-  type, extends(icBase) :: null_b
+  end type icRead_b 
+  type, extends(icBase) :: icNull_b
     contains
       procedure :: init_GState => init_nullb
-  end type null_b
-  type, extends(icBase) :: random_b
+  end type icNull_b 
+  type, extends(icBase) :: icRandom_b
     contains
       procedure :: init_GState => init_randomb
-  end type random_b
-! type, extends(icBase) :: userdef_b
+  end type icRandom_b 
+! type, extends(icBase) :: icUserdef_b
 !   contains
 !     procedure :: init_GState => init_userdefb
-! end type random_b
+! end type icUserdef_b
 
 CONTAINS
 
@@ -58,12 +58,12 @@ CONTAINS
     use commtypes
     implicit none
 
-    class      (read_b), intent   (in)             :: this
+    class    (icRead_b), intent   (in)             :: this
     class(EquationBase), intent   (in)             :: solver
     type   (GStateComp), intent(inout)             :: state(:)
     real      (kind=GP), pointer, dimension(:,:,:) :: R1
-    integer                          :: i
-    logical                          :: bret
+    integer                                        :: i
+    logical                                        :: bret
 
     if ((stat .eq. 0).and.(solver%myrank_ .eq. 0)) then
        error stop 'Cannot read files if starting a new run with stat=0'
@@ -95,7 +95,7 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class      (null_b), intent   (in) :: this
+    class    (icNull_b), intent   (in) :: this
     class(EquationBase), intent   (in) :: solver
     type   (GstateComp), intent(inout) :: state(:)
     integer                            :: i,j,k
@@ -145,7 +145,7 @@ CONTAINS
 !$  use threads
     implicit none
 
-    class    (random_b), intent   (in)          :: this
+    class  (icRandom_b), intent   (in)          :: this
     class(EquationBase), intent   (in)          :: solver
     type   (GstateComp), intent(inout)          :: state(:)
     complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4

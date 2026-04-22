@@ -55,7 +55,7 @@ module inerpart_mod
   end type
 
   ! ================= Solver ==========================================
-  type, extends(VelocParticleBase) :: InerPart
+  type, extends(VelocParticleBase) :: Ipart
     ! Member data:
     type (InerTraits) :: traits_
   CONTAINS
@@ -65,9 +65,9 @@ module inerpart_mod
     procedure, public :: feedback      =>      null_feedback
     procedure, public :: write_pstate  =>  write_pstate_impl
     procedure, public :: state_size    =>    state_size_impl
-    procedure, public :: part_ctor     =>      InerPart_ctor
-    final             :: InerPart_dtor
-  end type InerPart
+    procedure, public :: part_ctor     =>         Ipart_ctor
+    final             :: Ipart_dtor
+  end type Ipart
 
 CONTAINS
 
@@ -81,7 +81,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_impl(this)
     use commtypes
-    class   (InerPart), intent (inout) :: this
+    class      (Ipart), intent (inout) :: this
     real     (kind=GP)                 :: tau, grav, gamma
     integer                            :: ierr, partlod
     logical                            :: dograv, donldrag
@@ -141,7 +141,7 @@ CONTAINS
     use equationbase_mod
     use fft
     IMPLICIT NONE
-    class    (InerPart),             intent(inout) :: this
+    class       (Ipart),             intent(inout) :: this
     class(EquationBase),             intent   (in) :: pde
     real      (kind=GP),             intent   (in) :: time, dt
     type   (GStateComp),             intent   (in) :: fluidstate(:)
@@ -167,7 +167,7 @@ CONTAINS
     select type (pde)
     class is (VelocityBase)
       if (this%nc_ .ne. pde%nc_) then
-        stop "InerPart: # of components of the particles and pdes must be equal"
+        stop "Inerpart: # of components of the particles and pdes must be equal"
       endif
 
       ! IMPORTANT: pstate and dpdtout may alias the same array (the stepper
@@ -258,7 +258,7 @@ CONTAINS
         end do
       endif
     class default
-      stop "inerpart: This solver does not support pdes without a velocity field"
+      stop "Inerpart: This solver does not support pdes without a velocity field"
     end select
 
     call this%workspace_%free_complex_tmp(velc)
@@ -273,7 +273,7 @@ CONTAINS
   !! Functions to compute fluid and particle couplings
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine null_feedback(this, pstate, feedback)
-    class  (InerPart), intent   (in) :: this
+    class     (Ipart), intent   (in) :: this
     type(GPStateComp), intent   (in) :: pstate(:)
     type (GStateComp), intent(inout) :: feedback(:)
     return
@@ -288,7 +288,7 @@ CONTAINS
   subroutine end_stage_impl(this, upin, upout)
     use gpstate_mod
     implicit none
-    class  (InerPart), intent(inout) :: this
+    class     (IPart), intent(inout) :: this
     type(GPStateComp), intent(inout) :: upin (:) ! state at t0
     type(GPStateComp), intent(inout) :: upout(:) ! state after sub-stage
     integer                          :: j, ng
@@ -373,7 +373,7 @@ CONTAINS
       ! Consistency check
       if (.NOT. this%PartNumConsistent(this%nparts_)) then
         if (this%myrank_ .EQ. 0) then
-          WRITE(*,*) 'InerPart EndStage (VDB): inconsistent particle count'
+          WRITE(*,*) 'Inerpart EndStage (VDB): inconsistent particle count'
           print *,this%nparts_,this%maxparts_
         end if
       end if
@@ -424,7 +424,7 @@ CONTAINS
       CALL MPI_ALLREDUCE(this%nparts_, ng, 1, MPI_INTEGER,             &
                          MPI_SUM, this%comm_, this%ierr_)
       if (this%myrank_ .EQ. 0 .AND. ng .NE. this%maxparts_) then
-        WRITE(*,*) 'InerPart EndStage (VDB): inconsistent d.b.: expected: ', &
+        WRITE(*,*) 'Inerpart EndStage (VDB): inconsistent d.b.: expected: ', &
                    this%maxparts_, '; found: ', ng
         CALL this%ascii_write_lag(1, '.', trim(this%sstate_pos_) // 'err',   &
              '000', 0.0_GP, this%maxparts_,this%vdb_)
@@ -450,7 +450,7 @@ CONTAINS
     use status
     use pstatus
     use fft
-    class    (InerPart),             intent(inout) :: this
+    class       (IPart),             intent(inout) :: this
     class(EquationBase),             intent   (in) :: pde
     type   (GStateComp),             intent   (in) :: fluidstate(:)
     type  (GPStateComp), target ,    intent   (in) :: pstate(:)
@@ -649,7 +649,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Constructor
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE InerPart_ctor(this,infile, pde, workspace, pstate, pstate_cpy)
+  SUBROUTINE Ipart_ctor(this,infile, pde, workspace, pstate, pstate_cpy)
     USE equationbase_mod
     USE hd_mod,    ONLY: HDSolver
     USE mhd_mod,   ONLY: MHDSolver
@@ -666,15 +666,15 @@ CONTAINS
     USE status
     USE random
     IMPLICIT NONE
-    CLASS  (InerPart), intent(inout)              :: this
-    class(EquationBase), intent   (in)            :: pde
-    type (GWorkspace), intent(inout), target      :: workspace
-    type(GPStateComp), intent(inout), allocatable :: pstate(:), pstate_cpy(:)
-    character(len=*) , intent   (in)              :: infile
-    integer                                       :: disp(3),lens(3),types(3)
-    integer                                       :: tsta,tend,num_components
-    integer                                       :: j,nc,szreal
-    logical                                       :: bret
+    CLASS       (IPart), intent(inout)              :: this
+    class(EquationBase), intent   (in)              :: pde
+    type   (GWorkspace), intent(inout), target      :: workspace
+    type  (GPStateComp), intent(inout), allocatable :: pstate(:), pstate_cpy(:)
+    character   (len=*), intent   (in)              :: infile
+    integer                                         :: disp(3),lens(3),types(3)
+    integer                                         :: tsta,tend,num_components
+    integer                                         :: j,nc,szreal
+    logical                                         :: bret
 
     this%infile_      =  infile
     this%idir_        =  pde%idir_ ! input  directory, same as in the pde class
@@ -727,7 +727,7 @@ CONTAINS
     DO j = 1, GPMAXTIMERS
       CALL GTInitHandle(this%htimers_(j),this%itimetype_)
       IF ( this%htimers_(j).EQ.GTNULLHANDLE ) THEN
-        WRITE(*,*) 'InerPart_ctor: Not enough timers available'
+        WRITE(*,*) 'Inerpart_ctor: Not enough timers available'
         STOP
       ENDIF
     ENDDO
@@ -776,7 +776,7 @@ CONTAINS
         type is (MOISTSolver)
           this%traits_%nu = pde%traits_%nu
         class default
-          stop "InerPart_ctor: nonlinear drag not supported by this PDE solver"
+          stop "Inerpart_ctor: nonlinear drag not supported by this PDE solver"
       end select
       this%traits_%nld_rep = 0.15_GP * (18.0_GP * this%traits_%tau * &
         this%traits_%gamma / this%traits_%nu) ** 0.3435_GP
@@ -804,16 +804,16 @@ CONTAINS
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
       ALLOCATE(this%vdb_   (3,this%partbuff_))
     ENDIF
-  END SUBROUTINE InerPart_ctor
+  END SUBROUTINE Ipart_ctor
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Destructor
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE InerPart_dtor(this)
+  SUBROUTINE Ipart_dtor(this)
     IMPLICIT NONE
-    TYPE(InerPart),INTENT(INOUT) :: this
-    integer                      :: j
+    TYPE(Ipart),INTENT(INOUT) :: this
+    integer                   :: j
     IF ( ALLOCATED    (this%id_) ) DEALLOCATE    (this%id_)
     IF ( ALLOCATED(this%tmpint_) ) DEALLOCATE(this%tmpint_)
     IF ( ALLOCATED   (this%idm_) ) DEALLOCATE   (this%idm_)
@@ -829,15 +829,15 @@ CONTAINS
     DO j = 1, GPMAXTIMERS
       CALL GTFree(this%htimers_(j))
     ENDDO
-  END SUBROUTINE InerPart_dtor
+  END SUBROUTINE Ipart_dtor
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Function to compute number of state members (equations)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   PURE function state_size_impl(this) result(num)
-    class(InerPart), intent(in) :: this
-    integer                     :: num
+    class(Ipart), intent(in) :: this
+    integer                  :: num
     num = 2 * this%nc_          ! 3 positions + 3 velocities
   end function state_size_impl
 

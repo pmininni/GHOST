@@ -27,18 +27,18 @@ module force_magnetic
   IMPLICIT NONE
 
   ! ================= Forcing functions supported =====================
-  type, extends(forceBase) :: null_fb
+  type, extends(forceBase) :: forceNull_fb
     contains
       procedure :: init_GForce => init_nullfb
-  end type null_fb
-  type, extends(forceBase) :: random_fb
+  end type forceNull_fb 
+  type, extends(forceBase) :: forceRandom_fb
     contains
       procedure :: init_GForce => init_randomfb
-  end type random_fb
-! type, extends(forceBase) :: userdef_fb
+  end type forceRandom_fb 
+! type, extends(forceBase) :: forceUserdef_fb
 !   contains
 !     procedure :: init_GForce => init_userdefb
-! end type userdef_fb
+! end type forceUserdef_fb
 
   ! ================= Update methods supported =======================
   type, extends(forceUpdt) :: shiftupdt_fb
@@ -71,7 +71,7 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class     (null_fb), intent   (in) :: this
+    class(forceNull_fb), intent   (in) :: this
     class(EquationBase), intent   (in) :: solver
     type   (GStateComp), intent(inout) :: state(:)
     integer                            :: i,j,k
@@ -121,17 +121,17 @@ CONTAINS
 !$  use threads
     implicit none
 
-    class   (random_fb), intent   (in)          :: this
-    class(EquationBase), intent   (in)          :: solver
-    type   (GStateComp), intent(inout)          :: state(:)
-    complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4
-    complex(kind=GP), pointer, dimension(:,:,:) :: C5,C6,C7,C8
-    real(kind=GP)                               :: f0,kdn,kup
-    real(kind=GP)                               :: alpha,a1,a2
-    real(kind=GP)                               :: dump,phase
-    real(kind=GP)                               :: corr,rmp
-    integer                                     :: i,j,k
-    logical                                     :: bret
+    class(forceRandom_fb), intent   (in)          :: this
+    class  (EquationBase), intent   (in)          :: solver
+    type     (GStateComp), intent(inout)          :: state(:)
+    complex  (kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4
+    complex  (kind=GP), pointer, dimension(:,:,:) :: C5,C6,C7,C8
+    real     (kind=GP)                            :: f0,kdn,kup
+    real     (kind=GP)                            :: alpha,a1,a2
+    real     (kind=GP)                            :: dump,phase
+    real     (kind=GP)                            :: corr,rmp
+    integer                                       :: i,j,k
+    logical                                       :: bret
 
     namelist/ random_fb / f0,kdn,kup,alpha,corr
     CALL solver%workspace_%get_complex_tmp(C1,bret)

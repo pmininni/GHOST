@@ -22,18 +22,18 @@ module force_active
   IMPLICIT NONE
 
   ! ================= Forcing functions supported =====================
-  type, extends(forceBase) :: null_fas
+  type, extends(forceBase) :: forceNull_fas
     contains
       procedure :: init_GForce => init_nullfas
-  end type null_fas
-  type, extends(forceBase) :: puff_fas
+  end type forceNull_fas 
+  type, extends(forceBase) :: forcePuff_fas
     contains
       procedure :: init_GForce => init_pufffas
-  end type puff_fas
-  type, extends(forceBase) :: random_fas
+  end type forcePuff_fas 
+  type, extends(forceBase) :: forceRandom_fas
     contains
       procedure :: init_GForce => init_randomfas
-  end type random_fas
+  end type forceRandom_fas
 
   ! ================= Update methods supported =======================
   type, extends(forceUpdt) :: shiftupdt_fas
@@ -58,10 +58,10 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class    (null_fas), intent   (in) :: this
-    class(EquationBase), intent   (in) :: solver
-    type   (GStateComp), intent(inout) :: state(:)
-    integer                            :: i,j,k,n
+    class(forceNull_fas), intent   (in) :: this
+    class (EquationBase), intent   (in) :: solver
+    type    (GStateComp), intent(inout) :: state(:)
+    integer                             :: i,j,k,n
 
     select type (solver)
     class is (ActiveScalarBase)
@@ -100,14 +100,14 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class    (puff_fas), intent   (in) :: this
-    class(EquationBase), intent   (in) :: solver
-    type   (GStateComp), intent(inout) :: state(:)
-    real      (kind=GP), pointer       :: R1(:,:,:)
-    real      (kind=GP), allocatable, dimension(:)  :: f0,x0,y0,z0,r0
-    double precision                   :: tmp
-    integer                            :: i,j,k,n
-    logical                            :: bret
+    class(forcePuff_fas), intent   (in) :: this
+    class (EquationBase), intent   (in) :: solver
+    type    (GStateComp), intent(inout) :: state(:)
+    real       (kind=GP), pointer       :: R1(:,:,:)
+    real       (kind=GP), allocatable, dimension(:)  :: f0,x0,y0,z0,r0
+    double precision                    :: tmp
+    integer                             :: i,j,k,n
+    logical                             :: bret
 
     namelist/ puff_fas / f0,x0,y0,z0,r0
     CALL solver%workspace_%get_real_tmp(R1,bret)    
@@ -181,15 +181,15 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class   (random_fas), intent   (in) :: this
-    class(EquationBase), intent   (in) :: solver
-    type   (GStateComp), intent(inout) :: state(:)
-    real      (kind=GP), allocatable, dimension(:)  :: f0,kdn,kup
-    real      (kind=GP)                             :: skup,skdn
-    real      (kind=GP)                             :: dump,phase
-    double precision                   :: tmp
-    integer                            :: i,j,k,n
-    logical                            :: bret
+    class(forceRandom_fas), intent   (in) :: this
+    class   (EquationBase), intent   (in) :: solver
+    type      (GStateComp), intent(inout) :: state(:)
+    real         (kind=GP), allocatable, dimension(:) :: f0,kdn,kup
+    real         (kind=GP)                            :: skup,skdn
+    real         (kind=GP)                            :: dump,phase
+    double precision                      :: tmp
+    integer                               :: i,j,k,n
+    logical                               :: bret
 
     namelist/ random_fas / f0,kup,kdn
     select type (solver)

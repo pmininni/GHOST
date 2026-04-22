@@ -47,19 +47,19 @@ CONTAINS
       ! Clauses for each solver class
       select case (trim(adjustl(psolver)))
         case ('lagpart')
-          allocate(Gpart :: new_object)
+          allocate(Gpart  :: new_object)
           NUMTMPPART = 3
         case ('inerpart')
-          allocate(inerpart :: new_object)
+          allocate(Ipart  :: new_object)
           NUMTMPPART = 3
 !       case ('maxey')
-!         allocate(maxeypart :: new_object)
+!         allocate(MRpart :: new_object)
 !         NUMTMPPART = 3
 !       case ('testpart')
-!         allocate(testpart :: new_object)
+!         allocate(Tpart  :: new_object)
 !         NUMTMPPART = 5
 !       case ('UserDefined')
-!         allocate(UserDefinedparticles :: new_object)
+!         allocate(UserDefinedpart :: new_object)
 !         NUMTMPPART = 2
         case default
           stop 'Particle factory :: init_particles_from_file: Unknown solver name'

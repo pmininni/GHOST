@@ -27,26 +27,26 @@ module force_velocity
   IMPLICIT NONE
 
   ! ================= Forcing functions supported =====================
-  type, extends(forceBase) :: null_fv
+  type, extends(forceBase) :: forceNull_fv
     contains
       procedure :: init_GForce => init_nullfv
-  end type null_fv
-  type, extends(forceBase) :: tg_fv
+  end type forceNull_fv 
+  type, extends(forceBase) :: forceTg_fv
     contains
       procedure :: init_GForce => init_tgfv
-  end type tg_fv
-  type, extends(forceBase) :: abc_fv
+  end type forceTg_fv 
+  type, extends(forceBase) :: forceAbc_fv
     contains
       procedure :: init_GForce => init_abcfv
-  end type abc_fv
-  type, extends(forceBase) :: random_fv
+  end type forceAbc_fv 
+  type, extends(forceBase) :: forceRandom_fv
     contains
       procedure :: init_GForce => init_randomfv
-  end type random_fv
-! type, extends(forceBase) :: userdef_fv
+  end type forceRandom_fv
+! type, extends(forceBase) :: forceUserdef_fv
 !   contains
 !     procedure :: init_GForce => init_userdefv
-! end type userdef_fv
+! end type forceUserdef_fv
 
   ! ================= Update methods supported =======================
   type, extends(forceUpdt) :: shiftupdt_fv
@@ -79,7 +79,7 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class     (null_fv), intent   (in) :: this
+    class(forceNull_fv), intent   (in) :: this
     class(EquationBase), intent   (in) :: solver
     type   (GStateComp), intent(inout) :: state(:)
     integer                            :: i,j,k
@@ -122,7 +122,7 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class       (tg_fv), intent   (in)       :: this
+    class  (forceTg_fv), intent   (in)       :: this
     class(EquationBase), intent   (in)       :: solver
     type   (GStateComp), intent(inout)       :: state(:)
     real(kind=GP), pointer, dimension(:,:,:) :: R1,R2
@@ -215,7 +215,7 @@ CONTAINS
 !$  use threads
     implicit none
 
-    class      (abc_fv), intent   (in)       :: this
+    class (forceAbc_fv), intent   (in)       :: this
     class(EquationBase), intent   (in)       :: solver
     type   (GStateComp), intent(inout)       :: state(:)
     real(kind=GP), pointer, dimension(:,:,:) :: R1,R2,R3
@@ -313,16 +313,16 @@ CONTAINS
 !$  use threads
     implicit none
 
-    class   (random_fv), intent   (in)          :: this
-    class(EquationBase), intent   (in)          :: solver
-    type   (GStateComp), intent(inout)          :: state(:)
-    complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4
-    complex(kind=GP), pointer, dimension(:,:,:) :: C5,C6,C7,C8
-    real(kind=GP)                               :: f0,kdn,kup
-    real(kind=GP)                               :: alpha,a1,a2
-    real(kind=GP)                               :: dump,phase
-    integer                                     :: i,j,k
-    logical                                     :: bret
+    class(forceRandom_fv), intent   (in)          :: this
+    class  (EquationBase), intent   (in)          :: solver
+    type     (GStateComp), intent(inout)          :: state(:)
+    complex  (kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4
+    complex  (kind=GP), pointer, dimension(:,:,:) :: C5,C6,C7,C8
+    real     (kind=GP)                            :: f0,kdn,kup
+    real     (kind=GP)                            :: alpha,a1,a2
+    real     (kind=GP)                            :: dump,phase
+    integer                                       :: i,j,k
+    logical                                       :: bret
 
     namelist/ random_fv / f0,kdn,kup,alpha
     CALL solver%workspace_%get_complex_tmp(C1,bret)
