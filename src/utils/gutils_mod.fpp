@@ -1498,7 +1498,7 @@ MODULE gutils
 !     denom : tensor normalization. First time in, should be initialized to 0
 !     vij   : 3x3 tensor, returned. First time in, should be initialized to 0
 !
-      USE pseudospec_hd
+      USE pseudospec_fluid
       USE fprecision
       USE commtypes
       USE kes
@@ -1635,7 +1635,7 @@ MODULE gutils
 !     denom : tensor normalization. First time in, should be initialized to 0
 !     dij   : 3x3 tensor, returned
 !
-      USE pseudospec_hd
+      USE pseudospec_fluid
       USE fprecision
       USE commtypes
       USE kes

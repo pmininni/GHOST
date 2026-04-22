@@ -34,9 +34,10 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -w -fallow-argument-mismatch")
     endif()
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -no-prec-div \
-           -fp-model fast=2 -align -heap-arrays"
-    )
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 \
+           -fp-model fast=2 -align -heap-arrays")
+elseif(CMAKE_Fortran_COMPILER_ID MATCHES "NVHPC")
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3")
     endif()
 
 # ---------------------- Preprocessing function ----------------------

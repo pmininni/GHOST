@@ -9,10 +9,11 @@ target_include_directories(mpiio_lib PUBLIC
   ${CMAKE_BINARY_DIR}/src/${FFTP}
   ${CMAKE_BINARY_DIR}/src/mpiio
   ${CMAKE_BINARY_DIR}/src/utils
+  ${CMAKE_BINARY_DIR}/src/pseudo
   )
 
 # Make sure dependencies are satisfied
-add_dependencies(mpiio_lib fftp_lib utils_lib timer_lib)
+add_dependencies(mpiio_lib fftp_lib utils_lib timer_lib pseudo_lib)
 
 # Link MPI if needed
-target_link_libraries(mpiio_lib PUBLIC project_mpi)
+target_link_libraries(mpiio_lib PUBLIC project_mpi pseudo_lib)

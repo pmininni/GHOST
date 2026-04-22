@@ -197,7 +197,7 @@ CONTAINS
           (1 + (ng - this%partbuff_) / this%partchunksize_) * this%partchunksize_
         this%partbuff_ = this%partbuff_ + (1 + (ng - this%partbuff_) / &
                this%partchunksize_) * this%partchunksize_
-        call ResizeArrays  (this ,this%partbuff_,.true.)
+        call this%ResizeArrays   (this%partbuff_,.true.)
         call GPState_resize(upin ,this%partbuff_)
         call GPState_resize(upout,this%partbuff_)
       end if
@@ -227,7 +227,7 @@ CONTAINS
               this%myrank_, ' shrinking: nparts=', this%nparts_,       &
               ' | partbuff=', this%partbuff_, ' --> ', ng
             this%partbuff_ = ng
-            call ResizeArrays  (this ,this%partbuff_,.false.)
+            call this%ResizeArrays   (this%partbuff_,.false.)
             call GPState_resize(upin ,this%partbuff_)
             call GPState_resize(upout,this%partbuff_)
           end if
