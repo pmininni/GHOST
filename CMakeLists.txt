@@ -21,8 +21,7 @@ file(MAKE_DIRECTORY "${BIN_DIR}")
 # ----------------------- Compiler options ---------------------------
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
     # Apply flags for all Fortran files
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O4 -funroll-loops \
-           -march=native")
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O4 -funroll-loops")
     # GNU debug flags
     #set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -gdwarf-2 -O0 \
     #      -fno-omit-frame-pointer -fbacktrace -fcheck=bounds \
