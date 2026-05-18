@@ -5,6 +5,7 @@
 # and -DFFTW3_ROOT to set paths, e.g., from the build directory do
 # "cmake .. -DCMAKE_PREFIX_PATH=/opt/openmpi-5.0.10 -DFFTW3_ROOT=/opt/fftw-3.3.10"
 # Compilers can be declared in bash using "export CC=gcc;export FC=gfortran"
+# You can define an install dir using -DCMAKE_INSTALL_PREFIX=/foo
 # -------------------------------------------------------------------
 
 cmake_minimum_required(VERSION 3.12)
@@ -177,6 +178,13 @@ target_link_libraries(GHOST
 
 set_target_properties(GHOST PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${BIN_DIR}"
+)
+
+# ---------------------- Installer ------------------------------------
+include(GNUInstallDirs)
+install(
+    TARGETS GHOST BOOTS
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
 
 # ---------------------------------------------------------------------
