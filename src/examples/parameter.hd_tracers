@@ -87,7 +87,7 @@ lgmult     = 10   ! Multiplier for part output (must divide tstep evenly)
 ilgexchtype = 1   ! Boundary exchange type: 0 (nearest-neighbor); 1 (VDB)
 ilgwrtunit = 1    ! write positions in box (=1) or grid (=0) units
 ilgouttype = 0    ! Particle output type: 0=binary; 1=ASCII
-ilgcoll    = 1    ! 1=binary collective I/O; 0=task 0 binary (posix) I/O
+ilgcoll    = 0    ! 1=binary collective I/O; 0=task 0 binary (posix) I/O
 /
 
 ! Particle solver
