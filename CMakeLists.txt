@@ -21,7 +21,6 @@ file(MAKE_DIRECTORY "${BIN_DIR}")
 
 # ----------------------- Compiler options ---------------------------
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
-    # Apply flags for all Fortran files
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O4 -funroll-loops")
     # GNU debug flags
     #set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -gdwarf-2 -O0 \
@@ -29,10 +28,6 @@ if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
     #      -finit-real=snan -finit-integer=-999999 -finit-logical=true \
     #      -finit-character=0 -Wall -Wextra")
     # Apply version-specific flags
-    if(CMAKE_Fortran_COMPILER_VERSION VERSION_GREATER_EQUAL "9.0")
-    message(STATUS "GNU Fortran version is 9.0 or newer, enabling argument-mismatch.")
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -w -fallow-argument-mismatch")
-    endif()
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 \
            -fp-model fast=2 -align -heap-arrays")
@@ -51,7 +46,7 @@ function(preprocess_fpp OUTVAR FPP_PATH)
     add_custom_command(
         OUTPUT "${out}"
         COMMAND ${CMAKE_C_COMPILER} -E
-            -DIKIND_=${IKIND} -DCSIZE_=${CSIZE} -DNSTRIP_=${NSTRIP}
+            -DCSIZE_=${CSIZE} -DNSTRIP_=${NSTRIP}
             -DG${PRECISION}_PRECISION "${FPP_PATH}" -o "${out}"
         DEPENDS "${FPP_PATH}"
         COMMENT "Preprocessing ${fname}.fpp → build/${fname}.f90"
@@ -117,7 +112,6 @@ target_include_directories(project_includes INTERFACE
     "${CMAKE_BINARY_DIR}/src/memmgt"
     "${CMAKE_BINARY_DIR}/src/pdes"
     "${CMAKE_BINARY_DIR}/src/particles"
-    "${CMAKE_BINARY_DIR}/src/pseudo"
     "${CMAKE_BINARY_DIR}/src/ic"
     "${CMAKE_BINARY_DIR}/src/force"
     "${CMAKE_BINARY_DIR}/src/icpart"
@@ -154,21 +148,12 @@ add_custom_target(project_preprocess
 
 # ---------------------- Main executable ------------------------------
 add_executable(GHOST ${MAIN_SRC})
-add_dependencies(GHOST project_preprocess timer_lib fftp_lib
-    utils_lib pseudo_lib mpiio_lib memmgt_lib pdes_lib particles_lib
-    ic_lib force_lib icp_lib stepper_lib
-)
+add_dependencies(GHOST project_preprocess)
 target_link_libraries(GHOST
     PRIVATE
-        timer_lib
-        project_fft
-        project_mpi
         project_includes
-        pseudo_lib
-        utils_lib
         mpiio_lib
         memmgt_lib
-        pdes_lib
         particles_lib
         ic_lib
         force_lib
