@@ -85,10 +85,10 @@
       USE gutils
       IMPLICIT NONE
       
-      TYPE(IOPLAN),INTENT  (IN)      :: plan
-      REAL(KIND=GP),INTENT(OUT) :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
+      TYPE(IOPLAN) ,INTENT (IN)      :: plan
+      REAL(KIND=GP),INTENT(OUT)      :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
       INTEGER, INTENT(IN)            :: unit
-      INTEGER                        :: fh
+      TYPE(MPI_File)                 :: fh
       CHARACTER(len=128), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname
@@ -154,10 +154,10 @@
       USE gutils
       IMPLICIT NONE
 
-      TYPE(IOPLAN), INTENT(IN)       :: plan
-      REAL(KIND=GP), INTENT(INOUT) :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
+      TYPE(IOPLAN) , INTENT(IN)      :: plan
+      REAL(KIND=GP), INTENT(INOUT)   :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
       INTEGER, INTENT(IN)            :: unit
-      INTEGER                        :: fh
+      TYPE(MPI_File)                 :: fh
       CHARACTER(len=128), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname
@@ -255,10 +255,10 @@
       USE iompi
       IMPLICIT NONE
       
-      TYPE(IOPLAN), INTENT(IN)       :: plan
-      COMPLEX(KIND=GP), INTENT(OUT) :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
+      TYPE(IOPLAN)    , INTENT(IN)   :: plan
+      COMPLEX(KIND=GP), INTENT(OUT)  :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
       INTEGER, INTENT(IN)            :: unit
-      INTEGER                        :: fh
+      TYPE(MPI_File)                 :: fh
       CHARACTER(len=128), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname
@@ -303,10 +303,10 @@
       USE iompi
       IMPLICIT NONE
 
-      TYPE(IOPLAN), INTENT(IN)       :: plan
-      COMPLEX(KIND=GP), INTENT(IN) :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
+      TYPE(IOPLAN)    , INTENT(IN)   :: plan
+      COMPLEX(KIND=GP), INTENT(IN)   :: var(plan%nx,plan%ny,plan%ksta:plan%kend)
       INTEGER, INTENT(IN)            :: unit
-      INTEGER                        :: fh
+      TYPE(MPI_File)                 :: fh
       CHARACTER(len=128), INTENT(IN) :: dir
       CHARACTER(len=*), INTENT(IN)   :: nmb
       CHARACTER(len=*), INTENT(IN)   :: fname

@@ -52,7 +52,6 @@
 
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C1t
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: B1
-
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: vvt
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:)    :: br
       REAL(KIND=GP)                                    :: fact, rmp, rmq, rms
@@ -60,15 +59,17 @@
 !
 ! Auxiliary variables
 
-      INTEGER :: nfiles,nmt,np,npt,ntprocs,npkeep
-      INTEGER :: nxt,nyt,nzt
-      INTEGER :: i,ib,ie,ind,itsta,itend,j,k,ktsta,ktend
-      INTEGER :: istak,iendk,kstak,kendk
-      INTEGER :: commtrunc, fh, groupworld, flags, grouptrunc
-      INTEGER :: iExclude(3,1), iInclude(3,1)
- 
-      TYPE(IOPLAN)  :: planio, planiot
-      TYPE(FFTPLAN) :: planrct
+      INTEGER         :: nfiles,nmt,np,npt,ntprocs,npkeep
+      INTEGER         :: nxt,nyt,nzt
+      INTEGER         :: i,ib,ie,ind,itsta,itend,j,k,ktsta,ktend
+      INTEGER         :: istak,iendk,kstak,kendk
+      INTEGER         :: flags
+      INTEGER         :: iExclude(3,1), iInclude(3,1) 
+      TYPE(MPI_Comm)  :: commtrunc
+      TYPE(MPI_Group) :: groupworld, grouptrunc
+      TYPE(MPI_File)  :: fh
+      TYPE(IOPLAN)    :: planio, planiot
+      TYPE(FFTPLAN)   :: planrct
 
       CHARACTER(len=19)  :: suff
       CHARACTER(len=100) :: odir,idir

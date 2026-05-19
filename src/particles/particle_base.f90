@@ -46,7 +46,6 @@ module particlebase_mod
       character(len=8)                    :: sstate_lag_ ! state name of lag velocities
       character(len=128)                  :: infile_     ! config file name
       character(len=128)                  :: odir_,idir_ ! internal class I/O dirs
-      INTEGER, DIMENSION(MPI_STATUS_SIZE) :: istatus_
       INTEGER                             :: iinterp_
       INTEGER                             :: iexchtype_
       INTEGER                             :: iouttype_
@@ -61,7 +60,8 @@ module particlebase_mod
       INTEGER                             :: ierr_,iseed_,istep_
       INTEGER                             :: maxparts_,nparts_,npartsm_,nvdb_
       INTEGER                             :: partbuff_,partchunksize_,stepcounter_
-      INTEGER                             :: comm_
+      TYPE(MPI_Comm)                      :: comm_
+      TYPE(MPI_Status)                    :: istatus_
       INTEGER      , ALLOCATABLE, DIMENSION  (:) :: id_,idm_,tmpint_
       REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:) :: vdb_,ptmp0_,gptmp0_
       REAL(KIND=GP), pointer    , DIMENSION  (:) :: px_  => null()
@@ -272,8 +272,9 @@ CONTAINS
     REAL(KIND=GP),INTENT   (IN)        :: time
     REAL(KIND=GP)                      :: prec(3)
     INTEGER,INTENT(IN)                 :: iunit
-    INTEGER                            :: fh,ht,j,nt
+    INTEGER                            :: ht,j,nt
     INTEGER(kind=MPI_OFFSET_KIND)      :: offset
+    TYPE(MPI_File)                     :: fh
     CHARACTER(len=*),INTENT(IN)        :: dir
     CHARACTER(len=*),INTENT(IN)        :: nmb
     CHARACTER(len=*),INTENT(IN)        :: spref
@@ -442,8 +443,9 @@ CONTAINS
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(:,:,:) :: tmp1,tmp2
     REAL(KIND=GP),INTENT   (IN)                  :: time
     INTEGER      ,INTENT   (IN)                  :: iunit
-    INTEGER                                      :: fh,offset,nt,szint,szreal
+    INTEGER                                      :: offset,nt,szint,szreal
     INTEGER                                      :: ht,j
+    TYPE(MPI_File)                               :: fh
     LOGICAL      ,INTENT   (IN)                  :: doupdate
     CHARACTER(len=*), INTENT(IN)                 :: dir
     CHARACTER(len=*)  , INTENT(IN)               :: nmb
@@ -509,8 +511,9 @@ CONTAINS
     REAL(KIND=GP)                        :: vout(3)
     INTEGER,INTENT(IN)                   :: iunit
     INTEGER,INTENT(IN)                   :: np
-    INTEGER                              :: fh,nerr,nt,nv,szreal
+    INTEGER                              :: nerr,nt,nv,szreal
     INTEGER(kind=MPI_OFFSET_KIND)        :: offset
+    TYPE(MPI_File)                       :: fh
     CHARACTER(len=128),INTENT(IN)        :: dir
     CHARACTER(len=*),INTENT(IN)          :: nmb
     CHARACTER(len=*),INTENT(IN)          :: spref
@@ -533,11 +536,11 @@ CONTAINS
     offset = 0
     CALL MPI_FILE_WRITE_AT_ALL(fh,offset,real(this%maxparts_,kind=GP),1,GC_REAL,this%istatus_,       &
          this%ierr_)
-    offset = szreal
+    offset = INT(szreal,MPI_OFFSET_KIND)
     CALL MPI_FILE_WRITE_AT_ALL(fh,offset,time   ,1,GC_REAL,this%istatus_,this%ierr_)
     gc = 0
     DO j = 1, np
-      offset  = (nv*this%id_(j)+2)*szreal
+      offset  = INT((nv*this%id_(j)+2),MPI_OFFSET_KIND) * INT(szreal,MPI_OFFSET_KIND)
       vout(1) = fld0(j)
       IF ( present(fld1) ) vout(2) = fld1(j)
       IF ( present(fld2) ) vout(3) = fld2(j)
@@ -591,7 +594,8 @@ CONTAINS
     REAL(KIND=GP),INTENT   (IN),OPTIONAL,DIMENSION(this%maxparts_) :: fld1,fld2
     INTEGER,INTENT(IN)                   :: iunit
     INTEGER,INTENT(IN)                   :: np
-    INTEGER                              :: fh,nerr,nv
+    INTEGER                              :: nerr,nv
+    TYPE(MPI_File)                       :: fh
     CHARACTER(len=128),INTENT(IN)        :: dir
     CHARACTER(len=*),INTENT(IN)          :: nmb
     CHARACTER(len=*),INTENT(IN)          :: spref
@@ -741,9 +745,10 @@ CONTAINS
     INTEGER,INTENT(IN)                        :: iunit
     INTEGER,INTENT(INOUT),OPTIONAL            :: nl
     INTEGER,INTENT(IN),OPTIONAL               :: opbcoll,opiotype
-    INTEGER                                   :: fh,j,ng
+    INTEGER                                   :: j,ng
     INTEGER                                   :: bcoll,iotype
     INTEGER(kind=MPI_OFFSET_KIND)             :: offset
+    TYPE(MPI_File)                            :: fh
     CHARACTER(len=128),INTENT   (IN)          :: dir
     CHARACTER(len=*)  ,INTENT   (IN)          :: nmb
     CHARACTER(len=*)  ,INTENT   (IN)          :: spref
@@ -872,8 +877,9 @@ CONTAINS
     CLASS(ParticleBase) ,INTENT(INOUT)        :: this
     REAL(KIND=GP)                             :: rvar,time
     INTEGER,INTENT(IN)                        :: iunit
-    INTEGER                                   :: fh,i,j,nerr,szreal,nr,nb
+    INTEGER                                   :: i,j,nerr,szreal,nr,nb
     INTEGER(kind=MPI_OFFSET_KIND)             :: offset
+    TYPE(MPI_File)                            :: fh
     CHARACTER(len=*),INTENT   (IN)            :: sfile
 
     CALL MPI_TYPE_SIZE(GC_REAL,szreal,this%ierr_)
@@ -943,8 +949,9 @@ CONTAINS
     REAL(KIND=GP)                             :: rvar,time
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(:,:):: pdb
     INTEGER,INTENT(IN)                        :: iunit
-    INTEGER                                   :: fh,i,j,nerr,szreal,nr,nb
+    INTEGER                                   :: i,j,nerr,szreal,nr,nb
     INTEGER(kind=MPI_OFFSET_KIND)             :: offset
+    TYPE(MPI_File)                            :: fh
     CHARACTER(len=*),INTENT   (IN)            :: sfile
 
     CALL MPI_TYPE_SIZE(GC_REAL,szreal,this%ierr_)

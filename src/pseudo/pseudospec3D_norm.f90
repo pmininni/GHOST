@@ -19,11 +19,11 @@ CONTAINS
 !$  USE threads
     IMPLICIT NONE
 
-    DOUBLE PRECISION    :: tmp
+    DOUBLE PRECISION           :: tmp
     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: fx,fy,fz
-    REAL(KIND=GP), INTENT(IN) :: f0
-    INTEGER, INTENT(IN) :: kin
-    INTEGER, INTENT(IN) :: comm
+    REAL(KIND=GP), INTENT(IN)  :: f0
+    INTEGER, INTENT(IN)        :: kin
+    TYPE(mpi_comm), INTENT(IN) :: comm
     INTEGER :: i,j,k
 
     CALL energy(fx,fy,fz,tmp,kin)

@@ -27,7 +27,8 @@ MODULE class_GPartComm
       INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_END  = 2    ! finishes particle exchange
       INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_UNIQ = 3    ! exchange only positions
 !$    INTEGER,PARAMETER,PUBLIC                       :: NMIN_OMP    = 10000! min. no. of op. for threading
-      INTEGER,PUBLIC                                 :: MPI_GPDataType=-1, MPI_GPDataPackType=-1
+      TYPE(MPI_Datatype),PUBLIC                      :: MPI_GPDataType     = MPI_DATATYPE_NULL
+      TYPE(MPI_Datatype),PUBLIC                      :: MPI_GPDataPackType = MPI_DATATYPE_NULL
       INTEGER                                        :: UNPACK_REP = 0, UNPACK_SUM = 1
 
       PRIVATE
@@ -42,24 +43,24 @@ MODULE class_GPartComm
         INTEGER                                      :: intrfc_   ! if >=1 use multi-field interface
         INTEGER                                      :: maxparts_  ,nbuff_     ,nd_(3)   ,nzghost_
         INTEGER                                      :: nbsnd_     ,ntsnd_     ,nbrcv_   ,ntrcv_
-        INTEGER                                      :: nprocs_    ,myrank_    ,comm_
-        INTEGER                                      :: csize_     ,nstrip_
+        INTEGER                                      :: nprocs_    ,myrank_    ,csize_   ,nstrip_
         INTEGER                                      :: ntop_      ,nbot_      ,ierr_
         INTEGER                                      :: iextperp_  ,ksta_      ,kend_    ,nth_
         INTEGER                                      :: hcomm_
         LOGICAL                                      :: btransinit_
         INTEGER, ALLOCATABLE, DIMENSION(:,:)         :: ibsnd_     ,itsnd_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibrcv_     ,itrcv_     ,nbbrcv_  ,ntbrcv_
-        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibsh_      ,itsh_      ,ibrh_    ,itrh_
-        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: igsh_      ,igrh_
-        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: itypekp_   ,itypeip_   ,itypea_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibsndnz_   ,itsndnz_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: itop_      ,ibot_
         INTEGER, ALLOCATABLE, DIMENSION(:,:)         :: ibsnddst_  ,itsnddst_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibrcvnz_   ,itrcvnz_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibsndp_    ,ibrcvp_    ,itsndp_  ,itrcvp_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: oldid_
-        INTEGER, DIMENSION (MPI_STATUS_SIZE)         :: istatus_
+        TYPE(MPI_Comm)                               :: comm_
+        TYPE(MPI_Status)                             :: istatus_
+        TYPE(MPI_Request), DIMENSION(:), ALLOCATABLE :: ibsh_      ,ibrh_      ,itsh_    ,itrh_
+        TYPE(MPI_Request), DIMENSION(:), ALLOCATABLE :: igsh_      ,igrh_
+        TYPE(MPI_Datatype),DIMENSION(:), ALLOCATABLE :: itypekp_   ,itypeip_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:)   :: sbbuff_    ,stbuff_
         REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:)   :: rbbuff_    ,rtbuff_
         TYPE(GPData) , ALLOCATABLE, DIMENSION(:)     :: sbbuffp_   ,stbuffp_
@@ -139,7 +140,8 @@ MODULE class_GPartComm
     IMPLICIT NONE
     CLASS(GPartComm),INTENT(INOUT):: this
     INTEGER, INTENT(IN)           :: intrface,maxparts,nd(3),nzghost
-    INTEGER, INTENT(IN)           :: comm,hcomm
+    TYPE(mpi_comm), INTENT(IN)    :: comm
+    INTEGER, INTENT(IN)           :: hcomm
 !$  INTEGER, EXTERNAL             :: omp_get_max_threads
 
     this%intrfc_    = intrface
@@ -331,7 +333,6 @@ MODULE class_GPartComm
     IF ( ALLOCATED     (this%igsh_) ) DEALLOCATE    (this%igsh_)
     IF ( ALLOCATED  (this%itypekp_) ) DEALLOCATE (this%itypekp_)
     IF ( ALLOCATED  (this%itypeip_) ) DEALLOCATE (this%itypeip_)
-    IF ( ALLOCATED   (this%itypea_) ) DEALLOCATE  (this%itypea_)
     IF ( ALLOCATED (this%ibsnddst_) ) DEALLOCATE(this%ibsnddst_)
     IF ( ALLOCATED (this%itsnddst_) ) DEALLOCATE(this%itsnddst_)
     IF ( ALLOCATED  (this%ibrcvnz_) ) DEALLOCATE (this%ibrcvnz_)
@@ -415,7 +416,6 @@ MODULE class_GPartComm
     ALLOCATE(this%igsh_(0:this%nprocs_-1))
     ALLOCATE(this%itypekp_(0:this%nprocs_-1))
     ALLOCATE(this%itypeip_(0:this%nprocs_-1))
-    ALLOCATE(this%itypea_(0:this%nprocs_-1))
     ALLOCATE(this%ibsnddst_(nt,this%nzghost_+1))
     ALLOCATE(this%itsnddst_(nt,this%nzghost_+1))
 
@@ -604,7 +604,8 @@ MODULE class_GPartComm
 !    this              : 'this' class instance (IN)
 !-----------------------------------------------------------------
     TYPE(GPData)                   :: gpdat,gpdatarr(2)
-    INTEGER                        :: blocklen(2),types(2),ierr
+    INTEGER                        :: blocklen(2),ierr
+    TYPE(mpi_datatype)             :: types(2)
     INTEGER(KIND=MPI_ADDRESS_KIND) :: disp(2)
 
     blocklen(1) = 1
@@ -621,8 +622,8 @@ MODULE class_GPartComm
 
     CALL MPI_GET_ADDRESS(gpdatarr(1), disp(1), ierr) 
     CALL MPI_GET_ADDRESS(gpdatarr(2), disp(2), ierr) 
-    CALL MPI_TYPE_CREATE_RESIZED(MPI_GPDataType,0,disp(2)-disp(1), &
-                                 MPI_GPDataPackType,ierr) 
+    CALL MPI_TYPE_CREATE_RESIZED(MPI_GPDataType,0_MPI_ADDRESS_KIND, &
+                         disp(2)-disp(1),MPI_GPDataPackType,ierr) 
     CALL MPI_TYPE_COMMIT(MPI_GPDataPackType, ierr) 
 
   END SUBROUTINE
@@ -2266,7 +2267,7 @@ MODULE class_GPartComm
     INTEGER                                    :: ista,iend
     INTEGER                                    :: jsta,jend
     INTEGER                                    :: irank,jrank
-    INTEGER                                    :: itemp1,itemp2
+    TYPE(MPI_Datatype)                         :: itemp1,itemp2
 
     write(*,*)'GPartComm_InitTrans2D: block2d not resolved'
     stop
@@ -2310,7 +2311,7 @@ MODULE class_GPartComm
     INTEGER                                    :: ista,iend
     INTEGER                                    :: ksta,kend
     INTEGER                                    :: irank,krank
-    INTEGER                                    :: itemp1,itemp2
+    TYPE(MPI_Datatype)                         :: itemp1,itemp2
 
     CALL range(1,this%nd_(3),this%nprocs_,this%myrank_,ksta,kend)
     DO irank = 0,this%nprocs_-1

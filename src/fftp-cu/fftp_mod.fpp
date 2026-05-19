@@ -221,7 +221,6 @@
 !=================================================================
 
   MODULE mpivars
-!     INCLUDE 'mpif.h'
       INTEGER, SAVE :: ista,iend
       INTEGER, SAVE :: jsta,jend
       INTEGER, SAVE :: ksta,kend

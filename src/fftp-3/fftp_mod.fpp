@@ -11,17 +11,17 @@
 
   MODULE fftplans
 !
-! Set the variable ikind to:  4 in 32 bits machines
-!                             8 in 64 bits machines
-! Set the variable csize to:  8 if L1 cache is <= 64 kb
-!                            16 if L1 cache is 128 kb
+! Set the variable csize to:   8 if L1 cache is <=64 kb
+!                             16 if L1 cache is  128 kb
+!                            >16 if L1 cache is >128 kb
 ! The variable nstrip controls strip mining during the 
 ! transposition. Often set to 1.
 !
+      USE ISO_C_BINDING
       USE fprecision
+      USE mpi_f08, only   :  MPI_Datatype
       INCLUDE 'fftw3.f'
  
-      INTEGER, PARAMETER  :: ikind = IKIND_
       INTEGER, PARAMETER  :: csize = CSIZE_
       INTEGER, PARAMETER  :: nstrip = NSTRIP_
       INTEGER, PARAMETER  :: FFTW_REAL_TO_COMPLEX = FFTW_FORWARD
@@ -34,10 +34,10 @@
       TYPE FFTPLAN
          COMPLEX(KIND=GP), DIMENSION (:,:,:), POINTER :: ccarr
          COMPLEX(KIND=GP), DIMENSION (:,:,:), POINTER :: carr
-         REAL(KIND=GP), DIMENSION (:,:,:), POINTER    :: rarr
-         INTEGER(kind=ikind) :: planr,planc
-         INTEGER :: nx,ny,nz
-         INTEGER, DIMENSION (:), POINTER :: itype1, itype2
+         REAL(KIND=GP)   , DIMENSION (:,:,:), POINTER :: rarr
+         TYPE(C_PTR) :: planr,planc
+         INTEGER     :: nx,ny,nz
+         TYPE(MPI_Datatype), DIMENSION (:), POINTER :: itype1, itype2
       END TYPE FFTPLAN
       SAVE
 

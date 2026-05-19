@@ -354,8 +354,8 @@ MODULE gtimer
 ! ARGUMENTS  :
 !     itype : time type
 !-----------------------------------------------------------------
+      USE mpi_f08 , only   :  MPI_WTIME
       IMPLICIT NONE
-      INCLUDE 'mpif.h'
 !$    DOUBLE PRECISION, EXTERNAL :: omp_get_wtime
       INTEGER, INTENT(IN)  :: itype
       DOUBLE PRECISION     :: tt
