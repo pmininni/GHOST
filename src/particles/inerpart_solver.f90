@@ -4,10 +4,12 @@
 !
 !              dx/dt   = v_p
 !              dv_p/dt = (1/tau) * (u(x,t) - v_p) - grav * z_hat
-!                     or (1 + 0.15 Re_p^0.687) /tau (U(X(t)) - V(X(t)))
-!                     if nonlinear drag is used (see Wang & Maxey 1993),
-!                     where Re_p = (18 tau gamma/nu)^(1/2) |U - V|, and
-!                     |U - V| = [(Ux-Vx)^2+(Uy-Vy)^2+(Uz-Vz)^2]^(1/2).    
+!                     or f(Re_p)/tau (u(x,t) - v_p)
+!                     if nonlinear drag is used (see Clift & Gauvin 1971),
+!                     where f(Re_p) = 1 + 0.15 Re_p^0.687
+!                                   + (Re_p/57.14)/(1 + 4.25e4 Re_p^(-1.16)),
+!                     Re_p = (18 tau gamma/nu)^(1/2) |u - v_p|, and
+!                     |u - v_p| = [(ux-vpx)^2+(uy-vpy)^2+(uz-vpz)^2]^(1/2).
 !
 !              State ordering is:
 !                x1 (x2, x3), v1 (v2, v3)
@@ -24,7 +26,7 @@
 !              grav    : gravity acceleration (z-direction, positive
 !                        downward, default=0)
 !              donldrag: nonlinear drag (NLD) (.false.=linear [default],
-!                        .true.=Wang & Maxey 1993 correction).
+!                        .true.=Clift & Gauvin 1971 correction).
 !                        When true, nu is obtained from the PDE solver.
 !              gamma   : mass ratio m_f/m_p (default=1, only for NLD)
 !              partlod : particle output level of detail (default=1):
@@ -49,7 +51,7 @@ module inerpart_mod
     real(kind=GP) :: gamma    = 1.0_GP  ! mass ratio m_f/m_p
     real(kind=GP) :: nu       = 0.0_GP  ! fluid kinematic viscosity
     real(kind=GP) :: invtau   = 1.0_GP  ! precomputed 1/tau
-    real(kind=GP) :: nld_rep  = 0.0_GP  ! precomputed NLD constant
+    real(kind=GP) :: nld_rep  = 0.0_GP  ! precomputed NLD const (=18 tau gamma/nu)
     logical       :: dograv   = .false. ! .false.=no gravity, .true.=grav
     logical       :: donldrag = .false. ! .false.=linear drag, .true.=NLD
   end type
@@ -150,7 +152,8 @@ CONTAINS
     complex   (KIND=GP), pointer, dimension(:,:,:) :: velc
     real      (KIND=GP), pointer, dimension(:,:,:) :: velr,tmp1,tmp2
     real      (kind=GP)                            :: rmp, invtau, grav
-    real      (kind=GP)                            :: cdrag, rep, dx, dy, dz
+    real      (kind=GP)                            :: cdrag, rep2, dx, dy, dz
+    real      (kind=GP)                            :: rep2_coef
     integer                                        :: i,j,k
     logical                                        :: bret
 
@@ -235,15 +238,19 @@ CONTAINS
             (this%lvz_(j) - pstate(this%VELOCITY+2)%rcomp(j)) * invtau
         end do
       else
-        ! Nonlinear drag (Wang & Maxey 1993):
+        ! Nonlinear drag (Clift & Gauvin 1971):
         !   cdrag = 1 + 0.15 * Re_p^0.687
-        !         = 1 + rep * |u - v_p|^0.687
-        rep = this%traits_%nld_rep
+        !             + Re_p^2.16 / (57.14 * (Re_p^1.16 + 4.25e4))
+        !   where Re_p^2 = rep2_coef * |u - v_p|^2,
+        !         rep2_coef = 18 tau gamma / nu
+        rep2_coef = this%traits_%nld_rep
         do j = 1,this%nparts_
           dx = this%lvx_(j) - pstate(this%VELOCITY  )%rcomp(j)
           dy = this%lvy_(j) - pstate(this%VELOCITY+1)%rcomp(j)
           dz = this%lvz_(j) - pstate(this%VELOCITY+2)%rcomp(j)
-          cdrag = 1.0_GP + rep * (dx**2 + dy**2 + dz**2) ** 0.3435_GP
+          rep2 = rep2_coef * (dx**2 + dy**2 + dz**2)
+          cdrag = 1.0_GP + 0.15_GP * rep2 ** 0.3435_GP                  &
+                + rep2 ** 1.08_GP / (57.14_GP * (rep2 ** 0.58_GP + 4.25e4_GP))
           dpdtout(this%VELOCITY  )%rcomp(j) = dx * cdrag * invtau
           dpdtout(this%VELOCITY+1)%rcomp(j) = dy * cdrag * invtau
           dpdtout(this%VELOCITY+2)%rcomp(j) = dz * cdrag * invtau
@@ -778,8 +785,8 @@ CONTAINS
         class default
           stop "Inerpart_ctor: nonlinear drag not supported by this PDE solver"
       end select
-      this%traits_%nld_rep = 0.15_GP * (18.0_GP * this%traits_%tau * &
-        this%traits_%gamma / this%traits_%nu) ** 0.3435_GP
+      this%traits_%nld_rep = 18.0_GP * this%traits_%tau * &
+        this%traits_%gamma / this%traits_%nu
     endif
 
     ! Instantiate interp operation
