@@ -16,6 +16,7 @@ include(UserConfig.cmake)
 # -------------------------- Directories -----------------------------
 set(SRC_DIR "${CMAKE_SOURCE_DIR}/src")
 set(BIN_DIR "${CMAKE_SOURCE_DIR}/bin")
+set(LIB_DIR "${CMAKE_SOURCE_DIR}/lib")
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}" ${CMAKE_MODULE_PATH})
 file(MAKE_DIRECTORY "${BIN_DIR}")
 
@@ -131,7 +132,7 @@ add_subdirectory("${SRC_DIR}/ic")
 add_subdirectory("${SRC_DIR}/force")
 add_subdirectory("${SRC_DIR}/icpart")
 add_subdirectory("${SRC_DIR}/steppers")
-add_subdirectory("${SRC_DIR}/analysis")
+add_subdirectory("${SRC_DIR}/tools")
 
 # ---------------------- Preprocess FPP sources ----------------------
 preprocess_fpp(GUTILS_SRC   "${SRC_DIR}/utils/gutils_mod.fpp")
@@ -168,8 +169,10 @@ set_target_properties(GHOST PROPERTIES
 # ---------------------- Installer ------------------------------------
 include(GNUInstallDirs)
 install(
-    TARGETS GHOST BOOTS
+    TARGETS GHOST BOOTS ghost_python
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 )
 
 # ---------------------------------------------------------------------

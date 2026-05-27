@@ -9,8 +9,11 @@ module equationbase_mod
   use class_GWorkspace3D
   use gstate_mod
   use iovar
-
   implicit none
+
+  private :: Solver_ctor_interface, init_interface
+  private :: dudt_interface, global_interface
+  private :: spectra_interface, state_size_interface
 
   ! ================= Base class for all PDEs =======================
   ! Define an abstract base class
