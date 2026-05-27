@@ -126,6 +126,15 @@ CONTAINS
   END SUBROUTINE ghost_finalize
 
   !=================================================================
+  ! Set the time step
+  !=================================================================
+  SUBROUTINE ghost_set_dt(new_dt) BIND(C)
+    USE status, ONLY: dt
+    REAL(C_DOUBLE), VALUE :: new_dt
+    dt = real(new_dt, GP)
+  END SUBROUTINE ghost_set_dt
+
+  !=================================================================
   ! Helpers
   !=================================================================
   ! Returns the pointer to the latest field component at position num_field
