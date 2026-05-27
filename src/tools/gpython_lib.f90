@@ -1,5 +1,6 @@
 !=================================================================
 ! gpython_lib.fpp - Python Interface for GHOST
+! For the moment, it provides access to the fluid solvers only.
 ! 2026 Patricio Clark di Leoni
 !=================================================================
 MODULE gpython_lib
@@ -22,24 +23,39 @@ MODULE gpython_lib
   IMPLICIT NONE
 
   ! --- Global State (Persists between Python calls) ---
-  TYPE   (GStateComp), ALLOCATABLE, TARGET :: field(:), field_nxt(:), force(:)
-  TYPE   (GWorkspace)                      :: workspace
-  TYPE       (IOPLAN)                      :: planio
-  CLASS(EquationBase), ALLOCATABLE         :: fluid
-  CLASS(GStepperBase), ALLOCATABLE         :: stepper
-  CLASS     (icChain), ALLOCATABLE         :: iclist(:)
-  CLASS  (forceChain), ALLOCATABLE         :: forcemethod(:)
-  REAL      (KIND=GP) :: time
-  INTEGER             :: current_step = 0
-  INTEGER             :: num_components
+  TYPE    (GStateComp), ALLOCATABLE, TARGET :: field(:),field_nxt(:),force(:)
+  TYPE(GStateRealComp), ALLOCATABLE, TARGET :: realfield(:)
+  TYPE    (GWorkspace)                      :: workspace
+  TYPE        (ioplan)                      :: planio
+  CLASS (EquationBase), ALLOCATABLE         :: fluid
+  CLASS (GStepperBase), ALLOCATABLE         :: stepper
+  CLASS      (icChain), ALLOCATABLE         :: iclist(:)
+  CLASS   (forceChain), ALLOCATABLE         :: forcemethod(:)
+  REAL       (KIND=GP) :: time
+  INTEGER              :: current_step = 0
+  INTEGER              :: num_components
 
 CONTAINS
 
   !=================================================================
   ! Initialize GHOST
   !=================================================================
-  SUBROUTINE c_ghost_init() BIND(C, name='ghost_init')
-    CHARACTER(len=64) :: file = 'parameter.inp'
+  SUBROUTINE ghost_init(c_file) BIND(C)
+    TYPE           (C_PTR), VALUE   :: c_file
+    CHARACTER(kind=C_CHAR), POINTER :: tmp(:)
+    CHARACTER    (len=256)          :: file
+    INTEGER                         :: i
+
+    IF (.NOT. C_ASSOCIATED(c_file)) THEN
+      file = 'parameter.inp'
+    ELSE
+      CALL c_f_pointer(c_file, tmp, [256])
+      file = ''
+      DO i = 1, SIZE(tmp)
+        IF (tmp(i) == C_NULL_CHAR) EXIT
+        file(i:i) = tmp(i)
+      END DO
+    END IF
 
     ! MPI Init
     CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED, provided, ierr)
@@ -61,9 +77,10 @@ CONTAINS
     CALL fluid%Solver_ctor(trim(file), workspace, planio)
 
     num_components = fluid%state_size()
-    CALL GState_alloc(field    , num_components)
-    CALL GState_alloc(field_nxt, num_components)
-    CALL GState_alloc(force    , num_components)
+    CALL GState_alloc    (field    , num_components)
+    CALL GState_alloc    (field_nxt, num_components)
+    CALL GState_alloc    (force    , num_components)
+    CALL GStateReal_alloc(realfield, num_components)
 
     iclist      = init_ic_from_file     (trim(file))
     forcemethod = init_forcing_from_file(trim(file),workspace)
@@ -80,12 +97,12 @@ CONTAINS
     field_nxt = field
     CALL init_forcing(forcemethod,fluid,force)
     stepper = build_stepper_from_file(trim(file),workspace,fluid)
-  END SUBROUTINE c_ghost_init
+  END SUBROUTINE ghost_init
 
   !=================================================================
   ! Run steps
   !=================================================================
-  SUBROUTINE c_ghost_run(num_steps) BIND(C, name='ghost_run')
+  SUBROUTINE ghost_run(num_steps) BIND(C)
     INTEGER(C_INT), VALUE :: num_steps
     INTEGER :: i
     REAL(KIND=GP) :: dt_val
@@ -97,15 +114,61 @@ CONTAINS
        CALL stepper%gstep(time, field, force, dt, field_nxt)
        current_step = current_step + 1
     END DO
-  END SUBROUTINE c_ghost_run
+  END SUBROUTINE ghost_run
 
   !=================================================================
   ! Finalize
   !=================================================================
-  SUBROUTINE c_ghost_finalize() BIND(C, name='ghost_finalize')
+  SUBROUTINE ghost_finalize() BIND(C)
     CALL fftp3d_destroy_plan(plancr)
     CALL fftp3d_destroy_plan(planrc)
     CALL MPI_FINALIZE(ierr)
-  END SUBROUTINE c_ghost_finalize
+  END SUBROUTINE ghost_finalize
+
+  !=================================================================
+  ! Helpers
+  !=================================================================
+  ! Returns the pointer to the latest field component at position num_field
+  FUNCTION ghost_get_complex_field(num_field) RESULT(ptr) BIND(C)
+    INTEGER(C_INT), VALUE :: num_field
+    TYPE   (C_PTR)        :: ptr
+    ptr = C_LOC(field_nxt(num_field)%ccomp)
+  END FUNCTION ghost_get_complex_field
+  
+  ! Returns the pointer to the forcing component at position num_field
+  FUNCTION ghost_get_complex_forcing(num_field) RESULT(ptr) BIND(C)
+    INTEGER(C_INT), VALUE :: num_field
+    TYPE   (C_PTR)        :: ptr
+    ptr = C_LOC(force(num_field)%ccomp)
+  END FUNCTION ghost_get_complex_forcing
+
+  ! Returns the pointer to the Fourier-transformed (real) latest field
+  ! component at position num_field.
+  FUNCTION ghost_get_real_field(num_field) RESULT(ptr) BIND(C)
+    INTEGER(C_INT)  , VALUE                     :: num_field
+    TYPE   (C_PTR)                              :: ptr
+    REAL   (kind=GP)                            :: rmp
+    COMPLEX(kind=GP), POINTER, DIMENSION(:,:,:) :: ctmp
+    LOGICAL                                     :: bret
+    CALL workspace%get_complex_tmp(ctmp,bret)
+    rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
+    ctmp = field_nxt(num_field)%ccomp * rmp
+    CALL fftp3d_complex_to_real(plancr,ctmp,realfield(num_field)%rcomp,MPI_COMM_WORLD)
+    ptr = C_LOC(realfield(num_field)%rcomp)
+  END FUNCTION ghost_get_real_field
+  
+  ! Return complex array sizes 
+  FUNCTION ghost_get_complex_size(num_comp) RESULT(sz) BIND(C)
+    INTEGER(C_INT), VALUE :: num_comp
+    INTEGER(C_INT)        :: sz
+    sz = SIZE(field(1)%ccomp,num_comp)
+  END FUNCTION ghost_get_complex_size
+
+  ! Return real array sizes 
+  FUNCTION ghost_get_real_size(num_comp) RESULT(sz) BIND(C)
+    INTEGER(C_INT), VALUE :: num_comp
+    INTEGER(C_INT)        :: sz
+    sz = SIZE(realfield(1)%rcomp,num_comp)
+  END FUNCTION ghost_get_real_size
 
 END MODULE gpython_lib
