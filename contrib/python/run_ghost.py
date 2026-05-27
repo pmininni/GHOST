@@ -29,10 +29,10 @@ print("--- Python: Initializing GHOST ---")
 ghost.ghost_init()
 
 print("--- Python: Running 10 steps ---")
-# ghost.ghost_run(10)
+ghost.ghost_run(10)
 
 print("--- Python: Running 10 more steps ---")
-# ghost.ghost_run(10)
+ghost.ghost_run(10)
 
 print("--- Python: Finalizing GHOST ---")
 ghost.ghost_finalize()
