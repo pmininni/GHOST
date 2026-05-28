@@ -65,7 +65,8 @@ CONTAINS
     ! Grid & Status
     CALL grid_init  (trim(file))
     CALL status_init(trim(file))
-
+    time = 0.0_GP
+    
     ! I/O Setup
     CALL range(1, nx/2+1, nprocs, myrank, ista, iend)
     CALL range(1, nz    , nprocs, myrank, ksta, kend)
@@ -96,7 +97,7 @@ CONTAINS
     CALL init_allstates(iclist,fluid,field)
     field_nxt = field
     CALL init_forcing(forcemethod,fluid,force)
-    stepper = build_stepper_from_file(trim(file),workspace,fluid)
+    stepper   = build_stepper_from_file(trim(file),workspace,fluid)
   END SUBROUTINE ghost_init
 
   !=================================================================
@@ -108,7 +109,7 @@ CONTAINS
     REAL(KIND=GP) :: dt_val
 
     DO i = 1, num_steps
-       time = (current_step-1)*dt
+       time = time + dt
        CALL update_forcing(forcemethod,fluid,force)
        field = field_nxt
        CALL stepper%gstep(time, field, force, dt, field_nxt)

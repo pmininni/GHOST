@@ -3,24 +3,30 @@
 # integrate GHOST within ML workflows.
 #
 # This script assumes a GHOST input file ('parameter.inp') is placed 
-# in the same directory where python is called.
-# Doing 'python3 run_ghost.py' runs this script using just one MPI task.
-# Uncomment the mpi4py lines to run in parallel. In that case you must
-# do 'mpirun -np 4 python3 run_ghost.py' to run in parallel with 4 tasks.
+# in the same directory where python is called. To run this script in
+# parallel as a non-interactive job, e.g., with 4 MPI tasks, do
+# 'mpirun -np 4 python3 run_ghost.py'
 
 import numpy as np
 import ctypes
 import os
-# import mpi4py
-# mpi4py.rc.initialize = False
-# mpi4py.rc.finalize   = False
-# from mpi4py import MPI
+import mpi4py
+mpi4py.rc.initialize = False
+mpi4py.rc.finalize   = False
+from mpi4py import MPI
+import platform
+system = platform.system()
+if   system == "Darwin":
+    ext = ".dylib"
+elif system == "Windows":
+    ext = ".dll"
+else:
+    ext = ".so"
 
 # --------------------------------------------------------------------
 # 1. Load the Shared Library (.so extension in Linux, .dylib in MacOS)
 # --------------------------------------------------------------------
-rank = 0
-lib_path = os.path.abspath("../../lib/libghost_python.so")
+lib_path = os.path.abspath(f"../../lib/libghost_python{ext}")
 
 # CDLL loads the library. RTLD_GLOBAL is often needed for MPI symbols 
 # to resolve correctly across different libraries.
@@ -47,8 +53,8 @@ ghost.ghost_get_real_field.restype  = ctypes.c_void_p
 # --------------------------------------------------------------------
 print("--- Python: Initializing GHOST ---")
 ghost.ghost_init('parameter.inp'.encode()) # We pass the string by bytes
-# comm = MPI.COMM_WORLD
-# rank = comm.Get_rank()
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
 
 print("--- Python: Running 10 steps ---")
 ghost.ghost_run(10)
@@ -56,27 +62,27 @@ ghost.ghost_run(10)
 # --------------------------------------------------------------------
 # 4. Do some data analysis
 # --------------------------------------------------------------------
+nx  = ghost.ghost_get_real_size(1)
+ny  = ghost.ghost_get_real_size(2)
+nz  = ghost.ghost_get_real_size(3)
+ptr = ghost.ghost_get_real_field(1)
 if rank == 0:
     import matplotlib.pyplot as plt
-    nx  = ghost.ghost_get_real_size(1)
-    ny  = ghost.ghost_get_real_size(2)
-    nz  = ghost.ghost_get_real_size(3)
-    ptr = ghost.ghost_get_real_field(1)
     # Convert raw pointer to NumPy view. We assume GHOST was compiled with
     # single precision. When using double precision, we must use c_double.
     array_type = ctypes.c_float * (nx * ny * nz)
     buf        = array_type.from_address(ptr)
     field      = np.ctypeslib.as_array(buf).reshape((nx, ny, nz), order='F')
-    plt.figure(1)
     plt.imshow(field[:,:,0])
     plt.xlabel('x')
     plt.ylabel('y')
-    plt.show()
+    plt.savefig("figure.pdf")
 
 # --------------------------------------------------------------------
-# 4. Continue the simulation
+# 4. Continue the simulation with a different time step
 # --------------------------------------------------------------------
 print("--- Python: Running 10 more steps ---")
+ghost.ghost_set_dt(1e-2)
 ghost.ghost_run(10)
 
 print("--- Python: Finalizing GHOST ---")
