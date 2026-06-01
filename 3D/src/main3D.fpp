@@ -588,7 +588,9 @@
 !
 ! Initialization
 
+#ifdef COMPRESSIBLE_
       useRK3 = 0
+#endif
 
 ! Initializes the MPI and I/O libraries
       CALL MPI_INIT_THREAD(MPI_THREAD_FUNNELED,provided,ierr)
