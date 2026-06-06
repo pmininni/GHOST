@@ -55,40 +55,24 @@ MODULE pseudospec_fluid
 ! Derivative in the x-direction
 !
       IF (dir.eq.1) THEN
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,ny
-               DO k = 1,nz
-                  b(k,j,i) = im*kx(i)*a(k,j,i)
-               END DO
+         DO CONCURRENT (i=ista:iend, j=1:ny)
+            DO CONCURRENT (k=1:nz)
+               b(k,j,i) = im*kx(i)*a(k,j,i)
             END DO
          END DO
 !
 ! Derivative in the y-direction
 !
       ELSE IF (dir.eq.2) THEN
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,ny
-               DO k = 1,nz
-                  b(k,j,i) = im*ky(j)*a(k,j,i)
-               END DO
-            END DO
+         DO CONCURRENT (i=ista:iend, j=1:ny, k=1:nz)
+            b(k,j,i) = im*ky(j)*a(k,j,i)
          END DO
 !
 ! Derivative in the z-direction
 !
       ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,ny
-               DO k = 1,nz
-                  b(k,j,i) = im*kz(k)*a(k,j,i)
-               END DO
-            END DO
+         DO CONCURRENT (i=ista:iend, j=1:ny, k=1:nz)
+            b(k,j,i) = im*kz(k)*a(k,j,i)
          END DO
       ENDIF
 
@@ -115,14 +99,8 @@ MODULE pseudospec_fluid
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: b
       INTEGER :: i,j,k
 
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,ny
-            DO k = 1,nz
-               b(k,j,i) = -kk2(k,j,i)*a(k,j,i)
-            END DO
-         END DO
+      DO CONCURRENT (i=ista:iend, j=1:ny, k=1:nz)
+         b(k,j,i) = -kk2(k,j,i)*a(k,j,i)
       END DO
       
       RETURN
@@ -148,6 +126,16 @@ MODULE pseudospec_fluid
       USE fprecision
       USE grid
       USE mpivars
+      USE grid
+      USE mpivars
+!     c  : at the output contains curl(A)_dir
+!     dir: =1 computes the x-component
+!          =2 computes the y-component
+!          =3 computes the z-component
+!
+      USE fprecision
+      USE grid
+      USE mpivars
 !$    USE threads
       IMPLICIT NONE
 
@@ -163,13 +151,9 @@ MODULE pseudospec_fluid
       IF (dir.eq.1) THEN
          CALL derivk3(a,c1,3)
          CALL derivk3(b,c2,2)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,ny
-               DO k = 1,nz
-                  c(k,j,i) = c2(k,j,i)-c1(k,j,i)
-               END DO
+         DO CONCURRENT (i=ista:iend, j=1:ny)
+            DO CONCURRENT (k=1:nz)
+               c(k,j,i) = c2(k,j,i)-c1(k,j,i)
             END DO
          END DO
 !
@@ -178,13 +162,9 @@ MODULE pseudospec_fluid
       ELSE IF (dir.eq.2) THEN
          CALL derivk3(a,c1,3)
          CALL derivk3(b,c2,1)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,ny
-               DO k = 1,nz
-                  c(k,j,i) = c1(k,j,i)-c2(k,j,i)
-               END DO
+         DO CONCURRENT (i=ista:iend, j=1:ny)
+            DO CONCURRENT (k=1:nz)
+               c(k,j,i) = c1(k,j,i)-c2(k,j,i)
             END DO
          END DO
 !
@@ -193,13 +173,9 @@ MODULE pseudospec_fluid
       ELSE
          CALL derivk3(a,c1,2)
          CALL derivk3(b,c2,1)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,ny
-               DO k = 1,nz
-                  c(k,j,i) = c2(k,j,i)-c1(k,j,i)
-               END DO
+         DO CONCURRENT (i=ista:iend, j=1:ny)
+            DO CONCURRENT (k=1:nz)
+               c(k,j,i) = c2(k,j,i)-c1(k,j,i)
             END DO
          END DO
       ENDIF
@@ -252,16 +228,11 @@ MODULE pseudospec_fluid
       CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c4,r4,MPI_COMM_WORLD)
-
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-      DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,ny
-            DO i = 1,nx
-               rx(i,j,k) = r1(i,j,k)*r2(i,j,k)
-               ry(i,j,k) = r1(i,j,k)*r3(i,j,k)
-               rz(i,j,k) = r1(i,j,k)*r4(i,j,k)
-            END DO
+      DO CONCURRENT (k=ksta:kend, j=1:ny)
+         DO CONCURRENT (i=1:nx)
+            rx(i,j,k) = r1(i,j,k)*r2(i,j,k)
+            ry(i,j,k) = r1(i,j,k)*r3(i,j,k)
+            rz(i,j,k) = r1(i,j,k)*r4(i,j,k)
          END DO
       END DO
 !
@@ -275,16 +246,11 @@ MODULE pseudospec_fluid
       CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c4,r4,MPI_COMM_WORLD)
-
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-      DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,ny
-            DO i = 1,nx
-               rx(i,j,k) = rx(i,j,k)+r1(i,j,k)*r2(i,j,k)
-               ry(i,j,k) = ry(i,j,k)+r1(i,j,k)*r3(i,j,k)
-               rz(i,j,k) = rz(i,j,k)+r1(i,j,k)*r4(i,j,k)
-            END DO
+      DO CONCURRENT (k=ksta:kend, j=1:ny)
+         DO CONCURRENT (i=1:nx)
+            rx(i,j,k) = rx(i,j,k)+r1(i,j,k)*r2(i,j,k)
+            ry(i,j,k) = ry(i,j,k)+r1(i,j,k)*r3(i,j,k)
+            rz(i,j,k) = rz(i,j,k)+r1(i,j,k)*r4(i,j,k)
          END DO
       END DO
 !
@@ -298,21 +264,15 @@ MODULE pseudospec_fluid
       CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c4,r4,MPI_COMM_WORLD)
-
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-      DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,ny
-            DO i = 1,nx
-               rx(i,j,k) = (rx(i,j,k)+r1(i,j,k)*r2(i,j,k))*tmp
-               ry(i,j,k) = (ry(i,j,k)+r1(i,j,k)*r3(i,j,k))*tmp
-               rz(i,j,k) = (rz(i,j,k)+r1(i,j,k)*r4(i,j,k))*tmp
-            END DO
+      DO CONCURRENT (k=ksta:kend, j=1:ny)
+         DO CONCURRENT (i=1:nx)
+            rx(i,j,k) = (rx(i,j,k)+r1(i,j,k)*r2(i,j,k))*tmp
+            ry(i,j,k) = (ry(i,j,k)+r1(i,j,k)*r3(i,j,k))*tmp
+            rz(i,j,k) = (rz(i,j,k)+r1(i,j,k)*r4(i,j,k))*tmp
          END DO
       END DO
-
       CALL fftp3d_real_to_complex(planrc,rx,d,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,ry,e,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,rz,f,MPI_COMM_WORLD)
@@ -365,15 +325,11 @@ MODULE pseudospec_fluid
 !
 ! Computes A
 !
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,ny
-            DO k = 1,nz
-               d(k,j,i) = a(k,j,i)
-               e(k,j,i) = b(k,j,i)
-               f(k,j,i) = c(k,j,i)
-            END DO
+      DO CONCURRENT (i=ista:iend, j=1:ny)
+         DO CONCURRENT (k=1:nz)
+            d(k,j,i) = a(k,j,i)
+            e(k,j,i) = b(k,j,i)
+            f(k,j,i) = c(k,j,i)
          END DO
       END DO
       CALL fftp3d_complex_to_real(plancr,d,r4,MPI_COMM_WORLD)
@@ -384,18 +340,13 @@ MODULE pseudospec_fluid
 !
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-      DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,ny
-            DO i = 1,nx
-               r7(i,j,k) = (r2(i,j,k)*r6(i,j,k)-r5(i,j,k)*r3(i,j,k))*tmp
-               r3(i,j,k) = (r3(i,j,k)*r4(i,j,k)-r6(i,j,k)*r1(i,j,k))*tmp
-               r1(i,j,k) = (r1(i,j,k)*r5(i,j,k)-r4(i,j,k)*r2(i,j,k))*tmp
-            END DO
+      DO CONCURRENT (k=ksta:kend, j=1:ny)
+         DO CONCURRENT (i=1:nx)
+            r7(i,j,k) = (r2(i,j,k)*r6(i,j,k)-r5(i,j,k)*r3(i,j,k))*tmp
+            r3(i,j,k) = (r3(i,j,k)*r4(i,j,k)-r6(i,j,k)*r1(i,j,k))*tmp
+            r1(i,j,k) = (r1(i,j,k)*r5(i,j,k)-r4(i,j,k)*r2(i,j,k))*tmp
          END DO
       END DO
-
       CALL fftp3d_real_to_complex(planrc,r7,d,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,r3,e,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,r1,f,MPI_COMM_WORLD)
@@ -441,31 +392,22 @@ MODULE pseudospec_fluid
 !
       IF (dir.eq.1) THEN
          IF (ista.eq.1) THEN
-!$omp parallel do private (k)
-            DO j = 1,ny
-               DO k = 1,nz
+            DO CONCURRENT (j=1:ny)
+               DO CONCURRENT (k=1:nz)
                   g(k,j,1) = -a(k,j,1)
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k)
-            DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     g(k,j,i) = -a(k,j,i)+kx(i)*(kx(i)*a(k,j,i) &
-                       +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
-                  END DO
+            DO CONCURRENT (i=2:iend, j=1:ny)
+               DO CONCURRENT (k=1:nz)
+                  g(k,j,i) = -a(k,j,i)+kx(i)*(kx(i)*a(k,j,i) &
+                    +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     g(k,j,i) = -a(k,j,i)+kx(i)*(kx(i)*a(k,j,i) &
-                       +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
-                  END DO
+            DO CONCURRENT (i=ista:iend, j=1:ny)
+               DO CONCURRENT (k=1:nz)
+                  g(k,j,i) = -a(k,j,i)+kx(i)*(kx(i)*a(k,j,i) &
+                   +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
                END DO
             END DO
          ENDIF
@@ -473,43 +415,30 @@ MODULE pseudospec_fluid
 ! Computes the y-component
 !
       ELSE IF (dir.eq.2) THEN
-!$omp parallel do if (iend-ista.ge.nth) private (k)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth)
-            DO k = 1,nz
+         DO CONCURRENT (i=ista:iend)
+            DO CONCURRENT (k=1:nz)
                g(k,1,i) = -b(k,1,i)
             END DO
          END DO
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 2,ny
-               DO k = 1,nz
-                  g(k,j,i) = -b(k,j,i)+ky(j)*(kx(i)*a(k,j,i) &
-                    +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
-               END DO
+         DO CONCURRENT (i=ista:iend, j=2:ny)
+            DO CONCURRENT (k=1:nz)
+               g(k,j,i) = -b(k,j,i)+ky(j)*(kx(i)*a(k,j,i) &
+                +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
             END DO
          END DO
 !
 ! Computes the z-component
 !
       ELSE
-
-!$omp parallel do if (iend-ista.ge.nth) private (j)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth)
-            DO j = 1,ny
+         DO CONCURRENT (i=ista:iend)
+            DO CONCURRENT (j=1:ny)
                g(1,j,i) = -c(1,j,i)
             END DO
          END DO
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,ny
-               DO k = 2,nz
-                  g(k,j,i) = -c(k,j,i)+kz(k)*(kx(i)*a(k,j,i) &
-                    +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
-               END DO
+         DO CONCURRENT (i=ista:iend, j=1:ny)
+            DO CONCURRENT (k=2:nz)
+               g(k,j,i) = -c(k,j,i)+kz(k)*(kx(i)*a(k,j,i) &
+                +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
             END DO
          END DO
       ENDIF
@@ -540,18 +469,13 @@ MODULE pseudospec_fluid
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: z
       COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend) :: x,y
       REAL   (KIND=GP), INTENT   (IN)                             :: a,b
-!
       REAL   (KIND=GP)                                            :: ktmin2,ktmax2,tmp
       INTEGER                                                     :: i,j,k
 
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-        DO j = 1,ny
-          DO k = 1,nz
+      DO CONCURRENT (i=ista:iend, j=1:ny)
+         DO CONCURRENT (k=1:nz)
             z(k,j,i) = a * x(k,j,i) + b * y(k,j,i)
-          END DO
-        END DO
+         END DO
       END DO
       END SUBROUTINE saxpby_c
 
@@ -579,19 +503,14 @@ MODULE pseudospec_fluid
       REAL(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: z
       REAL(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend) :: x,y
       REAL(KIND=GP), INTENT   (IN)                             :: a,b
-!
       REAL   (KIND=GP)                                         :: ktmin2,ktmax2,tmp
       INTEGER                                                  :: i,j,k
 
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-      DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-        DO j = 1,ny
-          DO i = 1,nx
+      DO CONCURRENT (k=ksta:kend, k=1:ny)
+         DO CONCURRENT (i=1:nx)
             z(i,j,k) = a * x(i,j,k) + b * y(i,j,k)
-          ENDDO
-        ENDDO
-      ENDDO
+         END DO
+      END DO
       END SUBROUTINE saxpby_r
 
 !*****************************************************************
@@ -2365,7 +2284,6 @@ MODULE pseudospec_strain
           END DO
         END DO
       END DO
-
 
       IF ( btrunc .GT. 0 ) THEN
         ! truncate spherically:

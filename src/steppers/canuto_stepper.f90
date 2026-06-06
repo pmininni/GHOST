@@ -119,16 +119,9 @@ contains
       eff_dt = dt/real(o,kind=GP)
       ! We assume that at input, uout has a copy of uin
       call this%solver_%dudt(time, uout, uf, eff_dt, uout)
-      do ic = 1,this%traits_%nstate
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-        do i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-          do j = 1,ny
-            do k = 1,nz
-              uout(ic)%ccomp(k,j,i) = uin(ic)%ccomp(k,j,i) + &
-                              eff_dt*uout(ic)%ccomp(k,j,i)
-            end do
-          end do
+      do concurrent (ic=1:this%traits_%nstate, i=ista:iend, j=1:ny)
+        do concurrent (k=1:nz)
+          uout(ic)%ccomp(k,j,i) = uin(ic)%ccomp(k,j,i) + eff_dt*uout(ic)%ccomp(k,j,i)
         end do
       end do
     end do
@@ -178,11 +171,8 @@ contains
       ! We compute dpdt; we assume that at input, upout has a copy of upin
       call this%psolver_%dpdt(time, this%solver_, uin, upout, eff_dt, upout)
       ! Update particles:
-      do ip = 1,this%traits_%npstate ! for each pstate comp
-        do k = 1, this%psolver_%nparts_
-          upout(ip)%rcomp(k) = upin(ip)%rcomp(k) + &
-                       eff_dt*upout(ip)%rcomp(k)
-        enddo
+      do concurrent (ip=1:this%traits_%npstate, k=1:this%psolver_%nparts_)
+        upout(ip)%rcomp(k) = upin(ip)%rcomp(k) + eff_dt*upout(ip)%rcomp(k)
       end do
       ! Sync particles at each stage
       call this%psolver_%end_stage(upin,upout)
@@ -243,24 +233,14 @@ contains
         end do
       endif
       ! Update fields:
-      do ic = 1,this%traits_%nstate  ! for each state comp
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-        do i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-          do j = 1,ny
-            do k = 1,nz
-              uout(ic)%ccomp(k,j,i) = uin(ic)%ccomp(k,j,i) + &
-                              eff_dt*uout(ic)%ccomp(k,j,i)
-            end do
-          end do
+      do concurrent (ic=1:this%traits_%nstate, i=ista:iend, j=1:ny)
+        do concurrent (k=1:nz)
+          uout(ic)%ccomp(k,j,i) = uin(ic)%ccomp(k,j,i) + eff_dt*uout(ic)%ccomp(k,j,i)
         end do
       end do
       ! Update particles:
-      do ip = 1,this%traits_%npstate ! for each pstate comp
-        do k = 1, this%psolver_%nparts_
-          upout(ip)%rcomp(k) = upin(ip)%rcomp(k) + &
-                       eff_dt*upout(ip)%rcomp(k)
-        enddo
+      do concurrent (ip=1:this%traits_%npstate, k=1:this%psolver_%nparts_)
+        upout(ip)%rcomp(k) = upin(ip)%rcomp(k) + eff_dt*upout(ip)%rcomp(k)
       end do
       ! Sync particles at each stage
       call this%psolver_%end_stage(upin,upout)

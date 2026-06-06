@@ -222,16 +222,12 @@ CONTAINS
       call saxpby_c(C1, vz, 2*omegay, vy, -2.0*omegaz) ! 2 Omega x v
       call saxpby_c(C2, vx, 2*omegaz, vz, -2.0*omegax)
       call saxpby_c(C3, vy, 2*omegax, vx, -2.0*omegay)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      do i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-      do j = 1,ny
-      do k = 1,nz
-         C4(k,j,i) = C4(k,j,i) + C1(k,j,i) ! (w x v + 2 Omega x v)_x
-         C5(k,j,i) = C5(k,j,i) + C2(k,j,i) ! (w x v + 2 Omega x v)_y
-         C6(k,j,i) = C6(k,j,i) + C3(k,j,i) ! (w x v + 2 Omega x v)_z
-      end do
-      end do
+      do concurrent (i=ista:iend, j=1:ny)
+        do concurrent (k=1:nz)
+          C4(k,j,i) = C4(k,j,i) + C1(k,j,i) ! (w x v + 2 Omega x v)_x
+          C5(k,j,i) = C5(k,j,i) + C2(k,j,i) ! (w x v + 2 Omega x v)_y
+          C6(k,j,i) = C6(k,j,i) + C3(k,j,i) ! (w x v + 2 Omega x v)_z
+        end do
       end do
     endif
     call nonlhd3(C4,C5,C6,C1,1)  ! -[(w + 2 Omega) x v + Grad p]_x
@@ -241,23 +237,19 @@ CONTAINS
     call laplak3(vy,C5)          ! Del^2 vy
     call laplak3(vz,C6)          ! Del^2 vz
 
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-    do i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-    do j = 1,ny
-    do k = 1,nz
-      if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
-        dudt(this%VELOCITY  )%ccomp(k,j,i) = nu*C4(k,j,i) + C1(k,j,i) + fx(k,j,i)
-        dudt(this%VELOCITY+1)%ccomp(k,j,i) = nu*C5(k,j,i) + C2(k,j,i) + fy(k,j,i)
-        dudt(this%VELOCITY+2)%ccomp(k,j,i) = nu*C6(k,j,i) + C3(k,j,i) + fz(k,j,i)
-      else
-        dudt(this%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
-        dudt(this%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
-        dudt(this%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
-      endif
-    enddo
-    enddo
-    enddo
+    do concurrent (i=ista:iend, j=1:ny)
+      do concurrent (k=1:nz)
+        if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
+          dudt(this%VELOCITY  )%ccomp(k,j,i) = nu*C4(k,j,i) + C1(k,j,i) + fx(k,j,i)
+          dudt(this%VELOCITY+1)%ccomp(k,j,i) = nu*C5(k,j,i) + C2(k,j,i) + fy(k,j,i)
+          dudt(this%VELOCITY+2)%ccomp(k,j,i) = nu*C6(k,j,i) + C3(k,j,i) + fz(k,j,i)
+        else
+          dudt(this%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
+          dudt(this%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
+          dudt(this%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
+        endif
+      end do
+    end do
 
     call this%workspace_%free_complex_tmp(C1)
     call this%workspace_%free_complex_tmp(C2)
