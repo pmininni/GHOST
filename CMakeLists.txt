@@ -10,6 +10,7 @@
 
 cmake_minimum_required(VERSION 3.12)
 project(GHOST LANGUAGES Fortran C)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 include(UserConfig.cmake)
 
