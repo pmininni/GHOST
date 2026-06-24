@@ -1491,7 +1491,7 @@ MODULE class_GSGSmodel
 !-----------------------------------------------------------------
 
 !*****************************************************************
-      SUBROUTINE GSGS_dopacking(this,vx, vy, vz, th, C1, R1, itensor)
+      SUBROUTINE GSGS_dopacking(this,vx, vy, vz, th, C1, C2, R1, itensor)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Packs one component of tensor argument for inference
