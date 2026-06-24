@@ -420,7 +420,7 @@ MODULE class_GSGSmodel
     !   nc = 11 : Sij, om_i, grad_i th
     !   nc = 15 : v_i, th, Sij, om_i, grad_i th (not available yet)
 
-    IF ( nc .NE.  4 .AND. nc .NE.  6 &
+    IF ( nc .NE.  4 .AND. nc .NE.  6 .AND. &
          nc .NE. 10 .AND. nc .NE. 11 ) THEN
       STOP 'Invalid nichannel!'
     ENDIF
@@ -1491,7 +1491,7 @@ MODULE class_GSGSmodel
 !-----------------------------------------------------------------
 
 !*****************************************************************
-      SUBROUTINE GSGS_dopacking(this,vx, vy, v, th, C1, R1, itensor)
+      SUBROUTINE GSGS_dopacking(this,vx, vy, vz, th, C1, R1, itensor)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Packs one component of tensor argument for inference
