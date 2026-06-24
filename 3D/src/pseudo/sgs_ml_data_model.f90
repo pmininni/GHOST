@@ -631,7 +631,7 @@ MODULE class_GSGSmodel
 !   WRITE(*,*) this%myrank_, ' GSGS_compute_model: write t_in... '
 
 #if 1
-!   Write t_in to disc:
+!   Write t_in to disk:
     IF ( this%icycle_ .EQ. 0 ) THEN
 !     open(unit=10, file='t_in.bin', form='UNFORMATTED', &
 !          status='REPLACE', iostat=iostatus)
@@ -679,7 +679,7 @@ MODULE class_GSGSmodel
 
     CALL MPI_BARRIER(this%comm_, this%ierr_)
 #if 1
-!   Write t_out to disc:
+!   Write t_out to disk:
     IF ( this%icycle_ .EQ. 0 ) THEN
       open(unit=10, file="t_out.bin", access="stream", &
          form="unformatted", status="replace", action="write", &
