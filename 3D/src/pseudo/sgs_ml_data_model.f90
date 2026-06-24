@@ -23,6 +23,7 @@ MODULE class_GSGSmodel
       USE filefmt
       USE iovar
       USE gtimer
+      USE gutils
       USE inferof 
       USE fckit_map_module, only : fckit_map
       USE fckit_tensor_module, only : fckit_tensor_real32
@@ -123,7 +124,7 @@ MODULE class_GSGSmodel
       END TYPE GSGSmodel
 
       PRIVATE :: GSGS_compute_model, GSGS_init_infero, GSGS_destroy_infero
-      PRIVATE :: GSGS_pack, GSGS_unpack 
+      PRIVATE :: GSGS_dopacking, GSGS_pack, GSGS_unpack 
       PRIVATE :: GSGS_real_exch_types, GSGS_real_exch
       PRIVATE :: GSGS_project3, GSGS_demean
       PRIVATE :: GSGS_ccopy, GSGS_rcopy
@@ -412,8 +413,19 @@ MODULE class_GSGSmodel
     no = this%modelTraits_%nochannel
     nn = this%ntot
 
-    IF ( nc .LE. 0 .OR. no .LE. 0 .OR. nn .LE. 0 ) THEN
-      STOP 'Invalid nichannel or ntot!'
+    ! We allow only 5 input channel sets:
+    !   nc =  4 : v_i, th
+    !   nc =  6 : om_i, Grad_i th
+    !   nc = 10 : v_i, th, om_i, Grad_i th
+    !   nc = 11 : Sij, om_i, grad_i th
+    !   nc = 15 : v_i, th, Sij, om_i, grad_i th (not available yet)
+
+    IF ( nc .NE.  4 .AND. nc .NE.  6 &
+         nc .NE. 10 .AND. nc .NE. 11 ) THEN
+      STOP 'Invalid nichannel!'
+    ENDIF
+    IF ( no .LE. 0 .OR. nn .LE. 0 ) THEN
+      STOP 'Invalid nochannel or ntot!'
     ENDIF
 
 !   IF ( this%icycle_ .EQ. 0 ) THEN
@@ -586,10 +598,7 @@ MODULE class_GSGSmodel
 
     ! Pack model input layer:
     CALL GTStart(this%hpack_)
-    CALL GSGS_pack(this, vx, C1, R1, 1, this%t_in_)
-    CALL GSGS_pack(this, vy, C1, R1, 2, this%t_in_)
-    CALL GSGS_pack(this, vz, C1, R1, 3, this%t_in_)
-    CALL GSGS_pack(this, th, C1, R1, 4, this%t_in_)
+    CALL GSGS_dopacking(this, vx, vy, vx, th, C1, C2, R1) ! fills this%t_in_
     CALL GTStop(this%hpack_)
 
 #if 0
@@ -822,7 +831,7 @@ MODULE class_GSGSmodel
   SUBROUTINE GSGS_pack(this, cvar, C1, R1, ivar, itensor)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
-!  Packs tensor argument for inference
+!  Packs one component of tensor argument for inference
 !  ARGUMENTS:
 !    cvar    : channel/feature to pack into itensor
 !    C1      : complex tmp array
@@ -1480,6 +1489,135 @@ MODULE class_GSGSmodel
       END SUBROUTINE GSGS_dealias
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
+
+!*****************************************************************
+      SUBROUTINE GSGS_dopacking(this,vx, vy, v, th, C1, R1, itensor)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!  Packs one component of tensor argument for inference
+!  ARGUMENTS:
+!    vx, vy,
+!    vz, th  : primitive variables
+!    C1      : complex tmp array
+!    C2      : complex tmp array
+!    R1      : real tmp array
+!    itensor : input tensor to pack into. Assume it's been
+!              allocated correctly
+!-----------------------------------------------------------------
+    IMPLICIT NONE
+    class(GSGSmodel), INTENT(INOUT)         :: this
+    INTEGER         , INTENT   (IN)         :: ivar
+    INTEGER                                 :: i, j, k, nc
+    COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: vx, vy, vz, th
+    COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1, C2
+    REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1
+!   REAL(KIND=GP)   , INTENT  (OUT), DIMENSION(this%modelTraits_%nichannel,this%nx,this%ny,this%ksta:this%kend) :: itensor
+    REAL(KIND=GP)   , INTENT  (OUT), DIMENSION(:) :: itensor
+    REAL(KIND=GP)                                 :: tmp
+
+    tmp = 1.0_GP/ &
+            (real(this%nx,kind=GP)*real(this%ny,kind=GP)*real(this%nz,kind=GP))
+
+    nc = this%modelTraits_%nichannel
+
+    ! We allow only 5 input channel sets:
+    !   nc =  4 : v_i, th
+    !   nc =  6 : om_i, Grad_i th
+    !   nc = 10 : v_i, th, om_i, Grad_i th
+    !   nc = 11 : Sij, om_i, grad_i th
+    !   nc = 15 : v_i, th, Sij, om_i, grad_i th (not available yet)
+    select case (nc)
+      case (4) ! vx,vy,vz,th
+        CALL GSGS_pack(this, vx, C1, R1, 1, itensor)
+        CALL GSGS_pack(this, vy, C1, R1, 2, itensor)
+        CALL GSGS_pack(this, vz, C1, R1, 3, itensor)
+        CALL GSGS_pack(this, th, C1, R1, 4, itensor)
+      case (6) ! omx,omy,omz,dxth,dyth,dzth
+          CALL rotor3(vy,vz,c2,1)
+        CALL GSGS_pack(this, c2, C1, R1, 1, itensor)
+          CALL rotor3(vz,vx,c2,2)
+        CALL GSGS_pack(this, c2, C1, R1, 2, itensor)
+          CALL rotor3(vx,vy,c2,3)
+        CALL GSGS_pack(this, c2, C1, R1, 3, itensor)
+          CALL derivk3(th, c2, 1)
+        CALL GSGS_pack(this, c2, C1, R1, 4, itensor)
+          CALL derivk3(th, c2, 2)
+        CALL GSGS_pack(this, c2, C1, R1, 5, itensor)
+          CALL derivk3(th, c2, 3)
+        CALL GSGS_pack(this, c2, C1, R1, 6, itensor)
+      case (10) ! vx,vy,vz,th,omx,omy,omz,dxth,dyth,dzth
+        CALL GSGS_pack(this, vx, C1, R1, 1 , itensor)
+        CALL GSGS_pack(this, vy, C1, R1, 2 , itensor)
+        CALL GSGS_pack(this, vz, C1, R1, 3 , itensor)
+        CALL GSGS_pack(this, th, C1, R1, 4 , itensor)
+          CALL rotor3(vy,vz,c2,1)
+        CALL GSGS_pack(this, c2, C1, R1, 5 , itensor)
+          CALL rotor3(vz,vx,c2,2)
+        CALL GSGS_pack(this, c2, C1, R1, 6 , itensor)
+          CALL rotor3(vx,vy,c2,3)
+        CALL GSGS_pack(this, c2, C1, R1, 7 , itensor)
+          CALL derivk3(th, c2, 1)
+        CALL GSGS_pack(this, c2, C1, R1, 8 , itensor)
+          CALL derivk3(th, c2, 2)
+        CALL GSGS_pack(this, c2, C1, R1, 9 , itensor)
+          CALL derivk3(th, c2, 3)
+        CALL GSGS_pack(this, c2, C1, R1, 10, itensor)
+      case (11) ! S11,S12,S13,S22,S23,omx,omy,omz,dxth,dyth,dzth
+          CALL Strain(vx,vy,vz,1,1,0,C1,c2)
+        CALL GSGS_pack(this, c2, C1, R1, 1 , itensor)
+          CALL Strain(vx,vy,vz,1,2,0,C1,c2)
+        CALL GSGS_pack(this, c2, C1, R1, 2 , itensor)
+          CALL Strain(vx,vy,vz,1,3,0,C1,c2)
+        CALL GSGS_pack(this, c2, C1, R1, 3 , itensor)
+          CALL Strain(vx,vy,vz,2,2,0,C1,c2)
+        CALL GSGS_pack(this, c2, C1, R1, 4 , itensor)
+          CALL Strain(vx,vy,vz,2,3,0,C1,c2)
+        CALL GSGS_pack(this, c2, C1, R1, 5 , itensor)
+          CALL rotor3(vy,vz,c2,1)
+        CALL GSGS_pack(this, c2, C1, R1, 6 , itensor)
+          CALL rotor3(vz,vx,c2,2)
+        CALL GSGS_pack(this, c2, C1, R1, 7 , itensor)
+          CALL rotor3(vx,vy,c2,3)
+        CALL GSGS_pack(this, c2, C1, R1, 8 , itensor)
+          CALL derivk3(th, c2, 1)
+        CALL GSGS_pack(this, c2, C1, R1, 9 , itensor)
+          CALL derivk3(th, c2, 2)
+        CALL GSGS_pack(this, c2, C1, R1, 10, itensor)
+          CALL derivk3(th, c2, 3)
+        CALL GSGS_pack(this, c2, C1, R1, 11, itensor)
+      case (15) ! vx,vy,vz,th,S11,S12,S13,S22,S23,omx,omy,omz,dxth,dyth,dzth
+        CALL GSGS_pack(this, vx, C1, R1, 1 , itensor)
+        CALL GSGS_pack(this, vy, C1, R1, 2 , itensor)
+        CALL GSGS_pack(this, vz, C1, R1, 3 , itensor)
+        CALL GSGS_pack(this, th, C1, R1, 4 , itensor)
+          CALL Strain(vx,vy,vz,1,1,0,C1,c2)
+        CALL GSGS_pack(this, c2, C1, R1, 5 , itensor)
+          CALL Strain(vx,vy,vz,1,2,0,C1,c2)
+        CALL GSGS_pack(this, c2, C1, R1, 6 , itensor)
+          CALL Strain(vx,vy,vz,1,3,0,C1,c2)
+        CALL GSGS_pack(this, c2, C1, R1, 7 , itensor)
+          CALL Strain(vx,vy,vz,2,2,0,C1,c2)
+        CALL GSGS_pack(this, c2, C1, R1, 8 , itensor)
+          CALL Strain(vx,vy,vz,2,3,0,C1,c2)
+        CALL GSGS_pack(this, c2, C1, R1, 9 , itensor)
+          CALL rotor3(vy,vz,c2,1)
+        CALL GSGS_pack(this, c2, C1, R1, 10, itensor)
+          CALL rotor3(vz,vx,c2,2)
+        CALL GSGS_pack(this, c2, C1, R1, 11, itensor)
+          CALL rotor3(vx,vy,c2,3)
+        CALL GSGS_pack(this, c2, C1, R1, 12, itensor)
+          CALL derivk3(th, c2, 1)
+        CALL GSGS_pack(this, c2, C1, R1, 13, itensor)
+          CALL derivk3(th, c2, 2)
+        CALL GSGS_pack(this, c2, C1, R1, 14, itensor)
+          CALL derivk3(th, c2, 3)
+        CALL GSGS_pack(this, c2, C1, R1, 15, itensor)
+      case default
+        stop 'GSGS_dopacking: Bad nichannel!'
+    end select
+
+    RETURN
+    END SUBROUTINE GSGS_dopacking
 
 
 END MODULE class_GSGSmodel
