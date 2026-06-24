@@ -1506,7 +1506,6 @@ MODULE class_GSGSmodel
 !-----------------------------------------------------------------
     IMPLICIT NONE
     class(GSGSmodel), INTENT(INOUT)         :: this
-    INTEGER         , INTENT   (IN)         :: ivar
     INTEGER                                 :: i, j, k, nc
     COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: vx, vy, vz, th
     COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1, C2
