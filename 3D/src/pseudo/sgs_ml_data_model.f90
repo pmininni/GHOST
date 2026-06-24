@@ -598,7 +598,7 @@ MODULE class_GSGSmodel
 
     ! Pack model input layer:
     CALL GTStart(this%hpack_)
-    CALL GSGS_dopacking(this, vx, vy, vx, th, C1, C2, R1) ! fills this%t_in_
+    CALL GSGS_dopacking(this, vx, vy, vx, th, C1, C2, R1, this%t_in_) ! fills this%t_in_
     CALL GTStop(this%hpack_)
 
 #if 0
