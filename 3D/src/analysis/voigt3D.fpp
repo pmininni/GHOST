@@ -1513,8 +1513,8 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
 
 
         ! Do analysis:
-        gparams%itime  = (istat(it)-1)* tstep + 1
-        gparams%ttime  = ( gparams%itime - 1 ) * dt
+        gparams%icycle = (istat(it)-1)* tstep + 1
+        gparams%ttime  = (gparams%icycle - 1) * dt
         nbins(1) = nbinx ; nbins(2) = nbiny
         CALL DoVoigt(vx,vy,vz,th,istat(it),gparams,odir,planio, &
                      C1,C2,C3, C4,R1,R2,R3,R4, &
@@ -2871,8 +2871,8 @@ endif
       CALL bouss_filter(vx,vy,vz,th,ftype,alpha,C1,C2,C3)
 
       ! Print L2 quantities for this time index:
-      CALL hdcheck(vx,vy,vz,fx,fy,fz,gparams%itime,gparams%dt,1,1)
-      CALL pscheck(th,fs,gparams%itime, gparams%dt)
+      CALL hdcheck(vx,vy,vz,fx,fy,fz,gparams%icycle,gparams%dt,1,1)
+      CALL pscheck(th,fs,gparams%icycle, gparams%dt)
 
       n = 0;
 
