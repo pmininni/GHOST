@@ -2916,7 +2916,7 @@ endif
       CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      CALL derivk3(th, C1, 3)  ! dth/dy
+      CALL derivk3(th, C1, 2)  ! dth/dy
       C1 = C1 * tmp
       CALL fftp3d_complex_to_real(plancr,C1,R2,MPI_COMM_WORLD)
       if ( gparams%prtbin .eq.1 ) then
@@ -2997,7 +2997,7 @@ endif
       fnout = trim(odir) // '/' // 'bfpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'bflux' 
       CALL skewflat(bf,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
-      CALL dopdfr(bf,nx,ny,knz,fnout,nbins(1),1,fmin(1),fmax(1),0) 
+      CALL dopdfr(bf,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       fnout = trim(odir) // '/' // 'jpdf_dissv_bf_log00.' // ext // '.txt'
       CALL dojpdfr(dissv,'dissv',bf,'bf',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
@@ -3012,12 +3012,12 @@ endif
       fnout = trim(odir) // '/' // 'gamfpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'gamf' 
       CALL skewflat(Gamf,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
-      CALL dopdfr(Gamf,nx,ny,knz,fnout,nbins(1),1,fmin(1),fmax(1),0) 
+      CALL dopdfr(Gamf,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       fnout = trim(odir) // '/' // 'jpdf_dissv_gamf_log00.' // ext // '.txt'
-      CALL dojpdfr(dissv,'dissv',bf,'Gamf',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+      CALL dojpdfr(dissv,'dissv',Gamf,'Gamf',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
       fnout = trim(odir) // '/' // 'jpdf_dissp_gamf_log00.' // ext // '.txt'
-      CALL dojpdfr(dissp,'dissp',gamf,'Gamf',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
+      CALL dojpdfr(dissp,'dissp',Gamf,'Gamf',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
 #endif
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -3040,7 +3040,7 @@ endif
       fnout = trim(odir) // '/' // 'vxpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'vx' 
       CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
-      CALL dopdfr(ommag,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       C1 = vz;                 ! vz
@@ -3052,7 +3052,7 @@ endif
       fnout = trim(odir) // '/' // 'vzpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'vz' 
       CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
-      CALL dopdfr(ommag,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       CALL derivk3(vz, C1, 3)  ! dvzdz
@@ -3269,7 +3269,7 @@ endif
            END DO
         END DO
 
-      ELSE IF ( ftype.eq.1 ) THEN ! sharp 
+      ELSE IF ( ftype.eq.2 ) THEN ! sharp 
 
         CALL sharp(vx, C1, alpha)
         CALL sharp(vy, C2, alpha)
