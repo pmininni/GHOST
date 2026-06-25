@@ -315,7 +315,7 @@
       INTEGER :: ic,ir,it,jc
       INTEGER :: istat(4096),nstat,prtbin
       INTEGER :: nbinx,nbiny,nbins(2)
-      INTEGER :: ftype ! filter type (0==Helm; 1==Gaussian)
+      INTEGER :: ftype ! filter type (0==Helm; 1==Gaussian; 2=Sharp)
       CHARACTER(len=64) :: ext1
       CHARACTER(len=4096) :: sstat
 
@@ -1323,7 +1323,7 @@
 !     ';--separated list
 !     iswap  : do endian swap on input?
 !     oswap  : do endian swap on output? Not used.
-!     ftype  : filter type (0==Helm; 1==Gaussian)
+!     ftype  : filter type (0==Helm; 1==Gaussian; 2==Sharp)
 !     filtparam
 !            : filter scale
 !
