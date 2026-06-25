@@ -1472,6 +1472,7 @@
       gparams%bvfreq   = bvfreq
       gparams%rotf     = 2*omegaz
       gparams%prtbin   = prtbin
+      gparams%dt       = dt
 
       tmp = 1.0_GP/REAL(nx*ny*nz,KIND=GP)
       DO it = 1,nstat
@@ -1512,6 +1513,8 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
 
 
         ! Do analysis:
+        gparams%itime  = (istat(it)-1)* tstep + 1
+        gparams%ttime  = ( gparams%itime - 1 ) * dt
         nbins(1) = nbinx ; nbins(2) = nbiny
         CALL DoVoigt(vx,vy,vz,th,istat(it),gparams,odir,planio, &
                      C1,C2,C3, C4,R1,R2,R3,R4, &
@@ -2627,8 +2630,8 @@ endif
 !       Gamf = Bf / epsv
 
 ! Parameters
-!     Bf   : buoyancy flux
-!     epsv : pointwise dissipation rate
+!     Bf   : buoyancy flux = w' theta'
+!     epsv : pointwise kinetic dissipation rate
 !     Rf   : flux Richardson number
 !     Gamf : efficiency
 !-----------------------------------------------------------------
@@ -2781,12 +2784,14 @@ endif
 !     vy,
 !     vz     : complex velocities
 !     th     : pot. temp
-!     indtime: integter time index
+!     indtime: integter output time index, 
+!     gparams: run parameter stucture
 !     odir   : output directory
 !     planio : io plan
 !     Ci     : complex temp arrays
 !     Ri     : real temp arrays
-!     ftype  : filter type. <0 ==> no filtering
+!     ftype  : filter type in (0, 1, 2) for
+!              (Helmholtz, Gaussian, Sharp). If <0, does nothing
 !     alpha  : filter scale
 !
       USE fprecision
@@ -2863,8 +2868,11 @@ endif
         END DO
 
       ! Filter input data:
-      CALL bouss_filter(vx_in,vy_in,vz_in,th_in,ftype,alpha,C1,C2,C3)
+      CALL bouss_filter(vx,vy,vz,th,ftype,alpha,C1,C2,C3)
 
+      ! Print L2 quantities for this time index:
+      CALL hdcheck(vx,vy,vz,fx,fy,fz,gparams%itime,gparams%dt,1,1)
+      CALL pscheck(th,fs,gparams%itime, gparams%dt)
 
       n = 0;
 
@@ -2895,16 +2903,61 @@ endif
       CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      CALL derivk3(th, C1, 3)  ! z-deriv
+      CALL derivk3(th, C1, 1)  ! dth/dx
       C1 = C1 * tmp
       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
       if ( gparams%prtbin .eq.1 ) then
-      CALL io_write(1,odir,'dthdz',ext,planio,dissp)
+!     CALL io_write(1,odir,'dthdx',ext,planio,R1)
+      endif
+      fnout = trim(odir) // '/' // 'dthdxpdf.' // ext // '.txt'
+      n = n + 1; sfld(n) = 'dthdx' 
+      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      CALL derivk3(th, C1, 3)  ! dth/dy
+      C1 = C1 * tmp
+      CALL fftp3d_complex_to_real(plancr,C1,R2,MPI_COMM_WORLD)
+      if ( gparams%prtbin .eq.1 ) then
+!     CALL io_write(1,odir,'dthdy',ext,planio,R2)
+      endif
+      fnout = trim(odir) // '/' // 'dthdypdf.' // ext // '.txt'
+      n = n + 1; sfld(n) = 'dthdy' 
+      CALL skewflat(R2,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL dopdfr(R2,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      CALL derivk3(th, C1, 3)  ! dth/dz
+      C1 = C1 * tmp
+      CALL fftp3d_complex_to_real(plancr,C1,R3,MPI_COMM_WORLD)
+      if ( gparams%prtbin .eq.1 ) then
+!     CALL io_write(1,odir,'dthdz',ext,planio,R3)
       endif
       fnout = trim(odir) // '/' // 'dthdzpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'dthdz' 
+      CALL skewflat(R3,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL dopdfr(R3,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                               ! |Grad th|
+      ! NOTE: use R1, R2, R3 = dth/dx, dthdy, dthdz:
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+        DO j = 1,ny
+          DO i = 1,nx
+            R1(i,j,k) =  sqrt(R1(i,j,k)**2 + R2(i,j,k)**2 + R3(i,j,k)**2)
+          ENDDO
+        ENDDO
+      ENDDO
+      if ( gparams%prtbin .eq.1 ) then
+!     CALL io_write(1,odir,'gradth',ext,planio,R1)
+      endif
+      fnout = trim(odir) // '/' // 'gradthpdf.' // ext // '.txt'
+      n = n + 1; sfld(n) = 'gradth' 
       CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
       CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       CALL compute_dissp(th,C1,R1,R2,R3,dissp)
@@ -2921,7 +2974,7 @@ endif
       itypeRi = 1 ! N (N - dtheta/dz) / (du/dz^2 + dv/dz^2)
       CALL compute_Rig(vx,vy,vz,th,gparams%bvfreq,gparams%rotf,itypeRi,C1,R1,R2,R3,Rig)
       if ( gparams%prtbin .eq.1 ) then
-      CALL io_write(1,odir,'Rig',ext,planio,dissp)
+      CALL io_write(1,odir,'Rig',ext,planio,Rig)
       endif
       fnout = trim(odir) // '/' // 'rigpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'Rig' 
@@ -2938,7 +2991,7 @@ endif
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       CALL compute_bflux(vz,th, gparams%bvfreq,C1,R1,bf)
       if ( gparams%prtbin .eq.1 ) then
-      CALL io_write(1,odir,'bf',ext,planio,dissp)
+      CALL io_write(1,odir,'bf',ext,planio,R1)
       endif
       fnout = trim(odir) // '/' // 'bfpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'bflux' 
@@ -2953,7 +3006,7 @@ endif
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       CALL compute_fluxRich(bf,dissv,Rf,Gamf)
       if ( gparams%prtbin .eq.1 ) then
-      CALL io_write(1,odir,'gamf',ext,planio,dissp)
+      CALL io_write(1,odir,'gamf',ext,planio,Gamf)
       endif
       fnout = trim(odir) // '/' // 'gamfpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'gamf' 
@@ -2977,7 +3030,7 @@ endif
       CALL dopdfr(ommag,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      C1 = vx;
+      C1 = vx;                 ! vx
       C1 = C1 * tmp
       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
       if ( gparams%prtbin .eq.1 ) then
@@ -2989,7 +3042,7 @@ endif
       CALL dopdfr(ommag,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      C1 = vz;
+      C1 = vz;                 ! vz
       C1 = C1 * tmp
       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
       if ( gparams%prtbin .eq.1 ) then
@@ -3001,7 +3054,7 @@ endif
       CALL dopdfr(ommag,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      CALL derivk3(vz, C1, 3)  ! z-deriv
+      CALL derivk3(vz, C1, 3)  ! dvzdz
       C1 = C1 * tmp
       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
       if ( gparams%prtbin .eq.1 ) then
@@ -3009,6 +3062,42 @@ endif
       endif
       fnout = trim(odir) // '/' // 'dvzdzpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'dvzdz' 
+      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      CALL derivk3(vx, C1, 1)  ! dvx/dx
+      C1 = C1 * tmp
+      CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+      if ( gparams%prtbin .eq.1 ) then
+!     CALL io_write(1,odir,'rdvxdx',ext,planio,R1)
+      endif
+      fnout = trim(odir) // '/' // 'dvxdxpdf.' // ext // '.txt'
+      n = n + 1; sfld(n) = 'dvxdx' 
+      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      CALL derivk3(vy, C1, 1)  ! dvy/dx
+      C1 = C1 * tmp
+      CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+      if ( gparams%prtbin .eq.1 ) then
+!     CALL io_write(1,odir,'rdvydx',ext,planio,R1)
+      endif
+      fnout = trim(odir) // '/' // 'dvydxpdf.' // ext // '.txt'
+      n = n + 1; sfld(n) = 'dvydx' 
+      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      CALL derivk3(vz, C1, 1)  ! dvz/dx
+      C1 = C1 * tmp
+      CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+      if ( gparams%prtbin .eq.1 ) then
+!     CALL io_write(1,odir,'rdvzdx',ext,planio,R1)
+      endif
+      fnout = trim(odir) // '/' // 'dvzdxpdf.' // ext // '.txt'
+      n = n + 1; sfld(n) = 'dvzdx' 
       CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
       CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
@@ -3085,14 +3174,18 @@ endif
 !-----------------------------------------------------------------
 ! Filter Boussinesq input data
 ! ARGS:
-!      vi     : complex velocity components
-!      th     : complex potential temperature
+!      vi     : complex velocity components, filtered on return
+!      th     : complex potential temperature, filtered on return
 !      ftype  : complex potential temperature: 0 (Helmholtz), or
-!               1 (Gaussian). A value of -1 means no filtering.
-!      alpha  : filter 'scale': if ftype==0 (Helholtz alpha), this
-!               is 1/k_filter; if ftype=1 (Gaussian), this is
-!               s.t. alpha = pi/k_filter. See pseudo/pseudospec3D_filt
-!               module.
+!               1 (Gaussian), 2 (sharp cut-off). 
+!               A value of -1 means no filtering.
+!      alpha  : filter parameter: if ftype==0 (Helholtz alpha), this
+!               is 1/filter_width, and filters modes as 
+!               1 / ( 1 + alpha^2 k^2 ); if ftype=1 (Gaussian), filters
+!               modes as exp(-k^2 * alpha^2/ ( 2sqrt(3) ) ), so a smooth
+!               cut-off; if ftype=2 (sharp) filter has sharp cutoff 
+!               of modes at pi/alpha, with filter width alpha. 
+!               See pseudo/pseudospec3D_filt module.
 !      Ci     : complex tmp arrays
 !-----------------------------------------------------------------
 !
@@ -3122,6 +3215,7 @@ endif
 
 
       IF      ( ftype.eq.0 ) THEN ! Helmholtz
+
         CALL smooth3(vx, vy, vz, C1, C2, C3, alpha)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
         DO i = ista,iend
@@ -3145,7 +3239,9 @@ endif
               END DO
            END DO
         END DO
+
       ELSE IF ( ftype.eq.1 ) THEN ! Gaussian
+
         CALL gaussian(vx, C1, alpha)
         CALL gaussian(vy, C2, alpha)
         CALL gaussian(vz, C3, alpha)
@@ -3171,6 +3267,35 @@ endif
               END DO
            END DO
         END DO
+
+      ELSE IF ( ftype.eq.1 ) THEN ! sharp 
+
+        CALL sharp(vx, C1, alpha)
+        CALL sharp(vy, C2, alpha)
+        CALL sharp(vz, C3, alpha)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+           DO j = 1,ny
+              DO k = 1,nz
+                 vx(k,j,i) = C1(k,j,i)
+                 vy(k,j,i) = C2(k,j,i)
+                 vz(k,j,i) = C3(k,j,i)
+              END DO
+           END DO
+        END DO
+
+        CALL sharp(th, C1, alpha)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+           DO j = 1,ny
+              DO k = 1,nz
+                 th(k,j,i) = C1(k,j,i)
+              END DO
+           END DO
+        END DO
+
       ELSE
         STOP 'bouss_filter: invalid filter type'
       ENDIF
