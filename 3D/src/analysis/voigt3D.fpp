@@ -2871,8 +2871,9 @@ endif
       CALL bouss_filter(vx,vy,vz,th,ftype,alpha,C1,C2,C3)
 
       ! Print L2 quantities for this time index:
-      CALL hdcheck(vx,vy,vz,fx,fy,fz,gparams%icycle,gparams%dt,1,1)
-      CALL pscheck(th,fs,gparams%icycle, gparams%dt)
+      C1 = 0.0; C2 = 0.0; C3 = 0.0; ! zero-out forces
+      CALL hdcheck(vx,vy,vz,C1,C2,C3,gparams%icycle,gparams%dt,1,1)
+      CALL pscheck(th,C1,gparams%icycle, gparams%dt)
 
       n = 0;
 
