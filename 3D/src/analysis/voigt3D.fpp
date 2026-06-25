@@ -2990,7 +2990,7 @@ endif
       CALL dojpdfr(dissp,'dissp',Rig,'Rig',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      CALL compute_bflux(vz,th, gparams%bvfreq,C1,R1,bf)
+      CALL compute_bflux(vz,th, gparams%bvfreq,C1,R1,bf) ! Bf = N w' theta'
       if ( gparams%prtbin .eq.1 ) then
       CALL io_write(1,odir,'bf',ext,planio,R1)
       endif
@@ -3005,7 +3005,7 @@ endif
       CALL dojpdfr(dissp,'dissp',bf,'bf',nx,ny,knz,fnout,nbins,[0,0],fmin,fmax,[0,0])
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      CALL compute_fluxRich(bf,dissv,Rf,Gamf)
+      CALL compute_fluxRich(bf,dissv,Rf,Gamf) ! Flux Richardson + Efficiency
       if ( gparams%prtbin .eq.1 ) then
       CALL io_write(1,odir,'gamf',ext,planio,Gamf)
       endif
