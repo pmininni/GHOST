@@ -348,7 +348,7 @@
       ! App data:
       COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: vxt,vyt,vzt,tht
       COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: CT1,CT2,CT3,CT4,CT5,CT6,CT7
-      REAL(KIND=GP)   , ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: RT1,RT2,RT3
+      REAL(KIND=GP)   , ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: RT1,RT2,RT3,RT4
       REAL(KIND=GP)       :: filtparam ! filter parameter
       INTEGER             :: ftype, istat(4096), npkeep, nstat
       INTEGER             :: commtrunc, grouptrunc, n(3), nt(3)
@@ -1580,6 +1580,7 @@
       ALLOCATE( RT1(nxt,nyt,ktsta:ktend))
       ALLOCATE( RT2(nxt,nyt,ktsta:ktend))
       ALLOCATE( RT3(nxt,nyt,ktsta:ktend))
+      ALLOCATE( RT4(nxt,nyt,ktsta:ktend))
       trtraits%planiot   = planiot
       trtraits%plancrt   = plancrt
       IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
@@ -1668,10 +1669,10 @@
 #endif
         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 
-        IF ( dolabels ) THEN
+        IF ( dolabels ) THEN ! compute SGS terms
 
-          rmp = 1.0_GP/(real(nx,kind=GP)* &
-                real(ny,kind=GP)*real(nz,kind=GP))
+          rmp = 1.0_GP/ &
+                (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
           CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 !         CALL MPI_BARRIER(commtrunc, ierr)
           if (myrank.eq.0) write(*,*) ' starting SGS terms...'
@@ -1718,18 +1719,38 @@
              CT2 = CT6
              CT3 = CT7
           ENDIF
+
           CALL fftp3d_complex_to_real(plancrt,CT1,RT1)
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
             CALL io_write(1,odir,trim(sfpref(1)),ext,planiot,RT1)
           ENDIF
-          CALL fftp3d_complex_to_real(plancrt,CT2,RT1)
+          CALL fftp3d_complex_to_real(plancrt,CT2,RT2)
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
-            CALL io_write(1,odir,trim(sfpref(2)),ext,planiot,RT1)
+            CALL io_write(1,odir,trim(sfpref(2)),ext,planiot,RT2)
           ENDIF
-          CALL fftp3d_complex_to_real(plancrt,CT3,RT1)
+          CALL fftp3d_complex_to_real(plancrt,CT3,RT3)
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
-            CALL io_write(1,odir,trim(sfpref(3)),ext,planiot,RT1)
+            CALL io_write(1,odir,trim(sfpref(3)),ext,planiot,RT3)
           ENDIF
+
+          ! Now compute u_i SGS^i scalars and output:
+          CT1 = vx; CT1 = CT1 * rmp
+          CALL fftp3d_complex_to_real(plancrt,CT1,RT4)
+          RT1 = RT1 * RT4 ! vx SGSx; RT1 accumulates injection energy
+
+          CT1 = vy; CT1 = CT1 * rmp
+          CALL fftp3d_complex_to_real(plancrt,CT1,RT4)
+          RT2 = RT2 * RT4 ! vy SGSy
+          RT1 = RT1 + RT2 
+
+          CT1 = vz; CT1 = CT1 * rmp
+          CALL fftp3d_complex_to_real(plancrt,CT1,RT4)
+          RT3 = RT3 * RT4 ! vz SGSz
+          RT1 = RT1 + RT3
+          IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
+            CALL io_write(1,odir,'uSGSinj_T',ext,planiot,RT1)
+          ENDIF
+
         ! Energy component:
           CALL sgs  %sgsth(vx,vy,vz,th,C1,C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
@@ -1738,13 +1759,22 @@
           CALL sgstr%dealias(CT3,trtraits%ktrunc)
           CT3 = CT3 * rmp ! normalize
           CT3 = CT3 - CT1
-          CALL fftp3d_complex_to_real(plancrt,CT3,RT1)
+          CALL fftp3d_complex_to_real(plancrt,CT3,RT4)
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
-            CALL io_write(1,odir,"SGSth_T",ext,planiot,RT1)
+            CALL io_write(1,odir,"SGSth_T",ext,planiot,RT4)
           ENDIF
+
+          CT1 = th; CT1 = CT1 * rmp
+          CALL fftp3d_complex_to_real(plancrt,CT1,RT1)
+          RT1 = RT1 * RT4 ! th  SGSth
+          IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
+            CALL io_write(1,odir,'thSGSinj_T',ext,planiot,RT1)
+          ENDIF
+
           write(*,*) myrank,  'SGS terms done.'
         ENDIF
 
+ 
         write(*,*) myrank, ' done: index=', ext
       
 !       CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
@@ -1842,6 +1872,7 @@
 #endif
 
       DEALLOCATE( R4,R5,R6 )
+      DEALLOCATE( RT1,RT2,RT3,RT4 )
 
       END PROGRAM MAIN3D
 
