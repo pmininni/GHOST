@@ -2992,7 +2992,7 @@ endif
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       CALL compute_bflux(vz,th, gparams%bvfreq,C1,R1,bf) ! Bf = N w' theta'
       if ( gparams%prtbin .eq.1 ) then
-      CALL io_write(1,odir,'bf',ext,planio,R1)
+      CALL io_write(1,odir,'bf',ext,planio,bf)
       endif
       fnout = trim(odir) // '/' // 'bfpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'bflux' 
