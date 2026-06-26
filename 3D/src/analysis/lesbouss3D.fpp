@@ -1733,7 +1733,7 @@
             CALL io_write(1,odir,trim(sfpref(3)),ext,planiot,RT3)
           ENDIF
 
-          ! Now compute u_i SGS^i scalars and output:
+          ! Now compute u_i SGS^i injection scalars and output:
           CT1 = vx; CT1 = CT1 * rmp
           CALL fftp3d_complex_to_real(plancrt,CT1,RT4)
           RT1 = RT1 * RT4 ! vx SGSx; RT1 accumulates injection energy
@@ -1741,12 +1741,12 @@
           CT1 = vy; CT1 = CT1 * rmp
           CALL fftp3d_complex_to_real(plancrt,CT1,RT4)
           RT2 = RT2 * RT4 ! vy SGSy
-          RT1 = RT1 + RT2 
+          RT1 = RT1 + RT2 ! accumulate
 
           CT1 = vz; CT1 = CT1 * rmp
           CALL fftp3d_complex_to_real(plancrt,CT1,RT4)
           RT3 = RT3 * RT4 ! vz SGSz
-          RT1 = RT1 + RT3
+          RT1 = RT1 + RT3 ! accumulate
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
             CALL io_write(1,odir,'uSGSinj_T',ext,planiot,RT1)
           ENDIF
