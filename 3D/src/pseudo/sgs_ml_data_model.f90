@@ -120,6 +120,7 @@ MODULE class_GSGSmodel
         PROCEDURE,PUBLIC :: sgs_model         => GSGS_compute_model
         PROCEDURE,PUBLIC :: prtspectra        => GSGS_prtspectra
         PROCEDURE,PUBLIC :: prtinject         => GSGS_prtinject
+        PROCEDURE,PUBLIC :: prtbininject      => GSGS_prtbininject
 
       END TYPE GSGSmodel
 
@@ -1412,6 +1413,76 @@ MODULE class_GSGSmodel
 
      END SUBROUTINE GSGS_prtspectra
 
+
+!*****************************************************************
+     SUBROUTINE GSGS_prtbininject(this, v1, v2, v3, th, SGS1, SGS2, SGS3, SGSth, ext, C1, C2, R1, R2, R3)
+!-----------------------------------------------------------------
+! Print energy injection rate fields to files
+!  NOTE: This method does not leverage threading
+! Parameters
+!     vi, th  : primitive fields
+!     SGSi    : SGS terms
+!     ext     : character cycle number
+!     Ci      : complex tmp arrays
+!     Ri      : real tmp arrays
+!-----------------------------------------------------------------
+
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE filefmt
+      USE boxsize
+!$    USE threads
+      IMPLICIT NONE
+
+      class(GSGSmodel), INTENT(INOUT)     :: this
+      COMPLEX(KIND=GP), INTENT  (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: v1, v2, v3, th
+      COMPLEX(KIND=GP), INTENT  (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: SGS1,SGS2,SGS3, SGSth
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1,C2
+      REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1,R2,R3
+      CHARACTER(len=*), INTENT(IN) :: ext
+
+      tmp = 1.0_GP/ &
+            (real(this%nx,kind=GP)*real(this%ny,kind=GP)*real(this%nz,kind=GP))
+
+      ! Compute u_i SGS^i for kinetic terms:
+      C1 = v1  ; C1 = C1 * tmp;
+      C2 = SGS1; C2 = C2 * tmp;
+      CALL fftp3d_complex_to_real(this%plancr,C1,R1)
+      CALL fftp3d_complex_to_real(this%plancr,C1,R2)
+      R1 = R1 * R2
+
+      C1 = v2  ; C1 = C1 * tmp;
+      C2 = SGS2; C2 = C2 * tmp;
+      CALL fftp3d_complex_to_real(this%plancr,C1,R2)
+      CALL fftp3d_complex_to_real(this%plancr,C2,R3)
+      R2 = R2 * R3
+      R1 = R1 + R2
+
+      C1 = v3  ; C1 = C1 * tmp;
+      C2 = SGS3; C2 = C2 * tmp;
+      CALL fftp3d_complex_to_real(this%plancr,C1,R2)
+      CALL fftp3d_complex_to_real(this%plancr,C2,R3)
+      R2 = R2 * R3
+      R1 = R1 + R2
+
+      CALL io_write(1,this%modelTraits_%odir,'uSGSinj',ext,this%modelTraits_%planio,R1)
+
+      ! Compute u SGSth term:
+      C1 = th   ; C1 = C1 * tmp;
+      C2 = SGSth; C2 = C2 * tmp;
+      CALL fftp3d_complex_to_real(this%plancr,C1,R1)
+      CALL fftp3d_complex_to_real(this%plancr,C1,R2)
+      R1 = R1 * R2
+      CALL io_write(1,this%modelTraits_%odir,'thSGSinj',ext,this%modelTraits_%planio,R1)
+
+      END SUBROUTINE GSGS_prtbininject
+
+
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
 
 !*****************************************************************
      SUBROUTINE GSGS_prtinject(this, v1, v2, v3, SGS1, SGS2, SGS3, t, dt, fname)

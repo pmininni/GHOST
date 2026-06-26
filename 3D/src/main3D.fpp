@@ -3248,6 +3248,13 @@
        CALL io_write(1,odir,'rho',ext,planio,R3)
     ENDIF
 #endif
+
+     IF ( use_mlsgs ) THEN
+        CALL mlsgs%prtbininject(vx, vy, vz, th, &
+                                SGS1, SGS2, SGS3, SGSth, ext &
+                                C1SGS , C2SGS , R1, R2, R3)
+     ENDIF
+
  ENDIF
 
 #ifdef PART_
