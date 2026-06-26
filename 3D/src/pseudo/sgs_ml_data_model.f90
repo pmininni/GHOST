@@ -1415,14 +1415,14 @@ MODULE class_GSGSmodel
 
 
 !*****************************************************************
-     SUBROUTINE GSGS_prtbininject(this, v1, v2, v3, th, SGS1, SGS2, SGS3, SGSth, ext, C1, C2, R1, R2, R3)
+     SUBROUTINE GSGS_prtbininject(this, v1, v2, v3, th, SGS1, SGS2, SGS3, SGSth, nmb, C1, C2, R1, R2, R3)
 !-----------------------------------------------------------------
 ! Print energy injection rate fields to files
 !  NOTE: This method does not leverage threading
 ! Parameters
 !     vi, th  : primitive fields
 !     SGSi    : SGS terms
-!     ext     : character cycle number
+!     nmb     : character cycle number
 !     Ci      : complex tmp arrays
 !     Ri      : real tmp arrays
 !-----------------------------------------------------------------
@@ -1442,7 +1442,8 @@ MODULE class_GSGSmodel
       COMPLEX(KIND=GP), INTENT  (IN), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: SGS1,SGS2,SGS3, SGSth
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(this%nz,this%ny,this%ista:this%iend) :: C1,C2
       REAL(KIND=GP)   , INTENT(INOUT), DIMENSION(this%nx,this%ny,this%ksta:this%kend) :: R1,R2,R3
-      CHARACTER(len=*), INTENT(IN) :: ext
+      REAL(KIND=GP)                :: tmp
+      CHARACTER(len=*), INTENT(IN) :: nmb
 
       tmp = 1.0_GP/ &
             (real(this%nx,kind=GP)*real(this%ny,kind=GP)*real(this%nz,kind=GP))
@@ -1468,7 +1469,7 @@ MODULE class_GSGSmodel
       R2 = R2 * R3
       R1 = R1 + R2
 
-      CALL io_write(1,this%modelTraits_%odir,'uSGSinj',ext,this%modelTraits_%planio,R1)
+      CALL io_write(1,this%modelTraits_%odir,'uSGSinj',nmb,this%modelTraits_%planio,R1)
 
       ! Compute u SGSth term:
       C1 = th   ; C1 = C1 * tmp;
@@ -1476,7 +1477,7 @@ MODULE class_GSGSmodel
       CALL fftp3d_complex_to_real(this%plancr,C1,R1)
       CALL fftp3d_complex_to_real(this%plancr,C1,R2)
       R1 = R1 * R2
-      CALL io_write(1,this%modelTraits_%odir,'thSGSinj',ext,this%modelTraits_%planio,R1)
+      CALL io_write(1,this%modelTraits_%odir,'thSGSinj',nmb,this%modelTraits_%planio,R1)
 
       END SUBROUTINE GSGS_prtbininject
 

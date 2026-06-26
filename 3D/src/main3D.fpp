@@ -3251,7 +3251,7 @@
 
      IF ( use_mlsgs ) THEN
         CALL mlsgs%prtbininject(vx, vy, vz, th, &
-                                SGS1, SGS2, SGS3, SGSth, ext &
+                                SGS1, SGS2, SGS3, SGSth, ext, &
                                 C1SGS , C2SGS , R1, R2, R3)
      ENDIF
 
