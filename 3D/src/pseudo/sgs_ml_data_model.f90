@@ -1452,7 +1452,7 @@ MODULE class_GSGSmodel
       C1 = v1  ; C1 = C1 * tmp;
       C2 = SGS1; C2 = C2 * tmp;
       CALL fftp3d_complex_to_real(this%plancr,C1,R1)
-      CALL fftp3d_complex_to_real(this%plancr,C1,R2)
+      CALL fftp3d_complex_to_real(this%plancr,C2,R2)
       R1 = R1 * R2
 
       C1 = v2  ; C1 = C1 * tmp;
@@ -1475,7 +1475,7 @@ MODULE class_GSGSmodel
       C1 = th   ; C1 = C1 * tmp;
       C2 = SGSth; C2 = C2 * tmp;
       CALL fftp3d_complex_to_real(this%plancr,C1,R1)
-      CALL fftp3d_complex_to_real(this%plancr,C1,R2)
+      CALL fftp3d_complex_to_real(this%plancr,C2,R2)
       R1 = R1 * R2
       CALL io_write(1,this%modelTraits_%odir,'thSGSinj',nmb,this%modelTraits_%planio,R1)
 
