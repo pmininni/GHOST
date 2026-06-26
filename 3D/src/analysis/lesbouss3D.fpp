@@ -347,7 +347,7 @@
 
       ! App data:
       COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: vxt,vyt,vzt,tht
-      COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: CT1,CT2,CT3,CT4,CT5,CT6
+      COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: CT1,CT2,CT3,CT4,CT5,CT6,CT7
       REAL(KIND=GP)   , ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: RT1,RT2,RT3
       REAL(KIND=GP)       :: filtparam ! filter parameter
       INTEGER             :: ftype, istat(4096), npkeep, nstat
@@ -1576,6 +1576,7 @@
       ALLOCATE( CT4(nzt,nyt,itsta:itend))
       ALLOCATE( CT5(nzt,nyt,itsta:itend))
       ALLOCATE( CT6(nzt,nyt,itsta:itend))
+      ALLOCATE( CT7(nzt,nyt,itsta:itend))
       ALLOCATE( RT1(nxt,nyt,ktsta:ktend))
       ALLOCATE( RT2(nxt,nyt,ktsta:ktend))
       ALLOCATE( RT3(nxt,nyt,ktsta:ktend))
@@ -1682,40 +1683,40 @@
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,1, C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
           CALL sgstr%dealias(CT1,trtraits%ktrunc)
-          CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,1, CT4)
-          CALL sgstr%dealias(CT4,trtraits%ktrunc)
-          CT4 = CT4 * rmp ! normalize
+          CALL sgstr%sgsv(vxt,vyt,vzt,CT2,CT3,CT4,1, CT5)
+          CALL sgstr%dealias(CT5,trtraits%ktrunc)
+          CT5 = CT5 * rmp ! normalize
 !         write(*,*) '       lesbouss: x-sgsvtr done.'
-          CT4 = CT4 - CT1
+          CT5 = CT5 - CT1
 
 !         write(*,*) 'lesbouss: calling sgsvy...'
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,2, C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
-          CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,2, CT5)
+          CALL sgstr%sgsv(vxt,vyt,vzt,CT2,CT3,CT4,2, CT6)
           CALL sgstr%dealias(CT1,trtraits%ktrunc)
-          CALL sgstr%dealias(CT5,trtraits%ktrunc)
-          CT5 = CT5 * rmp ! normalize
+          CALL sgstr%dealias(CT6,trtraits%ktrunc)
+          CT6 = CT6 * rmp ! normalize
 !         write(*,*) '       lesbouss: y-sgsvtr done.'
 !         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
-          CT5 = CT5 - CT1
+          CT6 = CT6 - CT1
 
 !         write(*,*) 'lesbouss: calling sgsvz...'
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,3, C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
-          CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,3, CT6)
+          CALL sgstr%sgsv(vxt,vyt,vzt,CT2,CT3,CT4,3, CT7)
           CALL sgstr%dealias(CT1,trtraits%ktrunc)
-          CALL sgstr%dealias(CT6,trtraits%ktrunc)
-          CT6 = CT6 * rmp ! normalize
+          CALL sgstr%dealias(CT7,trtraits%ktrunc)
+          CT7 = CT7 * rmp ! normalize
 !         write(*,*) '       lesbouss: z-sgsvtr done.'
-          CT6 = CT6 - CT1
+          CT7 = CT7 - CT1
 
 
           IF ( doprojection ) THEN
-            CALL sgstr%project3(CT4,CT5,CT6,CT1,CT2,CT3)
+            CALL sgstr%project3(CT5,CT6,CT7,CT1,CT2,CT3)
           ELSE
-             CT1 = CT4
-             CT2 = CT5
-             CT3 = CT6
+             CT1 = CT5
+             CT2 = CT6
+             CT3 = CT7
           ENDIF
           CALL fftp3d_complex_to_real(plancrt,CT1,RT1)
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
@@ -1737,7 +1738,7 @@
           CALL sgstr%dealias(CT3,trtraits%ktrunc)
           CT3 = CT3 * rmp ! normalize
           CT3 = CT3 - CT1
-          CALL fftp3d_complex_to_real(plancrt,CT4,RT1)
+          CALL fftp3d_complex_to_real(plancrt,CT3,RT1)
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
             CALL io_write(1,odir,"SGSth_T",ext,planiot,RT1)
           ENDIF
@@ -1781,7 +1782,7 @@
       DEALLOCATE( RT1 )
 
       DEALLOCATE( C1,C2,C3,C4,C5,C6,C7,C8 )
-      DEALLOCATE( CT1,CT2,CT3,CT4,CT5,CT6 )
+      DEALLOCATE( CT1,CT2,CT3,CT4,CT5,CT6,CT7 )
       DEALLOCATE( kx,ky,kz )
       IF (anis.eq.1) THEN
          DEALLOCATE( kk2 )
