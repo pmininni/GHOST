@@ -15,7 +15,7 @@ $(OBJS):
 regridutils.o:
 	$(COMPILE) regridutils.f90
 gutils_mod.o:
-	$(COMPILE) ../pseudo/gutils_mod.f90
+	$(COMPILE) gutils_mod.f90
 gtrunc_mod.o:
 	$(COMPILE) gtrunc_mod.f90
 gtimer_mod.o:
@@ -28,8 +28,8 @@ edit:
            gutils_mod.fpp -o gutils_mod.f90
 	$(CPP) -DG$(PRECISION)_PRECISION $(CUDA_GHOST$(P_CUDA)) -I../fftp-3 \
            -I../pseudo -I../ gtrunc_mod.fpp -o gtrunc_mod.f90
-	$(CPP) -DG$(PRECISION)_PRECISION $(CUDA_GHOST$(P_CUDA)) -I../fftp-3 \
-           -I../pseudo -I../ gtimer_mod.fpp -o gtimer_mod.f90
+#	$(CPP) -DG$(PRECISION)_PRECISION $(CUDA_GHOST$(P_CUDA)) -I../fftp-3 \
+#           -I../pseudo -I../ gtimer_mod.fpp -o gtimer_mod.f90
 
 clean:
 	rm -f *.o *.d *.s *.int *.inf *.mod *.modmic work.pc* ifc* \
