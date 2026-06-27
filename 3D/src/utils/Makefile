@@ -21,14 +21,15 @@ gtrunc_mod.o:
 gtimer_mod.o:
 	$(COMPILE) gtimer_mod.f90
 
+
 edit:
-	$(CPP) -DG$(PRECISION)_PRECISION $(CUDA_GHOST$(P_CUDA)) -I../fftp-3 \
+	$(CPP) -DG$(PRECISION)_PRECISION -I../fftp-3 \
            regridutils.fpp -o regridutils.f90
-	$(CPP) -DG$(PRECISION)_PRECISION $(CUDA_GHOST$(P_CUDA)) -I../fftp-3 \
+	$(CPP) -DG$(PRECISION)_PRECISION -I../fftp-3 \
            gutils_mod.fpp -o gutils_mod.f90
-	$(CPP) -DG$(PRECISION)_PRECISION $(CUDA_GHOST$(P_CUDA)) -I../fftp-3 \
+	$(CPP) -DG$(PRECISION)_PRECISION -I../fftp-3 \
            -I../pseudo -I../ gtrunc_mod.fpp -o gtrunc_mod.f90
-	$(CPP) -DG$(PRECISION)_PRECISION $(CUDA_GHOST$(P_CUDA)) -I../fftp-3 \
+#	$(CPP) -DG$(PRECISION)_PRECISION $(CUDA_GHOST$(P_CUDA)) -I../fftp-3 \
            -I../pseudo -I../ gtimer_mod.fpp -o gtimer_mod.f90
 
 clean:
