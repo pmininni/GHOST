@@ -225,59 +225,59 @@ GIO            = $(IOLIB)/binary_io.o
 #all: edit $(CONTRIBOBJS) $(GTIMER) $(GUTILS) $(FFTPDIR)/fftp3D.o  \
 #	  $(OBJS) $(GUTILS) $(GIO) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
 all: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o  \
-	  $(GIO) $(OBJS) $(GUTILS) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
+	  $(GIO) $(OBJS) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
 
 main: all
 
 trans triad: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) \
-        $(GUTILS) $(GIO) $(TRAN_OBJS)
+        $(GIO) $(TRAN_OBJS)
 	$(MAKE) $@$(SOLVER)
 	$(MAKE) undo
 
 cancel: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) \
-           $(GUTILS) $(GIO)
+           $(GIO)
 	$(MAKE) $@$(SOLVER)
 	$(MAKE) undo
 
 struc:	edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) \
-	   $(GUTILS) $(GIO) $(STRU_OBJS)
+	   $(GIO) $(STRU_OBJS)
 	$(MAKE) $@$(SOLVER)
 	$(MAKE) undo
 
 trunc:	edit $(GTIMER) $(FFTPDIR)/fftp3D.o  \
-	   $(OBJS) $(GUTILS) $(GIO) $(GREGRID)
+	   $(OBJS) $(GIO) $(GREGRID)
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
 	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o  \
-	   $(GTIMER) $(GUTILS) $(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
+	   $(GTIMER) $(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
 boots:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) \
-	   $(GUTILS) $(GIO) $(GREGRID)
+	   $(GIO) $(GREGRID)
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
 	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o \
-	   $(GTIMER) $(GUTILS) $(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
+	   $(GTIMER)$(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
 lesbouss: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o  \
-      $(OBJS) $(GUTILS) $(GIO) $(GREGRID)
+      $(OBJS) $(GIO) $(GREGRID)
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
 	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o  \
-	   $(GTIMER) $(GUTILS) $(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
+	   $(GTIMER) $(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
 sgsbouss: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o  \
-      $(OBJS) $(GUTILS) $(GIO) $(GREGRID)
+      $(OBJS) $(GIO) $(GREGRID)
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
 	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o  \
-	   $(GTIMER) $(GUTILS) $(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
+	   $(GTIMER) $(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
 vt:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o \
@@ -309,7 +309,7 @@ wv:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) $(GIO) $(GUTILS)
 clean:  undo
 	rm -f *.o *.d *.s *.int *.inf *.mod *.modmic work.pc* ifc*
 	rm -f $(OBJSDIR)/pseudospec3D_mod.f90
-	rm -f $(OBJSDIR)/gutils_mod.f90
+	rm -f $(UTILS)/gutils_mod.f90
 	for dir in $(SUBDIRS); do \
             cd $$dir && $(MAKE) clean && cd .. ; \
         done
@@ -328,14 +328,16 @@ dist:
 edit:
 	$(CPP) -DNX_=$(NX) -DNY_=$(NY) -DNZ_=$(NZ) -DORD_=$(ORD) \
 	   $(OBJSDIR)/pseudospec3D_mod.fpp -o $(OBJSDIR)/pseudospec3D_mod.f90
-#	$(CPP) -DNX_=$(NX) -DNY_=$(NY) -DNZ_=$(NZ) -DORD_=$(ORD) \
-#	   $(UTILS)/regridutils.fpp -o $(OBJSDIR)/regridutils.f90
 	cd $(FFTPDIR) && $(MAKE) edit CPP='$(CPP)' IKIND='$(IKIND)' \
 	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)' \
            NSTREAMS='$(NSTREAMS)' DO_HYBRID='DO_HYBRID$(P_HYBRID)'
 	cd ../
+	cd $(UTILS) && $(MAKE) edit CPP='$(CPP)' IKIND='$(IKIND)' \
+           CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)' \
+           NSTREAMS='$(NSTREAMS)' DO_HYBRID='DO_HYBRID$(P_HYBRID)'
+	cd ../
 	$(CPP) -DNX_=$(NX) -DNY_=$(NY) -DNZ_=$(NZ) -DORD_=$(ORD) \
-	    $(UTILS)/gutils_mod.fpp -o $(OBJSDIR)/gutils_mod.f90
+ 	    $(UTILS)/gutils_mod.fpp -o $(OBJSDIR)/gutils_mod.f90
 	cd $(LAGP) && $(MAKE) edit CPP='$(CPP)' CSIZE='$(CSIZE)' \
 	   NSTRIP='$(NSTRIP)' DO_HYBRID='DO_HYBRID$(P_HYBRID)'
 	cd ../
