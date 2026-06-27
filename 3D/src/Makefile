@@ -232,39 +232,21 @@ struc:	edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) \
 	$(MAKE) undo
 
 trunc:	edit $(GTIMER) $(FFTPDIR)/fftp3D.o  \
-	   $(OBJS) $(GUTILS) $(GIO) $(GREGRID)
+	   $(OBJS) $(GIO) $(GREGRID)
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
 	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o  \
-	   $(GTIMER) $(GUTILS) $(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
+	   $(GTIMER) $(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
 boots:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) \
-	   $(GUTILS) $(GIO) $(GREGRID)
+	   $(GIO) $(GREGRID)
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
 	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o \
-	   $(GTIMER) $(GUTILS) $(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
-	$(MAKE) undo
-
-lesbouss: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o  \
-      $(OBJS) $(GUTILS) $(GIO) $(GREGRID)
-	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
-	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
-	$(COMPILE) $@.f90 -o $@.o
-	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o  \
-	   $(GTIMER) $(GUTILS) $(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
-	$(MAKE) undo
-
-sgsbouss: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o  \
-      $(OBJS) $(GUTILS) $(GIO) $(GREGRID)
-	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
-	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
-	$(COMPILE) $@.f90 -o $@.o
-	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o  \
-	   $(GTIMER) $(GUTILS) $(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
+	   $(GTIMER) $(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
 vt:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o \
@@ -286,7 +268,7 @@ compi:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o \
 	$(MAKE) undo
 
 voigt:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o  analysis/voigt_params_mod.o\
-	   $(OBJS) $(GIO) $(GUTILS)
+	   $(OBJS) $(GIO) 
 	$(COMPILE) analysis/voigt_params_mod.f90 -o analysis/voigt_params_mod.o
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
 	   -I$(GHOME) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
@@ -324,8 +306,12 @@ edit:
 	$(CPP) -DNX_=$(NX) -DNY_=$(NY) -DNZ_=$(NZ) -DORD_=$(ORD) \
 	   $(OBJSDIR)/pseudospec3D_mod.fpp -o $(OBJSDIR)/pseudospec3D_mod.f90
 #	$(CPP) -DNX_=$(NX) -DNY_=$(NY) -DNZ_=$(NZ) -DORD_=$(ORD) \
-#	   $(UTILS)/regridutils.fpp -o $(OBJSDIR)/regridutils.f90
+ 	   $(UTILS)/regridutils.fpp -o $(OBJSDIR)/regridutils.f90
 	cd $(FFTPDIR) && $(MAKE) edit CPP='$(CPP)' IKIND='$(IKIND)' \
+	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)' \
+           NSTREAMS='$(NSTREAMS)' DO_HYBRID='DO_HYBRID$(P_HYBRID)'
+	cd ../
+	cd $(UTILS) && $(MAKE) edit CPP='$(CPP)' IKIND='$(IKIND)' \
 	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)' \
            NSTREAMS='$(NSTREAMS)' DO_HYBRID='DO_HYBRID$(P_HYBRID)'
 	cd ../
