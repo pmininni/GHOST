@@ -347,9 +347,10 @@
 
       ! App data:
       COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: vxt,vyt,vzt,tht
-      COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: CT1,CT2,CT3,CT4,CT5,CT6
-      REAL(KIND=GP)   , ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: RT1,RT2,RT3
-      INTEGER             :: istat(4096), npkeep, nstat
+      COMPLEX(KIND=GP), ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: CT1,CT2,CT3,CT4,CT5,CT6,CT7
+      REAL(KIND=GP)   , ALLOCATABLE, TARGET, DIMENSION (:,:,:) :: RT1,RT2,RT3,RT4
+      REAL(KIND=GP)       :: filtparam ! filter parameter
+      INTEGER             :: ftype, istat(4096), npkeep, nstat
       INTEGER             :: commtrunc, grouptrunc, n(3), nt(3)
       LOGICAL             :: dolabels, doprojection, dotraining
       CHARACTER(len=1024) :: iidir, sparam
@@ -447,7 +448,7 @@
 #endif
 
       ! App NAMELIST
-      NAMELIST / regrid / idir, odir, sstat, iswap, nxt, nyt, nzt, dolabels, doprojection, dotraining
+      NAMELIST / regrid / idir, odir, sstat, iswap, nxt, nyt, nzt, dolabels, doprojection, dotraining, ftype, filtparam
 
 
 !
@@ -634,6 +635,9 @@
 !     nxt    : truncated linear size in x direction
 !     nyt    : truncated linear size in y direction
 !     nzt    : truncated linear size in z direction
+!     ftype  : filter type: Helmholz (0), Gaussian (1). 
+!              None, if ftype < 0.
+!     filtparam : filter parameter (real cutoff length)
       idir   = '.'
       odir   = '.'
       sstat  = ''
@@ -644,6 +648,8 @@
       dolabels    = .true.
       dotraining  = .true.
       doprojection= .false.
+      ftype  = -1 
+      filtparam = 0.0
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='lesml.inp',status='unknown')
@@ -661,6 +667,9 @@
       CALL MPI_BCAST(dolabels    ,1   ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(doprojection,1   ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(dotraining  ,1   ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dotraining  ,1   ,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ftype       ,1   ,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(filtparam   ,1   ,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
 
 
       ! Check input quantities:
@@ -1567,9 +1576,11 @@
       ALLOCATE( CT4(nzt,nyt,itsta:itend))
       ALLOCATE( CT5(nzt,nyt,itsta:itend))
       ALLOCATE( CT6(nzt,nyt,itsta:itend))
+      ALLOCATE( CT7(nzt,nyt,itsta:itend))
       ALLOCATE( RT1(nxt,nyt,ktsta:ktend))
       ALLOCATE( RT2(nxt,nyt,ktsta:ktend))
       ALLOCATE( RT3(nxt,nyt,ktsta:ktend))
+      ALLOCATE( RT4(nxt,nyt,ktsta:ktend))
       trtraits%planiot   = planiot
       trtraits%plancrt   = plancrt
       IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
@@ -1602,10 +1613,10 @@
 
       
        write(*,*) myrank, ' instantiate sgs  ...'
-      CALL sgs  %GSGS_ctor(MPI_COMM_WORLD, (/nx ,ny ,nz /), (/ista,iend,ksta,kend/), arbsz, (/Dkx,Dky,Dkz/), plancr, planrc )
+      CALL sgs  %GSGS_ctor(MPI_COMM_WORLD, (/nx ,ny ,nz /), (/ista,iend,ksta,kend/), arbsz, (/Dkx,Dky,Dkz/), Dkk, plancr, planrc )
 
        write(*,*) myrank, ' instantiate sgstr  ...'
-      CALL sgstr%GSGS_ctor(commtrunc, (/nxt,nyt,nzt/), (/itsta,itend,ktsta,ktend/), arbsz, (/Dkx,Dky,Dkz/), plancrt, planrct )
+      CALL sgstr%GSGS_ctor(commtrunc, (/nxt,nyt,nzt/), (/itsta,itend,ktsta,ktend/), arbsz, (/Dkx,Dky,Dkz/), Dkk, plancrt, planrct )
       DO k = 1,3
         IF ( doprojection ) THEN
           write(sfpref(k),"(A3,I1,A)") "SGS", k,"_TP"
@@ -1643,6 +1654,10 @@
         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
         if (myrank.eq.0) write(*,*) ' data loaded: index=', ext
 
+        if (myrank.eq.0) write(*,*) ' calling filter...'
+        CALL bouss_filter(vx,vy,vz,th,ftype,filtparam,C1,C2,C3)
+        if (myrank.eq.0) write(*,*) ' filter done.', ext
+
 #if defined(BOUSSINESQ_)
         IF ( dotraining ) THEN
 !         CALL MPI_BARRIER(commtrunc, ierr)
@@ -1654,69 +1669,112 @@
 #endif
         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 
-        IF ( dolabels ) THEN
+        IF ( dolabels ) THEN ! compute SGS terms
+
+          rmp = 1.0_GP/ &
+                (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
           CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 !         CALL MPI_BARRIER(commtrunc, ierr)
           if (myrank.eq.0) write(*,*) ' starting SGS terms...'
           CALL trunc(vx, n, nt, trtraits%ktrunc, 1, C1, vxt) 
           CALL trunc(vy, n, nt, trtraits%ktrunc, 1, C1, vyt) 
           CALL trunc(vz, n, nt, trtraits%ktrunc, 1, C1, vzt) 
-
           ! Momentum components:
 !         write(*,*) 'lesbouss: calling sgsvx...'
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,1, C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
-          CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,1, CT4)
+          CALL sgstr%dealias(CT1,trtraits%ktrunc)
+          CALL sgstr%sgsv(vxt,vyt,vzt,CT2,CT3,CT4,1, CT5)
+          CALL sgstr%dealias(CT5,trtraits%ktrunc)
+          CT5 = CT5 * rmp ! normalize
 !         write(*,*) '       lesbouss: x-sgsvtr done.'
-          CT4 = CT4 - CT1
+          CT5 = CT5 - CT1
 
 !         write(*,*) 'lesbouss: calling sgsvy...'
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,2, C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
-          CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,2, CT5)
+          CALL sgstr%sgsv(vxt,vyt,vzt,CT2,CT3,CT4,2, CT6)
+          CALL sgstr%dealias(CT1,trtraits%ktrunc)
+          CALL sgstr%dealias(CT6,trtraits%ktrunc)
+          CT6 = CT6 * rmp ! normalize
 !         write(*,*) '       lesbouss: y-sgsvtr done.'
 !         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
-          CT5 = CT5 - CT1
+          CT6 = CT6 - CT1
 
 !         write(*,*) 'lesbouss: calling sgsvz...'
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,3, C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
-          CALL sgstr%sgsv(vxt,vyt,vzt,CT1,CT2,CT3,3, CT6)
+          CALL sgstr%sgsv(vxt,vyt,vzt,CT2,CT3,CT4,3, CT7)
+          CALL sgstr%dealias(CT1,trtraits%ktrunc)
+          CALL sgstr%dealias(CT7,trtraits%ktrunc)
+          CT7 = CT7 * rmp ! normalize
 !         write(*,*) '       lesbouss: z-sgsvtr done.'
-          CT6 = CT6 - CT1
+          CT7 = CT7 - CT1
 
 
           IF ( doprojection ) THEN
-            CALL sgstr%project3(CT4,CT5,CT6,CT1,CT2,CT3)
+            CALL sgstr%project3(CT5,CT6,CT7,CT1,CT2,CT3)
           ELSE
-             CT1 = CT4
-             CT2 = CT5
-             CT3 = CT6
+             CT1 = CT5
+             CT2 = CT6
+             CT3 = CT7
           ENDIF
+
           CALL fftp3d_complex_to_real(plancrt,CT1,RT1)
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
             CALL io_write(1,odir,trim(sfpref(1)),ext,planiot,RT1)
           ENDIF
-          CALL fftp3d_complex_to_real(plancrt,CT2,RT1)
+          CALL fftp3d_complex_to_real(plancrt,CT2,RT2)
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
-            CALL io_write(1,odir,trim(sfpref(2)),ext,planiot,RT1)
+            CALL io_write(1,odir,trim(sfpref(2)),ext,planiot,RT2)
           ENDIF
-          CALL fftp3d_complex_to_real(plancrt,CT3,RT1)
+          CALL fftp3d_complex_to_real(plancrt,CT3,RT3)
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
-            CALL io_write(1,odir,trim(sfpref(3)),ext,planiot,RT1)
+            CALL io_write(1,odir,trim(sfpref(3)),ext,planiot,RT3)
           ENDIF
+
+          ! Now compute u_i SGS^i injection scalars and output:
+          CT1 = vx; CT1 = CT1 * rmp
+          CALL fftp3d_complex_to_real(plancrt,CT1,RT4)
+          RT1 = RT1 * RT4 ! vx SGSx; RT1 accumulates injection energy
+
+          CT1 = vy; CT1 = CT1 * rmp
+          CALL fftp3d_complex_to_real(plancrt,CT1,RT4)
+          RT2 = RT2 * RT4 ! vy SGSy
+          RT1 = RT1 + RT2 ! accumulate
+
+          CT1 = vz; CT1 = CT1 * rmp
+          CALL fftp3d_complex_to_real(plancrt,CT1,RT4)
+          RT3 = RT3 * RT4 ! vz SGSz
+          RT1 = RT1 + RT3 ! accumulate
+          IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
+            CALL io_write(1,odir,'uSGSinj_T',ext,planiot,RT1)
+          ENDIF
+
         ! Energy component:
           CALL sgs  %sgsth(vx,vy,vz,th,C1,C4)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
           CALL sgstr%sgsth(vxt,vyt,vzt,tht,CT2,CT3)
+          CALL sgstr%dealias(CT1,trtraits%ktrunc)
+          CALL sgstr%dealias(CT3,trtraits%ktrunc)
+          CT3 = CT3 * rmp ! normalize
           CT3 = CT3 - CT1
-          CALL fftp3d_complex_to_real(plancrt,CT4,RT1)
+          CALL fftp3d_complex_to_real(plancrt,CT3,RT4)
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
-            CALL io_write(1,odir,"SGSth_T",ext,planiot,RT1)
+            CALL io_write(1,odir,"SGSth_T",ext,planiot,RT4)
           ENDIF
+
+          CT1 = th; CT1 = CT1 * rmp
+          CALL fftp3d_complex_to_real(plancrt,CT1,RT1)
+          RT1 = RT1 * RT4 ! th  SGSth
+          IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
+            CALL io_write(1,odir,'thSGSinj_T',ext,planiot,RT1)
+          ENDIF
+
           write(*,*) myrank,  'SGS terms done.'
         ENDIF
 
+ 
         write(*,*) myrank, ' done: index=', ext
       
 !       CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
@@ -1754,7 +1812,7 @@
       DEALLOCATE( RT1 )
 
       DEALLOCATE( C1,C2,C3,C4,C5,C6,C7,C8 )
-      DEALLOCATE( CT1,CT2,CT3,CT4,CT5,CT6 )
+      DEALLOCATE( CT1,CT2,CT3,CT4,CT5,CT6,CT7 )
       DEALLOCATE( kx,ky,kz )
       IF (anis.eq.1) THEN
          DEALLOCATE( kk2 )
@@ -1814,6 +1872,7 @@
 #endif
 
       DEALLOCATE( R4,R5,R6 )
+      DEALLOCATE( RT1,RT2,RT3,RT4 )
 
       END PROGRAM MAIN3D
 
@@ -1873,6 +1932,7 @@
 
       
       write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' staring th...'
+
 
       ! Truncate input vars, put to disk:
       if (iranktr.eq.0) write(*,*) ' compute th_T...'
@@ -2028,7 +2088,7 @@
       write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' divSz  done.'
 
       CALL rotor3(vy,vz,tr%C1,1)                        ! omega_x=(curl v)_x
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
       IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
         CALL io_write(1,tr%odir,'omx_T',ext,tr%planiot,tr%RT1)
@@ -2036,7 +2096,7 @@
       write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' omx  done.'
 
       CALL rotor3(vz,vx,tr%C1,2)                        ! omega_y=(curl v)_y
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
       IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
         CALL io_write(1,tr%odir,'omy_T',ext,tr%planiot,tr%RT1)
@@ -2044,7 +2104,7 @@
       write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' omy  done.'
 
       CALL rotor3(vx,vy,tr%C1,3)                        ! omega_z=(curl v)_z
-      CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
+      CALL trunc(tr%C1, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1) 
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
       IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
         CALL io_write(1,tr%odir,'omz_T',ext,tr%planiot,tr%RT1)
@@ -2067,5 +2127,103 @@
 !     CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
       END SUBROUTINE bouss_lescomp
+
+
+      SUBROUTINE bouss_filter(vx,vy,vz,th,ftype,alpha,C1,C2,C3)
+!-----------------------------------------------------------------
+! Filter Boussinesq input data
+! ARGS:
+!      vi     : complex velocity components
+!      th     : complex potential temperature
+!      ftype  : complex potential temperature: 0 (Helmholtz), or
+!               1 (Gaussian). A value of -1 means no filtering.
+!      alpha  : filter 'scale': if ftype==0 (Helholtz alpha), this
+!               is 1/k_filter; if ftype=1 (Gaussian), this is
+!               s.t. alpha = pi/k_filter. See pseudo/pseudospec3D_filt
+!               module.
+!      Ci     : complex tmp arrays
+!-----------------------------------------------------------------
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+      USE fftplans
+      USE filefmt
+      USE gtrunc
+      USE gutils
+!$    USE threads
+      IMPLICIT NONE
+
+      INTEGER         , INTENT   (IN)                             :: ftype
+      REAL(KIND=GP)   , INTENT   (IN)                             :: alpha
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: th
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: C1,C2,C3
+!
+      INTEGER                                                     :: i,j,k
+
+      IF ( ftype .lt. 0 ) RETURN ! nothing to do
+
+      IF      ( ftype.eq.0 ) THEN ! Helmholtz
+        CALL smooth3(vx, vy, vz, C1, C2, C3, alpha)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+           DO j = 1,ny
+              DO k = 1,nz
+                 vx(k,j,i) = C1(k,j,i)
+                 vy(k,j,i) = C2(k,j,i)
+                 vz(k,j,i) = C3(k,j,i)
+              END DO
+           END DO
+        END DO
+
+        CALL smooth (th, C1, alpha)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+           DO j = 1,ny
+              DO k = 1,nz
+                 th(k,j,i) = C1(k,j,i)
+              END DO
+           END DO
+        END DO
+      ELSE IF ( ftype.eq.1 ) THEN ! Gaussian
+        CALL gaussian(vx, C1, alpha)
+        CALL gaussian(vy, C2, alpha)
+        CALL gaussian(vz, C3, alpha)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+           DO j = 1,ny
+              DO k = 1,nz
+                 vx(k,j,i) = C1(k,j,i)
+                 vy(k,j,i) = C2(k,j,i)
+                 vz(k,j,i) = C3(k,j,i)
+              END DO
+           END DO
+        END DO
+
+        CALL gaussian(th, C1, alpha)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+        DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+           DO j = 1,ny
+              DO k = 1,nz
+                 th(k,j,i) = C1(k,j,i)
+              END DO
+           END DO
+        END DO
+      ELSE
+        STOP 'bouss_filter: invalid filter type'
+      ENDIF
+
+      RETURN
+
+      END SUBROUTINE bouss_filter
 
 
