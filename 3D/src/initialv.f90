@@ -11,16 +11,13 @@
 ! end, the three components of the velocity in spectral
 ! space should be stored in the arrays vx, vy, and vz.
 
-! Superposition of ABC vortices
+! Superposition of Taylor-Green vortices
 !     kdn : minimum wave number (rounded to next integer)
 !     kup : maximum wave number (rounded to next integer)
-!     vparam0: A amplitude
-!     vparam1: B amplitude
-!     vparam2: C amplitude
 
-      IF ( (abs(Lx-Ly).gt.tinyd).or.(abs(Lx-Lz).gt.tinyd) ) THEN
+      IF ( abs(Lx-Ly).gt.tinyd ) THEN
         IF (myrank.eq.0) &
-           PRINT *,'ABC initial conditions require Lx=Ly=Lz'
+           PRINT *,'TG initial conditions require at least Lx=Ly'
         STOP
       ENDIF
 
@@ -35,25 +32,24 @@
          END DO
       END DO
 
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
 
-            R1(i,j,k) = 0.
-            R2(i,j,k) = 0.
-            R3(i,j,k) = 0.
+            R1(i,j,k) = 0.0_GP
+            R2(i,j,k) = 0.0_GP
 
             DO ki = INT(kdn),INT(kup)
-               R1(i,j,k) = R1(i,j,k)+(vparam1*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
-                          real(ny,kind=GP))+vparam2*SIN(2*pi*ki*(real(k,kind=GP)-1)/ &
-                          real(nz,kind=GP)))/ki**2
-               R2(i,j,k) = R2(i,j,k)+(vparam0*SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
-                          real(nx,kind=GP))+vparam2*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
-                          real(nz,kind=GP)))/ki**2
-               R3(i,j,k) = R3(i,j,k)+(vparam0*COS(2*pi*ki*(real(i,kind=GP)-1)/ &
-                          real(nx,kind=GP))+vparam1*SIN(2*pi*ki*(real(j,kind=GP)-1)/ &
-                          real(ny,kind=GP)))/ki**2
+               R1(i,j,k) = R1(i,j,k)+SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
+                          real(nx,kind=GP))*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
+                          real(ny,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
+                          real(nz,kind=GP))
+               R2(i,j,k) = R2(i,j,k)-COS(2*pi*ki*(real(i,kind=GP)-1)/ &
+                          real(nx,kind=GP))*SIN(2*pi*ki*(real(j,kind=GP)-1)/ &
+                          real(ny,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
+                          real(nz,kind=GP))
             END DO
 
             END DO
@@ -62,12 +58,14 @@
 
       CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
-      CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
+
+! We do not normalize if the want the velocity to be given 
+! just by sine, cosine with amplitude 1
       CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
 
-!#if !defined(DENSITY_)
-!  #error "DENSITY_ not defined"
-!#endif
+#if !defined(DENSITY_)
+#error "DENSITY_ not defined"
+#endif
 
 #if defined(MOM_)
       ! Dealias:
@@ -78,13 +76,11 @@
             DO k = 1,nz
                C1(k,j,i) = vx (k,j,i)
                C2(k,j,i) = vy (k,j,i)
-               C3(k,j,i) = vz (k,j,i)
-               C4(k,j,i) = rho(k,j,i)
+               C3(k,j,i) = rho(k,j,i)
                IF (kn2(k,j,i).gt.kmax) THEN
                   C1 (k,j,i) = 0.0_GP
                   C2 (k,j,i) = 0.0_GP
                   C3 (k,j,i) = 0.0_GP
-                  C4 (k,j,i) = 0.0_GP
                ENDIF
             END DO
          END DO
@@ -93,7 +89,6 @@
       CALL fftp3d_complex_to_real(plancr,C1 ,R1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,C2 ,R2,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,C3 ,R3,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,C4 ,R7,MPI_COMM_WORLD)
 
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
@@ -103,15 +98,13 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               R1(i,j,k) = R1(i,j,k)*R7(i,j,k) * tmp
-               R2(i,j,k) = R2(i,j,k)*R7(i,j,k) * tmp
-               R3(i,j,k) = R3(i,j,k)*R7(i,j,k) * tmp
+               R1(i,j,k) = R1(i,j,k)*R3(i,j,k) * tmp
+               R2(i,j,k) = R2(i,j,k)*R3(i,j,k) * tmp
             END DO
          END DO
       END DO
 
       CALL fftp3d_real_to_complex(planrc,R1,sx,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R2,sy,MPI_COMM_WORLD)
-      CALL fftp3d_real_to_complex(planrc,R3,sz,MPI_COMM_WORLD)
 
 #endif
