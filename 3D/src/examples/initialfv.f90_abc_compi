@@ -93,7 +93,7 @@
       CALL fftp3d_complex_to_real(plancr,C1 ,R1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,C2 ,R2,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,C3 ,R3,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,C4 ,R4,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,C4 ,R7,MPI_COMM_WORLD)
 
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
@@ -103,9 +103,9 @@
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
             DO i = 1,nx
-               R1(i,j,k) = R1(i,j,k)*R4(i,j,k) * tmp
-               R2(i,j,k) = R2(i,j,k)*R4(i,j,k) * tmp
-               R3(i,j,k) = R3(i,j,k)*R4(i,j,k) * tmp
+               R1(i,j,k) = R1(i,j,k)*R7(i,j,k) * tmp
+               R2(i,j,k) = R2(i,j,k)*R7(i,j,k) * tmp
+               R3(i,j,k) = R3(i,j,k)*R7(i,j,k) * tmp
             END DO
          END DO
       END DO
