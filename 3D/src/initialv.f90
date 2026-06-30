@@ -1,17 +1,19 @@
-! Initial condition for the velocity.
+! Initial condition for the momentum density. Density
+! must be set before computing.
+!
 ! This file contains the expression used for the initial 
 ! velocity field. You can use temporary real arrays R1-R3 
-! of size (1:nx,1:ny,ksta:kend) and temporary complex arrays 
-! C1-C8 of size (nz,ny,ista:iend) to do intermediate 
+! of size (1:nx,1:ny,ksta:kend) and temporary complex arrays
+! C1-C8 of size (1:nz,1:ny,ista:iend) to do intermediate
 ! computations. The variable u0 should control the global 
 ! amplitude of the velocity, and variables vparam0-9 can be
 ! used to control the amplitudes of individual terms. At the
 ! end, the three components of the velocity in spectral
 ! space should be stored in the arrays vx, vy, and vz.
 
-! Superposition of ABC flows with k^(-4) spectrum
-!     kdn    : minimum wave number
-!     kup    : maximum wave number
+! Superposition of ABC vortices
+!     kdn : minimum wave number (rounded to next integer)
+!     kup : maximum wave number (rounded to next integer)
 !     vparam0: A amplitude
 !     vparam1: B amplitude
 !     vparam2: C amplitude
@@ -22,7 +24,17 @@
         STOP
       ENDIF
 
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               sz(k,j,i) = 0.0_GP
+               vz(k,j,i) = 0.0_GP
+            END DO
+         END DO
+      END DO
+
       DO k = ksta,kend
 !$omp parallel do if (kend-ksta.lt.nth) private (i)
          DO j = 1,ny
@@ -38,7 +50,7 @@
                           real(nz,kind=GP)))/ki**2
                R2(i,j,k) = R2(i,j,k)+(vparam0*SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
                           real(nx,kind=GP))+vparam2*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
-                          real(nz,kind=GP)))/ki**2 
+                          real(nz,kind=GP)))/ki**2
                R3(i,j,k) = R3(i,j,k)+(vparam0*COS(2*pi*ki*(real(i,kind=GP)-1)/ &
                           real(nx,kind=GP))+vparam1*SIN(2*pi*ki*(real(j,kind=GP)-1)/ &
                           real(ny,kind=GP)))/ki**2
@@ -52,3 +64,54 @@
       CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
       CALL normalize(vx,vy,vz,u0,1,MPI_COMM_WORLD)
+
+!#if !defined(DENSITY_)
+!  #error "DENSITY_ not defined"
+!#endif
+
+#if defined(MOM_)
+      ! Dealias:
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               C1(k,j,i) = vx (k,j,i)
+               C2(k,j,i) = vy (k,j,i)
+               C3(k,j,i) = vz (k,j,i)
+               C4(k,j,i) = rho(k,j,i)
+               IF (kn2(k,j,i).gt.kmax) THEN
+                  C1 (k,j,i) = 0.0_GP
+                  C2 (k,j,i) = 0.0_GP
+                  C3 (k,j,i) = 0.0_GP
+                  C4 (k,j,i) = 0.0_GP
+               ENDIF
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_complex_to_real(plancr,C1 ,R1,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,C2 ,R2,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,C3 ,R3,MPI_COMM_WORLD)
+      CALL fftp3d_complex_to_real(plancr,C4 ,R7,MPI_COMM_WORLD)
+
+      tmp = 1.0_GP/ &
+            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+      DO k = ksta,kend
+!$omp parallel do if (kend-ksta.lt.nth) private (i)
+         DO j = 1,ny
+            DO i = 1,nx
+               R1(i,j,k) = R1(i,j,k)*R7(i,j,k) * tmp
+               R2(i,j,k) = R2(i,j,k)*R7(i,j,k) * tmp
+               R3(i,j,k) = R3(i,j,k)*R7(i,j,k) * tmp
+            END DO
+         END DO
+      END DO
+
+      CALL fftp3d_real_to_complex(planrc,R1,sx,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R2,sy,MPI_COMM_WORLD)
+      CALL fftp3d_real_to_complex(planrc,R3,sz,MPI_COMM_WORLD)
+
+#endif
