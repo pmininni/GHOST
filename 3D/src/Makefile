@@ -56,7 +56,7 @@ LAGPOBJSyes  = $(LAGP)/gpdbrec_mod.o $(LAGP)/gpartcomm_mod.o \
 LAGPOBJSlag  = $(LAGPOBJSyes)
 LAGPOBJSiner = $(LAGPOBJSyes)
 LAGPOBJStest = $(LAGPOBJSyes)
-LAGPOBJSpic  = $(LAGPOBJSyes)#!!!
+LAGPOBJSpic  = $(LAGPOBJSyes)
 LAGPOBJSno   = 
 
 CUDA_GHOSTno =
@@ -152,7 +152,8 @@ CUCOMPILE   = $(CUCC) $(CUGENCODE) $(CUARCH) $(CUINC) -I$(FFTPDIR) \
 BIN         = ../bin
 
 # Objects
-HD_OBJS        = pseudospec3D_mod.o module_dns.o pseudospec3D_hd.o gutils_mod.o 
+GUTILS_OBJS    = pseudospec3D_mod.o gutils_mod.o
+HD_OBJS        = module_dns.o pseudospec3D_hd.o
 PHD_OBJS       = $(HD_OBJS) pseudospec3D_phd.o
 MPHD_OBJS      = $(PHD_OBJS)
 MHD_OBJS       = $(HD_OBJS) pseudospec3D_mhd.o
@@ -205,92 +206,93 @@ SUBDIRS        = posix mpiio fftp-2 fftp-3 fftp-cu fftp-mkl \
 EXTRASDIR      = analysis
 GTIMER         = $(UTILS)/gtimer_mod.o
 
-all: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o \
-	  $(OBJS) $(IOLIB)/binary_io.o $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
+all: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS_OBJS) \
+	  $(IOLIB)/binary_io.o $(OBJS) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
 
 main: all
 
-trans triad: edit $(GTIMER) $(FFTPDIR)/fftp3D.o \
+trans triad: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS_OBJS) \
         $(OBJS) $(IOLIB)/binary_io.o $(TRAN_OBJS)
 	$(MAKE) $@$(SOLVER)
 	$(MAKE) undo
 
-cancel: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) \
+cancel: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS_OBJS) $(OBJS) \
 		$(IOLIB)/binary_io.o 
 	$(MAKE) $@$(SOLVER)
 	$(MAKE) undo
 
-struc:	edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) \
+struc:	edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS_OBJS) $(OBJS) \
 		$(IOLIB)/binary_io.o $(STRU_OBJS)
 	$(MAKE) $@$(SOLVER)
 	$(MAKE) undo
 
-trunc:	edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) \
+trunc:	edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS_OBJS) $(OBJS) \
 		$(IOLIB)/binary_io.o
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
 	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
-	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(OBJS) \
-	   $(IOLIB)/*.o \
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(GUTILS_OBJS) \
+	   $(OBJS) $(IOLIB)/*.o \
 	   $(GTIMER) $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
-boots:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS)\
+boots:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS_OBJS) $(OBJS) \
 	   $(IOLIB)/binary_io.o 
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
 	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
-	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(OBJS)\
-	   $(IOLIB)/*.o $(GTIMER) $@.o $(LDFLAGS) -o $(BIN)/$@
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(GUTILS_OBJS) \
+	   $(OBJS) $(IOLIB)/*.o $(GTIMER) $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
-vt:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) \
+vt:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS_OBJS) $(OBJS) \
 	   $(IOLIB)/binary_io.o 
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
 	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
-	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(OBJS) \
-	   $(IOLIB)/*.o $(GTIMER) $@.o $(LDFLAGS) -o $(BIN)/$@
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(GUTILS_OBJS) \
+	   $(OBJS) $(IOLIB)/*.o $(GTIMER) $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
-shear:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(IOLIB)/binary_io.o 
-	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
-	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
+shear:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS_OBJS) $(OBJS) \
+	$(IOLIB)/binary_io.o $(PREPROCESS) -DG$(PRECISION)_PRECISION \
+	   -I$(FFTPDIR) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o \
-	   $(GTIMER) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
+	   $(GTIMER) $(GUTILS_OBJS) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
-herring:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) \
+herring: edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS_OBJS) $(OBJS) \
 	   $(IOLIB)/binary_io.o
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
 	   -I$(GHOME) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
-	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(OBJS)\
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(GUTILS_OBJS) $(OBJS) \
 	   $(IOLIB)/*.o  $(GTIMER) $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
-divchk:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) \
+divchk:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS_OBJS) $(OBJS) \
 	   $(IOLIB)/binary_io.o
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
 	   -I$(GHOME) $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
-	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(OBJS)\
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(GUTILS_OBJS) $(OBJS) \
 	   $(IOLIB)/*.o  $(GTIMER) $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
-wv:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) \
+wv:     edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(GUTILS_OBJS) $(OBJS) \
 	   $(IOLIB)/binary_io.o 
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
 	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
 	$(COMPILE) $@.f90 -o $@.o
-	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(OBJS) \
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(GUTILS_OBJS) $(OBJS) \
 	   $(IOLIB)/*.o $(GTIMER) $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
 clean:  undo
 	rm -f *.o *.d *.s *.int *.inf *.mod *.modmic work.pc* ifc*
 	rm -f $(OBJSDIR)/pseudospec3D_mod.f90
+	rm -f $(OBJSDIR)/regridutils.f90
 	rm -f $(OBJSDIR)/gutils_mod.f90
 	for dir in $(SUBDIRS) $(UTILS); do \
             cd $$dir && $(MAKE) clean && cd .. ; \
@@ -310,16 +312,16 @@ edit:
 	   $(OBJSDIR)/pseudospec3D_mod.fpp -o $(OBJSDIR)/pseudospec3D_mod.f90
 	$(CPP) -DNX_=$(NX) -DNY_=$(NY) -DNZ_=$(NZ) -DORD_=$(ORD) \
 	   $(UTILS)/gutils_mod.fpp -o $(OBJSDIR)/gutils_mod.f90
-#	$(CPP) -DNX_=$(NX) -DNY_=$(NY) -DNZ_=$(NZ) -DORD_=$(ORD) \
-#	   $(UTILS)/regridutils.fpp -o $(OBJSDIR)/regridutils.f90
+	$(CPP) -DNX_=$(NX) -DNY_=$(NY) -DNZ_=$(NZ) -DORD_=$(ORD) \
+	   $(UTILS)/regridutils.fpp -o $(OBJSDIR)/regridutils.f90
 	cd $(FFTPDIR) && $(MAKE) edit CPP='$(CPP)' IKIND='$(IKIND)' \
 	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)' \
            NSTREAMS='$(NSTREAMS)' DO_HYBRID='DO_HYBRID$(P_HYBRID)'
 	cd ../
-#	cd $(UTILS) && $(MAKE) edit CPP='$(CPP)' IKIND='$(IKIND)' \
+	cd $(UTILS) && $(MAKE) edit CPP='$(CPP)' IKIND='$(IKIND)' \
 	   CSIZE='$(CSIZE)' NSTRIP='$(NSTRIP)' PRECISION='$(PRECISION)' \
 	   DO_HYBRID='DO_HYBRID$(P_HYBRID)' P_CUDA='$(P_CUDA)'
-# 	cd ../
+	cd ../
 	cd $(LAGP) && $(MAKE) edit CPP='$(CPP)' CSIZE='$(CSIZE)' \
 	   NSTRIP='$(NSTRIP)' DO_HYBRID='DO_HYBRID$(P_HYBRID)'
 	cd ../
@@ -373,27 +375,28 @@ $(SOLVER):
 	$(COMPILE) $(SOLVER).f90
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(DO_HYBRID$(P_HYBRID)) \
            $(FFTPDIR)/*.o $(IOLIB)/*.o $(CONTRIBOBJS) \
-           $(LAGPOBJS$(PARTICLES)) $(GTIMER) $(OBJS) $(SOLVER).o \
-           $(LDFLAGS) -o $(BIN)/$(SOLVER)
+           $(LAGPOBJS$(PARTICLES)) $(GTIMER) $(GUTILS_OBJS) $(OBJS) \
+           $(SOLVER).o $(LDFLAGS) -o $(BIN)/$(SOLVER)
 
 trans$(SOLVER) triad$(SOLVER):
 	$(PREPROCESS) $(EXTRASDIR)/$(@:$(SOLVER)=3D).fpp -o $@.f90
 	$(COMPILE) $@.f90
-	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(OBJS) \
-           $(CONTRIBOBJS) $(GTIMER) $(TRAN_OBJS) $@.o $(LDFLAGS) \
-           -o $(BIN)/$@
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o \
+           $(GUTILS_OBJS) $(OBJS) $(CONTRIBOBJS) $(GTIMER) $(TRAN_OBJS) \
+           $@.o $(LDFLAGS) -o $(BIN)/$@
 
 cancel$(SOLVER):
 	$(PREPROCESS) $(EXTRASDIR)/$(@:$(SOLVER)=3D).fpp -o $@.f90
 	$(COMPILE) $@.f90
-	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(OBJS) \
-           $(GTIMER) $@.o $(LDFLAGS) -o $(BIN)/$@
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o \
+           $(GUTILS_OBJS) $(OBJS) $(GTIMER) $@.o $(LDFLAGS) -o $(BIN)/$@
 
 struc$(SOLVER):
 	$(PREPROCESS) $(EXTRASDIR)/$(@:$(SOLVER)=3D).fpp -o $@.f90
 	$(COMPILE) $@.f90
-	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o $(OBJS) \
-           $(STRU_OBJS) $(GTIMER) $@.o $(LDFLAGS) -o $(BIN)/$@
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o \
+           $(GUTILS_OBJS) $(OBJS) $(STRU_OBJS) $(GTIMER) $@.o $(LDFLAGS) \
+           -o $(BIN)/$@
 
 $(FFTPDIR)/fftp3D.o: 
 	cd $(FFTPDIR) && $(MAKE) COMPILE='$(COMPILE)' CUCOMPILE='$(CUCOMPILE)'
@@ -425,5 +428,5 @@ $(UTILS)/regridutils.o:
 $(CONTRIB)/nvidia/setaffinity_for_nvidia.o:
 	cd $(CONTRIB)/nvidia && $(MAKE) CCOMPILE='$(CCOMPILE) -D_GNU_SOURCE' 
 
-$(OBJS) $(TRAN_OBJS) $(STRU_OBJS):
+$(OBJS) $(TRAN_OBJS) $(STRU_OBJS) $(GUTILS_OBJS):
 	$(COMPILE) $(OBJSDIR)/$(@:.o=.f90)
