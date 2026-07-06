@@ -5,14 +5,16 @@
       USE fprecision
  
       TYPE GVoigtParamType
-         INTEGER          :: prtbin
-         INTEGER          :: icycle ! continuous time icycle
-         REAL(KIND=GP)    :: nu
-         REAL(KIND=GP)    :: kappa
-         REAL(KIND=GP)    :: bvfreq
-         REAL(KIND=GP)    :: rotf
-         REAL(KIND=GP)    :: ttime  ! time stamp
-         REAL(KIND=GP)    :: dt
+         LOGICAL           :: doSGSinj
+         INTEGER           :: prtbin
+         INTEGER           :: icycle ! continuous time icycle
+         REAL(KIND=GP)     :: nu
+         REAL(KIND=GP)     :: kappa
+         REAL(KIND=GP)     :: bvfreq
+         REAL(KIND=GP)     :: rotf
+         REAL(KIND=GP)     :: ttime  ! time stamp
+         REAL(KIND=GP)     :: dt
+         CHARACTER(len=64) :: ext
       END TYPE GVoigtParamType
       SAVE
 

@@ -421,7 +421,7 @@
 #endif
       NAMELIST / voigt / iswap,oswap
       NAMELIST / voigt / idir,odir,sstat
-      NAMELIST / voigt / nbinx,nbiny,prtbin
+      NAMELIST / voigt / nbinx,nbiny,prtbin,doSGSinj
       NAMELIST / voigt / ftype,filtparam
 
 !
@@ -1336,6 +1336,7 @@
       nbinx  = 100
       nbiny  = 100
       prtbin = 0   ! don't print binary data
+      doSGSinj = .false. ! don't examine SGSinj terms
       ftype  = -1  ! no filtering
       filtparam = 0.0 ! filter scale
 
@@ -1345,16 +1346,17 @@
          READ(1,NML=voigt)
          CLOSE(1)
       ENDIF
-      CALL MPI_BCAST(idir   ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(odir   ,1024 ,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(sstat  ,4096,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(oswap  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(iswap  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(nbinx  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(nbiny  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(prtbin ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(ftype  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(filtparam,1 ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(idir     ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(odir     ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(sstat    ,4096,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(oswap    ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(iswap    ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(nbinx    ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(nbiny    ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(prtbin   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(doSGSinj ,1   ,MPI_LOGICAL  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ftype    ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(filtparam,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
 ! Befor
 ! options are compatible with the SOLVER being used
 
@@ -1515,8 +1517,9 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
         ! Do analysis:
         gparams%icycle = (istat(it)-1)* tstep + 1
         gparams%ttime  = (gparams%icycle - 1) * dt
+        gparams%ext    = ext
         nbins(1) = nbinx ; nbins(2) = nbiny
-        CALL DoVoigt(vx,vy,vz,th,istat(it),gparams,odir,planio, &
+        CALL DoVoigt(vx,vy,vz,th,istat(it),gparams,idir,odir,planio, &
                      C1,C2,C3, C4,R1,R2,R3,R4, &
                      ftype,filtparam,nbins)
 
@@ -2772,7 +2775,7 @@ endif
 !-----------------------------------------------------------------
 
       SUBROUTINE DoVoigt(vx_in,vy_in,vz_in,th_in,indtime, &
-                          gparams,odir,planio,C1,C2,C3,C4, &
+                          gparams,idir,odir,planio,C1,C2,C3,C4, &
                           R1,R2,R3,R4,ftype,alpha,nbins)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -2786,6 +2789,7 @@ endif
 !     th     : pot. temp
 !     indtime: integter output time index, 
 !     gparams: run parameter stucture
+!     idir   : input directory
 !     odir   : output directory
 !     planio : io plan
 !     Ci     : complex temp arrays
@@ -2839,7 +2843,7 @@ endif
       REAL   (KIND=GP)                                           :: av(100),sk(100),ku(100),g5(100),w6(100)
       REAL   (KIND=GP)                                           :: s2,s3,s4,s5,s6,tmp
 
-      CHARACTER(len=1024), INTENT   (IN)                         :: odir
+      CHARACTER(len=1024), INTENT   (IN)                         :: idir, odir
       CHARACTER(len=1024)                                        :: fnout
       CHARACTER(len=128)                                         :: hdrfmt, rowfmt
       CHARACTER(len=16)                                          :: sfld(100)
@@ -3102,6 +3106,20 @@ endif
       CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
       CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
+      !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+      if ( gparams%doSGSinj ) then
+        CALL io_read(1,idir,'uSGSinj',ext,planio,R1)
+        fnout = trim(odir) // '/' // 'uSGSinjpdf.' // ext // '.txt'
+        n = n + 1; sfld(n) = 'uSGSinj' 
+        CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+        CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+
+        CALL io_read(1,idir,'thSGSinj',ext,planio,R1)
+        fnout = trim(odir) // '/' // 'thSGSinjpdf.' // ext // '.txt'
+        n = n + 1; sfld(n) = 'thSGSinj' 
+        CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+        CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
+      endif
 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
