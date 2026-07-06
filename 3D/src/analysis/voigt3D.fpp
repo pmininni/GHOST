@@ -313,7 +313,7 @@
       REAL(kind=GP) omega(3),xnormn
       REAL(kind=GP) filtparam
       INTEGER :: ic,ir,it,jc
-      INTEGER :: istat(4096),nstat,prtbin
+      INTEGER :: istat(4096),nstat,prtbin,doSGSinj
       INTEGER :: nbinx,nbiny,nbins(2)
       INTEGER :: ftype ! filter type (0==Helm; 1==Gaussian; 2=Sharp)
       CHARACTER(len=64) :: ext1
