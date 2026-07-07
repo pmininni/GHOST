@@ -1336,7 +1336,7 @@
       nbinx  = 100
       nbiny  = 100
       prtbin = 0   ! don't print binary data
-      doSGSinj = .false. ! don't examine SGSinj terms
+      doSGSinj = 0 ! don't examine SGSinj terms
       ftype  = -1  ! no filtering
       filtparam = 0.0 ! filter scale
 
@@ -1354,7 +1354,7 @@
       CALL MPI_BCAST(nbinx    ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nbiny    ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(prtbin   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(doSGSinj ,1   ,MPI_LOGICAL  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(doSGSinj ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(ftype    ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(filtparam,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
 ! Befor
@@ -3107,7 +3107,7 @@ endif
       CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      if ( gparams%doSGSinj ) then
+      if ( gparams%doSGSinj .gt. 0 ) then
         CALL io_read(1,idir,'uSGSinj',ext,planio,R1)
         fnout = trim(odir) // '/' // 'uSGSinjpdf.' // ext // '.txt'
         n = n + 1; sfld(n) = 'uSGSinj' 
