@@ -5,7 +5,7 @@
       USE fprecision
  
       TYPE GVoigtParamType
-         LOGICAL           :: doSGSinj
+         INTEGER           :: doSGSinj
          INTEGER           :: prtbin
          INTEGER           :: icycle ! continuous time icycle
          REAL(KIND=GP)     :: nu
