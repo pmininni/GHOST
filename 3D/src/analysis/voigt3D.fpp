@@ -2277,6 +2277,7 @@ endif
       USE mpivars
       USE ali
       USE fft
+      USE gutils
 !$    USE threads
       IMPLICIT NONE
 
@@ -2291,7 +2292,7 @@ endif
       INTEGER                                                     :: i,j,k
 
       tmp    = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
-#if 1
+
       S11 = 0.; S12 = 0.; S13=0.; S22 = 0.; S23 = 0.; S33 = 0.
       CALL Strain(vx,vy,vz,1,1,inorm,ctmp1,ctmp2)
       CALL fftp3d_complex_to_real(plancr,ctmp2,diss,MPI_COMM_WORLD)
@@ -2306,7 +2307,7 @@ endif
       CALL fftp3d_complex_to_real(plancr,ctmp2,S23,MPI_COMM_WORLD)
       CALL Strain(vx,vy,vz,3,3,inorm,ctmp1,ctmp2)
       CALL fftp3d_complex_to_real(plancr,ctmp2,S33,MPI_COMM_WORLD)
-#endif
+
 
 #if 0
       ! Compute S33 for flatness/skewness:
