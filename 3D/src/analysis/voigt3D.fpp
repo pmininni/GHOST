@@ -1474,6 +1474,7 @@
       gparams%bvfreq   = bvfreq
       gparams%rotf     = 2*omegaz
       gparams%prtbin   = prtbin
+      gparams%doSGSinj = doSGSinj
       gparams%dt       = dt
 
       tmp = 1.0_GP/REAL(nx*ny*nz,KIND=GP)
