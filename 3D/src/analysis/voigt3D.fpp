@@ -2970,7 +2970,7 @@ endif
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       CALL compute_dissp(th,C1,R1,R2,R3,dissp)
-      dissp = dissp * gparams%kappa
+      dissp = dissp * (gparams%kappa * tmp)
       if ( gparams%prtbin .eq.1 ) then
       CALL io_write(1,odir,'dissp',ext,planio,dissp)
       endif
