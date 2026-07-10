@@ -2901,6 +2901,7 @@ endif
 #ifdef SCALAR_
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       C1 = th;
+      C1 = C1 * tmp
       CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
       if ( gparams%prtbin .eq.1 ) then
       CALL io_write(1,odir,'rth',ext,planio,R1)
