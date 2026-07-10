@@ -1583,14 +1583,15 @@
       ALLOCATE( RT4(nxt,nyt,ktsta:ktend))
       trtraits%planiot   = planiot
       trtraits%plancrt   = plancrt
+      trtraits%commtrunc = MPI_COMM_NULL
       IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
         CALL MPI_COMM_DUP(commtrunc, trtraits%commtrunc, ierr) 
         IF ( ierr .NE. MPI_SUCCESS ) THEN
-           write(*,*) 'main: MPI_COMM_DUP for commtrunc failed'
-           STOP
+           STOP 'main: MPI_COMM_DUP for commtrunc failed'
         ENDIF
-      ELSE
-        trtraits%commtrunc = MPI_COMM_NULL
+      ENDIF
+      IF ( trtraits%commtrunc == MPI_COMM_NULL ) THEN
+        STOP 'main: MPI_COMM_DUP for commtrunc failed'
       ENDIF
               write(*,*) 'main: calling MPI_COMM_DUP for COMM_WORLD'
       CALL MPI_COMM_DUP(MPI_COMM_WORLD, trtraits%commparent, ierr) 
@@ -1922,15 +1923,21 @@
       CALL MPI_COMM_SIZE(tr%commparent,nprocspar,ierr)
       CALL MPI_COMM_RANK(tr%commparent,irankpar,ierr)
 
-      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' ... 0 '
-      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
-        CALL MPI_COMM_SIZE(tr%commtrunc,nprocstr,ierr)
-        CALL MPI_COMM_RANK(tr%commtrunc,iranktr ,ierr)
-        write(*,*) 'bouss_lescomp: iranktr=', iranktr
-      ELSE
+!     write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' ... 0 '
+!     IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+!       CALL MPI_COMM_SIZE(tr%commtrunc,nprocstr,ierr)
+!       CALL MPI_COMM_RANK(tr%commtrunc,iranktr ,ierr)
+!       write(*,*) 'bouss_lescomp: iranktr=', iranktr
+!     ELSE
+!        write(*,*) 'bouss_lescomp: commtrunc is NULL on parent rank: ', irankpar
+!     ENDIF
+!     write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' ... 1 '
+      IF ( tr%commtrunc .EQ. MPI_COMM_NULL ) THEN
          write(*,*) 'bouss_lescomp: commtrunc is NULL on parent rank: ', irankpar
+         STOP
       ENDIF
-      write(*,*) 'bouss_lescomp: irankpar=', irankpar, ' ... 1 '
+      CALL MPI_COMM_SIZE(tr%commtrunc,nprocstr,ierr)
+      CALL MPI_COMM_RANK(tr%commtrunc,iranktr ,ierr)
 
       WRITE(ext, fmtext) istat
       n (1) = nx ; n (2) = ny ; n (3) = nz
