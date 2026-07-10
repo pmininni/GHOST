@@ -1711,6 +1711,7 @@
 !         write(*,*) '       lesbouss: z-sgsvtr done.'
           CT7 = CT7 - CT1
 
+          ! NOTE: SGS terms, CT5-7 are normalized at this point!
 
           IF ( doprojection ) THEN
             CALL sgstr%project3(CT5,CT6,CT7,CT1,CT2,CT3)
@@ -1723,24 +1724,22 @@
          
           ! Compute real SGS terms, and write them:
           !   Note: CT1, CT2, CT3 will be overwitten here
-          CT1 = CT1 * rmp
+          !   Note: No need to normalize complex SGS terms here!
           CALL fftp3d_complex_to_real(plancrt,CT1,RT1)
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
             CALL io_write(1,odir,trim(sfpref(1)),ext,planiot,RT1)
           ENDIF
-          CT2 = CT2 * rmp
           CALL fftp3d_complex_to_real(plancrt,CT2,RT2)
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
             CALL io_write(1,odir,trim(sfpref(2)),ext,planiot,RT2)
           ENDIF
-          CT3 = CT3 * rmp
           CALL fftp3d_complex_to_real(plancrt,CT3,RT3)
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
             CALL io_write(1,odir,trim(sfpref(3)),ext,planiot,RT3)
           ENDIF
 
           ! Now compute u_i SGS^i injection scalars and output:
-          !   Note: C1T, C2T, C3T contain SGS1, SGS2, SGS3
+          !   Note: R1T, R2T, R3T contain correct real SGS1, SGS2, SGS3
           CT1 = vx; CT1 = CT1 * rmp
           CALL fftp3d_complex_to_real(plancrt,CT1,RT4)
           RT1 = RT1 * RT4 ! vx SGSx; RT1 accumulates injection energy
@@ -1766,7 +1765,6 @@
           CALL sgstr%dealias(CT3,trtraits%ktrunc)
           CT3 = CT3 * rmp ! normalize
           CT3 = CT3 - CT1
-          CT3 = CT3 * rmp
           CALL fftp3d_complex_to_real(plancrt,CT3,RT4)
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
             CALL io_write(1,odir,"SGSth_T",ext,planiot,RT4)
