@@ -215,9 +215,9 @@
         WRITE(*,*) 'create_trcomm:', TRIM(serr(:rlen))
         STOP
       END IF
-      np      = n(1) / nprocs
-      ntprocs = nt(1) / np
-      nmt     = mod(nt(1),np) 
+      np      = n(3) / nprocs
+      ntprocs = nt(3) / np
+      nmt     = mod(nt(3),np) 
       IF ( nmt .GT. 0 ) ntprocs = ntprocs + 1
       ntprocs = min(ntprocs, nprocs)
 
