@@ -1629,10 +1629,10 @@
         IF ( doprojection ) THEN
           write(sfprefv(k),"(A3,I1,A)") vsgspref, k,"_TP"
         ELSE
-          write(sfprefv(k),"(A3,I1,A)") vsdspref, k,"_T"
+          write(sfprefv(k),"(A3,I1,A)") vsgspref, k,"_T"
         ENDIF
       ENDDO
-        write(sfprefth,"(A3,A)") thsdspref, "_T"
+        write(sfprefth,"(A3,A)") thsgspref, "_T"
 
       write(*,*) myrank, ' main: Enter time snapshot loop...'
 
