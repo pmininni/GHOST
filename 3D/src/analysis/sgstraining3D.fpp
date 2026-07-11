@@ -456,8 +456,10 @@
 #endif
 
       ! App NAMELIST
-      NAMELIST / regrid / idir, intdir, odir, sstat, vsgspref, thsgspref,iswap, nxt, nyt, nzt, dolabels, doprojection, dotraining, ftype, filtparam
-
+      NAMELIST / sgstraining / idir, intdir, odir, sstat, vsgspref, &
+                               thsgspref, iswap, nxt, nyt, nzt,     &
+                               dolabels, doprojection, dotraining,  &
+                               ftype, filtparam
 
 !
 ! Initialization
@@ -665,7 +667,7 @@
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='lesml.inp',status='unknown')
-         READ(1,NML=regrid)
+         READ(1,NML=sgstraining)
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(idir  ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
