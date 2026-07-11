@@ -351,7 +351,7 @@
       INTEGER             :: commtrunc, grouptrunc, n(3), nt(3)
       LOGICAL             :: dolabels, doprojection, dotraining
       CHARACTER(len=1024) :: iidir, sparam
-      CHARACTER(len=64)   :: ext1,sfprefth,sfprefv(3)
+      CHARACTER(len=1024) :: ext1,sfprefth,sfprefv(3)
       CHARACTER(len=1024) :: sstat
       TYPE(IOPLAN)        :: planiot
       TYPE(FFTPLAN)       :: plancrt, planrct
