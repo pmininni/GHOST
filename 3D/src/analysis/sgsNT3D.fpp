@@ -339,7 +339,7 @@
       TYPE(IOPLAN)          :: planio
       TYPE(GSGS)            :: sgs 
 
-      CHARACTER(len=1024)   :: odir,idir
+      CHARACTER(len=1024)   :: odir,idir,intdir
       CHARACTER(len=1024)   :: vsgspref, thsgspref
       LOGICAL               :: bbenchexist
 
@@ -362,7 +362,7 @@
 !
 ! Namelists for the input files
 
-      NAMELIST / status / idir,odir,stat,mult,bench,outs,mean,trans,iswap
+      NAMELIST / status / idir,intdir,odir,stat,mult,bench,outs,mean,trans,iswap
       NAMELIST / parameter / dt,step,tstep,sstep,cstep,rand,cort,seed
 #ifdef DEF_ARBSIZE_
       NAMELIST / boxparams / Lx,Ly,Lz,Dkk
@@ -445,7 +445,7 @@
 #endif
 
       ! App NAMELIST
-      NAMELIST / regrid / idir, odir, sstat, iswap, nxt, nyt, nzt, dolabels, doprojection, dotraining, ftype, filtparam
+      NAMELIST / regrid / idir, intdir, odir, sstat, iswap, nxt, nyt, nzt, dolabels, doprojection, dotraining, ftype, filtparam
 
 
 !
@@ -626,6 +626,7 @@
 ! Reads from the external app file 'lesml.inp' the 
 ! parameters that will be used to compute the transfer
 !     idir   : directory for unformatted input (field components)
+!     intdir : intermed directory 
 !     odir   : directory for unformatted output (truncated data)
 !     sstat  : file list of time indices, separated by ';'
 !     iswap  : do endian swap on input?
@@ -636,6 +637,7 @@
 !              None, if ftype < 0.
 !     filtparam : filter parameter (real cutoff length)
       idir   = '.'
+      intdir = '.'
       odir   = '.'
       sstat  = ''
       iswap  = 0
@@ -654,7 +656,7 @@
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(idir  ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(idir  ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(intdir,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(odir  ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sstat ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
@@ -1617,7 +1619,7 @@
 
       write(*,*) myrank, ' main: Enter time snapshot loop...'
 
-      iidir = trim(idir) // '/outs'
+      iidir = trim(intdir) // '/outs'
       IF ( myrank .EQ. 0 ) THEN
         write(*,*) ' iidir=', trim(iidir)
       ENDIF
