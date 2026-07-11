@@ -1629,8 +1629,10 @@
         ELSE
           write(sfprefv(k),"(A,I1,A)") trim(vsgspref), k,"_T"
         ENDIF
+        sfprefv(k) = trim(sfprefv(k))
       ENDDO
       write(sfprefth,"(A,A)") trim(thsgspref), "_T"
+      sfprefth = trim(sfprefth)
 
       if ( myrank.eq.0 ) write(*,*) ' main: Enter time snapshot loop...'
 

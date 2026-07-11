@@ -1620,15 +1620,16 @@
         ELSE
           write(sfprefv(k),"(A,I1,A)") trim(vsgspref), k,"_T"
         ENDIF
+        sfprefv(k) = trim(sfprefv(k))
       ENDDO
       write(sfprefth,"(A,A)") trim(thsgspref), "_T"
+      sfprefth = trim(sfprefth)
 
       write(*,*) myrank, ' main: Enter time snapshot loop...'
 
       iidir = trim(intdir) 
-      IF ( myrank .EQ. 0 ) THEN
-        write(*,*) ' iidir=', trim(iidir)
-      ENDIF
+      if ( myrank .eq. 0 ) write(*,*) ' iidir=', trim(iidir)
+
 ! Cycle over all input times, and do analysis:
  LSTAT : DO t = 1, nstat
 
@@ -1637,27 +1638,41 @@
         WRITE(ext, fmtext) istat(t)
         IF ( myrank .EQ. 0 ) write(*,*) ' Starting  ext=', ext
 #ifdef VELOC_
+        IF ( myrank .EQ. 0 ) write(*,*) ' Get vx_T..,.'
         CALL io_read(1,iidir,'vx_T',ext,planio,R1)
+        IF ( myrank .EQ. 0 ) write(*,*) ' Get vy_T..,.'
         CALL io_read(1,iidir,'vy_T',ext,planio,R2)
+        IF ( myrank .EQ. 0 ) write(*,*) ' Get vz_T..,.'
         CALL io_read(1,iidir,'vz_T',ext,planio,R3)
+        IF ( myrank .EQ. 0 ) write(*,*) ' do vx_T fft..,.'
         CALL fftp3d_real_to_complex(planrc,R1,vx)
+        IF ( myrank .EQ. 0 ) write(*,*) ' do vy_T fft..,.'
         CALL fftp3d_real_to_complex(planrc,R2,vy)
+        IF ( myrank .EQ. 0 ) write(*,*) ' do vz_T fft..,.'
         CALL fftp3d_real_to_complex(planrc,R3,vz)
+        IF ( myrank .EQ. 0 ) write(*,*) ' v-reads done.'
         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 
         ! Read SGS* terms: <N(u,u)>_i:
-        CALL io_read(1,iidir,sfprefv(1),ext,planio,R1)
+        IF ( myrank .EQ. 0 ) write(*,*) ' Get SGS tmps..,.'
+        CALL io_read(1,iidir,trim(sfprefv(1)),ext,planio,R1)
+        IF ( myrank .EQ. 0 ) write(*,*) ' do SGS1 fft..,.'
         CALL fftp3d_real_to_complex(planrc,R1,SGS1)
-        CALL io_read(1,iidir,sfprefv(2),ext,planio,R1)
+        IF ( myrank .EQ. 0 ) write(*,*) ' Get SGS2 tmp..,.'
+        CALL io_read(1,iidir,trim(sfprefv(2)),ext,planio,R1)
+        IF ( myrank .EQ. 0 ) write(*,*) ' do SGS2 fft..,.'
         CALL fftp3d_real_to_complex(planrc,R1,SGS2)
-        CALL io_read(1,iidir,sfprefv(2),ext,planio,R1)
+        IF ( myrank .EQ. 0 ) write(*,*) ' Get SGS3 tmp..,.'
+        CALL io_read(1,iidir,trim(sfprefv(3)),ext,planio,R1)
+        IF ( myrank .EQ. 0 ) write(*,*) ' do SGS3 fft..,.'
         CALL fftp3d_real_to_complex(planrc,R1,SGS3)
+        IF ( myrank .EQ. 0 ) write(*,*) ' v-SGS reads done.'
 #endif
 #ifdef BOUSSINESQ_
         CALL io_read(1,iidir,'th_T',ext,planio,R1)
         CALL fftp3d_real_to_complex(planrc,R1,th)
 
-        CALL io_read(1,iidir,sfprefth,ext,planio,R1)
+        CALL io_read(1,iidir,trim(sfprefth),ext,planio,R1)
         CALL fftp3d_real_to_complex(planrc,R1,SGSth)
 #endif
         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
