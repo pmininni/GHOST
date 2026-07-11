@@ -1626,7 +1626,7 @@
         IF ( doprojection ) THEN
           write(sfprefv(k),"(A,I1,A)") vsgspref, k,"_TP"
         ELSE
-          write(sfprefv(k),"(3,I1,A)") vsgspref, k,"_T"
+          write(sfprefv(k),"(A,I1,A)") vsgspref, k,"_T"
         ENDIF
       ENDDO
       write(sfprefth,"(A,A)") thsgspref, "_T"
