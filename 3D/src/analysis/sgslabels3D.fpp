@@ -445,7 +445,7 @@
 #endif
 
       ! App NAMELIST
-      NAMELIST / regrid / idir, intdir, odir, sstat, iswap, nxt, nyt, nzt, dolabels, doprojection, dotraining, ftype, filtparam
+      NAMELIST / regrid / idir, intdir, odir, sstat, vsgspref, thsgspref, iswap, nxt, nyt, nzt, dolabels, doprojection, dotraining, ftype, filtparam
 
 
 !
