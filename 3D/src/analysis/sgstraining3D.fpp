@@ -660,8 +660,8 @@
       doprojection= .false.
       ftype       = -1 
       filtparam   = 0.0
-      vsgspref    = 'vSGSN2NT'
-      thsgspref   = 'thSGSN2NT'
+      vsgspref    = 'vSGStmp'
+      thsgspref   = 'thSGStmp'
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='lesml.inp',status='unknown')
