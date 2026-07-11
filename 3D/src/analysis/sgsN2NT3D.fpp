@@ -1410,7 +1410,6 @@
       CALL range(1,nzt,ntprocs,mytrank,ktsta,ktend)
       CALL io_init_comm(commtrunc,n,ksta,kend,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
       ENDIF
-      write(*,*) myrank, ' main: io_init_comm done.'
 
       CALL fftp3d_create_trplan_comm(plancrt,n,nt,FFTW_COMPLEX_TO_REAL,FFTW_MEASURE,MPI_COMM_WORLD)
       CALL fftp3d_create_trplan_comm(planrct,n,nt,FFTW_REAL_TO_COMPLEX,FFTW_MEASURE,MPI_COMM_WORLD)
@@ -1601,7 +1600,6 @@
            STOP 'main: No MPI_SUCCESS: MPI_COMM_DUP failed'
         ENDIF
       ENDIF
-      write(*,*) 'main: calling MPI_COMM_DUP for COMM_WORLD'
       CALL MPI_COMM_DUP(MPI_COMM_WORLD, trtraits%commparent, ierr) 
       IF ( ierr .NE. MPI_SUCCESS ) THEN
               write(*,*) 'main: MPI_COMM_DUP for commparent failed'
@@ -1621,31 +1619,28 @@
       trtraits%RT1       => RT1;
 
       
-       write(*,*) myrank, ' instantiate sgs  ...'
       CALL sgs  %GSGS_ctor(MPI_COMM_WORLD, (/nx ,ny ,nz /), (/ista,iend,ksta,kend/), arbsz, (/Dkx,Dky,Dkz/), Dkk, plancr, planrc )
 
       DO k = 1,3
         IF ( doprojection ) THEN
-          write(sfprefv(k),"(A,I1,A)") vsgspref, k,"_TP"
+          write(sfprefv(k),"(A,I1,A)") trim(vsgspref), k,"_TP"
         ELSE
-          write(sfprefv(k),"(A,I1,A)") vsgspref, k,"_T"
+          write(sfprefv(k),"(A,I1,A)") trim(vsgspref), k,"_T"
         ENDIF
       ENDDO
-      write(sfprefth,"(A,A)") thsgspref, "_T"
+      write(sfprefth,"(A,A)") trim(thsgspref), "_T"
 
-      write(*,*) myrank, ' main: Enter time snapshot loop...'
+      if ( myrank.eq.0 ) write(*,*) ' main: Enter time snapshot loop...'
 
       iidir = trim(idir) // '/outs'
-      IF ( myrank .EQ. 0 ) THEN
-        write(*,*) ' iidir=', trim(iidir)
-      ENDIF
+      if ( myrank.eq.0 ) write(*,*) ' iidir=', trim(iidir)
 ! Cycle over all input times, and do analysis:
  LSTAT : DO t = 1, nstat
 
 !       CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 !       Read binary data
         WRITE(ext, fmtext) istat(t)
-        IF ( myrank .EQ. 0 ) write(*,*) ' Starting  ext=', ext
+        IF ( myrank .EQ. 0 ) write(*,*) ' Starting ext=', ext
 #ifdef VELOC_
         CALL io_read(1,iidir,'vx',ext,planio,R1)
         CALL io_read(1,iidir,'vy',ext,planio,R2)
@@ -1660,29 +1655,24 @@
         CALL fftp3d_real_to_complex(planrc,R1,th)
 #endif
         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
-        if (myrank.eq.0) write(*,*) ' data loaded: index=', ext
 
-        if (myrank.eq.0) write(*,*) ' calling filter...'
         CALL bouss_filter(vx,vy,vz,th,ftype,filtparam,C1,C2,C3)
-        if (myrank.eq.0) write(*,*) ' filter done.', ext
 
 #if defined(BOUSSINESQ_)
         IF ( dotraining ) THEN
 !         CALL MPI_BARRIER(commtrunc, ierr)
-          if (myrank.eq.0) write(*,*) ' starting training data...'
           CALL bouss_lestrain(trtraits,istat(t),vx,vy,vz,th)
-          if (myrank.eq.0) write(*,*) ' training data done.'
 !         CALL MPI_BARRIER(commtrunc, ierr)
         ENDIF
 #endif
         CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
 
         IF ( dolabels ) THEN ! compute SGS terms
+          if ( myrank.eq.0 ) write(*,*) ' Starting SGS terms...'
 
           rmp = 1.0_GP/ &
                 (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
           ! Momentum components:
-!         write(*,*) 'lesbouss: calling sgsvx...'
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,1, C4) ! N(u,u)_1
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
           CALL fftp3d_complex_to_real(plancrt,CT1,RT1)
@@ -1704,20 +1694,24 @@
             CALL io_write(1,odir,trim(sfprefv(3)),ext,planiot,RT1)
           ENDIF
 
+!         if ( mytrank.eq.0 ) write(*,*) ' calling sgsth...'
           CALL sgs  %sgsth(vx,vy,vz,th,C1,C4) ! N(u,th)
           CALL trunc(C4, n, nt, trtraits%ktrunc, 1, C1, CT1) 
           CALL fftp3d_complex_to_real(plancrt,CT1,RT1)
           IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
-            CALL io_write(1,odir,sfprefth,ext,planiot,RT1)
+            CALL io_write(1,odir,trim(sfprefth),ext,planiot,RT1)
+!           if ( mytrank.eq.0 ) write(*,*) ' sgsth io_write done.'
           ENDIF
+!         if ( mytrank.eq.0 ) write(*,*) ' sgsth done.'
 
-          write(*,*) myrank,  'SGS terms done.'
+          CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+          if ( myrank.eq.0 ) write(*,*) 'SGS terms done.'
         ENDIF
 
  
         write(*,*) myrank, ' done: index=', ext
-      
-!       CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+        CALL MPI_BARRIER(MPI_COMM_WORLD, ierr)
+
       END DO LSTAT
 
 !
@@ -1871,15 +1865,13 @@
       nt(1) = nxt; nt(2) = nyt; nt(3) = nzt
 
       ! Truncate input vars, put to disk:
-      if (iranktr.eq.0) write(*,*) ' compute th_T...'
       CALL trunc(th, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1)  ! th, normalize
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
-      write(*,*) 'bouss_lestrain: irankpar=', irankpar, ' after th c2r done.'
+!     write(*,*) 'bouss_lestrain: irankpar=', irankpar, ' after th c2r done.'
       IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
         CALL io_write(1,tr%odir,'th_T',ext,tr%planiot,tr%RT1)
       ENDIF
 
-      if (iranktr.eq.0) write(*,*) ' compute vx_T...'
       CALL trunc(vx, n, nt, tr%ktrunc, 1, tr%C3, tr%CT1)  ! vx, normalize
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
       IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
