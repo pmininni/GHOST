@@ -1590,16 +1590,6 @@
               STOP
       ENDIF
 
-      ! Build SGS file names expected:
-      DO k = 1,3
-        IF ( doprojection ) THEN
-          write(sfprefv(k),"(A3,I1,A)") vsgspref, k,"_TP"
-        ELSE
-          write(sfprefv(k),"(A3,I1,A)") vsgspref, k,"_T"
-        ENDIF
-      ENDDO
-      write(sfprefth,"(A3,A)") thsgspref, "_T"
-
       ! NOTE: trtraits%ktrunc set above
       trtraits%odir      = odir
       trtraits%C1        => C1;
@@ -1615,13 +1605,15 @@
        write(*,*) myrank, ' instantiate sgs  ...'
       CALL sgs  %GSGS_ctor(MPI_COMM_WORLD, (/nx ,ny ,nz /), (/ista,iend,ksta,kend/), arbsz, (/Dkx,Dky,Dkz/), Dkk, plancr, planrc )
 
+      ! Build SGS file names expected:
       DO k = 1,3
         IF ( doprojection ) THEN
-          write(sfpref(k),"(A3,I1,A)") "SGS", k,"_TP"
+          write(sfprefv(k),"(A3,I1,A)") vsgspref, k,"_TP"
         ELSE
-          write(sfpref(k),"(A3,I1,A)") "SGS", k,"_T"
+          write(sfprefv(k),"(A3,I1,A)") vsgspref, k,"_T"
         ENDIF
       ENDDO
+      write(sfprefth,"(A3,A)") thsgspref, "_T"
 
       write(*,*) myrank, ' main: Enter time snapshot loop...'
 
