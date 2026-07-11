@@ -262,7 +262,16 @@ boots:  edit $(GTIMER) $(FFTPDIR)/fftp3D.o $(OBJS) \
 	   $(GTIMER)$(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
 	$(MAKE) undo
 
-lesbouss: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o  \
+sgstraining: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o  \
+      $(OBJS) $(GIO) $(GREGRID)
+	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
+	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
+	$(COMPILE) $@.f90 -o $@.o
+	$(FC) $(FFLAGS) $(TARGET_ARCH) $(FFTPDIR)/*.o $(IOLIB)/*.o  \
+	   $(GTIMER) $(GREGRID) $(OBJS) $@.o $(LDFLAGS) -o $(BIN)/$@
+	$(MAKE) undo
+
+sgslabels: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o  \
       $(OBJS) $(GIO) $(GREGRID)
 	$(PREPROCESS) -DG$(PRECISION)_PRECISION -I$(FFTPDIR) \
 	   $(EXTRASDIR)/$(@)3D.fpp -o $@.f90
