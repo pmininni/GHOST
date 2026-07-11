@@ -647,8 +647,11 @@
       dolabels    = .true.
       dotraining  = .true.
       doprojection= .false.
-      ftype  = -1 
-      filtparam = 0.0
+      ftype       = -1 
+      filtparam   = 0.0
+      vsgspref    = 'vSGStmp'
+      thsgspref   = 'thSGStmp'
+
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='lesml.inp',status='unknown')
@@ -659,6 +662,8 @@
       CALL MPI_BCAST(intdir,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(odir  ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sstat ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(vsgspref ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(thsgspref,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iswap ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nxt   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(nyt   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
@@ -1610,12 +1615,12 @@
       ! Build SGS file names expected:
       DO k = 1,3
         IF ( doprojection ) THEN
-          write(sfprefv(k),"(A,I1,A)") vsgspref, k,"_TP"
+          write(sfprefv(k),"(A,I1,A)") trim(vsgspref), k,"_TP"
         ELSE
-          write(sfprefv(k),"(A,I1,A)") vsgspref, k,"_T"
+          write(sfprefv(k),"(A,I1,A)") trim(vsgspref), k,"_T"
         ENDIF
       ENDDO
-      write(sfprefth,"(A,A)") thsgspref, "_T"
+      write(sfprefth,"(A,A)") trim(thsgspref), "_T"
 
       write(*,*) myrank, ' main: Enter time snapshot loop...'
 
