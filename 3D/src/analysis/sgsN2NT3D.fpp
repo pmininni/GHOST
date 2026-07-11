@@ -1393,22 +1393,22 @@
 
       ! Get new communicator, props  for truncated grid: 
       CALL create_trcomm(n, nt, MPI_COMM_WORLD, commtrunc, grouptrunc)
+!     write(*,*) myrank, ' main: check commtrunc size...'
       IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
-!       write(*,*) myrank, ' main: check commtrunc size...'
         CALL MPI_COMM_SIZE(commtrunc, ntprocs, ierr)
         CALL MPI_COMM_RANK(commtrunc, mytrank, ierr)
-!       write(*,*) myrank, ' main: commtrunk size check done.'
-!       CALL io_init_comm(commtrunc,n,ksta,kend,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
-!       write(*,*) myrank, ' main: io_init_comm done.'
       ENDIF
+!     write(*,*) myrank, ' main: commtrunk size check done.'
+!     CALL io_init_comm(commtrunc,n,ksta,kend,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
+!     write(*,*) myrank, ' main: io_init_comm done.'
 
       ! Plans for truncated grid:
       IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
-        CALL range(1,nxt/2+1,ntprocs,mytrank,itsta,itend)
-        CALL range(1,nzt,ntprocs,mytrank,ktsta,ktend)
-        CALL io_init_comm(commtrunc,n,ksta,kend,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
-        write(*,*) myrank, ' main: io_init_comm done.'
+      CALL range(1,nxt/2+1,ntprocs,mytrank,itsta,itend)
+      CALL range(1,nzt,ntprocs,mytrank,ktsta,ktend)
+      CALL io_init_comm(commtrunc,n,ksta,kend,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
       ENDIF
+      write(*,*) myrank, ' main: io_init_comm done.'
 
       CALL fftp3d_create_trplan_comm(plancrt,n,nt,FFTW_COMPLEX_TO_REAL,FFTW_MEASURE,MPI_COMM_WORLD)
       CALL fftp3d_create_trplan_comm(planrct,n,nt,FFTW_REAL_TO_COMPLEX,FFTW_MEASURE,MPI_COMM_WORLD)
@@ -1596,13 +1596,10 @@
       IF ( commtrunc .NE. MPI_COMM_NULL ) THEN
         CALL MPI_COMM_DUP(commtrunc, trtraits%commtrunc, ierr) 
         IF ( ierr .NE. MPI_SUCCESS ) THEN
-           STOP 'main: MPI_COMM_DUP for commtrunc failed'
+           STOP 'main: No MPI_SUCCESS: MPI_COMM_DUP failed'
         ENDIF
       ENDIF
-      IF ( trtraits%commtrunc == MPI_COMM_NULL ) THEN
-        STOP 'main: MPI_COMM_DUP for commtrunc failed'
-      ENDIF
-              write(*,*) 'main: calling MPI_COMM_DUP for COMM_WORLD'
+      write(*,*) 'main: calling MPI_COMM_DUP for COMM_WORLD'
       CALL MPI_COMM_DUP(MPI_COMM_WORLD, trtraits%commparent, ierr) 
       IF ( ierr .NE. MPI_SUCCESS ) THEN
               write(*,*) 'main: MPI_COMM_DUP for commparent failed'
@@ -1858,20 +1855,14 @@
       CALL MPI_COMM_RANK(tr%commparent,irankpar,ierr)
 
 !     write(*,*) 'bouss_lestrain: irankpar=', irankpar, ' ... 0 '
-!     IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
-!       CALL MPI_COMM_SIZE(tr%commtrunc,nprocstr,ierr)
-!       CALL MPI_COMM_RANK(tr%commtrunc,iranktr ,ierr)
-!       write(*,*) 'bouss_lestrain: iranktr=', iranktr
-!     ELSE
-!        write(*,*) 'bouss_lestrain: commtrunc is NULL on parent rank: ', irankpar
-!     ENDIF
-!     write(*,*) 'bouss_lestrain: irankpar=', irankpar, ' ... 1 '
-      IF ( tr%commtrunc .EQ. MPI_COMM_NULL ) THEN
+      IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
+        CALL MPI_COMM_SIZE(tr%commtrunc,nprocstr,ierr)
+        CALL MPI_COMM_RANK(tr%commtrunc,iranktr ,ierr)
+        write(*,*) 'bouss_lestrain: iranktr=', iranktr
+      ELSE
          write(*,*) 'bouss_lestrain: commtrunc is NULL on parent rank: ', irankpar
-         STOP
       ENDIF
-      CALL MPI_COMM_SIZE(tr%commtrunc,nprocstr,ierr)
-      CALL MPI_COMM_RANK(tr%commtrunc,iranktr ,ierr)
+!     write(*,*) 'bouss_lestrain: irankpar=', irankpar, ' ... 1 '
 
       WRITE(ext, fmtext) istat
       n (1) = nx ; n (2) = ny ; n (3) = nz
