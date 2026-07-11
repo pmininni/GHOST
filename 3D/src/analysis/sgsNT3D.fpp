@@ -340,6 +340,7 @@
       TYPE(GSGS)            :: sgs 
 
       CHARACTER(len=1024)   :: odir,idir
+      CHARACTER(len=1024)   :: vsgspref, thsgspref
       LOGICAL               :: bbenchexist
 
       ! App data:
@@ -350,7 +351,7 @@
       INTEGER             :: commtrunc, grouptrunc, n(3), nt(3)
       LOGICAL             :: dolabels, doprojection, dotraining
       CHARACTER(len=1024) :: iidir, sparam
-      CHARACTER(len=64)   :: ext1,sfpref(3)
+      CHARACTER(len=64)   :: ext1,sfprefth,sfprefv(3)
       CHARACTER(len=1024) :: sstat
       TYPE(IOPLAN)        :: planiot
       TYPE(FFTPLAN)       :: plancrt, planrct
@@ -1588,6 +1589,17 @@
               write(*,*) 'main: MPI_COMM_DUP for commparent failed'
               STOP
       ENDIF
+
+      ! Build SGS file names expected:
+      DO k = 1,3
+        IF ( doprojection ) THEN
+          write(sfprefv(k),"(A3,I1,A)") vsgspref, k,"_TP"
+        ELSE
+          write(sfprefv(k),"(A3,I1,A)") vsgspref, k,"_T"
+        ENDIF
+      ENDDO
+      write(sfprefth,"(A3,A)") thsgspref, "_T"
+
       ! NOTE: trtraits%ktrunc set above
       trtraits%odir      = odir
       trtraits%C1        => C1;
