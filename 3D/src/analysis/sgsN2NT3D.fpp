@@ -1917,6 +1917,7 @@
       CALL fftp3d_complex_to_real(tr%plancrt,tr%CT1,tr%RT1)
       IF ( tr%commtrunc .NE. MPI_COMM_NULL ) THEN
         CALL io_write(1,tr%odir,'S12_T',ext,tr%planiot,tr%RT1)
+      ENDIF
 
       CALL Strain(vx,vy,vz, 1, 3, 1, tr%C2, tr%C1)   ! S13, normalize
       CALL trunc(tr%C1, n, nt, tr%ktrunc, 0, tr%C3, tr%CT1) 
