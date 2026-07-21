@@ -2843,7 +2843,7 @@ endif
       REAL   (KIND=GP)                                           :: fact,fmin(2),fmax(2),xnorm,xnormi,xnormn
       REAL   (KIND=GP)                                           :: omegax,omegay,omegaz
       REAL   (KIND=GP)                                           :: ktmin,ktmax
-      REAL   (KIND=GP)                                           :: av(100),sk(100),ku(100),g5(100),w6(100)
+      REAL   (KIND=GP)                                           :: av(100),sk(100),ku(100),g5(100),var(100),w6(100)
       REAL   (KIND=GP)                                           :: s2,s3,s4,s5,s6,tmp
 
       CHARACTER(len=1024), INTENT   (IN)                         :: idir, odir
@@ -2895,7 +2895,7 @@ endif
       endif
       fnout = trim(odir) // '/' // 'dissvpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'dissv' 
-      CALL skewflat(dissv,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL skewflat(dissv,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),var(n),s3,s4,s5,s6)
       CALL dopdfr(dissv ,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
 #ifdef SCALAR_
@@ -2908,7 +2908,7 @@ endif
       endif
       fnout = trim(odir) // '/' // 'thpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'th' 
-      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),var(n),s3,s4,s5,s6)
       CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -2920,7 +2920,7 @@ endif
       endif
       fnout = trim(odir) // '/' // 'dthdxpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'dthdx' 
-      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),var(n),s3,s4,s5,s6)
       CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -2932,7 +2932,7 @@ endif
       endif
       fnout = trim(odir) // '/' // 'dthdypdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'dthdy' 
-      CALL skewflat(R2,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL skewflat(R2,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),var(n),s3,s4,s5,s6)
       CALL dopdfr(R2,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -2944,7 +2944,7 @@ endif
       endif
       fnout = trim(odir) // '/' // 'dthdzpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'dthdz' 
-      CALL skewflat(R3,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL skewflat(R3,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),var(n),s3,s4,s5,s6)
       CALL dopdfr(R3,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -2964,7 +2964,7 @@ endif
       endif
       fnout = trim(odir) // '/' // 'gradthpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'gradth' 
-      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),var(n),s3,s4,s5,s6)
       CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
 
@@ -2976,7 +2976,7 @@ endif
       endif
       fnout = trim(odir) // '/' // 'dissppdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'dissp' 
-      CALL skewflat(dissp,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL skewflat(dissp,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),var(n),s3,s4,s5,s6)
       CALL dopdfr(dissp,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -2987,7 +2987,7 @@ endif
       endif
       fnout = trim(odir) // '/' // 'rigpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'Rig' 
-      CALL skewflat(Rig,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL skewflat(Rig,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),var(n),s3,s4,s5,s6)
       fmin(1) = -10; fmax(1) = 100;
       CALL dopdfr(Rig,nx,ny,knz,fnout,nbins(1),1,fmin(1),fmax(1),0) 
 
@@ -3004,7 +3004,7 @@ endif
       endif
       fnout = trim(odir) // '/' // 'bfpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'bflux' 
-      CALL skewflat(bf,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL skewflat(bf,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),var(n),s3,s4,s5,s6)
       CALL dopdfr(bf,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       fnout = trim(odir) // '/' // 'jpdf_dissv_bf_log00.' // ext // '.txt'
@@ -3019,7 +3019,7 @@ endif
       endif
       fnout = trim(odir) // '/' // 'gamfpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'gamf' 
-      CALL skewflat(Gamf,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL skewflat(Gamf,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),var(n),s3,s4,s5,s6)
       CALL dopdfr(Gamf,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       fnout = trim(odir) // '/' // 'jpdf_dissv_gamf_log00.' // ext // '.txt'
@@ -3035,7 +3035,7 @@ endif
       endif
       fnout = trim(odir) // '/' // 'ommagpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'ommag' 
-      CALL skewflat(ommag,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL skewflat(ommag,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),var(n),s3,s4,s5,s6)
       CALL dopdfr(ommag,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -3047,7 +3047,7 @@ endif
       endif
       fnout = trim(odir) // '/' // 'vxpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'vx' 
-      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),var(n),s3,s4,s5,s6)
       CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -3059,7 +3059,7 @@ endif
       endif
       fnout = trim(odir) // '/' // 'vzpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'vz' 
-      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),var(n),s3,s4,s5,s6)
       CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -3071,7 +3071,7 @@ endif
       endif
       fnout = trim(odir) // '/' // 'dvzdzpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'dvzdz' 
-      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),var(n),s3,s4,s5,s6)
       CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -3083,7 +3083,7 @@ endif
       endif
       fnout = trim(odir) // '/' // 'dvxdxpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'dvxdx' 
-      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),var(n),s3,s4,s5,s6)
       CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -3095,7 +3095,7 @@ endif
       endif
       fnout = trim(odir) // '/' // 'dvydxpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'dvydx' 
-      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),var(n),s3,s4,s5,s6)
       CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -3107,7 +3107,7 @@ endif
       endif
       fnout = trim(odir) // '/' // 'dvzdxpdf.' // ext // '.txt'
       n = n + 1; sfld(n) = 'dvzdx' 
-      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+      CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),var(n),s3,s4,s5,s6)
       CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -3115,13 +3115,13 @@ endif
         CALL io_read(1,idir,'uSGSinj',ext,planio,R1)
         fnout = trim(odir) // '/' // 'uSGSinjpdf.' // ext // '.txt'
         n = n + 1; sfld(n) = 'uSGSinj' 
-        CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+        CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),var(n),s3,s4,s5,s6)
         CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
         CALL io_read(1,idir,'thSGSinj',ext,planio,R1)
         fnout = trim(odir) // '/' // 'thSGSinjpdf.' // ext // '.txt'
         n = n + 1; sfld(n) = 'thSGSinj' 
-        CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),s2,s3,s4,s5,s6)
+        CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),var(n),s3,s4,s5,s6)
         CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
       endif
 
@@ -3141,7 +3141,7 @@ endif
         if ( .NOT. bexist ) THEN
         WRITE(2,hdrfmt,advance='yes') '#itime', (sfld(j), j=1,n)
         ENDIF
-        WRITE(2,rowfmt,advance='no') indtime, (av(j), j=1,n)
+        WRITE(2,rowfmt,advance='no') indtime, (var(j), j=1,n)
         CLOSE(2)
 
         fnout = trim(odir) // '/' // 'skew.txt'
