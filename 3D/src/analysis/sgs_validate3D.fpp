@@ -639,7 +639,6 @@
       ALLOCATE( fs (nz,ny,ista:iend) )
 #endif
 
-      ALLOCATE( SGSth(nz,ny,ista:iend) )
 
 #ifdef MULTISCALAR_
       ALLOCATE( C21(nz,ny,ista:iend), C22(nz,ny,ista:iend) )
