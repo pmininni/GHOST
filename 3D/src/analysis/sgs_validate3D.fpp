@@ -401,7 +401,7 @@
       TYPE(IOPLAN),TARGET   :: planio
 
       ! Data specific to app:
-      CHARACTER(len=100)    :: odir, idir
+      CHARACTER(len=4096)    :: odir, idir
       REAL(kind=GP) omega(3),xnormn
       REAL(kind=GP) fmin,fmax
       INTEGER :: ic,ir,jc
@@ -1210,13 +1210,13 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
         REAL   (KIND=GP)     :: g5,s2,s3,s4,s5,s6,tmp,w6
         REAL   (KIND=GP)     :: av(10),sk(10),ku(10),vr(10)
         REAL   (KIND=GP)     :: avL(10),skL(10),kuL(10),varL(10)
-        REAL   (KIND=GP)     :: sgs1_corr(10), sgs2_corr(10), &
-                                sgs3_corr(10), sgsth_corr(10)
+        REAL   (KIND=GP)     :: sgs1_corr, sgs2_corr, &
+                                sgs3_corr, sgsth_corr
         REAL   (KIND=GP)     :: compute_corr
         REAL   (KIND=GP)     :: fmin(2),fmax(2)
 
         CHARACTER(len=1024)  :: fnout
-        CHARACTER(len=1024), INTENT(IN)  :: odir
+        CHARACTER(len=*), INTENT(IN)  :: odir
         CHARACTER(len=128)   :: sfld(10)
         CHARACTER(len=128)   :: hdrfmt, rowfmt
 
@@ -1239,7 +1239,7 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
         fnout = trim(odir) // '/' // 'SGS1Lpdf.' // ext // '.txt'
         CALL skewflat(R2,nx,ny,knz,avL(n),skL(n),kuL(n),g5,w6,varL(n),s3,s4,s5,s6)
         CALL dopdfr(R2,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0)
-        sgs1_corr(n) = compute_corr(R1,R2)
+        sgs1_corr = compute_corr(R1,R2)
 
         C1 = SGS2;    ! SGS2
         C1 = C1 * tmp 
@@ -1255,7 +1255,7 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
         fnout = trim(odir) // '/' // 'SGS2Lpdf.' // ext // '.txt'
         CALL skewflat(R2,nx,ny,knz,avL(n),skL(n),kuL(n),g5,w6,varL(n),s3,s4,s5,s6)
         CALL dopdfr(R2,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0)
-        sgs2_corr(n) = compute_corr(R1,R2)
+        sgs2_corr = compute_corr(R1,R2)
 
         C1 = SGS3;    ! SGS3
         C1 = C1 * tmp 
@@ -1271,7 +1271,7 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
         fnout = trim(odir) // '/' // 'SGS3Lpdf.' // ext // '.txt'
         CALL skewflat(R2,nx,ny,knz,avL(n),skL(n),kuL(n),g5,w6,varL(n),s3,s4,s5,s6)
         CALL dopdfr(R2,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0)
-        sgs3_corr(n) = compute_corr(R1,R2)
+        sgs3_corr = compute_corr(R1,R2)
 
         C1 = SGSth;    ! SGSth
         C1 = C1 * tmp 
@@ -1287,7 +1287,7 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
         fnout = trim(odir) // '/' // 'SGSthLpdf.' // ext // '.txt'
         CALL skewflat(R2,nx,ny,knz,avL(n),skL(n),kuL(n),g5,w6,varL(n),s3,s4,s5,s6)
         CALL dopdfr(R2,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0)
-        sgsth_corr(n) = compute_corr(R1,R2)
+        sgsth_corr = compute_corr(R1,R2)
 
         ! Write data to files:
         IF ( myrank.EQ.0 ) THEN
@@ -1352,7 +1352,7 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
           WRITE(2,hdrfmt,advance='yes') '#itime', 'sgs1', 'sgs2', 'sgs3', 'sgsth'
           ENDIF
           DO j = 1, n
-          WRITE(2,rowfmt,advance='no') indtime, sgs1_corr(j),sgs2_corr(j), sgs3_corr(j), sgsth_corr(j)
+          WRITE(2,rowfmt,advance='no') indtime, sgs1_corr,sgs2_corr, sgs3_corr, sgsth_corr
           ENDDO
           CLOSE(2)
       ENDIF
