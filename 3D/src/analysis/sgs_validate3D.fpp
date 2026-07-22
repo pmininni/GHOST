@@ -507,9 +507,9 @@
       NAMELIST / edqnmles / kolmo,heli
 #endif
 
-      NAMELIST / validate_mlsgs / iswap,oswap
-      NAMELIST / validate_mlsgs/ idir,odir,sstat
-      NAMELIST / validate_mlsgs/ nbinx,nbiny,prtbin,doSGSinj
+      NAMELIST / sgstraining/ iswap,oswap
+      NAMELIST / sgstraining/ idir,odir,sstat
+      NAMELIST / sgstraining/ nbinx,nbiny,prtbin,doSGSinj
 
 !
 ! Initialization
@@ -587,14 +587,6 @@
       ALLOCATE( vx(nz,ny,ista:iend) )
       ALLOCATE( vy(nz,ny,ista:iend) )
       ALLOCATE( vz(nz,ny,ista:iend) )
-#endif
-#ifdef VELOCSGS_
-      ALLOCATE( SGS1(nz,ny,ista:iend) )
-      ALLOCATE( SGS2(nz,ny,ista:iend) )
-      ALLOCATE( SGS3(nz,ny,ista:iend) )
-      ALLOCATE( C1SGS(nz,ny,ista:iend) )
-      ALLOCATE( C2SGS(nz,ny,ista:iend) )
-      ALLOCATE( C3SGS(nz,ny,ista:iend) )
 #endif
 
 #if defined(MOM_) 
@@ -815,7 +807,7 @@
       sgs_out_name   = 'SGS'
 
       IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
+         OPEN(1,file='validate_mlsgs.inp',status='unknown',form="formatted")
          READ(1,NML=mlsgsnml)
          CLOSE(1)
       ENDIF
@@ -876,7 +868,7 @@
 
       IF (myrank.eq.0) THEN
          OPEN(1,file='validate_mlsgs.inp',status='unknown',form="formatted")
-         READ(1,NML=validate_mlsgs)
+         READ(1,NML=sgstraining)
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(idir     ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
