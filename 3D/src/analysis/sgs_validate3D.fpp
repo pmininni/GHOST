@@ -1303,7 +1303,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
           fnout = trim(odir) // '/' // 'var_inference.txt'
           OPEN(2,file=trim(fnout),position='append')
           if ( .NOT. bexist ) THEN
-          WRITE(2,hdrfmt,advance='yes') '#itime', (sfld(j), j=1,n)
+          WRITE(2,hdrfmt,advance='yes') '#itime', (trim(sfld(j)), j=1,n)
           ENDIF
           WRITE(2,rowfmt,advance='no') indtime, (vr(j), j=1,n)
           CLOSE(2)
@@ -1311,7 +1311,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
           fnout = trim(odir) // '/' // 'var_label.txt'
           OPEN(2,file=trim(fnout),position='append')
           if ( .NOT. bexist ) THEN
-          WRITE(2,hdrfmt,advance='yes') '#itime', (sfld(j), j=1,n)
+          WRITE(2,hdrfmt,advance='yes') '#itime', (trim(sfld(j)), j=1,n)
           ENDIF
           WRITE(2,rowfmt,advance='no') indtime, (varL(j), j=1,n)
           CLOSE(2)
@@ -1319,7 +1319,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
           fnout = trim(odir) // '/' // 'skew_inference.txt'
           OPEN(2,file=trim(fnout),position='append')
           if ( .NOT. bexist ) THEN
-          WRITE(2,hdrfmt,advance='yes') '#itime', (sfld(j), j=1,n)
+          WRITE(2,hdrfmt,advance='yes') '#itime', (trim(sfld(j)), j=1,n)
           ENDIF
           WRITE(2,rowfmt,advance='no') indtime, (sk(j), j=1,n)
           CLOSE(2)
@@ -1327,7 +1327,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
           fnout = trim(odir) // '/' // 'skew_label.txt'
           OPEN(2,file=trim(fnout),position='append')
           if ( .NOT. bexist ) THEN
-          WRITE(2,hdrfmt,advance='yes') '#itime', (sfld(j), j=1,n)
+          WRITE(2,hdrfmt,advance='yes') '#itime', (trim(sfld(j)), j=1,n)
           ENDIF
           WRITE(2,rowfmt,advance='no') indtime, (skL(j), j=1,n)
           CLOSE(2)
@@ -1335,13 +1335,13 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
           fnout = trim(odir) // '/' // 'flat_inference.txt'
           OPEN(2,file=trim(fnout),position='append')
           if ( .NOT. bexist ) THEN
-          WRITE(2,hdrfmt,advance='yes') '#itime', (sfld(j), j=1,n)
+          WRITE(2,hdrfmt,advance='yes') '#itime', (trim(sfld(j)), j=1,n)
           ENDIF
   
           fnout = trim(odir) // '/' // 'flat_label.txt'
           OPEN(2,file=trim(fnout),position='append')
           if ( .NOT. bexist ) THEN
-          WRITE(2,hdrfmt,advance='yes') '#itime', (sfld(j), j=1,n)
+          WRITE(2,hdrfmt,advance='yes') '#itime', (trim(sfld(j)), j=1,n)
           ENDIF
           WRITE(2,rowfmt,advance='no') indtime, (kuL(j), j=1,n)
           CLOSE(2)
