@@ -758,42 +758,6 @@
 #endif
 
 !
-! Reads parameters that will be used to control the
-! time integration from the namelist 'parameter' on
-! the external file 'parameter.inp'
-!     dt   : time step size
-!     step : total number of time steps to compute
-!     tstep: number of steps between binary output
-!     sstep: number of steps between power spectrum output
-!     cstep: number of steps between output of global quantities
-!     rand : = 0 constant force
-!            = 1 random phases
-!            = 2 slowly varying random phases (only for the velocity and
-!                magnetic forcings)
-!            = 3 user-defined forcing scheme
-!     cort : time correlation of the external forcing
-!     seed : seed for the random number generator
-
-      IF (myrank.eq.0) THEN
-         OPEN(1,file='parameter.inp',status='unknown',form="formatted")
-         READ(1,NML=parameter)
-         CLOSE(1)
-         dt = dt/real(mult,kind=GP)
-         step = step*mult
-         tstep = tstep*mult
-         sstep = sstep*mult
-         cstep = cstep*mult
-         fstep = int(cort/dt)
-      ENDIF
-      CALL MPI_BCAST(dt,1,GC_REAL,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(step,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(tstep,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(sstep,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(cstep,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(fstep,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(rand,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(seed,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-
       Lx  = 1.0_GP
       Ly  = 1.0_GP
       Lz  = 1.0_GP
