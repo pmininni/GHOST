@@ -1,7 +1,7 @@
 sgstraining3D.fpp:  Build at DNS resolution. Computes ML SGS training 
 data for Boussinesq flows, allowing user to specifiy truncation dimenstions.
 Also computes the terms < N(u,u) > and <N(u,th)>, which form one summand 
-for the SGS terms.
+for the SGS terms. Build with ROTBOUSS solver.
 
 sglabels3D.fpp:  Build at tuncated resolution. Computes the final SGS
 terms: 
@@ -9,7 +9,12 @@ terms:
       SGSth = <N>_i(<u>,<u>) - <N_i(u,u)>
 
 as well as the injection energy rates: Sum_i u_i SGS_i, and
-th SGSth.
+th SGSth. Build with ROTBOUSS solver.
+
+sgs_validate3D: Build at truncated (SGS) resolution. Reads label SGS terms
+from specified directory, and computes the ML SGS from the ONNx model using
+the predictors from the training. App then computes statistics on both
+terms, as well as a correlation measure. Build with ROTBOUSS_SGS solver
 
 lesbouss3D: Do not use! Attempt to unify sgstrainingand sgslabels by
 creating a truncation communicatory to compute the SGS terms. 
