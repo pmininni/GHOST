@@ -1040,11 +1040,14 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
         CALL fftp3d_real_to_complex(planrc,R1,LSGSth,MPI_COMM_WORLD)
 
         ! Do analysis: Compute model SGS terms:
+if (myrank.eq.0) write(*,*)'main: computing sgs_model...' 
         CALL mlsgs%sgs_model(vx, vy, vz, th, &
                              C1SGS, C2SGS, C3SGS, R1, &
                              SGS1 , SGS2 , SGS3 , SGSth)
+        CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+if (myrank.eq.0) write(*,*)'main: sgs_model computed.' 
 
-        CALL DOCOMPARE(SGS1 , SGS2 ,SGS3 ,SGSth , &
+        CALL DoCompare(SGS1 , SGS2 ,SGS3 ,SGSth , &
                        LSGS1, LSGS2,LSGS3,LSGSth, &
                        istat(it), odir, nbins,   &
                        C1, C2, R1, R2)
@@ -1172,7 +1175,7 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
       END PROGRAM MAIN3D
 
 
-      SUBROUTINE DOCOMPARE(SGS1 ,SGS2 ,SGS3 ,SGSth , &
+      SUBROUTINE DoCompare(SGS1 ,SGS2 ,SGS3 ,SGSth , &
                            LSGS1,LSGS2,LSGS3,LSGSth, &
                            indtime, odir, nbins, C1, C2, R1, R2) 
 !-----------------------------------------------------------------
@@ -1221,7 +1224,7 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
         CHARACTER(len=128)   :: hdrfmt, rowfmt
 
 
-
+        n      = 0
         knz    = kend - ksta + 1
         tmp    = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
 
@@ -1356,8 +1359,9 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
           ENDDO
           CLOSE(2)
       ENDIF
+      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
-      END SUBROUTINE 
+      END SUBROUTINE DoCompare
 
 
       SUBROUTINE skewflat(fx,nx,ny,nz,avg,skew,flat,glop,whoa,s2,s3,s4,s5,s6)
