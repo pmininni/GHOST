@@ -142,10 +142,10 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C20
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M7
 #endif
-#ifdef SCALARSGS_
+
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: SGSth,LSGSth
       CHARACTER(len=len(ext)) sgsext
-#endif
+
 #ifdef MULTISCALAR_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C21,C22,C23,C24
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: M8,M9,M10
@@ -179,9 +179,8 @@
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: fxnew,fynew,fznew
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)        :: Faux1,Faux2
 #endif
-#ifdef VELOCSGS_
-      COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: C1SGS,C2SGS,C3SGS,SGS1,SGS2,SGS3
-#endif
+
+
 #ifdef MAGFIELD_
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: mxold,myold,mzold
       COMPLEX(KIND=GP), ALLOCATABLE, DIMENSION (:,:,:) :: mxnew,mynew,mznew
@@ -389,7 +388,7 @@
 #if defined(DEF_GHOST_CUDA_)
       TYPE(cudaDevicePropG) :: devprop
 #endif
-#if defined(VELOCSGS_) || defined(SCALARSGS_)
+
       TYPE (GSGSmodel)      :: mlsgs
       TYPE(GSGSmodelTraits) :: mlsgstraits
       LOGICAL               :: sgs_doproj, sgs_dodealias
@@ -398,14 +397,14 @@
       REAL(KIND=GP)         :: sgs_vfactor, sgs_thfactor
       CHARACTER(len=1024)   :: sgs_model_path, sgs_model_type
       CHARACTER(len=1024)   :: sgs_in_name, sgs_out_name
-#endif
+
       TYPE(IOPLAN),TARGET   :: planio
 
       ! Data specific to app:
       CHARACTER(len=100)    :: odir, idir
       REAL(kind=GP) omega(3),xnormn
       REAL(kind=GP) fmin,fmax
-      INTEGER :: ic,ir,it,jc
+      INTEGER :: ic,ir,jc
       INTEGER :: istat(4096),nstat,prtbin,doSGSinj
       INTEGER :: nbinx,nbiny,nbins(2)
       CHARACTER(len=64) :: ext1
@@ -567,8 +566,6 @@
 #endif
 #endif
 
-     use_mlsgs = .FALSE. ! ML-SGS terms
-
      CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
      CALL range(1,nz,nprocs,myrank,ksta,kend)
      CALL io_init(myrank,(/nx,ny,nz/),ksta,kend,planio)
@@ -649,9 +646,9 @@
       ALLOCATE( th (nz,ny,ista:iend) )
       ALLOCATE( fs (nz,ny,ista:iend) )
 #endif
-#ifdef SCALARSGS_
+
       ALLOCATE( SGSth(nz,ny,ista:iend) )
-#endif
+
 #ifdef MULTISCALAR_
       ALLOCATE( C21(nz,ny,ista:iend), C22(nz,ny,ista:iend) )
       ALLOCATE( C23(nz,ny,ista:iend), C24(nz,ny,ista:iend) )
@@ -704,7 +701,6 @@
          kk2 => kn2
       ENDIF
 #endif
-      ALLOCATE( Hinv(nz,ny,ista:iend) ) ! Voigt inv. Helmholtz operator
 
       ALLOCATE( R1(nx,ny,ksta:kend) )
       ALLOCATE( R2(nx,ny,ksta:kend) )
@@ -1739,7 +1735,6 @@
         nbins(1) = nbinx ; nbins(2) = nbiny
 
 if (myrank.eq.0) write(*,*)'main: Reading time index: ', ext, '...'
-#ifdef MOM_
 if (myrank.eq.0) write(*,*)'main: Reading vx_T...'
         CALL io_read(1,idir,'vx_T',ext,planio,R1)
         CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
@@ -1773,7 +1768,7 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
                              SGS1 , SGS2 , SGS3 , SGSth)
 
         CALL DOCOMPARE(SGS1 , SGS2 ,SGS3 ,SGSth , &
-                       LSGS1, LSGS2,LSGS4,LSGSth, &
+                       LSGS1, LSGS2,LSGS3,LSGSth, &
                        istat(it), odir, nbins,   &
                        C1, C2, R1, R2)
 
@@ -1805,7 +1800,6 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
          NULLIFY( kk2 )
       ENDIF
       DEALLOCATE( kn2 )
-      DEALLOCATE( Hinv)
 #ifdef VELOC_
       DEALLOCATE( fx,fy,fz )
       IF (mean.eq.1) DEALLOCATE( M1,M2,M3 )
@@ -1859,9 +1853,9 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
       DEALLOCATE( C20 )
       IF (mean.eq.1) DEALLOCATE( M7 )
 #endif
-#ifdef SCALARSGS_
+
       DEALLOCATE( SGSth )
-#endif
+
 #ifdef MULTISCALAR_
       DEALLOCATE( th1,fs1,th2,fs2,th3,fs3 )
       DEALLOCATE( C21,C22,C23,C24 )
@@ -1902,7 +1896,7 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
 
 
       SUBROUTINE DOCOMPARE(SGS1 ,SGS2 ,SGS3 ,SGSth , &
-                           LSGS1,LSGS2,LSGS4,LSGSth, &
+                           LSGS1,LSGS2,LSGS3,LSGSth, &
                            indtime, odir, nbins, C1, C2, R1, R2) 
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1935,13 +1929,14 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
         INTEGER         , INTENT   (IN)                            :: nbins(2)
 
         LOGICAL              :: bexist
-        INTEGER              :: ierr, i, kz, n
+        INTEGER              :: i, j, knz, n
         REAL   (KIND=GP)     :: g5,s2,s3,s4,s5,s6,tmp,w6
-        REAL   (KIND=GP)     :: av(10),sk(10),ku(10),var(10)
+        REAL   (KIND=GP)     :: av(10),sk(10),ku(10),vr(10)
         REAL   (KIND=GP)     :: avL(10),skL(10),kuL(10),varL(10)
         REAL   (KIND=GP)     :: sgs1_corr(10), sgs2_corr(10), &
                                 sgs3_corr(10), sgsth_corr(10)
-        REAL   (KIND=GP)     :: fmin(2)
+        REAL   (KIND=GP)     :: compute_corr
+        REAL   (KIND=GP)     :: fmin(2),fmax(2)
 
         CHARACTER(len=1024)  :: fnout
         CHARACTER(len=1024), INTENT(IN)  :: odir
@@ -1957,7 +1952,7 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
         C1 = C1 * tmp 
         CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
         n     = n + 1; sfld(n) = 'sgs1';
-        CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5,w6,var(n),s3,s4,s5,s6)
+        CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5,w6,vr(n),s3,s4,s5,s6)
         fnout = trim(odir) // '/' // 'SGS1pdf.' // ext // '.txt'
         CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0)
 
@@ -1973,7 +1968,7 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
         C1 = C1 * tmp 
         CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
         n     = n + 1; sfld(n) = 'sgs2';
-        CALL skewflat(R1,nx,ny,knz,avL(n),skL(n),kuL(n),g5,w6,var(n),s3,s4,s5,s6)
+        CALL skewflat(R1,nx,ny,knz,avL(n),skL(n),kuL(n),g5,w6,vr(n),s3,s4,s5,s6)
         fnout = trim(odir) // '/' // 'SGS2pdf.' // ext // '.txt'
         CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0)
 
@@ -1989,7 +1984,7 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
         C1 = C1 * tmp 
         CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
         n  = n + 1; sfld(n) = 'sgs3';
-        CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5,w6,var(n),s3,s4,s5,s6)
+        CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5,w6,vr(n),s3,s4,s5,s6)
         fnout = trim(odir) // '/' // 'SGS3pdf.' // ext // '.txt'
         CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0)
 
@@ -2005,7 +2000,7 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
         C1 = C1 * tmp 
         CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
         n     = n + 1; sfld(n) = 'sgsth';
-        CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5,w6,var(n),s3,s4,s5,s6)
+        CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5,w6,vr(n),s3,s4,s5,s6)
         fnout = trim(odir) // '/' // 'SGSthpdf.' // ext // '.txt'
         CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0)
 
@@ -2030,7 +2025,7 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
           if ( .NOT. bexist ) THEN
           WRITE(2,hdrfmt,advance='yes') '#itime', (sfld(j), j=1,n)
           ENDIF
-          WRITE(2,rowfmt,advance='no') indtime, (var(j), j=1,n)
+          WRITE(2,rowfmt,advance='no') indtime, (vr(j), j=1,n)
           CLOSE(2)
   
           fnout = trim(odir) // '/' // 'var_label.txt'
@@ -2222,13 +2217,9 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
 
         REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2
 
-        INTEGER              :: ierr, kz, n
+        INTEGER              :: i, j, k, knz, n
         REAL   (KIND=GP)     :: lsum, gsum, tmp
 
-
-        CHARACTER(len=1024)  :: fnout
-        CHARACTER(len=1024), INTENT(IN)  :: odir
-        CHARACTER(len=128)   :: sfld(10), sfldL(10)
 
         tmp    = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
 
@@ -2244,8 +2235,8 @@ if (myrank.eq.0) write(*,*)'main: Reading LSGSth_T...'
            END DO
         END DO
 
-        CALL MPI_ALLREDUCE(fmin1,gmin,1, GC_REAL,      &
+        CALL MPI_ALLREDUCE(lsum,gsum,1, GC_REAL,      &
                            MPI_SUM,MPI_COMM_WORLD,ierr)
         gsum = gsum * tmp
 
-      END SUBROUTINE compute_corr
+      END FUNCTION compute_corr
