@@ -1700,6 +1700,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         REAL   (KIND=GP)     :: lsum, gsum, tmp
         REAL   (KIND=GP)     :: lmax(2), gmax(2)
 
+        REAL   (KIND=GP)     :: rcorr
 
         tmp    = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
 
