@@ -405,7 +405,7 @@
       REAL(kind=GP) omega(3),xnormn
       REAL(kind=GP) fmin,fmax
       INTEGER :: ic,ir,jc
-      INTEGER :: istat(4096),nstat,prtbin,doSGSinj,doCompare,doCorr
+      INTEGER :: istat(4096),nstat,prtbin,doSGSinj,bDoComp,bDoCorr
       INTEGER :: nbinx,nbiny,nbins(2)
       CHARACTER(len=64) :: ext1
       CHARACTER(len=4096) :: sstat
@@ -509,7 +509,7 @@
 
       NAMELIST / sgstraining/ iswap,oswap
       NAMELIST / sgstraining/ idir,odir,sstat
-      NAMELIST / sgstraining/ nbinx,nbiny,prtbin,doSGSinj,doCompare,doCorr
+      NAMELIST / sgstraining/ nbinx,nbiny,prtbin,doSGSinj,bDoCompare,bDoCorr
 
 !
 ! Initialization
@@ -862,9 +862,9 @@
       nbinx  = 100
       nbiny  = 100
       prtbin = 0    ! don't print binary data
-      doSGSinj  = 0 ! don't examine SGSinj terms
-      doCompare = 1 ! do comparison btwn inference and label SGS
-      doCorr    = 0 ! do correlation btwn uSGS1, vSGS1, etc...
+      doSGSinj   = 0 ! don't examine SGSinj terms
+      bDoCompare = 1 ! do comparison btwn inference and label SGS
+      bDoCorr    = 0 ! do correlation btwn uSGS1, vSGS1, etc...
       IF (myrank.eq.0) THEN
          OPEN(1,file='validate_mlsgs.inp',status='unknown',form="formatted")
          READ(1,NML=sgstraining)
@@ -879,8 +879,8 @@
       CALL MPI_BCAST(nbiny    ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(prtbin   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(doSGSinj ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(doCompare,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(doCorre  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(bDoCompare,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(bDoCorr  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
 
 
 ! Before continuing, we verify that all parameters and compilation
@@ -1049,14 +1049,14 @@ if (myrank.eq.0) write(*,*)'main: computing sgs_model...'
         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 if (myrank.eq.0) write(*,*)'main: sgs_model computed.' 
 
-        IF ( doCompare .gt 0 ) THEN
+        IF ( bDoCompare .gt. 0 ) THEN
           CALL DoCompare(SGS1 , SGS2 ,SGS3 ,SGSth , &
                          LSGS1, LSGS2,LSGS3,LSGSth, &
                          istat(it), odir, nbins,   &
                          C1, C2, R1, R2)
         ENDIF
 
-        IF ( doCorr .gt 0 ) THEN
+        IF ( bDoCorr .gt. 0 ) THEN
           CALL DoCorr   (vx   , vy   , vz   ,th    , &
                          SGS1 , SGS2 , SGS3 ,SGSth , &
                          istat(it), odi,             &
@@ -1747,7 +1747,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
 !-----------------------------------------------------------------
 
 
-      FUNCTION rorr(R1 ,R2) result(gcorr)
+      FUNCTION rcorr(R1 ,R2) result(gcorr)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 ! Compute correlation <R1 R2>. Normally the correlation
