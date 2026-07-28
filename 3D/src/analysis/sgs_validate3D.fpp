@@ -1533,7 +1533,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         sfld(1,1) = 'uS1'; sfld(1,2) = 'uS2'; sfld(1,3) = 'uS3'; sfld(1,4) = 'uSth'
         sfld(2,1) = 'vS1'; sfld(2,2) = 'vS2'; sfld(2,3) = 'vS3'; sfld(2,4) = 'vSth'
         sfld(3,1) = 'wS1'; sfld(3,2) = 'wS2'; sfld(3,3) = 'wS3'; sfld(2,4) = 'wSth'
-        sfld(4,1) = 'tS1'; sfld(4,2) = 'tS2'; sfld(4,3) = 'tS3'; sfld(3,4) = 'tSth'
+        sfld(4,1) = 'tS1'; sfld(4,2) = 'tS2'; sfld(4,3) = 'tS3'; sfld(4,4) = 'tSth'
 
         lcorr = reshape(corr, [16,1])
         lsfld = reshape(sfld, [16,1])
