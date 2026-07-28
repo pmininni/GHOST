@@ -1421,7 +1421,6 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         REAL   (KIND=GP) rcorr
 
         INTEGER         , INTENT   (IN)                            :: indtime
-        INTEGER         , INTENT   (IN)                            :: nbins(2)
 
         LOGICAL              :: bexist
         INTEGER              :: i, j, n
