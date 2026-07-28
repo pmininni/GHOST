@@ -1295,7 +1295,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
 
         ! Write data to files:
         IF ( myrank.EQ.0 ) THEN
-          inquire( file='var.txt', exist=bexist )
+          inquire( file='var_label.txt', exist=bexist )
 
           ! Create format for statistical data:
           WRITE(rowfmt,'(A, I4, A)') '(I4,',n,'(2X,E14.6))'
