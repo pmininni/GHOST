@@ -1526,7 +1526,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
 !$omp parallel do if (kend-ksta.lt.nth) private (i)               
            DO j = 1,ny  
               DO i = 1,nx                                           
-                 lsum = lsum + (r1(i,j,k)-r2(i,j,k))*2 
+                 lsum = lsum + (r1(i,j,k)-r2(i,j,k))**2 
               END DO
            END DO
         END DO
@@ -1554,4 +1554,4 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         gsum  = gsum * tmp
         gcorr = gsum / ( gmax(1)*gmax(2) )
 
-      END FUNCTION compute_corr
+      END SUBROUTINE compute_corr
