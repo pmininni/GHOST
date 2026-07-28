@@ -1419,6 +1419,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend):: LSGS1,LSGS2,LSGS3,LSGSth
         COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ista:iend):: C1,C2
         REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2
+        REAL   (KIND=GP) rcorr
 
         INTEGER         , INTENT   (IN)                            :: indtime
         INTEGER         , INTENT   (IN)                            :: nbins(2)
@@ -1550,9 +1551,9 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
   
           OPEN(2,file=trim(fnout),position='append')
           if ( .NOT. bexist ) THEN
-          WRITE(2,hdrfmt,advance='yes') '#itime', (trim(lsfld(j)), j=1,n)
+          WRITE(2,hdrfmt,advance='yes') '#itime', (trim(lsfld(j,1)), j=1,n)
           ENDIF
-          WRITE(2,rowfmt,advance='no') indtime, (lcorr(j), j=1,n)
+          WRITE(2,rowfmt,advance='no') indtime, (lcorr(j,1), j=1,n)
           CLOSE(2)
   
       ENDIF
