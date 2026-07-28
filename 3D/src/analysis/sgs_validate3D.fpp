@@ -1215,7 +1215,8 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         REAL   (KIND=GP)     :: avL(10),skL(10),kuL(10),varL(10)
         REAL   (KIND=GP)     :: sgs1_corr, sgs2_corr, &
                                 sgs3_corr, sgsth_corr
-        REAL   (KIND=GP)     :: compute_corr
+        REAL   (KIND=GP)     :: sgs1_err, sgs2_err, &
+                                sgs3_err, sgsth_err
         REAL   (KIND=GP)     :: fmin(2),fmax(2)
 
         CHARACTER(len=1024)  :: fnout
@@ -1242,7 +1243,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         fnout = trim(odir) // '/' // 'SGS1Lpdf.' // ext // '.txt'
         CALL skewflat(R2,nx,ny,knz,avL(n),skL(n),kuL(n),g5,w6,varL(n),s3,s4,s5,s6)
         CALL dopdfr(R2,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0)
-        sgs1_corr = compute_corr(R1,R2)
+        CALL compute_corr(R1, R2, sgs1_err, sgs1_corr)
 
         C1 = SGS2;    ! SGS2
         C1 = C1 * tmp 
@@ -1258,7 +1259,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         fnout = trim(odir) // '/' // 'SGS2Lpdf.' // ext // '.txt'
         CALL skewflat(R2,nx,ny,knz,avL(n),skL(n),kuL(n),g5,w6,varL(n),s3,s4,s5,s6)
         CALL dopdfr(R2,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0)
-        sgs2_corr = compute_corr(R1,R2)
+        CALL compute_corr(R1, R2, sgs2_err, sgs2_corr)
 
         C1 = SGS3;    ! SGS3
         C1 = C1 * tmp 
@@ -1274,7 +1275,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         fnout = trim(odir) // '/' // 'SGS3Lpdf.' // ext // '.txt'
         CALL skewflat(R2,nx,ny,knz,avL(n),skL(n),kuL(n),g5,w6,varL(n),s3,s4,s5,s6)
         CALL dopdfr(R2,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0)
-        sgs3_corr = compute_corr(R1,R2)
+        CALL compute_corr(R1, R2, sgs3_err, sgs3_corr)
 
         C1 = SGSth;    ! SGSth
         C1 = C1 * tmp 
@@ -1290,7 +1291,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         fnout = trim(odir) // '/' // 'SGSthLpdf.' // ext // '.txt'
         CALL skewflat(R2,nx,ny,knz,avL(n),skL(n),kuL(n),g5,w6,varL(n),s3,s4,s5,s6)
         CALL dopdfr(R2,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0)
-        sgsth_corr = compute_corr(R1,R2)
+        CALL compute_corr(R1, R2, sgsth_err, sgsth_corr)
 
         ! Write data to files:
         IF ( myrank.EQ.0 ) THEN
@@ -1354,9 +1355,15 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
           if ( .NOT. bexist ) THEN
           WRITE(2,hdrfmt,advance='yes') '#itime', 'sgs1', 'sgs2', 'sgs3', 'sgsth'
           ENDIF
-          DO j = 1, n
           WRITE(2,rowfmt,advance='no') indtime, sgs1_corr,sgs2_corr, sgs3_corr, sgsth_corr
-          ENDDO
+          CLOSE(2)
+
+          fnout = trim(odir) // '/' // 'sgs_err.txt'
+          OPEN(2,file=trim(fnout),position='append')
+          if ( .NOT. bexist ) THEN
+          WRITE(2,hdrfmt,advance='yes') '#itime', 'sgs1', 'sgs2', 'sgs3', 'sgsth'
+          ENDIF
+          WRITE(2,rowfmt,advance='no') indtime, sgs1_err,sgs2_err, sgs3_err, sgsth_err
           CLOSE(2)
       ENDIF
       CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
@@ -1469,7 +1476,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
 !-----------------------------------------------------------------
 !
 !
-      FUNCTION compute_corr(R1 ,R2) result(gsum)
+      SUBROUTINE compute_corr(R1 ,R2, err, gcorr) 
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 ! Compute correlation <R1 R2>. Normally the correlation
@@ -1497,14 +1504,37 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         IMPLICIT NONE
 
         REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2
+        REAL   (KIND=GP), INTENT  (OUT)                            :: gcorr, err
 
         INTEGER              :: i, j, k, knz, n
         REAL   (KIND=GP)     :: lsum, gsum, tmp
+        REAL   (KIND=GP)     :: lmax(2), gmax(2)
 
 
         tmp    = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
 
+        lmax(1) = MAXVAL(R1); 
+        lmax(2) = MAXVAL(R2); 
+        CALL MPI_ALLREDUCE(lmax,gmax,2, GC_REAL,      &
+                           MPI_MAX,MPI_COMM_WORLD,ierr)
 
+        lsum = 0.0_GP;
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend                                            
+!$omp parallel do if (kend-ksta.lt.nth) private (i)               
+           DO j = 1,ny  
+              DO i = 1,nx                                           
+                 lsum = lsum + (r1(i,j,k)-r2(i,j,k))*2 
+              END DO
+           END DO
+        END DO
+
+        CALL MPI_ALLREDUCE(lsum,gsum,1, GC_REAL,      &
+                           MPI_SUM,MPI_COMM_WORLD,ierr)
+        gsum  = gsum * tmp
+        err   = sqrt(gsum)
+
+        ! Correlation:
         lsum = 0.0_GP;
 !$omp parallel do if (kend-ksta.ge.nth) private (j,i)
         DO k = ksta,kend                                            
@@ -1518,6 +1548,8 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
 
         CALL MPI_ALLREDUCE(lsum,gsum,1, GC_REAL,      &
                            MPI_SUM,MPI_COMM_WORLD,ierr)
-        gsum = gsum * tmp
+
+        gsum  = gsum * tmp
+        gcorr = gsum / ( gmax(1)*gmax(2) )
 
       END FUNCTION compute_corr
