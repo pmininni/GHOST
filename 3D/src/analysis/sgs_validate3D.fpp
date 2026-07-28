@@ -1725,22 +1725,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         err   = sqrt(gsum)
 
         ! Correlation:
-        lsum = 0.0_GP;
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-        DO k = ksta,kend                                            
-!$omp parallel do if (kend-ksta.lt.nth) private (i)               
-           DO j = 1,ny  
-              DO i = 1,nx                                           
-                 lsum = lsum + r1(i,j,k)*r2(i,j,k) 
-              END DO
-           END DO
-        END DO
-
-        CALL MPI_ALLREDUCE(lsum,gsum,1, GC_REAL,      &
-                           MPI_SUM,MPI_COMM_WORLD,ierr)
-
-        gsum  = gsum * tmp
-        gcorr = gsum / ( gmax(1)*gmax(2) )
+        gcorr =  rcorr(R1 ,R2)
 
       END SUBROUTINE compute_corr
 !-----------------------------------------------------------------
