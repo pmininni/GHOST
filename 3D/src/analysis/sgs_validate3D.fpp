@@ -405,7 +405,7 @@
       REAL(kind=GP) omega(3),xnormn
       REAL(kind=GP) fmin,fmax
       INTEGER :: ic,ir,jc
-      INTEGER :: istat(4096),nstat,prtbin,doSGSinj
+      INTEGER :: istat(4096),nstat,prtbin,doSGSinj,doCompare,doCorr
       INTEGER :: nbinx,nbiny,nbins(2)
       CHARACTER(len=64) :: ext1
       CHARACTER(len=4096) :: sstat
@@ -509,7 +509,7 @@
 
       NAMELIST / sgstraining/ iswap,oswap
       NAMELIST / sgstraining/ idir,odir,sstat
-      NAMELIST / sgstraining/ nbinx,nbiny,prtbin,doSGSinj
+      NAMELIST / sgstraining/ nbinx,nbiny,prtbin,doSGSinj,doCompare,doCorr
 
 !
 ! Initialization
@@ -861,10 +861,10 @@
       oswap  = 0
       nbinx  = 100
       nbiny  = 100
-      prtbin = 0   ! don't print binary data
-      doSGSinj = 0 ! don't examine SGSinj terms
-      doSGSinj = 0 ! don't examine SGSinj terms
-
+      prtbin = 0    ! don't print binary data
+      doSGSinj  = 0 ! don't examine SGSinj terms
+      doCompare = 1 ! do comparison btwn inference and label SGS
+      doCorr    = 0 ! do correlation btwn uSGS1, vSGS1, etc...
       IF (myrank.eq.0) THEN
          OPEN(1,file='validate_mlsgs.inp',status='unknown',form="formatted")
          READ(1,NML=sgstraining)
@@ -879,6 +879,8 @@
       CALL MPI_BCAST(nbiny    ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(prtbin   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(doSGSinj ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(doCompare,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(doCorre  ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
 
 
 ! Before continuing, we verify that all parameters and compilation
@@ -1047,11 +1049,19 @@ if (myrank.eq.0) write(*,*)'main: computing sgs_model...'
         CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 if (myrank.eq.0) write(*,*)'main: sgs_model computed.' 
 
-        CALL DoCompare(SGS1 , SGS2 ,SGS3 ,SGSth , &
-                       LSGS1, LSGS2,LSGS3,LSGSth, &
-                       istat(it), odir, nbins,   &
-                       C1, C2, R1, R2)
+        IF ( doCompare .gt 0 ) THEN
+          CALL DoCompare(SGS1 , SGS2 ,SGS3 ,SGSth , &
+                         LSGS1, LSGS2,LSGS3,LSGSth, &
+                         istat(it), odir, nbins,   &
+                         C1, C2, R1, R2)
+        ENDIF
 
+        IF ( doCorr .gt 0 ) THEN
+          CALL DoCorr   (vx   , vy   , vz   ,th    , &
+                         SGS1 , SGS2 , SGS3 ,SGSth , &
+                         istat(it), odi,             &
+                         C1, C2, R1, R2)
+        ENDIF
 
         if (myrank.eq.0) write(*,*)'main: Time index ', ext, ' done.'
       ENDDO ! end, it-loop
@@ -1372,6 +1382,183 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
       CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
 
       END SUBROUTINE DoCompare
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+      SUBROUTINE DoCorr (vx  ,vy  ,vz  , th  ,   &  
+                         SGS1,SGS2,SGS3,SGSth,   &
+                         indtime, odir,          &
+                         C1, C2, R1, R2) 
+!-----------------------------------------------------------------
+!  Compute and print correlation tensor: 
+!    Cij = <u_i S_j>/max(u_i) max(S_j)
+!-----------------------------------------------------------------
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE gutils
+      USE iovar
+      USE iompi
+      USE iovar
+      USE filefmt
+      USE boxsize
+ 
+        IMPLICIT NONE
+
+        COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend):: vx,vy,vz,th
+        COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend):: SGS1,SGS2,SGS3,SGSth
+        COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend):: LSGS1,LSGS2,LSGS3,LSGSth
+        COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ista:iend):: C1,C2
+        REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2
+
+        INTEGER         , INTENT   (IN)                            :: indtime
+        INTEGER         , INTENT   (IN)                            :: nbins(2)
+
+        LOGICAL              :: bexist
+        INTEGER              :: i, j
+        REAL   (KIND=GP)     :: corr(4,4), lcorr(16,1)
+
+        CHARACTER(len=1024)  :: fnout
+        CHARACTER(len=*), INTENT(IN)  :: odir
+        CHARACTER(len=128)   :: sfld(4,4), lsfld(16,1)
+        CHARACTER(len=128)   :: hdrfmt, rowfmt
+
+
+        tmp    = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
+
+        C1 = vx
+        C1 = C1 * tmp 
+        CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+
+          C1 = SGS1; ! vx SGSx
+          C1 = C1 * tmp 
+          CALL fftp3d_complex_to_real(plancr,C1,R2,MPI_COMM_WORLD)
+          corr(1,1) = rcorr(R1, R2)
+
+          C1 = SGS2; ! vx SGSy
+          C1 = C1 * tmp 
+          CALL fftp3d_complex_to_real(plancr,C1,R2,MPI_COMM_WORLD)
+          corr(1,2) = rcorr(R1, R2)
+
+          C1 = SGS3; ! vx SGSz
+          C1 = C1 * tmp 
+          CALL fftp3d_complex_to_real(plancr,C1,R2,MPI_COMM_WORLD)
+          corr(1,3) = rcorr(R1, R2)
+
+          C1 = SGSth; ! vx SGSth
+          C1 = C1 * tmp 
+          CALL fftp3d_complex_to_real(plancr,C1,R2,MPI_COMM_WORLD)
+          corr(1,4) = rcorr(R1, R2)
+
+        C1 = vy
+        C1 = C1 * tmp 
+        CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+
+          C1 = SGS1; ! vy SGSx
+          C1 = C1 * tmp 
+          CALL fftp3d_complex_to_real(plancr,C1,R2,MPI_COMM_WORLD)
+          corr(2,1) = rcorr(R1, R2)
+
+          C1 = SGS2; ! vy SGSy
+          C1 = C1 * tmp 
+          CALL fftp3d_complex_to_real(plancr,C1,R2,MPI_COMM_WORLD)
+          corr(2,2) = rcorr(R1, R2)
+
+          C1 = SGS3; ! vy SGSz
+          C1 = C1 * tmp 
+          CALL fftp3d_complex_to_real(plancr,C1,R2,MPI_COMM_WORLD)
+          corr(2,3) = rcorr(R1, R2)
+
+          C1 = SGSth; ! vy SGSth
+          C1 = C1 * tmp 
+          CALL fftp3d_complex_to_real(plancr,C1,R2,MPI_COMM_WORLD)
+          corr(2,4) = rcorr(R1, R2)
+
+        C1 = vz
+        C1 = C1 * tmp 
+        CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+
+          C1 = SGS1; ! vz SGSx
+          C1 = C1 * tmp 
+          CALL fftp3d_complex_to_real(plancr,C1,R2,MPI_COMM_WORLD)
+          corr(3,1) = rcorr(R1, R2)
+
+          C1 = SGS2; ! vz SGSy
+          C1 = C1 * tmp 
+          CALL fftp3d_complex_to_real(plancr,C1,R2,MPI_COMM_WORLD)
+          corr(3,2) = rcorr(R1, R2)
+
+          C1 = SGS3; ! vz SGSz
+          C1 = C1 * tmp 
+          CALL fftp3d_complex_to_real(plancr,C1,R2,MPI_COMM_WORLD)
+          corr(3,3) = rcorr(R1, R2)
+
+          C1 = SGSth; ! vz SGSth
+          C1 = C1 * tmp 
+          CALL fftp3d_complex_to_real(plancr,C1,R2,MPI_COMM_WORLD)
+          corr(3,4) = rcorr(R1, R2)
+
+        C1 = th
+        C1 = C1 * tmp 
+        CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+
+          C1 = SGS1; ! th SGSx
+          C1 = C1 * tmp 
+          CALL fftp3d_complex_to_real(plancr,C1,R2,MPI_COMM_WORLD)
+          corr(4,1) = rcorr(R1, R2)
+
+          C1 = SGS2; ! th SGSy
+          C1 = C1 * tmp 
+          CALL fftp3d_complex_to_real(plancr,C1,R2,MPI_COMM_WORLD)
+          corr(4,2) = rcorr(R1, R2)
+
+          C1 = SGS3; ! th SGSz
+          C1 = C1 * tmp 
+          CALL fftp3d_complex_to_real(plancr,C1,R2,MPI_COMM_WORLD)
+          corr(4,3) = rcorr(R1, R2)
+
+          C1 = SGSth; ! th SGSth
+          C1 = C1 * tmp 
+          CALL fftp3d_complex_to_real(plancr,C1,R2,MPI_COMM_WORLD)
+          corr(4,4) = rcorr(R1, R2)
+
+        sfld(1,1) = 'uS1'; sfld(1,2) = 'uS2'; sfld(1,3) = 'uS3'; sfld(1,4) = 'uSth'
+        sfld(2,1) = 'vS1'; sfld(2,2) = 'vS2'; sfld(2,3) = 'vS3'; sfld(2,4) = 'vSth'
+        sfld(3,1) = 'wS1'; sfld(3,2) = 'wS2'; sfld(3,3) = 'wS3'; sfld(2,4) = 'wSth'
+        sfld(4,1) = 'tS1'; sfld(4,2) = 'tS2'; sfld(4,3) = 'tS3'; sfld(3,4) = 'tSth'
+
+        lcorr = reshape(corr, [16,1])
+        lsfld = reshape(sfld, [16,1])
+
+        ! Write data to files:
+        IF ( myrank.EQ.0 ) THEN
+          fnout = trim(odir) // '/' // 'uSGS_corr_tensor.txt'
+          inquire( file=fnout, exist=bexist )
+
+          ! Create format for statistical data:
+          WRITE(rowfmt,'(A, I4, A)') '(I4,',16,'(2X,E14.6))'
+          WRITE(hdrfmt,'(A, I4, A)') '(A,' ,16,'(2X,A))'
+  
+          OPEN(2,file=trim(fnout),position='append')
+          if ( .NOT. bexist ) THEN
+          WRITE(2,hdrfmt,advance='yes') '#itime', (trim(lsfld(j)), j=1,n)
+          ENDIF
+          WRITE(2,rowfmt,advance='no') indtime, (lcorr(j), j=1,n)
+          CLOSE(2)
+  
+      ENDIF
+      CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
+
+      END SUBROUTINE DoCorr
 
 
       SUBROUTINE skewflat(fx,nx,ny,nz,avg,skew,flat,glop,whoa,s2,s3,s4,s5,s6)
@@ -1484,7 +1671,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
 !-----------------------------------------------------------------
 ! Compute correlation <R1 R2>. Normally the correlation
 ! would be computed <R1 R1> / ( <R1> <R2> ), 
-! but <R1> = <R2> = 0, typically, so we may want
+! but <R1> = <R2> = 0, typically, so we will
 ! to normalize by
 !    <R1 R2> / ( max(R1) max(R2) )
       USE fprecision
@@ -1516,8 +1703,8 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
 
         tmp    = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
 
-        lmax(1) = MAXVAL(R1); 
-        lmax(2) = MAXVAL(R2); 
+        lmax(1) = MAXVAL(abs(R1)); 
+        lmax(2) = MAXVAL(abs(R2)); 
         CALL MPI_ALLREDUCE(lmax,gmax,2, GC_REAL,      &
                            MPI_MAX,MPI_COMM_WORLD,ierr)
 
@@ -1556,3 +1743,69 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         gcorr = gsum / ( gmax(1)*gmax(2) )
 
       END SUBROUTINE compute_corr
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+
+
+      FUNCTION rorr(R1 ,R2) result(gcorr)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+! Compute correlation <R1 R2>. Normally the correlation
+! would be computed <R1 R1> / ( <R1> <R2> ), 
+! but <R1> = <R2> = 0, typically, so we will
+! to normalize by
+!    <R1 R2> / ( max(R1) max(R2) )
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE gutils
+      USE iovar
+      USE iompi
+      USE iovar
+      USE filefmt
+      USE boxsize
+ 
+        IMPLICIT NONE
+
+        REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2
+
+        INTEGER              :: i, j, k, knz, n
+        REAL   (KIND=GP)     :: lsum, gcorr, gsum, tmp
+        REAL   (KIND=GP)     :: lmax(2), gmax(2)
+
+
+        tmp    = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
+
+        lmax(1) = MAXVAL(abs(R1)); 
+        lmax(2) = MAXVAL(abs(R2)); 
+        CALL MPI_ALLREDUCE(lmax,gmax,2, GC_REAL,      &
+                           MPI_MAX,MPI_COMM_WORLD,ierr)
+
+        ! Correlation:
+        lsum = 0.0_GP;
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend                                            
+!$omp parallel do if (kend-ksta.lt.nth) private (i)               
+           DO j = 1,ny  
+              DO i = 1,nx                                           
+                 lsum = lsum + r1(i,j,k)*r2(i,j,k) 
+              END DO
+           END DO
+        END DO
+
+        CALL MPI_ALLREDUCE(lsum,gsum,1, GC_REAL,      &
+                           MPI_SUM,MPI_COMM_WORLD,ierr)
+
+        gsum  = gsum * tmp
+        gcorr = gsum / ( gmax(1)*gmax(2) )
+
+      END FUNCTION rcorr
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
