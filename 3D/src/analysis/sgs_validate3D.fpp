@@ -1824,7 +1824,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
 !$omp parallel do if (kend-ksta.lt.nth) private (i)               
            DO j = 1,ny  
               DO i = 1,nx                                           
-                 lsum = lsum + (r1(i,j,k)-lavg(1)) * (r2(i,j,k)-lavg(2)) 
+                 lsum = lsum + (r1(i,j,k)-gavg(1)) * (r2(i,j,k)-gavg(2)) 
               END DO
            END DO
         END DO
