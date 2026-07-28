@@ -1552,4 +1552,4 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         gsum  = gsum * tmp
         gcorr = gsum / ( gmax(1)*gmax(2) )
 
-      END FUNCTION compute_corr
+      END SUBROUTINE compute_corr
