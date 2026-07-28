@@ -405,7 +405,7 @@
       REAL(kind=GP) omega(3),xnormn
       REAL(kind=GP) fmin,fmax
       INTEGER :: ic,ir,jc
-      INTEGER :: istat(4096),nstat,prtbin,doSGSinj,bDoComp,bDoCorr
+      INTEGER :: istat(4096),nstat,prtbin,doSGSinj,bDoCompare,bDoCorr
       INTEGER :: nbinx,nbiny,nbins(2)
       CHARACTER(len=64) :: ext1
       CHARACTER(len=4096) :: sstat
@@ -1059,7 +1059,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         IF ( bDoCorr .gt. 0 ) THEN
           CALL DoCorr   (vx   , vy   , vz   ,th    , &
                          SGS1 , SGS2 , SGS3 ,SGSth , &
-                         istat(it), odi,             &
+                         istat(it), odir,            &
                          C1, C2, R1, R2)
         ENDIF
 
@@ -1416,7 +1416,6 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
 
         COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend):: vx,vy,vz,th
         COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend):: SGS1,SGS2,SGS3,SGSth
-        COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend):: LSGS1,LSGS2,LSGS3,LSGSth
         COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ista:iend):: C1,C2
         REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2
         REAL   (KIND=GP) rcorr
@@ -1425,8 +1424,8 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         INTEGER         , INTENT   (IN)                            :: nbins(2)
 
         LOGICAL              :: bexist
-        INTEGER              :: i, j
-        REAL   (KIND=GP)     :: corr(4,4), lcorr(16,1)
+        INTEGER              :: i, j, n
+        REAL   (KIND=GP)     :: corr(4,4), lcorr(16,1), tmp
 
         CHARACTER(len=1024)  :: fnout
         CHARACTER(len=*), INTENT(IN)  :: odir
@@ -1546,8 +1545,9 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
           inquire( file=fnout, exist=bexist )
 
           ! Create format for statistical data:
-          WRITE(rowfmt,'(A, I4, A)') '(I4,',16,'(2X,E14.6))'
-          WRITE(hdrfmt,'(A, I4, A)') '(A,' ,16,'(2X,A))'
+          n = 16
+          WRITE(rowfmt,'(A, I4, A)') '(I4,',n,'(2X,E14.6))'
+          WRITE(hdrfmt,'(A, I4, A)') '(A,' ,n,'(2X,A))'
   
           OPEN(2,file=trim(fnout),position='append')
           if ( .NOT. bexist ) THEN
