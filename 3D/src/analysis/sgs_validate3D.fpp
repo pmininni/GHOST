@@ -1058,7 +1058,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
 
         IF ( bDoCorr .gt. 0 ) THEN
           CALL DoCorr   (vx   , vy   , vz   ,th    , &
-                         SGS1 , SGS2 , SGS3 ,SGSth , &
+                         LSGS1, LSGS2,LSGS3,LSGSth, &
                          istat(it), odir,            &
                          C1, C2, R1, R2)
         ENDIF
