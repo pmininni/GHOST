@@ -1779,6 +1779,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         INTEGER              :: i, j, k, knz, n
         REAL   (KIND=GP)     :: lsum, gcorr, gsum, tmp
         REAL   (KIND=GP)     :: lmax(2), gmax(2)
+        REAL   (KIND=GP)     :: lavg(2), gavg(2)
 
 
         tmp    = 1.0_GP/ ( real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP) )
@@ -1787,6 +1788,34 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         lmax(2) = MAXVAL(abs(R2)); 
         CALL MPI_ALLREDUCE(lmax,gmax,2, GC_REAL,      &
                            MPI_MAX,MPI_COMM_WORLD,ierr)
+        ! Averages:
+        lsum = 0.0_GP;
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend                                            
+!$omp parallel do if (kend-ksta.lt.nth) private (i)               
+           DO j = 1,ny  
+              DO i = 1,nx                                           
+                 lsum = lsum + r1(i,j,k)
+              END DO
+           END DO
+        END DO
+        lavg(1) = lsum * tmp
+
+        lsum = 0.0_GP;
+!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+        DO k = ksta,kend                                            
+!$omp parallel do if (kend-ksta.lt.nth) private (i)               
+           DO j = 1,ny  
+              DO i = 1,nx                                           
+                 lsum = lsum + r1(i,j,k)
+              END DO
+           END DO
+        END DO
+        lavg(2) = lsum * tmp
+
+        CALL MPI_ALLREDUCE(lavg,gavg,2, GC_REAL,      &
+                           MPI_SUM,MPI_COMM_WORLD,ierr)
+
 
         ! Correlation:
         lsum = 0.0_GP;
@@ -1795,7 +1824,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
 !$omp parallel do if (kend-ksta.lt.nth) private (i)               
            DO j = 1,ny  
               DO i = 1,nx                                           
-                 lsum = lsum + r1(i,j,k)*r2(i,j,k) 
+                 lsum = lsum + (r1(i,j,k)-lavg(1)) * (r2(i,j,k)-lavg(2)) 
               END DO
            END DO
         END DO
