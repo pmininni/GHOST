@@ -5,31 +5,38 @@
 # a software for 3D interactive visualization: 
 # https://www.vapor.ucar.edu
 
-# File name for VAPOR VDF file and number of levels used to compress.
-VDF='output.vdf'
+# File name for VAPOR VDC file and number of levels used to compress.
+VDC='output.vdc'
 LEV='3'
-
-# Path to GHOST binary files
-DIR='../../3D/bin/outs'
+# Path to GHOST binary files.
+DIR="../../bin/outs"
 
 # Spatial resolution, number of snapshots, and variables to convert.
 # The names of the variables must be the same as the name of the 
 # output files from GHOST (or of the postprocessed files).
-DIMS='128x128x128'
-NUMS='10'
-VARS='vx:vy:vz'
+DIMS="512x512x256"
+NUMS="10"
+VARS="vx:vy:vz"
 
 # Do not edit below this line
-vdfcreate -dimension $DIMS -level $LEV -numts $NUMS -vars3d $VARS $VDF
+vdccreate \
+    -dimension "$DIMS" \
+    -numts "$NUMS" \
+    -vars3d "$VARS" \
+    "$VDC"
 
-SIZESTR=${#DIR}
-echo $SIZESTR
-
-for FILE in $DIR/*.out
+for FILE in "$DIR"/*.out
 do
-   STR=${FILE#$DIR/}
-   VAR=${STR%%.*}
-   AUX=${STR#$VAR.}
-   NUM=${AUX%%.*}
-   raw2vdf -level -1 -ts $NUM -varname $VAR $VDF $FILE
+    STR=${FILE##*/}
+    VAR=${STR%%.*}
+
+    AUX=${STR#*.}
+    NUM=${AUX%%.*}
+
+    raw2vdc \
+        -lod -1 \
+        -ts "$((10#$NUM))" \
+        -varname "$VAR" \
+        "$VDC" \
+        "$FILE"
 done
