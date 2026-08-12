@@ -1259,7 +1259,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         C1 = C1 * tmp 
         CALL fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
         n     = n + 1; sfld(n) = 'sgs2';
-        CALL skewflat(R1,nx,ny,knz,avL(n),skL(n),kuL(n),g5,w6,vr(n),s3,s4,s5,s6)
+        CALL skewflat(R1,nx,ny,knz,avL(n),sk(n),ku(n),g5,w6,vr(n),s3,s4,s5,s6)
         fnout = trim(odir) // '/' // 'SGS2pdf.' // ext // '.txt'
         CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0)
 
