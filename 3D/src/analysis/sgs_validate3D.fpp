@@ -1561,6 +1561,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
       END SUBROUTINE DoCorr
 
 
+!       CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5,w6,vr(n),s3,s4,s5,s6)
       SUBROUTINE skewflat(fx,nx,ny,nz,avg,skew,flat,glop,whoa,s2,s3,s4,s5,s6)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -1586,6 +1587,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
       REAL(KIND=GP), INTENT(INOUT), DIMENSION(*)   :: fx
       REAL(KIND=GP), INTENT  (OUT)                 :: skew,flat,glop,whoa
       REAL(KIND=GP), INTENT  (OUT)                 :: avg,s2,s3,s4,s5,s6
+      REAL(KIND=GP)                                :: tiny
       DOUBLE PRECISION                             :: davg,ds2,ds3,ds4,ds5,ds6
       DOUBLE PRECISION                             :: gs(5),s(5),xnorm
       INTEGER      , INTENT   (IN)                 :: nx,ny,nz
@@ -1597,7 +1599,7 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
       CALL MPI_ALLREDUCE(nz, gnz, 1, MPI_INTEGER, &
                       MPI_SUM, MPI_COMM_WORLD,ierr)
 
-      xnorm = 1.0_GP / (dble(nx)*dble(ny)*dble(gnz))
+      xnorm = 1.0D0 / (dble(nx)*dble(ny)*dble(gnz))
       ds2 = 0.0D0
 !$omp parallel do default(shared) private(j) reduction(+:s2)
       DO j = 1, nin
@@ -1652,13 +1654,18 @@ if (myrank.eq.0) write(*,*)'main: sgs_model computed.'
         write(*,*)'skewflat: final allreduce failed'
         stop
       endif
-      s2=gs(1)*xnorm; s3=gs(2)*xnorm; s4=gs(3)*xnorm; s5=gs(4)*xnorm; s6=gs(5)*xnorm
+      s2 = real(gs(1)*xnorm,kind=GP); 
+      s3 = real(gs(2)*xnorm,kind=GP); 
+      s4 = real(gs(3)*xnorm,kind=GP); 
+      s5 = real(gs(4)*xnorm,kind=GP); 
+      s6 = real(gs(5)*xnorm,kind=GP);
 !     s2=gs(1); s3=gs(2); s4=gs(3); s5=gs(4); s6=gs(5)
 
-      skew = real( s3 / ( s2**1.5 + 1.0e-15 ), kind=GP )
-      flat = real( s4 / ( s2**2.0 + 1.0e-15 ), kind=GP )
-      glop = real( s5 / ( s2**2.5 + 1.0e-15 ), kind=GP )
-      whoa = real( s6 / ( s2**3.0 + 1.0e-15 ), kind=GP )
+      tiny = epsilon(s2)
+      skew = real( s3 / ( s2**1.5 + tiny ), kind=GP )
+      flat = real( s4 / ( s2**2.0 + tiny ), kind=GP )
+      glop = real( s5 / ( s2**2.5 + tiny ), kind=GP )
+      whoa = real( s6 / ( s2**3.0 + tiny ), kind=GP )
 
       RETURN
       END SUBROUTINE skewflat
