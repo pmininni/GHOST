@@ -2034,6 +2034,7 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
       REAL(KIND=GP), INTENT(INOUT), DIMENSION(*)   :: fx
       REAL(KIND=GP), INTENT  (OUT)                 :: skew,flat,glop,whoa
       REAL(KIND=GP), INTENT  (OUT)                 :: avg,s2,s3,s4,s5,s6
+      REAL(KIND=GP)                                :: tiny
       DOUBLE PRECISION                             :: davg,ds2,ds3,ds4,ds5,ds6
       DOUBLE PRECISION                             :: gs(5),s(5),xnorm
       INTEGER      , INTENT   (IN)                 :: nx,ny,nz
@@ -2103,10 +2104,11 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
       s2=gs(1)*xnorm; s3=gs(2)*xnorm; s4=gs(3)*xnorm; s5=gs(4)*xnorm; s6=gs(5)*xnorm
 !     s2=gs(1); s3=gs(2); s4=gs(3); s5=gs(4); s6=gs(5)
 
-      skew = real( s3 / ( s2**1.5 + 1.0e-15 ), kind=GP )
-      flat = real( s4 / ( s2**2.0 + 1.0e-15 ), kind=GP )
-      glop = real( s5 / ( s2**2.5 + 1.0e-15 ), kind=GP )
-      whoa = real( s6 / ( s2**3.0 + 1.0e-15 ), kind=GP )
+      tiny = epsilon(s2)
+      skew = real( s3 / ( s2**1.5 + tiny ), kind=GP )
+      flat = real( s4 / ( s2**2.0 + tiny ), kind=GP )
+      glop = real( s5 / ( s2**2.5 + tiny ), kind=GP )
+      whoa = real( s6 / ( s2**3.0 + tiny ), kind=GP )
 
       RETURN
       END SUBROUTINE skewflat
