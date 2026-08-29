@@ -278,14 +278,22 @@
 ! Cache friendly transposition
 !
       CALL GTStart(htra)
-! The blocks and the (i,j) sweep are concurrent, but the innermost
-! loop is left as an ordinary DO: this is a transposition, so one of
-! its two sides is always strided, and vectorizing it turns that side
-! into a gather/scatter that costs ~3% of the transposition time.
-      DO CONCURRENT (ii=ista:iend:csize, jj=1:plan%ny:csize, kk=1:plan%nz:csize)
-         DO CONCURRENT (i=ii:min(iend,ii+csize-1), j=jj:min(plan%ny,jj+csize-1))
-            DO k = kk,min(plan%nz,kk+csize-1)
-               out(k,j,i) = c1(i,j,k)
+! The block loops are collapsed and shared out over the threads. The
+! innermost loop is left an ordinary DO on purpose: this is a
+! transposition, so one of its two sides is always strided, and
+! vectorizing it turns that side into a gather/scatter that costs
+! about 3% of the transposition time.
+!$omp parallel do collapse(3) private (i,j,k)
+      DO ii = ista,iend,csize
+         DO jj = 1,plan%ny,csize
+            DO kk = 1,plan%nz,csize
+               DO i = ii,min(iend,ii+csize-1)
+               DO j = jj,min(plan%ny,jj+csize-1)
+               DO k = kk,min(plan%nz,kk+csize-1)
+                  out(k,j,i) = c1(i,j,k)
+               END DO
+               END DO
+               END DO
             END DO
          END DO
       END DO
@@ -361,14 +369,22 @@
 ! Cache friendly transposition
 !
       CALL GTStart(htra)
-! The blocks and the (i,j) sweep are concurrent, but the innermost
-! loop is left as an ordinary DO: this is a transposition, so one of
-! its two sides is always strided, and vectorizing it turns that side
-! into a gather/scatter that costs ~3% of the transposition time.
-      DO CONCURRENT (ii=ista:iend:csize, jj=1:plan%ny:csize, kk=1:plan%nz:csize)
-         DO CONCURRENT (i=ii:min(iend,ii+csize-1), j=jj:min(plan%ny,jj+csize-1))
-            DO k = kk,min(plan%nz,kk+csize-1)
-               c1(i,j,k) = in(k,j,i)
+! The block loops are collapsed and shared out over the threads. The
+! innermost loop is left an ordinary DO on purpose: this is a
+! transposition, so one of its two sides is always strided, and
+! vectorizing it turns that side into a gather/scatter that costs
+! about 3% of the transposition time.
+!$omp parallel do collapse(3) private (i,j,k)
+      DO ii = ista,iend,csize
+         DO jj = 1,plan%ny,csize
+            DO kk = 1,plan%nz,csize
+               DO i = ii,min(iend,ii+csize-1)
+               DO j = jj,min(plan%ny,jj+csize-1)
+               DO k = kk,min(plan%nz,kk+csize-1)
+                  c1(i,j,k) = in(k,j,i)
+               END DO
+               END DO
+               END DO
             END DO
          END DO
       END DO

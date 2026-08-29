@@ -55,24 +55,37 @@ MODULE pseudospec_fluid
 ! Derivative in the x-direction
 !
       IF (dir.eq.1) THEN
-         DO CONCURRENT (i=ista:iend, j=1:ny)
-            DO CONCURRENT (k=1:nz)
-               b(k,j,i) = im*kx(i)*a(k,j,i)
+!$omp parallel do collapse(2) private (k)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+                  b(k,j,i) = im*kx(i)*a(k,j,i)
+               END DO
             END DO
          END DO
 !
 ! Derivative in the y-direction
 !
       ELSE IF (dir.eq.2) THEN
-         DO CONCURRENT (i=ista:iend, j=1:ny, k=1:nz)
-            b(k,j,i) = im*ky(j)*a(k,j,i)
+!$omp parallel do collapse(3)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO k = 1,nz
+                  b(k,j,i) = im*ky(j)*a(k,j,i)
+               END DO
+            END DO
          END DO
 !
 ! Derivative in the z-direction
 !
       ELSE
-         DO CONCURRENT (i=ista:iend, j=1:ny, k=1:nz)
-            b(k,j,i) = im*kz(k)*a(k,j,i)
+!$omp parallel do collapse(3)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO k = 1,nz
+                  b(k,j,i) = im*kz(k)*a(k,j,i)
+               END DO
+            END DO
          END DO
       ENDIF
 
@@ -99,8 +112,13 @@ MODULE pseudospec_fluid
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: b
       INTEGER :: i,j,k
 
-      DO CONCURRENT (i=ista:iend, j=1:ny, k=1:nz)
-         b(k,j,i) = -kk2(k,j,i)*a(k,j,i)
+!$omp parallel do collapse(3)
+      DO i = ista,iend
+         DO j = 1,ny
+            DO k = 1,nz
+               b(k,j,i) = -kk2(k,j,i)*a(k,j,i)
+            END DO
+         END DO
       END DO
       
       RETURN
@@ -151,9 +169,12 @@ MODULE pseudospec_fluid
       IF (dir.eq.1) THEN
          CALL derivk3(a,c1,3)
          CALL derivk3(b,c2,2)
-         DO CONCURRENT (i=ista:iend, j=1:ny)
-            DO CONCURRENT (k=1:nz)
-               c(k,j,i) = c2(k,j,i)-c1(k,j,i)
+!$omp parallel do collapse(2) private (k)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+                  c(k,j,i) = c2(k,j,i)-c1(k,j,i)
+               END DO
             END DO
          END DO
 !
@@ -162,9 +183,12 @@ MODULE pseudospec_fluid
       ELSE IF (dir.eq.2) THEN
          CALL derivk3(a,c1,3)
          CALL derivk3(b,c2,1)
-         DO CONCURRENT (i=ista:iend, j=1:ny)
-            DO CONCURRENT (k=1:nz)
-               c(k,j,i) = c1(k,j,i)-c2(k,j,i)
+!$omp parallel do collapse(2) private (k)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+                  c(k,j,i) = c1(k,j,i)-c2(k,j,i)
+               END DO
             END DO
          END DO
 !
@@ -173,9 +197,12 @@ MODULE pseudospec_fluid
       ELSE
          CALL derivk3(a,c1,2)
          CALL derivk3(b,c2,1)
-         DO CONCURRENT (i=ista:iend, j=1:ny)
-            DO CONCURRENT (k=1:nz)
-               c(k,j,i) = c2(k,j,i)-c1(k,j,i)
+!$omp parallel do collapse(2) private (k)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+                  c(k,j,i) = c2(k,j,i)-c1(k,j,i)
+               END DO
             END DO
          END DO
       ENDIF
@@ -228,11 +255,14 @@ MODULE pseudospec_fluid
       CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c4,r4,MPI_COMM_WORLD)
-      DO CONCURRENT (k=ksta:kend, j=1:ny)
-         DO CONCURRENT (i=1:nx)
-            rx(i,j,k) = r1(i,j,k)*r2(i,j,k)
-            ry(i,j,k) = r1(i,j,k)*r3(i,j,k)
-            rz(i,j,k) = r1(i,j,k)*r4(i,j,k)
+!$omp parallel do collapse(2) private (i)
+      DO k = ksta,kend
+         DO j = 1,ny
+            DO CONCURRENT (i=1:nx)
+               rx(i,j,k) = r1(i,j,k)*r2(i,j,k)
+               ry(i,j,k) = r1(i,j,k)*r3(i,j,k)
+               rz(i,j,k) = r1(i,j,k)*r4(i,j,k)
+            END DO
          END DO
       END DO
 !
@@ -246,11 +276,14 @@ MODULE pseudospec_fluid
       CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c4,r4,MPI_COMM_WORLD)
-      DO CONCURRENT (k=ksta:kend, j=1:ny)
-         DO CONCURRENT (i=1:nx)
-            rx(i,j,k) = rx(i,j,k)+r1(i,j,k)*r2(i,j,k)
-            ry(i,j,k) = ry(i,j,k)+r1(i,j,k)*r3(i,j,k)
-            rz(i,j,k) = rz(i,j,k)+r1(i,j,k)*r4(i,j,k)
+!$omp parallel do collapse(2) private (i)
+      DO k = ksta,kend
+         DO j = 1,ny
+            DO CONCURRENT (i=1:nx)
+               rx(i,j,k) = rx(i,j,k)+r1(i,j,k)*r2(i,j,k)
+               ry(i,j,k) = ry(i,j,k)+r1(i,j,k)*r3(i,j,k)
+               rz(i,j,k) = rz(i,j,k)+r1(i,j,k)*r4(i,j,k)
+            END DO
          END DO
       END DO
 !
@@ -266,11 +299,14 @@ MODULE pseudospec_fluid
       CALL fftp3d_complex_to_real(plancr,c4,r4,MPI_COMM_WORLD)
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
-      DO CONCURRENT (k=ksta:kend, j=1:ny)
-         DO CONCURRENT (i=1:nx)
-            rx(i,j,k) = (rx(i,j,k)+r1(i,j,k)*r2(i,j,k))*tmp
-            ry(i,j,k) = (ry(i,j,k)+r1(i,j,k)*r3(i,j,k))*tmp
-            rz(i,j,k) = (rz(i,j,k)+r1(i,j,k)*r4(i,j,k))*tmp
+!$omp parallel do collapse(2) private (i)
+      DO k = ksta,kend
+         DO j = 1,ny
+            DO CONCURRENT (i=1:nx)
+               rx(i,j,k) = (rx(i,j,k)+r1(i,j,k)*r2(i,j,k))*tmp
+               ry(i,j,k) = (ry(i,j,k)+r1(i,j,k)*r3(i,j,k))*tmp
+               rz(i,j,k) = (rz(i,j,k)+r1(i,j,k)*r4(i,j,k))*tmp
+            END DO
          END DO
       END DO
       CALL fftp3d_real_to_complex(planrc,rx,d,MPI_COMM_WORLD)
@@ -325,11 +361,14 @@ MODULE pseudospec_fluid
 !
 ! Computes A
 !
-      DO CONCURRENT (i=ista:iend, j=1:ny)
-         DO CONCURRENT (k=1:nz)
-            d(k,j,i) = a(k,j,i)
-            e(k,j,i) = b(k,j,i)
-            f(k,j,i) = c(k,j,i)
+!$omp parallel do collapse(2) private (k)
+      DO i = ista,iend
+         DO j = 1,ny
+            DO CONCURRENT (k=1:nz)
+               d(k,j,i) = a(k,j,i)
+               e(k,j,i) = b(k,j,i)
+               f(k,j,i) = c(k,j,i)
+            END DO
          END DO
       END DO
       CALL fftp3d_complex_to_real(plancr,d,r4,MPI_COMM_WORLD)
@@ -340,11 +379,14 @@ MODULE pseudospec_fluid
 !
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
-      DO CONCURRENT (k=ksta:kend, j=1:ny)
-         DO CONCURRENT (i=1:nx)
-            r7(i,j,k) = (r2(i,j,k)*r6(i,j,k)-r5(i,j,k)*r3(i,j,k))*tmp
-            r3(i,j,k) = (r3(i,j,k)*r4(i,j,k)-r6(i,j,k)*r1(i,j,k))*tmp
-            r1(i,j,k) = (r1(i,j,k)*r5(i,j,k)-r4(i,j,k)*r2(i,j,k))*tmp
+!$omp parallel do collapse(2) private (i)
+      DO k = ksta,kend
+         DO j = 1,ny
+            DO CONCURRENT (i=1:nx)
+               r7(i,j,k) = (r2(i,j,k)*r6(i,j,k)-r5(i,j,k)*r3(i,j,k))*tmp
+               r3(i,j,k) = (r3(i,j,k)*r4(i,j,k)-r6(i,j,k)*r1(i,j,k))*tmp
+               r1(i,j,k) = (r1(i,j,k)*r5(i,j,k)-r4(i,j,k)*r2(i,j,k))*tmp
+            END DO
          END DO
       END DO
       CALL fftp3d_real_to_complex(planrc,r7,d,MPI_COMM_WORLD)
@@ -392,22 +434,33 @@ MODULE pseudospec_fluid
 !
       IF (dir.eq.1) THEN
          IF (ista.eq.1) THEN
-            DO CONCURRENT (j=1:ny)
+!$omp parallel private (k)
+!$omp do
+            DO j = 1,ny
                DO CONCURRENT (k=1:nz)
                   g(k,j,1) = -a(k,j,1)
                END DO
             END DO
-            DO CONCURRENT (i=2:iend, j=1:ny)
-               DO CONCURRENT (k=1:nz)
-                  g(k,j,i) = -a(k,j,i)+kx(i)*(kx(i)*a(k,j,i) &
-                    +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
+!$omp end do
+!$omp do collapse(2)
+            DO i = 2,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz)
+                     g(k,j,i) = -a(k,j,i)+kx(i)*(kx(i)*a(k,j,i) &
+                       +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
+                  END DO
                END DO
             END DO
+!$omp end do
+!$omp end parallel
          ELSE
-            DO CONCURRENT (i=ista:iend, j=1:ny)
-               DO CONCURRENT (k=1:nz)
-                  g(k,j,i) = -a(k,j,i)+kx(i)*(kx(i)*a(k,j,i) &
-                   +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
+!$omp parallel do collapse(2) private (k)
+            DO i = ista,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz)
+                     g(k,j,i) = -a(k,j,i)+kx(i)*(kx(i)*a(k,j,i) &
+                      +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
+                  END DO
                END DO
             END DO
          ENDIF
@@ -415,32 +468,48 @@ MODULE pseudospec_fluid
 ! Computes the y-component
 !
       ELSE IF (dir.eq.2) THEN
-         DO CONCURRENT (i=ista:iend)
+!$omp parallel private (k)
+!$omp do
+         DO i = ista,iend
             DO CONCURRENT (k=1:nz)
                g(k,1,i) = -b(k,1,i)
             END DO
          END DO
-         DO CONCURRENT (i=ista:iend, j=2:ny)
-            DO CONCURRENT (k=1:nz)
-               g(k,j,i) = -b(k,j,i)+ky(j)*(kx(i)*a(k,j,i) &
-                +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
+!$omp end do
+!$omp do collapse(2)
+         DO i = ista,iend
+            DO j = 2,ny
+               DO CONCURRENT (k=1:nz)
+                  g(k,j,i) = -b(k,j,i)+ky(j)*(kx(i)*a(k,j,i) &
+                   +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
+               END DO
             END DO
          END DO
+!$omp end do
+!$omp end parallel
 !
 ! Computes the z-component
 !
       ELSE
-         DO CONCURRENT (i=ista:iend)
+!$omp parallel private (j,k)
+!$omp do
+         DO i = ista,iend
             DO CONCURRENT (j=1:ny)
                g(1,j,i) = -c(1,j,i)
             END DO
          END DO
-         DO CONCURRENT (i=ista:iend, j=1:ny)
-            DO CONCURRENT (k=2:nz)
-               g(k,j,i) = -c(k,j,i)+kz(k)*(kx(i)*a(k,j,i) &
-                +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
+!$omp end do
+!$omp do collapse(2)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=2:nz)
+                  g(k,j,i) = -c(k,j,i)+kz(k)*(kx(i)*a(k,j,i) &
+                   +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
+               END DO
             END DO
          END DO
+!$omp end do
+!$omp end parallel
       ENDIF
       RETURN
       END SUBROUTINE nonlhd3
@@ -472,9 +541,12 @@ MODULE pseudospec_fluid
       REAL   (KIND=GP)                                            :: ktmin2,ktmax2,tmp
       INTEGER                                                     :: i,j,k
 
-      DO CONCURRENT (i=ista:iend, j=1:ny)
-         DO CONCURRENT (k=1:nz)
-            z(k,j,i) = a * x(k,j,i) + b * y(k,j,i)
+!$omp parallel do collapse(2) private (k)
+      DO i = ista,iend
+         DO j = 1,ny
+            DO CONCURRENT (k=1:nz)
+               z(k,j,i) = a * x(k,j,i) + b * y(k,j,i)
+            END DO
          END DO
       END DO
       END SUBROUTINE saxpby_c
@@ -553,23 +625,34 @@ MODULE pseudospec_fluid
 !
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
-            DO CONCURRENT (j=1:ny) REDUCE(+:dloc)
-               DO CONCURRENT (k=1:nz) REDUCE(+:dloc)
+!$omp parallel private (k) reduction(+:dloc)
+!$omp do
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
                   dloc = dloc+(abs(a(k,j,1))**2+abs(b(k,j,1))**2+ &
                          abs(c(k,j,1))**2)*tmp
                END DO
             END DO
-            DO CONCURRENT (i=2:iend, j=1:ny) REDUCE(+:dloc)
-               DO CONCURRENT (k=1:nz) REDUCE(+:dloc)
-                  dloc = dloc+2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+ &
-                         abs(c(k,j,i))**2)*tmp
+!$omp end do
+!$omp do collapse(2)
+            DO i = 2,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz)
+                     dloc = dloc+2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+ &
+                            abs(c(k,j,i))**2)*tmp
+                  END DO
                END DO
             END DO
+!$omp end do
+!$omp end parallel
           ELSE
-            DO CONCURRENT (i=ista:iend, j=1:ny) REDUCE(+:dloc)
-               DO CONCURRENT (k=1:nz) REDUCE(+:dloc)
-                  dloc = dloc+2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+ &
-                         abs(c(k,j,i))**2)*tmp
+!$omp parallel do collapse(2) private (k) reduction(+:dloc)
+            DO i = ista,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz)
+                     dloc = dloc+2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+ &
+                            abs(c(k,j,i))**2)*tmp
+                  END DO
                END DO
             END DO
           ENDIF
@@ -581,23 +664,34 @@ MODULE pseudospec_fluid
          CALL rotor3(a,c,c2,2)
          CALL rotor3(a,b,c3,3)
          IF (ista.eq.1) THEN
-            DO CONCURRENT (j=1:ny) REDUCE(+:dloc)
-               DO CONCURRENT (k=1:nz) REDUCE(+:dloc)
+!$omp parallel private (k) reduction(+:dloc)
+!$omp do
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
                   dloc = dloc+(abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+ &
                          abs(c3(k,j,1))**2)*tmp
                END DO
             END DO
-            DO CONCURRENT (i=2:iend, j=1:ny) REDUCE(+:dloc)
-               DO CONCURRENT (k=1:nz) REDUCE(+:dloc)
-                  dloc = dloc+2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
-                         abs(c3(k,j,i))**2)*tmp
+!$omp end do
+!$omp do collapse(2)
+            DO i = 2,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz)
+                     dloc = dloc+2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
+                            abs(c3(k,j,i))**2)*tmp
+                  END DO
                END DO
             END DO
+!$omp end do
+!$omp end parallel
          ELSE
-            DO CONCURRENT (i=ista:iend, j=1:ny) REDUCE(+:dloc)
-               DO CONCURRENT (k=1:nz) REDUCE(+:dloc)
-                  dloc = dloc+2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
-                         abs(c3(k,j,i))**2)*tmp
+!$omp parallel do collapse(2) private (k) reduction(+:dloc)
+            DO i = ista,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz)
+                     dloc = dloc+2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
+                            abs(c3(k,j,i))**2)*tmp
+                  END DO
                END DO
             END DO
          ENDIF
@@ -609,23 +703,34 @@ MODULE pseudospec_fluid
          CALL laplak3(b,c2)
          CALL laplak3(c,c3)
          IF (ista.eq.1) THEN
-            DO CONCURRENT (j=1:ny) REDUCE(+:dloc)
-               DO CONCURRENT (k=1:nz) REDUCE(+:dloc)
+!$omp parallel private (k) reduction(+:dloc)
+!$omp do
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
                   dloc = dloc+(abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+ &
                          abs(c3(k,j,1))**2)*tmp
                END DO
             END DO
-            DO CONCURRENT (i=2:iend, j=1:ny) REDUCE(+:dloc)
-               DO CONCURRENT (k=1:nz) REDUCE(+:dloc)
-                  dloc = dloc+2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
-                         abs(c3(k,j,i))**2)*tmp
+!$omp end do
+!$omp do collapse(2)
+            DO i = 2,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz)
+                     dloc = dloc+2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
+                            abs(c3(k,j,i))**2)*tmp
+                  END DO
                END DO
             END DO
+!$omp end do
+!$omp end parallel
          ELSE
-            DO CONCURRENT (i=ista:iend, j=1:ny) REDUCE(+:dloc)
-               DO CONCURRENT (k=1:nz) REDUCE(+:dloc)
-                  dloc = dloc+2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
-                         abs(c3(k,j,i))**2)*tmp
+!$omp parallel do collapse(2) private (k) reduction(+:dloc)
+            DO i = ista,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz)
+                     dloc = dloc+2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
+                            abs(c3(k,j,i))**2)*tmp
+                  END DO
                END DO
             END DO
          ENDIF
@@ -672,58 +777,91 @@ MODULE pseudospec_fluid
 
       CALL rotor3(b,c,c1,1)
       IF (ista.eq.1) THEN
-         DO CONCURRENT (j=1:ny) REDUCE(+:dloc)
-            DO CONCURRENT (k=1:nz) REDUCE(+:dloc)
+!$omp parallel private (k) reduction(+:dloc)
+!$omp do
+         DO j = 1,ny
+            DO CONCURRENT (k=1:nz)
                  dloc = dloc+real(a(k,j,1)*conjg(c1(k,j,1)))*tmp
             END DO
          END DO
-         DO CONCURRENT (i=2:iend, j=1:ny) REDUCE(+:dloc)
-            DO CONCURRENT (k=1:nz) REDUCE(+:dloc)
-               dloc = dloc+2*real(a(k,j,i)*conjg(c1(k,j,i)))*tmp
+!$omp end do
+!$omp do collapse(2)
+         DO i = 2,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+                  dloc = dloc+2*real(a(k,j,i)*conjg(c1(k,j,i)))*tmp
+               END DO
             END DO
          END DO
+!$omp end do
+!$omp end parallel
       ELSE
-         DO CONCURRENT (i=ista:iend, j=1:ny) REDUCE(+:dloc)
-            DO CONCURRENT (k=1:nz) REDUCE(+:dloc)
-               dloc = dloc+2*real(a(k,j,i)*conjg(c1(k,j,i)))*tmp
+!$omp parallel do collapse(2) private (k) reduction(+:dloc)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+                  dloc = dloc+2*real(a(k,j,i)*conjg(c1(k,j,i)))*tmp
+               END DO
             END DO
          END DO
       ENDIF
       CALL rotor3(a,c,c1,2)
       IF (ista.eq.1) THEN
-         DO CONCURRENT (j=1:ny) REDUCE(+:dloc)
-            DO CONCURRENT (k=1:nz) REDUCE(+:dloc)
+!$omp parallel private (k) reduction(+:dloc)
+!$omp do
+         DO j = 1,ny
+            DO CONCURRENT (k=1:nz)
                dloc = dloc+real(b(k,j,1)*conjg(c1(k,j,1)))*tmp
             END DO
          END DO
-         DO CONCURRENT (i=2:iend, j=1:ny) REDUCE(+:dloc)
-            DO CONCURRENT (k=1:nz) REDUCE(+:dloc)
-               dloc = dloc+2*real(b(k,j,i)*conjg(c1(k,j,i)))*tmp
+!$omp end do
+!$omp do collapse(2)
+         DO i = 2,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+                  dloc = dloc+2*real(b(k,j,i)*conjg(c1(k,j,i)))*tmp
+               END DO
             END DO
          END DO
+!$omp end do
+!$omp end parallel
       ELSE
-         DO CONCURRENT (i=ista:iend, j=1:ny) REDUCE(+:dloc)
-            DO CONCURRENT (k=1:nz) REDUCE(+:dloc)
-               dloc = dloc+2*real(b(k,j,i)*conjg(c1(k,j,i)))*tmp
+!$omp parallel do collapse(2) private (k) reduction(+:dloc)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+                  dloc = dloc+2*real(b(k,j,i)*conjg(c1(k,j,i)))*tmp
+               END DO
             END DO
          END DO
       ENDIF
       CALL rotor3(a,b,c1,3)
       IF (ista.eq.1) THEN
-         DO CONCURRENT (j=1:ny) REDUCE(+:dloc)
-            DO CONCURRENT (k=1:nz) REDUCE(+:dloc)
+!$omp parallel private (k) reduction(+:dloc)
+!$omp do
+         DO j = 1,ny
+            DO CONCURRENT (k=1:nz)
                dloc = dloc+real(c(k,j,1)*conjg(c1(k,j,1)))*tmp
             END DO
          END DO
-         DO CONCURRENT (i=2:iend, j=1:ny) REDUCE(+:dloc)
-            DO CONCURRENT (k=1:nz) REDUCE(+:dloc)
-               dloc = dloc+2*real(c(k,j,i)*conjg(c1(k,j,i)))*tmp
+!$omp end do
+!$omp do collapse(2)
+         DO i = 2,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+                  dloc = dloc+2*real(c(k,j,i)*conjg(c1(k,j,i)))*tmp
+               END DO
             END DO
          END DO
+!$omp end do
+!$omp end parallel
       ELSE
-         DO CONCURRENT (i=ista:iend, j=1:ny) REDUCE(+:dloc)
-            DO CONCURRENT (k=1:nz) REDUCE(+:dloc)
-               dloc = dloc+2*real(c(k,j,i)*conjg(c1(k,j,i)))*tmp
+!$omp parallel do collapse(2) private (k) reduction(+:dloc)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+                  dloc = dloc+2*real(c(k,j,i)*conjg(c1(k,j,i)))*tmp
+               END DO
             END DO
          END DO
       ENDIF
@@ -777,26 +915,37 @@ MODULE pseudospec_fluid
 !
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
-            DO CONCURRENT (j=1:ny) REDUCE(+:gloc)
-               DO CONCURRENT (k=1:nz) REDUCE(+:gloc)
+!$omp parallel private (k) reduction(+:gloc)
+!$omp do
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
                   gloc = gloc+real(a(k,j,1)*conjg(d(k,j,1))+      &
                         b(k,j,1)*conjg(e(k,j,1))+c(k,j,1)*        &
                         conjg(f(k,j,1)))*tmp
                END DO
             END DO
-            DO CONCURRENT (i=2:iend, j=1:ny) REDUCE(+:gloc)
-               DO CONCURRENT (k=1:nz) REDUCE(+:gloc)
-                  gloc = gloc+2*real(a(k,j,i)*conjg(d(k,j,i))+ &
-                        b(k,j,i)*conjg(e(k,j,i))+c(k,j,i)*     &
-                        conjg(f(k,j,i)))*tmp
+!$omp end do
+!$omp do collapse(2)
+            DO i = 2,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz)
+                     gloc = gloc+2*real(a(k,j,i)*conjg(d(k,j,i))+ &
+                           b(k,j,i)*conjg(e(k,j,i))+c(k,j,i)*     &
+                           conjg(f(k,j,i)))*tmp
+                  END DO
                END DO
             END DO
+!$omp end do
+!$omp end parallel
          ELSE
-            DO CONCURRENT (i=ista:iend, j=1:ny) REDUCE(+:gloc)
-               DO CONCURRENT (k=1:nz) REDUCE(+:gloc)
-                  gloc = gloc+2*real(a(k,j,i)*conjg(d(k,j,i))+ &
-                        b(k,j,i)*conjg(e(k,j,i))+c(k,j,i)*     &
-                        conjg(f(k,j,i)))*tmp
+!$omp parallel do collapse(2) private (k) reduction(+:gloc)
+            DO i = ista,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz)
+                     gloc = gloc+2*real(a(k,j,i)*conjg(d(k,j,i))+ &
+                           b(k,j,i)*conjg(e(k,j,i))+c(k,j,i)*     &
+                           conjg(f(k,j,i)))*tmp
+                  END DO
                END DO
             END DO
          ENDIF
@@ -806,26 +955,37 @@ MODULE pseudospec_fluid
 !
       ELSE
          IF (ista.eq.1) THEN
-            DO CONCURRENT (j=1:ny) REDUCE(+:gloc)
-               DO CONCURRENT (k=1:nz) REDUCE(+:gloc)
+!$omp parallel private (k) reduction(+:gloc)
+!$omp do
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
                   gloc = gloc+real(a(k,j,1)*conjg(d(k,j,1))+      &
                         b(k,j,1)*conjg(e(k,j,1))+c(k,j,1)*        &
                         conjg(f(k,j,1)))*kk2(k,j,1)*tmp
                END DO
             END DO
-            DO CONCURRENT (i=2:iend, j=1:ny) REDUCE(+:gloc)
-               DO CONCURRENT (k=1:nz) REDUCE(+:gloc)
-                  gloc = gloc+2*real(a(k,j,i)*conjg(d(k,j,i))+ &
-                        b(k,j,i)*conjg(e(k,j,i))+c(k,j,i)*     &
-                        conjg(f(k,j,i)))*kk2(k,j,i)*tmp
+!$omp end do
+!$omp do collapse(2)
+            DO i = 2,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz)
+                     gloc = gloc+2*real(a(k,j,i)*conjg(d(k,j,i))+ &
+                           b(k,j,i)*conjg(e(k,j,i))+c(k,j,i)*     &
+                           conjg(f(k,j,i)))*kk2(k,j,i)*tmp
+                  END DO
                END DO
             END DO
+!$omp end do
+!$omp end parallel
          ELSE
-            DO CONCURRENT (i=ista:iend, j=1:ny) REDUCE(+:gloc)
-               DO CONCURRENT (k=1:nz) REDUCE(+:gloc)
-                  gloc = gloc+2*real(a(k,j,i)*conjg(d(k,j,i))+ &
-                        b(k,j,i)*conjg(e(k,j,i))+c(k,j,i)*     &
-                        conjg(f(k,j,i)))*kk2(k,j,i)*tmp
+!$omp parallel do collapse(2) private (k) reduction(+:gloc)
+            DO i = ista,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz)
+                     gloc = gloc+2*real(a(k,j,i)*conjg(d(k,j,i))+ &
+                           b(k,j,i)*conjg(e(k,j,i))+c(k,j,i)*     &
+                           conjg(f(k,j,i)))*kk2(k,j,i)*tmp
+                  END DO
                END DO
             END DO
          ENDIF
@@ -881,11 +1041,14 @@ MODULE pseudospec_fluid
          CALL laplak3(b,c2)
          CALL laplak3(c,c3)
       ELSE
-         DO CONCURRENT (i=ista:iend, j=1:ny)
-            DO CONCURRENT (k=1:nz)
-               c1(k,j,i) = a(k,j,i)
-               c2(k,j,i) = b(k,j,i)
-               c3(k,j,i) = c(k,j,i)
+!$omp parallel do collapse(2) private (k)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+                  c1(k,j,i) = a(k,j,i)
+                  c2(k,j,i) = b(k,j,i)
+                  c3(k,j,i) = c(k,j,i)
+               END DO
             END DO
          END DO
       ENDIF
@@ -893,10 +1056,13 @@ MODULE pseudospec_fluid
       CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
       dloc = 0.0_GP
-      DO CONCURRENT (k=ksta:kend, j=1:ny) REDUCE(max:dloc)
-         DO CONCURRENT (i=1:nx) REDUCE(max:dloc)
-            dloc = max(dloc, &
-                       sqrt(r1(i,j,k)**2+r2(i,j,k)**2+r3(i,j,k)**2))
+!$omp parallel do collapse(2) private (i) reduction(max:dloc)
+      DO k = ksta,kend
+         DO j = 1,ny
+            DO CONCURRENT (i=1:nx)
+               dloc = max(dloc, &
+                          sqrt(r1(i,j,k)**2+r2(i,j,k)**2+r3(i,j,k)**2))
+            END DO
          END DO
       END DO
       dloc = dloc/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
@@ -1045,8 +1211,10 @@ MODULE pseudospec_fluid
             Ektot(i) = 0.0D0
          END DO
          IF (ista.eq.1) THEN
-            DO CONCURRENT (j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
+!$omp parallel private (k,kmn,tmq) reduction(+:Ek)
+!$omp do
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
                   kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
                   IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      tmq = (abs(a(k,j,1))**2+abs(b(k,j,1))**2+        &
@@ -1055,25 +1223,34 @@ MODULE pseudospec_fluid
                   ENDIF
                END DO
             END DO
-            DO CONCURRENT (i=2:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
-                  kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                     tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+   &
-                              abs(c(k,j,i))**2)*tmp
-                     Ek(kmn) = Ek(kmn)+tmq
-                  ENDIF
+!$omp end do
+!$omp do collapse(2)
+            DO i = 2,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                        tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+   &
+                                 abs(c(k,j,i))**2)*tmp
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                  END DO
                END DO
             END DO
+!$omp end do
+!$omp end parallel
           ELSE
-            DO CONCURRENT (i=ista:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
-                  kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                     tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+   &
-                              abs(c(k,j,i))**2)*tmp
-                     Ek(kmn) = Ek(kmn)+tmq
-                  ENDIF
+!$omp parallel do collapse(2) private (k,kmn,tmq) reduction(+:Ek)
+            DO i = ista,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                        tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+   &
+                                 abs(c(k,j,i))**2)*tmp
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                  END DO
                END DO
             END DO
           ENDIF
@@ -1086,8 +1263,10 @@ MODULE pseudospec_fluid
             Ektot(i) = 0.0D0
          END DO
          IF (ista.eq.1) THEN
-            DO CONCURRENT (j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
+!$omp parallel private (k,kmn,tmq) reduction(+:Ek)
+!$omp do
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
                   kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
                   IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      tmq = (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+      &
@@ -1096,25 +1275,34 @@ MODULE pseudospec_fluid
                   ENDIF
                END DO
             END DO
-            DO CONCURRENT (i=2:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
-                  kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                     tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
-                              abs(c3(k,j,i))**2)*tmp
-                     Ek(kmn) = Ek(kmn)+tmq
-                  ENDIF
+!$omp end do
+!$omp do collapse(2)
+            DO i = 2,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                        tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
+                                 abs(c3(k,j,i))**2)*tmp
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                  END DO
                END DO
             END DO
+!$omp end do
+!$omp end parallel
          ELSE
-            DO CONCURRENT (i=ista:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
-                  kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                     tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
-                              abs(c3(k,j,i))**2)*tmp
-                     Ek(kmn) = Ek(kmn)+tmq
-                  ENDIF
+!$omp parallel do collapse(2) private (k,kmn,tmq) reduction(+:Ek)
+            DO i = ista,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                        tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
+                                 abs(c3(k,j,i))**2)*tmp
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                  END DO
                END DO
             END DO
          ENDIF
@@ -1135,8 +1323,10 @@ MODULE pseudospec_fluid
             Hktot(i) = 0.0D0
          END DO
          IF (ista.eq.1) THEN
-            DO CONCURRENT (j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
+!$omp parallel private (k,kmn,tmq) reduction(+:Ek)
+!$omp do
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
                   kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
                   IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      tmq = (real(a(k,j,1)*conjg(c1(k,j,1)))+          &
@@ -1146,27 +1336,36 @@ MODULE pseudospec_fluid
                   ENDIF
                END DO
             END DO
-            DO CONCURRENT (i=2:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
-                  kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                     tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+     &
-                              real(b(k,j,i)*conjg(c2(k,j,i)))+     &
-                              real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
-                     Ek(kmn) = Ek(kmn)+tmq
-                  ENDIF
+!$omp end do
+!$omp do collapse(2)
+            DO i = 2,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                        tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+     &
+                                 real(b(k,j,i)*conjg(c2(k,j,i)))+     &
+                                 real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                  END DO
                END DO
             END DO
+!$omp end do
+!$omp end parallel
          ELSE
-            DO CONCURRENT (i=ista:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
-                  kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                     tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+     &
-                              real(b(k,j,i)*conjg(c2(k,j,i)))+     &
-                              real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
-                     Ek(kmn) = Ek(kmn)+tmq
-                  ENDIF
+!$omp parallel do collapse(2) private (k,kmn,tmq) reduction(+:Ek)
+            DO i = ista,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                        tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+     &
+                                 real(b(k,j,i)*conjg(c2(k,j,i)))+     &
+                                 real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                  END DO
                END DO
             END DO
          ENDIF
@@ -1245,7 +1444,8 @@ MODULE pseudospec_fluid
       IF (dir.eq.1) THEN ! E(k_x)
          IF (ista.eq.1) THEN
             kmn = int(abs(kx(1))*Lx+1)
-!$omp parallel do private (k,kmn,tmq)
+!$omp parallel private (k,kmn,tmq,j)
+!$omp do
             DO j = 1,ny
                DO k = 1,nz
                   tmq = abs(a(k,j,1))**2*tmp
@@ -1253,7 +1453,8 @@ MODULE pseudospec_fluid
                   Ek(kmn) = Ek(kmn)+tmq                       
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+!$omp end do
+!$omp do
             DO i = 2,iend
                kmn = int(abs(kx(i))*Lx+1)
                IF (kmn.le.nx/2+1) THEN
@@ -1267,6 +1468,8 @@ MODULE pseudospec_fluid
                   END DO
                ENDIF
             END DO
+!$omp end do
+!$omp end parallel
          ELSE
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
             DO i = ista,iend
@@ -1285,7 +1488,8 @@ MODULE pseudospec_fluid
          ENDIF
       ELSEIF (dir.eq.2) THEN ! E(k_y)
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq)
+!$omp parallel private (k,kmn,tmq,j)
+!$omp do
             DO j = 1,ny
                kmn = int(abs(ky(j))*Ly+1)
                IF (kmn.le.ny/2+1) THEN
@@ -1296,7 +1500,8 @@ MODULE pseudospec_fluid
                   END DO
                ENDIF
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+!$omp end do
+!$omp do
             DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
                DO j = 1,ny
@@ -1310,6 +1515,8 @@ MODULE pseudospec_fluid
                   ENDIF
                END DO
             END DO
+!$omp end do
+!$omp end parallel
          ELSE
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
             DO i = ista,iend
@@ -1328,7 +1535,8 @@ MODULE pseudospec_fluid
          ENDIF
       ELSE                   ! E(k_z)
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq)
+!$omp parallel private (k,kmn,tmq,j)
+!$omp do
             DO j = 1,ny
                DO k = 1,nz
                   kmn = int(abs(kz(k))*Lz+1)
@@ -1339,7 +1547,8 @@ MODULE pseudospec_fluid
                   ENDIF
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+!$omp end do
+!$omp do
             DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
                DO j = 1,ny
@@ -1353,6 +1562,8 @@ MODULE pseudospec_fluid
                   END DO
                END DO
             END DO
+!$omp end do
+!$omp end parallel
          ELSE
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
             DO i = ista,iend
@@ -1457,8 +1668,10 @@ MODULE pseudospec_fluid
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF (kin.ge.1) THEN
          IF (ista.eq.1) THEN
-            DO CONCURRENT (j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
+!$omp parallel private (k,kmn,tmq) reduction(+:Ek)
+!$omp do
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
                   kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
                   IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      tmq = (real(a(k,j,1)*conjg(d(k,j,1)))+            &
@@ -1468,27 +1681,36 @@ MODULE pseudospec_fluid
                   ENDIF
                END DO
             END DO
-            DO CONCURRENT (i=2:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
-                  kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                     tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+       &
-                              real(b(k,j,i)*conjg(e(k,j,i)))+       &
-                              real(c(k,j,i)*conjg(f(k,j,i))))*tmp
-                     Ek(kmn) = Ek(kmn)+tmq
-                  ENDIF
+!$omp end do
+!$omp do collapse(2)
+            DO i = 2,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                        tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+       &
+                                 real(b(k,j,i)*conjg(e(k,j,i)))+       &
+                                 real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                  END DO
                END DO
             END DO
+!$omp end do
+!$omp end parallel
          ELSE
-            DO CONCURRENT (i=ista:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
-                  kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                     tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+       &
-                              real(b(k,j,i)*conjg(e(k,j,i)))+       &
-                              real(c(k,j,i)*conjg(f(k,j,i))))*tmp
-                     Ek(kmn) = Ek(kmn)+tmq
-                  ENDIF
+!$omp parallel do collapse(2) private (k,kmn,tmq) reduction(+:Ek)
+            DO i = ista,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                        tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+       &
+                                 real(b(k,j,i)*conjg(e(k,j,i)))+       &
+                                 real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                  END DO
                END DO
             END DO
          ENDIF
@@ -1497,8 +1719,10 @@ MODULE pseudospec_fluid
 !
       ELSE
          IF (ista.eq.1) THEN
-            DO CONCURRENT (j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
+!$omp parallel private (k,kmn,tmq) reduction(+:Ek)
+!$omp do
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
                   kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
                   IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      tmq = kk2(k,j,1)*                                 &
@@ -1509,29 +1733,38 @@ MODULE pseudospec_fluid
                   ENDIF
                END DO
             END DO
-            DO CONCURRENT (i=2:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
-                  kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                     tmq = 2*kk2(k,j,i)*                            &
-                           (real(a(k,j,i)*conjg(d(k,j,i)))+         &
-                            real(b(k,j,i)*conjg(e(k,j,i)))+         &
-                            real(c(k,j,i)*conjg(f(k,j,i))))*tmp
-                     Ek(kmn) = Ek(kmn)+tmq
-                  ENDIF
+!$omp end do
+!$omp do collapse(2)
+            DO i = 2,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                        tmq = 2*kk2(k,j,i)*                            &
+                              (real(a(k,j,i)*conjg(d(k,j,i)))+         &
+                               real(b(k,j,i)*conjg(e(k,j,i)))+         &
+                               real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                  END DO
                END DO
             END DO
+!$omp end do
+!$omp end parallel
          ELSE
-            DO CONCURRENT (i=ista:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
-                  kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                     tmq = 2*kk2(k,j,i)*                            &
-                           (real(a(k,j,i)*conjg(d(k,j,i)))+         &
-                            real(b(k,j,i)*conjg(e(k,j,i)))+         &
-                            real(c(k,j,i)*conjg(f(k,j,i))))*tmp
-                     Ek(kmn) = Ek(kmn)+tmq
-                  ENDIF
+!$omp parallel do collapse(2) private (k,kmn,tmq) reduction(+:Ek)
+            DO i = ista,iend
+               DO j = 1,ny
+                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                     kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                     IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                        tmq = 2*kk2(k,j,i)*                            &
+                              (real(a(k,j,i)*conjg(d(k,j,i)))+         &
+                               real(b(k,j,i)*conjg(e(k,j,i)))+         &
+                               real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+                        Ek(kmn) = Ek(kmn)+tmq
+                     ENDIF
+                  END DO
                END DO
             END DO
          ENDIF
@@ -1625,8 +1858,10 @@ MODULE pseudospec_fluid
       CALL rotor3(a,c,c2,2)
       CALL rotor3(a,b,c3,3)
       IF (ista.eq.1) THEN
-         DO CONCURRENT (j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Hk)
-            DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Hk)
+!$omp parallel private (k,kmn,tmq) reduction(+:Hk)
+!$omp do
+         DO j = 1,ny
+            DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
                kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
                IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                   tmq = (real(c1(k,j,1)*conjg(d(k,j,1)))+            &
@@ -1636,27 +1871,36 @@ MODULE pseudospec_fluid
                ENDIF
             END DO
          END DO
-         DO CONCURRENT (i=2:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Hk)
-            DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Hk)
-               kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
-               IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                  tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+       &
-                           real(c2(k,j,i)*conjg(e(k,j,i)))+       &
-                           real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
-                  Hk(kmn) = Hk(kmn)+tmq
-               ENDIF
+!$omp end do
+!$omp do collapse(2)
+         DO i = 2,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                  kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                     tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+       &
+                              real(c2(k,j,i)*conjg(e(k,j,i)))+       &
+                              real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
+                     Hk(kmn) = Hk(kmn)+tmq
+                  ENDIF
+               END DO
             END DO
          END DO
+!$omp end do
+!$omp end parallel
       ELSE
-         DO CONCURRENT (i=ista:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Hk)
-            DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Hk)
-               kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
-               IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                  tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+       &
-                           real(c2(k,j,i)*conjg(e(k,j,i)))+       &
-                           real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
-                  Hk(kmn) = Hk(kmn)+tmq
-               ENDIF
+!$omp parallel do collapse(2) private (k,kmn,tmq) reduction(+:Hk)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                  kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
+                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                     tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+       &
+                              real(c2(k,j,i)*conjg(e(k,j,i)))+       &
+                              real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
+                     Hk(kmn) = Hk(kmn)+tmq
+                  ENDIF
+               END DO
             END DO
          END DO
       ENDIF
@@ -1764,7 +2008,8 @@ MODULE pseudospec_fluid
          Ektot(i) = 0.0D0
       END DO
       IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq)
+!$omp parallel private (k,kmn,tmq,j)
+!$omp do
          DO j = 1,ny
             DO k = 1,nz
                kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
@@ -1775,7 +2020,8 @@ MODULE pseudospec_fluid
                 ENDIF
              END DO
           END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+!$omp end do
+!$omp do
           DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
              DO j = 1,ny
@@ -1789,6 +2035,8 @@ MODULE pseudospec_fluid
                 END DO
              END DO
           END DO
+!$omp end do
+!$omp end parallel
         ELSE
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
           DO i = ista,iend
@@ -1840,20 +2088,28 @@ MODULE pseudospec_fluid
 
       jdump = conjg(cdump)
       IF (ista.eq.1) THEN
-         DO CONCURRENT (j=2:ny/2+1)
+!$omp parallel private (k)
+!$omp do
+         DO j = 2,ny/2+1
             a(1,j,1) = a(1,j,1)*cdump
             a(1,ny-j+2,1) = a(1,ny-j+2,1)*jdump
          END DO
-         DO CONCURRENT (k=2:nz/2+1)
+!$omp end do
+!$omp do
+         DO k = 2,nz/2+1
             a(k,1,1) = a(k,1,1)*cdump
             a(nz-k+2,1,1) = a(nz-k+2,1,1)*jdump
          END DO
-         DO CONCURRENT (j=2:ny)
+!$omp end do
+!$omp do
+         DO j = 2,ny
             DO CONCURRENT (k=2:(nz+1)/2)
                a(k,j,1) = a(k,j,1)*cdump
                a(nz-k+2,ny-j+2,1) = a(nz-k+2,ny-j+2,1)*jdump
             END DO
          END DO
+!$omp end do
+!$omp end parallel
 !
 ! For even nz the plane k=nz/2+1 is mapped onto itself by the
 ! reflection (k,j) -> (nz-k+2,ny-j+2), so the iterations j and
@@ -1867,15 +2123,21 @@ MODULE pseudospec_fluid
                a(k,ny-j+2,1) = a(k,ny-j+2,1)*jdump
             END DO
          ENDIF
-         DO CONCURRENT (i=2:iend, j=1:ny)
-            DO CONCURRENT (k=1:nz)
-               a(k,j,i) = a(k,j,i)*cdump
+!$omp parallel do collapse(2) private (k)
+         DO i = 2,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+                  a(k,j,i) = a(k,j,i)*cdump
+               END DO
             END DO
          END DO
       ELSE
-         DO CONCURRENT (i=ista:iend, j=1:ny)
-            DO CONCURRENT (k=1:nz)
-               a(k,j,i) = a(k,j,i)*cdump
+!$omp parallel do collapse(2) private (k)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+                  a(k,j,i) = a(k,j,i)*cdump
+               END DO
             END DO
          END DO
       ENDIF
@@ -1952,20 +2214,31 @@ MODULE pseudospec_hd
       CALL derivk3(b,c2,2)
       CALL derivk3(c,c3,3)
       IF (ista.eq.1) THEN
-         DO CONCURRENT (j=1:ny) REDUCE(+:tmp)
-            DO CONCURRENT (k=1:nz) REDUCE(+:tmp)
+!$omp parallel private (k) reduction(+:tmp)
+!$omp do
+         DO j = 1,ny
+            DO CONCURRENT (k=1:nz)
                tmp = tmp+abs(c1(k,j,1)+c2(k,j,1)+c3(k,j,1))**2*tmq
             END DO
          END DO
-         DO CONCURRENT (i=2:iend, j=1:ny) REDUCE(+:tmp)
-            DO CONCURRENT (k=1:nz) REDUCE(+:tmp)
-               tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
+!$omp end do
+!$omp do collapse(2)
+         DO i = 2,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+                  tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
+               END DO
             END DO
          END DO
+!$omp end do
+!$omp end parallel
       ELSE
-         DO CONCURRENT (i=ista:iend, j=1:ny) REDUCE(+:tmp)
-            DO CONCURRENT (k=1:nz) REDUCE(+:tmp)
-               tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
+!$omp parallel do collapse(2) private (k) reduction(+:tmp)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+                  tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
+               END DO
             END DO
          END DO
       ENDIF

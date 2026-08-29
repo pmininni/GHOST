@@ -110,11 +110,14 @@ CONTAINS
 
     select type (solver)
     class is (VelocityBase)
-      DO CONCURRENT (i=ista:iend, j=1:ny)
-         DO CONCURRENT (k=1:nz)
-           state(solver%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
-           state(solver%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
-           state(solver%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
+!$omp parallel do collapse(2) private (k)
+      DO i = ista,iend
+         DO j = 1,ny
+            DO CONCURRENT (k=1:nz)
+              state(solver%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
+              state(solver%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
+              state(solver%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
+            END DO
          END DO
       END DO
     class default
@@ -168,27 +171,37 @@ CONTAINS
     IF ( abs(Lx-Ly).gt.tiny ) THEN
       IF (myrank.eq.0) error stop "TG initial conditions require Lx=Ly"
     ENDIF
-    DO CONCURRENT (i=ista:iend, j=1:ny)
-       DO CONCURRENT (k=1:nz)
-         state(solver%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP !vz
+!$omp parallel private (k,i)
+!$omp do collapse(2)
+    DO i = ista,iend
+       DO j = 1,ny
+          DO CONCURRENT (k=1:nz)
+            state(solver%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP !vz
+          END DO
        END DO
     END DO
-    DO CONCURRENT (k=ksta:kend, j=1:ny)
-       DO CONCURRENT (i=1:nx)
-       R1(i,j,k) = 0.0_GP
-       R2(i,j,k) = 0.0_GP
-       DO ki = INT(kdn),INT(kup)
-          R1(i,j,k) = R1(i,j,k)+SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
-                   real(nx,kind=GP))*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
-                   real(ny,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
-                   real(nz,kind=GP))
-          R2(i,j,k) = R2(i,j,k)-COS(2*pi*ki*(real(i,kind=GP)-1)/ &
-                   real(nx,kind=GP))*SIN(2*pi*ki*(real(j,kind=GP)-1)/ &
-                   real(ny,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
-                   real(nz,kind=GP))
-       END DO
+!$omp end do
+!$omp do collapse(2)
+    DO k = ksta,kend
+       DO j = 1,ny
+          DO CONCURRENT (i=1:nx)
+          R1(i,j,k) = 0.0_GP
+          R2(i,j,k) = 0.0_GP
+          DO ki = INT(kdn),INT(kup)
+             R1(i,j,k) = R1(i,j,k)+SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
+                      real(nx,kind=GP))*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
+                      real(ny,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
+                      real(nz,kind=GP))
+             R2(i,j,k) = R2(i,j,k)-COS(2*pi*ki*(real(i,kind=GP)-1)/ &
+                      real(nx,kind=GP))*SIN(2*pi*ki*(real(j,kind=GP)-1)/ &
+                      real(ny,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
+                      real(nz,kind=GP))
+          END DO
+          END DO
        END DO
     END DO
+!$omp end do
+!$omp end parallel
     CALL fftp3d_real_to_complex(planrc,R1, & !vx
                    state(solver%VELOCITY  )%ccomp,MPI_COMM_WORLD)
     CALL fftp3d_real_to_complex(planrc,R2, & !vy
@@ -259,22 +272,25 @@ CONTAINS
     if ( (abs(Lx-Ly).gt.tiny).or.(abs(Lx-Lz).gt.tiny) ) then
       if (myrank.eq.0) error stop 'ABC initial conditions require Lx=Ly=Lz'
     endif
-    DO CONCURRENT (k=ksta:kend, j=1:ny)
-       DO CONCURRENT (i=1:nx)
-         R1(i,j,k) = 0.
-         R2(i,j,k) = 0.
-         R3(i,j,k) = 0.
-         DO ki = INT(kdn),INT(kup)
-         R1(i,j,k) = R1(i,j,k)+(B*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
-              real(ny,kind=GP))+C*SIN(2*pi*ki*(real(k,kind=GP)-1)/ &
-              real(nz,kind=GP)))/ki**2
-         R2(i,j,k) = R2(i,j,k)+(A*SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
-              real(nx,kind=GP))+C*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
-              real(nz,kind=GP)))/ki**2 
-         R3(i,j,k) = R3(i,j,k)+(A*COS(2*pi*ki*(real(i,kind=GP)-1)/ &
-              real(nx,kind=GP))+B*SIN(2*pi*ki*(real(j,kind=GP)-1)/ &
-              real(ny,kind=GP)))/ki**2
-         END DO
+!$omp parallel do collapse(2) private (i)
+    DO k = ksta,kend
+       DO j = 1,ny
+          DO CONCURRENT (i=1:nx)
+            R1(i,j,k) = 0.
+            R2(i,j,k) = 0.
+            R3(i,j,k) = 0.
+            DO ki = INT(kdn),INT(kup)
+            R1(i,j,k) = R1(i,j,k)+(B*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
+                 real(ny,kind=GP))+C*SIN(2*pi*ki*(real(k,kind=GP)-1)/ &
+                 real(nz,kind=GP)))/ki**2
+            R2(i,j,k) = R2(i,j,k)+(A*SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
+                 real(nx,kind=GP))+C*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
+                 real(nz,kind=GP)))/ki**2 
+            R3(i,j,k) = R3(i,j,k)+(A*COS(2*pi*ki*(real(i,kind=GP)-1)/ &
+                 real(nx,kind=GP))+B*SIN(2*pi*ki*(real(j,kind=GP)-1)/ &
+                 real(ny,kind=GP)))/ki**2
+            END DO
+          END DO
        END DO
     END DO
     call fftp3d_real_to_complex(planrc,R1, & !vx

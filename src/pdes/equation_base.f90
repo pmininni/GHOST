@@ -160,15 +160,18 @@ CONTAINS
                      uin(this%VELOCITY+2)%ccomp, &
                      uin(n)%ccomp,adve)
         call laplak3(uin(n)%ccomp,lapl)
-        do concurrent (i=ista:iend, j=1:ny)
-           do concurrent (k=1:nz)
-             if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
-               dudt(n)%ccomp(k,j,i) =                  &
-                 kappa(n-this%PASSIVE+1)*lapl(k,j,i) + &
-                 adve(k,j,i) + uf(n)%ccomp(k,j,i)
-             else if ((kn2(k,j,i).gt.kmax).or.(kn2(k,j,i).lt.tiny)) then
-                 dudt(n)%ccomp(k,j,i) = 0.0_GP
-             endif
+!$omp parallel do collapse(2) private (k)
+        do i = ista,iend
+           do j = 1,ny
+              do concurrent (k=1:nz)
+                if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
+                  dudt(n)%ccomp(k,j,i) =                  &
+                    kappa(n-this%PASSIVE+1)*lapl(k,j,i) + &
+                    adve(k,j,i) + uf(n)%ccomp(k,j,i)
+                else if ((kn2(k,j,i).gt.kmax).or.(kn2(k,j,i).lt.tiny)) then
+                    dudt(n)%ccomp(k,j,i) = 0.0_GP
+                endif
+              end do
            end do
         end do
       enddo ! end, loop over all scalars
@@ -208,9 +211,12 @@ CONTAINS
     state_size = this%state_size()
     do nc = 1,state_size
       rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
-      do concurrent (i=ista:iend, j=1:ny)
-         do concurrent (k=1:nz)
-           C1(k,j,i) = uin(nc)%ccomp(k,j,i)*rmp
+!$omp parallel do collapse(2) private (k)
+      do i = ista,iend
+         do j = 1,ny
+            do concurrent (k=1:nz)
+              C1(k,j,i) = uin(nc)%ccomp(k,j,i)*rmp
+            end do
          end do
       end do
       call fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
@@ -226,11 +232,14 @@ CONTAINS
       call this%workspace_%get_real_tmp   (R3,bret)
       select type (this)
       class is (VelocityBase)
-        do concurrent (i=ista:iend, j=1:ny)
-           do concurrent (k=1:nz)
-             C1(k,j,i) = uin(this%VELOCITY  )%ccomp(k,j,i)*rmp
-             C2(k,j,i) = uin(this%VELOCITY+1)%ccomp(k,j,i)*rmp
-             C3(k,j,i) = uin(this%VELOCITY+2)%ccomp(k,j,i)*rmp
+!$omp parallel do collapse(2) private (k)
+        do i = ista,iend
+           do j = 1,ny
+              do concurrent (k=1:nz)
+                C1(k,j,i) = uin(this%VELOCITY  )%ccomp(k,j,i)*rmp
+                C2(k,j,i) = uin(this%VELOCITY+1)%ccomp(k,j,i)*rmp
+                C3(k,j,i) = uin(this%VELOCITY+2)%ccomp(k,j,i)*rmp
+              end do
            end do
         end do
         call rotor3(C2,C3,C4,1) 
@@ -244,11 +253,14 @@ CONTAINS
         call io_write(1,this%odir_,'wz',ext,planio,R3)
         select type (this)
         class is (MagneticBase)
-          do concurrent (i=ista:iend, j=1:ny)
-             do concurrent (k=1:nz)
-               C1(k,j,i) = uin(this%MAGNETIC  )%ccomp(k,j,i)*rmp
-               C2(k,j,i) = uin(this%MAGNETIC+1)%ccomp(k,j,i)*rmp
-               C3(k,j,i) = uin(this%MAGNETIC+2)%ccomp(k,j,i)*rmp
+!$omp parallel do collapse(2) private (k)
+          do i = ista,iend
+             do j = 1,ny
+                do concurrent (k=1:nz)
+                  C1(k,j,i) = uin(this%MAGNETIC  )%ccomp(k,j,i)*rmp
+                  C2(k,j,i) = uin(this%MAGNETIC+1)%ccomp(k,j,i)*rmp
+                  C3(k,j,i) = uin(this%MAGNETIC+2)%ccomp(k,j,i)*rmp
+                end do
              end do
           end do
           call rotor3(C2,C3,C4,1) 

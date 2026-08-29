@@ -180,18 +180,24 @@
          rmq = 1.0_GP
          rms = 1.0_GP
       ENDIF
-      DO CONCURRENT (i=ista:iend, j=1:ny)
-         DO CONCURRENT (k=1:nz)
-            kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
+!$omp parallel do collapse(2) private (k)
+      DO i = ista,iend
+         DO j = 1,ny
+            DO CONCURRENT (k=1:nz)
+               kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
+            END DO
          END DO
       END DO
       IF ( anis ) THEN
          kx = kx*Dkx
          ky = ky*Dky
          kz = kz*Dkz
-         DO CONCURRENT (i=ista:iend, j=1:ny)
-            DO CONCURRENT (k=1:nz)
-               kk2(k,j,i) = kx(i)**2+ky(j)**2+kz(k)**2
+!$omp parallel do collapse(2) private (k)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+                  kk2(k,j,i) = kx(i)**2+ky(j)**2+kz(k)**2
+               END DO
             END DO
          END DO
       ENDIF

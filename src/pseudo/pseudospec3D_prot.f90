@@ -86,8 +86,10 @@ MODULE pseudospec_anisca
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF (ista.eq.1) THEN
-         DO CONCURRENT (j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
-            DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
+!$omp parallel private (k,kmn,tmq) reduction(+:Ek)
+!$omp do
+         DO j = 1,ny
+            DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
                kmn = int(abs(kz(k))*Lz+1)
                IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                   tmq = (abs(a(k,j,1))**2)*tmp
@@ -95,23 +97,32 @@ MODULE pseudospec_anisca
                ENDIF
             END DO
          END DO
-         DO CONCURRENT (i=2:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
-            DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
-               kmn = int(abs(kz(k))*Lz+1)
-               IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
-                  tmq = 2*(abs(a(k,j,i))**2)*tmp
-                  Ek(kmn) = Ek(kmn)+tmq
-               ENDIF
+!$omp end do
+!$omp do collapse(2)
+         DO i = 2,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                  kmn = int(abs(kz(k))*Lz+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
+                     tmq = 2*(abs(a(k,j,i))**2)*tmp
+                     Ek(kmn) = Ek(kmn)+tmq
+                  ENDIF
+               END DO
             END DO
          END DO
+!$omp end do
+!$omp end parallel
       ELSE
-         DO CONCURRENT (i=ista:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
-            DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
-               kmn = int(abs(kz(k))*Lz+1)
-               IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
-                  tmq = 2*(abs(a(k,j,i))**2)*tmp
-                  Ek(kmn) = Ek(kmn)+tmq
-               ENDIF
+!$omp parallel do collapse(2) private (k,kmn,tmq) reduction(+:Ek)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                  kmn = int(abs(kz(k))*Lz+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
+                     tmq = 2*(abs(a(k,j,i))**2)*tmp
+                     Ek(kmn) = Ek(kmn)+tmq
+                  ENDIF
+               END DO
             END DO
          END DO
       ENDIF
@@ -265,7 +276,9 @@ MODULE pseudospec_anisca
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF (ista.eq.1) THEN
-         DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq) REDUCE(+:Ekp,Ek)
+!$omp parallel private (k,kmn,tmq,j) reduction(+:Ekp,Ek)
+!$omp do
+         DO j = 1,ny
             kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
             IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                tmq = (abs(a(1,j,1))**2)*tmp
@@ -277,8 +290,10 @@ MODULE pseudospec_anisca
                END DO
             ENDIF
          END DO
-         DO CONCURRENT (i=2:iend) LOCAL(k,kmn,tmq) REDUCE(+:Ekp,Ek)
-            DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq) REDUCE(+:Ekp,Ek)
+!$omp end do
+!$omp do
+         DO i = 2,iend
+            DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq)
                kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                   tmq = 2*(abs(a(1,j,i))**2)*tmp
@@ -291,9 +306,12 @@ MODULE pseudospec_anisca
                ENDIF
             END DO
          END DO
+!$omp end do
+!$omp end parallel
       ELSE
-         DO CONCURRENT (i=ista:iend) LOCAL(k,kmn,tmq) REDUCE(+:Ekp,Ek)
-            DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq) REDUCE(+:Ekp,Ek)
+!$omp parallel do private (j,k,kmn,tmq) reduction(+:Ekp,Ek)
+         DO i = ista,iend
+            DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq)
                kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                   tmq = 2*(abs(a(1,j,i))**2)*tmp
@@ -378,7 +396,8 @@ MODULE pseudospec_anisca
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq)
+!$omp parallel private (k,kmn,tmq,j)
+!$omp do
          DO j = 1,ny
             DO k = 1,nz
                kmn = int(abs(kz(k))*Lz+1)
@@ -389,7 +408,8 @@ MODULE pseudospec_anisca
                ENDIF
             END DO
          END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+!$omp end do
+!$omp do
          DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
             DO j = 1,ny
@@ -403,6 +423,8 @@ MODULE pseudospec_anisca
                END DO
             END DO
          END DO
+!$omp end do
+!$omp end parallel
       ELSE
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
          DO i = ista,iend
@@ -510,7 +532,8 @@ MODULE pseudospec_anisca
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq)
+!$omp parallel private (k,kmn,tmq,j)
+!$omp do
          DO j = 1,ny
             kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
             IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
@@ -521,7 +544,8 @@ MODULE pseudospec_anisca
                END DO
             ENDIF
          END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
+!$omp end do
+!$omp do
          DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
             DO j = 1,ny
@@ -535,6 +559,8 @@ MODULE pseudospec_anisca
                ENDIF
             END DO
          END DO
+!$omp end do
+!$omp end parallel
       ELSE
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
          DO i = ista,iend
@@ -644,7 +670,8 @@ MODULE pseudospec_anisca
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmz,kmn,tmq)
+!$omp parallel private (k,kmz,kmn,tmq,j)
+!$omp do
          DO j = 1,ny
             kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
             IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
@@ -658,7 +685,8 @@ MODULE pseudospec_anisca
                END DO
             ENDIF
          END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmz,kmn,tmq)
+!$omp end do
+!$omp do
          DO i = 2,iend
 !$omp parallel do if (iend-2.lt.nth) private (k,kmz,kmn,tmq)
             DO j = 1,ny
@@ -675,6 +703,8 @@ MODULE pseudospec_anisca
                ENDIF
             END DO
          END DO
+!$omp end do
+!$omp end parallel
       ELSE
 !$omp parallel do if (iend-ista.ge.nth) private (j,k,kmz,kmn,tmq)
          DO i = ista,iend

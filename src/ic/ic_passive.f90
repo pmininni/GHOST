@@ -120,9 +120,12 @@ CONTAINS
       endif
       call mpi_bcast(c0,solver%numpassive_,GC_REAL,0,MPI_COMM_WORLD,ierr)
       do n = solver%PASSIVE, solver%PASSIVE+solver%numpassive_-1
-        DO CONCURRENT (i=ista:iend, j=1:ny)
-           DO CONCURRENT (k=1:nz)
-             state(n)%ccomp(k,j,i) = 0.0_GP
+!$omp parallel do collapse(2) private (k)
+        DO i = ista,iend
+           DO j = 1,ny
+              DO CONCURRENT (k=1:nz)
+                state(n)%ccomp(k,j,i) = 0.0_GP
+              END DO
            END DO
         END DO
         if ( myrank .eq. 0) then
@@ -186,21 +189,27 @@ CONTAINS
     call mpi_bcast(z0,solver%numpassive_,GC_REAL,0,MPI_COMM_WORLD,ierr)
     call mpi_bcast(r0,solver%numpassive_,GC_REAL,0,MPI_COMM_WORLD,ierr)
     do n = solver%PASSIVE, solver%PASSIVE+solver%numpassive_-1    
-      DO CONCURRENT (k=ksta:kend, j=1:ny) LOCAL(tmp)
-         DO CONCURRENT (i=1:nx) LOCAL(tmp)
-           tmp = (real(i-1,kind=GP)/real(nx-1,kind=GP)-x0(n-solver%PASSIVE+1))**2 &
-               + (real(j-1,kind=GP)/real(ny-1,kind=GP)-y0(n-solver%PASSIVE+1))**2 &
-               + (real(k-1,kind=GP)/real(nz-1,kind=GP)-z0(n-solver%PASSIVE+1))**2 
-           R1(i,j,k) = exp(-tmp**2/r0(n-solver%PASSIVE+1)**2)
+!$omp parallel do collapse(2) private (i,tmp)
+      DO k = ksta,kend
+         DO j = 1,ny
+            DO CONCURRENT (i=1:nx) LOCAL(tmp)
+              tmp = (real(i-1,kind=GP)/real(nx-1,kind=GP)-x0(n-solver%PASSIVE+1))**2 &
+                  + (real(j-1,kind=GP)/real(ny-1,kind=GP)-y0(n-solver%PASSIVE+1))**2 &
+                  + (real(k-1,kind=GP)/real(nz-1,kind=GP)-z0(n-solver%PASSIVE+1))**2 
+              R1(i,j,k) = exp(-tmp**2/r0(n-solver%PASSIVE+1)**2)
+            END DO
          END DO
       END DO
       call fftp3d_real_to_complex(planrc,R1,state(n)%ccomp,MPI_COMM_WORLD)
       call variance(state(n)%ccomp,tmp,1)
       call mpi_bcast(tmp,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
-      DO CONCURRENT (i=ista:iend, j=1:ny)
-         DO CONCURRENT (k=1:nz)
-           state(n)%ccomp(k,j,i) = state(n)%ccomp(k,j,i)* &
-                        c0(n-solver%PASSIVE+1)/sqrt(tmp)
+!$omp parallel do collapse(2) private (k)
+      DO i = ista,iend
+         DO j = 1,ny
+            DO CONCURRENT (k=1:nz)
+              state(n)%ccomp(k,j,i) = state(n)%ccomp(k,j,i)* &
+                           c0(n-solver%PASSIVE+1)/sqrt(tmp)
+            END DO
          END DO
       END DO
     end do
@@ -329,10 +338,13 @@ CONTAINS
       ENDIF
       CALL variance(state(n)%ccomp,tmp,1)
       CALL MPI_BCAST(tmp,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
-      DO CONCURRENT (i=ista:iend, j=1:ny)
-         DO CONCURRENT (k=1:nz)
-           state(n)%ccomp(k,j,i) = state(n)%ccomp(k,j,i)* &
-                        c0(n-solver%PASSIVE+1)/sqrt(tmp)
+!$omp parallel do collapse(2) private (k)
+      DO i = ista,iend
+         DO j = 1,ny
+            DO CONCURRENT (k=1:nz)
+              state(n)%ccomp(k,j,i) = state(n)%ccomp(k,j,i)* &
+                           c0(n-solver%PASSIVE+1)/sqrt(tmp)
+            END DO
          END DO
       END DO
     end do

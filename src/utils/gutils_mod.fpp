@@ -136,14 +136,15 @@ MODULE gutils
       nb = 8  ! no. bits per byte
 
 ! Note using GP like this is not good practice....
-      DO CONCURRENT (k=1:nin) LOCAL(ie0,ie1,m)
+!$omp parallel do private (ie0,ie1,m)
+      DO k = 1,nin
           ie1 = 0
           ie0 = TRANSFER(Rin(k), 0_GP)
           DO m = 1, GP
              CALL MVBITS( ie0, (GP-m)*nb, nb, ie1, (m-1)*nb  )
           END DO
           Rin(k) = TRANSFER(ie1, 0.0_GP)
-       END DO
+      END DO
 
       RETURN
 
