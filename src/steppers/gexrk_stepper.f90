@@ -424,9 +424,9 @@ contains
     ! Combine stages to get step update
     upout = upin
     do m = 1, this%traits_%nstage  
+      eff_dt = this%c_(m) * dt
       do n = 1, this%traits_%npstate   ! upout = upout + h * c_m * pK_m
-        call saxpby_r(upout(n)%rcomp, upout(n)%rcomp, 1.0_GP,        &
-             this%pK_(m)%rpstate(n)%rcomp, this%c_(m)*dt)
+        upout(n)%rcomp = upout(n)%rcomp + this%pK_(m)%rpstate(n)%rcomp * eff_dt
       enddo
     enddo ! m-loop
 
