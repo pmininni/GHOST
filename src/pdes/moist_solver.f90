@@ -122,6 +122,7 @@ contains
     character(len=128)         :: fidir, fodir, todir
 
     ! Required namelists:
+    namelist/ MOIST   / fidir, fodir, todir
     namelist/ MOIST   / nu, bkappa, bvuns, bvsat, bvfreq, xmom, xtemp
     namelist/ MOIST   / dorot, omegax, omegay, omegaz, npassive, spectlod
     namelist/ passive / kappa
