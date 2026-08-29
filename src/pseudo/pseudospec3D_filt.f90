@@ -35,6 +35,7 @@
       USE kes
       USE grid
       USE mpivars
+!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,nx,ista:iend) :: a,b,c
@@ -82,6 +83,7 @@
       USE kes
       USE grid
       USE mpivars
+!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
@@ -126,6 +128,7 @@
       USE kes
       USE grid
       USE mpivars
+!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
@@ -170,6 +173,7 @@
       USE kes
       USE grid
       USE mpivars
+!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
@@ -214,6 +218,7 @@
       USE kes
       USE grid
       USE mpivars
+!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a

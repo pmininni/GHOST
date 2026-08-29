@@ -142,6 +142,7 @@ CONTAINS
   SUBROUTINE dpdt_impl(this, time, pde, fluidstate, pstate, dt, dpdtout)
     use equationbase_mod
     use fft
+!$  use threads
     IMPLICIT NONE
     class       (Ipart),             intent(inout) :: this
     class(EquationBase),             intent   (in) :: pde
@@ -457,6 +458,7 @@ CONTAINS
     use status
     use pstatus
     use fft
+!$  use threads
     class       (IPart),             intent(inout) :: this
     class(EquationBase),             intent   (in) :: pde
     type   (GStateComp),             intent   (in) :: fluidstate(:)

@@ -39,6 +39,7 @@
       USE mpivars
       USE grid
       USE fft
+!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b,c

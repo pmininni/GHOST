@@ -40,6 +40,22 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
            -Wno-incompatible-implicit-interfaces")
     endif()
 
+# ----------------------- Hybrid OpenMP ------------------------------
+# P_HYBRID enables the hybrid MPI/OpenMP build. Besides the threaded
+# loops it is what activates every '!$' conditional line, and so what
+# makes main.fpp set nth from omp_get_max_threads() and fftp3D call
+# fftp3d_init_threads and plan_with_nthreads: without it the FFTs run
+# on a single thread. The flags are set globally, like the per-compiler
+# options above, so that every library in the build tree gets them.
+if(P_HYBRID)
+    find_package(OpenMP REQUIRED COMPONENTS Fortran C)
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OpenMP_Fortran_FLAGS}")
+    set(CMAKE_C_FLAGS       "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    message(STATUS "Hybrid OpenMP enabled (${OpenMP_Fortran_FLAGS})")
+else()
+    message(STATUS "Hybrid OpenMP disabled; use -DP_HYBRID=ON to enable")
+endif()
+
 # ---------------------- Preprocessing function ----------------------
 # Preprocess .fpp → .f90 using the C preprocessor (in the build tree)
 function(preprocess_fpp OUTVAR FPP_PATH)
@@ -69,11 +85,27 @@ if(FFTP STREQUAL "fftp-3")
     list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}")
     find_package(FFTW3 REQUIRED)
     target_include_directories(project_fft INTERFACE ${FFTW3_INCLUDE_DIRS})
+    # With P_HYBRID, link FFTW's threading support. The _omp variant is
+    # used rather than _threads so that FFTW shares the OpenMP thread
+    # pool instead of starting pthreads of its own. It has to be listed
+    # before the base library for static linking to resolve.
+    if(P_HYBRID)
+        if(PRECISION STREQUAL "SINGLE")
+            set(_fftw_omp_name fftw3f_omp)
+        else()
+            set(_fftw_omp_name fftw3_omp)
+        endif()
+        find_library(FFTW3_OMP_LIBRARY NAMES ${_fftw_omp_name}
+                     HINTS ${FFTW3_ROOT}/lib ${FFTW3_LIBRARY_DIRS}
+                     PATH_SUFFIXES lib lib64 REQUIRED)
+        target_link_libraries(project_fft INTERFACE ${FFTW3_OMP_LIBRARY})
+        message(STATUS "FFTW threading: ${FFTW3_OMP_LIBRARY}")
+    endif()
     if(PRECISION STREQUAL "SINGLE")
         target_link_libraries(project_fft INTERFACE ${FFTW3F_LIBRARIES} m)
     else()
         target_link_libraries(project_fft INTERFACE ${FFTW3_LIBRARIES} m)
-    endif()    
+    endif()
 elseif(FFTP STREQUAL "fftp-mkl")
     set(MKLDIR "" CACHE PATH "MKL root")
     target_include_directories(project_fft INTERFACE "${MKLDIR}/include")

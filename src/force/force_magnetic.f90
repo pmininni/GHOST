@@ -569,6 +569,7 @@ CONTAINS
     use filefmt
     use fft
     use commtypes
+!$  use threads
     implicit none
     
     class(shuffleupdt_fb), intent(inout)             :: this

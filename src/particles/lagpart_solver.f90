@@ -304,6 +304,7 @@ CONTAINS
     use status
     use pstatus
     use fft
+!$  use threads
     class       (GPart),             intent(inout) :: this
     class(EquationBase),             intent   (in) :: pde
     type   (GStateComp),             intent   (in) :: fluidstate(:)
