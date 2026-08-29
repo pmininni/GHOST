@@ -114,12 +114,12 @@
       IF (myrank.eq.0) THEN
          OPEN(1,file=infile_,status='unknown',form="formatted")
          READ(1,NML=boxparams,iostat=ios,iomsg=iomsg)
-	 IF (ios .eq. 0) THEN
-	    anis = .TRUE.      ! Domain size defined in infile_
-	 ELSE
-	    PRINT *,'boxparams not found, attempting to use a 2.pi cubic box'
+         IF (ios .eq. 0) THEN
+            anis = .TRUE.      ! Domain size defined in infile_
+         ELSE
+            PRINT *,'boxparams not found, attempting to use a 2.pi cubic box'
             IF ((nx.ne.ny).or.(ny.ne.nz)) anis = .TRUE.
-	 ENDIF
+         ENDIF
          CLOSE(1)
       ENDIF
       CALL MPI_BCAST(Lx  ,1,GC_REAL    ,0,MPI_COMM_WORLD,ierr)
@@ -177,29 +177,21 @@
          rms = 1.0_GP/real(nz,kind=GP)**2
       ELSE
          rmp = 1.0_GP
-	 rmq = 1.0_GP
-	 rms = 1.0_GP
+         rmq = 1.0_GP
+         rms = 1.0_GP
       ENDIF
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,ny
-            DO k = 1,nz
-               kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
-            END DO
+      DO CONCURRENT (i=ista:iend, j=1:ny)
+         DO CONCURRENT (k=1:nz)
+            kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
          END DO
       END DO
       IF ( anis ) THEN
          kx = kx*Dkx
          ky = ky*Dky
          kz = kz*Dkz
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-            DO j = 1,ny
-               DO k = 1,nz
-                  kk2(k,j,i) = kx(i)**2+ky(j)**2+kz(k)**2
-               END DO
+         DO CONCURRENT (i=ista:iend, j=1:ny)
+            DO CONCURRENT (k=1:nz)
+               kk2(k,j,i) = kx(i)**2+ky(j)**2+kz(k)**2
             END DO
          END DO
       ENDIF

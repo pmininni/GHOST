@@ -68,13 +68,9 @@ MODULE pseudospec_scalar
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
 
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-      DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,ny
-            DO i = 1,nx
-               r3(i,j,k) = r1(i,j,k)*r2(i,j,k)
-            END DO
+      DO CONCURRENT (k=ksta:kend, j=1:ny)
+         DO CONCURRENT (i=1:nx)
+            r3(i,j,k) = r1(i,j,k)*r2(i,j,k)
          END DO
       END DO
 !
@@ -85,13 +81,9 @@ MODULE pseudospec_scalar
       CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
 
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-      DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,ny
-            DO i = 1,nx
-               r3(i,j,k) = r3(i,j,k)+r1(i,j,k)*r2(i,j,k)
-            END DO
+      DO CONCURRENT (k=ksta:kend, j=1:ny)
+         DO CONCURRENT (i=1:nx)
+            r3(i,j,k) = r3(i,j,k)+r1(i,j,k)*r2(i,j,k)
          END DO
       END DO
 !
@@ -105,13 +97,9 @@ MODULE pseudospec_scalar
 ! We need -A.grad(B)
       tmp = -1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-      DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,ny
-            DO i = 1,nx
-               r3(i,j,k) = (r3(i,j,k)+r1(i,j,k)*r2(i,j,k))*tmp
-            END DO
+      DO CONCURRENT (k=ksta:kend, j=1:ny)
+         DO CONCURRENT (i=1:nx)
+            r3(i,j,k) = (r3(i,j,k)+r1(i,j,k)*r2(i,j,k))*tmp
          END DO
       END DO
 
@@ -156,29 +144,20 @@ MODULE pseudospec_scalar
 !
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
-!$omp parallel do private (k) reduction(+:bloc)
-            DO j = 1,ny
-               DO k = 1,nz
+            DO CONCURRENT (j=1:ny) REDUCE(+:bloc)
+               DO CONCURRENT (k=1:nz) REDUCE(+:bloc)
                   bloc = bloc+tmp*abs(a(k,j,1))**2
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:bloc)
-            DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:bloc)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     bloc = bloc+2*tmp*abs(a(k,j,i))**2
-                  END DO
+            DO CONCURRENT (i=2:iend, j=1:ny) REDUCE(+:bloc)
+               DO CONCURRENT (k=1:nz) REDUCE(+:bloc)
+                  bloc = bloc+2*tmp*abs(a(k,j,i))**2
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:bloc)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:bloc)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     bloc = bloc+2*tmp*abs(a(k,j,i))**2
-                  END DO
+            DO CONCURRENT (i=ista:iend, j=1:ny) REDUCE(+:bloc)
+               DO CONCURRENT (k=1:nz) REDUCE(+:bloc)
+                  bloc = bloc+2*tmp*abs(a(k,j,i))**2
                END DO
             END DO
          ENDIF
@@ -187,29 +166,20 @@ MODULE pseudospec_scalar
 !
       ELSE IF (kin.eq.0) THEN
          IF (ista.eq.1) THEN
-!$omp parallel do private (k) reduction(+:bloc)
-            DO j = 1,ny
-               DO k = 1,nz
+            DO CONCURRENT (j=1:ny) REDUCE(+:bloc)
+               DO CONCURRENT (k=1:nz) REDUCE(+:bloc)
                   bloc = bloc+tmp*kk2(k,j,1)*abs(a(k,j,1))**2
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:bloc)
-            DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:bloc)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     bloc = bloc+2*tmp*kk2(k,j,i)*abs(a(k,j,i))**2
-                  END DO
+            DO CONCURRENT (i=2:iend, j=1:ny) REDUCE(+:bloc)
+               DO CONCURRENT (k=1:nz) REDUCE(+:bloc)
+                  bloc = bloc+2*tmp*kk2(k,j,i)*abs(a(k,j,i))**2
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:bloc)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:bloc)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     bloc = bloc+2*tmp*kk2(k,j,i)*abs(a(k,j,i))**2
-                  END DO
+            DO CONCURRENT (i=ista:iend, j=1:ny) REDUCE(+:bloc)
+               DO CONCURRENT (k=1:nz) REDUCE(+:bloc)
+                  bloc = bloc+2*tmp*kk2(k,j,i)*abs(a(k,j,i))**2
                END DO
             END DO
          ENDIF
@@ -255,29 +225,20 @@ MODULE pseudospec_scalar
 ! Computes the averaged inner product between the fields
 !
       IF (ista.eq.1) THEN
-!$omp parallel do private (k) reduction(+:cloc)
-         DO j = 1,ny
-            DO k = 1,nz
+         DO CONCURRENT (j=1:ny) REDUCE(+:cloc)
+            DO CONCURRENT (k=1:nz) REDUCE(+:cloc)
                cloc = cloc+tmp*real(a(k,j,1)*conjg(b(k,j,1)))
             END DO
          END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:cloc)
-         DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:cloc)
-            DO j = 1,ny
-               DO k = 1,nz
-                  cloc = cloc+2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
-               END DO
+         DO CONCURRENT (i=2:iend, j=1:ny) REDUCE(+:cloc)
+            DO CONCURRENT (k=1:nz) REDUCE(+:cloc)
+               cloc = cloc+2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
             END DO
          END DO
       ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:cloc)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:cloc)
-            DO j = 1,ny
-               DO k = 1,nz
-                  cloc = cloc+2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
-               END DO
+         DO CONCURRENT (i=ista:iend, j=1:ny) REDUCE(+:cloc)
+            DO CONCURRENT (k=1:nz) REDUCE(+:cloc)
+               cloc = cloc+2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
             END DO
          END DO
       ENDIF
@@ -408,44 +369,32 @@ MODULE pseudospec_scalar
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq)
-         DO j = 1,ny
-            DO k = 1,nz
+         DO CONCURRENT (j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
+            DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
                kmn = int(sqrt(kk2(k,j,1))/Dkk+round)
                IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                   tmq = tmp*abs(a(k,j,1))**2
-!$omp atomic
                   Ek(kmn) = Ek(kmn)+tmq
                ENDIF
             END DO
          END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
-         DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-            DO j = 1,ny
-               DO k = 1,nz
-                  kmn = int(sqrt(kk2(k,j,i))/Dkk+round)
-                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                     tmq = 2*tmp*abs(a(k,j,i))**2
-!$omp atomic
-                     Ek(kmn) = Ek(kmn)+tmq
-                  ENDIF
-               END DO
+         DO CONCURRENT (i=2:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
+            DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
+               kmn = int(sqrt(kk2(k,j,i))/Dkk+round)
+               IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                  tmq = 2*tmp*abs(a(k,j,i))**2
+                  Ek(kmn) = Ek(kmn)+tmq
+               ENDIF
             END DO
          END DO
       ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-            DO j = 1,ny
-               DO k = 1,nz
-                  kmn = int(sqrt(kk2(k,j,i))/Dkk+round)
-                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                     tmq = 2*tmp*abs(a(k,j,i))**2
-!$omp atomic
-                     Ek(kmn) = Ek(kmn)+tmq
-                  ENDIF
-               END DO
+         DO CONCURRENT (i=ista:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
+            DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
+               kmn = int(sqrt(kk2(k,j,i))/Dkk+round)
+               IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
+                  tmq = 2*tmp*abs(a(k,j,i))**2
+                  Ek(kmn) = Ek(kmn)+tmq
+               ENDIF
             END DO
          END DO
       ENDIF

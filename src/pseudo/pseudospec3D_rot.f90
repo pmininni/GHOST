@@ -106,56 +106,41 @@ MODULE pseudospec_aniso
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq,tmr)
-            DO j = 1,ny
-               DO k = 1,nz
+            DO CONCURRENT (j=1:ny) LOCAL(kmn,tmq,tmr) REDUCE(+:Ek,Ekh,Ekv)
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq,tmr) REDUCE(+:Ek,Ekh,Ekv)
                   kmn = int(abs(kz(k))*Lz+1)
                   IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                      tmq = (abs(a(k,j,1))**2+abs(b(k,j,1))**2)*tmp
                      tmr = (abs(c(k,j,1))**2)*tmp
-!$omp critical
                      Ek (kmn) = Ek (kmn)+tmq+tmr                       
                      Ekh(kmn) = Ekh(kmn)+tmq
                      Ekv(kmn) = Ekv(kmn)+tmr
-!$omp end critical
                   ENDIF
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq,tmr)
-            DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq,tmr)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     kmn = int(abs(kz(k))*Lz+1)
-                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
-                        tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2)*tmp
-                        tmr = 2*(abs(c(k,j,i))**2)*tmp
-!$omp critical
-                        Ek (kmn) = Ek (kmn)+tmq+tmr
-                        Ekh(kmn) = Ekh(kmn)+tmq
-                        Ekv(kmn) = Ekv(kmn)+tmr
-!$omp end critical
-                     ENDIF
-                  END DO
+            DO CONCURRENT (i=2:iend, j=1:ny) LOCAL(kmn,tmq,tmr) REDUCE(+:Ek,Ekh,Ekv)
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq,tmr) REDUCE(+:Ek,Ekh,Ekv)
+                  kmn = int(abs(kz(k))*Lz+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
+                     tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2)*tmp
+                     tmr = 2*(abs(c(k,j,i))**2)*tmp
+                     Ek (kmn) = Ek (kmn)+tmq+tmr
+                     Ekh(kmn) = Ekh(kmn)+tmq
+                     Ekv(kmn) = Ekv(kmn)+tmr
+                  ENDIF
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq,tmr)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq,tmr)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     kmn = int(abs(kz(k))*Lz+1)
-                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
-                        tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2)*tmp
-                        tmr = 2*(abs(c(k,j,i))**2)*tmp
-!$omp critical
-                        Ek (kmn) = Ek (kmn)+tmq+tmr
-                        Ekh(kmn) = Ekh(kmn)+tmq
-                        Ekv(kmn) = Ekv(kmn)+tmr
-!$omp end critical
-                     ENDIF
-                  END DO
+            DO CONCURRENT (i=ista:iend, j=1:ny) LOCAL(kmn,tmq,tmr) REDUCE(+:Ek,Ekh,Ekv)
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq,tmr) REDUCE(+:Ek,Ekh,Ekv)
+                  kmn = int(abs(kz(k))*Lz+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
+                     tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2)*tmp
+                     tmr = 2*(abs(c(k,j,i))**2)*tmp
+                     Ek (kmn) = Ek (kmn)+tmq+tmr
+                     Ekh(kmn) = Ekh(kmn)+tmq
+                     Ekv(kmn) = Ekv(kmn)+tmr
+                  ENDIF
                END DO
             END DO
          ENDIF
@@ -164,57 +149,42 @@ MODULE pseudospec_aniso
 !
       ELSE IF (kin.eq.0) THEN
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq,tmr)
-            DO j = 1,ny
-               DO k = 1,nz
+            DO CONCURRENT (j=1:ny) LOCAL(kmn,tmq,tmr) REDUCE(+:Ek,Ekh,Ekv)
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq,tmr) REDUCE(+:Ek,Ekh,Ekv)
                   kmn = int(abs(kz(k))*Lz+1)
                   IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                      tmq = (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2)*tmp
                      tmr = (abs(c3(k,j,1))**2)*tmp
-!$omp critical
                      Ek (kmn) = Ek (kmn)+tmq+tmr
                      Ekh(kmn) = Ekh(kmn)+tmq
                      Ekv(kmn) = Ekv(kmn)+tmr
-!$omp end critical
 
                   ENDIF
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq,tmr)
-            DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq,tmr)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     kmn = int(abs(kz(k))*Lz+1)
-                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
-                        tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2)*tmp
-                        tmr = 2*(abs(c3(k,j,i))**2)*tmp
-!$omp critical
-                        Ek (kmn) = Ek (kmn)+tmq+tmr
-                        Ekh(kmn) = Ekh(kmn)+tmq
-                        Ekv(kmn) = Ekv(kmn)+tmr
-!$omp end critical
-                     ENDIF
-                  END DO
+            DO CONCURRENT (i=2:iend, j=1:ny) LOCAL(kmn,tmq,tmr) REDUCE(+:Ek,Ekh,Ekv)
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq,tmr) REDUCE(+:Ek,Ekh,Ekv)
+                  kmn = int(abs(kz(k))*Lz+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
+                     tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2)*tmp
+                     tmr = 2*(abs(c3(k,j,i))**2)*tmp
+                     Ek (kmn) = Ek (kmn)+tmq+tmr
+                     Ekh(kmn) = Ekh(kmn)+tmq
+                     Ekv(kmn) = Ekv(kmn)+tmr
+                  ENDIF
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq,tmr)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq,tmr)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     kmn = int(abs(kz(k))*Lz+1)
-                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
-                        tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2)*tmp
-                        tmr = 2*(abs(c3(k,j,i))**2)*tmp
-!$omp critical
-                        Ek (kmn) = Ek (kmn)+tmq+tmr
-                        Ekh(kmn) = Ekh(kmn)+tmq
-                        Ekv(kmn) = Ekv(kmn)+tmr
-!$omp end critical
-                     ENDIF
-                  END DO
+            DO CONCURRENT (i=ista:iend, j=1:ny) LOCAL(kmn,tmq,tmr) REDUCE(+:Ek,Ekh,Ekv)
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq,tmr) REDUCE(+:Ek,Ekh,Ekv)
+                  kmn = int(abs(kz(k))*Lz+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
+                     tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2)*tmp
+                     tmr = 2*(abs(c3(k,j,i))**2)*tmp
+                     Ek (kmn) = Ek (kmn)+tmq+tmr
+                     Ekh(kmn) = Ekh(kmn)+tmq
+                     Ekv(kmn) = Ekv(kmn)+tmr
+                  ENDIF
                END DO
             END DO
          ENDIF
@@ -254,59 +224,44 @@ MODULE pseudospec_aniso
             Ekv(k) = 0.0D0
          END DO
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq,tmr)
-            DO j = 1,ny
-               DO k = 1,nz
+            DO CONCURRENT (j=1:ny) LOCAL(kmn,tmq,tmr) REDUCE(+:Ek,Ekh,Ekv)
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq,tmr) REDUCE(+:Ek,Ekh,Ekv)
                   kmn = int(abs(kz(k))*Lz+1)
                   IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                      tmq = (real(a(k,j,1)*conjg(c1(k,j,1)))+            &
                             real(b(k,j,1)*conjg(c2(k,j,1))))*tmp
                      tmr = (real(c(k,j,1)*conjg(c3(k,j,1))))*tmp
-!$omp critical
                      Ek (kmn) = Ek (kmn)+tmq+tmr
                      Ekh(kmn) = Ekh(kmn)+tmq
                      Ekv(kmn) = Ekv(kmn)+tmr
-!$omp end critical
                   ENDIF
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq,tmr)
-            DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq,tmr)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     kmn = int(abs(kz(k))*Lz+1)
-                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
-                        tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+       &
-                                 real(b(k,j,i)*conjg(c2(k,j,i))))*tmp
-                        tmr = 2*(real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
-!$omp critical
-                        Ek(kmn) = Ek(kmn)+tmq+tmr
-                        Ekh(kmn) = Ekh(kmn)+tmq
-                        Ekv(kmn) = Ekv(kmn)+tmr
-!$omp end critical
-                     ENDIF
-                 END DO
+            DO CONCURRENT (i=2:iend, j=1:ny) LOCAL(kmn,tmq,tmr) REDUCE(+:Ek,Ekh,Ekv)
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq,tmr) REDUCE(+:Ek,Ekh,Ekv)
+                  kmn = int(abs(kz(k))*Lz+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
+                     tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+       &
+                              real(b(k,j,i)*conjg(c2(k,j,i))))*tmp
+                     tmr = 2*(real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
+                     Ek(kmn) = Ek(kmn)+tmq+tmr
+                     Ekh(kmn) = Ekh(kmn)+tmq
+                     Ekv(kmn) = Ekv(kmn)+tmr
+                  ENDIF
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq,tmr)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq,tmr)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     kmn = int(abs(kz(k))*Lz+1)
-                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
-                        tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+       &
-                                 real(b(k,j,i)*conjg(c2(k,j,i))))*tmp
-                        tmr = 2*(real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
-!$omp critical
-                        Ek (kmn) = Ek (kmn)+tmq+tmr
-                        Ekh(kmn) = Ekh(kmn)+tmq
-                        Ekv(kmn) = Ekv(kmn)+tmr
-!$omp end critical
-                     ENDIF
-                  END DO
+            DO CONCURRENT (i=ista:iend, j=1:ny) LOCAL(kmn,tmq,tmr) REDUCE(+:Ek,Ekh,Ekv)
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq,tmr) REDUCE(+:Ek,Ekh,Ekv)
+                  kmn = int(abs(kz(k))*Lz+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
+                     tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+       &
+                              real(b(k,j,i)*conjg(c2(k,j,i))))*tmp
+                     tmr = 2*(real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
+                     Ek (kmn) = Ek (kmn)+tmq+tmr
+                     Ekh(kmn) = Ekh(kmn)+tmq
+                     Ekv(kmn) = Ekv(kmn)+tmr
+                  ENDIF
                END DO
             END DO
          ENDIF
@@ -420,65 +375,51 @@ MODULE pseudospec_aniso
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq,tmr)
-            DO j = 1,ny
+            DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq,tmr) REDUCE(+:Ekp,Ekz,Ek)
                kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
                IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                   tmq = (abs(a(1,j,1))**2+abs(b(1,j,1))**2)*tmp
                   tmr = (abs(c(1,j,1))**2)*tmp
-!$omp critical
                   Ekp(kmn) = Ekp(kmn)+tmq
                   Ekz(kmn) = Ekz(kmn)+tmr
                   Ek(kmn) = Ek(kmn)+tmq+tmr
-!$omp end critical
                   DO k = 2,nz
                      tmq = (abs(a(k,j,1))**2+abs(b(k,j,1))**2+          &
                             abs(c(k,j,1))**2)*tmp
-!$omp atomic
                      Ek(kmn) = Ek(kmn)+tmq
                   END DO
                ENDIF
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq,tmr)
-            DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq,tmr)
-               DO j = 1,ny
+            DO CONCURRENT (i=2:iend) LOCAL(k,kmn,tmq,tmr) REDUCE(+:Ekp,Ekz,Ek)
+               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq,tmr) REDUCE(+:Ekp,Ekz,Ek)
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      tmq = 2*(abs(a(1,j,i))**2+abs(b(1,j,i))**2)*tmp
                      tmr = 2*abs(c(1,j,i))**2*tmp
-!$omp critical
                      Ekp(kmn) = Ekp(kmn)+tmq
                      Ekz(kmn) = Ekz(kmn)+tmr
                      Ek(kmn) = Ek(kmn)+tmq+tmr
-!$omp end critical
                      DO k = 2,nz
                         tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+     &
                                  abs(c(k,j,i))**2)*tmp
-!$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
                      END DO
                   ENDIF
                END DO
             END DO
           ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq,tmr)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq,tmr)
-               DO j = 1,ny
+            DO CONCURRENT (i=ista:iend) LOCAL(k,kmn,tmq,tmr) REDUCE(+:Ekp,Ekz,Ek)
+               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq,tmr) REDUCE(+:Ekp,Ekz,Ek)
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      tmq = 2*(abs(a(1,j,i))**2+abs(b(1,j,i))**2)*tmp
                      tmr = 2*abs(c(1,j,i))**2*tmp
-!$omp critical
                      Ekp(kmn) = Ekp(kmn)+tmq
                      Ekz(kmn) = Ekz(kmn)+tmr
                      Ek(kmn) = Ek(kmn)+tmq+tmr
-!$omp end critical
                      DO k = 2,nz
                         tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+     &
                                  abs(c(k,j,i))**2)*tmp
-!$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
                      END DO
                   ENDIF
@@ -490,65 +431,51 @@ MODULE pseudospec_aniso
 !
       ELSE IF (kin.eq.0) THEN
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq,tmr)
-            DO j = 1,ny
+            DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq,tmr) REDUCE(+:Ekp,Ekz,Ek)
                kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
                IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                   tmq = (abs(c1(1,j,1))**2+abs(c2(1,j,1))**2)*tmp
                   tmr = abs(c3(1,j,1))**2*tmp
-!$omp critical
                   Ekp(kmn) = Ekp(kmn)+tmq
                   Ekz(kmn) = Ekz(kmn)+tmr
                   Ek(kmn) = Ek(kmn)+tmq+tmr
-!$omp end critical
                   DO k = 2,nz
                      tmq = (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+        &
                             abs(c3(k,j,1))**2)*tmp
-!$omp atomic
                      Ek(kmn) = Ek(kmn)+tmq
                   END DO
                ENDIF
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq,tmr)
-            DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq,tmr)
-               DO j = 1,ny
+            DO CONCURRENT (i=2:iend) LOCAL(k,kmn,tmq,tmr) REDUCE(+:Ekp,Ekz,Ek)
+               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq,tmr) REDUCE(+:Ekp,Ekz,Ek)
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      tmq = 2*(abs(c1(1,j,i))**2+abs(c2(1,j,i))**2)*tmp
                      tmr = 2*abs(c3(1,j,i))**2*tmp
-!$omp critical
                      Ekp(kmn) = Ekp(kmn)+tmq
                      Ekz(kmn) = Ekz(kmn)+tmr
                      Ek(kmn) = Ek(kmn)+tmq+tmr
-!$omp end critical
                      DO k = 2,nz
                         tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+   &
                                  abs(c3(k,j,i))**2)*tmp
-!$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
                      END DO
                   ENDIF
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq,tmr)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq,tmr)
-               DO j = 1,ny
+            DO CONCURRENT (i=ista:iend) LOCAL(k,kmn,tmq,tmr) REDUCE(+:Ekp,Ekz,Ek)
+               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq,tmr) REDUCE(+:Ekp,Ekz,Ek)
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      tmq = 2*(abs(c1(1,j,i))**2+abs(c2(1,j,i))**2)*tmp
                      tmr = 2*abs(c3(1,j,i))**2*tmp
-!$omp critical
                      Ekp(kmn) = Ekp(kmn)+tmq
                      Ekz(kmn) = Ekz(kmn)+tmr
                      Ek(kmn) = Ek(kmn)+tmq+tmr
-!$omp end critical
                      DO k = 2,nz
                         tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+   &
                                  abs(c3(k,j,i))**2)*tmp
-!$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
                      END DO
                   ENDIF
@@ -591,71 +518,57 @@ MODULE pseudospec_aniso
             Ekz(i) = 0.0D0
          END DO
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq,tmr)
-            DO j = 1,ny
+            DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq,tmr) REDUCE(+:Ekp,Ekz,Ek)
                kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
                IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                   tmq = (real(a(1,j,1)*conjg(c1(1,j,1)))+              &
                          real(b(1,j,1)*conjg(c2(1,j,1))))*tmp
                   tmr = real(c(1,j,1)*conjg(c3(1,j,1)))*tmp
-!$omp critical
                   Ekp(kmn) = Ekp(kmn)+tmq
                   Ekz(kmn) = Ekz(kmn)+tmr
                   Ek(kmn) = Ek(kmn)+tmq+tmr
-!$omp end critical
                   DO k = 2,nz
                      tmq = (real(a(k,j,1)*conjg(c1(k,j,1)))+           &
                             real(b(k,j,1)*conjg(c2(k,j,1)))+           &
                             real(c(k,j,1)*conjg(c3(k,j,1))))*tmp
-!$omp atomic
                      Ek(kmn) = Ek(kmn)+tmq
                   END DO
                ENDIF
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq,tmr)
-            DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq,tmr)
-               DO j = 1,ny
+            DO CONCURRENT (i=2:iend) LOCAL(k,kmn,tmq,tmr) REDUCE(+:Ekp,Ekz,Ek)
+               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq,tmr) REDUCE(+:Ekp,Ekz,Ek)
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      tmq = 2*(real(a(1,j,i)*conjg(c1(1,j,i)))+         &
                            real(b(1,j,i)*conjg(c2(1,j,i))))*tmp
                      tmr = 2*real(c(1,j,i)*conjg(c3(1,j,i)))*tmp
-!$omp critical
                      Ekp(kmn) = Ekp(kmn)+tmq
                      Ekz(kmn) = Ekz(kmn)+tmr
                      Ek(kmn) = Ek(kmn)+tmq+tmr
-!$omp end critical
                      DO k = 2,nz
                         tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+      &
                                  real(b(k,j,i)*conjg(c2(k,j,i)))+      &
                                  real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
-!$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
                      END DO
                   ENDIF
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq,tmr)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq,tmr)
-               DO j = 1,ny
+            DO CONCURRENT (i=ista:iend) LOCAL(k,kmn,tmq,tmr) REDUCE(+:Ekp,Ekz,Ek)
+               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq,tmr) REDUCE(+:Ekp,Ekz,Ek)
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      tmq = 2*(real(a(1,j,i)*conjg(c1(1,j,i)))+         &
                            real(b(1,j,i)*conjg(c2(1,j,i))))*tmp
                      tmr = 2*real(c(1,j,i)*conjg(c3(1,j,i)))*tmp
-!$omp critical
                      Ekp(kmn) = Ekp(kmn)+tmq
                      Ekz(kmn) = Ekz(kmn)+tmr
                      Ek(kmn) = Ek(kmn)+tmq+tmr
-!$omp end critical
                      DO k = 2,nz
                         tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+      &
                                  real(b(k,j,i)*conjg(c2(k,j,i)))+      &
                                  real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
-!$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
                      END DO
                   ENDIF
@@ -755,50 +668,38 @@ MODULE pseudospec_aniso
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF ((kin.eq.1).or.(kin.eq.2)) THEN
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq)
-            DO j = 1,ny
-               DO k = 1,nz
+            DO CONCURRENT (j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
                   kmn = int(abs(kz(k))*Lz+1)
                   IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                      tmq = (real(a(k,j,1)*conjg(d(k,j,1)))+         &
                             real(b(k,j,1)*conjg(e(k,j,1)))+         &
                             real(c(k,j,1)*conjg(f(k,j,1))))*tmp
-!$omp atomic
                      Ek(kmn) = Ek(kmn)+tmq
                   ENDIF
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
-            DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     kmn = int(abs(kz(k))*Lz+1)
-                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
-                        tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+    &
-                                 real(b(k,j,i)*conjg(e(k,j,i)))+    &
-                                 real(c(k,j,i)*conjg(f(k,j,i))))*tmp
-!$omp atomic
-                        Ek(kmn) = Ek(kmn)+tmq
-                     ENDIF
-                 END DO
+            DO CONCURRENT (i=2:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
+                  kmn = int(abs(kz(k))*Lz+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
+                     tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+    &
+                              real(b(k,j,i)*conjg(e(k,j,i)))+    &
+                              real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+                     Ek(kmn) = Ek(kmn)+tmq
+                  ENDIF
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     kmn = int(abs(kz(k))*Lz+1)
-                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
-                        tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+    &
-                                 real(b(k,j,i)*conjg(e(k,j,i)))+    &
-                                 real(c(k,j,i)*conjg(f(k,j,i))))*tmp
-!$omp atomic
-                        Ek(kmn) = Ek(kmn)+tmq
-                     ENDIF
-                  END DO
+            DO CONCURRENT (i=ista:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
+                  kmn = int(abs(kz(k))*Lz+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
+                     tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+    &
+                              real(b(k,j,i)*conjg(e(k,j,i)))+    &
+                              real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+                     Ek(kmn) = Ek(kmn)+tmq
+                  ENDIF
                END DO
             END DO
          ENDIF
@@ -807,53 +708,41 @@ MODULE pseudospec_aniso
 !
       ELSE
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq)
-            DO j = 1,ny
-               DO k = 1,nz
+            DO CONCURRENT (j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
                   kmn = int(abs(kz(k))*Lz+1)
                   IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                      tmq = kk2(k,j,1) *                             &
                            (real(a(k,j,1)*conjg(d(k,j,1)))+         &
                             real(b(k,j,1)*conjg(e(k,j,1)))+         &
                             real(c(k,j,1)*conjg(f(k,j,1))))*tmp
-!$omp atomic
                      Ek(kmn) = Ek(kmn)+tmq
                   ENDIF
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
-            DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     kmn = int(abs(kz(k))*Lz+1)
-                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
-                        tmq = 2*kk2(k,j,i) *                        &
-                              (real(a(k,j,i)*conjg(d(k,j,i)))+      &
-                               real(b(k,j,i)*conjg(e(k,j,i)))+      &
-                               real(c(k,j,i)*conjg(f(k,j,i))))*tmp
-!$omp atomic
-                        Ek(kmn) = Ek(kmn)+tmq
-                     ENDIF
-                 END DO
+            DO CONCURRENT (i=2:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
+                  kmn = int(abs(kz(k))*Lz+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
+                     tmq = 2*kk2(k,j,i) *                        &
+                           (real(a(k,j,i)*conjg(d(k,j,i)))+      &
+                            real(b(k,j,i)*conjg(e(k,j,i)))+      &
+                            real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+                     Ek(kmn) = Ek(kmn)+tmq
+                  ENDIF
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-               DO j = 1,ny
-                  DO k = 1,nz
-                     kmn = int(abs(kz(k))*Lz+1)
-                     IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
-                        tmq = 2*kk2(k,j,i)*                         &
-                              (real(a(k,j,i)*conjg(d(k,j,i)))+      &
-                               real(b(k,j,i)*conjg(e(k,j,i)))+      &
-                               real(c(k,j,i)*conjg(f(k,j,i))))*tmp
-!$omp atomic
-                        Ek(kmn) = Ek(kmn)+tmq
-                     ENDIF
-                  END DO
+            DO CONCURRENT (i=ista:iend, j=1:ny) LOCAL(kmn,tmq) REDUCE(+:Ek)
+               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq) REDUCE(+:Ek)
+                  kmn = int(abs(kz(k))*Lz+1)
+                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
+                     tmq = 2*kk2(k,j,i)*                         &
+                           (real(a(k,j,i)*conjg(d(k,j,i)))+      &
+                            real(b(k,j,i)*conjg(e(k,j,i)))+      &
+                            real(c(k,j,i)*conjg(f(k,j,i))))*tmp
+                     Ek(kmn) = Ek(kmn)+tmq
+                  ENDIF
                END DO
             END DO
          ENDIF
@@ -945,47 +834,39 @@ MODULE pseudospec_aniso
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF ((kin.eq.1).or.(kin.eq.2)) THEN
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq)
-            DO j = 1,ny
+            DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq) REDUCE(+:Ek)
                kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
                IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                   DO k = 1,nz
                      tmq = (real(a(k,j,1)*conjg(d(k,j,1)))+         &
                             real(b(k,j,1)*conjg(e(k,j,1)))+         &
                             real(c(k,j,1)*conjg(f(k,j,1))))*tmp
-!$omp atomic
                      Ek(kmn) = Ek(kmn)+tmq
                   END DO
                ENDIF
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
-            DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-               DO j = 1,ny
+            DO CONCURRENT (i=2:iend) LOCAL(k,kmn,tmq) REDUCE(+:Ek)
+               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq) REDUCE(+:Ek)
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz
                         tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+    &
                                  real(b(k,j,i)*conjg(e(k,j,i)))+    &
                                  real(c(k,j,i)*conjg(f(k,j,i))))*tmp
-!$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
                      END DO
                   ENDIF
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-               DO j = 1,ny
+            DO CONCURRENT (i=ista:iend) LOCAL(k,kmn,tmq) REDUCE(+:Ek)
+               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq) REDUCE(+:Ek)
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz
                         tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+    &
                                  real(b(k,j,i)*conjg(e(k,j,i)))+    &
                                  real(c(k,j,i)*conjg(f(k,j,i))))*tmp
-!$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
                      END DO
                   ENDIF
@@ -997,8 +878,7 @@ MODULE pseudospec_aniso
 !
       ELSE
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmn,tmq)
-            DO j = 1,ny
+            DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq) REDUCE(+:Ek)
                kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
                IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                   DO k = 1,nz
@@ -1006,15 +886,12 @@ MODULE pseudospec_aniso
                            (real(a(k,j,1)*conjg(d(k,j,1)))+         &
                             real(b(k,j,1)*conjg(e(k,j,1)))+         &
                             real(c(k,j,1)*conjg(f(k,j,1))))*tmp
-!$omp atomic
                      Ek(kmn) = Ek(kmn)+tmq
                   END DO
                ENDIF
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmn,tmq)
-            DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-               DO j = 1,ny
+            DO CONCURRENT (i=2:iend) LOCAL(k,kmn,tmq) REDUCE(+:Ek)
+               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq) REDUCE(+:Ek)
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz
@@ -1022,17 +899,14 @@ MODULE pseudospec_aniso
                               (real(a(k,j,i)*conjg(d(k,j,i)))+      &
                                real(b(k,j,i)*conjg(e(k,j,i)))+      &
                                real(c(k,j,i)*conjg(f(k,j,i))))*tmp
-!$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
                      END DO
                   ENDIF
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-               DO j = 1,ny
+            DO CONCURRENT (i=ista:iend) LOCAL(k,kmn,tmq) REDUCE(+:Ek)
+               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq) REDUCE(+:Ek)
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz
@@ -1040,7 +914,6 @@ MODULE pseudospec_aniso
                               (real(a(k,j,i)*conjg(d(k,j,i)))+      &
                                real(b(k,j,i)*conjg(e(k,j,i)))+      &
                                real(c(k,j,i)*conjg(f(k,j,i))))*tmp
-!$omp atomic
                         Ek(kmn) = Ek(kmn)+tmq
                      END DO
                   ENDIF
@@ -1415,8 +1288,7 @@ MODULE pseudospec_aniso
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       IF (kin.eq.1) THEN
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmz,kmn,tmq)
-            DO j = 1,ny
+            DO CONCURRENT (j=1:ny) LOCAL(k,kmz,kmn,tmq) REDUCE(+:Ek)
                kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
                IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                   DO k = 1,nz
@@ -1424,16 +1296,13 @@ MODULE pseudospec_aniso
                      IF ((kmz.gt.0).and.(kmz.le.nz/2+1)) THEN
                      tmq = (abs(a(k,j,1))**2+abs(b(k,j,1))**2+        &
                             abs(c(k,j,1))**2)*tmp
-!$omp atomic
                      Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                      ENDIF
                   END DO
                ENDIF
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmz,kmn,tmq)
-            DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmz,kmn,tmq)
-               DO j = 1,ny
+            DO CONCURRENT (i=2:iend) LOCAL(k,kmz,kmn,tmq) REDUCE(+:Ek)
+               DO CONCURRENT (j=1:ny) LOCAL(k,kmz,kmn,tmq) REDUCE(+:Ek)
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz
@@ -1441,7 +1310,6 @@ MODULE pseudospec_aniso
                         IF ((kmz.gt.0).and.(kmz.le.nz/2+1)) THEN
                         tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+   &
                                  abs(c(k,j,i))**2)*tmp
-!$omp atomic
                         Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                         ENDIF
                      END DO
@@ -1449,10 +1317,8 @@ MODULE pseudospec_aniso
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmz,kmn,tmq)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmz,kmn,tmq)
-               DO j = 1,ny
+            DO CONCURRENT (i=ista:iend) LOCAL(k,kmz,kmn,tmq) REDUCE(+:Ek)
+               DO CONCURRENT (j=1:ny) LOCAL(k,kmz,kmn,tmq) REDUCE(+:Ek)
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz
@@ -1460,7 +1326,6 @@ MODULE pseudospec_aniso
                         IF ((kmz.gt.0).and.(kmz.le.nz/2+1)) THEN
                         tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+   &
                                  abs(c(k,j,i))**2)*tmp
-!$omp atomic
                         Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                         ENDIF
                      END DO
@@ -1473,8 +1338,7 @@ MODULE pseudospec_aniso
 !
       ELSE IF (kin.eq.0) THEN
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmz,kmn,tmq)
-            DO j = 1,ny
+            DO CONCURRENT (j=1:ny) LOCAL(k,kmz,kmn,tmq) REDUCE(+:Ek)
                kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
                IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                   DO k = 1,nz
@@ -1482,16 +1346,13 @@ MODULE pseudospec_aniso
                      IF ((kmz.gt.0).and.(kmz.le.nz/2+1)) THEN
                      tmq = (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+      &
                             abs(c3(k,j,1))**2)*tmp
-!$omp atomic
                      Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                      ENDIF
                   END DO
                ENDIF
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmz,kmn,tmq)
-            DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmz,kmn,tmq)
-               DO j = 1,ny
+            DO CONCURRENT (i=2:iend) LOCAL(k,kmz,kmn,tmq) REDUCE(+:Ek)
+               DO CONCURRENT (j=1:ny) LOCAL(k,kmz,kmn,tmq) REDUCE(+:Ek)
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz
@@ -1499,7 +1360,6 @@ MODULE pseudospec_aniso
                         IF ((kmz.gt.0).and.(kmz.le.nz/2+1)) THEN
                         tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
                                  abs(c3(k,j,i))**2)*tmp
-!$omp atomic
                         Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                         ENDIF
                      END DO
@@ -1507,10 +1367,8 @@ MODULE pseudospec_aniso
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmz,kmn,tmq)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmz,kmn,tmq)
-               DO j = 1,ny
+            DO CONCURRENT (i=ista:iend) LOCAL(k,kmz,kmn,tmq) REDUCE(+:Ek)
+               DO CONCURRENT (j=1:ny) LOCAL(k,kmz,kmn,tmq) REDUCE(+:Ek)
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz
@@ -1518,7 +1376,6 @@ MODULE pseudospec_aniso
                         IF ((kmz.gt.0).and.(kmz.le.nz/2+1)) THEN
                         tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
                                  abs(c3(k,j,i))**2)*tmp
-!$omp atomic
                         Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                         ENDIF
                      END DO
@@ -1556,8 +1413,7 @@ MODULE pseudospec_aniso
             END DO
          END DO
          IF (ista.eq.1) THEN
-!$omp parallel do private (k,kmz,kmn,tmq)
-            DO j = 1,ny
+            DO CONCURRENT (j=1:ny) LOCAL(k,kmz,kmn,tmq) REDUCE(+:Ek)
                kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
                IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                   DO k = 1,nz
@@ -1566,16 +1422,13 @@ MODULE pseudospec_aniso
                   tmq = (real(a(k,j,1)*conjg(c1(1,j,1)))+       &
                          real(b(k,j,1)*conjg(c2(1,j,1)))+       &
                          real(c(k,j,1)*conjg(c3(k,j,1))))*tmp
-!$omp atomic
                   Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                   ENDIF
                   ENDDO
                ENDIF
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k,kmz,kmn,tmq)
-            DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmz,kmn,tmq)
-               DO j = 1,ny
+            DO CONCURRENT (i=2:iend) LOCAL(k,kmz,kmn,tmq) REDUCE(+:Ek)
+               DO CONCURRENT (j=1:ny) LOCAL(k,kmz,kmn,tmq) REDUCE(+:Ek)
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz
@@ -1584,7 +1437,6 @@ MODULE pseudospec_aniso
                         tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+    &
                                  real(b(k,j,i)*conjg(c2(k,j,i)))+    &
                                  real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
-!$omp atomic
                         Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                         ENDIF
                      END DO
@@ -1592,10 +1444,8 @@ MODULE pseudospec_aniso
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmz,kmn,tmq)
-            DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmz,kmn,tmq)
-               DO j = 1,ny
+            DO CONCURRENT (i=ista:iend) LOCAL(k,kmz,kmn,tmq) REDUCE(+:Ek)
+               DO CONCURRENT (j=1:ny) LOCAL(k,kmz,kmn,tmq) REDUCE(+:Ek)
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz
@@ -1604,7 +1454,6 @@ MODULE pseudospec_aniso
                         tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+    &
                                  real(b(k,j,i)*conjg(c2(k,j,i)))+    &
                                  real(c(k,j,i)*conjg(c3(k,j,i))))*tmp
-!$omp atomic
                         Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                         ENDIF
                      END DO
@@ -1681,9 +1530,8 @@ MODULE pseudospec_aniso
 ! Computes the kz=0 slice
 !
       uk1 = 0.0_GP
-!$omp parallel do private (j)
-      DO i = ista,iend
-         DO j = 1,ny
+      DO CONCURRENT (i=ista:iend)
+         DO CONCURRENT (j=1:ny)
             uk1(j,i) = a(1,j,i)*tmp
          END DO
       END DO
@@ -1691,9 +1539,8 @@ MODULE pseudospec_aniso
 ! Computes the ky=0 slice
 !
       uk2 = 0.0_GP
-!$omp parallel do private (k)
-      DO i = ista,iend
-         DO k = 1,nz
+      DO CONCURRENT (i=ista:iend)
+         DO CONCURRENT (k=1:nz)
             uk2(k,i) = a(k,1,i)*tmp
          END DO
       END DO
@@ -1701,9 +1548,8 @@ MODULE pseudospec_aniso
 ! Computes the kx=0 slice
 !
       IF (myrank.eq.0) THEN
-!$omp parallel do private (k)
-         DO j = 1,ny
-            DO k = 1,nz
+         DO CONCURRENT (j=1:ny)
+            DO CONCURRENT (k=1:nz)
                ut3(k,j) = a(k,j,1)*tmp
             END DO
          END DO

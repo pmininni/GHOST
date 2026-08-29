@@ -86,16 +86,12 @@ CONTAINS
 
     select type (solver)
     class is (VelocityBase)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-        DO j = 1,ny
-          DO k = 1,nz
-            state(solver%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
-            state(solver%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
-            state(solver%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
-          END DO
-        END DO
+      DO CONCURRENT (i=ista:iend, j=1:ny)
+         DO CONCURRENT (k=1:nz)
+           state(solver%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
+           state(solver%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
+           state(solver%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
+         END DO
       END DO
     class default
       error stop "This solver does not support velocity forcing"
@@ -148,33 +144,25 @@ CONTAINS
     IF ( abs(Lx-Ly).gt.tiny ) THEN
       IF (myrank.eq.0) error stop "TG initial conditions require Lx=Ly"
     ENDIF
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-    DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-       DO j = 1,ny
-          DO k = 1,nz
-            state(solver%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP !fz
-          END DO
+    DO CONCURRENT (i=ista:iend, j=1:ny)
+       DO CONCURRENT (k=1:nz)
+         state(solver%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP !fz
        END DO
     END DO
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-    DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-       DO j = 1,ny
-          DO i = 1,nx
-          R1(i,j,k) = 0.0_GP
-          R2(i,j,k) = 0.0_GP
-          DO ki = INT(kdn),INT(kup)
-             R1(i,j,k) = R1(i,j,k)+SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
-                      real(nx,kind=GP))*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
-                      real(ny,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
-                      real(nz,kind=GP))
-             R2(i,j,k) = R2(i,j,k)-COS(2*pi*ki*(real(i,kind=GP)-1)/ &
-                      real(nx,kind=GP))*SIN(2*pi*ki*(real(j,kind=GP)-1)/ &
-                      real(ny,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
-                      real(nz,kind=GP))
-          END DO
-          END DO
+    DO CONCURRENT (k=ksta:kend, j=1:ny)
+       DO CONCURRENT (i=1:nx)
+       R1(i,j,k) = 0.0_GP
+       R2(i,j,k) = 0.0_GP
+       DO ki = INT(kdn),INT(kup)
+          R1(i,j,k) = R1(i,j,k)+SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
+                   real(nx,kind=GP))*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
+                   real(ny,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
+                   real(nz,kind=GP))
+          R2(i,j,k) = R2(i,j,k)-COS(2*pi*ki*(real(i,kind=GP)-1)/ &
+                   real(nx,kind=GP))*SIN(2*pi*ki*(real(j,kind=GP)-1)/ &
+                   real(ny,kind=GP))*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
+                   real(nz,kind=GP))
+       END DO
        END DO
     END DO
     CALL fftp3d_real_to_complex(planrc,R1, & !fx
@@ -247,27 +235,23 @@ CONTAINS
     if ( (abs(Lx-Ly).gt.tiny).or.(abs(Lx-Lz).gt.tiny) ) then
       if (myrank.eq.0) error stop 'ABC forcing requires Lx=Ly=Lz'
     endif
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-    DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-      DO j = 1,ny
-        DO i = 1,nx
-          R1(i,j,k) = 0.
-          R2(i,j,k) = 0.
-          R3(i,j,k) = 0.
-          DO ki = INT(kdn),INT(kup)
-          R1(i,j,k) = R1(i,j,k)+(B*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
-               real(ny,kind=GP))+C*SIN(2*pi*ki*(real(k,kind=GP)-1)/ &
-               real(nz,kind=GP)))/ki**2
-          R2(i,j,k) = R2(i,j,k)+(A*SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
-               real(nx,kind=GP))+C*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
-               real(nz,kind=GP)))/ki**2 
-          R3(i,j,k) = R3(i,j,k)+(A*COS(2*pi*ki*(real(i,kind=GP)-1)/ &
-               real(nx,kind=GP))+B*SIN(2*pi*ki*(real(j,kind=GP)-1)/ &
-               real(ny,kind=GP)))/ki**2
-          END DO
-        END DO
-      END DO
+    DO CONCURRENT (k=ksta:kend, j=1:ny)
+       DO CONCURRENT (i=1:nx)
+         R1(i,j,k) = 0.
+         R2(i,j,k) = 0.
+         R3(i,j,k) = 0.
+         DO ki = INT(kdn),INT(kup)
+         R1(i,j,k) = R1(i,j,k)+(B*COS(2*pi*ki*(real(j,kind=GP)-1)/ &
+              real(ny,kind=GP))+C*SIN(2*pi*ki*(real(k,kind=GP)-1)/ &
+              real(nz,kind=GP)))/ki**2
+         R2(i,j,k) = R2(i,j,k)+(A*SIN(2*pi*ki*(real(i,kind=GP)-1)/ &
+              real(nx,kind=GP))+C*COS(2*pi*ki*(real(k,kind=GP)-1)/ &
+              real(nz,kind=GP)))/ki**2 
+         R3(i,j,k) = R3(i,j,k)+(A*COS(2*pi*ki*(real(i,kind=GP)-1)/ &
+              real(nx,kind=GP))+B*SIN(2*pi*ki*(real(j,kind=GP)-1)/ &
+              real(ny,kind=GP)))/ki**2
+         END DO
+       END DO
     END DO
     call fftp3d_real_to_complex(planrc,R1, & !fx
                    state(solver%VELOCITY  )%ccomp,MPI_COMM_WORLD)
@@ -816,34 +800,26 @@ CONTAINS
       call solver%workspace_%get_real_tmp(R1,bret)
       call solver%workspace_%get_real_tmp(R2,bret)
       call solver%workspace_%get_real_tmp(R3,bret)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      do i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-        do j = 1,ny
-          do k = 1,nz
-            C1(k,j,i) = this%fxold_(k,j,i)*rmp
-            C2(k,j,i) = this%fyold_(k,j,i)*rmp
-            C3(k,j,i) = this%fzold_(k,j,i)*rmp
-          end do
-        end do
-      end do
+      DO CONCURRENT (i=ista:iend, j=1:ny)
+         DO CONCURRENT (k=1:nz)
+           C1(k,j,i) = this%fxold_(k,j,i)*rmp
+           C2(k,j,i) = this%fyold_(k,j,i)*rmp
+           C3(k,j,i) = this%fzold_(k,j,i)*rmp
+         END DO
+      END DO
       call fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
       call fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
       call fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
       call io_write(1,solver%odir_,'fvxold',ext,solver%planio_,R1)
       call io_write(1,solver%odir_,'fvyold',ext,solver%planio_,R2)
       call io_write(1,solver%odir_,'fvzold',ext,solver%planio_,R3)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      do i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-        do j = 1,ny
-          do k = 1,nz
-            C1(k,j,i) = this%fxnew_(k,j,i)*rmp
-            C2(k,j,i) = this%fynew_(k,j,i)*rmp
-            C3(k,j,i) = this%fznew_(k,j,i)*rmp
-          end do
-        end do
-      end do
+      DO CONCURRENT (i=ista:iend, j=1:ny)
+         DO CONCURRENT (k=1:nz)
+           C1(k,j,i) = this%fxnew_(k,j,i)*rmp
+           C2(k,j,i) = this%fynew_(k,j,i)*rmp
+           C3(k,j,i) = this%fznew_(k,j,i)*rmp
+         END DO
+      END DO
       call fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
       call fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
       call fftp3d_complex_to_real(plancr,C3,R3,MPI_COMM_WORLD)
