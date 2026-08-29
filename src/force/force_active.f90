@@ -158,6 +158,7 @@ CONTAINS
     class default
       stop "Force: This solver does not support active scalars"
     end select
+    call solver%workspace_%free_real_tmp(R1)
   end subroutine init_pufffas
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

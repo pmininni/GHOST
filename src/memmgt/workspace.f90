@@ -442,7 +442,7 @@ CONTAINS
     logical        , optional, intent(out)   :: success
     integer                                  :: i
 
-    success = .FALSE.
+    if (present(success)) success = .FALSE.
     do i = 1, this%real_size_
       ! Look for a free entry
       if ( this%real_entries_(i)%is_free ) THEN
@@ -452,6 +452,16 @@ CONTAINS
         return
       endif
     enddo
+    ! The pool is exhausted. Every caller dereferences the array it asks
+    ! for, so returning an undefined pointer here only turns a sizing
+    ! error into a segfault much later. Fail now, and say how big the
+    ! pool is: it is sized at start up from NUMTMPREAL plus whatever the
+    ! solver, IC and forcing factories reserve, so this is a request to
+    ! raise one of those.
+    ret_ptr => null()
+    write(*,*) 'GWorkspace::get_real_tmp: all ', this%real_size_, &
+               ' real arrays in the pool are checked out'
+    error stop 'GWorkspace::get_real_tmp: real workspace pool exhausted'
   end subroutine get_real_tmp
 
 
@@ -465,7 +475,7 @@ CONTAINS
     logical         , optional, intent(out)   :: success
     integer                                   :: i
 
-    success = .FALSE.
+    if (present(success)) success = .FALSE.
     do i = 1, this%complex_size_
       ! Look for a free entry
       if ( this%complex_entries_(i)%is_free ) THEN
@@ -475,6 +485,12 @@ CONTAINS
         return
       endif
     enddo
+    ! See the note in get_real_tmp: an exhausted pool is a sizing error,
+    ! and returning an undefined pointer only defers it to a segfault.
+    ret_ptr => null()
+    write(*,*) 'GWorkspace::get_complex_tmp: all ', this%complex_size_, &
+               ' complex arrays in the pool are checked out'
+    error stop 'GWorkspace::get_complex_tmp: complex workspace pool exhausted'
   end subroutine get_complex_tmp
 
 
@@ -488,7 +504,7 @@ CONTAINS
     logical        , optional, intent(out)   :: success
     integer                                  :: i
 
-    success = .FALSE.
+    if (present(success)) success = .FALSE.
     if ( this%nparts_ .le. 0 ) then
       ret_ptr => null()
       stop 'GWorkspace::get_pcomp_tmp: nparts = 0. Must call set_nparts. '
@@ -507,6 +523,12 @@ CONTAINS
         return
       endif
     enddo
+    ! See the note in get_real_tmp: an exhausted pool is a sizing error,
+    ! and returning an undefined pointer only defers it to a segfault.
+    ret_ptr => null()
+    write(*,*) 'GWorkspace::get_pcomp_tmp: all ', this%pcomp_size_, &
+               ' particle arrays in the pool are checked out'
+    error stop 'GWorkspace::get_pcomp_tmp: particle workspace pool exhausted'
   end subroutine get_pcomp_tmp
 
 

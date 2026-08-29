@@ -160,6 +160,7 @@ CONTAINS
     class default
       stop "Force: This solver does not support passive scalars"
     end select
+    call solver%workspace_%free_real_tmp(R1)
   end subroutine init_pufffs
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

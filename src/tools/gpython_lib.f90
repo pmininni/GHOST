@@ -164,6 +164,7 @@ CONTAINS
     rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
     ctmp = field_nxt(num_field)%ccomp * rmp
     CALL fftp3d_complex_to_real(plancr,ctmp,realfield(num_field)%rcomp,MPI_COMM_WORLD)
+    CALL workspace%free_complex_tmp(ctmp)
     ptr = C_LOC(realfield(num_field)%rcomp)
   END FUNCTION ghost_get_real_field
   
