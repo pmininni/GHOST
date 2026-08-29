@@ -119,9 +119,14 @@ contains
       eff_dt = dt/real(o,kind=GP)
       ! We assume that at input, uout has a copy of uin
       call this%solver_%dudt(time, uout, uf, eff_dt, uout)
-      do concurrent (ic=1:this%traits_%nstate, i=ista:iend, j=1:ny)
-        do concurrent (k=1:nz)
-          uout(ic)%ccomp(k,j,i) = uin(ic)%ccomp(k,j,i) + eff_dt*uout(ic)%ccomp(k,j,i)
+!$omp parallel do collapse(3) private (k)
+      do ic = 1,this%traits_%nstate
+        do i = ista,iend
+          do j = 1,ny
+            do concurrent (k=1:nz)
+              uout(ic)%ccomp(k,j,i) = uin(ic)%ccomp(k,j,i) + eff_dt*uout(ic)%ccomp(k,j,i)
+            end do
+          end do
         end do
       end do
     end do
@@ -233,9 +238,14 @@ contains
         end do
       endif
       ! Update fields:
-      do concurrent (ic=1:this%traits_%nstate, i=ista:iend, j=1:ny)
-        do concurrent (k=1:nz)
-          uout(ic)%ccomp(k,j,i) = uin(ic)%ccomp(k,j,i) + eff_dt*uout(ic)%ccomp(k,j,i)
+!$omp parallel do collapse(3) private (k)
+      do ic = 1,this%traits_%nstate
+        do i = ista,iend
+          do j = 1,ny
+            do concurrent (k=1:nz)
+              uout(ic)%ccomp(k,j,i) = uin(ic)%ccomp(k,j,i) + eff_dt*uout(ic)%ccomp(k,j,i)
+            end do
+          end do
         end do
       end do
       ! Update particles:
