@@ -13,8 +13,7 @@
 ! field sized memset every time a temporary is returned, sixteen of
 ! them per time step in the HD solver, and removing it makes the
 ! whole step 4 to 6% faster. The lines are kept, commented out, in
-! the three free_*_tmp methods, and should become a real option of
-! the class rather than a comment. Callers must therefore initialize
+! the three free_*_tmp methods. Callers must therefore initialize
 ! a temporary before accumulating into it.
 !
 ! For particles (PComp), the pool life cycle is:

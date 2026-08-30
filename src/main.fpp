@@ -111,13 +111,9 @@
 ! Initializes the FFT library. This must be done at this
 ! stage as it requires status and benchmark initialization.
 ! Use FFTW_ESTIMATE or FFTW_MEASURE in short runs
-! Use FFTW_PATIENT or FFTW_EXHAUSTIVE in long runs
-! FFTW_MEASURE is used below: at 128^3 on two MPI ranks it makes the
-! FFTs about 23% faster than FFTW_ESTIMATE, which is 13 to 18% of the
-! whole time step, and the extra planning cost is already paid back
-! within the first fifty steps. This should eventually be exposed as
-! an option in the &status namelist so that short tests can keep
-! FFTW_ESTIMATE and long runs can ask for FFTW_PATIENT.
+! Use FFTW_PATIENT or FFTW_EXHAUSTIVE in very long runs
+! FFTW_MEASURE is used below: at 128^3 on two MPI ranks it makes the FFTs
+! about 23% faster than FFTW_ESTIMATE, 13 to 18% of the whole time step.
       nth = 1
 !$    nth = omp_get_max_threads()
 #if !defined(DEF_GHOST_CUDA_)
@@ -163,10 +159,10 @@
       CALL init_forcing(forcemethod,fluid,force)
       if (dopart) then
          CALL init_allpstates(icplist,fluid,field,particle,part)
-	 if (size(part(1)%rcomp) .ne. size(part_nxt(1)%rcomp)) then
-	   call GPState_resize(part_nxt,particle%partbuff_) ! We resize part_nxt
-	 endif
-	 part_nxt = part ! We also update part_nxt
+         if (size(part(1)%rcomp) .ne. size(part_nxt(1)%rcomp)) then
+            call GPState_resize(part_nxt,particle%partbuff_) ! We resize part_nxt
+         endif
+         part_nxt = part ! We also update part_nxt
       endif
 
 ! Sets up the time stepper
@@ -190,22 +186,22 @@
          IF ((timet.eq.tstep).and.(bench.eq.0)) THEN
             timet = 0
             tind = tind+1
-	    CALL fluid%write_states(field_nxt, planio)
-	 ENDIF
+            CALL fluid%write_states(field_nxt, planio)
+         ENDIF
 
 ! Every 'pstep' steps, stores the particle states
          if (dopart) then
             IF ((timep.eq.pstep).and.(bench.eq.0)) THEN
                timep = 0
-	       pind = pind+1
-  	       CALL particle%write_pstate(time,fluid,field_nxt,part_nxt)
-	    ENDIF
-	 endif
+               pind = pind+1
+               CALL particle%write_pstate(time,fluid,field_nxt,part_nxt)
+            ENDIF
+         endif
 
 ! Every 'cstep' steps writes global quantities
          IF ((timec.eq.cstep).and.(bench.eq.0)) THEN
             timec = 0
-	    CALL fluid%global(field_nxt, force, t)
+            CALL fluid%global(field_nxt, force, t)
          ENDIF
 
 ! Every 'sstep' steps writes spectra
@@ -219,12 +215,12 @@
          CALL update_forcing(forcemethod,fluid,force)
          if (dopart) then
             field = field_nxt
-	    part  = part_nxt
+            part  = part_nxt
             CALL stepper%gstep(time, field, part, force, dt, field_nxt, part_nxt)
-	 else
-	    field = field_nxt
+         else
+            field = field_nxt
             CALL stepper%gstep(time, field, force, dt, field_nxt)
-	 endif
+         endif
          timet = timet+1; timep = timep+1; timec = timec+1; times = times+1
       END DO RK
 
@@ -239,9 +235,9 @@
         rbal = rbal + GetLoadBal(particle) ! Get load balancing
         CALL GTBenchReportParticles(bench, myrank, ini, step, maxparts, rbal,    &
              [ GetTime(particle,GPTIME_STEP),   GetTime(particle,GPTIME_COMM),   &
-	       GetTime(particle,GPTIME_SPLINE), GetTime(particle,GPTIME_TRANSP), &
-	       GetTime(particle,GPTIME_DATAEX), GetTime(particle,GPTIME_INTERP), &
-	       GetTime(particle,GPTIME_PUPDATE) ], 'gpbenchmark.txt')
+               GetTime(particle,GPTIME_SPLINE), GetTime(particle,GPTIME_TRANSP), &
+               GetTime(particle,GPTIME_DATAEX), GetTime(particle,GPTIME_INTERP), &
+               GetTime(particle,GPTIME_PUPDATE) ], 'gpbenchmark.txt')
       ENDIF
 
 ! End of main
