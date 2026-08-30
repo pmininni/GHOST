@@ -68,8 +68,8 @@ CONTAINS
       ! Active scalar ICs ---------------------    
       case ('read_as')
         allocate( icRead_as     :: new_object(i)%ic )
-      case ('constant_as')
-        allocate( icConstant_as :: new_object(i)%ic )
+      case ('uniform_as')
+        allocate( icUniform_as :: new_object(i)%ic )
       case ('puff_as')
         allocate( icPuff_as     :: new_object(i)%ic )
       case ('random_as')
@@ -77,8 +77,8 @@ CONTAINS
       ! Passive scalar ICs ---------------------    
       case ('read_s')
         allocate( icRead_s      :: new_object(i)%ic )
-      case ('constant_s')
-        allocate( icConstant_s  :: new_object(i)%ic )
+      case ('uniform_s')
+        allocate( icUniform_s  :: new_object(i)%ic )
       case ('puff_s')
         allocate( icPuff_s      :: new_object(i)%ic )
       case ('random_s')

@@ -107,12 +107,12 @@ CONTAINS
         allocate( shuffleupdt_fb  :: new_object(i)%update )
         new_object(i)%update%binit_ = .FALSE.
         poolsz = poolsz + 6
-      ! Active scalar forcing functions --------
+      ! Active scalar forcing update methods ---
       case ('constant_fas')
         if ( allocated(new_object(i)%update) ) deallocate(new_object(i)%update)
       case ('shift_fas')
         allocate( shiftupdt_fas   :: new_object(i)%update )
-      ! Passive scalar forcing functions -------
+      ! Passive scalar forcing update methods --
       case ('constant_fs')
         if ( allocated(new_object(i)%update) ) deallocate(new_object(i)%update)
       case ('shift_fs')

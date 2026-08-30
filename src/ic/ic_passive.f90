@@ -4,10 +4,10 @@
 !              VelocityBase solver classes.
 !
 ! Initial conditions avaliable:
-!   read_s    : Reads passive scalars from input files numbered by stat
-!   constant_s: Uniform passive scalar
-!   puff_s    : Localized concentration
-!   random_s  : Random concentration
+!   read_s   : Reads passive scalars from input files numbered by stat
+!   uniform_s: Uniform passive scalar
+!   puff_s   : Localized concentration
+!   random_s : Random concentration
 !
 ! DATE       : 01/26/26 (PDM)
 ! =====================================================================
@@ -22,10 +22,10 @@ module ic_passive
     contains
       procedure :: init_GState => init_reads
   end type icRead_s 
-  type, extends(icBase) :: icConstant_s
+  type, extends(icBase) :: icUniform_s
     contains
-      procedure :: init_GState => init_constants
-  end type icConstant_s 
+      procedure :: init_GState => init_uniforms
+  end type icUniform_s
   type, extends(icBase) :: icPuff_s
     contains
       procedure :: init_GState => init_puffs
@@ -88,10 +88,10 @@ CONTAINS
  
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Constant concentration
+  !! Uniform concentration
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   c0  : vector with the amplitudes of the concentration
-  subroutine init_constants(this,solver,state)
+  subroutine init_uniforms(this,solver,state)
     use gstate_mod
     use hd_mod
     use grid
@@ -100,13 +100,13 @@ CONTAINS
 !$  use threads
     implicit none
     
-    class(icConstant_s), intent   (in) :: this
+    class (icUniform_s), intent   (in) :: this
     class(EquationBase), intent   (in) :: solver
     type   (GstateComp), intent(inout) :: state(:)
     real      (kind=GP), allocatable   :: c0(:)
     integer                            :: i,j,k,n
     
-    namelist/ constant_s / c0
+    namelist/ uniform_s / c0
     select type (solver)
     class is (VelocityBase)
       if ( solver%numpassive_ .eq. 0) then
@@ -115,7 +115,7 @@ CONTAINS
       allocate ( c0(solver%numpassive_) )
       if ( myrank .eq. 0 ) then
         open(1,file=solver%infile_,status='unknown',form="formatted")
-        read(1,NML=constant_s)
+        read(1,NML=uniform_s)
         close(1)
       endif
       call mpi_bcast(c0,solver%numpassive_,GC_REAL,0,MPI_COMM_WORLD,ierr)
@@ -136,7 +136,7 @@ CONTAINS
     class default
       error stop "IC: This solver does not support passive scalars"
     end select
-  end subroutine init_constants
+  end subroutine init_uniforms
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

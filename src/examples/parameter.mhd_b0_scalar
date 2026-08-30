@@ -34,6 +34,12 @@ cort = 0.1       ! global correlation time for random forcing methods
 seed = 1000      ! global seed for random number generators
 /
 
+! Time stepping method
+&stepper
+sname  = "TRADITIONAL" ! TRADITIONAL or GEXRK
+norder = 2             ! order
+/
+
 ! Solver
 &pdes
 solver = "MHD"   ! Solver name, reads a namelist with the same name
@@ -62,6 +68,7 @@ kappa = 1.3e-2, 2.1e-2 ! we have npassive = 2
 ! Initial conditions. List separated by ';' to set up ICs. 
 ! For v, ICs can be: read_v, null_v, tg_v, abc_v, random_v
 ! For b, ICs can be: read_b, null_b, random_b
+! For passive sc., ICs can be: read_s, uniform_s, puff_s, random_s
 ! Use "read_v;read_b;read_s" if restarting from a file with stat > 0
 ! If stat > 0 and some ICs are not "read_?", GHOST resets that field.
 &initial_conditions

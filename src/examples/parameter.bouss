@@ -62,11 +62,11 @@ spectlod = 1     ! spectral output level of detail ([1,4])
 
 ! Initial conditions. List separated by ';' to set up ICs.
 ! For v , ICs can be: read_v, null_v, tg_v, abc_v, random_v
-! For as, ICs can be: read_as, constant_as, puff_as, random_as
+! For as, ICs can be: read_as, uniform_as, puff_as, random_as
 ! Use "read_v;read_as" if restarting from a file with stat > 0
 ! If stat > 0 and some ICs are not "read_?", GHOST resets that field.
 &initial_conditions
-iclist = "null_v;null_as"
+iclist = "null_v;uniform_as"
 /
 
 ! Forcing. List separated by ';', each forcing is a pair of
@@ -85,4 +85,9 @@ forces = "tg_fv,constant_fv;null_fas,constant_fas"
 f0 = 0.37714265  ! amplitude of the mechanical forcing
 kdn = 1.00       ! minimum wavenumber
 kup = 1.00       ! maximum wavenumber
+/
+
+! Parameters for the initial uniform active scalar
+&uniform_as
+c0 = 0.00        ! amplitude of the initial concentration
 /

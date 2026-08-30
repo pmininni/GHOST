@@ -64,12 +64,12 @@ kappa = 1.3e-2, 2.1e-2, 5e-2 ! we have npassive = 3
 
 ! Initial conditions. List separated by ';' to set up ICs. 
 ! For v, ICs can be: read_v, null_v, tg_v, abc_v, random_v
-! For passive sc., ICs can be: read_s, constant_s, puff_s, random_s
+! For passive sc., ICs can be: read_s, uniform_s, puff_s, random_s
 ! Use "read_v;read_s" if restarting from a previous file with
 ! stat > 0. If stat > 0 and some ICs are not "read_?", GHOST resets
 ! that field, e.g., "read_v;puff_s" resets the passive scalar.
 &initial_conditions
-iclist = "null_v;constant_s"
+iclist = "null_v;uniform_s"
 /
 
 ! Forcing. List separated by ';', each forcing is a pair of
@@ -92,7 +92,7 @@ alpha = 0.0      ! relative helicity
 /
 
 ! Parameters for the passive scalar initial conditions
-&constant_s
+&uniform_s
 c0 = 1.00, 1.00, 1.00  ! Initial uniform concentrations (npassive=3)
 /
 

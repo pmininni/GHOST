@@ -4,10 +4,10 @@
 !              solver classes supporting ACTIVESC.
 !
 ! Initial conditions available:
-!   read_as    : Reads active scalars from input files numbered by stat
-!   constant_as: Uniform active scalar
-!   puff_as    : Localized concentration
-!   random_as  : Random concentration
+!   read_as   : Reads active scalars from input files numbered by stat
+!   uniform_as: Uniform active scalar
+!   puff_as   : Localized concentration
+!   random_as : Random concentration
 !
 ! DATE       : 04/08/26 (JBG)
 ! =====================================================================
@@ -23,10 +23,10 @@ module ic_active
     contains
       procedure :: init_GState => init_readas
   end type icRead_as  
-  type, extends(icBase) :: icConstant_as
+  type, extends(icBase) :: icUniform_as
     contains
-      procedure :: init_GState => init_constantas
-  end type icConstant_as 
+      procedure :: init_GState => init_uniformas
+  end type icUniform_as 
   type, extends(icBase) :: icPuff_as
     contains
       procedure :: init_GState => init_puffas
@@ -81,10 +81,10 @@ contains
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Constant active scalar
+  !! Uniform active scalar
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !   c0 : vector with the amplitudes of the active scalars
-  subroutine init_constantas(this,solver,state)
+  subroutine init_uniformas(this,solver,state)
     use gstate_mod
     use grid
     use commtypes
@@ -92,19 +92,19 @@ contains
 !$  use threads
     implicit none
 
-    class(icConstant_as), intent(in)           :: this
-    class (EquationBase), intent(in)           :: solver
-    type    (GStateComp), intent(inout)        :: state(:)
-    real       (kind=GP), allocatable          :: c0(:)
-    integer                                    :: i,j,k,n
+    class(icUniform_as), intent(in)           :: this
+    class(EquationBase), intent(in)           :: solver
+    type   (GStateComp), intent(inout)        :: state(:)
+    real      (kind=GP), allocatable          :: c0(:)
+    integer                                   :: i,j,k,n
 
-    namelist /constant_as/ c0
+    namelist /uniform_as/ c0
     select type (solver)
     class is (ActiveScalarBase)
       allocate(c0(solver%numactivesc_))
       if (myrank .eq. 0) then
         open(1,file=solver%infile_,status='unknown',form='formatted')
-        read(1,nml=constant_as)
+        read(1,nml=uniform_as)
         close(1)
       endif
       call mpi_bcast(c0,solver%numactivesc_,GC_REAL,0,MPI_COMM_WORLD,ierr)
@@ -125,7 +125,7 @@ contains
     class default
       error stop 'IC: This solver does not support active scalars'
     end select
-  end subroutine init_constantas
+  end subroutine init_uniformas
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
