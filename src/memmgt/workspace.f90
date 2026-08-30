@@ -8,6 +8,15 @@
 ! an array not from the pool results in error. Resizing the pool
 ! invalidates all pointers to arrays in the pool.
 !
+! Arrays handed out by get_*_tmp are NOT zeroed: the free_*_tmp
+! methods used to zero each array on release, but that is a full
+! field sized memset every time a temporary is returned, sixteen of
+! them per time step in the HD solver, and removing it makes the
+! whole step 4 to 6% faster. The lines are kept, commented out, in
+! the three free_*_tmp methods, and should become a real option of
+! the class rather than a comment. Callers must therefore initialize
+! a temporary before accumulating into it.
+!
 ! For particles (PComp), the pool life cycle is:
 !  1. initialize_pool(..., num_pcomp): Allocates num_pcomp PCompEntry
 !     slots but leaves their array(:) components unallocated.
@@ -545,7 +554,7 @@ CONTAINS
       if (associated(in_ptr, this%real_entries_(i)%array)) then
         NULLIFY(in_ptr)
         this%real_entries_(i)%is_free = .TRUE. ! Mark as available
-        this%real_entries_(i)%array = 0.0_GP   ! Optional: Zero the array
+!       this%real_entries_(i)%array = 0.0_GP   ! Optional: Zero the array
         return
       endif
     enddo
@@ -566,7 +575,7 @@ CONTAINS
       if (associated(in_ptr, this%complex_entries_(i)%array)) then
         NULLIFY(in_ptr)
         this%complex_entries_(i)%is_free = .TRUE. ! Mark as available
-        this%complex_entries_(i)%array = 0.0_GP   ! Optional: Zero the array
+!       this%complex_entries_(i)%array = 0.0_GP   ! Optional: Zero the array
         return
       endif
     enddo
@@ -587,7 +596,7 @@ CONTAINS
       if (associated(in_ptr, this%pcomp_entries_(i)%array)) then
         NULLIFY(in_ptr)
         this%pcomp_entries_(i)%is_free = .TRUE. ! Mark as available
-        this%pcomp_entries_(i)%array = 0.0_GP   ! Optional: Zero the array
+!       this%pcomp_entries_(i)%array = 0.0_GP   ! Optional: Zero the array
         return
       endif
     enddo

@@ -112,6 +112,12 @@
 ! stage as it requires status and benchmark initialization.
 ! Use FFTW_ESTIMATE or FFTW_MEASURE in short runs
 ! Use FFTW_PATIENT or FFTW_EXHAUSTIVE in long runs
+! FFTW_MEASURE is used below: at 128^3 on two MPI ranks it makes the
+! FFTs about 23% faster than FFTW_ESTIMATE, which is 13 to 18% of the
+! whole time step, and the extra planning cost is already paid back
+! within the first fifty steps. This should eventually be exposed as
+! an option in the &status namelist so that short tests can keep
+! FFTW_ESTIMATE and long runs can ask for FFTW_PATIENT.
       nth = 1
 !$    nth = omp_get_max_threads()
 #if !defined(DEF_GHOST_CUDA_)
@@ -122,9 +128,9 @@
          CALL GTStart(ihcpu2); CALL GTStart(ihomp2); CALL GTStart(ihwtm2)
       ENDIF
       CALL fftp3d_create_plan(planrc,(/nx,ny,nz/),FFTW_REAL_TO_COMPLEX, &
-                             FFTW_ESTIMATE)
+                             FFTW_MEASURE)
       CALL fftp3d_create_plan(plancr,(/nx,ny,nz/),FFTW_COMPLEX_TO_REAL, &
-                             FFTW_ESTIMATE)
+                             FFTW_MEASURE)
       IF (bench.eq.2) THEN
          CALL MPI_BARRIER(MPI_COMM_WORLD,ierr)
          CALL GTStop(ihcpu2);  CALL GTStop(ihomp2);  CALL GTStop(ihwtm2)
