@@ -302,11 +302,10 @@ CONTAINS
     call laplak3(vy,C8)             ! Del^2 vy
     call laplak3(vz,C9)             ! Del^2 vz
 
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
     do i = ista,iend
-!$omp parallel do if (iend-ista.ge.nth) private (k)
     do j = 1,ny
-    do k = 1,nz
+    do concurrent (k=1:nz)
       if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
         dudt(this%VELOCITY  )%ccomp(k,j,i) = nu*C7(k,j,i) + C10(k,j,i) + fx(k,j,i)
         dudt(this%VELOCITY+1)%ccomp(k,j,i) = nu*C8(k,j,i) + C11(k,j,i) + fy(k,j,i)
@@ -322,9 +321,9 @@ CONTAINS
         dudt(this%MAGNETIC+1)%ccomp(k,j,i) = 0.0_GP
         dudt(this%MAGNETIC+2)%ccomp(k,j,i) = 0.0_GP
       endif
-    enddo
-    enddo
-    enddo
+    end do
+    end do
+    end do
 
     CALL this%workspace_%free_complex_tmp(C1)
     CALL this%workspace_%free_complex_tmp(C2)

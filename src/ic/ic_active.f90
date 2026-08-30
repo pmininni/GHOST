@@ -109,11 +109,10 @@ contains
       endif
       call mpi_bcast(c0,solver%numactivesc_,GC_REAL,0,MPI_COMM_WORLD,ierr)
       do n = solver%ACTIVESC, solver%ACTIVESC + solver%numactivesc_ - 1
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
         do i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
           do j = 1,ny
-            do k = 1,nz
+            do concurrent (k=1:nz)
               state(n)%ccomp(k,j,i) = 0.0_GP
             end do
           end do
@@ -175,11 +174,10 @@ contains
       call mpi_bcast(z0,solver%numactivesc_,GC_REAL,0,MPI_COMM_WORLD,ierr)
       call mpi_bcast(r0,solver%numactivesc_,GC_REAL,0,MPI_COMM_WORLD,ierr)
       do n = solver%ACTIVESC, solver%ACTIVESC + solver%numactivesc_ - 1
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do collapse(2) private (i)
         do k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
           do j = 1,ny
-            do i = 1,nx
+            do concurrent (i=1:nx)
               tmp = (real(i-1,kind=GP)/real(nx-1,kind=GP)-x0(n-solver%ACTIVESC+1))**2 &
                   + (real(j-1,kind=GP)/real(ny-1,kind=GP)-y0(n-solver%ACTIVESC+1))**2 &
                   + (real(k-1,kind=GP)/real(nz-1,kind=GP)-z0(n-solver%ACTIVESC+1))**2
@@ -190,11 +188,10 @@ contains
         call fftp3d_real_to_complex(planrc,R1,state(n)%ccomp,MPI_COMM_WORLD)
         call variance(state(n)%ccomp,tmp,1)
         call mpi_bcast(tmp,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
         do i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
           do j = 1,ny
-            do k = 1,nz
+            do concurrent (k=1:nz)
               state(n)%ccomp(k,j,i) = state(n)%ccomp(k,j,i) * &
                                       c0(n-solver%ACTIVESC+1)/sqrt(tmp)
             end do
@@ -321,11 +318,10 @@ contains
         endif
         call variance(state(n)%ccomp,tmp,1)
         call mpi_bcast(tmp,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,ierr)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
         do i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
           do j = 1,ny
-            do k = 1,nz
+            do concurrent (k=1:nz)
               state(n)%ccomp(k,j,i) = state(n)%ccomp(k,j,i) * &
                                       c0(n-solver%ACTIVESC+1)/sqrt(tmp)
             end do

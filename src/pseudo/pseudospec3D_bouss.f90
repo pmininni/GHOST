@@ -88,12 +88,10 @@ module pseudospec_bouss
         gsh = 0.0D0
         ! fact 1/(nx*ny*nz)**2 for each dir * 1/(nx*ny) for horiz. avg
         tmp = 1.0D0/(dble(nx)**3*dble(ny)**3*dble(nz)**2)
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do private (j,i)
         DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,ny
               DO i = 1,nx
-!$omp atomic
                  sh(k) = sh(k)+( r1(i,j,k)**2 + r2(i,j,k)**2 )
               END DO
            END DO
@@ -122,12 +120,10 @@ module pseudospec_bouss
           sh  = 0.0D0
           gsh = 0.0D0
           tmp = 1.0D0/(dble(nx)**3*dble(ny)**3*dble(nz)**2)
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do private (j,i)
           DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
              DO j = 1,ny
                 DO i = 1,nx
-!$omp atomic
                    sh(k) = sh(k) + r3(i,j,k)**2 
                 END DO
              END DO
@@ -154,12 +150,10 @@ module pseudospec_bouss
         sh  = 0.0D0
         gsh = 0.0D0
         tmp = 1.0D0/(dble(nx)**3*dble(ny)**3*dble(nz)**2)
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do private (j,i)
         DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,ny
               DO i = 1,nx
-!$omp atomic
                  sh(k) = sh(k) + ( r1(i,j,k)*r2(i,j,k) )
               END DO
            END DO
@@ -187,12 +181,10 @@ module pseudospec_bouss
 ! Do volume average of perp kinetic energy:
         sh  = 0.0D0
         tmp = 1.0D0/(dble(nx)**3*dble(ny)**3*dble(nz)**2)
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do private (j,i)
         DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,ny
               DO i = 1,nx
-!$omp atomic
                  sh(k) = sh(k)+( r1(i,j,k)**2 + r2(i,j,k)**2 )
               END DO
            END DO
@@ -218,12 +210,10 @@ module pseudospec_bouss
 ! Do volume average of perp kinetic energy:
         sh  = 0.0D0
         tmp = 1.0D0/(dble(nx)**3*dble(ny)**3*dble(nz)**2)
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do private (j,i)
         DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,ny
               DO i = 1,nx
-!$omp atomic
                  sh(k) = sh(k)+( r1(i,j,k)**2 )
               END DO
            END DO
@@ -253,12 +243,10 @@ module pseudospec_bouss
         sh  = 0.0D0
         gsh = 0.0D0
         tmp = 1.0D0/(dble(nx)**3*dble(ny)**3*dble(nz)**2)
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-        DO k = ksta,kend 
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
+!$omp parallel do collapse(2) private (i) reduction(+:sh)
+        DO k = ksta,kend
            DO j = 1,ny
-              DO i = 1,nx
-!$omp atomic
+              DO CONCURRENT (i=1:nx)
                  sh(k) = sh(k)-( r1(i,j,k)*r2(i,j,k) )
               END DO
            END DO
@@ -269,12 +257,10 @@ module pseudospec_bouss
         CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
         c1 = v
         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do private (j,i)
         DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,ny
               DO i = 1,nx
-!$omp atomic
                  sh(k) = sh(k)+( r1(i,j,k)*r2(i,j,k) )
               END DO
            END DO
@@ -300,12 +286,10 @@ module pseudospec_bouss
         c1 = s
         CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
 
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do private (j,i)
         DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,ny
               DO i = 1,nx
-!$omp atomic
                  sh(k) = sh(k)+r1(i,j,k)*r2(i,j,k)
               END DO
            END DO
@@ -332,12 +316,10 @@ module pseudospec_bouss
         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
         ! fac 1/(nx*ny*nz)**2 for each dir
         tmp = 1.0D0/(dble(nx)*dble(ny)*dble(nz))
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do collapse(2) private (i) reduction(+:r2)
         DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,ny
-              DO i = 1,nx
-!$omp atomic
+              DO CONCURRENT (i=1:nx)
                  r2(i,j,k) = r2(i,j,k) + fo*r1(i,j,k)*tmp
               END DO
            END DO
@@ -347,12 +329,10 @@ module pseudospec_bouss
         CALL rotor3(u,v,c1,3) ! omega_z
         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
         tmp = 1.0D0/(dble(nx)*dble(ny)*dble(nz))
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do collapse(2) private (i) reduction(+:r2)
         DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,ny
-              DO i = 1,nx
-!$omp atomic
+              DO CONCURRENT (i=1:nx)
                  r2(i,j,k) = r2(i,j,k) - bv*r1(i,j,k)*tmp
               END DO
            END DO
@@ -366,36 +346,30 @@ module pseudospec_bouss
         ! what comes out is -omega.Grad theta, so tmp<0:
         CALL fftp3d_complex_to_real(plancr,c4,r1,MPI_COMM_WORLD)
         tmp = -1.0D0/(dble(nx)*dble(ny)*dble(nz))
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do collapse(2) private (i) reduction(+:r2)
         DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,ny
-              DO i = 1,nx
-!$omp atomic
+              DO CONCURRENT (i=1:nx)
                  r2(i,j,k) = r2(i,j,k) + r1(i,j,k)*tmp
               END DO
            END DO
         END DO
 !
 ! Find fN contrib:
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do collapse(2) private (i) reduction(+:r2)
         DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,ny
-              DO i = 1,nx
-!$omp atomic
+              DO CONCURRENT (i=1:nx)
                  r2(i,j,k) = r2(i,j,k) - fo*bv 
               END DO
            END DO
         END DO
         ! fac 1/(nx*ny) for horiz. avg
         tmp = 1.0D0/(dble(nx)*dble(ny))
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do private (j,i)
         DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
            DO j = 1,ny
               DO i = 1,nx
-!$omp atomic
                  sh(k) = sh(k) + r2(i,j,k)**2
               END DO
            END DO
@@ -428,12 +402,10 @@ module pseudospec_bouss
 
         call rotor3(v,w,c1,1) ! omega_x
         call fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do collapse(2) private (i) reduction(+:sh)
         do k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
            do j = 1,ny
-              do i = 1,nx
-!$omp atomic
+              do concurrent (i=1:nx)
                  sh(k) = sh(k) + r3(i,j,k)*( r1(i,j,k)-r2(i,j,k) )
               end do
            end do
@@ -449,12 +421,10 @@ module pseudospec_bouss
 
         call rotor3(u,w,c1,2) ! omega_y
         call fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do collapse(2) private (i) reduction(+:sh)
         do k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
            do j = 1,ny
-              do i = 1,nx
-!$omp atomic
+              do concurrent (i=1:nx)
                  sh(k) = sh(k) + r3(i,j,k)*( r1(i,j,k)-r2(i,j,k) )
               end do
            end do
@@ -470,12 +440,10 @@ module pseudospec_bouss
 
         call rotor3(u,v,c1,3) ! omega_z
         call fftp3d_complex_to_real(plancr,c1,r3,MPI_COMM_WORLD)
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do private (j,i)
         do k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
            do j = 1,ny
               do i = 1,nx
-!$omp atomic
                  sh(k) = sh(k) + r3(i,j,k)*( r1(i,j,k)-r2(i,j,k) )
               end do
            end do
@@ -501,12 +469,10 @@ module pseudospec_bouss
        gsh = 0.0D0
        tmp = 1.0D0/(dble(nx)**3*dble(ny)**3*dble(nz)**2)
 
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do private (j,i)
         DO K = KSTA,KEND
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
            do j = 1,ny
               do i = 1,nx
-!$omp atomic
                  sh(k) = sh(k)+bv*(bv-r3(i,j,k))/(r1(i,j,k)**2+r2(i,j,k)**2) 
               end do
            end do
@@ -532,12 +498,10 @@ module pseudospec_bouss
         c1 = s
         call fftp3d_complex_to_real(plancr,c1,r2,mpi_comm_world)
 
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
+!$omp parallel do private (j,i)
         do k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
            do j = 1,ny
               do i = 1,nx
-!$omp atomic
                  sh(k) = sh(k)+r1(i,j,k)*r2(i,j,k)
               end do
            end do

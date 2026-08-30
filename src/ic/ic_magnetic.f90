@@ -102,11 +102,10 @@ CONTAINS
 
     select type (solver)
     class is (MagneticBase)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
       DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
         DO j = 1,ny
-          DO k = 1,nz
+          DO CONCURRENT (k=1:nz)
             state(solver%MAGNETIC  )%ccomp(k,j,i) = 0.0_GP
             state(solver%MAGNETIC+1)%ccomp(k,j,i) = 0.0_GP
             state(solver%MAGNETIC+2)%ccomp(k,j,i) = 0.0_GP

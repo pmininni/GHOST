@@ -78,11 +78,10 @@ CONTAINS
 
     select type (solver)
     class is (MagneticBase)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
       DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
         DO j = 1,ny
-          DO k = 1,nz
+          DO CONCURRENT (k=1:nz)
             state(solver%MAGNETIC  )%ccomp(k,j,i) = 0.0_GP
             state(solver%MAGNETIC+1)%ccomp(k,j,i) = 0.0_GP
             state(solver%MAGNETIC+2)%ccomp(k,j,i) = 0.0_GP
@@ -667,11 +666,10 @@ CONTAINS
       call solver%workspace_%get_real_tmp(R1,bret)
       call solver%workspace_%get_real_tmp(R2,bret)
       call solver%workspace_%get_real_tmp(R3,bret)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
       do i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
         do j = 1,ny
-          do k = 1,nz
+          do concurrent (k=1:nz)
             C1(k,j,i) = this%fxold_(k,j,i)*rmp
             C2(k,j,i) = this%fyold_(k,j,i)*rmp
             C3(k,j,i) = this%fzold_(k,j,i)*rmp
@@ -684,11 +682,10 @@ CONTAINS
       call io_write(1,solver%odir_,'fbxold',ext,solver%planio_,R1)
       call io_write(1,solver%odir_,'fbyold',ext,solver%planio_,R2)
       call io_write(1,solver%odir_,'fbzold',ext,solver%planio_,R3)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
       do i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
         do j = 1,ny
-          do k = 1,nz
+          do concurrent (k=1:nz)
             C1(k,j,i) = this%fxnew_(k,j,i)*rmp
             C2(k,j,i) = this%fynew_(k,j,i)*rmp
             C3(k,j,i) = this%fznew_(k,j,i)*rmp

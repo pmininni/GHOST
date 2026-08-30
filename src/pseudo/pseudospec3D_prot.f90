@@ -688,7 +688,7 @@ MODULE pseudospec_anisca
 !$omp end do
 !$omp do
          DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmz,kmn,tmq)
+!$omp parallel do private (k,kmz,kmn,tmq) reduction(+:Ek)
             DO j = 1,ny
                kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
@@ -696,7 +696,6 @@ MODULE pseudospec_anisca
                      kmz = int(abs(kz(k))*Lz+1)
                      IF ((kmz.gt.0).and.(kmz.le.nz/2+1)) THEN
                      tmq = 2*(abs(a(k,j,i))**2)*tmp
-!$omp atomic
                      Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                      ENDIF
                   END DO
@@ -706,17 +705,15 @@ MODULE pseudospec_anisca
 !$omp end do
 !$omp end parallel
       ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmz,kmn,tmq)
+!$omp parallel do private (j,k,kmz,kmn,tmq) reduction(+:Ek)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmz,kmn,tmq)
-            DO j = 1,ny
+            DO CONCURRENT (j=1:ny)
                kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                   DO k = 1,nz
                      kmz = int(abs(kz(k))*Lz+1)
                      IF ((kmz.gt.0).and.(kmz.le.nz/2+1)) THEN
                      tmq = 2*(abs(a(k,j,i))**2)*tmp
-!$omp atomic
                      Ek(kmn,kmz) = Ek(kmn,kmz)+tmq
                      ENDIF
                   END DO

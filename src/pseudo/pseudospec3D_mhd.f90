@@ -63,11 +63,10 @@ MODULE pseudospec_magnetic
       REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
 
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
       DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,ny
-            DO k = 1,nz
+            DO CONCURRENT (k=1:nz)
                x(k,j,i) = a(k,j,i)
                y(k,j,i) = b(k,j,i)
                z(k,j,i) = c(k,j,i)
@@ -77,11 +76,10 @@ MODULE pseudospec_magnetic
       CALL fftp3d_complex_to_real(plancr,x,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,y,r2,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,z,r3,MPI_COMM_WORLD)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
       DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,ny
-            DO k = 1,nz
+            DO CONCURRENT (k=1:nz)
                x(k,j,i) = d(k,j,i)
                y(k,j,i) = e(k,j,i)
                z(k,j,i) = f(k,j,i)
@@ -93,11 +91,10 @@ MODULE pseudospec_magnetic
       CALL fftp3d_complex_to_real(plancr,z,r6,MPI_COMM_WORLD)
 
       tmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
-!$omp parallel do if (iend-ista.ge.nth) private (j,i)
+!$omp parallel do collapse(2) private (i)
       DO k = ksta,kend
-!$omp parallel do if (iend-ista.lt.nth) private (i)
          DO j = 1,ny
-            DO i = 1,nx
+            DO CONCURRENT (i=1:nx)
                r7(i,j,k) = (r2(i,j,k)*r6(i,j,k)-r5(i,j,k)*r3(i,j,k))*tmp
                r3(i,j,k) = (r3(i,j,k)*r4(i,j,k)-r6(i,j,k)*r1(i,j,k))*tmp
                r1(i,j,k) = (r1(i,j,k)*r5(i,j,k)-r4(i,j,k)*r2(i,j,k))*tmp
@@ -157,15 +154,14 @@ MODULE pseudospec_magnetic
          IF (ista.eq.1) THEN
 !$omp parallel do private (k)
             DO j = 1,ny
-               DO k = 1,nz
+               DO CONCURRENT (k=1:nz)
                   g(k,j,1) = -a(k,j,1)+d(k,j,1)
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
             DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k)
                DO j = 1,ny
-                  DO k = 1,nz
+                  DO CONCURRENT (k=1:nz)
                      g(k,j,i) = -a(k,j,i)+d(k,j,i)+kx(i)*(kx(i)*(a(k,j,i) &
                      -d(k,j,i))+ky(j)*(b(k,j,i)-e(k,j,i))+kz(k)*(c(k,j,i) &
                      -f(k,j,i)))/kk2(k,j,i)
@@ -173,11 +169,10 @@ MODULE pseudospec_magnetic
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
             DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
                DO j = 1,ny
-                  DO k = 1,nz
+                  DO CONCURRENT (k=1:nz)
                      g(k,j,i) = -a(k,j,i)+d(k,j,i)+kx(i)*(kx(i)*(a(k,j,i) &
                      -d(k,j,i))+ky(j)*(b(k,j,i)-e(k,j,i))+kz(k)*(c(k,j,i) &
                      -f(k,j,i)))/kk2(k,j,i)
@@ -189,18 +184,16 @@ MODULE pseudospec_magnetic
 ! Computes the y-component
 !
       ELSE IF (dir.eq.2) THEN
-!$omp parallel do if (iend-ista.ge.nth) private (k)
+!$omp parallel do private (k)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth)
-            DO k = 1,nz
+            DO CONCURRENT (k=1:nz)
                g(k,1,i) = -b(k,1,i)+e(k,1,i)
             END DO
          END DO
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 2,ny
-               DO k = 1,nz
+               DO CONCURRENT (k=1:nz)
                   g(k,j,i) = -b(k,j,i)+e(k,j,i)+ky(j)*(kx(i)*(a(k,j,i) &
                   -d(k,j,i))+ky(j)*(b(k,j,i)-e(k,j,i))+kz(k)*(c(k,j,i) &
                   -f(k,j,i)))/kk2(k,j,i)
@@ -211,18 +204,16 @@ MODULE pseudospec_magnetic
 ! Computes the z-component
 !
       ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j)
+!$omp parallel do private (j)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth)
-            DO j = 1,ny
+            DO CONCURRENT (j=1:ny)
                g(1,j,i) = -c(1,j,i)+f(1,j,i)
             END DO
          END DO
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,ny
-               DO k = 2,nz
+               DO CONCURRENT (k=2:nz)
                   g(k,j,i) = -c(k,j,i)+f(k,j,i)+kz(k)*(kx(i)*(a(k,j,i) &
                   -d(k,j,i))+ky(j)*(b(k,j,i)-e(k,j,i))+kz(k)*(c(k,j,i) &
                   -f(k,j,i)))/kk2(k,j,i)
@@ -270,26 +261,24 @@ MODULE pseudospec_magnetic
          IF (ista.eq.1) THEN
 !$omp parallel do private (k)
             DO j = 1,ny
-               DO k = 1,nz
+               DO CONCURRENT (k=1:nz)
                   g(k,j,1) = a(k,j,1)
                END DO
             END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
             DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k)
                DO j = 1,ny
-                  DO k = 1,nz
+                  DO CONCURRENT (k=1:nz)
                      g(k,j,i) = a(k,j,i)-kx(i)*(kx(i)*a(k,j,i) &
                       +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
                   END DO
                END DO
             END DO
          ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
             DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
                DO j = 1,ny
-                  DO k = 1,nz
+                  DO CONCURRENT (k=1:nz)
                      g(k,j,i) = a(k,j,i)-kx(i)*(kx(i)*a(k,j,i) &
                       +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
                   END DO
@@ -300,18 +289,16 @@ MODULE pseudospec_magnetic
 ! Computes the y-component
 !
       ELSE IF (dir.eq.2) THEN
-!$omp parallel do if (iend-ista.ge.nth) private (k)
+!$omp parallel do private (k)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth)
-            DO k = 1,nz
+            DO CONCURRENT (k=1:nz)
                g(k,1,i) = b(k,1,i)
             END DO
          END DO
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 2,ny
-               DO k = 1,nz
+               DO CONCURRENT (k=1:nz)
                   g(k,j,i) = b(k,j,i)-ky(j)*(kx(i)*a(k,j,i) &
                    +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
                END DO
@@ -321,21 +308,19 @@ MODULE pseudospec_magnetic
 ! Computes the z-component
 !
       ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j)
+!$omp parallel do private (j)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth)
-            DO j = 1,ny
+            DO CONCURRENT (j=1:ny)
                g(1,j,i) = c(1,j,i)
             END DO
          END DO
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,ny
-               DO k = 2,nz
+               DO CONCURRENT (k=2:nz)
                   g(k,j,i) = c(k,j,i)-kz(k)*(kx(i)*a(k,j,i) &
                    +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
-                  END DO
+               END DO
             END DO
          END DO
       ENDIF
@@ -589,25 +574,23 @@ MODULE pseudospec_mhd
       IF (ista.eq.1) THEN
 !$omp parallel do private (k) reduction(+:tmp)
          DO j = 1,ny
-            DO k = 1,nz
+            DO CONCURRENT (k=1:nz)
                tmp = tmp+abs(c1(k,j,1)+c2(k,j,1)+c3(k,j,1))**2*tmq
             END DO
          END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:tmp)
+!$omp parallel do collapse(2) private (k) reduction(+:tmp)
          DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:tmp)
             DO j = 1,ny
-               DO k = 1,nz
+               DO CONCURRENT (k=1:nz)
                   tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
                END DO
             END DO
          END DO
       ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:tmp)
+!$omp parallel do collapse(2) private (k) reduction(+:tmp)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:tmp)
             DO j = 1,ny
-               DO k = 1,nz
+               DO CONCURRENT (k=1:nz)
                   tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
                END DO
             END DO
@@ -623,25 +606,23 @@ MODULE pseudospec_mhd
       IF (ista.eq.1) THEN
 !$omp parallel do private (k) reduction(+:tmp)
          DO j = 1,ny
-            DO k = 1,nz
+            DO CONCURRENT (k=1:nz)
                tmp = tmp+abs(c1(k,j,1)+c2(k,j,1)+c3(k,j,1))**2*tmq
             END DO
          END DO
-!$omp parallel do if (iend-2.ge.nth) private (j,k) reduction(+:tmp)
+!$omp parallel do collapse(2) private (k) reduction(+:tmp)
          DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k) reduction(+:tmp)
             DO j = 1,ny
-               DO k = 1,nz
+               DO CONCURRENT (k=1:nz)
                   tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
                END DO
             END DO
          END DO
       ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k) reduction(+:tmp)
+!$omp parallel do collapse(2) private (k) reduction(+:tmp)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k) reduction(+:tmp)
             DO j = 1,ny
-               DO k = 1,nz
+               DO CONCURRENT (k=1:nz)
                   tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
                END DO
             END DO
@@ -678,11 +659,10 @@ MODULE pseudospec_mhd
          CALL cross(a,b,c,c1,c2,c3,crh,1)
       ENDIF
       IF (crs.eq.2) THEN
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,ny
-               DO k = 1,nz
+               DO CONCURRENT (k=1:nz)
                   c1(k,j,i) = ma(k,j,i)+ep*a(k,j,i)
                   c2(k,j,i) = mb(k,j,i)+ep*b(k,j,i)
                   c3(k,j,i) = mc(k,j,i)+ep*c(k,j,i)
