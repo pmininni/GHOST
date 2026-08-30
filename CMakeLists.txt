@@ -6,6 +6,9 @@
 # "cmake .. -DCMAKE_PREFIX_PATH=/opt/openmpi-5.0.10 -DFFTW3_ROOT=/opt/fftw-3.3.10"
 # Compilers can be declared in bash using "export CC=gcc;export FC=gfortran"
 # You can define an install dir using -DCMAKE_INSTALL_PREFIX=/foo
+# Other Options:
+# -DPRECISION=SINGLE(default)/DOUBLE
+# -DP_HYBRID=ON (multithreaded, default: OFF)
 # -------------------------------------------------------------------
 
 cmake_minimum_required(VERSION 3.12)
