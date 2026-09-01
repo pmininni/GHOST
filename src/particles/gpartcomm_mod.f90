@@ -6,7 +6,7 @@
 !       provided for each. The velocity data can be exchanged
 !       for _any_ other field variable as well, although the
 !       'multi-field' interfaces may not be appropriate for it.
-!       Interfaces are also provided to exchance scalar quantities.
+!       Interfaces are also provided to exchange scalar fields.
 !
 ! 2013 D. Rosenberg
 !      ORNL: NCCS
@@ -471,8 +471,8 @@ MODULE class_GPartComm
           this%ntsnd_ =  this%ntsnd_ + 1
           this%itsndp_(this%ntsnd_) = jfwd(jf)   ! top task to send to
           DO k = 1, min(kend-ksta+1, kf)
-            this%itsnd_   (this%ntsnd_,k) = kend-ksta+2-k ! local z-index to be sent to top
-            this%itsnddst_(this%ntsnd_,k) = this%nzghost_-kf-k+1 ! local destination z-index
+            this%itsnd_   (this%ntsnd_,k) = kend-ksta+2-k                  ! local z-index to be sent to top
+            this%itsnddst_(this%ntsnd_,k) = this%nzghost_-kf-k+1           ! local destination z-index
             this%itsndnz_ (this%ntsnd_  ) = this%itsndnz_(this%ntsnd_) + 1 ! gives position in top recv buffer
           ENDDO
         ENDIF
@@ -527,8 +527,8 @@ MODULE class_GPartComm
           this%nbsnd_ =  this%nbsnd_ + 1
           this%ibsndp_(this%nbsnd_) = jfwd(jf)   ! bottom task to send to
           DO k = 1, min(kend-ksta+1, kf)
-            this%ibsnd_   (this%nbsnd_,k) = k ! local z-index to be sent to bottom
-            this%ibsnddst_(this%nbsnd_,k) = this%nzghost_+nzf(jf)+kf+k ! local destination z-index
+            this%ibsnd_   (this%nbsnd_,k) = k    ! local z-index to be sent to bottom
+            this%ibsnddst_(this%nbsnd_,k) = this%nzghost_+nzf(jf)+kf+k     ! local destination z-index
             this%ibsndnz_ (this%nbsnd_  ) = this%ibsndnz_(this%nbsnd_) + 1 ! gives position in bottom recv buffer
           ENDDO
         ENDIF
@@ -557,7 +557,7 @@ MODULE class_GPartComm
 
     ! Indices in recv buff to put data recvd from task j;
     ! includes 2 integer header:
-!
+    !
     ! For multifield interfaces, the rcv buff starting indices are different:
     ! than for single field interface:
     nxy = this%nd_(1)*this%nd_(2)

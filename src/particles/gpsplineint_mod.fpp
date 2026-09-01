@@ -279,8 +279,7 @@ MODULE class_GPSplineInt
 !
 ! One parallel region for all the host loops below: each per-particle
 ! loop is a worksharing DO inside it, so the team is forked once per
-! interpolation instead of once per loop. Every thread takes the same
-! branch of each IF, which is what worksharing inside them requires.
+! interpolationp. Every thread takes the same IF branch.
 #if !defined(DO_HYBRIDoffl)
 !$omp parallel
 #endif
@@ -703,7 +702,6 @@ MODULE class_GPSplineInt
     IMPLICIT NONE
     CLASS(GPSplineInt)                      :: this
     INTEGER,INTENT(IN)                      :: idir,ido
-
 
     IF ( idir .LT. 1 .OR. idir .GT. this%rank_ ) THEN
       WRITE(*,*) 'GPSplineInt::SetDeriv: Invalid coordinate direction'

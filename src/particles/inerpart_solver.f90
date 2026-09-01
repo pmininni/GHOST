@@ -174,10 +174,9 @@ CONTAINS
         stop "Inerpart: # of components of the particles and pdes must be equal"
       endif
 
-      ! IMPORTANT: pstate and dpdtout may alias the same array (the stepper
+      ! IMPORTANT: pstate and dpdtout may alias the same array (some steppers
       ! can pass upout for both). We must be careful about ordering:
-      !   1. Interpolate fluid velocity to compute acceleration
-      !      while positions are still intact
+      !   1. Interpolate fluid velocity with positions still intact
       !   2. Write position RHS (overwrites pstate(POSITION), but we're done)
       !   3. Compute velocity RHS (reads particle velocity before overwrite)
 
@@ -217,8 +216,7 @@ CONTAINS
 
       rep2_coef = this%traits_%nld_rep
       ! One parallel region for the position, drag and gravity loops:
-      ! the team is forked once, and every thread takes the same
-      ! branches of the IFs.
+      ! the team is forked once, and every thread takes the same IF branches
 !$omp parallel private(dx,dy,dz,rep2,cdrag)
       ! Step 2: Position RHS: dx/dt = v_p
       ! (may overwrite pstate(POSITION) depending on the stepper call)

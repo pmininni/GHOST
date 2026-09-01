@@ -100,7 +100,6 @@ contains
   !! Implementation function to take one step of fields
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine step_impl(this, time, uin, uf, dt, uout)
-!$  use threads
     implicit none
 
     class(CanutoStepper), intent(inout) :: this
@@ -143,7 +142,6 @@ contains
   !! coupled particles.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine pstep_impl(this, time, uin, upin, dt, upout)
-!$  use threads
     use gpstate_mod
     implicit none
 
@@ -195,7 +193,6 @@ contains
   !! simultaneously in the substepping stages.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine cstep_impl(this, time, uin, upin, uf, dt, uout, upout)
-!$  use threads
     use gpstate_mod
     implicit none
 
