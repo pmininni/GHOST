@@ -205,26 +205,31 @@ CONTAINS
     ! Generate a Gaussian distribution with thermal speed vtherm
     twopi = 8.0_GP*atan(1.0_GP)
     low   = 1.0e-20_GP
-!$omp parallel do
+    ! This loop is sequential on purpose: the draws consume the random
+    ! stream in particle order, which keeps the initial condition
+    ! deterministic and independent of the number of threads. It also
+    ! assigns each particle its own draw; it previously assigned the
+    ! whole component array the value of the last draw, so that every
+    ! particle started with the same velocity.
     DO j = 1, psolver%nparts_
       CALL prandom_number(u1)
       CALL prandom_number(u2)
       u1 =  MAX( u1, low)
       u2 =  twopi * u2
-      gauss =  sqrt( -2.0_GP * log( u1)) * CMPLX( cos(u2), sin(u2))
-      pstate(psolver%VELOCITY  )%rcomp = vtherm*gauss
+      gauss =  sqrt( -2.0_GP * log( u1)) * cos( u2)
+      pstate(psolver%VELOCITY  )%rcomp(j) = vtherm*gauss
       CALL prandom_number(u1)
       CALL prandom_number(u2)
       u1 =  MAX( u1, low)
       u2 =  twopi * u2
-      gauss =  sqrt( -2.0_GP * log( u1)) * CMPLX( cos(u2), sin(u2))
-      pstate(psolver%VELOCITY+1)%rcomp = vtherm*gauss
+      gauss =  sqrt( -2.0_GP * log( u1)) * cos( u2)
+      pstate(psolver%VELOCITY+1)%rcomp(j) = vtherm*gauss
       CALL prandom_number(u1)
       CALL prandom_number(u2)
       u1 =  MAX( u1, low)
       u2 =  twopi * u2
-      gauss =  sqrt( -2.0_GP * log( u1)) * CMPLX( cos(u2), sin(u2))
-      pstate(psolver%VELOCITY+2)%rcomp = vtherm*gauss
+      gauss =  sqrt( -2.0_GP * log( u1)) * cos( u2)
+      pstate(psolver%VELOCITY+2)%rcomp(j) = vtherm*gauss
     END DO     
     class default
       stop "Init_thermvel: These ICs do not support particles without velocity"
