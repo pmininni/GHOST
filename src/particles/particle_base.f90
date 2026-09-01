@@ -1403,25 +1403,49 @@ CONTAINS
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)         :: px,py,pz
     INTEGER                                          :: j
 
+! The old form of the wrap, modulo(p+2*L,L), also perturbs by one ULP
+! the low bits of most particles that do NOT wrap (adding 2L and
+! reducing is not bit-exact), and it did so at every stage of every
+! step. Besides the noise this injected in the trajectories, the VDB
+! exchange periodizes all three directions while the NN exchange only
+! periodizes z conditionally, so the two exchange modes slowly drifted
+! apart from these seeds. The conditional form below, the same one
+! MakePeriodicZ uses, leaves particles inside the box bit-untouched;
+! it assumes the positions are within one box length of the domain,
+! which holds at every call site since the callers periodize right
+! after a single stage displacement (the NN exchange already requires
+! motion of less than one zone per step).
 ! One parallel region for the three directions; every thread sees the
 ! same idir, so all of them take the same branches of the IFs.
 !$omp parallel
     IF ( btest(idir,0) ) THEN
 !$omp do
       DO j = 1, npdb
-        px(j) = modulo(px(j)+2.0*this%gext_(1),this%gext_(1))
+        IF ( px(j).LT.0 ) THEN
+          px(j) = px(j) + this%gext_(1)
+        ELSE IF ( px(j).GE.this%gext_(1) ) THEN
+          px(j) = px(j) - this%gext_(1)
+        ENDIF
       ENDDO
     ENDIF
     IF ( btest(idir,1) ) THEN
 !$omp do
       DO j = 1, npdb
-        py(j) = modulo(py(j)+2.0*this%gext_(2),this%gext_(2))
+        IF ( py(j).LT.0 ) THEN
+          py(j) = py(j) + this%gext_(2)
+        ELSE IF ( py(j).GE.this%gext_(2) ) THEN
+          py(j) = py(j) - this%gext_(2)
+        ENDIF
       ENDDO
     ENDIF
     IF ( btest(idir,2) ) THEN
 !$omp do
       DO j = 1, npdb
-        pz(j) = modulo(pz(j)+2.0*this%gext_(3),this%gext_(3))
+        IF ( pz(j).LT.0 ) THEN
+          pz(j) = pz(j) + this%gext_(3)
+        ELSE IF ( pz(j).GE.this%gext_(3) ) THEN
+          pz(j) = pz(j) - this%gext_(3)
+        ENDIF
       ENDDO
     ENDIF
 !$omp end parallel

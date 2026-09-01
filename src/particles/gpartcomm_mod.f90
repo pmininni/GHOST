@@ -1549,6 +1549,7 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
     USE pdbtypes
     USE grid
+!$  USE omp_lib
     IMPLICIT NONE
 
     CLASS(GPartComm),INTENT(INOUT)           :: this
@@ -1566,18 +1567,60 @@ MODULE class_GPartComm
     IF ( ibrank.LT.0 ) ibrank = this%nprocs_-1
 
     ! Find pointers into particle lists for parts that
-    ! must be sent to the top and bottom tasks:
-    this%nbot_ = 0
-    this%ntop_ = 0
-    DO j = 1, nparts
-      IF ( pz(j).LT.zmin ) THEN ! bottom
-        this%nbot_ = this%nbot_ + 1
-        this%ibot_(this%nbot_) = j
-      ELSE IF ( pz(j).GE.zmax ) THEN ! top
-        this%ntop_ = this%ntop_ + 1
-        this%itop_(this%ntop_) = j
-      ENDIF
-    ENDDO
+    ! must be sent to the top and bottom tasks. The scan is done in
+    ! two passes so that each thread counts the matches of its
+    ! contiguous chunk and then writes them at the offset given by a
+    ! prefix sum over the threads: the lists come out in ascending
+    ! index order for any number of threads, exactly as a sequential
+    ! scan produces, so the exchange stays deterministic.
+    BLOCK
+      INTEGER :: kb,kt,t,lo,hi,chunk,ntmax,nthr
+      INTEGER, ALLOCATABLE, DIMENSION(:) :: cbot,ctop,bbot,btop
+      ntmax = 1
+!$    ntmax = omp_get_max_threads()
+      ALLOCATE(cbot(0:ntmax-1),ctop(0:ntmax-1),bbot(0:ntmax-1),btop(0:ntmax-1))
+      nthr = 1
+!$omp parallel private(t,j,kb,kt,lo,hi,chunk) shared(cbot,ctop,bbot,btop,nthr)
+!$omp single
+!$    nthr = omp_get_num_threads()
+!$omp end single
+      t = 0
+!$    t = omp_get_thread_num()
+      chunk = (nparts+nthr-1)/nthr
+      lo = t*chunk + 1
+      hi = MIN(nparts,(t+1)*chunk)
+      kb = 0; kt = 0
+      DO j = lo, hi
+        IF ( pz(j).LT.zmin ) THEN
+          kb = kb + 1
+        ELSE IF ( pz(j).GE.zmax ) THEN
+          kt = kt + 1
+        ENDIF
+      ENDDO
+      cbot(t) = kb; ctop(t) = kt
+!$omp barrier
+!$omp single
+      bbot(0) = 0; btop(0) = 0
+      DO j = 1, nthr-1
+        bbot(j) = bbot(j-1) + cbot(j-1)
+        btop(j) = btop(j-1) + ctop(j-1)
+      ENDDO
+      this%nbot_ = bbot(nthr-1) + cbot(nthr-1)
+      this%ntop_ = btop(nthr-1) + ctop(nthr-1)
+!$omp end single
+      kb = bbot(t); kt = btop(t)
+      DO j = lo, hi
+        IF ( pz(j).LT.zmin ) THEN
+          kb = kb + 1
+          this%ibot_(kb) = j
+        ELSE IF ( pz(j).GE.zmax ) THEN
+          kt = kt + 1
+          this%itop_(kt) = j
+        ENDIF
+      ENDDO
+!$omp end parallel
+      DEALLOCATE(cbot,ctop,bbot,btop)
+    END BLOCK
 
     ! Post receives:
     CALL GTStart(this%hcomm_)
@@ -1696,11 +1739,6 @@ MODULE class_GPartComm
        DO j = 1,ng
          id(j) = this%oldid_(j)
        END DO
-       nparts = ng
-    ENDIF
-
-    IF ((stage.NE.GPEXCH_END).AND.(stage.NE.GPEXCH_UNIQ)) THEN
-       id(1:ng) = this%oldid_(1:ng)
        nparts = ng
     ENDIF
 
