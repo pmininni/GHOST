@@ -396,7 +396,7 @@ contains
     type  (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
     real      (kind=GP), intent   (in) :: time, dt
     real      (kind=GP)                :: tt, eff_dt
-    integer                            :: j,m,n,nparts
+    integer                            :: j,k,m,n,nparts
     ! alpha_ : time fractions for each stage
     ! beta_  : stage coefficient matrix 
     ! c_     : weights for final combination
@@ -412,8 +412,12 @@ contains
       this%putmp_ = upin               ! set temp state
       do j = 1, m-1                    ! putmp = putmp + h beta pK_j
         eff_dt = this%beta_(m,j) * dt
+!$omp parallel do collapse(2)
         do n = 1, this%traits_%npstate ! set putmp components
-          this%putmp_(n)%rcomp = this%putmp_(n)%rcomp+this%pK_(j)%rpstate(n)%rcomp*eff_dt
+          do k = 1, nparts
+            this%putmp_(n)%rcomp(k) = this%putmp_(n)%rcomp(k)                  &
+                                    + this%pK_(j)%rpstate(n)%rcomp(k)*eff_dt
+          enddo
         enddo
       enddo ! j-loop
       tt = time + this%alpha_(m) * dt  ! dpdt called AFTER j-loop
@@ -425,8 +429,12 @@ contains
     upout = upin
     do m = 1, this%traits_%nstage  
       eff_dt = this%c_(m) * dt
+!$omp parallel do collapse(2)
       do n = 1, this%traits_%npstate   ! upout = upout + h * c_m * pK_m
-        upout(n)%rcomp = upout(n)%rcomp + this%pK_(m)%rpstate(n)%rcomp * eff_dt
+        do k = 1, nparts
+          upout(n)%rcomp(k) = upout(n)%rcomp(k)                                &
+                            + this%pK_(m)%rpstate(n)%rcomp(k) * eff_dt
+        enddo
       enddo
     enddo ! m-loop
 
@@ -453,7 +461,7 @@ contains
     type  (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
     real      (kind=GP), intent   (in) :: time, dt
     real      (kind=GP)                :: tt, eff_dt
-    integer                            :: j,m,n,ic,nparts
+    integer                            :: j,k,m,n,ic,nparts
     ! alpha_ : time fractions for each stage
     ! beta_  : stage coefficient matrix 
     ! c_     : weights for final combination
@@ -481,8 +489,12 @@ contains
                1.0_GP, this%K_(j)%cstate(n)%ccomp,   this%beta_(m,j)*dt)
         enddo
         eff_dt  = this%beta_(m,j) * dt
+!$omp parallel do collapse(2)
         do n = 1, this%traits_%npstate ! set putmp = putmp + h beta pK_j
-          this%putmp_(n)%rcomp = this%putmp_(n)%rcomp+this%pK_(j)%rpstate(n)%rcomp*eff_dt
+          do k = 1, nparts
+            this%putmp_(n)%rcomp(k) = this%putmp_(n)%rcomp(k)                  &
+                                    + this%pK_(j)%rpstate(n)%rcomp(k)*eff_dt
+          enddo
         enddo
       enddo ! j-loop
       tt = time + this%alpha_(m) * dt  ! feedback and d/dt called AFTER j-loop
@@ -509,8 +521,12 @@ contains
              this%K_(m)%cstate(n)%ccomp, this%c_(m)*dt)
      enddo
      eff_dt = this%c_(m) * dt
+!$omp parallel do collapse(2)
      do n = 1, this%traits_%npstate   ! upout = upout + h * c_m * pK_m
-        upout(n)%rcomp = upout(n)%rcomp + this%pK_(m)%rpstate(n)%rcomp * eff_dt
+        do k = 1, nparts
+          upout(n)%rcomp(k) = upout(n)%rcomp(k)                                &
+                            + this%pK_(m)%rpstate(n)%rcomp(k) * eff_dt
+        enddo
       enddo
     enddo ! m-loop
     

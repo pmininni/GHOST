@@ -176,8 +176,11 @@ contains
       ! We compute dpdt; we assume that at input, upout has a copy of upin
       call this%psolver_%dpdt(time, this%solver_, uin, upout, eff_dt, upout)
       ! Update particles:
-      do concurrent (ip=1:this%traits_%npstate, k=1:this%psolver_%nparts_)
-        upout(ip)%rcomp(k) = upin(ip)%rcomp(k) + eff_dt*upout(ip)%rcomp(k)
+!$omp parallel do collapse(2)
+      do ip = 1,this%traits_%npstate
+        do k = 1,this%psolver_%nparts_
+          upout(ip)%rcomp(k) = upin(ip)%rcomp(k) + eff_dt*upout(ip)%rcomp(k)
+        end do
       end do
       ! Sync particles at each stage
       call this%psolver_%end_stage(upin,upout)
@@ -237,8 +240,10 @@ contains
           uout(ic)%ccomp = uout(ic)%ccomp + fdbk(ic)%ccomp
         end do
       endif
-      ! Update fields:
-!$omp parallel do collapse(3) private (k)
+      ! Update fields and particles inside one parallel region, so the
+      ! team is forked once per stage for both updates:
+!$omp parallel private (k)
+!$omp do collapse(3)
       do ic = 1,this%traits_%nstate
         do i = ista,iend
           do j = 1,ny
@@ -248,10 +253,15 @@ contains
           end do
         end do
       end do
-      ! Update particles:
-      do concurrent (ip=1:this%traits_%npstate, k=1:this%psolver_%nparts_)
-        upout(ip)%rcomp(k) = upin(ip)%rcomp(k) + eff_dt*upout(ip)%rcomp(k)
+!$omp end do
+!$omp do collapse(2)
+      do ip = 1,this%traits_%npstate
+        do k = 1,this%psolver_%nparts_
+          upout(ip)%rcomp(k) = upin(ip)%rcomp(k) + eff_dt*upout(ip)%rcomp(k)
+        end do
       end do
+!$omp end do
+!$omp end parallel
       ! Sync particles at each stage
       call this%psolver_%end_stage(upin,upout)
     end do ! end, o-loop
