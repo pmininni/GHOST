@@ -1249,8 +1249,8 @@ MODULE class_GPSplineInt
 !$omp                                             device(targetdev)
     DO km=0,nz-1
 #else
-    DO k=1,nz
-      km = k-1
+!$omp parallel do collapse(2) private(jm,i)
+    DO km=0,nz-1
 #endif
       DO j=1,ny
         jm = j-1
@@ -1264,8 +1264,8 @@ MODULE class_GPSplineInt
 !$omp target teams loop collapse(2) private(i,jm) map(this%xxx_) device(targetdev)
     DO km=0,nz-1
 #else
-    DO k=1,nz
-      km = k-1
+!$omp parallel do collapse(2) private(jm,i)
+    DO km=0,nz-1
 #endif
       DO j=1,ny
         jm = j-1
@@ -1277,6 +1277,8 @@ MODULE class_GPSplineInt
 #if defined(DO_HYBRIDoffl)
 !$omp target teams loop collapse(1) private(j,km,jm) map(this%ax_,this%zetax_,&
 !$omp                 this%betx_,this%gamx_,this%xxx_) device(targetdev)
+#else
+!$omp parallel do private(km,j,jm)
 #endif
     DO k=1,nz
       km = k-1
@@ -1299,8 +1301,8 @@ MODULE class_GPSplineInt
 !$omp                   map(this%px_,this%gamx_) device(targetdev)
     DO km=0,nz-1
 #else
-    DO k=1,nz
-    km = k-1
+!$omp parallel do collapse(2) private(jm,i)
+    DO km=0,nz-1
 #endif
       DO j=1,ny
         jm = j-1
@@ -1364,6 +1366,7 @@ MODULE class_GPSplineInt
         DO j=2,ny-2
           jm = j-1
 #else
+!$omp parallel do private(km,j,jm,i)
     DO k=1,nz
        km = k-1
        DO j=2,ny-2
@@ -1382,6 +1385,7 @@ MODULE class_GPSplineInt
          DO j=2,ny-2
            jm = j-1
 #else
+!$omp parallel do private(km,j,jm,i)
     DO k=1,nz
        km = k-1
        DO j=2,ny-2
@@ -1396,6 +1400,8 @@ MODULE class_GPSplineInt
 #if defined(DO_HYBRIDoffl)
 !$omp target teams loop collapse(1) private(i,km) map(this%ay_,this%zetay_,&
 !$omp                 this%bety_,this%gamy_,this%xxy_) device(targetdev)
+#else
+!$omp parallel do private(km,i)
 #endif
     DO k=1,nz
       km = k-1
@@ -1419,6 +1425,7 @@ MODULE class_GPSplineInt
         DO j=ny-2,1,-1
           jm = j-1
 #else
+!$omp parallel do private(km,j,jm,i)
     DO k=1,nz
       km = k-1
       DO j=ny-2,1,-1
@@ -1491,6 +1498,8 @@ MODULE class_GPSplineInt
     ENDDO
 #if defined(DO_HYBRIDoffl)
 !$omp target teams loop collapse(1) private(j,jm) device(targetdev)
+#else
+!$omp parallel do private(km,j,jm)
 #endif
     DO k=1,nz
       km = k-1
@@ -1505,8 +1514,8 @@ MODULE class_GPSplineInt
 !$omp                                             device(targetdev)
     DO km=0,nz-1
 #else
-    DO k=1,nz
-      km = k-1
+!$omp parallel do collapse(2) private(jm,i)
+    DO km=0,nz-1
 #endif
       DO j=1,ny
         jm = j-1
@@ -1520,8 +1529,8 @@ MODULE class_GPSplineInt
 !$omp target teams loop collapse(2) private(i,jm) map(this%xxz_) device(targetdev)
     DO km=0,nz-1
 #else
-    DO k=1,nz
-      km = k-1
+!$omp parallel do collapse(2) private(jm,i)
+    DO km=0,nz-1
 #endif
       DO j=1,ny
         jm = j-1
@@ -1535,6 +1544,8 @@ MODULE class_GPSplineInt
 #if defined(DO_HYBRIDoffl)
 !$omp target teams loop collapse(1) private(j,jm) map(this%az_,this%zetaz_,&
 !$omp                   this%betz_,this%gamz_,this%xxz_) device(targetdev)
+#else
+!$omp parallel do private(km,j,jm)
 #endif
     DO k=1,nz
       km = k-1
@@ -1559,8 +1570,8 @@ MODULE class_GPSplineInt
 !$omp                   map(this%pz_,this%gamz_) device(targetdev)
     DO jm=0,ny-1
 #else
-    DO j=1,ny
-      jm = j-1
+!$omp parallel do collapse(2) private(km,i)
+    DO jm=0,ny-1
 #endif
       DO k=1,nz
         km = k-1
