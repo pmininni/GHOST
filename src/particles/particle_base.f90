@@ -1423,6 +1423,10 @@ CONTAINS
       DO j = 1, npdb
         IF ( px(j).LT.0 ) THEN
           px(j) = px(j) + this%gext_(1)
+          ! p+L can round up to exactly L when p is a tiny negative
+          ! number, and L is outside [0,L): fold it to 0. The subtract
+          ! branch below is exact (Sterbenz) and needs no guard.
+          IF ( px(j).GE.this%gext_(1) ) px(j) = 0.0_GP
         ELSE IF ( px(j).GE.this%gext_(1) ) THEN
           px(j) = px(j) - this%gext_(1)
         ENDIF
@@ -1433,6 +1437,10 @@ CONTAINS
       DO j = 1, npdb
         IF ( py(j).LT.0 ) THEN
           py(j) = py(j) + this%gext_(2)
+          ! p+L can round up to exactly L when p is a tiny negative
+          ! number, and L is outside [0,L): fold it to 0. The subtract
+          ! branch below is exact (Sterbenz) and needs no guard.
+          IF ( py(j).GE.this%gext_(2) ) py(j) = 0.0_GP
         ELSE IF ( py(j).GE.this%gext_(2) ) THEN
           py(j) = py(j) - this%gext_(2)
         ENDIF
@@ -1443,6 +1451,10 @@ CONTAINS
       DO j = 1, npdb
         IF ( pz(j).LT.0 ) THEN
           pz(j) = pz(j) + this%gext_(3)
+          ! p+L can round up to exactly L when p is a tiny negative
+          ! number, and L is outside [0,L): fold it to 0. The subtract
+          ! branch below is exact (Sterbenz) and needs no guard.
+          IF ( pz(j).GE.this%gext_(3) ) pz(j) = 0.0_GP
         ELSE IF ( pz(j).GE.this%gext_(3) ) THEN
           pz(j) = pz(j) - this%gext_(3)
         ENDIF
@@ -1475,6 +1487,8 @@ CONTAINS
        IF (pz(j).LT.0) THEN
           pz(j)  =  pz(j) + this%gext_(3)
           tpz(j) = tpz(j) + this%gext_(3)
+          ! p+L can round up to exactly L for tiny negative p; fold to 0
+          IF (pz(j).GE.this%gext_(3)) pz(j) = 0.0_GP
        ELSE IF (pz(j).GE.this%gext_(3)) THEN
           pz(j)  =  pz(j) - this%gext_(3)
           tpz(j) = tpz(j) - this%gext_(3)
