@@ -1792,18 +1792,24 @@ CONTAINS
     CLASS(ParticleBase) ,INTENT(INOUT)                    :: this
     INTEGER      ,INTENT   (IN)                           :: ngvdb
     INTEGER                                               :: i,j,nll
+    INTEGER      ,ALLOCATABLE  ,DIMENSION(:)              :: sid
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%maxparts_) :: lx,ly,lz
     REAL(KIND=GP),INTENT   (IN),DIMENSION(3,ngvdb)        :: gvdb
     REAL(KIND=GP),INTENT   (IN),DIMENSION(3,ngvdb)        :: vgvdb
-    nll = 0
-    DO j = 1, ngvdb
-      IF ( gvdb(3,j).GE.this%lxbnds_(3,1) .AND. gvdb(3,j).LT.this%lxbnds_(3,2) ) THEN 
-        nll = nll + 1
-        lx (nll) = vgvdb(1,j)
-        ly (nll) = vgvdb(2,j)
-        lz (nll) = vgvdb(3,j)
-      ENDIF
+    ! Same deterministic two pass selection used by GetLocalWrk: the
+    ! records extracted here must pair, entry by entry, with the local
+    ! arrays that GetLocalWrk and GetLocalWrk_aux build from the same
+    ! VDB, so the ascending id order is required.
+    ALLOCATE(sid(ngvdb))
+    CALL SelectLocalIds(this%lxbnds_(3,1),this%lxbnds_(3,2),gvdb,ngvdb,sid,nll)
+!$omp parallel do private (i)
+    DO j = 1, nll
+      i = sid(j) + 1
+      lx (j) = vgvdb(1,i)
+      ly (j) = vgvdb(2,i)
+      lz (j) = vgvdb(3,i)
     ENDDO
+    DEALLOCATE(sid)
   END SUBROUTINE CopyLocalWrk
 
   

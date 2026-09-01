@@ -184,33 +184,30 @@ CONTAINS
       ! Step 1: Interpolate fluid velocity to lvx_, lvy_, lvz_
       rmp = 1.0_GP/(real(this%nd_(1),kind=GP)*real(this%nd_(2),kind=GP)* &
                     real(this%nd_(3),kind=GP))
-      !$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      !$omp parallel do collapse(2) private (k)
       do i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
         do j = 1,ny
-          do k = 1,nz
+          do concurrent (k=1:nz)
             velc(k,j,i) = fluidstate(pde%VELOCITY  )%ccomp(k,j,i)*rmp
           end do
         end do
       end do
       call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
       call this%EulerToLag(this%lvx_,this%nparts_,velr,.true. ,tmp1,tmp2)
-      !$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      !$omp parallel do collapse(2) private (k)
       do i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
         do j = 1,ny
-          do k = 1,nz
+          do concurrent (k=1:nz)
             velc(k,j,i) = fluidstate(pde%VELOCITY+1)%ccomp(k,j,i)*rmp
           end do
         end do
       end do
       call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
       call this%EulerToLag(this%lvy_,this%nparts_,velr,.false.,tmp1,tmp2)
-      !$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      !$omp parallel do collapse(2) private (k)
       do i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
         do j = 1,ny
-          do k = 1,nz
+          do concurrent (k=1:nz)
             velc(k,j,i) = fluidstate(pde%VELOCITY+2)%ccomp(k,j,i)*rmp
           end do
         end do
@@ -218,8 +215,14 @@ CONTAINS
       call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
       call this%EulerToLag(this%lvz_,this%nparts_,velr,.false.,tmp1,tmp2)
 
+      rep2_coef = this%traits_%nld_rep
+      ! One parallel region for the position, drag and gravity loops:
+      ! the team is forked once, and every thread takes the same
+      ! branches of the IFs.
+!$omp parallel private(dx,dy,dz,rep2,cdrag)
       ! Step 2: Position RHS: dx/dt = v_p
       ! (may overwrite pstate(POSITION) depending on the stepper call)
+!$omp do
       do j = 1,this%nparts_
         dpdtout(this%POSITION  )%rcomp(j)=pstate(this%VELOCITY  )%rcomp(j)*this%invdel_(1)
         dpdtout(this%POSITION+1)%rcomp(j)=pstate(this%VELOCITY+1)%rcomp(j)*this%invdel_(2)
@@ -230,6 +233,7 @@ CONTAINS
       ! (reads pstate(VELOCITY) before it may be overwritten by some steppers)
       if ( .not. this%traits_%donldrag ) then
         ! Linear Stokes drag
+!$omp do
         do j = 1,this%nparts_
           dpdtout(this%VELOCITY  )%rcomp(j) = &
             (this%lvx_(j) - pstate(this%VELOCITY  )%rcomp(j)) * invtau
@@ -244,7 +248,7 @@ CONTAINS
         !             + Re_p^2.16 / (57.14 * (Re_p^1.16 + 4.25e4))
         !   where Re_p^2 = rep2_coef * |u - v_p|^2,
         !         rep2_coef = 18 tau gamma / nu
-        rep2_coef = this%traits_%nld_rep
+!$omp do
         do j = 1,this%nparts_
           dx = this%lvx_(j) - pstate(this%VELOCITY  )%rcomp(j)
           dy = this%lvy_(j) - pstate(this%VELOCITY+1)%rcomp(j)
@@ -260,11 +264,13 @@ CONTAINS
 
       ! Add gravity in z-direction
       if ( this%traits_%dograv ) then
+!$omp do
         do j = 1,this%nparts_
           dpdtout(this%VELOCITY+2)%rcomp(j) = &
             dpdtout(this%VELOCITY+2)%rcomp(j) - grav
         end do
       endif
+!$omp end parallel
     class default
       stop "Inerpart: This solver does not support pdes without a velocity field"
     end select
@@ -481,33 +487,30 @@ CONTAINS
       rmp = 1.0_GP/(real(this%nd_(1),kind=GP)*real(this%nd_(2),kind=GP)* &
                     real(this%nd_(3),kind=GP))
       ! Interpolate fluid velocity to particle positions
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
       DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
         DO j = 1,ny
-          DO k = 1,nz
+          DO CONCURRENT (k=1:nz)
             velc(k,j,i) = fluidstate(pde%VELOCITY  )%ccomp(k,j,i)*rmp
           END DO
         END DO
       END DO
       CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
       CALL this%EulerToLag(this%lvx_,this%nparts_,velr,.true. ,tmp1,tmp2)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
       DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
         DO j = 1,ny
-          DO k = 1,nz
+          DO CONCURRENT (k=1:nz)
             velc(k,j,i) = fluidstate(pde%VELOCITY+1)%ccomp(k,j,i)*rmp
           END DO
         END DO
       END DO
       CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
       CALL this%EulerToLag(this%lvy_,this%nparts_,velr,.false.,tmp1,tmp2)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
       DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
         DO j = 1,ny
-          DO k = 1,nz
+          DO CONCURRENT (k=1:nz)
             velc(k,j,i) = fluidstate(pde%VELOCITY+2)%ccomp(k,j,i)*rmp
           END DO
         END DO
@@ -530,11 +533,10 @@ CONTAINS
 ! Write Lagrangian vorticity components
         CALL rotor3(fluidstate(pde%VELOCITY+1)%ccomp, &
                     fluidstate(pde%VELOCITY+2)%ccomp, velc, 1)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
-            DO k = 1,nz
+            DO CONCURRENT (k=1:nz)
               velc(k,j,i) = velc(k,j,i)*rmp
             END DO
           END DO
@@ -543,11 +545,10 @@ CONTAINS
         CALL this%EulerToLag(this%lvx_,this%nparts_,velr,.false.,tmp1,tmp2)
         CALL rotor3(fluidstate(pde%VELOCITY  )%ccomp, &
                     fluidstate(pde%VELOCITY+2)%ccomp, velc, 2)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
-            DO k = 1,nz
+            DO CONCURRENT (k=1:nz)
               velc(k,j,i) = velc(k,j,i)*rmp
             END DO
           END DO
@@ -556,11 +557,10 @@ CONTAINS
         CALL this%EulerToLag(this%lvy_,this%nparts_,velr,.false.,tmp1,tmp2)
         CALL rotor3(fluidstate(pde%VELOCITY  )%ccomp, &
                     fluidstate(pde%VELOCITY+1)%ccomp, velc, 3)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
-            DO k = 1,nz
+            DO CONCURRENT (k=1:nz)
               velc(k,j,i) = velc(k,j,i)*rmp
             END DO
           END DO
@@ -572,11 +572,10 @@ CONTAINS
         call this%workspace_%get_complex_tmp(velc2,bret)
         ! S11 = dv_x/dx
         CALL derivk3(fluidstate(pde%VELOCITY  )%ccomp, velc, 1)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
-            DO k = 1,nz
+            DO CONCURRENT (k=1:nz)
               velc(k,j,i) = velc(k,j,i)*rmp
             END DO
           END DO
@@ -586,11 +585,10 @@ CONTAINS
         ! S12 = 0.5*(dv_x/dy + dv_y/dx)
         CALL derivk3(fluidstate(pde%VELOCITY  )%ccomp, velc,  2)
         CALL derivk3(fluidstate(pde%VELOCITY+1)%ccomp, velc2, 1)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
-            DO k = 1,nz
+            DO CONCURRENT (k=1:nz)
               velc(k,j,i) = 0.5_GP*(velc(k,j,i)+velc2(k,j,i))*rmp
             END DO
           END DO
@@ -600,11 +598,10 @@ CONTAINS
         ! S13 = 0.5*(dv_x/dz + dv_z/dx)
         CALL derivk3(fluidstate(pde%VELOCITY  )%ccomp, velc,  3)
         CALL derivk3(fluidstate(pde%VELOCITY+2)%ccomp, velc2, 1)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
-            DO k = 1,nz
+            DO CONCURRENT (k=1:nz)
               velc(k,j,i) = 0.5_GP*(velc(k,j,i)+velc2(k,j,i))*rmp
             END DO
           END DO
@@ -613,11 +610,10 @@ CONTAINS
         CALL this%io_write_euler(1,this%odir_,'s13',lgext,time,velr,.false.,tmp1,tmp2)
         ! S22 = dv_y/dy
         CALL derivk3(fluidstate(pde%VELOCITY+1)%ccomp, velc, 2)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
-            DO k = 1,nz
+            DO CONCURRENT (k=1:nz)
               velc(k,j,i) = velc(k,j,i)*rmp
             END DO
           END DO
@@ -627,11 +623,10 @@ CONTAINS
         ! S23 = 0.5*(dv_y/dz + dv_z/dy)
         CALL derivk3(fluidstate(pde%VELOCITY+1)%ccomp, velc,  3)
         CALL derivk3(fluidstate(pde%VELOCITY+2)%ccomp, velc2, 2)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
           DO j = 1,ny
-            DO k = 1,nz
+            DO CONCURRENT (k=1:nz)
               velc(k,j,i) = 0.5_GP*(velc(k,j,i)+velc2(k,j,i))*rmp
             END DO
           END DO

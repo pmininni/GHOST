@@ -144,11 +144,10 @@ CONTAINS
       rmp = 1.0_GP/(real(psolver%nd_(1),kind=GP)*real(psolver%nd_(2),kind=GP)* &
                     real(psolver%nd_(3),kind=GP))
       do m = 1,pde%nc_
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
         do i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
           do j = 1,ny
-            do k = 1,nz
+            do concurrent (k=1:nz)
               velc(k,j,i) = fluidstate(pde%VELOCITY+m-1)%ccomp(k,j,i)*rmp
             end do
           end do
