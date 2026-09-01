@@ -652,9 +652,9 @@ MODULE class_GPSplineInt
 #endif
     DO j = 1, np
       this%klg_(1,j) = (zp(j)-this%xbnds_(3,1))*this%dxi_(3)
-      this%klg_(1,j) = max(min(this%klg_(1,j),kmax),kmin)
       this%zrk_  (j) = (zp(j)-this%xbnds_(3,1))*this%dxi_(3) &
                      - real(this%klg_(1,j),kind=GP)
+      this%klg_(1,j) = max(min(this%klg_(1,j)-1,kmax),kmin)
       this%klg_(2,j) = this%klg_(1,j) + 1
       this%klg_(3,j) = this%klg_(2,j) + 1
       this%klg_(4,j) = this%klg_(3,j) + 1
