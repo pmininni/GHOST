@@ -1771,7 +1771,7 @@ MODULE class_GPartComm
     INTEGER      ,INTENT   (IN)                   :: nbind,ntind
     INTEGER      ,INTENT   (IN),DIMENSION(:)      :: ibind,itind
     INTEGER      ,INTENT(INOUT),DIMENSION(:)      :: id
-    INTEGER                                       :: i,j,ngood
+    INTEGER                                       :: i,j,k,ngood
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(:)      :: px,py,pz
 
     IF ((nbind+ntind).EQ.0) RETURN ! Nothing to do if no particle is left
@@ -1783,17 +1783,33 @@ MODULE class_GPartComm
       id(itind(j)) = GPNULL
     ENDDO
 
+    ! Each hole below the new list length is filled with a particle
+    ! taken from the tail of the list, skipping tail entries that are
+    ! themselves holes. This does O(holes) work, where the previous
+    ! stable compaction copied the entire list to remove a handful of
+    ! particles, and at every stage with a crossing. The local order
+    ! after the exchange is therefore no longer ascending, but it is
+    ! deterministic, and the paired exchanges of the different arrays
+    ! use identical hole lists, so their orderings remain consistent
+    ! with each other; nothing downstream may assume ascending order
+    ! of the local list after an exchange (outputs are id-keyed).
     ngood = nparts - (nbind+ntind)
-    j     = 1
-    DO i = 1, ngood
-      DO WHILE (id(j).EQ.GPNULL)
-         j = j + 1
+    i     = nparts
+    DO j = 1, nbind+ntind
+      IF ( j.LE.nbind ) THEN
+        k = ibind(j)
+      ELSE
+        k = itind(j-nbind)
+      ENDIF
+      IF ( k.GT.ngood ) CYCLE      ! hole lies in the discarded tail
+      DO WHILE (id(i).EQ.GPNULL)
+         i = i - 1
       ENDDO
-      id(i) = id(j)
-      px(i) = px(j)
-      py(i) = py(j)
-      pz(i) = pz(j)
-      j = j + 1
+      id(k) = id(i)
+      px(k) = px(i)
+      py(k) = py(i)
+      pz(k) = pz(i)
+      i = i - 1
     ENDDO
     nparts = ngood
 
