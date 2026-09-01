@@ -270,13 +270,26 @@ MODULE class_GPSplineInt
 !$omp target data map(to:np,nx,ny,nz,nxy,sixth,four,three,six,half,halfm,threeh,    &
 !$omp                    two,this%dxi_) map(alloc:fp(1:np)) device(targetdev)
 #endif
+    IF(this%ider_(1).eq.0) xsm = 1.0_GP
+    IF(this%ider_(1).eq.1) xsm = 0.0_GP
+    IF(this%ider_(2).eq.0) ysm = 1.0_GP
+    IF(this%ider_(2).eq.1) ysm = 0.0_GP
+    IF(this%ider_(3).eq.0) zsm = 1.0_GP
+    IF(this%ider_(3).eq.1) zsm = 0.0_GP
+!
+! One parallel region for all the host loops below: each per-particle
+! loop is a worksharing DO inside it, so the team is forked once per
+! interpolation instead of once per loop. Every thread takes the same
+! branch of each IF, which is what worksharing inside them requires.
+#if !defined(DO_HYBRIDoffl)
+!$omp parallel
+#endif
     IF ( this%ider_(1).EQ.0 ) THEN
-    xsm=1.0_GP
 #if defined(DO_HYBRIDoffl)
 !$omp target teams distribute parallel do private(xx,xxm) map(this%wrkl_,this%xrk_)&
 !$omp                                         device(targetdev)
 #else
-!$omp parallel do private(xx,xxm)
+!$omp do private(xx,xxm)
 #endif
     DO lag=1,np
       xx = this%xrk_(lag)
@@ -288,12 +301,11 @@ MODULE class_GPSplineInt
     ENDIF
 !
     IF ( this%ider_(1).EQ.1 ) THEN
-    xsm=0.0_GP
 #if defined(DO_HYBRIDoffl)
 !$omp target teams distribute parallel do private(xx,xxm) map(this%wrkl_,this%xrk_)&
 !$omp                                                     device(targetdev)
 #else
-!$omp parallel do private(xx,xxm)
+!$omp do private(xx,xxm)
 #endif
     DO lag=1,np
       xx = this%xrk_(lag)
@@ -305,12 +317,11 @@ MODULE class_GPSplineInt
     ENDIF
 !
     IF ( this%ider_(2).EQ.0 ) THEN
-    ysm=1.0_GP
 #if defined(DO_HYBRIDoffl)
 !$omp target teams distribute parallel do private(yy,yym) map(this%wrkl_,this%yrk_)&
 !$omp                                                     device(targetdev)
 #else
-!$omp parallel do private(yy,yym)
+!$omp do private(yy,yym)
 #endif
     DO lag=1,np
       yy = this%yrk_(lag)
@@ -322,12 +333,11 @@ MODULE class_GPSplineInt
     ENDIF
 !
     IF( this%ider_(2).EQ.1 ) THEN
-    ysm=0.0_GP
 #if defined(DO_HYBRIDoffl)
 !$omp target teams distribute parallel do private(yy,yym) map(this%wrkl_,this%yrk_)&
 !$omp                                                     device(targetdev)
 #else
-!$omp parallel do private(yy,yym)
+!$omp do private(yy,yym)
 #endif
     DO lag=1,np
       yy = this%yrk_(lag)
@@ -339,12 +349,11 @@ MODULE class_GPSplineInt
     ENDIF
 !
     IF ( this%ider_(3).EQ.0 ) THEN
-    zsm=1.0_GP
 #if defined(DO_HYBRIDoffl)
 !$omp target teams distribute parallel do private(zz,zzm) map(this%wrkl_,this%zrk_)&
 !$omp                                                     device(targetdev)
 #else
-!$omp parallel do private(zz,zzm)
+!$omp do private(zz,zzm)
 #endif
     DO lag=1,np
       zz = this%zrk_(lag)
@@ -356,12 +365,11 @@ MODULE class_GPSplineInt
     ENDIF
 !
     IF( this%ider_(3).EQ.1 ) THEN
-    zsm=0.0
 #if defined(DO_HYBRIDoffl)
 !$omp target teams distribute parallel do private(zz,zzm) map(this%wrkl_,this%zrk_)&
 !$omp                                                     device(targetdev)
 #else
-!$omp parallel do private(zz,zzm)
+!$omp do private(zz,zzm)
 #endif
     DO lag=1,np
       zz = this%zrk_(lag)
@@ -372,19 +380,12 @@ MODULE class_GPSplineInt
     ENDDO
     ENDIF
 !
-    IF(this%ider_(1).eq.0) xsm = 1.0_GP
-    IF(this%ider_(1).eq.1) xsm = 0.0_GP
-    IF(this%ider_(2).eq.0) ysm = 1.0_GP
-    IF(this%ider_(2).eq.1) ysm = 0.0_GP
-    IF(this%ider_(3).eq.0) zsm = 1.0_GP
-    IF(this%ider_(3).eq.1) zsm = 0.0_GP
-!
 #if defined(DO_HYBRIDoffl)
 !$omp target teams distribute parallel do private(xx1,xx2,xx3,xx4,yy1,yy2,yy3,yy4,    &
 !$omp                                             zz1,zz2,zz3,zz4) map(to:xsm,ysm,zsm)&
 !$omp     map(this%wrkl_,this%ilg_,this%jlg_,this%klg_,this%esplfld_) device(targetdev)
 #else
-!$omp parallel do private(xx1,xx2,xx3,xx4,yy1,yy2,yy3,yy4,zz1,zz2,zz3,zz4)
+!$omp do private(xx1,xx2,xx3,xx4,yy1,yy2,yy3,yy4,zz1,zz2,zz3,zz4)
 #endif
     DO lag=1,np
       xx1 = this%wrkl_(1,lag)
@@ -472,6 +473,9 @@ MODULE class_GPSplineInt
       + this%esplfld_(this%ilg_(3,lag),this%jlg_(4,lag),this%klg_(4,lag))*xx3*yy4*zz4 &
       + this%esplfld_(this%ilg_(4,lag),this%jlg_(4,lag),this%klg_(4,lag))*xx4*yy4*zz4
    ENDDO
+#if !defined(DO_HYBRIDoffl)
+!$omp end parallel
+#endif
 #if defined(DO_HYBRIDoffl)
 !$omp target update from(fp(1:np))
 !$omp end target data
@@ -593,12 +597,17 @@ MODULE class_GPSplineInt
 !$omp target update to(this%ilg_,this%jlg_,this%klg_,                 &
 !$omp                  this%xrk_,this%yrk_,this%zrk_) device(targetdev)
 #endif
+! One parallel region for all the host loops below; each per-particle
+! loop is a worksharing DO inside it, so the team is forked once.
+#if !defined(DO_HYBRIDoffl)
+!$omp parallel private(btmp)
+#endif
     ! x-coords:
 #if defined(DO_HYBRIDoffl)
 !$omp target teams distribute parallel do map(to:np,nx,this%dxi_,this%xbnds_,xp(1:np))&
 !$omp                                     map(this%ilg_,this%xrk_) device(targetdev)
 #else
-!$omp parallel do 
+!$omp do
 #endif
     DO j = 1, np
       this%ilg_(1,j) = (xp(j)-this%xbnds_(1,1))*this%dxi_(1)
@@ -614,7 +623,7 @@ MODULE class_GPSplineInt
 !$omp target teams distribute parallel do map(to:np,ny,this%dxi_,this%xbnds_,yp(1:np))&
 !$omp                                     map(this%jlg_,this%yrk_) device(targetdev)
 #else
-!$omp parallel do 
+!$omp do
 #endif
     DO j = 1, np
       this%jlg_(1,j) = (yp(j)-this%xbnds_(2,1))*this%dxi_(2)
@@ -631,24 +640,21 @@ MODULE class_GPSplineInt
     ! before computing local indices and spline coordinates....
     ! 
     ! First, do a check:
+    ! The offending particle, if any, is reported after the parallel
+    ! region ends; a STOP may not sit inside a worksharing loop.
     bok = .true.
-!!!$omp parallel do private(btmp)
+#if !defined(DO_HYBRIDoffl)
+!$omp do reduction(.and.:bok)
+#endif
     DO j = 1, np
       btmp = (zp(j).GE.this%xbnds_(3,1).AND.zp(j).LT.this%xbnds_(3,2))
-!!!$omp critical
       bok = bok .AND. btmp
-!!!$omp end critical
-      IF ( .NOT. bok ) THEN
-        WRITE(*,*) this%rank_, ' GPSplineInt::PartUpdate3D: Invalid particle z-range'
-        WRITE(*,*) this%rank_, ' GPSplineInt::zbnd_0=',this%xbnds_(3,1),';  zbnd_1=',this%xbnds_(3,2), 'zp=',zp(j)
-        STOP
-      ENDIF
     ENDDO
 #if defined(DO_HYBRIDoffl)
 !$omp target teams distribute parallel do map(to:np,km,this%dxi_,this%xbnds_,zp(1:np))&
 !$omp                                     map(this%klg_,this%zrk_) device(targetdev)
 #else
-!$omp parallel do 
+!$omp do
 #endif
     DO j = 1, np
       this%klg_(1,j) = (zp(j)-this%xbnds_(3,1))*this%dxi_(3)
@@ -659,6 +665,18 @@ MODULE class_GPSplineInt
       this%klg_(3,j) = this%klg_(2,j) + 1
       this%klg_(4,j) = this%klg_(3,j) + 1
     ENDDO
+#if !defined(DO_HYBRIDoffl)
+!$omp end parallel
+#endif
+    IF ( .NOT. bok ) THEN
+      DO j = 1, np
+        IF ( .NOT.(zp(j).GE.this%xbnds_(3,1).AND.zp(j).LT.this%xbnds_(3,2)) ) THEN
+          WRITE(*,*) this%rank_, ' GPSplineInt::PartUpdate3D: Invalid particle z-range'
+          WRITE(*,*) this%rank_, ' GPSplineInt::zbnd_0=',this%xbnds_(3,1),';  zbnd_1=',this%xbnds_(3,2), 'zp=',zp(j)
+          STOP
+        ENDIF
+      ENDDO
+    ENDIF
 #if defined(DO_HYBRIDoffl)
 !$omp target update from(this%ilg_,this%jlg_,this%klg_,this%xrk_,this%yrk_,this%zrk_)&
 !$omp               device(targetdev)

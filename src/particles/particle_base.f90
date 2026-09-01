@@ -1403,24 +1403,28 @@ CONTAINS
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)         :: px,py,pz
     INTEGER                                          :: j
 
+! One parallel region for the three directions; every thread sees the
+! same idir, so all of them take the same branches of the IFs.
+!$omp parallel
     IF ( btest(idir,0) ) THEN
-!$omp parallel do 
+!$omp do
       DO j = 1, npdb
         px(j) = modulo(px(j)+2.0*this%gext_(1),this%gext_(1))
       ENDDO
     ENDIF
     IF ( btest(idir,1) ) THEN
-!$omp parallel do 
+!$omp do
       DO j = 1, npdb
         py(j) = modulo(py(j)+2.0*this%gext_(2),this%gext_(2))
       ENDDO
     ENDIF
     IF ( btest(idir,2) ) THEN
-!$omp parallel do 
+!$omp do
       DO j = 1, npdb
         pz(j) = modulo(pz(j)+2.0*this%gext_(3),this%gext_(3))
       ENDDO
     ENDIF
+!$omp end parallel
   END SUBROUTINE MakePeriodicP
 
   
@@ -1544,6 +1548,87 @@ CONTAINS
 
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!  METHOD     : SelectLocalIds
+  !!  DESCRIPTION: Builds the list of the particles whose z position
+  !!               in gvdb lies in [zlo,zhi), in ascending id order.
+  !!               The ascending order is what every consumer of the
+  !!               local arrays assumes (CopyLocalWrk and the io
+  !!               scatter helpers walk the VDB in ascending order),
+  !!               so it must be deterministic: the previous version
+  !!               of this selection, threaded with the counter in a
+  !!               critical section, filled the arrays in whatever
+  !!               order the threads arrived, which mislabeled
+  !!               particles. The selection here is done in two
+  !!               passes, so each thread counts the matches of its
+  !!               contiguous chunk and then writes them at its
+  !!               offset: the result is identical to a sequential
+  !!               ascending scan for any number of threads (and for
+  !!               builds without OpenMP), and it is also faster than
+  !!               both the sequential scan and the old critical
+  !!               section version.
+  !!  ARGUMENTS  :
+  !!    zlo,zhi : z-slab bounds; a particle is local if
+  !!              zlo <= gvdb(3,j) < zhi
+  !!    gvdb    : global VDB with particle position records
+  !!    ngvdb   : no. records in gvdb
+  !!    id      : on output, id(1:nl) holds the 0-based ids of the
+  !!              local particles, ascending
+  !!    nl      : no. local particles found
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SUBROUTINE SelectLocalIds(zlo,zhi,gvdb,ngvdb,id,nl)
+    USE fprecision
+!$  USE omp_lib
+    IMPLICIT NONE
+    REAL(KIND=GP),INTENT   (IN)                    :: zlo,zhi
+    INTEGER      ,INTENT   (IN)                    :: ngvdb
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(3,ngvdb) :: gvdb
+    INTEGER      ,INTENT(INOUT),DIMENSION(*)       :: id
+    INTEGER      ,INTENT  (OUT)                    :: nl
+    INTEGER                                        :: j,k,t,lo,hi,chunk,ntmax
+    INTEGER                                        :: nthr
+    INTEGER      ,ALLOCATABLE  ,DIMENSION(:)       :: cnt,base
+
+    ntmax = 1
+!$  ntmax = omp_get_max_threads()
+    ALLOCATE(cnt(0:ntmax-1),base(0:ntmax-1))
+    nthr = 1
+!$omp parallel private(t,j,k,lo,hi,chunk) shared(cnt,base,nthr)
+!$omp single
+!$  nthr = omp_get_num_threads()
+!$omp end single
+    t = 0
+!$  t = omp_get_thread_num()
+    chunk = (ngvdb+nthr-1)/nthr
+    lo = t*chunk + 1
+    hi = MIN(ngvdb,(t+1)*chunk)
+    ! Pass 1: each thread counts the matches in its chunk
+    k = 0
+    DO j = lo, hi
+      IF ( gvdb(3,j).GE.zlo .AND. gvdb(3,j).LT.zhi ) k = k + 1
+    ENDDO
+    cnt(t) = k
+!$omp barrier
+!$omp single
+    base(0) = 0
+    DO j = 1, nthr-1
+      base(j) = base(j-1) + cnt(j-1)
+    ENDDO
+!$omp end single
+    ! Pass 2: each thread writes its matches at its offset
+    k = base(t)
+    DO j = lo, hi
+      IF ( gvdb(3,j).GE.zlo .AND. gvdb(3,j).LT.zhi ) THEN
+        k = k + 1
+        id(k) = j - 1
+      ENDIF
+    ENDDO
+!$omp end parallel
+    nl = base(nthr-1) + cnt(nthr-1)
+    DEALLOCATE(cnt,base)
+  END SUBROUTINE SelectLocalIds
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!  METHOD     : GetLocalWrk
   !!  DESCRIPTION: Removes from PDB NULL particles, concatenates list,
   !!               and sets new number of particles
@@ -1574,22 +1659,18 @@ CONTAINS
     REAL(KIND=GP),INTENT   (IN),DIMENSION(3,ngvdb)         :: gvdb
     REAL(KIND=GP),INTENT   (IN),DIMENSION(3,ngvdb),OPTIONAL:: gfill
     IF ( .NOT.present(gfill) ) THEN
-      nl = 0
       id = GPNULL
-!$omp parallel do 
-      DO j = 1, ngvdb
-        IF ( gvdb(3,j).GE.this%lxbnds_(3,1) .AND. gvdb(3,j).LT.this%lxbnds_(3,2) ) THEN 
-!$omp critical
-          nl = nl + 1
-          id (nl) = j-1
-          lx (nl) = gvdb(1,j)
-          ly (nl) = gvdb(2,j)
-          lz (nl) = gvdb(3,j)
-!$omp end critical
-        ENDIF
+      ! Deterministic (ascending id) selection of the local particles
+      CALL SelectLocalIds(this%lxbnds_(3,1),this%lxbnds_(3,2),gvdb,ngvdb,id,nl)
+!$omp parallel do private (i)
+      DO j = 1, nl
+        i = id(j) + 1
+        lx (j) = gvdb(1,i)
+        ly (j) = gvdb(2,i)
+        lz (j) = gvdb(3,i)
       ENDDO
     ELSE
-!$omp parallel do 
+!$omp parallel do
       DO j = 1, nl
         lx (j) = gfill(1,id(j)+1)
         ly (j) = gfill(2,id(j)+1)
@@ -1631,22 +1712,18 @@ CONTAINS
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%maxparts_) :: lx,ly,lz
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%maxparts_) :: tx,ty,tz
     REAL(KIND=GP),INTENT   (IN),DIMENSION(3,ngvdb)        :: gvdb,gtmp
-    nl = 0
     id = GPNULL
-!$omp parallel do 
-    DO j = 1, ngvdb
-      IF ( gvdb(3,j).GE.this%lxbnds_(3,1) .AND. gvdb(3,j).LT.this%lxbnds_(3,2) ) THEN 
-!$omp critical
-        nl = nl + 1
-        id (nl) = j-1
-        lx (nl) = gvdb(1,j)
-        ly (nl) = gvdb(2,j)
-        lz (nl) = gvdb(3,j)
-        tx (nl) = gtmp(1,j)
-        ty (nl) = gtmp(2,j)
-        tz (nl) = gtmp(3,j)
-!$omp end critical
-      ENDIF
+    ! Deterministic (ascending id) selection of the local particles
+    CALL SelectLocalIds(this%lxbnds_(3,1),this%lxbnds_(3,2),gvdb,ngvdb,id,nl)
+!$omp parallel do private (i)
+    DO j = 1, nl
+      i = id(j) + 1
+      lx (j) = gvdb(1,i)
+      ly (j) = gvdb(2,i)
+      lz (j) = gvdb(3,i)
+      tx (j) = gtmp(1,i)
+      ty (j) = gtmp(2,i)
+      tz (j) = gtmp(3,i)
     ENDDO
   END SUBROUTINE GetLocalWrk_aux
 
