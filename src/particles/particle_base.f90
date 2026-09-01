@@ -1483,12 +1483,19 @@ CONTAINS
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(npdb)      :: pz,tpz
     INTEGER                                          :: j
 !$omp parallel do 
+    ! Unlike MakePeriodicP, a result of p+L that rounds up to exactly L
+    ! must NOT be folded to zero here. This routine wraps particles the
+    ! NN exchange has just delivered to the opposite end of the domain,
+    ! and the particle stays on the receiving task: on the task that
+    ! owns the top of the box the seam must be represented as z=L,
+    ! which lies inside its ghost-extended interpolation range, while
+    ! z=0 does not. The VDB exchange, which re-bins ownership from the
+    ! coordinate value, needs the opposite convention and gets it from
+    ! MakePeriodicP.
     DO j = 1,npdb
        IF (pz(j).LT.0) THEN
           pz(j)  =  pz(j) + this%gext_(3)
           tpz(j) = tpz(j) + this%gext_(3)
-          ! p+L can round up to exactly L for tiny negative p; fold to 0
-          IF (pz(j).GE.this%gext_(3)) pz(j) = 0.0_GP
        ELSE IF (pz(j).GE.this%gext_(3)) THEN
           pz(j)  =  pz(j) - this%gext_(3)
           tpz(j) = tpz(j) - this%gext_(3)
