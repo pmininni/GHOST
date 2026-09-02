@@ -58,8 +58,8 @@ module gstepperbase_mod
       import :: GStepperBase, GStateComp, GP
       class(GStepperBase), intent(inout) :: this
       real      (kind=GP), intent   (in) :: time, dt
-      type   (GStateComp), intent(inout) :: uin(:),uf(:)
-      type   (GStateComp), intent(inout) :: uout(:) 
+      type   (GStateComp), intent(inout), target :: uin(:),uf(:)
+      type   (GStateComp), intent(inout), target :: uout(:) 
     end subroutine step_interface
 
     subroutine pstep_interface(this, time, uin, upin, dt, upout)

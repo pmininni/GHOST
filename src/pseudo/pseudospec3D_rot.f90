@@ -109,7 +109,7 @@ MODULE pseudospec_aniso
 !$omp parallel private (k,kmn,tmq,tmr) reduction(+:Ek,Ekh,Ekv)
 !$omp do
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq,tmr)
+               DO k = 1,nz
                   kmn = int(abs(kz(k))*Lz+1)
                   IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                      tmq = (abs(a(k,j,1))**2+abs(b(k,j,1))**2)*tmp
@@ -124,7 +124,7 @@ MODULE pseudospec_aniso
 !$omp do collapse(2)
             DO i = 2,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq,tmr)
+                  DO k = 1,nz
                      kmn = int(abs(kz(k))*Lz+1)
                      IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                         tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2)*tmp
@@ -142,7 +142,7 @@ MODULE pseudospec_aniso
 !$omp parallel do collapse(2) private (k,kmn,tmq,tmr) reduction(+:Ek,Ekh,Ekv)
             DO i = ista,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq,tmr)
+                  DO k = 1,nz
                      kmn = int(abs(kz(k))*Lz+1)
                      IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                         tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2)*tmp
@@ -163,7 +163,7 @@ MODULE pseudospec_aniso
 !$omp parallel private (k,kmn,tmq,tmr) reduction(+:Ek,Ekh,Ekv)
 !$omp do
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq,tmr)
+               DO k = 1,nz
                   kmn = int(abs(kz(k))*Lz+1)
                   IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                      tmq = (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2)*tmp
@@ -179,7 +179,7 @@ MODULE pseudospec_aniso
 !$omp do collapse(2)
             DO i = 2,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq,tmr)
+                  DO k = 1,nz
                      kmn = int(abs(kz(k))*Lz+1)
                      IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                         tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2)*tmp
@@ -197,7 +197,7 @@ MODULE pseudospec_aniso
 !$omp parallel do collapse(2) private (k,kmn,tmq,tmr) reduction(+:Ek,Ekh,Ekv)
             DO i = ista,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq,tmr)
+                  DO k = 1,nz
                      kmn = int(abs(kz(k))*Lz+1)
                      IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                         tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2)*tmp
@@ -249,7 +249,7 @@ MODULE pseudospec_aniso
 !$omp parallel private (k,kmn,tmq,tmr) reduction(+:Ek,Ekh,Ekv)
 !$omp do
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq,tmr)
+               DO k = 1,nz
                   kmn = int(abs(kz(k))*Lz+1)
                   IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                      tmq = (real(a(k,j,1)*conjg(c1(k,j,1)))+            &
@@ -265,7 +265,7 @@ MODULE pseudospec_aniso
 !$omp do collapse(2)
             DO i = 2,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq,tmr)
+                  DO k = 1,nz
                      kmn = int(abs(kz(k))*Lz+1)
                      IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                         tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+       &
@@ -284,7 +284,7 @@ MODULE pseudospec_aniso
 !$omp parallel do collapse(2) private (k,kmn,tmq,tmr) reduction(+:Ek,Ekh,Ekv)
             DO i = ista,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq,tmr)
+                  DO k = 1,nz
                      kmn = int(abs(kz(k))*Lz+1)
                      IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                         tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+       &
@@ -428,7 +428,7 @@ MODULE pseudospec_aniso
 !$omp end do
 !$omp do
             DO i = 2,iend
-               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq,tmr)
+               DO j = 1,ny
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      tmq = 2*(abs(a(1,j,i))**2+abs(b(1,j,i))**2)*tmp
@@ -449,7 +449,7 @@ MODULE pseudospec_aniso
           ELSE
 !$omp parallel do private (j,k,kmn,tmq,tmr) reduction(+:Ekp,Ekz,Ek)
             DO i = ista,iend
-               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq,tmr)
+               DO j = 1,ny
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      tmq = 2*(abs(a(1,j,i))**2+abs(b(1,j,i))**2)*tmp
@@ -491,7 +491,7 @@ MODULE pseudospec_aniso
 !$omp end do
 !$omp do
             DO i = 2,iend
-               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq,tmr)
+               DO j = 1,ny
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      tmq = 2*(abs(c1(1,j,i))**2+abs(c2(1,j,i))**2)*tmp
@@ -512,7 +512,7 @@ MODULE pseudospec_aniso
          ELSE
 !$omp parallel do private (j,k,kmn,tmq,tmr) reduction(+:Ekp,Ekz,Ek)
             DO i = ista,iend
-               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq,tmr)
+               DO j = 1,ny
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      tmq = 2*(abs(c1(1,j,i))**2+abs(c2(1,j,i))**2)*tmp
@@ -587,7 +587,7 @@ MODULE pseudospec_aniso
 !$omp end do
 !$omp do
             DO i = 2,iend
-               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq,tmr)
+               DO j = 1,ny
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      tmq = 2*(real(a(1,j,i)*conjg(c1(1,j,i)))+         &
@@ -610,7 +610,7 @@ MODULE pseudospec_aniso
          ELSE
 !$omp parallel do private (j,k,kmn,tmq,tmr) reduction(+:Ekp,Ekz,Ek)
             DO i = ista,iend
-               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq,tmr)
+               DO j = 1,ny
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      tmq = 2*(real(a(1,j,i)*conjg(c1(1,j,i)))+         &
@@ -725,7 +725,7 @@ MODULE pseudospec_aniso
 !$omp parallel private (k,kmn,tmq) reduction(+:Ek)
 !$omp do
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+               DO k = 1,nz
                   kmn = int(abs(kz(k))*Lz+1)
                   IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                      tmq = (real(a(k,j,1)*conjg(d(k,j,1)))+         &
@@ -739,7 +739,7 @@ MODULE pseudospec_aniso
 !$omp do collapse(2)
             DO i = 2,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                  DO k = 1,nz
                      kmn = int(abs(kz(k))*Lz+1)
                      IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                         tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+    &
@@ -756,7 +756,7 @@ MODULE pseudospec_aniso
 !$omp parallel do collapse(2) private (k,kmn,tmq) reduction(+:Ek)
             DO i = ista,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                  DO k = 1,nz
                      kmn = int(abs(kz(k))*Lz+1)
                      IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                         tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+    &
@@ -776,7 +776,7 @@ MODULE pseudospec_aniso
 !$omp parallel private (k,kmn,tmq) reduction(+:Ek)
 !$omp do
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+               DO k = 1,nz
                   kmn = int(abs(kz(k))*Lz+1)
                   IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                      tmq = kk2(k,j,1) *                             &
@@ -791,7 +791,7 @@ MODULE pseudospec_aniso
 !$omp do collapse(2)
             DO i = 2,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                  DO k = 1,nz
                      kmn = int(abs(kz(k))*Lz+1)
                      IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                         tmq = 2*kk2(k,j,i) *                        &
@@ -809,7 +809,7 @@ MODULE pseudospec_aniso
 !$omp parallel do collapse(2) private (k,kmn,tmq) reduction(+:Ek)
             DO i = ista,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                  DO k = 1,nz
                      kmn = int(abs(kz(k))*Lz+1)
                      IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
                         tmq = 2*kk2(k,j,i)*                         &
@@ -926,7 +926,7 @@ MODULE pseudospec_aniso
 !$omp end do
 !$omp do
             DO i = 2,iend
-               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq)
+               DO j = 1,ny
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz
@@ -943,7 +943,7 @@ MODULE pseudospec_aniso
          ELSE
 !$omp parallel do private (j,k,kmn,tmq) reduction(+:Ek)
             DO i = ista,iend
-               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq)
+               DO j = 1,ny
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz
@@ -978,7 +978,7 @@ MODULE pseudospec_aniso
 !$omp end do
 !$omp do
             DO i = 2,iend
-               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq)
+               DO j = 1,ny
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz
@@ -996,7 +996,7 @@ MODULE pseudospec_aniso
          ELSE
 !$omp parallel do private (j,k,kmn,tmq) reduction(+:Ek)
             DO i = ista,iend
-               DO CONCURRENT (j=1:ny) LOCAL(k,kmn,tmq)
+               DO j = 1,ny
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz
@@ -1404,7 +1404,7 @@ MODULE pseudospec_aniso
 !$omp end do
 !$omp do
             DO i = 2,iend
-               DO CONCURRENT (j=1:ny) LOCAL(k,kmz,kmn,tmq)
+               DO j = 1,ny
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz
@@ -1423,7 +1423,7 @@ MODULE pseudospec_aniso
          ELSE
 !$omp parallel do private (j,k,kmz,kmn,tmq) reduction(+:Ek)
             DO i = ista,iend
-               DO CONCURRENT (j=1:ny) LOCAL(k,kmz,kmn,tmq)
+               DO j = 1,ny
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz
@@ -1461,7 +1461,7 @@ MODULE pseudospec_aniso
 !$omp end do
 !$omp do
             DO i = 2,iend
-               DO CONCURRENT (j=1:ny) LOCAL(k,kmz,kmn,tmq)
+               DO j = 1,ny
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz
@@ -1480,7 +1480,7 @@ MODULE pseudospec_aniso
          ELSE
 !$omp parallel do private (j,k,kmz,kmn,tmq) reduction(+:Ek)
             DO i = ista,iend
-               DO CONCURRENT (j=1:ny) LOCAL(k,kmz,kmn,tmq)
+               DO j = 1,ny
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz
@@ -1544,7 +1544,7 @@ MODULE pseudospec_aniso
 !$omp end do
 !$omp do
             DO i = 2,iend
-               DO CONCURRENT (j=1:ny) LOCAL(k,kmz,kmn,tmq)
+               DO j = 1,ny
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz
@@ -1564,7 +1564,7 @@ MODULE pseudospec_aniso
          ELSE
 !$omp parallel do private (j,k,kmz,kmn,tmq) reduction(+:Ek)
             DO i = ista,iend
-               DO CONCURRENT (j=1:ny) LOCAL(k,kmz,kmn,tmq)
+               DO j = 1,ny
                   kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                   IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                      DO k = 1,nz

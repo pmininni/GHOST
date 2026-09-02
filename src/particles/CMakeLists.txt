@@ -1,19 +1,13 @@
-# Path to generated Fortran files
-set(GEN_SPLINE ${CMAKE_BINARY_DIR}/gpsplineint_mod.f90)
-
 add_library(particles_lib STATIC
   pstatus_mod.f90
   gpdbrec_mod.f90
   gpartcomm_mod.f90
-  ${GEN_SPLINE}
+  gpsplineint_mod.F90
   particle_base.f90
   lagpart_solver.f90
   inerpart_solver.f90
   particle_factory.f90
 )
-
-# Mark generated files
-set_source_files_properties(${GEN_SPLINE} PROPERTIES GENERATED TRUE)
 
 target_include_directories(particles_lib PUBLIC
   "$<TARGET_PROPERTY:project_fft,INTERFACE_INCLUDE_DIRECTORIES>"

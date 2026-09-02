@@ -46,8 +46,12 @@
 
       INTEGER, INTENT(INOUT) :: err
 
-!$    CALL GPMANGLE(init_threads)(err)
+#if defined(_OPENMP)
+      CALL GFFTW_INIT_THREADS(err)
       IF (err.eq.0) PRINT *,'FFTP threads initialization failed!'
+#else
+      err = 1
+#endif
 
       RETURN
       END SUBROUTINE fftp3d_init_threads
@@ -86,22 +90,24 @@
       ALLOCATE ( plan%ccarr(n(3),n(2),ista:iend)    )
       ALLOCATE ( plan%carr(n(1)/2+1,n(2),ksta:kend) )
       ALLOCATE ( plan%rarr(n(1),n(2),ksta:kend)     )
-!$    CALL GPMANGLE(plan_with_nthreads)(nth)
+#if defined(_OPENMP)
+      CALL GFFTW_PLAN_WITH_NTHREADS(nth)
+#endif
 
       IF (fftdir.eq.FFTW_REAL_TO_COMPLEX) THEN
-      CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/n(1),n(2)/),    &
+      CALL GFFTW_PLAN_MANY_DFT_R2C(plan%planr,2,(/n(1),n(2)/),    &
                          kend-ksta+1,plan%rarr,                       &
                          (/n(1),n(2)*(kend-ksta+1)/),1,n(1)*n(2),     &
                          plan%carr,(/n(1)/2+1,n(2)*(kend-ksta+1)/),1, &
                          (n(1)/2+1)*n(2),flags)
       ELSE
-      CALL GPMANGLE(plan_many_dft_c2r)(plan%planr,2,(/n(1),n(2)/),    &
+      CALL GFFTW_PLAN_MANY_DFT_C2R(plan%planr,2,(/n(1),n(2)/),    &
                          kend-ksta+1,plan%carr,                       &
                          (/n(1)/2+1,n(2)*(kend-ksta+1)/),1,           &
                          (n(1)/2+1)*n(2),plan%rarr,                   &
                          (/n(1),n(2)*(kend-ksta+1)/),1,n(1)*n(2),flags)
       ENDIF
-      CALL GPMANGLE(plan_many_dft)(plan%planc,1,n(3),n(2)*(iend-ista+1), &
+      CALL GFFTW_PLAN_MANY_DFT(plan%planc,1,n(3),n(2)*(iend-ista+1), &
                          plan%ccarr,(iend-ista+1)*n(2)*n(3),1,n(3),      &
                          plan%ccarr,(iend-ista+1)*n(2)*n(3),1,n(3),      &
                          fftdir,flags)
@@ -136,8 +142,8 @@
 
       TYPE(FFTPLAN), INTENT(INOUT) :: plan
 
-      CALL GPMANGLE(destroy_plan)(plan%planr)
-      CALL GPMANGLE(destroy_plan)(plan%planc)
+      CALL GFFTW_DESTROY_PLAN(plan%planr)
+      CALL GFFTW_DESTROY_PLAN(plan%planc)
       DEALLOCATE( plan%ccarr  )
       DEALLOCATE( plan%carr   )
       DEALLOCATE( plan%rarr   )
@@ -218,14 +224,15 @@
       USE mpivars
       USE fftplans
       USE gtimer
+      USE gdevice
 !$    USE threads
       IMPLICIT NONE
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
 
-      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(plan%nz,plan%ny,ista:iend) :: out 
-      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%ny,plan%nz)              :: c1
-      REAL(KIND=GP)   , INTENT(IN), DIMENSION(plan%nx,plan%ny,ksta:kend)  :: in
+      COMPLEX(KIND=GP), INTENT(OUT), TARGET, DIMENSION(plan%nz,plan%ny,ista:iend) :: out 
+      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%ny,plan%nz)                      :: c1
+      REAL(KIND=GP)   , INTENT(IN), TARGET, DIMENSION(plan%nx,plan%ny,ksta:kend)  :: in
 
       TYPE(MPI_Request), DIMENSION(0:nprocs-1) :: ireq1,ireq2
       TYPE(MPI_Status)                         :: istatus
@@ -237,12 +244,21 @@
       INTEGER :: istrip,iproc
 
 !
-! 2D FFT in each node using the FFTW library
+! In offload builds the fields live on the device while gdev_active
+! is set. This backend transforms on the host: the input is staged
+! to its host copy first and the result is sent back to the device
+! at the end (the fftp-gpu backend transforms on the device instead).
 !
       CALL GTStart(htot)
-
+#if defined(GHOST_GPU)
+      IF (gdev_active) CALL gdev_update_from(C_LOC(in),                &
+                            INT(SIZE(in),C_SIZE_T)*INT(STORAGE_SIZE(in)/8,C_SIZE_T))
+#endif
+!
+! 2D FFT in each node using the FFTW library
+!
       CALL GTStart(hfft)
-      CALL GPMANGLE(execute_dft_r2c)(plan%planr,in,plan%carr)
+      CALL GFFTW_EXECUTE_DFT_R2C(plan%planr,in,plan%carr)
       CALL GTStop(hfft); 
 
 !
@@ -302,8 +318,12 @@
 ! 1D FFT in each node using the FFTW library
 !
       CALL GTStart(hfft)
-      CALL GPMANGLE(execute_dft)(plan%planc,out,out)
+      CALL GFFTW_EXECUTE_DFT(plan%planc,out,out)
       CALL GTStop(hfft); 
+#if defined(GHOST_GPU)
+      IF (gdev_active) CALL gdev_update_to(C_LOC(out),                 &
+                            INT(SIZE(out),C_SIZE_T)*INT(STORAGE_SIZE(out)/8,C_SIZE_T))
+#endif
 
       CALL GTStop(htot); 
      
@@ -338,14 +358,15 @@
       USE commtypes
       USE fftplans
       USE gtimer
+      USE gdevice
 !$    USE threads
       IMPLICIT NONE
 
       TYPE(FFTPLAN), INTENT(IN) :: plan
 
-      COMPLEX(KIND=GP), INTENT(IN) , DIMENSION(plan%nz,plan%ny,ista:iend) :: in 
-      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%ny,plan%nz)              :: c1
-      REAL(KIND=GP)   , INTENT(OUT), DIMENSION(plan%nx,plan%ny,ksta:kend) :: out
+      COMPLEX(KIND=GP), INTENT(IN) , TARGET, DIMENSION(plan%nz,plan%ny,ista:iend) :: in 
+      COMPLEX(KIND=GP), DIMENSION(ista:iend,plan%ny,plan%nz)                      :: c1
+      REAL(KIND=GP)   , INTENT(OUT), TARGET, DIMENSION(plan%nx,plan%ny,ksta:kend) :: out
 
       TYPE(MPI_Request), DIMENSION(0:nprocs-1) :: ireq1,ireq2
       TYPE(MPI_Status)                         :: istatus
@@ -357,12 +378,18 @@
       INTEGER :: istrip,iproc
 
 !
-! 1D FFT in each node using the FFTW library
-
+! Staging of the input from the device, see fftp3d_real_to_complex
+!
       CALL GTStart(htot)
-
+#if defined(GHOST_GPU)
+      IF (gdev_active) CALL gdev_update_from(C_LOC(in),                &
+                            INT(SIZE(in),C_SIZE_T)*INT(STORAGE_SIZE(in)/8,C_SIZE_T))
+#endif
+!
+! 1D FFT in each node using the FFTW library
+!
       CALL GTStart(hfft)
-      CALL GPMANGLE(execute_dft)(plan%planc,in,in)
+      CALL GFFTW_EXECUTE_DFT(plan%planc,in,in)
       CALL GTStop(hfft); 
 
 !
@@ -420,8 +447,12 @@
 ! 2D FFT in each node using the FFTW library
 !
       CALL GTStart(hfft)
-      CALL GPMANGLE(execute_dft_c2r)(plan%planr,plan%carr,out)
+      CALL GFFTW_EXECUTE_DFT_C2R(plan%planr,plan%carr,out)
       CALL GTStop(hfft); 
+#if defined(GHOST_GPU)
+      IF (gdev_active) CALL gdev_update_to(C_LOC(out),                 &
+                            INT(SIZE(out),C_SIZE_T)*INT(STORAGE_SIZE(out)/8,C_SIZE_T))
+#endif
       
       CALL GTStop(htot); 
 

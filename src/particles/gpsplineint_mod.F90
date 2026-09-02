@@ -30,7 +30,7 @@ MODULE class_GPSplineInt
       USE fprecision
       USE class_GPartComm
       USE gtimer
-!$    USE offloading
+!$    USE gdevice
 !$    USE, INTRINSIC :: iso_c_binding
       IMPLICIT NONE
   

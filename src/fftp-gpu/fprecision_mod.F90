@@ -6,16 +6,14 @@
 !=================================================================
 
 !=================================================================
-      INCLUDE 'mkl_dfti.f90'
 
   MODULE fprecision
-      USE MKL_DFTI
+!
+! 
 #if defined(GDOUBLE_PRECISION)
       INTEGER, PARAMETER :: GP = KIND(0.0D0)
-      INTEGER, PARAMETER :: GP_FFT_PREC = DFTI_DOUBLE
 #elif defined(GSINGLE_PRECISION)
       INTEGER, PARAMETER :: GP = KIND(0.0)
-      INTEGER, PARAMETER :: GP_FFT_PREC = DFTI_SINGLE
 #else
 #  error 'MODULE FPRECISION: PRECISION must be GDOUBLE_PRECISION or GSINGLE_PRECISION'
 #endif
@@ -27,15 +25,15 @@
 !=================================================================
 
   MODULE commtypes
-      INCLUDE 'mpif.h'
+     USE mpi_f08
 !
 ! 
 #if defined(GDOUBLE_PRECISION)
-      INTEGER, SAVE :: GC_REAL    = MPI_DOUBLE_PRECISION
-      INTEGER, SAVE :: GC_COMPLEX = MPI_DOUBLE_COMPLEX
+      TYPE(mpi_datatype), SAVE :: GC_REAL    = MPI_DOUBLE_PRECISION
+      TYPE(mpi_datatype), SAVE :: GC_COMPLEX = MPI_DOUBLE_COMPLEX
 #elif defined(GSINGLE_PRECISION)
-      INTEGER, SAVE :: GC_REAL    = MPI_REAL
-      INTEGER, SAVE :: GC_COMPLEX = MPI_COMPLEX
+      TYPE(mpi_datatype), SAVE :: GC_REAL    = MPI_REAL
+      TYPE(mpi_datatype), SAVE :: GC_COMPLEX = MPI_COMPLEX
 #else
 #  error 'MODULE COMMTYPES: PRECISION must be GDOUBLE_PRECISION or GSINGLE_PRECISION'
 #endif

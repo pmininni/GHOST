@@ -234,7 +234,7 @@ contains
     implicit none
 
     class(GExRKStepper), intent(inout) :: this
-    type   (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
+    type   (GStateComp), intent(inout), target :: uin(:), uf(:), uout(:)
     real      (kind=GP), intent   (in) :: time, dt
        
     if ( size(uin) .ne. this%traits_%nstate &
@@ -360,7 +360,7 @@ contains
    
     ! Compute stage data:
     do m = 1, this%traits_%nstage
-      this%utmp_ = uin                 ! set temp state
+      call GState_copy(this%utmp_, uin) ! set temp state
       do j = 1, m-1                    ! utmp = utmp + h beta K_j
         do n = 1, this%traits_%nstate  ! set utmp components
           call saxpby_c(this%utmp_(n)%ccomp, this%utmp_(n)%ccomp,    &
@@ -373,7 +373,7 @@ contains
     enddo ! stage m loop
 
     ! Combine stages to get step update:
-    uout = uin
+    call GState_copy(uout, uin)
     do m = 1, this%traits_%nstage  
       do n = 1, this%traits_%nstate    ! uout = uout + h * c_m * K_m
         call saxpby_c(uout(n)%ccomp, uout(n)%ccomp, 1.0_GP,          &

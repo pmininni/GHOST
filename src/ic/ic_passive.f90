@@ -192,7 +192,7 @@ CONTAINS
 !$omp parallel do collapse(2) private (i,tmp)
       DO k = ksta,kend
          DO j = 1,ny
-            DO CONCURRENT (i=1:nx) LOCAL(tmp)
+            DO i = 1,nx
               tmp = (real(i-1,kind=GP)/real(nx-1,kind=GP)-x0(n-solver%PASSIVE+1))**2 &
                   + (real(j-1,kind=GP)/real(ny-1,kind=GP)-y0(n-solver%PASSIVE+1))**2 &
                   + (real(k-1,kind=GP)/real(nz-1,kind=GP)-z0(n-solver%PASSIVE+1))**2 

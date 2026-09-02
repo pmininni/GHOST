@@ -31,6 +31,7 @@ module class_GWorkspace3D
   USE fprecision
   USE mpivars
   USE grid
+  USE gmem
 
   IMPLICIT NONE
   PRIVATE
@@ -86,6 +87,13 @@ module class_GWorkspace3D
     final             :: cleanup_pool
   end type GWorkspace
 
+  ! The workspace of the run. GHOST has one pool; this pointer lets
+  ! the pseudospectral routines, which have no access to the solver
+  ! objects, take their field-sized temporaries from it instead of
+  ! declaring automatic arrays (which would not exist on the device).
+  ! It is set by initialize_pool.
+  CLASS(GWorkspace), POINTER, PUBLIC, SAVE :: gws => null()
+
 CONTAINS
 
   ! ===================================================================
@@ -97,7 +105,7 @@ CONTAINS
   ! number of arrays.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine initialize_pool(this, num_real, num_complex, num_pcomp)
-    CLASS(GWorkspace), intent(inout) :: this
+    CLASS(GWorkspace), intent(inout), target :: this
     integer          , intent(in)    :: num_real
     integer          , intent(in)    :: num_complex
     integer, optional, intent(in)    :: num_pcomp
@@ -127,17 +135,19 @@ CONTAINS
 
     ! Initialize Real entries
     do i = 1, this%real_size_
-      ! Allocate the derived type contained array
-      ALLOCATE(this%real_entries_(i)%array(nx, ny, ksta:kend))
+      ! Allocate the derived type contained array (and its device copy)
+      call galloc(this%real_entries_(i)%array, nx, ny, ksta, kend)
       this%real_entries_(i)%is_free = .TRUE.
     end do
 
     ! Initialize Complex entries
     do i = 1, this%complex_size_
-      ! Allocate the derived type contained array
-      ALLOCATE(this%complex_entries_(i)%array(nz, ny, ista:iend))
+      ! Allocate the derived type contained array (and its device copy)
+      call galloc(this%complex_entries_(i)%array, nz, ny, ista, iend)
       this%complex_entries_(i)%is_free = .TRUE.
     end do
+
+    gws => this
 
     ! PComp: create slots only, no array allocation yet.
     if (this%pcomp_size_ > 0) then
@@ -221,12 +231,19 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine cleanup_pool(this)
     TYPE(GWorkspace), intent(inout) :: this
+    integer :: i
 
     if (ALLOCATED(this%real_entries_)) THEN
+      do i = 1, this%real_size_
+        call gfree(this%real_entries_(i)%array)
+      end do
       DEALLOCATE(this%real_entries_)
       this%real_size_ = 0
     end if
     if (ALLOCATED(this%complex_entries_)) THEN
+      do i = 1, this%complex_size_
+        call gfree(this%complex_entries_(i)%array)
+      end do
       DEALLOCATE(this%complex_entries_)
       this%complex_size_ = 0
     end if
@@ -263,7 +280,7 @@ CONTAINS
       
       ! Allocate the remaining arrays
       do i = this%real_size_+1,this%real_size_+num_new
-        ALLOCATE(this%real_entries_(i)%array(nx, ny, ksta:kend))
+        call galloc(this%real_entries_(i)%array, nx, ny, ksta, kend)
         this%real_entries_(i)%is_free = .TRUE.
       end do
       this%ncurr_realreserve_ = this%nreserve_
@@ -272,7 +289,7 @@ CONTAINS
       
       ! Have enough reserves left to fill:
       do i = this%real_size_+1,this%real_size_+num_new
-        ALLOCATE(this%real_entries_(i)%array(nx, ny, ksta:kend))
+        call galloc(this%real_entries_(i)%array, nx, ny, ksta, kend)
         this%real_entries_(i)%is_free = .TRUE.
         this%ncurr_realreserve_ = this%ncurr_realreserve_ - 1
       end do
@@ -308,7 +325,7 @@ CONTAINS
       
       ! Allocate the remaining arrays
       do i = this%complex_size_+1,this%complex_size_+num_new
-        ALLOCATE(this%complex_entries_(i)%array(nz, ny, ista:iend))
+        call galloc(this%complex_entries_(i)%array, nz, ny, ista, iend)
         this%complex_entries_(i)%is_free = .TRUE.
       end do
       this%ncurr_complexreserve_ = this%nreserve_
@@ -317,7 +334,7 @@ CONTAINS
       
       ! Have enough reserves left to fill:
       do i = this%complex_size_+1,this%complex_size_+num_new
-        ALLOCATE(this%complex_entries_(i)%array(nz, ny, ista:iend))
+        call galloc(this%complex_entries_(i)%array, nz, ny, ista, iend)
         this%complex_entries_(i)%is_free = .TRUE.
         this%ncurr_complexreserve_ = this%ncurr_complexreserve_ - 1
       end do

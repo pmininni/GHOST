@@ -71,7 +71,7 @@ Most users can skip this section and move on to compilation in Sec.
 # ----------------------- Options / variants ----------------------
 option(P_HYBRID "Enable hybrid OpenMP"       OFF)
 set(PRECISION "SINGLE" CACHE STRING "Precision (SINGLE or DOUBLE)")
-set(FFTP "fftp-3"      CACHE STRING "FFT library (fftp-3, fftp-mkl)")
+set(FFTP "fftp-3"      CACHE STRING "FFT library (fftp-3, fftp-gpu, fftp-mkl)")
 set(IOLIB "mpiio"      CACHE STRING "IO library (mpiio)")
 -------------------------------------------------------------------
 
@@ -151,6 +151,62 @@ For the hybrid code to scale properly, processor affinity and/or
 binding are crucial. How to set processor affinity and binding is 
 platform dependent; check the platform documentation where you are 
 running for more information.
+
+3.3.1 GPU offload
+
+GHOST can offload the field computations to GPUs with OpenMP target
+directives. The build is selected with
+
+-------------------------------------------------------------------
+cmake .. -DP_GPU=ON -DGPU_VENDOR=AMD -DGPU_ARCH=gfx90a
+cmake .. -DP_GPU=ON -DGPU_VENDOR=NVIDIA -DGPU_ARCH=cc80
+-------------------------------------------------------------------
+
+P_GPU implies P_HYBRID (the host parts of the code stay threaded).
+The offload build needs a compiler with OpenMP offload support for
+Fortran: nvfortran (NVIDIA GPUs of compute capability 7.0 or newer,
+GPU_ARCH=ccXX) or flang (AMD GPUs with the ROCm flang, GPU_ARCH=gfxXXX;
+NVIDIA GPUs with an upstream LLVM flang built with the NVPTX backend,
+GPU_ARCH=sm_XX). gfortran builds the host versions only. The MPI
+library must be built with the same compiler and, for performance,
+must be GPU-aware (UCX with the ROCm or CUDA transports). The vendor
+runtime is found through the ROCM_PATH or CUDA_HOME environment
+variables (or -DROCM_PATH=, -DCUDA_PATH=).
+
+At run time GHOST binds each MPI task to the GPU number
+rank modulo (GPUs per node), so the number of tasks per node must be
+a multiple of the number of GPUs per node (one task per GPU is the
+intended configuration). All field arrays (states, workspace,
+wavenumbers) are allocated through src/memmgt/gmem_mod.f90, which
+creates a device copy of every array; the fields live on the device
+during the time step and their host copies are refreshed only for
+output. See src/memmgt/gdevice_mod.f90 for the details. The kernels
+are written twice, as OpenMP target regions for the offload build and
+as threaded loops for the host build, selected with
+#if defined(GHOST_GPU). For the moment only the HD solver (with
+passive scalars) runs on the device; particles are not supported in
+offload builds.
+
+The FFTs of the offload build are computed by the fftp-gpu backend
+(src/fftp-gpu, selected automatically with P_GPU): cuFFT or hipFFT on
+the device, with the slab exchange done by packing the blocks on the
+device into contiguous messages handed to a GPU-aware MPI library.
+The host path of the same backend uses FFTW, so the FFTs of the
+initial conditions and of the diagnostics, which run on the host
+copies, are the same as in fftp-3. If the MPI library is not
+GPU-aware, set the environment variable GHOST_GPU_EXCHANGE=staged to
+move the exchange buffers through the host (slower). The transforms
+are unnormalized and produce the same layout as fftp-3, so the two
+backends are interchangeable; results differ only by round-off.
+
+With ROCm, GPU-aware MPI performs best with OMPI_MCA_pml=ucx and
+UCX_TLS=rocm_copy,rocm_ipc,sm,self.
+
+Note for flang builds: flang places automatic arrays on the stack
+whatever their size, and the diagnostic routines (energy, spectra,
+etc.) still declare field-sized automatic arrays, so runs at large
+resolution need an unlimited stack size (ulimit -s unlimited, or the
+equivalent in the batch script).
 
 3.4 About the solvers:
 

@@ -7,7 +7,9 @@ add_dependencies(BOOTS pseudo_lib)
 target_link_libraries(BOOTS
     PRIVATE
         project_includes
+        project_gpu
         pseudo_lib
+        utils_lib
         mpiio_lib
 )
 
@@ -29,8 +31,8 @@ add_dependencies(ghost_python stepper_lib)
 target_link_libraries(ghost_python
     PRIVATE
         project_includes
+        project_gpu
         mpiio_lib
-        memmgt_lib
         particles_lib
         ic_lib
         force_lib

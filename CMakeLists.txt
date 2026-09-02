@@ -6,9 +6,14 @@
 # "cmake .. -DCMAKE_PREFIX_PATH=/opt/openmpi-5.0.10 -DFFTW3_ROOT=/opt/fftw-3.3.10"
 # Compilers can be declared in bash using "export CC=gcc;export FC=gfortran"
 # You can define an install dir using -DCMAKE_INSTALL_PREFIX=/foo
+# -DBIN_DIR=/foo/bin and -DLIB_DIR=/foo/lib place the executables and the
+# Python library elsewhere than GHOST/bin and GHOST/lib (useful to keep
+# several builds).
 # Other Options:
 # -DPRECISION=SINGLE(default)/DOUBLE
 # -DP_HYBRID=ON (multithreaded, default: OFF)
+# -DP_GPU=ON -DGPU_VENDOR=NVIDIA|AMD -DGPU_ARCH=<arch> (OpenMP offload,
+#    default: OFF; needs nvfortran or flang, see src/README)
 # -------------------------------------------------------------------
 
 cmake_minimum_required(VERSION 3.12)
@@ -18,9 +23,13 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 include(UserConfig.cmake)
 
 # -------------------------- Directories -----------------------------
+# All Fortran sources go through the preprocessor: the offload build
+# selects host or device loops with #if defined(GHOST_GPU) blocks.
+set(CMAKE_Fortran_PREPROCESS ON)
+
 set(SRC_DIR "${CMAKE_SOURCE_DIR}/src")
-set(BIN_DIR "${CMAKE_SOURCE_DIR}/bin")
-set(LIB_DIR "${CMAKE_SOURCE_DIR}/lib")
+set(BIN_DIR "${CMAKE_SOURCE_DIR}/bin" CACHE PATH "Directory for the executables")
+set(LIB_DIR "${CMAKE_SOURCE_DIR}/lib" CACHE PATH "Directory for the Python library")
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}" ${CMAKE_MODULE_PATH})
 file(MAKE_DIRECTORY "${BIN_DIR}")
 
@@ -39,9 +48,13 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES "NVHPC")
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3")
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
-    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -flto -funroll-loops \
+    # No LTO: it needs the gold plugin or lld and cannot build the shared
+    # Python library with some flang versions, for little gain here
+    # -fPIC explicitly: CMake does not apply POSITION_INDEPENDENT_CODE
+    # to flang, and the Python library is shared
+    set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -funroll-loops -fPIC \
            -Wno-incompatible-implicit-interfaces")
-    endif()
+endif()
 
 # ----------------------- Hybrid OpenMP ------------------------------
 # P_HYBRID enables the hybrid MPI/OpenMP build. Besides the threaded
@@ -50,8 +63,25 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
 # fftp3d_init_threads and plan_with_nthreads: without it the FFTs run
 # on a single thread. The flags are set globally, like the per-compiler
 # options above, so that every library in the build tree gets them.
+if(P_GPU AND NOT P_HYBRID)
+    set(P_HYBRID ON CACHE BOOL "Enable hybrid OpenMP" FORCE)
+    message(STATUS "P_GPU implies P_HYBRID: hybrid OpenMP enabled")
+endif()
 if(P_HYBRID)
-    find_package(OpenMP REQUIRED COMPONENTS Fortran C)
+    find_package(OpenMP COMPONENTS Fortran C)
+    if(NOT OpenMP_Fortran_FOUND)
+        # CMake's detection test fails with some flang versions although
+        # the compiler supports OpenMP with the usual flag
+        if(CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
+            set(OpenMP_Fortran_FLAGS "-fopenmp")
+            message(STATUS "OpenMP detection failed, assuming -fopenmp for flang")
+        else()
+            message(FATAL_ERROR "OpenMP is required for P_HYBRID and was not found")
+        endif()
+    endif()
+    if(NOT OpenMP_C_FOUND AND CMAKE_C_COMPILER_ID MATCHES "Clang")
+        set(OpenMP_C_FLAGS "-fopenmp")
+    endif()
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OpenMP_Fortran_FLAGS}")
     set(CMAKE_C_FLAGS       "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
     message(STATUS "Hybrid OpenMP enabled (${OpenMP_Fortran_FLAGS})")
@@ -59,32 +89,82 @@ else()
     message(STATUS "Hybrid OpenMP disabled; use -DP_HYBRID=ON to enable")
 endif()
 
-# ---------------------- Preprocessing function ----------------------
-# Preprocess .fpp → .f90 using the C preprocessor (in the build tree)
-function(preprocess_fpp OUTVAR FPP_PATH)
-    get_filename_component(fname "${FPP_PATH}" NAME_WE)
-    set(out "${CMAKE_BINARY_DIR}/${fname}.f90")
-    add_custom_command(
-        OUTPUT "${out}"
-        COMMAND ${CMAKE_C_COMPILER} -E
-            -DCSIZE_=${CSIZE} -DNSTRIP_=${NSTRIP}
-            -DG${PRECISION}_PRECISION "${FPP_PATH}" -o "${out}"
-        DEPENDS "${FPP_PATH}"
-        COMMENT "Preprocessing ${fname}.fpp → build/${fname}.f90"
-        VERBATIM
-    )
-    set(${OUTVAR} "${out}" PARENT_SCOPE)
-endfunction()
+# ----------------------- GPU offload --------------------------------
+# P_GPU compiles the field kernels as OpenMP target regions and keeps
+# the field arrays resident on the device (see src/memmgt/gdevice_mod
+# and src/README). The macros GHOST_GPU and GPU_<VENDOR> select the
+# device code paths and the vendor runtime entry points. Every library
+# gets the flags because kernels are spread over several of them.
+add_library(project_gpu INTERFACE)
+if(P_GPU)
+    if(NOT GPU_VENDOR MATCHES "^(NVIDIA|AMD)$")
+        message(FATAL_ERROR "GPU_VENDOR must be NVIDIA or AMD (got '${GPU_VENDOR}')")
+    endif()
+    if(GPU_ARCH STREQUAL "")
+        message(FATAL_ERROR "P_GPU needs GPU_ARCH (e.g. cc80 or sm_80 for NVIDIA, gfx90a for AMD)")
+    endif()
+    add_compile_definitions(GHOST_GPU GPU_${GPU_VENDOR})
+    if(CMAKE_Fortran_COMPILER_ID MATCHES "NVHPC")
+        set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -mp=gpu -gpu=${GPU_ARCH}")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mp=gpu -gpu=${GPU_ARCH}")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -mp=gpu -gpu=${GPU_ARCH}")
+    elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
+        # flang checks directives against OpenMP 3.1 unless told otherwise
+        set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} --offload-arch=${GPU_ARCH} -fopenmp-version=52")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fopenmp --offload-arch=${GPU_ARCH}")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fopenmp --offload-arch=${GPU_ARCH}")
+    else()
+        message(FATAL_ERROR "P_GPU needs nvfortran or flang (got ${CMAKE_Fortran_COMPILER_ID})")
+    endif()
+    # Vendor runtime, used by the allocator (hipMalloc/cudaMalloc) and
+    # for device synchronization. FFT libraries are added by the FFTP
+    # backend.
+    if(GPU_VENDOR STREQUAL "AMD")
+        set(ROCM_PATH "$ENV{ROCM_PATH}" CACHE PATH "ROCm install prefix")
+        find_library(GPU_RUNTIME_LIB NAMES amdhip64 HINTS ${ROCM_PATH}/lib REQUIRED)
+    else()
+        set(CUDA_PATH "$ENV{CUDA_HOME}" CACHE PATH "CUDA install prefix")
+        find_library(GPU_RUNTIME_LIB NAMES cudart HINTS ${CUDA_PATH}/lib64
+                     ${CUDA_PATH}/lib64/stubs REQUIRED)
+    endif()
+    target_link_libraries(project_gpu INTERFACE ${GPU_RUNTIME_LIB})
+    message(STATUS "GPU offload enabled: ${GPU_VENDOR} ${GPU_ARCH}, runtime ${GPU_RUNTIME_LIB}")
+else()
+    message(STATUS "GPU offload disabled; use -DP_GPU=ON to enable")
+endif()
+
+# ---------------------- Preprocessor definitions --------------------
+# The .F90 sources are preprocessed by the Fortran compiler itself
+# (CMAKE_Fortran_PREPROCESS is on for all sources); these definitions
+# select the precision and the parameters of the parallel FFT.
+add_compile_definitions(CSIZE_=${CSIZE} NSTRIP_=${NSTRIP} G${PRECISION}_PRECISION)
 
 # ---------------------- MPI (Fortran) -------------------------------
-find_package(MPI REQUIRED Fortran)
+# When the Fortran compiler is an MPI wrapper (mpifort, mpif90) MPI
+# comes with it and CMake's detection is not needed (it fails with
+# some compilers, e.g. flang with offload flags).
 add_library(project_mpi INTERFACE)
-target_include_directories(project_mpi INTERFACE ${MPI_Fortran_INCLUDE_DIRS})
-target_link_libraries(project_mpi INTERFACE ${MPI_Fortran_LIBRARIES})
+if(CMAKE_Fortran_COMPILER MATCHES "mpif")
+    message(STATUS "Fortran compiler is an MPI wrapper: ${CMAKE_Fortran_COMPILER}")
+else()
+    find_package(MPI REQUIRED Fortran)
+    target_include_directories(project_mpi INTERFACE ${MPI_Fortran_INCLUDE_DIRS})
+    target_link_libraries(project_mpi INTERFACE ${MPI_Fortran_LIBRARIES})
+endif()
 
 # ---------------------- FFT libraries -------------------------------
+# fftp-3 uses FFTW on the host; fftp-gpu adds cuFFT or hipFFT on the
+# device and keeps FFTW for the host path, so both need FFTW. With
+# P_GPU the default backend is fftp-gpu.
 add_library(project_fft INTERFACE)
-if(FFTP STREQUAL "fftp-3")
+if(P_GPU AND FFTP STREQUAL "fftp-3")
+    set(FFTP "fftp-gpu" CACHE STRING "FFT library (fftp-3, fftp-gpu, fftp-mkl)" FORCE)
+    message(STATUS "P_GPU: using the fftp-gpu backend")
+endif()
+if(FFTP STREQUAL "fftp-gpu" AND NOT P_GPU)
+    message(FATAL_ERROR "FFTP=fftp-gpu requires -DP_GPU=ON")
+endif()
+if(FFTP STREQUAL "fftp-3" OR FFTP STREQUAL "fftp-gpu")
     list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}")
     find_package(FFTW3 REQUIRED)
     target_include_directories(project_fft INTERFACE ${FFTW3_INCLUDE_DIRS})
@@ -108,6 +188,19 @@ if(FFTP STREQUAL "fftp-3")
         target_link_libraries(project_fft INTERFACE ${FFTW3F_LIBRARIES} m)
     else()
         target_link_libraries(project_fft INTERFACE ${FFTW3_LIBRARIES} m)
+    endif()
+    if(FFTP STREQUAL "fftp-gpu")
+        if(GPU_VENDOR STREQUAL "AMD")
+            find_library(GPU_FFT_LIB NAMES hipfft HINTS ${ROCM_PATH}/lib REQUIRED)
+        else()
+            # cuFFT is in the CUDA toolkit or, with the NVIDIA HPC SDK,
+            # in its math_libs tree next to the cuda directory
+            file(GLOB _nv_mathlibs "${CUDA_PATH}/../../math_libs/*/lib64")
+            find_library(GPU_FFT_LIB NAMES cufft HINTS ${CUDA_PATH}/lib64
+                         ${CUDA_PATH}/../../math_libs/lib64 ${_nv_mathlibs} REQUIRED)
+        endif()
+        target_link_libraries(project_fft INTERFACE ${GPU_FFT_LIB})
+        message(STATUS "Device FFT: ${GPU_FFT_LIB}")
     endif()
 elseif(FFTP STREQUAL "fftp-mkl")
     set(MKLDIR "" CACHE PATH "MKL root")
@@ -170,27 +263,13 @@ add_subdirectory("${SRC_DIR}/icpart")
 add_subdirectory("${SRC_DIR}/steppers")
 add_subdirectory("${SRC_DIR}/tools")
 
-# ---------------------- Preprocess FPP sources ----------------------
-preprocess_fpp(GUTILS_SRC   "${SRC_DIR}/utils/gutils_mod.fpp")
-preprocess_fpp(SPLINE_SRC   "${SRC_DIR}/particles/gpsplineint_mod.fpp")
-preprocess_fpp(PRECIS_SRC   "${SRC_DIR}/${FFTP}/fprecision_mod.fpp")
-preprocess_fpp(FFTMOD_SRC   "${SRC_DIR}/${FFTP}/fftp_mod.fpp")
-preprocess_fpp(FFTP3D_SRC   "${SRC_DIR}/${FFTP}/fftp3D.fpp")
-preprocess_fpp(MAIN_SRC     "${SRC_DIR}/main.fpp")
-
-add_custom_target(project_preprocess
-    DEPENDS "${GUTILS_SRC}" "${SPLINE_SRC}" "${PRECIS_SRC}"
-    "${FFTMOD_SRC}" "${FFTP3D_SRC}"
-)   
-
 # ---------------------- Main executable ------------------------------
-add_executable(GHOST ${MAIN_SRC})
-add_dependencies(GHOST project_preprocess)
+add_executable(GHOST "${SRC_DIR}/main.F90")
 target_link_libraries(GHOST
     PRIVATE
         project_includes
+        project_gpu
         mpiio_lib
-        memmgt_lib
         particles_lib
         ic_lib
         force_lib

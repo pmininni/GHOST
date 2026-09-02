@@ -3,9 +3,7 @@
 ! Parallel Fast Fourier Transform in 3D
 !
 ! Performs parallel real-to-complex and complex-to-real FFTs 
-! using MPI and INTEL MKL library in each node. Can offload FFTs
-! to GPUs when OpenMP >= 5.0 is available, and the code is 
-! compiled with offloading options.  You should use the FFTPLANS
+! using MPI and INTEL MKL library in each node. You should use the FFTPLANS
 ! and MPIVARS modules (see the file 'fftp_mod.f90') in each 
 ! program that calls any of the subroutines in this file. Also, 
 ! you must create plans for the parallel FFT using the 
@@ -31,7 +29,6 @@
 !-----------------------------------------------------------------
 
 !$    USE threads
-!$    USE offloading
       IMPLICIT NONE
 
       INTEGER, INTENT(INOUT) :: err
@@ -41,10 +38,6 @@
 !$       err = 1
 !$       fft_threads = .true.  
 !$    ENDIF
-#if defined(DO_HYBRIDoffl)
-!$    err = 0
-!$    fft_threads = .false.
-#endif
       
       RETURN
       END SUBROUTINE fftp3d_init_threads
@@ -72,7 +65,6 @@
       USE mpivars
       USE fftplans
 !$    USE threads
-!$    USE offloading
       USE gtimer
       IMPLICIT NONE
 
@@ -109,9 +101,6 @@
         dfterr = DftiSetValue(plan%planr,DFTI_OUTPUT_DISTANCE,          &
                        2*(n(1)/2+1)*n(2))
       ENDIF
-#if defined(DO_HYBRIDoffl)
-!$omp dispatch device(targetdev)
-#endif
       dfterr = DftiCommitDescriptor(plan%planr)
       dfterr = DftiCreateDescriptor(plan%planc,GP_FFT_PREC,DFTI_COMPLEX,&
                        1,[n(3)])
@@ -127,9 +116,6 @@
       dfterr = DftiSetValue(plan%planc,DFTI_OUTPUT_STRIDES,             &
                        [0,1,n(3)])
       dfterr = DftiSetValue(plan%planc,DFTI_OUTPUT_DISTANCE,n(3))
-#if defined(DO_HYBRIDoffl)
-!$omp dispatch device(targetdev)
-#endif
       dfterr = DftiCommitDescriptor(plan%planc)
      
       plan%nx = n(1)
@@ -244,7 +230,6 @@
       USE fftplans
       USE gtimer
 !$    USE threads
-!$    USE offloading
       USE, INTRINSIC :: iso_c_binding
       IMPLICIT NONE
 
@@ -272,14 +257,7 @@
       CALL GTStart(hfft)
       CALL C_F_POINTER(C_LOC(in),p_carr,shape=[plan%nx/2,plan%ny,kend-ksta+1])
       carr(1:plan%nx/2,:,:) = p_carr
-#if defined(DO_HYBRIDoffl)
-!$omp target data map(to:plan%planr) map(tofrom:carr) device(targetdev)
-!$omp dispatch device(targetdev)
-#endif
       dfterr = DftiComputeForward(plan%planr,carr(:,1,ksta))
-#if defined(DO_HYBRIDoffl)
-!$omp end target data
-#endif
       CALL GTStop(hfft); 
 !
 ! Transposes the result between nodes using 
@@ -313,12 +291,7 @@
 ! Cache friendly transposition
 !
       CALL GTStart(htra)
-#if defined(DO_HYBRIDoffl)
-!$omp target data map(to:plan%planc,ista,iend,plan%ny,plan%nz) map(from:out) device(targetdev)
-!$omp target teams loop collapse(3) private(i,j,k) device(targetdev)
-#else
 !$omp parallel loop collapse(3) private (i,j,k)
-#endif
       DO ii = ista,iend,csize
          DO jj = 1,plan%ny,csize
             DO kk = 1,plan%nz,csize
@@ -337,14 +310,8 @@
 ! 1D FFT in each node using the FFTW library
 !
       CALL GTStart(hfft)
-#if defined(DO_HYBRIDoffl)
-!$omp dispatch device(targetdev)
-#endif
       dfterr = DftiComputeForward(plan%planc,out(:,1,ista))
       CALL GTStop(hfft);
-#if defined(DO_HYBRIDoffl)
-!$omp end target data
-#endif
       CALL GTStop(htot); 
      
       ! Update local accumulated timers:
@@ -379,7 +346,6 @@
       USE fftplans
       USE gtimer
 !$    USE threads
-!$    USE offloading
       USE, INTRINSIC :: iso_c_binding
       IMPLICIT NONE
 
@@ -409,10 +375,6 @@
 
       ALLOCATE( carr(plan%nx/2+1,plan%ny,ksta:kend) )
       CALL GTStart(hfft)
-#if defined(DO_HYBRIDoffl)
-!$omp target data map(to:in,plan%planr,plan%planc,ista,iend,plan%ny,plan%nz) map(from:c1) device(targetdev)
-!$omp dispatch device(targetdev)
-#endif
       dfterr = DftiComputeBackward(plan%planc,in(:,1,ista))
       CALL GTStop(hfft); 
 !
@@ -420,11 +382,7 @@
 !
       CALL GTStart(htra)
 
-#if defined(DO_HYBRIDoffl)
-!$omp target teams loop collapse(3) private(i,j,k) device(targetdev)
-#else
 !$omp parallel loop collapse(3) private (i,j,k)
-#endif
       DO ii = ista,iend,csize
          DO jj = 1,plan%ny,csize
             DO kk = 1,plan%nz,csize
@@ -438,9 +396,6 @@
             END DO
          END DO
       END DO
-#if defined(DO_HYBRIDoffl)
-!$omp end target data
-#endif
       CALL GTStop(htra)
 !
 ! Transposes the result between nodes using 
@@ -473,14 +428,7 @@
 ! 2D FFT in each node using the FFTW library
 !
       CALL GTStart(hfft)
-#if defined(DO_HYBRIDoffl)
-!$omp target data map(to:plan%planr) map(tofrom:carr) device(targetdev)
-!$omp dispatch device(targetdev)
-#endif
       dfterr = DftiComputeBackward(plan%planr,carr(:,1,ksta))
-#if defined(DO_HYBRIDoffl)
-!$omp end target data
-#endif
       CALL C_F_POINTER(C_LOC(carr), rarr,                     &
                        shape=[2*(plan%nx/2+1),plan%ny,kend-ksta+1])
       out = rarr(1:plan%nx,:,:)

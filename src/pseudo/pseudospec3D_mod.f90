@@ -98,6 +98,7 @@
       USE grid
       USE kes
       USE ali
+      USE gmem
 !$    USE threads
       IMPLICIT NONE
 
@@ -133,11 +134,14 @@
          Dkz = 1.0_GP/Lz
       ENDIF
       IF (Dkk.lt.1e-5) Dkk = min(Dkx,Dky,Dkz)
-      ! Allocates arrays with wavenumbers
-      ALLOCATE( kx(nx), ky(ny), kz(nz) )
-      ALLOCATE( kn2(nz,ny,ista:iend) )
+      ! Allocates arrays with wavenumbers (with their device copies
+      ! in offload builds; the kernels read them from the device)
+      CALL galloc( kx, nx )
+      CALL galloc( ky, ny )
+      CALL galloc( kz, nz )
+      CALL galloc( kn2, nz, ny, ista, iend )
       IF ( anis ) THEN
-         ALLOCATE( kk2(nz,ny,ista:iend) )
+         CALL galloc_ptr( kk2, nz, ny, ista, iend )
       ELSE
          kk2 => kn2
       ENDIF
@@ -201,6 +205,12 @@
             END DO
          END DO
       ENDIF
+      ! Device copies of the wavenumbers (no-op in host builds)
+      CALL gupdate_to( kx )
+      CALL gupdate_to( ky )
+      CALL gupdate_to( kz )
+      CALL gupdate_to( kn2 )
+      IF ( anis ) CALL gupdate_to( kk2 )
       END SUBROUTINE box_init
 
   END MODULE boxsize

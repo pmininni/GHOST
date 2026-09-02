@@ -26,6 +26,7 @@
 
 module canuto_stepper_mod
   use gstepperbase_mod
+  use gdevice, only: gdev_active
   implicit none
 
   ! ================= Global parameters ===============================
@@ -103,11 +104,12 @@ contains
     implicit none
 
     class(CanutoStepper), intent(inout) :: this
-    type    (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
+    type    (GStateComp), intent(inout), target :: uin(:), uf(:), uout(:)
     real       (kind=GP), intent   (in) :: time, dt
     real       (kind=GP)                :: eff_dt
     integer                             :: i,j,k,o,state_size,ic
     logical                             :: bret
+    complex    (kind=GP), pointer       :: po(:,:,:), pi(:,:,:)
        
     if ( size (uin) .ne. this%traits_%nstate &
      .or.size(uout) .ne. this%traits_%nstate  ) then
@@ -118,12 +120,23 @@ contains
       eff_dt = dt/real(o,kind=GP)
       ! We assume that at input, uout has a copy of uin
       call this%solver_%dudt(time, uout, uf, eff_dt, uout)
-!$omp parallel do collapse(3) private (k)
+      ! The components are addressed through pointers: indexing
+      ! uout(ic)%ccomp inside a target region does not work with flang
       do ic = 1,this%traits_%nstate
+        po => uout(ic)%ccomp
+        pi => uin (ic)%ccomp
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+        do i = ista,iend
+          do j = 1,ny
+            do k = 1,nz
+#else
+!$omp parallel do collapse(2) private (k)
         do i = ista,iend
           do j = 1,ny
             do concurrent (k=1:nz)
-              uout(ic)%ccomp(k,j,i) = uin(ic)%ccomp(k,j,i) + eff_dt*uout(ic)%ccomp(k,j,i)
+#endif
+              po(k,j,i) = pi(k,j,i) + eff_dt*po(k,j,i)
             end do
           end do
         end do

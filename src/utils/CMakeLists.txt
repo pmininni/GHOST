@@ -1,14 +1,8 @@
-# Path to generated Fortran files
-set(GEN_GUTILS ${CMAKE_BINARY_DIR}/gutils_mod.f90)
-
 add_library(timer_lib STATIC gtimer_mod.f90)
 add_library(utils_lib STATIC
-  ${GEN_GUTILS}
+  gutils_mod.F90
   gbench_mod.f90
 )
-
-# Mark generated files
-set_source_files_properties(${GEN_GUTILS} PROPERTIES GENERATED TRUE)
 
 # Include directories
 target_include_directories(timer_lib PUBLIC

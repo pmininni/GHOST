@@ -24,6 +24,19 @@
 !=================================================================
 
 MODULE pseudospec_fluid
+!
+! The routines take their field-sized temporaries from the workspace
+! pool of the run (gws) instead of declaring automatic arrays, so
+! that the temporaries exist on the device in offload builds.
+!
+! Kernels are written twice: for offload builds as OpenMP target
+! regions that run on the device while gdev_active is set and on the
+! host copies otherwise (if(target: gdev_active)), and for host builds
+! as threaded loops over DO CONCURRENT. The arrays are resident on the
+! device (allocated through gmem), so the target regions transfer no
+! data.
+      USE class_GWorkspace3D, ONLY: gws
+      USE gdevice, ONLY: gdev_active
    CONTAINS
 
 !*****************************************************************
@@ -55,10 +68,17 @@ MODULE pseudospec_fluid
 ! Derivative in the x-direction
 !
       IF (dir.eq.1) THEN
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO k = 1,nz
+#else
 !$omp parallel do collapse(2) private (k)
          DO i = ista,iend
             DO j = 1,ny
                DO CONCURRENT (k=1:nz)
+#endif
                   b(k,j,i) = im*kx(i)*a(k,j,i)
                END DO
             END DO
@@ -67,10 +87,17 @@ MODULE pseudospec_fluid
 ! Derivative in the y-direction
 !
       ELSE IF (dir.eq.2) THEN
-!$omp parallel do collapse(3)
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
          DO i = ista,iend
             DO j = 1,ny
                DO k = 1,nz
+#else
+!$omp parallel do collapse(2) private (k)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+#endif
                   b(k,j,i) = im*ky(j)*a(k,j,i)
                END DO
             END DO
@@ -79,10 +106,17 @@ MODULE pseudospec_fluid
 ! Derivative in the z-direction
 !
       ELSE
-!$omp parallel do collapse(3)
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
          DO i = ista,iend
             DO j = 1,ny
                DO k = 1,nz
+#else
+!$omp parallel do collapse(2) private (k)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+#endif
                   b(k,j,i) = im*kz(k)*a(k,j,i)
                END DO
             END DO
@@ -112,10 +146,17 @@ MODULE pseudospec_fluid
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: b
       INTEGER :: i,j,k
 
-!$omp parallel do collapse(3)
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
       DO i = ista,iend
          DO j = 1,ny
             DO k = 1,nz
+#else
+!$omp parallel do collapse(2) private (k)
+      DO i = ista,iend
+         DO j = 1,ny
+            DO CONCURRENT (k=1:nz)
+#endif
                b(k,j,i) = -kk2(k,j,i)*a(k,j,i)
             END DO
          END DO
@@ -144,35 +185,35 @@ MODULE pseudospec_fluid
       USE fprecision
       USE grid
       USE mpivars
-      USE grid
-      USE mpivars
-!     c  : at the output contains curl(A)_dir
-!     dir: =1 computes the x-component
-!          =2 computes the y-component
-!          =3 computes the z-component
-!
-      USE fprecision
-      USE grid
-      USE mpivars
 !$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: c
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: c1,c2
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1,c2
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
+      LOGICAL             :: bret
 
+      CALL gws%get_complex_tmp(c1,bret)
+      CALL gws%get_complex_tmp(c2,bret)
 !
 ! Computes the x-component
 !
       IF (dir.eq.1) THEN
          CALL derivk3(a,c1,3)
          CALL derivk3(b,c2,2)
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO k = 1,nz
+#else
 !$omp parallel do collapse(2) private (k)
          DO i = ista,iend
             DO j = 1,ny
                DO CONCURRENT (k=1:nz)
+#endif
                   c(k,j,i) = c2(k,j,i)-c1(k,j,i)
                END DO
             END DO
@@ -183,10 +224,17 @@ MODULE pseudospec_fluid
       ELSE IF (dir.eq.2) THEN
          CALL derivk3(a,c1,3)
          CALL derivk3(b,c2,1)
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO k = 1,nz
+#else
 !$omp parallel do collapse(2) private (k)
          DO i = ista,iend
             DO j = 1,ny
                DO CONCURRENT (k=1:nz)
+#endif
                   c(k,j,i) = c1(k,j,i)-c2(k,j,i)
                END DO
             END DO
@@ -197,15 +245,24 @@ MODULE pseudospec_fluid
       ELSE
          CALL derivk3(a,c1,2)
          CALL derivk3(b,c2,1)
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO k = 1,nz
+#else
 !$omp parallel do collapse(2) private (k)
          DO i = ista,iend
             DO j = 1,ny
                DO CONCURRENT (k=1:nz)
+#endif
                   c(k,j,i) = c2(k,j,i)-c1(k,j,i)
                END DO
             END DO
          END DO
       ENDIF
+      CALL gws%free_complex_tmp(c1)
+      CALL gws%free_complex_tmp(c2)
 
       RETURN
       END SUBROUTINE rotor3
@@ -236,82 +293,115 @@ MODULE pseudospec_fluid
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: d,e,f
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: c1,c2
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: c3,c4
-      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)    :: r1,r2
-      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)    :: r3,r4
-      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)    :: rx,ry,rz
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1,c2,c3,c4
+      REAL(KIND=GP), POINTER, DIMENSION(:,:,:)    :: r1,r2,r3,r4
+      REAL(KIND=GP), POINTER, DIMENSION(:,:,:)    :: rx,ry,rz
       REAL(KIND=GP)    :: tmp
-      INTEGER :: i,j,k
+      INTEGER :: i,j,k,dir
+      LOGICAL :: bret
 
-!
-! Computes (A_x.dx)A_dir
-!
-      c1 = a
-      CALL derivk3(a,c2,1)
-      CALL derivk3(b,c3,1)
-      CALL derivk3(c,c4,1)
-      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,c4,r4,MPI_COMM_WORLD)
-!$omp parallel do collapse(2) private (i)
-      DO k = ksta,kend
-         DO j = 1,ny
-            DO CONCURRENT (i=1:nx)
-               rx(i,j,k) = r1(i,j,k)*r2(i,j,k)
-               ry(i,j,k) = r1(i,j,k)*r3(i,j,k)
-               rz(i,j,k) = r1(i,j,k)*r4(i,j,k)
-            END DO
-         END DO
-      END DO
-!
-! Computes (A_y.dy)A_dir
-!
-      c1 = b
-      CALL derivk3(a,c2,2)
-      CALL derivk3(b,c3,2)
-      CALL derivk3(c,c4,2)
-      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,c4,r4,MPI_COMM_WORLD)
-!$omp parallel do collapse(2) private (i)
-      DO k = ksta,kend
-         DO j = 1,ny
-            DO CONCURRENT (i=1:nx)
-               rx(i,j,k) = rx(i,j,k)+r1(i,j,k)*r2(i,j,k)
-               ry(i,j,k) = ry(i,j,k)+r1(i,j,k)*r3(i,j,k)
-               rz(i,j,k) = rz(i,j,k)+r1(i,j,k)*r4(i,j,k)
-            END DO
-         END DO
-      END DO
-!
-! Computes (A_z.dz)A_dir
-!
-      c1 = c
-      CALL derivk3(a,c2,3)
-      CALL derivk3(b,c3,3)
-      CALL derivk3(c,c4,3)
-      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,c4,r4,MPI_COMM_WORLD)
+      CALL gws%get_complex_tmp(c1,bret)
+      CALL gws%get_complex_tmp(c2,bret)
+      CALL gws%get_complex_tmp(c3,bret)
+      CALL gws%get_complex_tmp(c4,bret)
+      CALL gws%get_real_tmp(r1,bret)
+      CALL gws%get_real_tmp(r2,bret)
+      CALL gws%get_real_tmp(r3,bret)
+      CALL gws%get_real_tmp(r4,bret)
+      CALL gws%get_real_tmp(rx,bret)
+      CALL gws%get_real_tmp(ry,bret)
+      CALL gws%get_real_tmp(rz,bret)
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+!
+! Computes (A_x.dx)A_dir, (A_y.dy)A_dir and (A_z.dz)A_dir, and
+! accumulates them in rx, ry, rz
+!
+      DO dir = 1,3
+         IF (dir.eq.1) THEN
+            CALL copy3(a,c1)
+         ELSE IF (dir.eq.2) THEN
+            CALL copy3(b,c1)
+         ELSE
+            CALL copy3(c,c1)
+         ENDIF
+         CALL derivk3(a,c2,dir)
+         CALL derivk3(b,c3,dir)
+         CALL derivk3(c,c4,dir)
+         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+         CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+         CALL fftp3d_complex_to_real(plancr,c3,r3,MPI_COMM_WORLD)
+         CALL fftp3d_complex_to_real(plancr,c4,r4,MPI_COMM_WORLD)
+         IF (dir.eq.1) THEN
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+            DO k = ksta,kend
+               DO j = 1,ny
+                  DO i = 1,nx
+#else
 !$omp parallel do collapse(2) private (i)
-      DO k = ksta,kend
-         DO j = 1,ny
-            DO CONCURRENT (i=1:nx)
-               rx(i,j,k) = (rx(i,j,k)+r1(i,j,k)*r2(i,j,k))*tmp
-               ry(i,j,k) = (ry(i,j,k)+r1(i,j,k)*r3(i,j,k))*tmp
-               rz(i,j,k) = (rz(i,j,k)+r1(i,j,k)*r4(i,j,k))*tmp
+            DO k = ksta,kend
+               DO j = 1,ny
+                  DO CONCURRENT (i=1:nx)
+#endif
+                     rx(i,j,k) = r1(i,j,k)*r2(i,j,k)
+                     ry(i,j,k) = r1(i,j,k)*r3(i,j,k)
+                     rz(i,j,k) = r1(i,j,k)*r4(i,j,k)
+                  END DO
+               END DO
             END DO
-         END DO
+         ELSE IF (dir.eq.2) THEN
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+            DO k = ksta,kend
+               DO j = 1,ny
+                  DO i = 1,nx
+#else
+!$omp parallel do collapse(2) private (i)
+            DO k = ksta,kend
+               DO j = 1,ny
+                  DO CONCURRENT (i=1:nx)
+#endif
+                     rx(i,j,k) = rx(i,j,k)+r1(i,j,k)*r2(i,j,k)
+                     ry(i,j,k) = ry(i,j,k)+r1(i,j,k)*r3(i,j,k)
+                     rz(i,j,k) = rz(i,j,k)+r1(i,j,k)*r4(i,j,k)
+                  END DO
+               END DO
+            END DO
+         ELSE
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+            DO k = ksta,kend
+               DO j = 1,ny
+                  DO i = 1,nx
+#else
+!$omp parallel do collapse(2) private (i)
+            DO k = ksta,kend
+               DO j = 1,ny
+                  DO CONCURRENT (i=1:nx)
+#endif
+                     rx(i,j,k) = (rx(i,j,k)+r1(i,j,k)*r2(i,j,k))*tmp
+                     ry(i,j,k) = (ry(i,j,k)+r1(i,j,k)*r3(i,j,k))*tmp
+                     rz(i,j,k) = (rz(i,j,k)+r1(i,j,k)*r4(i,j,k))*tmp
+                  END DO
+               END DO
+            END DO
+         ENDIF
       END DO
       CALL fftp3d_real_to_complex(planrc,rx,d,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,ry,e,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,rz,f,MPI_COMM_WORLD)
+      CALL gws%free_complex_tmp(c1)
+      CALL gws%free_complex_tmp(c2)
+      CALL gws%free_complex_tmp(c3)
+      CALL gws%free_complex_tmp(c4)
+      CALL gws%free_real_tmp(r1)
+      CALL gws%free_real_tmp(r2)
+      CALL gws%free_real_tmp(r3)
+      CALL gws%free_real_tmp(r4)
+      CALL gws%free_real_tmp(rx)
+      CALL gws%free_real_tmp(ry)
+      CALL gws%free_real_tmp(rz)
 
       RETURN
       END SUBROUTINE gradre3
@@ -342,13 +432,18 @@ MODULE pseudospec_fluid
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: d,e,f
-      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)    :: r1,r2
-      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)    :: r3,r4
-      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)    :: r5,r6
-      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)    :: r7
+      REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: r1,r2,r3,r4,r5,r6,r7
       REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
+      LOGICAL :: bret
 
+      CALL gws%get_real_tmp(r1,bret)
+      CALL gws%get_real_tmp(r2,bret)
+      CALL gws%get_real_tmp(r3,bret)
+      CALL gws%get_real_tmp(r4,bret)
+      CALL gws%get_real_tmp(r5,bret)
+      CALL gws%get_real_tmp(r6,bret)
+      CALL gws%get_real_tmp(r7,bret)
 !
 ! Computes curl(A)
 !
@@ -361,16 +456,9 @@ MODULE pseudospec_fluid
 !
 ! Computes A
 !
-!$omp parallel do collapse(2) private (k)
-      DO i = ista,iend
-         DO j = 1,ny
-            DO CONCURRENT (k=1:nz)
-               d(k,j,i) = a(k,j,i)
-               e(k,j,i) = b(k,j,i)
-               f(k,j,i) = c(k,j,i)
-            END DO
-         END DO
-      END DO
+      CALL copy3(a,d)
+      CALL copy3(b,e)
+      CALL copy3(c,f)
       CALL fftp3d_complex_to_real(plancr,d,r4,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,e,r5,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,f,r6,MPI_COMM_WORLD)
@@ -379,10 +467,17 @@ MODULE pseudospec_fluid
 !
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+      DO k = ksta,kend
+         DO j = 1,ny
+            DO i = 1,nx
+#else
 !$omp parallel do collapse(2) private (i)
       DO k = ksta,kend
          DO j = 1,ny
             DO CONCURRENT (i=1:nx)
+#endif
                r7(i,j,k) = (r2(i,j,k)*r6(i,j,k)-r5(i,j,k)*r3(i,j,k))*tmp
                r3(i,j,k) = (r3(i,j,k)*r4(i,j,k)-r6(i,j,k)*r1(i,j,k))*tmp
                r1(i,j,k) = (r1(i,j,k)*r5(i,j,k)-r4(i,j,k)*r2(i,j,k))*tmp
@@ -392,6 +487,13 @@ MODULE pseudospec_fluid
       CALL fftp3d_real_to_complex(planrc,r7,d,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,r3,e,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,r1,f,MPI_COMM_WORLD)
+      CALL gws%free_real_tmp(r1)
+      CALL gws%free_real_tmp(r2)
+      CALL gws%free_real_tmp(r3)
+      CALL gws%free_real_tmp(r4)
+      CALL gws%free_real_tmp(r5)
+      CALL gws%free_real_tmp(r6)
+      CALL gws%free_real_tmp(r7)
 
       RETURN
       END SUBROUTINE prodre3
@@ -426,93 +528,127 @@ MODULE pseudospec_fluid
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: g
+      COMPLEX(KIND=GP)    :: tmq
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
 
 !
-! Computes the x-component
+! Computes the x-component. The plane kx = 0 (i = 1 in the first task)
+! is treated apart: the pressure term vanishes there and the mode
+! (0,0,0) has kk2 = 0. The division of the complex pressure term by
+! the real kk2 is written for the real and imaginary parts, since a
+! complex division becomes a runtime call that does not exist on the
+! device.
 !
       IF (dir.eq.1) THEN
-         IF (ista.eq.1) THEN
-!$omp parallel private (k)
-!$omp do
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) private (tmq) if(target: gdev_active)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO k = 1,nz
+#else
+!$omp parallel do collapse(2) private (k,tmq)
+         DO i = ista,iend
             DO j = 1,ny
                DO CONCURRENT (k=1:nz)
-                  g(k,j,1) = -a(k,j,1)
+#endif
+                  IF (i.eq.1) THEN
+                     g(k,j,i) = -a(k,j,i)
+                  ELSE
+                     tmq = kx(i)*(kx(i)*a(k,j,i)+ky(j)*b(k,j,i)+kz(k)*c(k,j,i))
+                     g(k,j,i) = -a(k,j,i)+CMPLX(REAL(tmq)/kk2(k,j,i), &
+                                          AIMAG(tmq)/kk2(k,j,i),KIND=GP)
+                  ENDIF
                END DO
             END DO
-!$omp end do
-!$omp do collapse(2)
-            DO i = 2,iend
-               DO j = 1,ny
-                  DO CONCURRENT (k=1:nz)
-                     g(k,j,i) = -a(k,j,i)+kx(i)*(kx(i)*a(k,j,i) &
-                       +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
-                  END DO
-               END DO
-            END DO
-!$omp end do
-!$omp end parallel
-         ELSE
-!$omp parallel do collapse(2) private (k)
-            DO i = ista,iend
-               DO j = 1,ny
-                  DO CONCURRENT (k=1:nz)
-                     g(k,j,i) = -a(k,j,i)+kx(i)*(kx(i)*a(k,j,i) &
-                      +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
-                  END DO
-               END DO
-            END DO
-         ENDIF
+         END DO
 !
 ! Computes the y-component
 !
       ELSE IF (dir.eq.2) THEN
-!$omp parallel private (k)
-!$omp do
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) private (tmq) if(target: gdev_active)
          DO i = ista,iend
-            DO CONCURRENT (k=1:nz)
-               g(k,1,i) = -b(k,1,i)
-            END DO
-         END DO
-!$omp end do
-!$omp do collapse(2)
+            DO j = 1,ny
+               DO k = 1,nz
+#else
+!$omp parallel do collapse(2) private (k,tmq)
          DO i = ista,iend
-            DO j = 2,ny
+            DO j = 1,ny
                DO CONCURRENT (k=1:nz)
-                  g(k,j,i) = -b(k,j,i)+ky(j)*(kx(i)*a(k,j,i) &
-                   +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
+#endif
+                  IF (j.eq.1) THEN
+                     g(k,j,i) = -b(k,j,i)
+                  ELSE
+                     tmq = ky(j)*(kx(i)*a(k,j,i)+ky(j)*b(k,j,i)+kz(k)*c(k,j,i))
+                     g(k,j,i) = -b(k,j,i)+CMPLX(REAL(tmq)/kk2(k,j,i), &
+                                          AIMAG(tmq)/kk2(k,j,i),KIND=GP)
+                  ENDIF
                END DO
             END DO
          END DO
-!$omp end do
-!$omp end parallel
 !
 ! Computes the z-component
 !
       ELSE
-!$omp parallel private (j,k)
-!$omp do
-         DO i = ista,iend
-            DO CONCURRENT (j=1:ny)
-               g(1,j,i) = -c(1,j,i)
-            END DO
-         END DO
-!$omp end do
-!$omp do collapse(2)
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) private (tmq) if(target: gdev_active)
          DO i = ista,iend
             DO j = 1,ny
-               DO CONCURRENT (k=2:nz)
-                  g(k,j,i) = -c(k,j,i)+kz(k)*(kx(i)*a(k,j,i) &
-                   +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
+               DO k = 1,nz
+#else
+!$omp parallel do collapse(2) private (k,tmq)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+#endif
+                  IF (k.eq.1) THEN
+                     g(k,j,i) = -c(k,j,i)
+                  ELSE
+                     tmq = kz(k)*(kx(i)*a(k,j,i)+ky(j)*b(k,j,i)+kz(k)*c(k,j,i))
+                     g(k,j,i) = -c(k,j,i)+CMPLX(REAL(tmq)/kk2(k,j,i), &
+                                          AIMAG(tmq)/kk2(k,j,i),KIND=GP)
+                  ENDIF
                END DO
             END DO
          END DO
-!$omp end do
-!$omp end parallel
       ENDIF
       RETURN
       END SUBROUTINE nonlhd3
+
+!*****************************************************************
+      SUBROUTINE copy3(a,b)
+!-----------------------------------------------------------------
+!
+! Copies the complex matrix 'a' into 'b', b = a
+!
+      USE fprecision
+      USE grid
+      USE mpivars
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: b
+      INTEGER :: i,j,k
+
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+      DO i = ista,iend
+         DO j = 1,ny
+            DO k = 1,nz
+#else
+!$omp parallel do collapse(2) private (k)
+      DO i = ista,iend
+         DO j = 1,ny
+            DO CONCURRENT (k=1:nz)
+#endif
+               b(k,j,i) = a(k,j,i)
+            END DO
+         END DO
+      END DO
+      RETURN
+      END SUBROUTINE copy3
 
 !*****************************************************************
       SUBROUTINE saxpby_c(z,x,a,y,b) 
@@ -541,10 +677,17 @@ MODULE pseudospec_fluid
       REAL   (KIND=GP)                                            :: ktmin2,ktmax2,tmp
       INTEGER                                                     :: i,j,k
 
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+      DO i = ista,iend
+         DO j = 1,ny
+            DO k = 1,nz
+#else
 !$omp parallel do collapse(2) private (k)
       DO i = ista,iend
          DO j = 1,ny
             DO CONCURRENT (k=1:nz)
+#endif
                z(k,j,i) = a * x(k,j,i) + b * y(k,j,i)
             END DO
          END DO
@@ -572,15 +715,17 @@ MODULE pseudospec_fluid
 !$    USE threads
       IMPLICIT NONE
 
-      REAL(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: z
-      REAL(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend) :: x,y
+      REAL(KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: z
+      REAL(KIND=GP), INTENT   (IN), DIMENSION(nx,ny,ksta:kend) :: x,y
       REAL(KIND=GP), INTENT   (IN)                             :: a,b
-      REAL   (KIND=GP)                                         :: ktmin2,ktmax2,tmp
       INTEGER                                                  :: i,j,k
 
-      DO CONCURRENT (k=ksta:kend, k=1:ny)
-         DO CONCURRENT (i=1:nx)
-            z(i,j,k) = a * x(i,j,k) + b * y(i,j,k)
+!$omp parallel do collapse(2) private (i)
+      DO k = ksta,kend
+         DO j = 1,ny
+            DO CONCURRENT (i=1:nx)
+               z(i,j,k) = a * x(i,j,k) + b * y(i,j,k)
+            END DO
          END DO
       END DO
       END SUBROUTINE saxpby_r
@@ -1214,7 +1359,7 @@ MODULE pseudospec_fluid
 !$omp parallel private (k,kmn,tmq) reduction(+:Ek)
 !$omp do
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+               DO k = 1,nz
                   kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
                   IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      tmq = (abs(a(k,j,1))**2+abs(b(k,j,1))**2+        &
@@ -1227,7 +1372,7 @@ MODULE pseudospec_fluid
 !$omp do collapse(2)
             DO i = 2,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                  DO k = 1,nz
                      kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
                      IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+   &
@@ -1243,7 +1388,7 @@ MODULE pseudospec_fluid
 !$omp parallel do collapse(2) private (k,kmn,tmq) reduction(+:Ek)
             DO i = ista,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                  DO k = 1,nz
                      kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
                      IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         tmq = 2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+   &
@@ -1266,7 +1411,7 @@ MODULE pseudospec_fluid
 !$omp parallel private (k,kmn,tmq) reduction(+:Ek)
 !$omp do
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+               DO k = 1,nz
                   kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
                   IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      tmq = (abs(c1(k,j,1))**2+abs(c2(k,j,1))**2+      &
@@ -1279,7 +1424,7 @@ MODULE pseudospec_fluid
 !$omp do collapse(2)
             DO i = 2,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                  DO k = 1,nz
                      kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
                      IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
@@ -1295,7 +1440,7 @@ MODULE pseudospec_fluid
 !$omp parallel do collapse(2) private (k,kmn,tmq) reduction(+:Ek)
             DO i = ista,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                  DO k = 1,nz
                      kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
                      IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         tmq = 2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
@@ -1326,7 +1471,7 @@ MODULE pseudospec_fluid
 !$omp parallel private (k,kmn,tmq) reduction(+:Ek)
 !$omp do
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+               DO k = 1,nz
                   kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
                   IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      tmq = (real(a(k,j,1)*conjg(c1(k,j,1)))+          &
@@ -1340,7 +1485,7 @@ MODULE pseudospec_fluid
 !$omp do collapse(2)
             DO i = 2,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                  DO k = 1,nz
                      kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
                      IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+     &
@@ -1357,7 +1502,7 @@ MODULE pseudospec_fluid
 !$omp parallel do collapse(2) private (k,kmn,tmq) reduction(+:Ek)
             DO i = ista,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                  DO k = 1,nz
                      kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
                      IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         tmq = 2*(real(a(k,j,i)*conjg(c1(k,j,i)))+     &
@@ -1671,7 +1816,7 @@ MODULE pseudospec_fluid
 !$omp parallel private (k,kmn,tmq) reduction(+:Ek)
 !$omp do
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+               DO k = 1,nz
                   kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
                   IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      tmq = (real(a(k,j,1)*conjg(d(k,j,1)))+            &
@@ -1685,7 +1830,7 @@ MODULE pseudospec_fluid
 !$omp do collapse(2)
             DO i = 2,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                  DO k = 1,nz
                      kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
                      IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+       &
@@ -1702,7 +1847,7 @@ MODULE pseudospec_fluid
 !$omp parallel do collapse(2) private (k,kmn,tmq) reduction(+:Ek)
             DO i = ista,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                  DO k = 1,nz
                      kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
                      IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         tmq = 2*(real(a(k,j,i)*conjg(d(k,j,i)))+       &
@@ -1722,7 +1867,7 @@ MODULE pseudospec_fluid
 !$omp parallel private (k,kmn,tmq) reduction(+:Ek)
 !$omp do
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+               DO k = 1,nz
                   kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
                   IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      tmq = kk2(k,j,1)*                                 &
@@ -1737,7 +1882,7 @@ MODULE pseudospec_fluid
 !$omp do collapse(2)
             DO i = 2,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                  DO k = 1,nz
                      kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
                      IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         tmq = 2*kk2(k,j,i)*                            &
@@ -1755,7 +1900,7 @@ MODULE pseudospec_fluid
 !$omp parallel do collapse(2) private (k,kmn,tmq) reduction(+:Ek)
             DO i = ista,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+                  DO k = 1,nz
                      kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
                      IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                         tmq = 2*kk2(k,j,i)*                            &
@@ -1861,7 +2006,7 @@ MODULE pseudospec_fluid
 !$omp parallel private (k,kmn,tmq) reduction(+:Hk)
 !$omp do
          DO j = 1,ny
-            DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+            DO k = 1,nz
                kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
                IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                   tmq = (real(c1(k,j,1)*conjg(d(k,j,1)))+            &
@@ -1875,7 +2020,7 @@ MODULE pseudospec_fluid
 !$omp do collapse(2)
          DO i = 2,iend
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+               DO k = 1,nz
                   kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
                   IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+       &
@@ -1892,7 +2037,7 @@ MODULE pseudospec_fluid
 !$omp parallel do collapse(2) private (k,kmn,tmq) reduction(+:Hk)
          DO i = ista,iend
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+               DO k = 1,nz
                   kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
                   IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+       &

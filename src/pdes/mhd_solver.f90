@@ -207,7 +207,7 @@ CONTAINS
     class(MHDSolver), intent   (in)             :: this
     real   (kind=GP), intent   (in)             :: time, dt
     type(GStateComp), intent(inout), target     :: uin(:),uf(:)
-    type(GStateComp), intent(inout)             :: dudt(:) 
+    type(GStateComp), intent(inout), target             :: dudt(:) 
     complex(kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
     complex(kind=GP), pointer, dimension(:,:,:) :: mx,my,mz,ax,ay,az
     complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4,C5,C6

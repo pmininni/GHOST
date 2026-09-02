@@ -123,17 +123,17 @@
 
 #if !defined(DEF_GHOST_CUDA_)
       IF ( fftdir.EQ.FFTW_REAL_TO_COMPLEX ) THEN
-      CALL GPMANGLE(plan_many_dft_r2c)(plan%planr,2,(/nt(1),nt(2)/),kend-ksta+1,  &
+      CALL GFFTW_PLAN_MANY_DFT_R2C(plan%planr,2,(/nt(1),nt(2)/),kend-ksta+1,  &
                        plan%rarr,(/nt(1),nt(2)*(kend-ksta+1)/),1,nt(1)*nt(2),     &
                        plan%carr,(/nt(1)/2+1,nt(2)*(kend-ksta+1)/),1,             &
 		       (nt(1)/2+1)*nt(2),flags)
       ELSE
-      CALL GPMANGLE(plan_many_dft_c2r)(plan%planr,2,(/nt(1),nt(2)/),kend-ksta+1,  &
+      CALL GFFTW_PLAN_MANY_DFT_C2R(plan%planr,2,(/nt(1),nt(2)/),kend-ksta+1,  &
                        plan%carr,(/nt(1)/2+1,nt(2)*(kend-ksta+1)/),1,             &
 		       (nt(1)/2+1)*nt(2),plan%rarr,(/nt(1),nt(2)*(kend-ksta+1)/), &
 		       1,nt(1)*nt(2),flags)
       ENDIF
-      CALL GPMANGLE(plan_many_dft)(plan%planc,1,nt(3),nt(2)*(iend-ista+1),        &
+      CALL GFFTW_PLAN_MANY_DFT(plan%planc,1,nt(3),nt(2)*(iend-ista+1),        &
                        plan%ccarr,(iend-ista+1)*nt(2)*nt(3),1,nt(3),              &
                        plan%ccarr,(iend-ista+1)*nt(2)*nt(3),1,nt(3),fftdir,flags)
 #endif

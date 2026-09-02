@@ -180,14 +180,16 @@ CONTAINS
     use var
     use grid
     use mpivars
+    use gdevice, only: gdev_active
 !$  use threads
     implicit none
 
     class (HDSolver), intent   (in)             :: this
     real   (kind=GP), intent   (in)             :: time, dt
     type(GStateComp), intent(inout), target     :: uin(:),uf(:)
-    type(GStateComp), intent(inout)             :: dudt(:) 
+    type(GStateComp), intent(inout), target     :: dudt(:) 
     complex(kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
+    complex(kind=GP), pointer, dimension(:,:,:) :: dx,dy,dz
     complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4,C5,C6
     real   (kind=GP)                            :: nu
     real   (kind=GP)                            :: omegax,omegay,omegaz
@@ -213,6 +215,9 @@ CONTAINS
     fx => uf (this%VELOCITY  )%ccomp
     fy => uf (this%VELOCITY+1)%ccomp
     fz => uf (this%VELOCITY+2)%ccomp
+    dx => dudt(this%VELOCITY  )%ccomp
+    dy => dudt(this%VELOCITY+1)%ccomp
+    dz => dudt(this%VELOCITY+2)%ccomp
       
     call prodre3(vx,vy,vz,C4,C5,C6)                    ! w x v
     if ( this%traits_%dorot ) then
@@ -222,10 +227,17 @@ CONTAINS
       call saxpby_c(C1, vz, 2*omegay, vy, -2.0*omegaz) ! 2 Omega x v
       call saxpby_c(C2, vx, 2*omegaz, vz, -2.0*omegax)
       call saxpby_c(C3, vy, 2*omegax, vx, -2.0*omegay)
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+      do i = ista,iend
+         do j = 1,ny
+           do k = 1,nz
+#else
 !$omp parallel do collapse(2) private (k)
       do i = ista,iend
          do j = 1,ny
            do concurrent (k=1:nz)
+#endif
              C4(k,j,i) = C4(k,j,i) + C1(k,j,i) ! (w x v + 2 Omega x v)_x
              C5(k,j,i) = C5(k,j,i) + C2(k,j,i) ! (w x v + 2 Omega x v)_y
              C6(k,j,i) = C6(k,j,i) + C3(k,j,i) ! (w x v + 2 Omega x v)_z
@@ -240,18 +252,29 @@ CONTAINS
     call laplak3(vy,C5)          ! Del^2 vy
     call laplak3(vz,C6)          ! Del^2 vz
 
+    ! The components of dudt are addressed through the pointers dx,
+    ! dy, dz: indexing dudt(n)%ccomp directly inside a target region
+    ! does not work with flang (the descriptors are copied and the
+    ! device arrays are never touched).
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+    do i = ista,iend
+       do j = 1,ny
+         do k = 1,nz
+#else
 !$omp parallel do collapse(2) private (k)
     do i = ista,iend
        do j = 1,ny
          do concurrent (k=1:nz)
+#endif
            if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
-             dudt(this%VELOCITY  )%ccomp(k,j,i) = nu*C4(k,j,i) + C1(k,j,i) + fx(k,j,i)
-             dudt(this%VELOCITY+1)%ccomp(k,j,i) = nu*C5(k,j,i) + C2(k,j,i) + fy(k,j,i)
-             dudt(this%VELOCITY+2)%ccomp(k,j,i) = nu*C6(k,j,i) + C3(k,j,i) + fz(k,j,i)
+             dx(k,j,i) = nu*C4(k,j,i) + C1(k,j,i) + fx(k,j,i)
+             dy(k,j,i) = nu*C5(k,j,i) + C2(k,j,i) + fy(k,j,i)
+             dz(k,j,i) = nu*C6(k,j,i) + C3(k,j,i) + fz(k,j,i)
            else
-             dudt(this%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
-             dudt(this%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
-             dudt(this%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
+             dx(k,j,i) = 0.0_GP
+             dy(k,j,i) = 0.0_GP
+             dz(k,j,i) = 0.0_GP
            endif
          end do
        end do

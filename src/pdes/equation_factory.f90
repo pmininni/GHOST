@@ -20,6 +20,10 @@ module equation_factory
   IMPLICIT NONE
 
   ! ================= Global parameters ===============================
+  ! Number of complex and real temporary arrays in the workspace pool.
+  ! The pseudospectral routines take their temporaries from the pool:
+  ! prodre3 and gradre3 need 7 real arrays, rotor3 2 complex ones, on
+  ! top of the ones held by the caller.
   integer, public :: NUMTMPCOMP = 0 ! Number of cmplx tmp arrays
   integer, public :: NUMTMPREAL = 0 ! Number of real tmp arrays
   
@@ -50,19 +54,19 @@ CONTAINS
     select case (trim(adjustl(solver)))
       case ('HD')
         allocate(HDsolver    :: new_object)
-        NUMTMPCOMP =  8; NUMTMPREAL = 3
+        NUMTMPCOMP =  8; NUMTMPREAL = 7
       case ('BOUSS')
         allocate(BOUSSsolver :: new_object)
-        NUMTMPCOMP = 10; NUMTMPREAL = 3
+        NUMTMPCOMP = 10; NUMTMPREAL = 7
       case ('MOIST')
         allocate(MOISTsolver :: new_object)
-        NUMTMPCOMP = 10; NUMTMPREAL = 3
+        NUMTMPCOMP = 10; NUMTMPREAL = 7
       case ('MHD')
         allocate(MHDsolver   :: new_object)
-        NUMTMPCOMP = 12; NUMTMPREAL = 3
+        NUMTMPCOMP = 12; NUMTMPREAL = 7
 !     case ('UserDefined')
 !       allocate(UserDefinedsolver :: new_object)
-!       NUMFIELDS = 3; NUMTMPCOMP =  8; NUMTMPREAL = 3
+!       NUMFIELDS = 3; NUMTMPCOMP =  8; NUMTMPREAL = 7
       case default
         stop 'Equation factory :: init_pdes_from_file : Unknown solver name'
     end select

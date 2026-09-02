@@ -48,74 +48,153 @@ MODULE pseudospec_scalar
       USE mpivars
       USE grid
       USE fft
+      USE pseudospec_fluid
+      USE class_GWorkspace3D, ONLY: gws
+      USE gdevice, ONLY: gdev_active
 !$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: c,d
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: e
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: c1,c2
-      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r1,r2
-      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend) :: r3
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1,c2
+      REAL(KIND=GP), POINTER, DIMENSION(:,:,:)    :: r1,r2,r3
       REAL(KIND=GP)    :: tmp
-      INTEGER :: i,j,k
+      INTEGER :: i,j,k,dir
+      LOGICAL :: bret
 
+      CALL gws%get_complex_tmp(c1,bret)
+      CALL gws%get_complex_tmp(c2,bret)
+      CALL gws%get_real_tmp(r1,bret)
+      CALL gws%get_real_tmp(r2,bret)
+      CALL gws%get_real_tmp(r3,bret)
 !
-! Computes (A_x.dx)B
+! Computes (A_x.dx)B, (A_y.dy)B and (A_z.dz)B and accumulates
+! them in r3. We need -A.grad(B), hence the sign of tmp.
 !
-      c1 = a
-      CALL derivk3(d,c2,1)
-      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
-
-!$omp parallel do collapse(2) private (i)
-      DO k = ksta,kend
-         DO j = 1,ny
-            DO CONCURRENT (i=1:nx)
-               r3(i,j,k) = r1(i,j,k)*r2(i,j,k)
-            END DO
-         END DO
-      END DO
-!
-! Computes (A_y.dy)B
-!
-      c1 = b
-      CALL derivk3(d,c2,2)
-      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
-
-!$omp parallel do collapse(2) private (i)
-      DO k = ksta,kend
-         DO j = 1,ny
-            DO CONCURRENT (i=1:nx)
-               r3(i,j,k) = r3(i,j,k)+r1(i,j,k)*r2(i,j,k)
-            END DO
-         END DO
-      END DO
-!
-! Computes (A_z.dz)B
-!
-      c1 = c
-      CALL derivk3(d,c2,3)
-      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
-
-! We need -A.grad(B)
       tmp = -1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+      DO dir = 1,3
+         IF (dir.eq.1) THEN
+            CALL copy3(a,c1)
+         ELSE IF (dir.eq.2) THEN
+            CALL copy3(b,c1)
+         ELSE
+            CALL copy3(c,c1)
+         ENDIF
+         CALL derivk3(d,c2,dir)
+         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
+         CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
+         IF (dir.eq.1) THEN
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+            DO k = ksta,kend
+               DO j = 1,ny
+                  DO i = 1,nx
+#else
 !$omp parallel do collapse(2) private (i)
-      DO k = ksta,kend
-         DO j = 1,ny
-            DO CONCURRENT (i=1:nx)
-               r3(i,j,k) = (r3(i,j,k)+r1(i,j,k)*r2(i,j,k))*tmp
+            DO k = ksta,kend
+               DO j = 1,ny
+                  DO CONCURRENT (i=1:nx)
+#endif
+                     r3(i,j,k) = r1(i,j,k)*r2(i,j,k)
+                  END DO
+               END DO
             END DO
-         END DO
+         ELSE IF (dir.eq.2) THEN
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+            DO k = ksta,kend
+               DO j = 1,ny
+                  DO i = 1,nx
+#else
+!$omp parallel do collapse(2) private (i)
+            DO k = ksta,kend
+               DO j = 1,ny
+                  DO CONCURRENT (i=1:nx)
+#endif
+                     r3(i,j,k) = r3(i,j,k)+r1(i,j,k)*r2(i,j,k)
+                  END DO
+               END DO
+            END DO
+         ELSE
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+            DO k = ksta,kend
+               DO j = 1,ny
+                  DO i = 1,nx
+#else
+!$omp parallel do collapse(2) private (i)
+            DO k = ksta,kend
+               DO j = 1,ny
+                  DO CONCURRENT (i=1:nx)
+#endif
+                     r3(i,j,k) = (r3(i,j,k)+r1(i,j,k)*r2(i,j,k))*tmp
+                  END DO
+               END DO
+            END DO
+         ENDIF
       END DO
-
       CALL fftp3d_real_to_complex(planrc,r3,e,MPI_COMM_WORLD)
+      CALL gws%free_complex_tmp(c1)
+      CALL gws%free_complex_tmp(c2)
+      CALL gws%free_real_tmp(r1)
+      CALL gws%free_real_tmp(r2)
+      CALL gws%free_real_tmp(r3)
 
       RETURN
       END SUBROUTINE advect3
+
+!*****************************************************************
+      SUBROUTINE rhs_scalar3(lapl,adve,f,kappa,out)
+!-----------------------------------------------------------------
+!
+! Assembles the dealiased right-hand side of a scalar equation,
+! out = kappa*Laplacian + advection + forcing, inside the
+! dealiasing sphere and zero outside.
+!
+! Parameters
+!     lapl : Laplacian of the scalar in Fourier space
+!     adve : advection term in Fourier space
+!     f    : forcing in Fourier space
+!     kappa: diffusivity
+!     out  : the right-hand side [output]
+!
+      USE fprecision
+      USE kes
+      USE ali
+      USE grid
+      USE mpivars
+      USE gdevice, ONLY: gdev_active
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: lapl,adve,f
+      COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: out
+      REAL(KIND=GP), INTENT(IN) :: kappa
+      INTEGER :: i,j,k
+
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+      DO i = ista,iend
+         DO j = 1,ny
+            DO k = 1,nz
+#else
+!$omp parallel do collapse(2) private (k)
+      DO i = ista,iend
+         DO j = 1,ny
+            DO CONCURRENT (k=1:nz)
+#endif
+               IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
+                  out(k,j,i) = kappa*lapl(k,j,i) + adve(k,j,i) + f(k,j,i)
+               ELSE
+                  out(k,j,i) = 0.0_GP
+               ENDIF
+            END DO
+         END DO
+      END DO
+      RETURN
+      END SUBROUTINE rhs_scalar3
 
 !*****************************************************************
       SUBROUTINE variance(a,b,kin)
@@ -414,7 +493,7 @@ MODULE pseudospec_scalar
 !$omp parallel private (k,kmn,tmq) reduction(+:Ek)
 !$omp do
          DO j = 1,ny
-            DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+            DO k = 1,nz
                kmn = int(sqrt(kk2(k,j,1))/Dkk+round)
                IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                   tmq = tmp*abs(a(k,j,1))**2
@@ -426,7 +505,7 @@ MODULE pseudospec_scalar
 !$omp do collapse(2)
          DO i = 2,iend
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+               DO k = 1,nz
                   kmn = int(sqrt(kk2(k,j,i))/Dkk+round)
                   IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      tmq = 2*tmp*abs(a(k,j,i))**2
@@ -441,7 +520,7 @@ MODULE pseudospec_scalar
 !$omp parallel do collapse(2) private (k,kmn,tmq) reduction(+:Ek)
          DO i = ista,iend
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz) LOCAL(kmn,tmq)
+               DO k = 1,nz
                   kmn = int(sqrt(kk2(k,j,i))/Dkk+round)
                   IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
                      tmq = 2*tmp*abs(a(k,j,i))**2
