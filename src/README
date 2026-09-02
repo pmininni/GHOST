@@ -200,7 +200,19 @@ are unnormalized and produce the same layout as fftp-3, so the two
 backends are interchangeable; results differ only by round-off.
 
 With ROCm, GPU-aware MPI performs best with OMPI_MCA_pml=ucx and
-UCX_TLS=rocm_copy,rocm_ipc,sm,self.
+UCX_TLS=rocm_copy,rocm_ipc,sm,self,rc,tcp (the last two are the
+network transports needed for runs on more than one node; without
+them the tasks on other nodes are unreachable).
+
+Performance reference (HD solver, single precision, 20 steps, second
+order stepper, one MPI task per GPU): on two AMD MI210 connected by
+PCIe, 256^3 takes 0.052 s per step and 512^3 0.53 s per step. At 512^3
+the slab exchange (0.36 s) is bound by the PCIe bandwidth between the
+two GPUs, the device FFTs take 0.19 s and the transpositions 0.05 s.
+Two ranks of 8 threads on the host take 0.85 s per step at 256^3.
+Across two nodes the exchange goes through the network, and a UCX
+without InfiniBand transports (as the one shipped with ROCm here)
+falls back to TCP, which is much slower than a single node.
 
 Note for flang builds: flang places automatic arrays on the stack
 whatever their size, and the diagnostic routines (energy, spectra,

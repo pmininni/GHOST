@@ -12,6 +12,6 @@ NP=${NP:-2}; NG=${NG:-1}; NODE=${NODE:-a1}; BUILD=${BUILD:-build-amd}
 # GPU-aware MPI through UCX with the ROCm transports; the default ob1
 # path moves device buffers about 10x slower.
 export OMPI_MCA_pml=${OMPI_MCA_pml:-ucx}
-export UCX_TLS=${UCX_TLS:-rocm_copy,rocm_ipc,sm,self}
+export UCX_TLS=${UCX_TLS:-rocm_copy,rocm_ipc,sm,self,rc,tcp}
 srun --mpi=pmix -p rocm -w $NODE -n $NP -c ${CPT:-1} --gres=gpu:$NG -t 00:10:00 \
      --export=ALL ./$BUILD/gpu_miniapp "$@"

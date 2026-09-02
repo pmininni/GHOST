@@ -59,6 +59,7 @@
 ! Auxiliary variables
       REAL(KIND=GP) :: time
       INTEGER       :: t, num_components
+      LOGICAL       :: fstatic
 
 ! Initialization
 ! Initializes the MPI and I/O libraries
@@ -153,6 +154,7 @@
       CALL GState_copy(field_nxt,field) ! nxt is used by I/O and all steppers
       CALL init_forcing(forcemethod,fluid,force)
       CALL GState_update_to(force)
+      fstatic = forcing_is_static(forcemethod)
       if (dopart) then
 #if defined(GHOST_GPU)
          PRINT *,'Particles are not supported yet in offload builds'
@@ -222,7 +224,7 @@
 
 ! Time evolution
          CALL update_forcing(forcemethod,fluid,force)
-         CALL GState_update_to(force)
+         IF (.not.fstatic) CALL GState_update_to(force)
          gdev_active = .TRUE.
          if (dopart) then
             CALL GState_copy(field,field_nxt)

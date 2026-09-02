@@ -35,7 +35,14 @@ make -j 24 && make install
 ```
 
 Notes for the module: it needs `hwloc/2.12.0` and `rocm/7.2` loaded (the
-wrapper links `libhwloc.so.15`). Recommended runtime environment for
+wrapper links `libhwloc.so.15`). The ROCm UCX 1.20.1 it uses has the
+`rocm_copy`, `rocm_ipc`, shared memory and `tcp` transports but no
+InfiniBand ones (`rc`, `ud`), so between nodes the GPU buffers go over
+TCP: GHOST on 4 GPUs across a1 and a2 spends 95% of the step in the
+exchange. For a system-wide install, build UCX with both `--with-rocm`
+and `--with-verbs` (the gnu15 UCX 1.18 shows `rc_verbs`/`ud_verbs`, so
+the nodes have the hardware), and use
+`UCX_TLS=rocm_copy,rocm_ipc,sm,self,rc,tcp`. Recommended runtime environment for
 device buffers: `OMPI_MCA_pml=ucx`, `UCX_TLS=rocm_copy,rocm_ipc,sm,self`.
 Launch with `srun --mpi=pmix`.
 
