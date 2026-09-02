@@ -201,6 +201,7 @@ CONTAINS
     use var
     use grid
     use mpivars
+    use gdevice, only: gdev_active
 !$  use threads
     implicit none
 
@@ -213,6 +214,7 @@ CONTAINS
     complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4,C5,C6
     complex(kind=GP), pointer, dimension(:,:,:) :: C7,C8,C9,C10,C11
     complex(kind=GP), pointer, dimension(:,:,:) :: C12,C13,C14,C15
+    complex(kind=GP), pointer, dimension(:,:,:) :: dvx,dvy,dvz,dax,day,daz
     real   (kind=GP)                            :: nu,eta,ep
     real   (kind=GP)                            :: b0x,b0y,b0z
     integer                                     :: i,j,k
@@ -256,18 +258,24 @@ CONTAINS
     mx => uf (this%MAGNETIC  )%ccomp
     my => uf (this%MAGNETIC+1)%ccomp
     mz => uf (this%MAGNETIC+2)%ccomp
+    dvx => dudt(this%VELOCITY  )%ccomp
+    dvy => dudt(this%VELOCITY+1)%ccomp
+    dvz => dudt(this%VELOCITY+2)%ccomp
+    dax => dudt(this%MAGNETIC  )%ccomp
+    day => dudt(this%MAGNETIC+1)%ccomp
+    daz => dudt(this%MAGNETIC+2)%ccomp
 
     call rotor3(ay,az,C1,1)         ! b = curl(a)
     call rotor3(ax,az,C2,2)
     call rotor3(ax,ay,C3,3)
     if ( this%traits_%doB0 ) then   ! b = b + B_0
       if (myrank.eq.0) then
-        b0x = this%traits_%B0(1)
-        b0y = this%traits_%B0(2)
-        b0z = this%traits_%B0(3)
-        C1(1,1,1) = b0x*real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)
-        C2(1,1,1) = b0y*real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)
-        C3(1,1,1) = b0z*real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)
+        b0x = this%traits_%B0(1)*real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)
+        b0y = this%traits_%B0(2)*real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)
+        b0z = this%traits_%B0(3)*real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP)
+        call setmode3(C1,1,1,1,cmplx(b0x,0.0_GP,kind=GP))
+        call setmode3(C2,1,1,1,cmplx(b0y,0.0_GP,kind=GP))
+        call setmode3(C3,1,1,1,cmplx(b0z,0.0_GP,kind=GP))
       endif
     endif
     call prodre3(vx,vy,vz,C4,C5,C6) ! w x v
@@ -279,9 +287,17 @@ CONTAINS
     call laplak3(ay,C5)             ! Del^2 ay
     call laplak3(az,C6)             ! Del^2 az
     if ( this%traits_%dohall ) then ! electron velocity: v_e = v - epsilon j
-      do i = ista,iend               
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+      do i = ista,iend
         do j = 1,ny
           do k = 1,nz
+#else
+!$omp parallel do collapse(2) private (k)
+      do i = ista,iend
+        do j = 1,ny
+          do concurrent (k=1:nz)
+#endif
             C7(k,j,i) = vx(k,j,i)+ep*C4(k,j,i)
             C8(k,j,i) = vy(k,j,i)+ep*C5(k,j,i)
             C9(k,j,i) = vz(k,j,i)+ep*C6(k,j,i)
@@ -302,24 +318,33 @@ CONTAINS
     call laplak3(vy,C8)             ! Del^2 vy
     call laplak3(vz,C9)             ! Del^2 vz
 
+    ! The components of dudt are addressed through pointers (see the
+    ! HD solver)
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+    do i = ista,iend
+    do j = 1,ny
+    do k = 1,nz
+#else
 !$omp parallel do collapse(2) private (k)
     do i = ista,iend
     do j = 1,ny
     do concurrent (k=1:nz)
+#endif
       if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
-        dudt(this%VELOCITY  )%ccomp(k,j,i) = nu*C7(k,j,i) + C10(k,j,i) + fx(k,j,i)
-        dudt(this%VELOCITY+1)%ccomp(k,j,i) = nu*C8(k,j,i) + C11(k,j,i) + fy(k,j,i)
-        dudt(this%VELOCITY+2)%ccomp(k,j,i) = nu*C9(k,j,i) + C12(k,j,i) + fz(k,j,i)
-        dudt(this%MAGNETIC  )%ccomp(k,j,i) = eta*C4(k,j,i) + C1(k,j,i) + mx(k,j,i)
-        dudt(this%MAGNETIC+1)%ccomp(k,j,i) = eta*C5(k,j,i) + C2(k,j,i) + my(k,j,i)
-        dudt(this%MAGNETIC+2)%ccomp(k,j,i) = eta*C6(k,j,i) + C3(k,j,i) + mz(k,j,i)
+        dvx(k,j,i) = nu*C7(k,j,i) + C10(k,j,i) + fx(k,j,i)
+        dvy(k,j,i) = nu*C8(k,j,i) + C11(k,j,i) + fy(k,j,i)
+        dvz(k,j,i) = nu*C9(k,j,i) + C12(k,j,i) + fz(k,j,i)
+        dax(k,j,i) = eta*C4(k,j,i) + C1(k,j,i) + mx(k,j,i)
+        day(k,j,i) = eta*C5(k,j,i) + C2(k,j,i) + my(k,j,i)
+        daz(k,j,i) = eta*C6(k,j,i) + C3(k,j,i) + mz(k,j,i)
       else
-        dudt(this%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
-        dudt(this%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
-        dudt(this%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
-        dudt(this%MAGNETIC  )%ccomp(k,j,i) = 0.0_GP
-        dudt(this%MAGNETIC+1)%ccomp(k,j,i) = 0.0_GP
-        dudt(this%MAGNETIC+2)%ccomp(k,j,i) = 0.0_GP
+        dvx(k,j,i) = 0.0_GP
+        dvy(k,j,i) = 0.0_GP
+        dvz(k,j,i) = 0.0_GP
+        dax(k,j,i) = 0.0_GP
+        day(k,j,i) = 0.0_GP
+        daz(k,j,i) = 0.0_GP
       endif
     end do
     end do

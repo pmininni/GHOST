@@ -256,6 +256,7 @@
       ENDIF
 
 ! End of main
+      CALL workspace%report_peaks()
       CALL GTFree(ihcpu1)
       CALL GTFree(ihomp1)
       CALL GTFree(ihwtm1)

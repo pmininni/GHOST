@@ -25,6 +25,7 @@
 
 MODULE pseudospec_scalar
    USE pseudospec_fluid
+   USE class_GWorkspace3D, ONLY: gws
    CONTAINS
 
 !*****************************************************************
@@ -703,8 +704,8 @@ MODULE pseudospec_scalar
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
-      COMPLEX(KIND=GP),             DIMENSION(nz,ny,ista:iend) :: c1,c2
-      REAL(KIND=GP),                DIMENSION(nx,ny,ksta:kend) :: r1,r2
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1, c2
+      REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: r1, r2
       REAL(KIND=GP), DIMENSION(nx) :: meth,mev,methv
       REAL(KIND=GP), DIMENSION(nx) :: mth,mv,mthv
       REAL(KIND=GP)                :: tmp,tmq
@@ -716,6 +717,11 @@ MODULE pseudospec_scalar
 !
 ! Transforms the input arrays to real space
 !
+      LOGICAL :: bret_
+      CALL gws%get_complex_htmp(c1,bret_)
+      CALL gws%get_complex_htmp(c2,bret_)
+      CALL gws%get_real_htmp(r1,bret_)
+      CALL gws%get_real_htmp(r2,bret_)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -780,6 +786,10 @@ MODULE pseudospec_scalar
    40    FORMAT( E23.15,E23.15,E23.15,E23.15 )
       ENDIF
 
+      CALL gws%free_complex_htmp(c1)
+      CALL gws%free_complex_htmp(c2)
+      CALL gws%free_real_htmp(r1)
+      CALL gws%free_real_htmp(r2)
       RETURN
       END SUBROUTINE difucx
 
@@ -813,8 +823,8 @@ MODULE pseudospec_scalar
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
-      COMPLEX(KIND=GP),             DIMENSION(nz,ny,ista:iend) :: c1,c2
-      REAL(KIND=GP),                DIMENSION(nx,ny,ksta:kend) :: r1,r2
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1, c2
+      REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: r1, r2
       REAL(KIND=GP), DIMENSION(nz) :: meth,mev,methv
       REAL(KIND=GP), DIMENSION(nz) :: mth,mv,mthv
       REAL(KIND=GP)                :: tmp,tmq
@@ -826,6 +836,11 @@ MODULE pseudospec_scalar
 !
 ! Transforms the input arrays to real space
 !
+      LOGICAL :: bret_
+      CALL gws%get_complex_htmp(c1,bret_)
+      CALL gws%get_complex_htmp(c2,bret_)
+      CALL gws%get_real_htmp(r1,bret_)
+      CALL gws%get_real_htmp(r2,bret_)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
       DO i = ista,iend
 !$omp parallel do if (iend-ista.lt.nth) private (k)
@@ -890,6 +905,10 @@ MODULE pseudospec_scalar
    50    FORMAT( E23.15,E23.15,E23.15,E23.15 ) 
       ENDIF
 
+      CALL gws%free_complex_htmp(c1)
+      CALL gws%free_complex_htmp(c2)
+      CALL gws%free_real_htmp(r1)
+      CALL gws%free_real_htmp(r2)
       RETURN
       END SUBROUTINE difucz
 

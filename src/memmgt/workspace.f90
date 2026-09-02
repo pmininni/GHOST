@@ -81,6 +81,12 @@ module class_GWorkspace3D
     integer :: pcomp_size_          = 0
     integer :: hreal_size_          = 0
     integer :: hcomplex_size_       = 0
+    ! Peak number of arrays checked out at the same time, per pool,
+    ! reported by cleanup_pool (used to size the pools per solver)
+    integer :: real_peak_           = 0
+    integer :: complex_peak_        = 0
+    integer :: hreal_peak_          = 0
+    integer :: hcomplex_peak_       = 0
     integer :: nreserve_            = 8
     integer :: ncurr_realreserve_   = 8
     integer :: ncurr_complexreserve_= 8
@@ -94,6 +100,7 @@ module class_GWorkspace3D
     procedure, public :: get_real_tmp     , get_complex_tmp     , get_pcomp_tmp
     procedure, public :: free_real_tmp    , free_complex_tmp    , free_pcomp_tmp 
     procedure, public :: init_host_entries
+    procedure, public :: report_peaks
     procedure, public :: get_real_htmp    , get_complex_htmp
     procedure, public :: free_real_htmp   , free_complex_htmp
     procedure, public :: get_real_tmp_size, get_complex_tmp_size, get_pcomp_tmp_size
@@ -244,6 +251,23 @@ CONTAINS
   ! Subroutine to clean up and deallocate the entire array 
   ! pool.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Reports (from task 0) the peak number of arrays checked out
+  ! at the same time from each pool, to size the pools per solver
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine report_peaks(this)
+    CLASS(GWorkspace), intent(in) :: this
+    if ( myrank .eq. 0 ) then
+      write(*,'(A,4(I0,A))') 'Workspace peak usage: ', this%real_peak_,     &
+        ' of ', this%real_size_, ' real, ', this%complex_peak_, ' of ',     &
+        this%complex_size_, ' complex'
+      write(*,'(A,4(I0,A))') 'Host pool peak usage: ', this%hreal_peak_,    &
+        ' of ', this%hreal_size_, ' real, ', this%hcomplex_peak_, ' of ',   &
+        this%hcomplex_size_, ' complex'
+    endif
+  end subroutine report_peaks
+
+
   subroutine cleanup_pool(this)
     TYPE(GWorkspace), intent(inout) :: this
     integer :: i
@@ -302,9 +326,14 @@ CONTAINS
     ! Resize this%real_entries_ array, if necessary:    
     if ( num_new .GT. this%ncurr_realreserve_ ) THEN
 
-      ! Need to extend arrays and copy old data
+      ! Need to extend the list of entries. The arrays are moved, not
+      ! copied: a copy would place them at new addresses without device
+      ! copies and leave stale device associations behind.
       ALLOCATE(tmp_copy(1:this%real_size_+num_new+this%nreserve_))
-      tmp_copy(1:this%real_size_) = this%real_entries_(1:this%real_size_)
+      do i = 1, this%real_size_
+        call MOVE_ALLOC(this%real_entries_(i)%array, tmp_copy(i)%array)
+        tmp_copy(i)%is_free = this%real_entries_(i)%is_free
+      end do
       call MOVE_ALLOC(tmp_copy, this%real_entries_)
       
       ! Allocate the remaining arrays
@@ -347,10 +376,14 @@ CONTAINS
     ! Resize this%complex_entries_ array, if necessary:    
     if ( num_new .GT. this%ncurr_complexreserve_ ) THEN
 
-      ! Need to extend arrays and copy old data
+      ! Need to extend the list of entries. The arrays are moved, not
+      ! copied (see add_real_entries).
       ALLOCATE(tmp_copy(1:this%complex_size_+num_new+this%nreserve_))
-      tmp_copy(1:this%complex_size_) = this%complex_entries_(1:this%complex_size_)
-      call MOVE_ALLOC(tmp_copy, this%complex_entries_) 
+      do i = 1, this%complex_size_
+        call MOVE_ALLOC(this%complex_entries_(i)%array, tmp_copy(i)%array)
+        tmp_copy(i)%is_free = this%complex_entries_(i)%is_free
+      end do
+      call MOVE_ALLOC(tmp_copy, this%complex_entries_)
       
       ! Allocate the remaining arrays
       do i = this%complex_size_+1,this%complex_size_+num_new
@@ -471,6 +504,7 @@ CONTAINS
     do i = 1, this%hreal_size_
       if ( this%hreal_entries_(i)%is_free ) THEN
         this%hreal_entries_(i)%is_free = .FALSE.
+        this%hreal_peak_ = max(this%hreal_peak_, this%hreal_size_ - count(this%hreal_entries_(1:this%hreal_size_)%is_free))
         ret_ptr => this%hreal_entries_(i)%array
         if (present(success)) success = .TRUE.
         return
@@ -492,6 +526,7 @@ CONTAINS
     do i = 1, this%hcomplex_size_
       if ( this%hcomplex_entries_(i)%is_free ) THEN
         this%hcomplex_entries_(i)%is_free = .FALSE.
+        this%hcomplex_peak_ = max(this%hcomplex_peak_, this%hcomplex_size_ - count(this%hcomplex_entries_(1:this%hcomplex_size_)%is_free))
         ret_ptr => this%hcomplex_entries_(i)%array
         if (present(success)) success = .TRUE.
         return
@@ -606,6 +641,7 @@ CONTAINS
       ! Look for a free entry
       if ( this%real_entries_(i)%is_free ) THEN
         this%real_entries_(i)%is_free = .FALSE. ! Mark as in use
+        this%real_peak_ = max(this%real_peak_, this%real_size_ - count(this%real_entries_(1:this%real_size_)%is_free))
         ret_ptr => this%real_entries_(i)%array
         if (present(success)) success = .TRUE.
         return
@@ -639,6 +675,7 @@ CONTAINS
       ! Look for a free entry
       if ( this%complex_entries_(i)%is_free ) THEN
         this%complex_entries_(i)%is_free = .FALSE. ! Mark as in use
+        this%complex_peak_ = max(this%complex_peak_, this%complex_size_ - count(this%complex_entries_(1:this%complex_size_)%is_free))
         ret_ptr => this%complex_entries_(i)%array
         if (present(success)) success = .TRUE.
         return

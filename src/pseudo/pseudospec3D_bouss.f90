@@ -16,6 +16,7 @@
 
 module pseudospec_bouss
     use pseudospec_scalar
+    use class_GWorkspace3D, only: gws
     contains
 !*****************************************************************
       SUBROUTINE havgcomp(gsh, u, v, w, s, fo, bv, itype)
@@ -62,8 +63,8 @@ module pseudospec_bouss
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: u,v
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: w,s
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)     :: c1,c2,c3,c4
-      REAL(KIND=GP),    DIMENSION(nx,ny,ksta:kend)     :: r1,r2,r3
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1, c2, c3, c4
+      REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: r1, r2, r3
       REAL(KIND=GP),    INTENT(IN)                     :: fo, bv
       DOUBLE PRECISION, DIMENSION(nz)                  :: sh
       DOUBLE PRECISION, INTENT(INOUT), DIMENSION(nz)   :: gsh
@@ -75,6 +76,14 @@ module pseudospec_bouss
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+      LOGICAL :: bret_
+      CALL gws%get_complex_htmp(c1,bret_)
+      CALL gws%get_complex_htmp(c2,bret_)
+      CALL gws%get_complex_htmp(c3,bret_)
+      CALL gws%get_complex_htmp(c4,bret_)
+      CALL gws%get_real_htmp(r1,bret_)
+      CALL gws%get_real_htmp(r2,bret_)
+      CALL gws%get_real_htmp(r3,bret_)
       IF ( itype .eq. 0 .or. itype .eq. 9 ) THEN  ! <(du_perp/dz)^2>_perp
 !
 ! Find z-derivative of u, v:
@@ -101,6 +110,13 @@ module pseudospec_bouss
 ! Collect as a fcn of z:
         CALL MPI_ALLREDUCE(sh,gsh,nz,MPI_DOUBLE_PRECISION,      &
                            MPI_SUM,MPI_COMM_WORLD,ierr)
+        CALL gws%free_complex_htmp(c1)
+        CALL gws%free_complex_htmp(c2)
+        CALL gws%free_complex_htmp(c3)
+        CALL gws%free_complex_htmp(c4)
+        CALL gws%free_real_htmp(r1)
+        CALL gws%free_real_htmp(r2)
+        CALL gws%free_real_htmp(r3)
         RETURN
 
      ENDIF
@@ -133,6 +149,13 @@ module pseudospec_bouss
 ! Collect as a fcn of z:
           CALL MPI_ALLREDUCE(sh,gsh,nz,MPI_DOUBLE_PRECISION,    &
                              MPI_SUM,MPI_COMM_WORLD,ierr)
+          CALL gws%free_complex_htmp(c1)
+          CALL gws%free_complex_htmp(c2)
+          CALL gws%free_complex_htmp(c3)
+          CALL gws%free_complex_htmp(c4)
+          CALL gws%free_real_htmp(r1)
+          CALL gws%free_real_htmp(r2)
+          CALL gws%free_real_htmp(r3)
           RETURN
         ENDIF
 
@@ -163,6 +186,13 @@ module pseudospec_bouss
 ! Collect as a fcn of z:
         CALL MPI_ALLREDUCE(sh,gsh,nz,MPI_DOUBLE_PRECISION,      &
                            MPI_SUM,MPI_COMM_WORLD,ierr)
+        CALL gws%free_complex_htmp(c1)
+        CALL gws%free_complex_htmp(c2)
+        CALL gws%free_complex_htmp(c3)
+        CALL gws%free_complex_htmp(c4)
+        CALL gws%free_real_htmp(r1)
+        CALL gws%free_real_htmp(r2)
+        CALL gws%free_real_htmp(r3)
         RETURN
 
       ENDIF
@@ -194,6 +224,13 @@ module pseudospec_bouss
 ! Collect as a fcn of z:
         CALL MPI_ALLREDUCE(sh,gsh,nz,MPI_DOUBLE_PRECISION,      &
                            MPI_SUM,MPI_COMM_WORLD,ierr)
+        CALL gws%free_complex_htmp(c1)
+        CALL gws%free_complex_htmp(c2)
+        CALL gws%free_complex_htmp(c3)
+        CALL gws%free_complex_htmp(c4)
+        CALL gws%free_real_htmp(r1)
+        CALL gws%free_real_htmp(r2)
+        CALL gws%free_real_htmp(r3)
         RETURN
 
      ENDIF
@@ -223,6 +260,13 @@ module pseudospec_bouss
 ! Collect as a fcn of z:
         CALL MPI_ALLREDUCE(sh,gsh,nz,MPI_DOUBLE_PRECISION,      &
                            MPI_SUM,MPI_COMM_WORLD,ierr)
+        CALL gws%free_complex_htmp(c1)
+        CALL gws%free_complex_htmp(c2)
+        CALL gws%free_complex_htmp(c3)
+        CALL gws%free_complex_htmp(c4)
+        CALL gws%free_real_htmp(r1)
+        CALL gws%free_real_htmp(r2)
+        CALL gws%free_real_htmp(r3)
         RETURN
 
       ENDIF
@@ -270,6 +314,13 @@ module pseudospec_bouss
 ! Collect as a fcn of z:
         CALL MPI_ALLREDUCE(sh,gsh,nz,MPI_DOUBLE_PRECISION,      &
                            MPI_SUM,MPI_COMM_WORLD,ierr)
+        CALL gws%free_complex_htmp(c1)
+        CALL gws%free_complex_htmp(c2)
+        CALL gws%free_complex_htmp(c3)
+        CALL gws%free_complex_htmp(c4)
+        CALL gws%free_real_htmp(r1)
+        CALL gws%free_real_htmp(r2)
+        CALL gws%free_real_htmp(r3)
         RETURN
 
       ENDIF
@@ -299,6 +350,13 @@ module pseudospec_bouss
 ! Collect as a fcn of z:
         CALL MPI_ALLREDUCE(sh,gsh,nz,MPI_DOUBLE_PRECISION,      &
                            MPI_SUM,MPI_COMM_WORLD,ierr)
+        CALL gws%free_complex_htmp(c1)
+        CALL gws%free_complex_htmp(c2)
+        CALL gws%free_complex_htmp(c3)
+        CALL gws%free_complex_htmp(c4)
+        CALL gws%free_real_htmp(r1)
+        CALL gws%free_real_htmp(r2)
+        CALL gws%free_real_htmp(r3)
         RETURN
 
       ENDIF
@@ -316,7 +374,7 @@ module pseudospec_bouss
         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
         ! fac 1/(nx*ny*nz)**2 for each dir
         tmp = 1.0D0/(dble(nx)*dble(ny)*dble(nz))
-!$omp parallel do collapse(2) private (i) reduction(+:r2)
+!$omp parallel do collapse(2) private (i)
         DO k = ksta,kend
            DO j = 1,ny
               DO CONCURRENT (i=1:nx)
@@ -329,7 +387,7 @@ module pseudospec_bouss
         CALL rotor3(u,v,c1,3) ! omega_z
         CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
         tmp = 1.0D0/(dble(nx)*dble(ny)*dble(nz))
-!$omp parallel do collapse(2) private (i) reduction(+:r2)
+!$omp parallel do collapse(2) private (i)
         DO k = ksta,kend
            DO j = 1,ny
               DO CONCURRENT (i=1:nx)
@@ -346,7 +404,7 @@ module pseudospec_bouss
         ! what comes out is -omega.Grad theta, so tmp<0:
         CALL fftp3d_complex_to_real(plancr,c4,r1,MPI_COMM_WORLD)
         tmp = -1.0D0/(dble(nx)*dble(ny)*dble(nz))
-!$omp parallel do collapse(2) private (i) reduction(+:r2)
+!$omp parallel do collapse(2) private (i)
         DO k = ksta,kend
            DO j = 1,ny
               DO CONCURRENT (i=1:nx)
@@ -356,7 +414,7 @@ module pseudospec_bouss
         END DO
 !
 ! Find fN contrib:
-!$omp parallel do collapse(2) private (i) reduction(+:r2)
+!$omp parallel do collapse(2) private (i)
         DO k = ksta,kend
            DO j = 1,ny
               DO CONCURRENT (i=1:nx)
@@ -379,6 +437,13 @@ module pseudospec_bouss
 ! Collect as a fcn of z:
         CALL MPI_ALLREDUCE(sh,gsh,nz,MPI_DOUBLE_PRECISION,      &
                            MPI_SUM,MPI_COMM_WORLD,ierr)
+        CALL gws%free_complex_htmp(c1)
+        CALL gws%free_complex_htmp(c2)
+        CALL gws%free_complex_htmp(c3)
+        CALL gws%free_complex_htmp(c4)
+        CALL gws%free_real_htmp(r1)
+        CALL gws%free_real_htmp(r2)
+        CALL gws%free_real_htmp(r3)
         RETURN
         
       ENDIF
@@ -517,6 +582,13 @@ module pseudospec_bouss
       endif
 
       return
+      CALL gws%free_complex_htmp(c1)
+      CALL gws%free_complex_htmp(c2)
+      CALL gws%free_complex_htmp(c3)
+      CALL gws%free_complex_htmp(c4)
+      CALL gws%free_real_htmp(r1)
+      CALL gws%free_real_htmp(r2)
+      CALL gws%free_real_htmp(r3)
       end subroutine havgcomp
 
 !*****************************************************************

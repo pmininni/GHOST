@@ -183,9 +183,9 @@ during the time step and their host copies are refreshed only for
 output. See src/memmgt/gdevice_mod.f90 for the details. The kernels
 are written twice, as OpenMP target regions for the offload build and
 as threaded loops for the host build, selected with
-#if defined(GHOST_GPU). For the moment only the HD solver (with
-passive scalars) runs on the device; particles are not supported in
-offload builds.
+#if defined(GHOST_GPU). The fluid solvers (HD, MHD, Boussinesq and
+moist, with passive scalars) run on the device; particles are not
+supported in offload builds yet.
 
 The FFTs of the offload build are computed by the fftp-gpu backend
 (src/fftp-gpu, selected automatically with P_GPU): cuFFT or hipFFT on
@@ -218,10 +218,13 @@ Temporaries of the diagnostics (energy, spectra, transfer functions)
 come from a host-only pool of the workspace (get_*_htmp), since those
 routines run on the host copies of the fields; in offload builds the
 arrays of that pool have no device copy. This also matters for flang,
-which places automatic arrays on the stack whatever their size: the HD
-solver no longer has field-sized automatic arrays, but other solvers
-still do until they are ported, and need ulimit -s unlimited at large
-resolution with flang.
+which places automatic arrays on the stack whatever their size: the
+four fluid solvers no longer have field-sized automatic arrays in
+their paths. The sizes of the pools are set per solver in
+src/pdes/equation_factory.f90 from the peak usage measured on the
+example inputs, which GHOST prints at the end of every run
+("Workspace peak usage"); a pool that is too small stops the run with
+an explicit message.
 
 Note for the ROCm modules on sakura: the llvm module loaded with
 openmpi5-rocm puts lib/llvm/lib-debug first in LD_LIBRARY_PATH; the

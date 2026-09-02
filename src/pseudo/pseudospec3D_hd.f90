@@ -182,7 +182,13 @@ MODULE pseudospec_fluid
 !          =2 computes the y-component
 !          =3 computes the z-component
 !
+! Each component is computed in one pass, c = i (k_2 b - k_1 a),
+! without temporaries; the result is bitwise the same as the
+! difference of the two derivatives computed separately.
+!
       USE fprecision
+      USE kes
+      USE var
       USE grid
       USE mpivars
 !$    USE threads
@@ -190,19 +196,13 @@ MODULE pseudospec_fluid
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: c
-      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1,c2
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
-      LOGICAL             :: bret
 
-      CALL gws%get_complex_tmp(c1,bret)
-      CALL gws%get_complex_tmp(c2,bret)
 !
-! Computes the x-component
+! Computes the x-component: c = d_y(b) - d_z(a)
 !
       IF (dir.eq.1) THEN
-         CALL derivk3(a,c1,3)
-         CALL derivk3(b,c2,2)
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
          DO i = ista,iend
@@ -214,16 +214,14 @@ MODULE pseudospec_fluid
             DO j = 1,ny
                DO CONCURRENT (k=1:nz)
 #endif
-                  c(k,j,i) = c2(k,j,i)-c1(k,j,i)
+                  c(k,j,i) = im*(ky(j)*b(k,j,i)-kz(k)*a(k,j,i))
                END DO
             END DO
          END DO
 !
-! Computes the y-component
+! Computes the y-component: c = d_z(a) - d_x(b)
 !
       ELSE IF (dir.eq.2) THEN
-         CALL derivk3(a,c1,3)
-         CALL derivk3(b,c2,1)
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
          DO i = ista,iend
@@ -235,16 +233,14 @@ MODULE pseudospec_fluid
             DO j = 1,ny
                DO CONCURRENT (k=1:nz)
 #endif
-                  c(k,j,i) = c1(k,j,i)-c2(k,j,i)
+                  c(k,j,i) = im*(kz(k)*a(k,j,i)-kx(i)*b(k,j,i))
                END DO
             END DO
          END DO
 !
-! Computes the z-component
+! Computes the z-component: c = d_x(b) - d_y(a)
 !
       ELSE
-         CALL derivk3(a,c1,2)
-         CALL derivk3(b,c2,1)
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
          DO i = ista,iend
@@ -256,17 +252,14 @@ MODULE pseudospec_fluid
             DO j = 1,ny
                DO CONCURRENT (k=1:nz)
 #endif
-                  c(k,j,i) = c2(k,j,i)-c1(k,j,i)
+                  c(k,j,i) = im*(kx(i)*b(k,j,i)-ky(j)*a(k,j,i))
                END DO
             END DO
          END DO
       ENDIF
-      CALL gws%free_complex_tmp(c1)
-      CALL gws%free_complex_tmp(c2)
 
       RETURN
       END SUBROUTINE rotor3
-
 !*****************************************************************
       SUBROUTINE gradre3(a,b,c,d,e,f)
 !-----------------------------------------------------------------
@@ -649,6 +642,33 @@ MODULE pseudospec_fluid
       END DO
       RETURN
       END SUBROUTINE scal3
+
+!*****************************************************************
+      SUBROUTINE setmode3(a,k,j,i,val)
+!-----------------------------------------------------------------
+!
+! Sets one Fourier mode of the matrix 'a', a(k,j,i) = val, in the
+! copy of the matrix being worked on (the device copy while
+! gdev_active is set)
+!
+      USE fprecision
+      USE grid
+      USE mpivars
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: a
+      COMPLEX(KIND=GP), INTENT(IN) :: val
+      INTEGER, INTENT(IN) :: k,j,i
+
+#if defined(GHOST_GPU)
+!$omp target if(target: gdev_active)
+      a(k,j,i) = val
+!$omp end target
+#else
+      a(k,j,i) = val
+#endif
+      RETURN
+      END SUBROUTINE setmode3
 
 !*****************************************************************
       SUBROUTINE copy3(a,b)

@@ -329,10 +329,10 @@ MODULE pseudospec_aniso
          ENDIF
       ENDIF
 
-      RETURN
       CALL gws%free_complex_htmp(c1)
       CALL gws%free_complex_htmp(c2)
       CALL gws%free_complex_htmp(c3)
+      RETURN
       END SUBROUTINE specpara
 
 !*****************************************************************
@@ -667,10 +667,10 @@ MODULE pseudospec_aniso
          ENDIF
       ENDIF
 
-      RETURN
       CALL gws%free_complex_htmp(c1)
       CALL gws%free_complex_htmp(c2)
       CALL gws%free_complex_htmp(c3)
+      RETURN
       END SUBROUTINE specperp
 
 !****************************************************************
@@ -1187,10 +1187,10 @@ MODULE pseudospec_aniso
          CLOSE(1)
       ENDIF
 
-      RETURN
       CALL gws%free_complex_htmp(c1)
       CALL gws%free_complex_htmp(c2)
       CALL gws%free_complex_htmp(c3)
+      RETURN
       END SUBROUTINE heltpara
 
 !*****************************************************************
@@ -1331,10 +1331,10 @@ MODULE pseudospec_aniso
          CLOSE(1)
       ENDIF
 
-      RETURN
       CALL gws%free_complex_htmp(c1)
       CALL gws%free_complex_htmp(c2)
       CALL gws%free_complex_htmp(c3)
+      RETURN
       END SUBROUTINE heltperp
 
 !*****************************************************************
@@ -1635,10 +1635,10 @@ MODULE pseudospec_aniso
          ENDIF
       ENDIF
 
-      RETURN
       CALL gws%free_complex_htmp(c1)
       CALL gws%free_complex_htmp(c2)
       CALL gws%free_complex_htmp(c3)
+      RETURN
       END SUBROUTINE spec2d
 
 !*****************************************************************
