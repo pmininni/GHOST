@@ -341,6 +341,7 @@ CONTAINS
     use filefmt
     use status
     use iovar
+    use pseudospec_fluid, only: scal3
     implicit none
 
     class (HDSolver), intent(in)                :: this
@@ -359,14 +360,19 @@ CONTAINS
     call this%workspace_%get_complex_tmp(c2,bret)
     call this%workspace_%get_complex_tmp(c3,bret)
     call gradre3(vx,vy,vz,c1,c2,c3)                      ! Computes v.Grad(v)
-    call entrans(vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1) ! Writes the energy flux
+    ! The transfer routines need -v.Grad(v): the arrays are negated in
+    ! place (passing -c1 as an argument creates a field-sized temporary)
+    call scal3(c1,-1.0_GP)
+    call scal3(c2,-1.0_GP)
+    call scal3(c3,-1.0_GP)
+    call entrans(vx,vy,vz,c1,c2,c3,this%todir_,ext,1) ! Writes the energy flux
     if ( this%traits_%dorot ) then
       call specpara(vx,vy,vz,this%todir_,ext,1,1)
       call specperp(vx,vy,vz,this%todir_,ext,1,1)
-      call entpara(vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1) ! Writes energy flux
-      call entperp(vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1) ! Writes energy flux
+      call entpara(vx,vy,vz,c1,c2,c3,this%todir_,ext,1) ! Writes energy flux
+      call entperp(vx,vy,vz,c1,c2,c3,this%todir_,ext,1) ! Writes energy flux
       if ( this%traits_%spectlod .ge. 2 ) then
-        call heltrans(vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1)
+        call heltrans(vx,vy,vz,c1,c2,c3,this%todir_,ext,1)
         call spec2D(vx,vy,vz,ext,this%odir_,1,1)
       endif
       if ( this%traits_%spectlod .ge. 3 ) then

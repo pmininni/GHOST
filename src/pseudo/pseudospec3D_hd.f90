@@ -617,6 +617,40 @@ MODULE pseudospec_fluid
       END SUBROUTINE nonlhd3
 
 !*****************************************************************
+      SUBROUTINE scal3(a,c)
+!-----------------------------------------------------------------
+!
+! Scales the complex matrix 'a' in place, a = c*a
+!
+      USE fprecision
+      USE grid
+      USE mpivars
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: a
+      REAL(KIND=GP), INTENT(IN) :: c
+      INTEGER :: i,j,k
+
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+      DO i = ista,iend
+         DO j = 1,ny
+            DO k = 1,nz
+#else
+!$omp parallel do collapse(2) private (k)
+      DO i = ista,iend
+         DO j = 1,ny
+            DO CONCURRENT (k=1:nz)
+#endif
+               a(k,j,i) = c*a(k,j,i)
+            END DO
+         END DO
+      END DO
+      RETURN
+      END SUBROUTINE scal3
+
+!*****************************************************************
       SUBROUTINE copy3(a,b)
 !-----------------------------------------------------------------
 !
@@ -754,13 +788,17 @@ MODULE pseudospec_fluid
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1, c2, c3
       DOUBLE PRECISION, INTENT(OUT) :: d
       DOUBLE PRECISION              :: dloc
       REAL(KIND=GP)                 :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
 
+      LOGICAL :: bret_
+      CALL gws%get_complex_htmp(c1,bret_)
+      CALL gws%get_complex_htmp(c2,bret_)
+      CALL gws%get_complex_htmp(c3,bret_)
       dloc = 0.0D0
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
@@ -886,6 +924,9 @@ MODULE pseudospec_fluid
       CALL MPI_REDUCE(dloc,d,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
 
+      CALL gws%free_complex_htmp(c1)
+      CALL gws%free_complex_htmp(c2)
+      CALL gws%free_complex_htmp(c3)
       RETURN
       END SUBROUTINE energy
 
@@ -910,12 +951,14 @@ MODULE pseudospec_fluid
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)             :: c1
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1
       DOUBLE PRECISION, INTENT(OUT) :: d
       DOUBLE PRECISION              :: dloc
       REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
 
+      LOGICAL :: bret_
+      CALL gws%get_complex_htmp(c1,bret_)
       dloc = 0.0D0
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
@@ -1014,6 +1057,7 @@ MODULE pseudospec_fluid
       CALL MPI_REDUCE(dloc,d,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
 
+      CALL gws%free_complex_htmp(c1)
       RETURN
       END SUBROUTINE helicity
 
@@ -1170,13 +1214,20 @@ MODULE pseudospec_fluid
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
-      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend)             :: r1,r2,r3
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1, c2, c3
+      REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: r1, r2, r3
       REAL(KIND=GP), INTENT(OUT)   :: d
       REAL(KIND=GP)                :: dloc
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
 
+      LOGICAL :: bret_
+      CALL gws%get_complex_htmp(c1,bret_)
+      CALL gws%get_complex_htmp(c2,bret_)
+      CALL gws%get_complex_htmp(c3,bret_)
+      CALL gws%get_real_htmp(r1,bret_)
+      CALL gws%get_real_htmp(r2,bret_)
+      CALL gws%get_real_htmp(r3,bret_)
       IF (kin.eq.0) THEN
          CALL rotor3(b,c,c1,1)
          CALL rotor3(a,c,c2,2)
@@ -1213,6 +1264,12 @@ MODULE pseudospec_fluid
       dloc = dloc/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
       CALL MPI_REDUCE(dloc,d,1,GC_REAL,MPI_MAX,0,MPI_COMM_WORLD,ierr)
 
+      CALL gws%free_complex_htmp(c1)
+      CALL gws%free_complex_htmp(c2)
+      CALL gws%free_complex_htmp(c3)
+      CALL gws%free_real_htmp(r1)
+      CALL gws%free_real_htmp(r2)
+      CALL gws%free_real_htmp(r3)
       RETURN
       END SUBROUTINE maxabs
 
@@ -1331,7 +1388,7 @@ MODULE pseudospec_fluid
       DOUBLE PRECISION, INTENT(OUT), DIMENSION(nmax/2+1) :: Ektot, Hktot
       DOUBLE PRECISION    :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1, c2, c3
       REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin,hel
       INTEGER             :: i,j,k
@@ -1340,6 +1397,10 @@ MODULE pseudospec_fluid
 !
 ! Computes the curl of the field if needed
 !
+      LOGICAL :: bret_
+      CALL gws%get_complex_htmp(c1,bret_)
+      CALL gws%get_complex_htmp(c2,bret_)
+      CALL gws%get_complex_htmp(c3,bret_)
       IF ((kin.eq.0).or.(hel.eq.1)) THEN
          CALL rotor3(b,c,c1,1)
          CALL rotor3(a,c,c2,2)
@@ -1521,6 +1582,9 @@ MODULE pseudospec_fluid
                          MPI_SUM,MPI_COMM_WORLD,ierr)
       ENDIF
 
+      CALL gws%free_complex_htmp(c1)
+      CALL gws%free_complex_htmp(c2)
+      CALL gws%free_complex_htmp(c3)
       RETURN
       END SUBROUTINE spectrumc
 
@@ -1981,7 +2045,7 @@ MODULE pseudospec_fluid
       DOUBLE PRECISION    :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1, c2, c3
       REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
@@ -1991,6 +2055,10 @@ MODULE pseudospec_fluid
 !
 ! Sets Hk to zero
 !
+      LOGICAL :: bret_
+      CALL gws%get_complex_htmp(c1,bret_)
+      CALL gws%get_complex_htmp(c2,bret_)
+      CALL gws%get_complex_htmp(c3,bret_)
       DO i = 1,nmax/2+1
          Hk(i) = 0.0D0
       END DO
@@ -2067,6 +2135,9 @@ MODULE pseudospec_fluid
          CLOSE(1)
       ENDIF
 
+      CALL gws%free_complex_htmp(c1)
+      CALL gws%free_complex_htmp(c2)
+      CALL gws%free_complex_htmp(c3)
       RETURN
       END SUBROUTINE heltrans
 
@@ -2138,7 +2209,7 @@ MODULE pseudospec_fluid
       DOUBLE PRECISION, INTENT(OUT), DIMENSION(nmax/2+1)      :: Ektot
       DOUBLE PRECISION                                        :: tmq
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)              :: c1
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1
       REAL(KIND=GP)       :: tmp
       INTEGER             :: i,j,k
       INTEGER             :: kmn
@@ -2146,6 +2217,8 @@ MODULE pseudospec_fluid
 !
 ! Computes the power spectrum
 !
+      LOGICAL :: bret_
+      CALL gws%get_complex_htmp(c1,bret_)
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
       DO i = 1,nmax/2+1
@@ -2204,6 +2277,7 @@ MODULE pseudospec_fluid
        CALL MPI_ALLREDUCE(Ek,Ektot,nmax/2+1,MPI_DOUBLE_PRECISION, &
                       MPI_SUM,MPI_COMM_WORLD,ierr)
 !
+      CALL gws%free_complex_htmp(c1)
        RETURN
        END SUBROUTINE pspectrumc
 
@@ -2334,7 +2408,7 @@ MODULE pseudospec_hd
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1, c2, c3
       DOUBLE PRECISION    :: eng,ens,pot,khe
       DOUBLE PRECISION    :: div,tmp
       REAL(KIND=GP)       :: dt
@@ -2344,6 +2418,10 @@ MODULE pseudospec_hd
       INTEGER             :: i,j,k
       CHARACTER(len=*), INTENT(IN) :: path
 
+      LOGICAL :: bret_
+      CALL gws%get_complex_htmp(c1,bret_)
+      CALL gws%get_complex_htmp(c2,bret_)
+      CALL gws%get_complex_htmp(c3,bret_)
       div = 0.0D0
       tmp = 0.0D0
       tmq = 1.0_GP/ &
@@ -2423,6 +2501,9 @@ MODULE pseudospec_hd
          ENDIF
       ENDIF
 
+      CALL gws%free_complex_htmp(c1)
+      CALL gws%free_complex_htmp(c2)
+      CALL gws%free_complex_htmp(c3)
       RETURN
       END SUBROUTINE hdcheck
 

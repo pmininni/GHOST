@@ -414,6 +414,7 @@ contains
     use filefmt
     use status
     use iovar
+    use pseudospec_fluid, only: scal3
     implicit none
 
     class (BOUSSSolver), intent(in)             :: this
@@ -437,19 +438,24 @@ contains
     call this%workspace_%get_complex_tmp(c2,bret)
     call this%workspace_%get_complex_tmp(c3,bret)
     call gradre3(vx,vy,vz,c1,c2,c3)                      ! Computes v.Grad(v)
-    call entrans(vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1) ! Writes the energy flux
+    ! The transfer routines need -v.Grad(v): the arrays are negated in
+    ! place (passing -c1 as an argument creates a field-sized temporary)
+    call scal3(c1,-1.0_GP)
+    call scal3(c2,-1.0_GP)
+    call scal3(c3,-1.0_GP)
+    call entrans(vx,vy,vz,c1,c2,c3,this%todir_,ext,1) ! Writes the energy flux
 
     call specpara(vx,vy,vz,this%todir_,ext,1,1)
     call specperp(vx,vy,vz,this%todir_,ext,1,1)
     call spectrsc(th,this%todir_,ext,0,trim(this%sstate_(this%ACTIVESC)))
     call specscpa(th,this%todir_,ext,0,trim(this%sstate_(this%ACTIVESC)))
     call specscpe(th,this%todir_,ext,0,trim(this%sstate_(this%ACTIVESC)))
-    call entpara (vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1) ! Energy flux
-    call entperp (vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1) ! Energy flux
+    call entpara (vx,vy,vz,c1,c2,c3,this%todir_,ext,1) ! Energy flux
+    call entperp (vx,vy,vz,c1,c2,c3,this%todir_,ext,1) ! Energy flux
 
     ! Write helicity fluxes, 2D spectra:
     if ( this%traits_%spectlod .ge. 2 ) then
-      call heltrans(vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1)
+      call heltrans(vx,vy,vz,c1,c2,c3,this%todir_,ext,1)
       ! Write 2D spectra:
       call spec2D  (vx,vy,vz,ext,this%odir_,1,1)
       call specsc2D(th,ext,this%odir_,0,trim(this%sstate_(this%ACTIVESC)))

@@ -26,6 +26,10 @@ module equation_factory
   ! top of the ones held by the caller.
   integer, public :: NUMTMPCOMP = 0 ! Number of cmplx tmp arrays
   integer, public :: NUMTMPREAL = 0 ! Number of real tmp arrays
+  ! Host-only temporaries, for the diagnostics: hdcheck holds 3 while
+  ! energy holds 3; maxabs holds 3 complex and 3 real.
+  integer, public :: NUMTMPHCOMP = 6 ! Number of host-only cmplx tmp arrays
+  integer, public :: NUMTMPHREAL = 3 ! Number of host-only real tmp arrays
   
 CONTAINS
   

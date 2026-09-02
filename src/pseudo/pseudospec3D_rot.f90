@@ -23,6 +23,7 @@
 
 MODULE pseudospec_aniso
    USE pseudospec_fluid
+   USE class_GWorkspace3D, ONLY: gws
    CONTAINS
 
 !*****************************************************************
@@ -76,7 +77,7 @@ MODULE pseudospec_aniso
       DOUBLE PRECISION, DIMENSION(nz/2+1) :: Ekv,Ekvtot
       DOUBLE PRECISION    :: tmq,tmr
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1, c2, c3
       REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin,hel
       INTEGER             :: i,j,k
@@ -86,6 +87,10 @@ MODULE pseudospec_aniso
 !
 ! Sets Ek to zero
 !
+      LOGICAL :: bret_
+      CALL gws%get_complex_htmp(c1,bret_)
+      CALL gws%get_complex_htmp(c2,bret_)
+      CALL gws%get_complex_htmp(c3,bret_)
       DO k = 1,nz/2+1
          Ek (k) = 0.0D0
          Ekh(k) = 0.0D0
@@ -325,6 +330,9 @@ MODULE pseudospec_aniso
       ENDIF
 
       RETURN
+      CALL gws%free_complex_htmp(c1)
+      CALL gws%free_complex_htmp(c2)
+      CALL gws%free_complex_htmp(c3)
       END SUBROUTINE specpara
 
 !*****************************************************************
@@ -378,7 +386,7 @@ MODULE pseudospec_aniso
       DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ekz,Eztot
       DOUBLE PRECISION    :: tmq,tmr
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1, c2, c3
       REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin,hel
       INTEGER             :: i,j,k
@@ -388,6 +396,10 @@ MODULE pseudospec_aniso
 !
 ! Sets Ek to zero
 !
+      LOGICAL :: bret_
+      CALL gws%get_complex_htmp(c1,bret_)
+      CALL gws%get_complex_htmp(c2,bret_)
+      CALL gws%get_complex_htmp(c3,bret_)
       DO i = 1,nmaxperp/2+1
          Ek(i) = 0.0D0
          Ekp(i) = 0.0D0
@@ -656,6 +668,9 @@ MODULE pseudospec_aniso
       ENDIF
 
       RETURN
+      CALL gws%free_complex_htmp(c1)
+      CALL gws%free_complex_htmp(c2)
+      CALL gws%free_complex_htmp(c3)
       END SUBROUTINE specperp
 
 !****************************************************************
@@ -1077,7 +1092,7 @@ MODULE pseudospec_aniso
       DOUBLE PRECISION    :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1, c2, c3
       REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
@@ -1087,6 +1102,10 @@ MODULE pseudospec_aniso
 !
 ! Sets Hk to zero
 !
+      LOGICAL :: bret_
+      CALL gws%get_complex_htmp(c1,bret_)
+      CALL gws%get_complex_htmp(c2,bret_)
+      CALL gws%get_complex_htmp(c3,bret_)
       DO k = 1,nz/2+1
          Hk(k) = 0.0D0
       END DO
@@ -1169,6 +1188,9 @@ MODULE pseudospec_aniso
       ENDIF
 
       RETURN
+      CALL gws%free_complex_htmp(c1)
+      CALL gws%free_complex_htmp(c2)
+      CALL gws%free_complex_htmp(c3)
       END SUBROUTINE heltpara
 
 !*****************************************************************
@@ -1214,7 +1236,7 @@ MODULE pseudospec_aniso
       DOUBLE PRECISION    :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1, c2, c3
       REAL(KIND=GP)       :: tmp
       INTEGER, INTENT(IN) :: kin
       INTEGER             :: i,j,k
@@ -1224,6 +1246,10 @@ MODULE pseudospec_aniso
 !
 ! Sets Hk to zero
 !
+      LOGICAL :: bret_
+      CALL gws%get_complex_htmp(c1,bret_)
+      CALL gws%get_complex_htmp(c2,bret_)
+      CALL gws%get_complex_htmp(c3,bret_)
       DO i = 1,nmaxperp/2+1
          Hk(i) = 0.0D0
       END DO
@@ -1306,6 +1332,9 @@ MODULE pseudospec_aniso
       ENDIF
 
       RETURN
+      CALL gws%free_complex_htmp(c1)
+      CALL gws%free_complex_htmp(c2)
+      CALL gws%free_complex_htmp(c3)
       END SUBROUTINE heltperp
 
 !*****************************************************************
@@ -1354,7 +1383,7 @@ MODULE pseudospec_aniso
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)          :: c1,c2,c3
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1, c2, c3
       REAL(KIND=GP),    DIMENSION(nmaxperp/2+1,nz/2+1)      :: Ek,Ektot
       REAL(KIND=GP)       :: tmq,tmp
       INTEGER, INTENT(IN) :: kin,hel
@@ -1366,6 +1395,10 @@ MODULE pseudospec_aniso
 !
 ! Sets Ek to zero
 !
+      LOGICAL :: bret_
+      CALL gws%get_complex_htmp(c1,bret_)
+      CALL gws%get_complex_htmp(c2,bret_)
+      CALL gws%get_complex_htmp(c3,bret_)
       DO i = 1,nmaxperp/2+1
          DO k = 1,nz/2+1
             Ek(i,k) = 0.0_GP
@@ -1603,6 +1636,9 @@ MODULE pseudospec_aniso
       ENDIF
 
       RETURN
+      CALL gws%free_complex_htmp(c1)
+      CALL gws%free_complex_htmp(c2)
+      CALL gws%free_complex_htmp(c3)
       END SUBROUTINE spec2d
 
 !*****************************************************************

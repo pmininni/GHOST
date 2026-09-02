@@ -75,6 +75,7 @@ CONTAINS
     ! PDE & Arrays
     fluid = init_pdes_from_file(trim(file))
     CALL workspace%initialize_pool(NUMTMPREAL, NUMTMPCOMP)
+    CALL workspace%init_host_entries(NUMTMPHREAL, NUMTMPHCOMP)
     CALL fluid%Solver_ctor(trim(file), workspace, planio)
 
     num_components = fluid%state_size()

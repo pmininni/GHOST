@@ -88,6 +88,7 @@
       fluid        = init_pdes_from_file('parameter.inp')
       if (dopart) particle = init_particles_from_file('parameter.inp')
       CALL workspace%initialize_pool(NUMTMPREAL,NUMTMPCOMP,NUMTMPPART)
+      CALL workspace%init_host_entries(NUMTMPHREAL,NUMTMPHCOMP)
       CALL fluid%Solver_ctor('parameter.inp',workspace,planio)
       num_components = fluid%state_size()
       CALL GState_alloc(field    , num_components)

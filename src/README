@@ -214,11 +214,20 @@ Across two nodes the exchange goes through the network, and a UCX
 without InfiniBand transports (as the one shipped with ROCm here)
 falls back to TCP, which is much slower than a single node.
 
-Note for flang builds: flang places automatic arrays on the stack
-whatever their size, and the diagnostic routines (energy, spectra,
-etc.) still declare field-sized automatic arrays, so runs at large
-resolution need an unlimited stack size (ulimit -s unlimited, or the
-equivalent in the batch script).
+Temporaries of the diagnostics (energy, spectra, transfer functions)
+come from a host-only pool of the workspace (get_*_htmp), since those
+routines run on the host copies of the fields; in offload builds the
+arrays of that pool have no device copy. This also matters for flang,
+which places automatic arrays on the stack whatever their size: the HD
+solver no longer has field-sized automatic arrays, but other solvers
+still do until they are ported, and need ulimit -s unlimited at large
+resolution with flang.
+
+Note for the ROCm modules on sakura: the llvm module loaded with
+openmpi5-rocm puts lib/llvm/lib-debug first in LD_LIBRARY_PATH; the
+debug OpenMP runtimes found there make the host fallback of the target
+regions crash. Remove that directory from LD_LIBRARY_PATH before
+running (see src/tests/gpu_miniapp/run_amd.sh).
 
 3.4 About the solvers:
 

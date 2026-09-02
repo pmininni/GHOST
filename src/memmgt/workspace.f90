@@ -8,6 +8,11 @@
 ! an array not from the pool results in error. Resizing the pool
 ! invalidates all pointers to arrays in the pool.
 !
+! Besides the device-resident real and complex pools there is a host-only
+! pool (get_*_htmp / free_*_htmp) for the temporaries of routines that
+! run on the host copies of the fields, such as the diagnostics; in
+! offload builds those arrays have no device copy.
+!
 ! Arrays handed out by get_*_tmp are NOT zeroed: the free_*_tmp
 ! methods used to zero each array on release, but that is a full
 ! field sized memset every time a temporary is returned, sixteen of
@@ -66,9 +71,16 @@ module class_GWorkspace3D
     TYPE   (RealEntry), ALLOCATABLE  :: real_entries_   (:)
     TYPE(ComplexEntry), ALLOCATABLE  :: complex_entries_(:)
     TYPE  (PCompEntry), ALLOCATABLE  :: pcomp_entries_  (:)
+    ! Host-only entries: arrays without device copy, for routines that
+    ! run on the host copies of the fields (diagnostics, I/O). They cost
+    ! no device memory and are handed out by get_*_htmp.
+    TYPE   (RealEntry), ALLOCATABLE  :: hreal_entries_   (:)
+    TYPE(ComplexEntry), ALLOCATABLE  :: hcomplex_entries_(:)
     integer :: real_size_           = 0
     integer :: complex_size_        = 0
     integer :: pcomp_size_          = 0
+    integer :: hreal_size_          = 0
+    integer :: hcomplex_size_       = 0
     integer :: nreserve_            = 8
     integer :: ncurr_realreserve_   = 8
     integer :: ncurr_complexreserve_= 8
@@ -81,6 +93,9 @@ module class_GWorkspace3D
     procedure, public :: resize_pcomp_arrays  ! resizes pcomp data in-place
     procedure, public :: get_real_tmp     , get_complex_tmp     , get_pcomp_tmp
     procedure, public :: free_real_tmp    , free_complex_tmp    , free_pcomp_tmp 
+    procedure, public :: init_host_entries
+    procedure, public :: get_real_htmp    , get_complex_htmp
+    procedure, public :: free_real_htmp   , free_complex_htmp
     procedure, public :: get_real_tmp_size, get_complex_tmp_size, get_pcomp_tmp_size
     procedure, public :: add_real_entries , add_complex_entries , add_pcomp_entries
     procedure, public :: set_nparts, get_nparts
@@ -247,6 +262,20 @@ CONTAINS
       DEALLOCATE(this%complex_entries_)
       this%complex_size_ = 0
     end if
+    if (ALLOCATED(this%hreal_entries_)) THEN
+      do i = 1, this%hreal_size_
+        call gfree(this%hreal_entries_(i)%array)
+      end do
+      DEALLOCATE(this%hreal_entries_)
+      this%hreal_size_ = 0
+    end if
+    if (ALLOCATED(this%hcomplex_entries_)) THEN
+      do i = 1, this%hcomplex_size_
+        call gfree(this%hcomplex_entries_(i)%array)
+      end do
+      DEALLOCATE(this%hcomplex_entries_)
+      this%hcomplex_size_ = 0
+    end if
     if (ALLOCATED(this%pcomp_entries_)) THEN
       DEALLOCATE(this%pcomp_entries_)
       this%pcomp_size_ = 0
@@ -399,6 +428,111 @@ CONTAINS
     this%pcomp_size_ = this%pcomp_size_ + num_new
   end subroutine add_pcomp_entries
  
+
+  ! ===================================================================
+  ! Host-only pool
+  ! ===================================================================
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Allocates the host-only entries (no device copies). May be
+  ! called once, after initialize_pool.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine init_host_entries(this, num_hreal, num_hcomplex)
+    CLASS(GWorkspace), intent(inout), target :: this
+    integer          , intent(in)            :: num_hreal, num_hcomplex
+    integer                                  :: i
+
+    if ( ALLOCATED(this%hreal_entries_) .or. ALLOCATED(this%hcomplex_entries_) ) then
+      stop 'init_host_entries: host entries already initialized.'
+    end if
+    this%hreal_size_    = max(num_hreal,0)
+    this%hcomplex_size_ = max(num_hcomplex,0)
+    ALLOCATE(this%hreal_entries_   (this%hreal_size_   ))
+    ALLOCATE(this%hcomplex_entries_(this%hcomplex_size_))
+    do i = 1, this%hreal_size_
+      call galloc_host(this%hreal_entries_(i)%array, nx, ny, ksta, kend)
+      this%hreal_entries_(i)%is_free = .TRUE.
+    end do
+    do i = 1, this%hcomplex_size_
+      call galloc_host(this%hcomplex_entries_(i)%array, nz, ny, ista, iend)
+      this%hcomplex_entries_(i)%is_free = .TRUE.
+    end do
+    write(*,*) 'Host pool initialized: ', num_hreal, ' Real and', &
+               num_hcomplex, ' Complex arrays'
+  end subroutine init_host_entries
+
+  subroutine get_real_htmp(this, ret_ptr, success)
+    CLASS(GWorkspace), target , intent(inout) :: this
+    real   (kind=GP) , pointer, intent(out)   :: ret_ptr(:,:,:)
+    logical         , optional, intent(out)   :: success
+    integer                                   :: i
+
+    if (present(success)) success = .FALSE.
+    do i = 1, this%hreal_size_
+      if ( this%hreal_entries_(i)%is_free ) THEN
+        this%hreal_entries_(i)%is_free = .FALSE.
+        ret_ptr => this%hreal_entries_(i)%array
+        if (present(success)) success = .TRUE.
+        return
+      endif
+    enddo
+    ret_ptr => null()
+    write(*,*) 'GWorkspace::get_real_htmp: all ', this%hreal_size_, &
+               ' host real arrays in the pool are checked out'
+    error stop 'GWorkspace::get_real_htmp: host real workspace pool exhausted'
+  end subroutine get_real_htmp
+
+  subroutine get_complex_htmp(this, ret_ptr, success)
+    CLASS(GWorkspace), target , intent(inout) :: this
+    complex(kind=GP) , pointer, intent(out)   :: ret_ptr(:,:,:)
+    logical         , optional, intent(out)   :: success
+    integer                                   :: i
+
+    if (present(success)) success = .FALSE.
+    do i = 1, this%hcomplex_size_
+      if ( this%hcomplex_entries_(i)%is_free ) THEN
+        this%hcomplex_entries_(i)%is_free = .FALSE.
+        ret_ptr => this%hcomplex_entries_(i)%array
+        if (present(success)) success = .TRUE.
+        return
+      endif
+    enddo
+    ret_ptr => null()
+    write(*,*) 'GWorkspace::get_complex_htmp: all ', this%hcomplex_size_, &
+               ' host complex arrays in the pool are checked out'
+    error stop 'GWorkspace::get_complex_htmp: host complex workspace pool exhausted'
+  end subroutine get_complex_htmp
+
+  subroutine free_real_htmp(this, in_ptr)
+    CLASS(GWorkspace), target, intent(inout) :: this
+    real   (kind=GP), pointer, intent(inout) :: in_ptr(:,:,:)
+    integer                                  :: i
+
+    do i = 1, this%hreal_size_
+      if (associated(in_ptr, this%hreal_entries_(i)%array)) then
+        NULLIFY(in_ptr)
+        this%hreal_entries_(i)%is_free = .TRUE.
+        return
+      endif
+    enddo
+    stop 'free_real_htmp: array not found in the host pool. Check-in failed'
+  end subroutine free_real_htmp
+
+  subroutine free_complex_htmp(this, in_ptr)
+    CLASS(GWorkspace), target, intent(inout) :: this
+    complex(kind=GP), pointer, intent(inout) :: in_ptr(:,:,:)
+    integer                                  :: i
+
+    do i = 1, this%hcomplex_size_
+      if (associated(in_ptr, this%hcomplex_entries_(i)%array)) then
+        NULLIFY(in_ptr)
+        this%hcomplex_entries_(i)%is_free = .TRUE.
+        return
+      endif
+    enddo
+    stop 'free_complex_htmp: array not found in the host pool. Check-in failed'
+  end subroutine free_complex_htmp
+
 
   ! ===================================================================
   ! Size query and nparts helpers

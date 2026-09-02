@@ -11,6 +11,7 @@
 !
 !   galloc(a,...)     : ALLOCATE plus device copy (rank 1 or 3,
 !                       real or complex, allocatable or pointer)
+!   galloc_host(a,...): ALLOCATE without device copy (host-only arrays)
 !   gfree(a)          : release both copies
 !   gupdate_to(a)     : host copy -> device copy
 !   gupdate_from(a)   : device copy -> host copy
@@ -42,6 +43,9 @@
       INTERFACE galloc_ptr
         MODULE PROCEDURE galloc_r3p
       END INTERFACE galloc_ptr
+      INTERFACE galloc_host
+        MODULE PROCEDURE galloc_host_r3, galloc_host_c3
+      END INTERFACE galloc_host
       INTERFACE gfree
         MODULE PROCEDURE gfree_r1, gfree_r3, gfree_c1, gfree_c3
       END INTERFACE gfree
@@ -97,6 +101,24 @@
       ALLOCATE( a(n1,n2,l3:u3) )
       CALL gdev_alloc(C_LOC(a),nbytes_c(SIZE(a)))
       END SUBROUTINE galloc_c3
+
+! ---------------------------------------------------------------
+! Host-only allocation: arrays that are only ever used on the host
+! (e.g. the temporaries of the diagnostics, which run on the host
+! copies of the fields). No device copy is created; gfree releases
+! them like any other array.
+! ---------------------------------------------------------------
+      SUBROUTINE galloc_host_r3(a,n1,n2,l3,u3)
+      REAL(KIND=GP), ALLOCATABLE, TARGET, INTENT(OUT) :: a(:,:,:)
+      INTEGER, INTENT(IN) :: n1,n2,l3,u3
+      ALLOCATE( a(n1,n2,l3:u3) )
+      END SUBROUTINE galloc_host_r3
+
+      SUBROUTINE galloc_host_c3(a,n1,n2,l3,u3)
+      COMPLEX(KIND=GP), ALLOCATABLE, TARGET, INTENT(OUT) :: a(:,:,:)
+      INTEGER, INTENT(IN) :: n1,n2,l3,u3
+      ALLOCATE( a(n1,n2,l3:u3) )
+      END SUBROUTINE galloc_host_c3
 
 ! ---------------------------------------------------------------
 ! Release

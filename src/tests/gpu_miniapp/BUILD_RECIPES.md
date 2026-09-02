@@ -6,6 +6,16 @@ system-wide install. Sources are in `$HOME/sw/src`.
 
 ## 1. OpenMPI 5.0.7 for AMD, built with ROCm 7.2 amdflang (validated)
 
+Installed system-wide on 2026-09-02 as the module `openmpi5-rocm/5.0.7`
+(load after `rocm/7.2`; it pulls in `llvm/22.0`, `ucx/1.20.1` and
+`hwloc/2.12.0`). GHOST built and validated with it. One caveat: the
+`llvm/22.0` module prepends `lib/llvm/lib-debug` to `LD_LIBRARY_PATH`,
+and the debug `libomp`/`libomptarget` found there make the host
+fallback of OpenMP target regions segfault (`__kmp_dist_for_static_init`
+at address 0x20c). Either drop that prepend from the module or remove
+the directory from the path at run time. The recipe below is the one
+used for the private build it replaced.
+
 Why: the cluster's ROCm-aware OpenMPI was built with gfortran, whose
 `mpi_f08` module files cannot be used from amdflang. This build uses the
 ROCm UCX 1.20.1 already installed. Validated with the mini-app on one and
