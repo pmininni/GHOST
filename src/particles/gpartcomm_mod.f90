@@ -1,75 +1,76 @@
 !=================================================================
-! GHOST GPartComm particles communication class. It handles
-!       two types of exchanges: the particles, and the
-!       velocity data used to update the particle positions,
-!       (the 'ghost' zone data) and separate interfaces are
-!       provided for each. The velocity data can be exchanged
-!       for _any_ other field variable as well, although the
-!       'multi-field' interfaces may not be appropriate for it.
-!       Interfaces are also provided to exchange scalar fields.
+! GPartComm: communication for the particle classes: exchange of
+! the ghost z-planes of the field the particles interpolate from,
+! exchange of the particles that leave the slab of a task,
+! synchronization of the global particle database (VDB exchange),
+! and the gather of the particle records on task 0 used by the
+! non-collective I/O.
 !
-! 2013 D. Rosenberg
-!      ORNL: NCCS
+! In offload builds the field buffers, the particle send/receive
+! buffers and the index lists have device copies (galloc); the
+! kernels that fill or read them run on the device while
+! gdev_active is set, and MPI receives the device addresses of the
+! buffers (use_device_addr). Particle records travel as two
+! contiguous messages, the ids and the three coordinates, which
+! GPU-aware MPI handles without derived datatypes. The selection
+! of particles (leaving through the bottom or the top of the slab,
+! holes left by the departed particles) uses gpselect, so the
+! local order of the particles is the same for any number of
+! threads or teams.
 !
-! 15 Aug 2011: Initial version
+! The routines used only at initialization or for the I/O
+! (IdentifyTaskV, PartScatterV, VDBSynch_t0, LagSynch_t0) run on
+! the host copies and must be called with gdev_active unset.
 !=================================================================
 MODULE class_GPartComm
       USE fprecision
       USE commtypes
       USE gtimer
+      USE gmem
+      USE gdevice, ONLY: gdev_active
+      USE gpselect
       IMPLICIT NONE
-
-      INTEGER,PARAMETER,PUBLIC                       :: GPNULL=-1          ! particle NULL value
-      INTEGER,PARAMETER,PUBLIC                       :: GPCOMM_INTRFC_SF=0 ! single-field interface
-      INTEGER,PARAMETER,PUBLIC                       :: GPCOMM_INTRFC_MF=1 ! multi-field interface
-      INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_INIT = 0    ! starts particle exchange
-      INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_UPDT = 1    ! continues part. exchange
-      INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_END  = 2    ! finishes particle exchange
-      INTEGER,PARAMETER,PUBLIC                       :: GPEXCH_UNIQ = 3    ! exchange only positions
-!$    INTEGER,PARAMETER,PUBLIC                       :: NMIN_OMP    = 10000! min. no. of op. for threading
-      TYPE(MPI_Datatype),PUBLIC                      :: MPI_GPDataType     = MPI_DATATYPE_NULL
-      TYPE(MPI_Datatype),PUBLIC                      :: MPI_GPDataPackType = MPI_DATATYPE_NULL
-      INTEGER                                        :: UNPACK_REP = 0, UNPACK_SUM = 1
-
+      INTEGER,PARAMETER,PUBLIC :: GPNULL=-1          ! particle NULL value
+      INTEGER,PARAMETER,PUBLIC :: GPCOMM_INTRFC_SF=0 ! single-field interface
+      INTEGER,PARAMETER,PUBLIC :: GPEXCH_INIT = 0    ! starts particle exchange
+      INTEGER,PARAMETER,PUBLIC :: GPEXCH_UPDT = 1    ! continues part. exchange
+      INTEGER,PARAMETER,PUBLIC :: GPEXCH_END  = 2    ! finishes particle exchange
+      INTEGER,PARAMETER,PUBLIC :: GPEXCH_UNIQ = 3    ! exchange only positions
       PRIVATE
-      TYPE, BIND(C), PUBLIC :: GPData
-        INTEGER        :: idp_
-        REAL(KIND=GP)  :: rp_(3)
-      END TYPE GPData
 
       TYPE, PUBLIC :: GPartComm
         PRIVATE
-        ! Member data:
-        INTEGER                                      :: intrfc_   ! if >=1 use multi-field interface
         INTEGER                                      :: maxparts_  ,nbuff_     ,nd_(3)   ,nzghost_
         INTEGER                                      :: nbsnd_     ,ntsnd_     ,nbrcv_   ,ntrcv_
-        INTEGER                                      :: nprocs_    ,myrank_    ,csize_   ,nstrip_
+        INTEGER                                      :: nprocs_    ,myrank_
         INTEGER                                      :: ntop_      ,nbot_      ,ierr_
         INTEGER                                      :: iextperp_  ,ksta_      ,kend_    ,nth_
         INTEGER                                      :: hcomm_
+        ! Transposes of a real field between the slab (nx,ny,kl) and the
+        ! z-complete (nz,ny,il) layouts: x and z ranges of every task,
+        ! offsets and counts of the contiguous messages, device buffers
         LOGICAL                                      :: btransinit_
+        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: txsta_     ,txend_     ,tzsta_   ,tzend_
+        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: tso_       ,tsc_       ,tro_     ,trc_
+        REAL(KIND=GP), ALLOCATABLE, DIMENSION(:)     :: gtsbuf_    ,gtrbuf_
+        ! Tables of the ghost-plane exchange (host)
         INTEGER, ALLOCATABLE, DIMENSION(:,:)         :: ibsnd_     ,itsnd_
+        INTEGER, ALLOCATABLE, DIMENSION(:,:)         :: ibsnddst_  ,itsnddst_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibrcv_     ,itrcv_     ,nbbrcv_  ,ntbrcv_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibsndnz_   ,itsndnz_
-        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: itop_      ,ibot_
-        INTEGER, ALLOCATABLE, DIMENSION(:,:)         :: ibsnddst_  ,itsnddst_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibrcvnz_   ,itrcvnz_
         INTEGER, ALLOCATABLE, DIMENSION  (:)         :: ibsndp_    ,ibrcvp_    ,itsndp_  ,itrcvp_
-        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: oldid_
+        ! Index lists and buffers (device copies in offload builds)
+        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: itop_      ,ibot_      ,oldid_
+        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: iflag_     ,ihole_     ,isurv_
+        INTEGER, ALLOCATABLE, DIMENSION  (:)         :: sbid_      ,stid_      ,rbid_    ,rtid_
+        REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:)   :: sbpr_      ,stpr_      ,rbpr_    ,rtpr_
+        REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:)   :: sbbuff_    ,stbuff_
+        REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:)   :: rbbuff_    ,rtbuff_
         TYPE(MPI_Comm)                               :: comm_
         TYPE(MPI_Status)                             :: istatus_
         TYPE(MPI_Request), DIMENSION(:), ALLOCATABLE :: ibsh_      ,ibrh_      ,itsh_    ,itrh_
-        TYPE(MPI_Request), DIMENSION(:), ALLOCATABLE :: igsh_      ,igrh_
-        TYPE(MPI_Datatype),DIMENSION(:), ALLOCATABLE :: itypekp_   ,itypeip_
-        REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:)   :: sbbuff_    ,stbuff_
-        REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:)   :: rbbuff_    ,rtbuff_
-        TYPE(GPData) , ALLOCATABLE, DIMENSION(:)     :: sbbuffp_   ,stbuffp_
-        TYPE(GPData) , ALLOCATABLE, DIMENSION(:)     :: rbbuffp_   ,rtbuffp_
-        INTEGER                                      :: nbret_     ,ntret_
-        INTEGER, ALLOCATABLE, DIMENSION(:)           :: ibretp_    ,itretp_    ,ibretnz_ ,itretnz_
-        INTEGER, ALLOCATABLE, DIMENSION(:,:)         :: ibret_     ,itret_     ,ibretdst_,itretdst_
       CONTAINS
-        ! Public methods:
         PROCEDURE,PUBLIC :: GPartComm_ctor
         FINAL            :: GPartComm_dtor
         PROCEDURE,PUBLIC :: Init              => GPartComm_Init
@@ -78,46 +79,15 @@ MODULE class_GPartComm
         PROCEDURE,PUBLIC :: GITranspose       => GPartComm_ITranspose
         PROCEDURE,PUBLIC :: VDBSynch          => GPartComm_VDBSynch
         PROCEDURE,PUBLIC :: VDBSynch_t0       => GPartComm_VDBSynch_t0
-        PROCEDURE,PUBLIC :: LagSynch          => GPartComm_LagSynch
         PROCEDURE,PUBLIC :: LagSynch_t0       => GPartComm_LagSynch_t0
-        PROCEDURE,PUBLIC :: SetCacheParam     => GPartComm_SetCacheParam
-        PROCEDURE,PUBLIC :: PartExchangePDB   => GPartComm_PartExchangePDB
         PROCEDURE,PUBLIC :: IdentifyTaskV     => GPartComm_IdentifyTaskV
         PROCEDURE,PUBLIC :: PartScatterV      => GPartComm_PartScatterV
         PROCEDURE,PUBLIC :: PartExchangeV     => GPartComm_PartExchangeV
         PROCEDURE,PUBLIC :: IdentifyExchV     => GPartComm_IdentifyExchV
-        PROCEDURE,PUBLIC :: SlabDataExchangeMF=> GPartComm_SlabDataExchangeMF
         PROCEDURE,PUBLIC :: SlabDataExchangeSF=> GPartComm_SlabDataExchangeSF
-        PROCEDURE,PUBLIC :: ConcatPDB         => GPartComm_ConcatPDB
-        PROCEDURE,PUBLIC :: ConcatV           => GPartComm_ConcatV
-        PROCEDURE,PUBLIC :: Copy2Ext          => GPartComm_Copy2Ext
-        GENERIC  ,PUBLIC :: Concat            => ConcatPDB,ConcatV
         PROCEDURE,PUBLIC :: ResizeArrays      => GPartComm_ResizeArrays
-        PROCEDURE,PUBLIC :: SlabDataReturnMF  => GPartComm_SlabDataReturnMF
-        PROCEDURE,PUBLIC :: SlabDataReturnSF  => GPartComm_SlabDataReturnSF
-        PROCEDURE,PUBLIC :: Copy2Reg          => GPartComm_Copy2Reg
-        PROCEDURE,PUBLIC :: AllocRetArrays    => GPartComm_AllocRet
       END TYPE GPartComm
 
-      PUBLIC :: Resize_ArrayRank1,Resize_ArrayRank2
-      PUBLIC :: Resize_IntArray,Resize_IntArrayRank2
-      PUBLIC :: Resize_ArrayRank2Transposed
-
-      PRIVATE :: GPartComm_Init              , GPartComm_AllocRet
-      PRIVATE :: GPartComm_SlabDataExchangeMF, GPartComm_SlabDataExchangeSF
-      PRIVATE :: GPartComm_LocalDataExchMF   , GPartComm_LocalDataExchSF
-      PRIVATE :: GPartComm_PartExchangePDB   , GPartComm_PartExchangeV
-      PRIVATE :: GPartComm_Transpose         , GPartComm_GetNumGhost
-      PRIVATE :: GPartComm_PackMF            , GPartComm_UnpackMF
-      PRIVATE :: GPartComm_PackSF            , GPartComm_UnpackSF
-      PRIVATE :: GPartComm_PPackPDB          , GPartComm_PUnpackPDB
-      PRIVATE :: GPartComm_PPackV            , GPartComm_PUnpackV
-      PRIVATE :: GPartComm_SetCacheParam
-      PRIVATE :: GPartComm_PackRetSF         , GPartComm_PackRetMF
-      PRIVATE :: GPartComm_UnpackRetSF       , GPartComm_UnpackRetMF
-      PRIVATE :: GPartComm_LocalDataRetMF    , GPartComm_LocalDataRetSF
-
-! Methods:
   CONTAINS
 
   SUBROUTINE GPartComm_ctor(this,intrface,maxparts,nd,nzghost,comm,hcomm)
@@ -144,13 +114,14 @@ MODULE class_GPartComm
     INTEGER, INTENT(IN)           :: hcomm
 !$  INTEGER, EXTERNAL             :: omp_get_max_threads
 
-    this%intrfc_    = intrface
+    IF ( intrface .NE. GPCOMM_INTRFC_SF ) THEN
+      WRITE(*,*) 'GPartComm_ctor: only the single-field interface is supported'
+      STOP
+    ENDIF
     this%maxparts_  = maxparts
     this%nd_        = nd
     this%nzghost_   = nzghost
     this%comm_      = comm;
-    this%csize_     = 8;
-    this%nstrip_    = 1;
     this%iextperp_  = 0;     ! set extended grid in perp direction (x-y) too?
     this%nth_       = 1
     IF ( GTValidHandle(hcomm).NE.GTERR_GOOD_HANDLE ) THEN
@@ -172,186 +143,1007 @@ MODULE class_GPartComm
     ENDIF
     this%btransinit_ = .FALSE.
 
-    IF ( this%intrfc_ .GE. 1 ) THEN
-      this%nbuff_  = 3*nd(1)*nd(2)*nzghost+nzghost+2
-    ELSE
-      this%nbuff_  =   nd(1)*nd(2)*nzghost+nzghost+2
-    ENDIF
+    this%nbuff_  = nd(1)*nd(2)*nzghost+nzghost+2 ! ghost planes + header
 
     CALL GPartComm_Init(this)
 
   END SUBROUTINE GPartComm_ctor
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
 
- SUBROUTINE GPartComm_AllocRet(this)
+
 !-----------------------------------------------------------------
+! Allocation of the particle-sized arrays (index lists, flags and
+! send/receive buffers); called by Init
 !-----------------------------------------------------------------
-!  Allocate return arrays for field communicator. Should be called
-!  after calling GPartComm_Init.
-!
-!  ARGUMENTS:
-!    this    : 'this' class instance
-!-----------------------------------------------------------------
+  SUBROUTINE GPartComm_AllocParts(this,np)
     IMPLICIT NONE
-    CLASS(GPartComm), INTENT(INOUT)       :: this
-    INTEGER                               :: jf,kg,k,n2p,nt
-    INTEGER,ALLOCATABLE,DIMENSION(:)      :: jfwd,kfend,kfsta,nzf
+    CLASS(GPartComm),INTENT(INOUT) :: this
+    INTEGER         ,INTENT(IN)    :: np
+    CALL galloc(this%ibot_ ,np)
+    CALL galloc(this%itop_ ,np)
+    CALL galloc(this%oldid_,np)
+    CALL galloc(this%iflag_,np)
+    CALL galloc(this%ihole_,np)
+    CALL galloc(this%isurv_,np)
+    CALL galloc(this%sbid_ ,np)
+    CALL galloc(this%stid_ ,np)
+    CALL galloc(this%rbid_ ,np)
+    CALL galloc(this%rtid_ ,np)
+    CALL galloc(this%sbpr_ ,3,np)
+    CALL galloc(this%stpr_ ,3,np)
+    CALL galloc(this%rbpr_ ,3,np)
+    CALL galloc(this%rtpr_ ,3,np)
+  END SUBROUTINE GPartComm_AllocParts
 
-    n2p = this%nd_(3)/this%nprocs_
-    nt  = (this%nzghost_+n2p-1)/n2p  ! max no. tasks needed for ghost zones
-
-    ALLOCATE(jfwd (nt))
-    ALLOCATE(kfend(nt))
-    ALLOCATE(kfsta(nt))
-    ALLOCATE(nzf  (nt))
-
-    ALLOCATE(this%ibretp_(nt))
-    ALLOCATE(this%itretp_(nt))
-    ALLOCATE(this%ibretnz_(nt))
-    ALLOCATE(this%itretnz_(nt))
-    ALLOCATE(this%ibret_(nt,this%nzghost_+1))
-    ALLOCATE(this%itret_(nt,this%nzghost_+1))
-    ALLOCATE(this%ibretdst_(nt,this%nzghost_+1))
-    ALLOCATE(this%itretdst_(nt,this%nzghost_+1))
-
-    ! *** Find top neighbors to return to:
-    DO jf = 1, nt
-      jfwd(jf) = modulo(this%myrank_+jf,this%nprocs_)
-      CALL range(1,this%nd_(3),this%nprocs_,jfwd(jf),kfsta(jf),kfend(jf))
-      nzf (jf) = kfend(jf) - kfsta(jf) + 1
-    ENDDO
-
-    this%ntret_ = 1
-    this%itretp_(this%ntret_) = jfwd(this%ntret_)
-    this%itretnz_(this%ntret_) = 0
-    k = 1
-    DO kg = 1, this%nzghost_
-      IF ( k .GT. nzf(this%ntret_) ) THEN
-        k = k - nzf(this%ntret_)
-        this%ntret_ = this%ntret_ + 1
-        this%itretp_(this%ntret_)  = jfwd(this%ntret_)
-        this%itretnz_(this%ntret_) = 0
-      ENDIF
-      ! local z-index to be returned to top (in _extended_ grid)
-      this%itret_   (this%ntret_,k) = this%nzghost_+this%kend_-this%ksta_+1+kg
-      ! Destination z-indices in _regular_ grid for top return.
-      ! These indices should be in local--not global--form:
-      this%itretdst_(this%ntret_,k) = k
-      ! Set no. z-indices to return to top task
-      this%itretnz_ (this%ntret_  ) = this%itretnz_(this%ntret_) + 1
-      k = k + 1
-    ENDDO
-
-    ! *** Find bottom neighbors to return to:
-    DO jf = 1, nt
-      jfwd(jf) = modulo(this%myrank_-jf+this%nprocs_,this%nprocs_)
-      CALL range(1,this%nd_(3),this%nprocs_,jfwd(jf),kfsta(jf),kfend(jf))
-      nzf (jf) = kfend(jf) - kfsta(jf) + 1
-    ENDDO
-
-    this%nbret_ = 1
-    this%ibretp_(this%nbret_) = jfwd(this%nbret_)
-    this%ibretnz_(this%nbret_) = 0
-    k = 1
-    DO kg = 1, this%nzghost_
-      IF ( k .GT. nzf(this%nbret_) ) THEN
-        k = k - nzf(this%nbret_)
-        this%nbret_ = this%nbret_ + 1
-        this%ibretp_(this%nbret_)  = jfwd(this%nbret_)
-        this%ibretnz_(this%nbret_) = 0
-      ENDIF
-      ! local z-index to be returned to top (in _extended_ grid)
-      this%ibret_   (this%nbret_,k) = this%nzghost_ - kg + 1
-      ! Destination z-indices in _regular_ grid for bottom return.
-      ! These indices should be in local--not global--form:
-      this%ibretdst_(this%nbret_,k) = nzf(this%nbret_) + 1 - k
-      ! Set no. z-indices to return to bottom task
-      this%ibretnz_ (this%nbret_  ) = this%ibretnz_(this%nbret_) + 1
-      k = k + 1
-    ENDDO
-
-    DEALLOCATE(jfwd,kfend,kfsta,nzf)
-
-  END SUBROUTINE GPartComm_AllocRet
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
 
   SUBROUTINE GPartComm_dtor(this)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : dtor
-!  DESCRIPTION: Destructor
-!  ARGUMENTS:
-!    this    : 'this' class instance
-!-----------------------------------------------------------------
     IMPLICIT NONE
     TYPE(GPartComm),INTENT(INOUT)        :: this
-
     CALL GPartComm_DoDealloc(this)
-
   END SUBROUTINE GPartComm_dtor
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
+
 
   SUBROUTINE GPartComm_DoDealloc(this)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : DoDealloc
-!  DESCRIPTION: Does allocation of class member data
-!  ARGUMENTS:
-!    this    : 'this' class instance
-!-----------------------------------------------------------------
     IMPLICIT NONE
-    TYPE(GPartComm),INTENT(INOUT)        :: this
-
-    IF ( ALLOCATED   (this%sbbuff_) ) DEALLOCATE  (this%sbbuff_)
-    IF ( ALLOCATED   (this%stbuff_) ) DEALLOCATE  (this%stbuff_)
-    IF ( ALLOCATED   (this%rbbuff_) ) DEALLOCATE  (this%rbbuff_)
-    IF ( ALLOCATED   (this%rtbuff_) ) DEALLOCATE  (this%rtbuff_)
-    IF ( ALLOCATED  (this%sbbuffp_) ) DEALLOCATE (this%sbbuffp_)
-    IF ( ALLOCATED  (this%stbuffp_) ) DEALLOCATE (this%stbuffp_)
-    IF ( ALLOCATED  (this%rbbuffp_) ) DEALLOCATE (this%rbbuffp_)
-    IF ( ALLOCATED  (this%rtbuffp_) ) DEALLOCATE (this%rtbuffp_)
-    IF ( ALLOCATED     (this%itop_) ) DEALLOCATE    (this%itop_)
-    IF ( ALLOCATED     (this%ibot_) ) DEALLOCATE    (this%ibot_)
-    IF ( ALLOCATED   (this%ibrcvp_) ) DEALLOCATE  (this%ibrcvp_)
-    IF ( ALLOCATED   (this%ibsndp_) ) DEALLOCATE  (this%ibsndp_)
-    IF ( ALLOCATED   (this%itrcvp_) ) DEALLOCATE  (this%itrcvp_)
-    IF ( ALLOCATED   (this%itsndp_) ) DEALLOCATE  (this%itsndp_)
-    IF ( ALLOCATED    (this%ibrcv_) ) DEALLOCATE   (this%ibrcv_)
-    IF ( ALLOCATED   (this%nbbrcv_) ) DEALLOCATE  (this%nbbrcv_)
-    IF ( ALLOCATED    (this%itrcv_) ) DEALLOCATE   (this%itrcv_)
-    IF ( ALLOCATED   (this%ntbrcv_) ) DEALLOCATE  (this%ntbrcv_)
-    IF ( ALLOCATED    (this%ibsnd_) ) DEALLOCATE   (this%ibsnd_)
-    IF ( ALLOCATED    (this%itsnd_) ) DEALLOCATE   (this%itsnd_)
-    IF ( ALLOCATED     (this%ibrh_) ) DEALLOCATE    (this%ibrh_)
-    IF ( ALLOCATED     (this%itrh_) ) DEALLOCATE    (this%itrh_)
-    IF ( ALLOCATED     (this%ibsh_) ) DEALLOCATE    (this%ibsh_)
-    IF ( ALLOCATED     (this%itsh_) ) DEALLOCATE    (this%itsh_)
-    IF ( ALLOCATED     (this%igrh_) ) DEALLOCATE    (this%igrh_)
-    IF ( ALLOCATED     (this%igsh_) ) DEALLOCATE    (this%igsh_)
-    IF ( ALLOCATED  (this%itypekp_) ) DEALLOCATE (this%itypekp_)
-    IF ( ALLOCATED  (this%itypeip_) ) DEALLOCATE (this%itypeip_)
-    IF ( ALLOCATED (this%ibsnddst_) ) DEALLOCATE(this%ibsnddst_)
-    IF ( ALLOCATED (this%itsnddst_) ) DEALLOCATE(this%itsnddst_)
-    IF ( ALLOCATED  (this%ibrcvnz_) ) DEALLOCATE (this%ibrcvnz_)
-    IF ( ALLOCATED  (this%itrcvnz_) ) DEALLOCATE (this%itrcvnz_)
-    IF ( ALLOCATED  (this%ibsndnz_) ) DEALLOCATE (this%ibsndnz_)
-    IF ( ALLOCATED  (this%itsndnz_) ) DEALLOCATE (this%itsndnz_)
-    IF ( ALLOCATED  (this%oldid_)   ) DEALLOCATE   (this%oldid_)
-    IF ( ALLOCATED (this%ibretp_  ) ) DEALLOCATE (this%ibretp_  )
-    IF ( ALLOCATED (this%itretp_  ) ) DEALLOCATE (this%itretp_  )
-    IF ( ALLOCATED (this%ibretnz_ ) ) DEALLOCATE (this%ibretnz_ )
-    IF ( ALLOCATED (this%itretnz_ ) ) DEALLOCATE (this%itretnz_ )
-    IF ( ALLOCATED (this%ibret_   ) ) DEALLOCATE (this%ibret_   )
-    IF ( ALLOCATED (this%itret_   ) ) DEALLOCATE (this%itret_   )
-    IF ( ALLOCATED (this%ibretdst_) ) DEALLOCATE (this%ibretdst_)
-    IF ( ALLOCATED (this%itretdst_) ) DEALLOCATE (this%itretdst_)
-
+    CLASS(GPartComm),INTENT(INOUT)        :: this
+    CALL gfree(this%sbbuff_); CALL gfree(this%stbuff_)
+    CALL gfree(this%rbbuff_); CALL gfree(this%rtbuff_)
+    CALL gfree(this%ibot_)  ; CALL gfree(this%itop_)  ; CALL gfree(this%oldid_)
+    CALL gfree(this%iflag_) ; CALL gfree(this%ihole_) ; CALL gfree(this%isurv_)
+    CALL gfree(this%sbid_)  ; CALL gfree(this%stid_)
+    CALL gfree(this%rbid_)  ; CALL gfree(this%rtid_)
+    CALL gfree(this%sbpr_)  ; CALL gfree(this%stpr_)
+    CALL gfree(this%rbpr_)  ; CALL gfree(this%rtpr_)
+    IF ( ALLOCATED(this%ibrcvp_)   ) DEALLOCATE(this%ibrcvp_)
+    IF ( ALLOCATED(this%ibsndp_)   ) DEALLOCATE(this%ibsndp_)
+    IF ( ALLOCATED(this%itrcvp_)   ) DEALLOCATE(this%itrcvp_)
+    IF ( ALLOCATED(this%itsndp_)   ) DEALLOCATE(this%itsndp_)
+    IF ( ALLOCATED(this%ibrcv_)    ) DEALLOCATE(this%ibrcv_)
+    IF ( ALLOCATED(this%itrcv_)    ) DEALLOCATE(this%itrcv_)
+    IF ( ALLOCATED(this%nbbrcv_)   ) DEALLOCATE(this%nbbrcv_)
+    IF ( ALLOCATED(this%ntbrcv_)   ) DEALLOCATE(this%ntbrcv_)
+    IF ( ALLOCATED(this%ibsnd_)    ) DEALLOCATE(this%ibsnd_)
+    IF ( ALLOCATED(this%itsnd_)    ) DEALLOCATE(this%itsnd_)
+    IF ( ALLOCATED(this%ibsnddst_) ) DEALLOCATE(this%ibsnddst_)
+    IF ( ALLOCATED(this%itsnddst_) ) DEALLOCATE(this%itsnddst_)
+    IF ( ALLOCATED(this%ibsndnz_)  ) DEALLOCATE(this%ibsndnz_)
+    IF ( ALLOCATED(this%itsndnz_)  ) DEALLOCATE(this%itsndnz_)
+    IF ( ALLOCATED(this%ibrcvnz_)  ) DEALLOCATE(this%ibrcvnz_)
+    IF ( ALLOCATED(this%itrcvnz_)  ) DEALLOCATE(this%itrcvnz_)
+    IF ( ALLOCATED(this%ibrh_)     ) DEALLOCATE(this%ibrh_)
+    IF ( ALLOCATED(this%itrh_)     ) DEALLOCATE(this%itrh_)
+    IF ( ALLOCATED(this%ibsh_)     ) DEALLOCATE(this%ibsh_)
+    IF ( ALLOCATED(this%itsh_)     ) DEALLOCATE(this%itsh_)
+    IF ( ALLOCATED(this%txsta_) ) DEALLOCATE(this%txsta_,this%txend_,this%tzsta_,this%tzend_)
+    IF ( ALLOCATED(this%tso_)   ) DEALLOCATE(this%tso_,this%tsc_,this%tro_,this%trc_)
+    CALL gfree(this%gtsbuf_); CALL gfree(this%gtrbuf_)
+    this%btransinit_ = .FALSE.
   END SUBROUTINE GPartComm_DoDealloc
+
+
+!=================================================================
+! Ghost-plane exchange of a single field
+!=================================================================
+
 !-----------------------------------------------------------------
+!  METHOD     : SlabDataExchangeSF
+!  DESCRIPTION: Fills the extended field vext(nx,ny,nzl+2*nzghost)
+!               with the local slab v(nx,ny,nzl) and with the
+!               nzghost planes below and above it, received from
+!               the neighbor tasks (periodic in z). Runs on the
+!               device while gdev_active is set: the planes are
+!               packed into device buffers, sent with GPU-aware
+!               MPI and unpacked on the device. The messages are
+!               self-describing: buff(1) holds the number of
+!               planes, buff(2:npl+1) their destination indices in
+!               the extended grid, and the planes follow.
 !-----------------------------------------------------------------
+  SUBROUTINE GPartComm_SlabDataExchangeSF(this,vext,v)
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)           :: this
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(*) :: v
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*) :: vext
+    INTEGER                                  :: j,nx,ny,nzl,ngz,ngp,nex,ney,nez,nt
+
+    nx  = this%nd_(1)
+    ny  = this%nd_(2)
+    nzl = this%kend_-this%ksta_+1
+    ngz = this%nzghost_
+    ngp = ngz*this%iextperp_
+    nex = nx+2*ngp
+    ney = ny+2*ngp
+    nez = nzl+2*ngz
+    nt  = SIZE(this%sbbuff_,2)
+
+    CALL gpc_copy2ext(nx,ny,nzl,nex,ney,nez,ngp,ngz,v,vext)
+    IF ( this%nprocs_ .EQ. 1 ) THEN
+      CALL gpc_localexch(nx,ny,nzl,nex,ney,nez,ngp,ngz,v,vext)
+      RETURN
+    ENDIF
+
+    DO j=1,this%nbsnd_  ! to bottom task:
+      CALL gpc_packsf(nx,ny,nzl,this%ibsndnz_(j),this%ibsnd_(j,1:this%ibsndnz_(j)), &
+                      this%ibsnddst_(j,1:this%ibsndnz_(j)),this%nbuff_,nt,j,v,this%sbbuff_)
+    ENDDO
+    DO j=1,this%ntsnd_  ! to top task:
+      CALL gpc_packsf(nx,ny,nzl,this%itsndnz_(j),this%itsnd_(j,1:this%itsndnz_(j)), &
+                      this%itsnddst_(j,1:this%itsndnz_(j)),this%nbuff_,nt,j,v,this%stbuff_)
+    ENDDO
+
+    CALL GTStart(this%hcomm_)
+    CALL gpc_exch_planes(this,this%sbbuff_,this%stbuff_,this%rbbuff_,this%rtbuff_,nt)
+    CALL GTAcc(this%hcomm_)
+
+    DO j=1,this%nbrcv_
+      CALL gpc_unpacksf(nx,ny,nex,ney,nez,ngp,this%ibrcvnz_(j),this%nbuff_,nt,j,this%rbbuff_,vext)
+    ENDDO
+    DO j=1,this%ntrcv_
+      CALL gpc_unpacksf(nx,ny,nex,ney,nez,ngp,this%itrcvnz_(j),this%nbuff_,nt,j,this%rtbuff_,vext)
+    ENDDO
+  END SUBROUTINE GPartComm_SlabDataExchangeSF
+
+
+! Posts the receives and sends of the ghost planes (device
+! addresses of the buffers in offload builds) and waits for all
+  SUBROUTINE gpc_exch_planes(this,sb,st,rb,rt,nt)
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)               :: this
+    INTEGER         ,INTENT(IN)                  :: nt
+    REAL(KIND=GP),INTENT(IN)   ,TARGET :: sb(this%nbuff_,nt),st(this%nbuff_,nt)
+    REAL(KIND=GP),INTENT(INOUT),TARGET :: rb(this%nbuff_,nt),rt(this%nbuff_,nt)
+#if defined(GHOST_GPU)
+    IF ( gdev_active ) THEN
+!$omp target data use_device_addr(sb,st,rb,rt)
+      CALL gpc_exch_planes_do(this,sb,st,rb,rt,nt)
+!$omp end target data
+    ELSE
+      CALL gpc_exch_planes_do(this,sb,st,rb,rt,nt)
+    ENDIF
+#else
+    CALL gpc_exch_planes_do(this,sb,st,rb,rt,nt)
+#endif
+  END SUBROUTINE gpc_exch_planes
+
+  SUBROUTINE gpc_exch_planes_do(this,sb,st,rb,rt,nt)
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)               :: this
+    INTEGER         ,INTENT(IN)                  :: nt
+    REAL(KIND=GP),INTENT(IN)    :: sb(this%nbuff_,nt),st(this%nbuff_,nt)
+    REAL(KIND=GP),INTENT(INOUT) :: rb(this%nbuff_,nt),rt(this%nbuff_,nt)
+    INTEGER                     :: j,buffsize
+    buffsize = this%nd_(1)*this%nd_(2)*this%nzghost_ + this%nzghost_ + 2
+    DO j=1,this%nbrcv_  ! from bottom task:
+      CALL MPI_IRECV(rb(1,j),this%nbuff_,GC_REAL,this%ibrcvp_(j),1,this%comm_,this%ibrh_(j),this%ierr_)
+    ENDDO
+    DO j=1,this%ntrcv_  ! from top task:
+      CALL MPI_IRECV(rt(1,j),this%nbuff_,GC_REAL,this%itrcvp_(j),2,this%comm_,this%itrh_(j),this%ierr_)
+    ENDDO
+    DO j=1,this%nbsnd_  ! to bottom task (arrives as its top data):
+      CALL MPI_ISEND(sb(1,j),buffsize,GC_REAL,this%ibsndp_(j),2,this%comm_,this%ibsh_(j),this%ierr_)
+    ENDDO
+    DO j=1,this%ntsnd_  ! to top task (arrives as its bottom data):
+      CALL MPI_ISEND(st(1,j),buffsize,GC_REAL,this%itsndp_(j),1,this%comm_,this%itsh_(j),this%ierr_)
+    ENDDO
+    DO j=1,this%nbsnd_
+      CALL MPI_WAIT(this%ibsh_(j),this%istatus_,this%ierr_)
+    ENDDO
+    DO j=1,this%ntsnd_
+      CALL MPI_WAIT(this%itsh_(j),this%istatus_,this%ierr_)
+    ENDDO
+    DO j=1,this%nbrcv_
+      CALL MPI_WAIT(this%ibrh_(j),this%istatus_,this%ierr_)
+    ENDDO
+    DO j=1,this%ntrcv_
+      CALL MPI_WAIT(this%itrh_(j),this%istatus_,this%ierr_)
+    ENDDO
+  END SUBROUTINE gpc_exch_planes_do
+
+
+! Interior of the extended field
+  SUBROUTINE gpc_copy2ext(nx,ny,nzl,nex,ney,nez,ngp,ngz,v,vext)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: nx,ny,nzl,nex,ney,nez,ngp,ngz
+    REAL(KIND=GP),INTENT(IN)    :: v(nx,ny,nzl)
+    REAL(KIND=GP),INTENT(INOUT) :: vext(nex,ney,nez)
+    INTEGER                     :: i,j,k
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private(i)
+#endif
+    DO k = 1,nzl
+      DO j = 1,ny
+        DO i = 1,nx
+          vext(i+ngp,j+ngp,k+ngz) = v(i,j,k)
+        ENDDO
+      ENDDO
+    ENDDO
+  END SUBROUTINE gpc_copy2ext
+
+
+! Ghost planes of a single task (periodic wrap of its own slab)
+  SUBROUTINE gpc_localexch(nx,ny,nzl,nex,ney,nez,ngp,ngz,v,vext)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: nx,ny,nzl,nex,ney,nez,ngp,ngz
+    REAL(KIND=GP),INTENT(IN)    :: v(nx,ny,nzl)
+    REAL(KIND=GP),INTENT(INOUT) :: vext(nex,ney,nez)
+    INTEGER                     :: i,j,k
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private(i)
+#endif
+    DO k = 1,ngz
+      DO j = 1,ny
+        DO i = 1,nx
+          vext(i+ngp,j+ngp,nzl+ngz+k) = v(i,j,k)
+          vext(i+ngp,j+ngp,k)         = v(i,j,nzl-ngz+k)
+        ENDDO
+      ENDDO
+    ENDDO
+  END SUBROUTINE gpc_localexch
+
+
+! Packs npl planes ksrc(1:npl) of v into column jc of buff, with
+! the header (number of planes, destination plane indices kdst)
+  SUBROUTINE gpc_packsf(nx,ny,nzl,npl,ksrc,kdst,nbuff,nt,jc,v,buff)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: nx,ny,nzl,npl,nbuff,nt,jc
+    INTEGER      ,INTENT(IN)    :: ksrc(npl),kdst(npl)
+    REAL(KIND=GP),INTENT(IN)    :: v(nx,ny,nzl)
+    REAL(KIND=GP),INTENT(INOUT) :: buff(nbuff,nt)
+    INTEGER                     :: i,j,m,nxy
+    nxy = nx*ny
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active)
+#endif
+    DO m = 0,npl
+      IF ( m.eq.0 ) THEN
+        buff(1,jc) = REAL(npl,KIND=GP)
+      ELSE
+        buff(1+m,jc) = REAL(kdst(m),KIND=GP)
+      ENDIF
+    ENDDO
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private(i)
+#endif
+    DO m = 1,npl
+      DO j = 1,ny
+        DO i = 1,nx
+          buff(1+npl+(m-1)*nxy+(j-1)*nx+i,jc) = v(i,j,ksrc(m))
+        ENDDO
+      ENDDO
+    ENDDO
+  END SUBROUTINE gpc_packsf
+
+
+! Unpacks the npl planes of column jc of buff into the extended
+! field, at the plane indices carried by the header
+  SUBROUTINE gpc_unpacksf(nx,ny,nex,ney,nez,ngp,npl,nbuff,nt,jc,buff,vext)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: nx,ny,nex,ney,nez,ngp,npl,nbuff,nt,jc
+    REAL(KIND=GP),INTENT(IN)    :: buff(nbuff,nt)
+    REAL(KIND=GP),INTENT(INOUT) :: vext(nex,ney,nez)
+    INTEGER                     :: i,j,k,m,nxy
+    nxy = nx*ny
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active) private(k)
+#else
+!$omp parallel do collapse(2) private(i,k)
+#endif
+    DO m = 1,npl
+      DO j = 1,ny
+        DO i = 1,nx
+          k = INT(buff(1+m,jc))
+          vext(i+ngp,j+ngp,k) = buff(1+npl+(m-1)*nxy+(j-1)*nx+i,jc)
+        ENDDO
+      ENDDO
+    ENDDO
+  END SUBROUTINE gpc_unpacksf
+
+
+!=================================================================
+! Particle exchange between neighboring slabs
+!=================================================================
+
+!-----------------------------------------------------------------
+!  METHOD     : IdentifyExchV
+!  DESCRIPTION: Identifies the particles leaving the slab through
+!               the bottom (pz < zmin) and through the top
+!               (pz >= zmax): their indices are stored, in
+!               ascending order, in ibot_(1:nbot_) and
+!               itop_(1:ntop_). The counts are exchanged with the
+!               neighbors and newnparts is the number of particles
+!               the task will hold after the exchange. Positions
+!               must not be periodized in z on entry.
+!-----------------------------------------------------------------
+  SUBROUTINE GPartComm_IdentifyExchV(this,id,pz,nparts,newnparts,zmin,zmax)
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)           :: this
+    INTEGER      ,INTENT   (IN)              :: nparts
+    INTEGER      ,INTENT  (OUT)              :: newnparts
+    INTEGER      ,INTENT(INOUT),DIMENSION(:) :: id
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:) :: pz
+    REAL(KIND=GP),INTENT   (IN)              :: zmin,zmax
+    INTEGER                                  :: ibrank,itrank,nrbot,nrtop,np
+
+    newnparts = nparts
+    IF ( this%nprocs_ .EQ. 1 ) RETURN ! nothing to do
+
+    itrank = modulo(this%myrank_+1,this%nprocs_)
+    ibrank = this%myrank_-1
+    IF ( ibrank.LT.0 ) ibrank = this%nprocs_-1
+    np = SIZE(pz)
+
+    CALL gpc_flag_out(nparts,np,pz,zmin,zmax,1,this%iflag_)
+    CALL gpsel_compact(1,nparts,this%iflag_,this%ibot_,this%nbot_,0)
+    CALL gpc_flag_out(nparts,np,pz,zmin,zmax,0,this%iflag_)
+    CALL gpsel_compact(1,nparts,this%iflag_,this%itop_,this%ntop_,0)
+
+    CALL GTStart(this%hcomm_)
+    CALL MPI_IRECV(nrbot,1,MPI_INTEGER,ibrank,1,this%comm_,this%ibrh_(1),this%ierr_)
+    CALL MPI_IRECV(nrtop,1,MPI_INTEGER,itrank,2,this%comm_,this%itrh_(1),this%ierr_)
+    CALL MPI_ISEND(this%nbot_,1,MPI_INTEGER,ibrank,2,this%comm_,this%ibsh_(1),this%ierr_)
+    CALL MPI_ISEND(this%ntop_,1,MPI_INTEGER,itrank,1,this%comm_,this%itsh_(1),this%ierr_)
+    CALL MPI_WAIT(this%ibrh_(1),this%istatus_,this%ierr_)
+    CALL MPI_WAIT(this%itrh_(1),this%istatus_,this%ierr_)
+    CALL MPI_WAIT(this%ibsh_(1),this%istatus_,this%ierr_)
+    CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
+    CALL GTAcc(this%hcomm_)
+
+    newnparts = nparts - (this%ntop_+this%nbot_) + (nrbot+nrtop)
+  END SUBROUTINE GPartComm_IdentifyExchV
+
+
+!-----------------------------------------------------------------
+!  METHOD     : PartExchangeV
+!  DESCRIPTION: Exchanges the particles identified by IdentifyExchV
+!               with the neighbor tasks: the records (id and the
+!               three arrays px,py,pz) leaving through the bottom
+!               and the top are packed and sent, the departed
+!               particles are removed and the received ones are
+!               appended. With stg = GPEXCH_INIT or GPEXCH_UPDT
+!               the id array and nparts are restored on exit, so
+!               that the same lists can be used to exchange other
+!               arrays of the same particles (positions of another
+!               stage, velocities); GPEXCH_END or GPEXCH_UNIQ
+!               commit the new list.
+!-----------------------------------------------------------------
+  SUBROUTINE GPartComm_PartExchangeV(this,id,px,py,pz,nparts,zmin,zmax,stg)
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)           :: this
+    INTEGER      ,INTENT(INOUT)              :: nparts
+    INTEGER      ,INTENT(INOUT),DIMENSION(:) :: id
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:) :: px,py,pz
+    REAL(KIND=GP),INTENT   (IN)              :: zmin,zmax
+    INTEGER      ,INTENT   (IN), OPTIONAL    :: stg
+    INTEGER                                  :: ibrank,itrank,ng,nrt,nrb,np,stage
+
+    IF ( this%nprocs_ .EQ. 1 ) RETURN ! nothing to do
+
+    itrank = modulo(this%myrank_+1,this%nprocs_)
+    ibrank = this%myrank_-1
+    IF ( ibrank.LT.0 ) ibrank = this%nprocs_-1
+    np = SIZE(id)
+
+    stage = GPEXCH_UNIQ
+    IF (PRESENT(stg)) stage = stg
+    ng = nparts
+    IF ((stage.NE.GPEXCH_END).AND.(stage.NE.GPEXCH_UNIQ)) THEN
+       CALL gpc_copy_i(ng,np,this%oldid_,id)
+    ENDIF
+
+    CALL gpc_pack(this%nbot_,np,this%ibot_,id,px,py,pz,this%sbid_,this%sbpr_)
+    CALL gpc_pack(this%ntop_,np,this%itop_,id,px,py,pz,this%stid_,this%stpr_)
+    CALL GTStart(this%hcomm_)
+    CALL gpc_exch_parts(this,this%sbid_,this%sbpr_,this%stid_,this%stpr_, &
+                        this%rbid_,this%rbpr_,this%rtid_,this%rtpr_,ibrank,itrank,nrb,nrt)
+    CALL GTAcc(this%hcomm_)
+
+    CALL GPartComm_ConcatV(this,id,px,py,pz,nparts)
+    IF ( nparts+nrb+nrt .GT. np ) THEN
+      WRITE(*,*) this%myrank_,' GPartComm_PartExchangeV: particle buffer too small: ', &
+                 nparts+nrb+nrt,' > ',np
+      STOP
+    ENDIF
+    CALL gpc_unpack(nrb,nparts,np,id,px,py,pz,this%rbid_,this%rbpr_)
+    nparts = nparts + nrb
+    CALL gpc_unpack(nrt,nparts,np,id,px,py,pz,this%rtid_,this%rtpr_)
+    nparts = nparts + nrt
+
+    IF ((stage.NE.GPEXCH_END).AND.(stage.NE.GPEXCH_UNIQ)) THEN
+       CALL gpc_copy_i(ng,np,id,this%oldid_)
+       nparts = ng
+    ENDIF
+  END SUBROUTINE GPartComm_PartExchangeV
+
+
+! Sends the packed records to the two neighbors and receives
+! theirs; nrb, nrt are the numbers of records received from the
+! bottom and the top. Two messages per direction: ids, coordinates.
+  SUBROUTINE gpc_exch_parts(this,sbid,sbpr,stid,stpr,rbid,rbpr,rtid,rtpr,ibrank,itrank,nrb,nrt)
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)   :: this
+    INTEGER      ,INTENT(IN)         :: ibrank,itrank
+    INTEGER      ,INTENT(OUT)        :: nrb,nrt
+    INTEGER      ,INTENT(IN)   ,TARGET :: sbid(this%maxparts_),stid(this%maxparts_)
+    INTEGER      ,INTENT(INOUT),TARGET :: rbid(this%maxparts_),rtid(this%maxparts_)
+    REAL(KIND=GP),INTENT(IN)   ,TARGET :: sbpr(3,this%maxparts_),stpr(3,this%maxparts_)
+    REAL(KIND=GP),INTENT(INOUT),TARGET :: rbpr(3,this%maxparts_),rtpr(3,this%maxparts_)
+#if defined(GHOST_GPU)
+    IF ( gdev_active ) THEN
+!$omp target data use_device_addr(sbid,sbpr,stid,stpr,rbid,rbpr,rtid,rtpr)
+      CALL gpc_exch_parts_do(this,sbid,sbpr,stid,stpr,rbid,rbpr,rtid,rtpr,ibrank,itrank,nrb,nrt)
+!$omp end target data
+    ELSE
+      CALL gpc_exch_parts_do(this,sbid,sbpr,stid,stpr,rbid,rbpr,rtid,rtpr,ibrank,itrank,nrb,nrt)
+    ENDIF
+#else
+    CALL gpc_exch_parts_do(this,sbid,sbpr,stid,stpr,rbid,rbpr,rtid,rtpr,ibrank,itrank,nrb,nrt)
+#endif
+  END SUBROUTINE gpc_exch_parts
+
+  SUBROUTINE gpc_exch_parts_do(this,sbid,sbpr,stid,stpr,rbid,rbpr,rtid,rtpr,ibrank,itrank,nrb,nrt)
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)   :: this
+    INTEGER      ,INTENT(IN)         :: ibrank,itrank
+    INTEGER      ,INTENT(OUT)        :: nrb,nrt
+    INTEGER      ,INTENT(IN)         :: sbid(*),stid(*)
+    INTEGER      ,INTENT(INOUT)      :: rbid(*),rtid(*)
+    REAL(KIND=GP),INTENT(IN)         :: sbpr(*),stpr(*)
+    REAL(KIND=GP),INTENT(INOUT)      :: rbpr(*),rtpr(*)
+    TYPE(MPI_Request)                :: req(4)
+    TYPE(MPI_Status)                 :: st
+
+    CALL MPI_ISEND(sbid,  this%nbot_,MPI_INTEGER,ibrank,1,this%comm_,req(1),this%ierr_)
+    CALL MPI_ISEND(sbpr,3*this%nbot_,GC_REAL    ,ibrank,2,this%comm_,req(2),this%ierr_)
+    CALL MPI_ISEND(stid,  this%ntop_,MPI_INTEGER,itrank,3,this%comm_,req(3),this%ierr_)
+    CALL MPI_ISEND(stpr,3*this%ntop_,GC_REAL    ,itrank,4,this%comm_,req(4),this%ierr_)
+    ! From the bottom neighbor come the records it sends to its top
+    CALL MPI_RECV(rbid,  this%maxparts_,MPI_INTEGER,ibrank,3,this%comm_,st,this%ierr_)
+    CALL MPI_GET_COUNT(st,MPI_INTEGER,nrb,this%ierr_)
+    CALL MPI_RECV(rbpr,3*this%maxparts_,GC_REAL    ,ibrank,4,this%comm_,st,this%ierr_)
+    CALL MPI_RECV(rtid,  this%maxparts_,MPI_INTEGER,itrank,1,this%comm_,st,this%ierr_)
+    CALL MPI_GET_COUNT(st,MPI_INTEGER,nrt,this%ierr_)
+    CALL MPI_RECV(rtpr,3*this%maxparts_,GC_REAL    ,itrank,2,this%comm_,st,this%ierr_)
+    CALL MPI_WAITALL(4,req,MPI_STATUSES_IGNORE,this%ierr_)
+  END SUBROUTINE gpc_exch_parts_do
+
+
+!-----------------------------------------------------------------
+!  METHOD     : ConcatV
+!  DESCRIPTION: Removes the particles listed in ibot_ and itop_
+!               and compacts the arrays: the holes left below the
+!               new count are filled with the survivors found
+!               above it, in ascending order on both sides, so the
+!               result is deterministic (though not the original
+!               order). nparts is updated.
+!-----------------------------------------------------------------
+  SUBROUTINE GPartComm_ConcatV(this,id,px,py,pz,nparts)
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)           :: this
+    INTEGER      ,INTENT(INOUT)              :: nparts
+    INTEGER      ,INTENT(INOUT),DIMENSION(:) :: id
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:) :: px,py,pz
+    INTEGER                                  :: ngood,nh,ns,np
+
+    IF ((this%nbot_+this%ntop_).EQ.0) RETURN ! nothing to do
+    np    = SIZE(id)
+    ngood = nparts - (this%nbot_+this%ntop_)
+    CALL gpc_mark(this%nbot_,np,this%ibot_,id)
+    CALL gpc_mark(this%ntop_,np,this%itop_,id)
+    CALL gpc_flag_null(1,ngood,np,id,.TRUE.,this%iflag_)
+    CALL gpsel_compact(1,ngood,this%iflag_,this%ihole_,nh,0)
+    CALL gpc_flag_null(ngood+1,nparts,np,id,.FALSE.,this%iflag_)
+    CALL gpsel_compact(ngood+1,nparts,this%iflag_,this%isurv_,ns,0)
+    IF ( nh .NE. ns ) THEN
+      WRITE(*,*) this%myrank_,' GPartComm_ConcatV: inconsistent compaction: ',nh,ns
+      STOP
+    ENDIF
+    CALL gpc_move(nh,np,this%ihole_,this%isurv_,id,px,py,pz)
+    nparts = ngood
+  END SUBROUTINE GPartComm_ConcatV
+
+
+!-----------------------------------------------------------------
+! Particle kernels (explicit-shape arrays; np is the size of the
+! particle arrays, n the number of entries to process)
+!-----------------------------------------------------------------
+
+! flag(j) = 1 for the particles below zmin (ibelow=1) or at/above
+! zmax (ibelow=0), 0 otherwise
+  SUBROUTINE gpc_flag_out(n,np,pz,zmin,zmax,ibelow,flag)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n,np,ibelow
+    REAL(KIND=GP),INTENT(IN)    :: pz(np)
+    REAL(KIND=GP),INTENT(IN)    :: zmin,zmax
+    INTEGER      ,INTENT(INOUT) :: flag(np)
+    INTEGER                     :: j
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active)
+#else
+!$omp parallel do
+#endif
+    DO j = 1,n
+      IF ( ibelow.eq.1 ) THEN
+        IF ( pz(j).LT.zmin ) THEN
+          flag(j) = 1
+        ELSE
+          flag(j) = 0
+        ENDIF
+      ELSE
+        IF ( pz(j).GE.zmax ) THEN
+          flag(j) = 1
+        ELSE
+          flag(j) = 0
+        ENDIF
+      ENDIF
+    ENDDO
+  END SUBROUTINE gpc_flag_out
+
+
+! Gathers the records idx(1:n) into the send buffers
+  SUBROUTINE gpc_pack(n,np,idx,id,px,py,pz,bid,bpr)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n,np
+    INTEGER      ,INTENT(IN)    :: idx(np),id(np)
+    REAL(KIND=GP),INTENT(IN)    :: px(np),py(np),pz(np)
+    INTEGER      ,INTENT(INOUT) :: bid(np)
+    REAL(KIND=GP),INTENT(INOUT) :: bpr(3,np)
+    INTEGER                     :: j,i
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active) private(i)
+#else
+!$omp parallel do private(i)
+#endif
+    DO j = 1,n
+      i = idx(j)
+      bid(j)   = id(i)
+      bpr(1,j) = px(i)
+      bpr(2,j) = py(i)
+      bpr(3,j) = pz(i)
+    ENDDO
+  END SUBROUTINE gpc_pack
+
+
+! Appends the n received records after entry ioff
+  SUBROUTINE gpc_unpack(n,ioff,np,id,px,py,pz,bid,bpr)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n,ioff,np
+    INTEGER      ,INTENT(INOUT) :: id(np)
+    REAL(KIND=GP),INTENT(INOUT) :: px(np),py(np),pz(np)
+    INTEGER      ,INTENT(IN)    :: bid(np)
+    REAL(KIND=GP),INTENT(IN)    :: bpr(3,np)
+    INTEGER                     :: j
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active)
+#else
+!$omp parallel do
+#endif
+    DO j = 1,n
+      id(ioff+j) = bid(j)
+      px(ioff+j) = bpr(1,j)
+      py(ioff+j) = bpr(2,j)
+      pz(ioff+j) = bpr(3,j)
+    ENDDO
+  END SUBROUTINE gpc_unpack
+
+
+! Marks the particles idx(1:n) as departed
+  SUBROUTINE gpc_mark(n,np,idx,id)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n,np
+    INTEGER      ,INTENT(IN)    :: idx(np)
+    INTEGER      ,INTENT(INOUT) :: id(np)
+    INTEGER                     :: j
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active)
+#else
+!$omp parallel do
+#endif
+    DO j = 1,n
+      id(idx(j)) = GPNULL
+    ENDDO
+  END SUBROUTINE gpc_mark
+
+
+! flag(j) = 1 where (id(j) == GPNULL) .eqv. wantnull, for j in [n1,n2]
+  SUBROUTINE gpc_flag_null(n1,n2,np,id,wantnull,flag)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n1,n2,np
+    INTEGER      ,INTENT(IN)    :: id(np)
+    LOGICAL      ,INTENT(IN)    :: wantnull
+    INTEGER      ,INTENT(INOUT) :: flag(np)
+    INTEGER                     :: j
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active)
+#else
+!$omp parallel do
+#endif
+    DO j = n1,n2
+      IF ( (id(j).EQ.GPNULL) .EQV. wantnull ) THEN
+        flag(j) = 1
+      ELSE
+        flag(j) = 0
+      ENDIF
+    ENDDO
+  END SUBROUTINE gpc_flag_null
+
+
+! Fills the holes ihole(1:m) with the survivors isurv(1:m)
+  SUBROUTINE gpc_move(m,np,ihole,isurv,id,px,py,pz)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: m,np
+    INTEGER      ,INTENT(IN)    :: ihole(np),isurv(np)
+    INTEGER      ,INTENT(INOUT) :: id(np)
+    REAL(KIND=GP),INTENT(INOUT) :: px(np),py(np),pz(np)
+    INTEGER                     :: k,ih,is
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active) private(ih,is)
+#else
+!$omp parallel do private(ih,is)
+#endif
+    DO k = 1,m
+      ih = ihole(k)
+      is = isurv(k)
+      id(ih) = id(is)
+      px(ih) = px(is)
+      py(ih) = py(is)
+      pz(ih) = pz(is)
+    ENDDO
+  END SUBROUTINE gpc_move
+
+
+! dst(1:n) = src(1:n)
+  SUBROUTINE gpc_copy_i(n,np,dst,src)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n,np
+    INTEGER      ,INTENT(INOUT) :: dst(np)
+    INTEGER      ,INTENT(IN)    :: src(np)
+    INTEGER                     :: j
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active)
+#else
+!$omp parallel do
+#endif
+    DO j = 1,n
+      dst(j) = src(j)
+    ENDDO
+  END SUBROUTINE gpc_copy_i
+
+
+! idx(j) = j
+  SUBROUTINE gpc_iota(n,np,idx)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n,np
+    INTEGER      ,INTENT(INOUT) :: idx(np)
+    INTEGER                     :: j
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active)
+#else
+!$omp parallel do
+#endif
+    DO j = 1,n
+      idx(j) = j
+    ENDDO
+  END SUBROUTINE gpc_iota
+
+
+! a(1:3,1:n) = 0
+  SUBROUTINE gpc_zero3(n,a)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n
+    REAL(KIND=GP),INTENT(INOUT) :: a(3,n)
+    INTEGER                     :: j
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active)
+#else
+!$omp parallel do
+#endif
+    DO j = 1,n
+      a(1,j) = 0.0_GP
+      a(2,j) = 0.0_GP
+      a(3,j) = 0.0_GP
+    ENDDO
+  END SUBROUTINE gpc_zero3
+
+
+! Scatters the nl local records into the global array by id
+  SUBROUTINE gpc_scatter3(nl,np,id,lx,ly,lz,ng,g)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: nl,np,ng
+    INTEGER      ,INTENT(IN)    :: id(np)
+    REAL(KIND=GP),INTENT(IN)    :: lx(np),ly(np),lz(np)
+    REAL(KIND=GP),INTENT(INOUT) :: g(3,ng)
+    INTEGER                     :: j,i
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active) private(i)
+#else
+!$omp parallel do private(i)
+#endif
+    DO j = 1,nl
+      i = id(j) + 1
+      g(1,i) = lx(j)
+      g(2,i) = ly(j)
+      g(3,i) = lz(j)
+    ENDDO
+  END SUBROUTINE gpc_scatter3
+
+
+!=================================================================
+! Global particle database (VDB exchange)
+!=================================================================
+
+!-----------------------------------------------------------------
+!  METHOD     : VDBSynch
+!  DESCRIPTION: Builds the global database gvdb(3,ngvdb) of the
+!               positions of all the particles, indexed by id,
+!               from the local records of every task (scatter by
+!               id into ptmp, then a sum over tasks).
+!-----------------------------------------------------------------
+  SUBROUTINE GPartComm_VDBSynch(this,gvdb,ngvdb,id,lx,ly,lz,nl,ptmp)
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)                       :: this
+    INTEGER      ,INTENT   (IN),DIMENSION(:)             :: id
+    INTEGER      ,INTENT   (IN)                          :: nl
+    INTEGER      ,INTENT   (IN)                          :: ngvdb
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(:)             :: lx,ly,lz
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,ngvdb),TARGET:: gvdb,ptmp
+
+    CALL gpc_zero3(ngvdb,ptmp)
+    CALL gpc_scatter3(nl,SIZE(id),id,lx,ly,lz,ngvdb,ptmp)
+    CALL GTStart(this%hcomm_)
+#if defined(GHOST_GPU)
+    IF ( gdev_active ) THEN
+!$omp target data use_device_addr(ptmp,gvdb)
+      CALL MPI_ALLREDUCE(ptmp,gvdb,3*ngvdb,GC_REAL,MPI_SUM,this%comm_,this%ierr_)
+!$omp end target data
+    ELSE
+      CALL MPI_ALLREDUCE(ptmp,gvdb,3*ngvdb,GC_REAL,MPI_SUM,this%comm_,this%ierr_)
+    ENDIF
+#else
+    CALL MPI_ALLREDUCE(ptmp,gvdb,3*ngvdb,GC_REAL,MPI_SUM,this%comm_,this%ierr_)
+#endif
+    CALL GTAcc(this%hcomm_)
+  END SUBROUTINE GPartComm_VDBSynch
+
+
+!-----------------------------------------------------------------
+!  METHOD     : VDBSynch_t0
+!  DESCRIPTION: Gathers on task 0 the records of all the tasks
+!               into gvdb, indexed by id (I/O; host copies)
+!-----------------------------------------------------------------
+  SUBROUTINE GPartComm_VDBSynch_t0(this,gvdb,ngvdb,id,lx,ly,lz,nl)
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)                  :: this
+    INTEGER      ,INTENT   (IN),DIMENSION(:)        :: id
+    INTEGER      ,INTENT   (IN)                     :: nl
+    INTEGER      ,INTENT   (IN)                     :: ngvdb
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(:)        :: lx,ly,lz
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,ngvdb)  :: gvdb
+    INTEGER                                         :: t,i,j,m,np
+    TYPE(MPI_Request)                               :: req(2)
+
+    IF ( gdev_active ) STOP 'GPartComm_VDBSynch_t0: must be called with gdev_active unset'
+    np = SIZE(id)
+    IF (this%myrank_.NE.0) THEN
+      CALL gpc_iota(nl,np,this%itop_)
+      CALL gpc_pack(nl,np,this%itop_,id,lx,ly,lz,this%stid_,this%stpr_)
+      CALL GTStart(this%hcomm_)
+      CALL MPI_ISEND(this%stid_,  nl,MPI_INTEGER,0,this%myrank_             ,this%comm_,req(1),this%ierr_)
+      CALL MPI_ISEND(this%stpr_,3*nl,GC_REAL    ,0,this%myrank_+this%nprocs_,this%comm_,req(2),this%ierr_)
+      CALL MPI_WAITALL(2,req,MPI_STATUSES_IGNORE,this%ierr_)
+      CALL GTAcc(this%hcomm_)
+    ELSE
+      DO j = 1,nl
+        i = id(j) + 1
+        gvdb(1,i) = lx(j)
+        gvdb(2,i) = ly(j)
+        gvdb(3,i) = lz(j)
+      END DO
+      DO t = 1,this%nprocs_-1
+        CALL GTStart(this%hcomm_)
+        CALL MPI_RECV(this%rbid_,  this%maxparts_,MPI_INTEGER,t,t             ,this%comm_,this%istatus_,this%ierr_)
+        CALL MPI_GET_COUNT(this%istatus_,MPI_INTEGER,m,this%ierr_)
+        CALL MPI_RECV(this%rbpr_,3*this%maxparts_,GC_REAL    ,t,t+this%nprocs_,this%comm_,this%istatus_,this%ierr_)
+        CALL GTAcc(this%hcomm_)
+        DO j = 1,m
+          i = this%rbid_(j) + 1
+          gvdb(1,i) = this%rbpr_(1,j)
+          gvdb(2,i) = this%rbpr_(2,j)
+          gvdb(3,i) = this%rbpr_(3,j)
+        END DO
+      END DO
+    END IF
+  END SUBROUTINE GPartComm_VDBSynch_t0
+
+
+!-----------------------------------------------------------------
+!  METHOD     : LagSynch_t0
+!  DESCRIPTION: Gathers on task 0 a scalar Lagrangian quantity ls
+!               of all the tasks into gs, indexed by id (I/O)
+!-----------------------------------------------------------------
+  SUBROUTINE GPartComm_LagSynch_t0(this,gs,ngs,id,ls,nl)
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)                  :: this
+    INTEGER      ,INTENT   (IN),DIMENSION(:)        :: id
+    INTEGER      ,INTENT   (IN)                     :: nl
+    INTEGER      ,INTENT   (IN)                     :: ngs
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(:)        :: ls
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:)        :: gs
+    INTEGER                                         :: i,j,t,m
+    TYPE(MPI_Request)                               :: req(2)
+
+    IF ( gdev_active ) STOP 'GPartComm_LagSynch_t0: must be called with gdev_active unset'
+    IF (this%myrank_.NE.0) THEN
+      DO i = 1,nl
+        this%stid_(i)   = id(i)
+        this%stpr_(1,i) = ls(i)
+      END DO 
+      CALL GTStart(this%hcomm_)
+      CALL MPI_ISEND(this%stid_,  nl,MPI_INTEGER,0,this%myrank_             ,this%comm_,req(1),this%ierr_)
+      CALL MPI_ISEND(this%stpr_,3*nl,GC_REAL    ,0,this%myrank_+this%nprocs_,this%comm_,req(2),this%ierr_)
+      CALL MPI_WAITALL(2,req,MPI_STATUSES_IGNORE,this%ierr_)
+      CALL GTAcc(this%hcomm_)
+    ELSE
+      DO j = 1,nl
+        i = id(j) + 1
+        gs(i) = ls(j)
+      END DO
+      DO t = 1,this%nprocs_-1
+        CALL GTStart(this%hcomm_)
+        CALL MPI_RECV(this%rbid_,  this%maxparts_,MPI_INTEGER,t,t             ,this%comm_,this%istatus_,this%ierr_)
+        CALL MPI_GET_COUNT(this%istatus_,MPI_INTEGER,m,this%ierr_)
+        CALL MPI_RECV(this%rbpr_,3*this%maxparts_,GC_REAL    ,t,t+this%nprocs_,this%comm_,this%istatus_,this%ierr_)
+        CALL GTAcc(this%hcomm_)
+        DO j = 1,m
+          i     = this%rbid_(j) + 1
+          gs(i) = this%rbpr_(1,j)
+        END DO
+      END DO
+    END IF
+  END SUBROUTINE GPartComm_LagSynch_t0
+
+
+!=================================================================
+! Initial distribution of the particles read by task 0
+!=================================================================
+
+!-----------------------------------------------------------------
+!  METHOD     : IdentifyTaskV
+!  DESCRIPTION: Task 0 finds the task owning each particle from
+!               its z coordinate (task(i)) and tells every task how
+!               many particles it will receive (host, at init)
+!-----------------------------------------------------------------
+  SUBROUTINE GPartComm_IdentifyTaskV(this,id,pz,nparts,task)
+    USE grid
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)           :: this
+    INTEGER      ,INTENT(INOUT)              :: nparts
+    INTEGER                                  :: i,j,tsta,tend
+    INTEGER      ,INTENT(INOUT),DIMENSION(:) :: id,task
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:) :: pz
+    REAL(KIND=GP)                            :: zmaxs(this%nprocs_)
+    INTEGER                                  :: nps(this%nprocs_)
+    TYPE(MPI_Request)                        :: req(this%nprocs_)
+
+    IF ( this%nprocs_ .EQ. 1 ) RETURN ! nothing to do
+    IF (this%myrank_.EQ.0) THEN
+      DO j = 1,this%nprocs_
+        nps(j) = 0
+        CALL range(1,nz,this%nprocs_,j-1,tsta,tend)
+        zmaxs(j) = REAL(tend,KIND=GP)
+      END DO
+      DO i = 1,nparts
+        j = 1
+        DO WHILE (pz(i).GT.zmaxs(j))
+          j = j + 1
+        END DO
+        IF (j.GT.this%nprocs_) THEN
+          WRITE(*,*) 'GPartComm_IdentifyTaskV: particle outside of range z =', pz(i)
+        END IF
+        nps(j) = nps(j) + 1
+        task(i) = j - 1
+      END DO
+      DO j = 2,this%nprocs_
+        CALL MPI_ISEND(nps(j),1,MPI_INTEGER,j-1,j-1,this%comm_,req(j),this%ierr_)
+      END DO
+      DO j = 2,this%nprocs_
+        CALL MPI_WAIT(req(j),this%istatus_,this%ierr_)
+      END DO
+    ELSE
+      CALL MPI_RECV(nparts,1,MPI_INTEGER,0,this%myrank_,this%comm_,this%istatus_,this%ierr_)
+    END IF
+  END SUBROUTINE GPartComm_IdentifyTaskV
+
+
+!-----------------------------------------------------------------
+!  METHOD     : PartScatterV
+!  DESCRIPTION: Task 0 sends each task the particles it owns
+!               according to task(:) and keeps its own (host, at
+!               init; the callers upload the states afterwards)
+!-----------------------------------------------------------------
+  SUBROUTINE GPartComm_PartScatterV(this,id,px,py,pz,nparts,task)
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)           :: this
+    INTEGER      ,INTENT(INOUT)              :: nparts
+    INTEGER                                  :: i,j,nsend,nparts0,np
+    INTEGER      ,INTENT(INOUT),DIMENSION(:) :: id
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:) :: px,py,pz
+    INTEGER      ,INTENT   (IN),DIMENSION(:) :: task
+    TYPE(MPI_Request)                        :: req(2)
+
+    IF ( this%nprocs_ .EQ. 1 ) RETURN ! nothing to do
+    IF ( gdev_active ) STOP 'GPartComm_PartScatterV: must be called with gdev_active unset'
+    np = SIZE(id)
+    IF (this%myrank_.EQ.0) THEN
+      DO j = 2,this%nprocs_
+        nsend = 0
+        DO i = 1,this%maxparts_
+          IF (task(i).EQ.(j-1)) THEN
+            nsend = nsend + 1
+            this%itop_(nsend) = i
+          END IF
+        END DO
+        CALL gpc_pack(nsend,np,this%itop_,id,px,py,pz,this%stid_,this%stpr_)
+        CALL MPI_ISEND(this%stid_,  nsend,MPI_INTEGER,j-1,j-1             ,this%comm_,req(1),this%ierr_)
+        CALL MPI_ISEND(this%stpr_,3*nsend,GC_REAL    ,j-1,j-1+this%nprocs_,this%comm_,req(2),this%ierr_)
+        CALL MPI_WAITALL(2,req,MPI_STATUSES_IGNORE,this%ierr_)
+      END DO
+      nparts0 = 0
+      DO i = 1,this%maxparts_
+        IF (task(i).EQ.0) THEN
+          nparts0 = nparts0 + 1
+          id(nparts0) = id(i)
+          px(nparts0) = px(i)
+          py(nparts0) = py(i)
+          pz(nparts0) = pz(i)
+        END IF
+      END DO
+      nparts = nparts0
+    ELSE
+      CALL MPI_RECV(this%rtid_,  this%maxparts_,MPI_INTEGER,0,this%myrank_             ,this%comm_,this%istatus_,this%ierr_)
+      CALL MPI_GET_COUNT(this%istatus_,MPI_INTEGER,nparts,this%ierr_)
+      CALL MPI_RECV(this%rtpr_,3*this%maxparts_,GC_REAL    ,0,this%myrank_+this%nprocs_,this%comm_,this%istatus_,this%ierr_)
+      CALL gpc_unpack(nparts,0,np,id,px,py,pz,this%rtid_,this%rtpr_)
+    END IF
+  END SUBROUTINE GPartComm_PartScatterV
+
+
+!-----------------------------------------------------------------
+!  METHOD     : ResizeArrays
+!  DESCRIPTION: Resizes the particle-sized arrays to newmparts
+!               (only grows them if onlyinc). The exchange lists
+!               keep their contents.
+!-----------------------------------------------------------------
+  SUBROUTINE GPartComm_ResizeArrays(this,newmparts,onlyinc)
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)  :: this
+    INTEGER         ,INTENT(IN)     :: newmparts
+    LOGICAL         ,INTENT(IN)     :: onlyinc
+    INTEGER                         :: n
+
+    n = SIZE(this%ibot_)
+    IF ((n.lt.newmparts).OR.((n.gt.newmparts).AND..NOT.onlyinc)) THEN
+      CALL gresize(this%ibot_ ,newmparts,.true. )
+      CALL gresize(this%itop_ ,newmparts,.true. )
+      CALL gresize(this%oldid_,newmparts,.false.)
+      CALL gresize(this%iflag_,newmparts,.false.)
+      CALL gresize(this%ihole_,newmparts,.false.)
+      CALL gresize(this%isurv_,newmparts,.false.)
+      CALL gresize(this%sbid_ ,newmparts,.false.)
+      CALL gresize(this%stid_ ,newmparts,.false.)
+      CALL gresize(this%rbid_ ,newmparts,.false.)
+      CALL gresize(this%rtid_ ,newmparts,.false.)
+      CALL gresize(this%sbpr_ ,3,newmparts,.false.)
+      CALL gresize(this%stpr_ ,3,newmparts,.false.)
+      CALL gresize(this%rbpr_ ,3,newmparts,.false.)
+      CALL gresize(this%rtpr_ ,3,newmparts,.false.)
+    ENDIF
+    this%maxparts_ = newmparts
+  END SUBROUTINE GPartComm_ResizeArrays
+
 
   SUBROUTINE GPartComm_Init(this)
 !-----------------------------------------------------------------
@@ -382,18 +1174,12 @@ MODULE class_GPartComm
     nt  = (this%nzghost_+n2p-1)/n2p  ! max no. tasks needed for ghost zones
 
     CALL GPartComm_DoDealloc(this)
-
-    ALLOCATE(this%sbbuff_ (this%nbuff_,nt))
-    ALLOCATE(this%stbuff_ (this%nbuff_,nt))
-    ALLOCATE(this%rbbuff_ (this%nbuff_,nt))
-    ALLOCATE(this%rtbuff_ (this%nbuff_,nt))
-    ALLOCATE(this%sbbuffp_(this%maxparts_))
-    ALLOCATE(this%stbuffp_(this%maxparts_))
-    ALLOCATE(this%rbbuffp_(this%maxparts_))
-    ALLOCATE(this%rtbuffp_(this%maxparts_))
-    ALLOCATE(this%ibot_(this%maxparts_))
-    ALLOCATE(this%itop_(this%maxparts_))
-    ALLOCATE(this%oldid_(this%maxparts_))
+    ! Field buffers, particle buffers and index lists have device copies
+    CALL galloc(this%sbbuff_,this%nbuff_,nt)
+    CALL galloc(this%stbuff_,this%nbuff_,nt)
+    CALL galloc(this%rbbuff_,this%nbuff_,nt)
+    CALL galloc(this%rtbuff_,this%nbuff_,nt)
+    CALL GPartComm_AllocParts(this,this%maxparts_)
     ALLOCATE(this%ibrcvp_(nt))
     ALLOCATE(this%ibsndp_(nt))
     ALLOCATE(this%itrcvp_(nt))
@@ -412,10 +1198,6 @@ MODULE class_GPartComm
     ALLOCATE(this%itrcvnz_(nt))
     ALLOCATE(this%ibsndnz_(nt))
     ALLOCATE(this%itsndnz_(nt))
-    ALLOCATE(this%igrh_(0:this%nprocs_-1))
-    ALLOCATE(this%igsh_(0:this%nprocs_-1))
-    ALLOCATE(this%itypekp_(0:this%nprocs_-1))
-    ALLOCATE(this%itypeip_(0:this%nprocs_-1))
     ALLOCATE(this%ibsnddst_(nt,this%nzghost_+1))
     ALLOCATE(this%itsnddst_(nt,this%nzghost_+1))
 
@@ -561,19 +1343,6 @@ MODULE class_GPartComm
     ! For multifield interfaces, the rcv buff starting indices are different:
     ! than for single field interface:
     nxy = this%nd_(1)*this%nd_(2)
-    IF ( this%intrfc_ .GT. 0 ) THEN  ! multi-field interface
-      DO j=1,nt
-        jtr = 0; jbr = 0
-        DO i = 1,j-1
-          jtr = jtr + this%itrcvnz_(j)
-          jbr = jbr + this%ibrcvnz_(j)
-        ENDDO
-        this%itrcv_  (j)    = jtr * (3*nxy+1)+1
-        this%ibrcv_  (j)    = jbr * (3*nxy+1)+1
-        this%ntbrcv_ (j)    = this%itrcvnz_(j) * (3*nxy+1)+1
-        this%nbbrcv_ (j)    = this%ibrcvnz_(j) * (3*nxy+1)+1
-      ENDDO
-    ELSE                              ! single-field interface
       DO j=1,nt
         jtr = 0; jbr = 0
         DO i = 1,j-1
@@ -586,1808 +1355,10 @@ MODULE class_GPartComm
         this%ntbrcv_ (j)    = this%itrcvnz_(j) * (nxy+1)+1
         this%nbbrcv_ (j)    = this%ibrcvnz_(j) * (nxy+1)+1
       ENDDO
-    ENDIF
 
     DEALLOCATE(jfwd,kfend,kfsta,nzF)
-    CALL GPartComm_InitMPITypes()
 
   END SUBROUTINE GPartComm_Init
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_InitMPITypes()
-!-----------------------------------------------------------------
-!  METHOD     : InitMPITypes
-!  DESCRIPTION: Creates MPI type equivalent for GPData and its
-!               corresponding array version.
-!  ARGUMENTS  :
-!    this              : 'this' class instance (IN)
-!-----------------------------------------------------------------
-    TYPE(GPData)                   :: gpdat,gpdatarr(2)
-    INTEGER                        :: blocklen(2),ierr
-    TYPE(mpi_datatype)             :: types(2)
-    INTEGER(KIND=MPI_ADDRESS_KIND) :: disp(2)
-
-    blocklen(1) = 1
-    blocklen(2) = 3
-    types(1) = MPI_INTEGER
-    types(2) = GC_REAL
-
-    CALL MPI_GET_ADDRESS(gpdat%idp_, disp(1), ierr)
-    CALL MPI_GET_ADDRESS(gpdat%rp_ , disp(2), ierr)
-    disp(2) = disp(2) - disp(1)
-    disp(1) = 0
-    CALL MPI_TYPE_CREATE_STRUCT(2,blocklen,disp,types,MPI_GPDataType,ierr) 
-    CALL MPI_TYPE_COMMIT(MPI_GPDataType, ierr)
-
-    CALL MPI_GET_ADDRESS(gpdatarr(1), disp(1), ierr) 
-    CALL MPI_GET_ADDRESS(gpdatarr(2), disp(2), ierr) 
-    CALL MPI_TYPE_CREATE_RESIZED(MPI_GPDataType,0_MPI_ADDRESS_KIND, &
-                         disp(2)-disp(1),MPI_GPDataPackType,ierr) 
-    CALL MPI_TYPE_COMMIT(MPI_GPDataPackType, ierr) 
-
-  END SUBROUTINE
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_LocalDataExchMF(this,vxext,vyext,vzext,vx,vy,vz)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : LocalDataExch
-!  DESCRIPTION: Does 'bdy exchange' of velocity component, when there's
-!               only a single MPI task.
-!  ARGUMENTS  :
-!    this              : 'this' class instance (IN)
-!    vxext,vyext,vzext : Eulerian velocity components returned on extended
-!                        grid (that used to hold ghost zones). Only z-conditions
-!                        are imposed; lateral periodicity is not handled here.
-!                        Lateral ghost zones can be accounted for by setting
-!                        this%iextperp_=1 in contructor.
-!    vx,vy,vz          : Eulerian velocity components on regular grid. Must
-!                        be of size nd_ set in constructor
-!
-!-----------------------------------------------------------------
-!$  USE threads
-    USE mpivars
-
-    IMPLICIT NONE
-    CLASS(GPartComm),INTENT(INOUT)                      :: this
-    INTEGER                                             :: i,j,k,ngp,ngz,nex,nexy,nez
-    INTEGER                                             :: nx,nxy,ny,nz
-    INTEGER                                             :: jm,km
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*)            :: vx,vy,vz
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)            :: vxext,vyext,vzext
-
-    ngz  = this%nzghost_
-    ngp  = ngz * this%iextperp_
-    nexy = (this%nd_(1)+2*ngp) * (this%nd_(2)+2*ngp)
-    nex  = this%nd_(1)+2*ngp
-    nez  = this%nd_(3)+  ngz
-    nx   = this%nd_(1)
-    ny   = this%nd_(2)
-    nz   = this%nd_(3)
-    nxy  = nx*ny
-
-    CALL GPartComm_Copy2Ext(this,vxext,vx)
-    CALL GPartComm_Copy2Ext(this,vyext,vy)
-    CALL GPartComm_Copy2Ext(this,vzext,vz)
-    DO k = 1, ngz  ! bottom extended zones
-      km = k-1
-!$omp parallel do if(ny.ge.nth) private(jm,i)
-      DO j=1,ny
-        jm = j-1
-        DO i=1,nx
-          ! set top bcs:
-          vxext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy) = vx(i+(j-1)*nx+(k-1)*nxy)
-          vyext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy) = vy(i+(j-1)*nx+(k-1)*nxy)
-          vzext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy) = vz(i+(j-1)*nx+(k-1)*nxy)
-          ! set bottom bcs:
-          vxext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy) = vx(i+(j-1)*nx+(nz-ngz+k-1)*nxy)
-          vyext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy) = vy(i+(j-1)*nx+(nz-ngz+k-1)*nxy)
-          vzext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy) = vz(i+(j-1)*nx+(nz-ngz+k-1)*nxy)
-        ENDDO
-      ENDDO
-    ENDDO
-
-  END SUBROUTINE GPartComm_LocalDataExchMF
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_SlabDataExchangeMF(this,vxext,vyext,vzext,vx,vy,vz)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : SlabDataExchangeMF
-!  DESCRIPTION: Does bdy exchange of velocity component, vx,vy,vz. Output
-!               is to data on extended grids, vxext, vyext, vzexy. 'MF' means
-!               that this is the 'multi-field' interface.
-!  ARGUMENTS  :
-!    this              : 'this' class instance (IN)
-!    vxext,vyext,vzext : Eulerian velocity components returned on extended
-!                        grid (that used to hold ghost zones)
-!    vx,vy,vz          : Eulerian velocity components on regular grid. Must
-!                        be of size nd_ set in constructor
-!
-!-----------------------------------------------------------------
-    IMPLICIT NONE
-    CLASS(GPartComm),INTENT(INOUT)                      :: this
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*)            :: vx,vy,vz
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)            :: vxext,vyext,vzext
-
-    INTEGER                                             :: itask,j
-    IF ( this%intrfc_ .LT. 1 ) THEN
-      WRITE(*,*) 'GPartComm_SlabDataExchangeMF: SF interface expected'
-      STOP
-    ENDIF
-
-    IF ( this%nprocs_ .EQ. 1 ) THEN
-      CALL GPartComm_LocalDataExchMF(this,vxext,vyext,vzext,vx,vy,vz)
-      RETURN
-    ENDIF
-    CALL GPartComm_Copy2Ext(this,vxext,vx)
-    CALL GPartComm_Copy2Ext(this,vyext,vy)
-    CALL GPartComm_Copy2Ext(this,vzext,vz)
-
-    ! Post receives:
-    CALL GTStart(this%hcomm_)
-    DO j=1,this%nbrcv_  ! from bottom task:
-      itask = this%ibrcvp_(j)
-      CALL MPI_IRECV(this%rbbuff_(:,j),this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%ibrh_(j),this%ierr_)
-    ENDDO
-    CALL GTAcc(this%hcomm_)
-
-    CALL GTStart(this%hcomm_)
-    DO j=1,this%ntrcv_  ! from top task:
-      itask = this%itrcvp_(j)
-      CALL MPI_IRECV(this%rtbuff_(:,j),this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%itrh_(j),this%ierr_)
-    ENDDO
-    CALL GTAcc(this%hcomm_)
-
-    !
-    ! send data:
-    DO j=1,this%nbsnd_  ! to bottom task:
-      itask = this%ibsndp_(j)
-      CALL GPartComm_PackMF(this,this%sbbuff_(:,j),vx,vy,vz,j,'b')
-      CALL GTStart(this%hcomm_)
-      CALL MPI_ISEND(this%sbbuff_(:,j),this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%ibsh_(j),this%ierr_)
-      CALL GTAcc(this%hcomm_)
-    ENDDO
-    DO j=1,this%ntsnd_  ! to top task:
-      itask = this%itsndp_(j)
-      CALL GPartComm_PackMF(this,this%stbuff_,vx,vy,vz,j,'t')
-      CALL GTStart(this%hcomm_)
-      CALL MPI_ISEND(this%stbuff_,this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%itsh_(j),this%ierr_)
-      CALL GTAcc(this%hcomm_)
-
-    ENDDO
-
-    CALL GTStart(this%hcomm_)
-    DO j=1,this%nbsnd_
-      CALL MPI_WAIT(this%ibsh_(j),this%istatus_,this%ierr_)
-    ENDDO
-    DO j=1,this%ntsnd_
-      CALL MPI_WAIT(this%itsh_(j),this%istatus_,this%ierr_)
-    ENDDO
-    DO j=1,this%nbrcv_
-      CALL MPI_WAIT(this%ibrh_(j),this%istatus_,this%ierr_)
-    ENDDO
-    DO j=1,this%ntrcv_
-      CALL MPI_WAIT(this%itrh_(j),this%istatus_,this%ierr_)
-    ENDDO
-    CALL GTAcc(this%hcomm_)
-
-    ! Unpack received data:
-    DO j=1,this%nbrcv_
-      CALL GPartComm_UnpackMF(this,vxext,vyext,vzext,this%rbbuff_(:,j))
-    ENDDO
-    DO j=1,this%ntrcv_
-      CALL GPartComm_UnpackMF(this,vxext,vyext,vzext,this%rtbuff_(:,j))
-    ENDDO
-
-  END SUBROUTINE GPartComm_SlabDataExchangeMF
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_PackMF(this,buff,vx,vy,vz,isnd,sdir)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : PackMF
-!  DESCRIPTION: packs snd buffer with fields; multi-field interface
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    buff    : packed buffer (returned)
-!    vx,vy,vz: Eulerian velocity component on regular grid
-!              in phys. space (IN)
-!    isnd    : which send this is
-!    sdir    : 't' for top, 'b' for bottom
-!
-!-----------------------------------------------------------------
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)          :: this
-    INTEGER      ,INTENT   (IN)             :: isnd
-    INTEGER                                 :: i,j,k,m,nt,nx,nxy,ny
-    INTEGER                                 :: jm,km
-    REAL(KIND=GP),INTENT  (OUT),DIMENSION(*):: buff
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*):: vx,vy,vz
-    CHARACTER*(*),INTENT   (IN)             :: sdir
-
-
-    IF ( sdir(1:1).NE.'b' .AND. sdir(1:1).NE.'B' &
-    .AND.sdir(1:1).NE.'t' .AND. sdir(1:1).NE.'T' ) THEN
-      WRITE(*,*) 'GPartComm_PackMF: Bad direction descriptor'
-      STOP
-    ENDIF
-
-    nx  = this%nd_(1)
-    ny  = this%nd_(2)
-    nxy = nx*ny
-    IF      ( sdir(1:1) .EQ. 'b' .OR. sdir(1:1) .EQ. 'B' ) THEN
-    ! Pack for send to rank at bottom:
-    !  ...header
-      nt = 1
-      buff(1)  = this%ibsndnz_(isnd)       ! no. z-indices included
-      DO j = 1, this%ibsndnz_(isnd)
-        nt       = nt + 1
-        buff(nt) = this%ibsnddst_(isnd,j) ! z-index in extended grid
-      ENDDO
-
-    !  ...data
-      DO m = 1,this%ibsndnz_(isnd)
-        k = this%ibsnd_(isnd,m)
-        km = k-1
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-            buff(nt) = vx(i+jm*nx+km*nxy)
-            nt = nt + 1
-          ENDDO
-        ENDDO
-      ENDDO
-
-      DO m = 1, this%ibsndnz_(isnd)
-        k = this%ibsnd_(isnd,m)
-        km = k-1
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-            buff(nt) = vy(i+jm*nx+km*nxy)
-            nt = nt + 1
-          ENDDO
-        ENDDO
-      ENDDO
-
-      DO m = 1,this%ibsndnz_(isnd)
-        k = this%ibsnd_(isnd,m)
-        km = k-1
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-            buff(nt) = vz(i+jm*nx+km*nxy)
-            nt = nt + 1
-          ENDDO
-        ENDDO
-      ENDDO
-
-    ELSE !  Pack for send to rank at top:
-
-      ! ...header
-      nt = 1
-      buff(1)  = this%itsndnz_(isnd)      ! no. z-indices included
-      DO j = 1, this%itsndnz_(isnd)
-        nt       = nt + 1
-        buff(nt) = this%itsnddst_(isnd,j) ! z-index in extended grid
-      ENDDO
-
-      ! ...data
-      DO m = 1,this%itsndnz_(isnd)
-        k = this%itsnd_(isnd,m)
-        km = k-1
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-            buff(nt) = vx(i+jm*nx+km*nxy)
-            nt = nt + 1
-          ENDDO
-        ENDDO
-      ENDDO
-
-      DO m = 1,this%itsndnz_(isnd)
-        k = this%itsnd_(isnd,m)
-        km = k-1
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-            buff(nt) = vy(i+jm*nx+km*nxy)
-            nt = nt + 1
-          ENDDO
-        ENDDO
-      ENDDO
-
-      DO m = 1,this%itsndnz_(isnd)
-        k = this%itsnd_(isnd,m)
-        km = k-1
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-            buff(nt) = vz(i+jm*nx+km*nxy)
-            nt = nt + 1
-          ENDDO
-        ENDDO
-      ENDDO
-
-    ENDIF
-
-  END SUBROUTINE GPartComm_PackMF
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_UnpackMF(this,vxe,vye,vze,buff)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : UnpackMF
-!  DESCRIPTION: Unpacks recv buffer with into extended (single) field
-!               Messages received are self-referential, so contain info
-!               on where to 'send' recvd data. So, there is no 't' or
-!               'b' designation required for unpacking.
-!  ARGUMENTS  :
-!    this        : 'this' class instance (IN)
-!    buff        : packed buffer (input) from which to store into
-!                  extended grid quantities.
-!    vxe,vye,vze : Eulerian velocity component on extended grid
-!                  in phys. space (IN)
-!
-!-----------------------------------------------------------------
-    USE mpivars
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)          :: this
-    INTEGER                                 :: i,j,k,m,ngp,ngz,nx,nxy,ny,nz
-    INTEGER                                 :: ixy,jm,km,nh
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*):: buff
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*):: vxe,vye,vze
-
-    nx  = this%nd_(1)
-    ny  = this%nd_(2)
-    nxy = nx*ny
-    ngz = this%nzghost_;
-    ngp = ngz*this%iextperp_
-
-  ! Unpack from either top or bottom buffer:
-    nz = int(buff(1))
-    nh = nz + 1 ! no. items in header
-    DO m = 1,nz
-      k   = int(buff(m+1))
-      km  = k-1
-
-      ixy = 1
-      DO j = 1, ny
-        jm = j-1
-        DO i = 1, nx
-          vxe(i+ngp+(jm+ngp)*nx+km*nxy) = buff(nh+(m-1)*nxy+ixy)
-          ixy = ixy + 1
-        ENDDO
-      ENDDO
-
-      DO j = 1, ny
-        jm = j-1
-        DO i = 1, nx
-          vye(i+ngp+(jm+ngp)*nx+km*nxy) = buff(nh+(m-1)*nxy+ixy)
-          ixy = ixy + 1
-        ENDDO
-      ENDDO
-
-      DO j = 1, ny
-        jm = j-1
-        DO i = 1, nx
-          vze(i+ngp+(jm+ngp)*nx+km*nxy) = buff(nh+(m-1)*nxy+ixy)
-          ixy = ixy + 1
-        ENDDO
-      ENDDO
-
-    ENDDO
-
-  END SUBROUTINE GPartComm_UnpackMF
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_LocalDataExchSF(this,vext,v)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : LocalDataExchSF
-!  DESCRIPTION: Does 'bdy exchange' of (single) velocity component, when there's
-!               only a single MPI task. This is a single-field interface.
-!  ARGUMENTS  :
-!    this              : 'this' class instance (IN)
-!    vxext,vyext,vzext : Eulerian velocity components returned on extended
-!                        grid (that used to hold ghost zones). Only z-conditions
-!                        are imposed; lateral periodicity is not handled here.
-!    vx,vy,vz          : Eulerian velocity components on regular grid. Must
-!                        be of size nd_ set in constructor
-!
-!-----------------------------------------------------------------
-!$  USE threads
-    USE mpivars
-
-    IMPLICIT NONE
-    CLASS(GPartComm),INTENT(INOUT)                      :: this
-    INTEGER                                             :: i,j,k,ngp,ngz,nex,nexy,nez
-    INTEGER                                             :: nx,nxy,ny,nz
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*)            :: v
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)            :: vext
-
-    ngz  = this%nzghost_
-    ngp  = ngz * this%iextperp_
-    nexy = (this%nd_(1)+2*ngp) * (this%nd_(2)+2*ngp)
-    nex  = this%nd_(1)+2*ngp
-    nez  = this%nd_(3)+  ngz
-    nx   = this%nd_(1)
-    ny   = this%nd_(2)
-    nz   = this%nd_(3)
-    nxy  = nx*ny
-
-    CALL GPartComm_Copy2Ext(this,vext,v)
-    DO k = 1, ngz  ! extended zones
-!$omp parallel do if(ny.ge.nth) private(i)
-      DO j=1,ny
-        DO i=1,nx
-          ! set top bcs:
-          vext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy) = v(i+(j-1)*nx+(k-1)*nxy)
-
-          ! set bottom bcs:
-          vext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy) = v(i+(j-1)*nx+(nz-ngz+k-1)*nxy)
-
-        ENDDO
-      ENDDO
-    ENDDO
-
-  END SUBROUTINE GPartComm_LocalDataExchSF
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_SlabDataExchangeSF(this,vext,v)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : GPartComm_SlabDataExchangeSF
-!  DESCRIPTION: Does bdy exchange of field component, v. Output
-!               is to data on extended grids, vext. 'SF' means
-!               that this is the 'single-field' interface.
-!  ARGUMENTS  :
-!    this      : 'this' class instance (IN)
-!    vext      : Eulerian velocity component returned on extended
-!                grid (that used to hold ghost zones in z)
-!    v         : Eulerian velocity components on regular grid. Must
-!                be of size nd_ set in constructor
-!
-!-----------------------------------------------------------------
-    IMPLICIT NONE
-    CLASS(GPartComm),INTENT(INOUT)                      :: this
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*)            :: v
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)            :: vext
-
-    INTEGER                                             :: itask,j,buffsize
-
-    IF ( this%intrfc_ .GE. 1 ) THEN
-      WRITE(*,*) 'GPartComm_SlabDataExchangeSF: MF interface expected'
-      STOP
-    ENDIF
-    IF ( this%nprocs_ .EQ. 1 ) THEN
-      CALL GPartComm_LocalDataExchSF(this,vext,v)
-      RETURN
-    ENDIF
-
-    buffsize = this%nd_(1)*this%nd_(2)*this%nzghost_ + this%nzghost_ + 2
-
-    CALL GPartComm_Copy2Ext(this,vext,v)
-
-    ! post receives:
-    CALL GTStart(this%hcomm_)
-    DO j=1,this%nbrcv_  ! from bottom task:
-      itask = this%ibrcvp_(j)
-      CALL MPI_IRECV(this%rbbuff_(:,j),this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%ibrh_(j),this%ierr_)
-    ENDDO
-    CALL GTAcc(this%hcomm_)
-
-
-    ! send data:
-    DO j=1,this%nbsnd_  ! to bottom task:
-      itask = this%ibsndp_(j)
-      CALL GPartComm_PackSF(this,this%sbbuff_(:,j),v,j,'b')
-      CALL GTStart(this%hcomm_)
-      CALL MPI_ISEND(this%sbbuff_(:,j),buffsize,GC_REAL,itask, &
-                     1,this%comm_,this%ibsh_(j),this%ierr_)
-      CALL GTAcc(this%hcomm_)
-    ENDDO
-!
-
-    CALL GTStart(this%hcomm_)
-    DO j=1,this%ntrcv_  ! from top task:
-      itask = this%itrcvp_(j)
-      CALL MPI_IRECV(this%rtbuff_(:,j),this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%itrh_(j),this%ierr_)
-    ENDDO
-    CALL GTAcc(this%hcomm_)
-
-
-    DO j=1,this%ntsnd_  ! to top task:
-      itask = this%itsndp_(j)
-      CALL GPartComm_PackSF(this,this%stbuff_(:,j),v,j,'t')
-      CALL GTStart(this%hcomm_)
-      CALL MPI_ISEND(this%stbuff_(:,j),buffsize,GC_REAL,itask, &
-                     1,this%comm_,this%itsh_(j),this%ierr_)
-      CALL GTAcc(this%hcomm_)
-    ENDDO
-
-    CALL GTStart(this%hcomm_)
-    DO j=1,this%nbsnd_
-      CALL MPI_WAIT(this%ibsh_(j),this%istatus_,this%ierr_)
-    ENDDO
-    DO j=1,this%nbrcv_
-      CALL MPI_WAIT(this%ibrh_(j),this%istatus_,this%ierr_)
-    ENDDO
-
-
-    DO j=1,this%ntsnd_
-      CALL MPI_WAIT(this%itsh_(j),this%istatus_,this%ierr_)
-    ENDDO
-    DO j=1,this%ntrcv_
-      CALL MPI_WAIT(this%itrh_(j),this%istatus_,this%ierr_)
-    ENDDO
-    CALL GTAcc(this%hcomm_)
-
-
-    ! Unpack received data:
-    DO j=1,this%nbrcv_
-      CALL GPartComm_UnpackSF(this,vext,this%rbbuff_(:,j),this%nbuff_,'b',this%ierr_)
-    ENDDO
-    DO j=1,this%ntrcv_
-      CALL GPartComm_UnpackSF(this,vext,this%rtbuff_(:,j),this%nbuff_,'t',this%ierr_)
-    ENDDO
-
-  END SUBROUTINE GPartComm_SlabDataExchangeSF
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_PackSF(this,buff,v,isnd,sdir)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : PPackSF
-!  DESCRIPTION: packs snd buffer with (single) field
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    buff    : packed buffer (returned)
-!    v       : Eulerian velocity component on regular grid
-!              in phys. space (IN)
-!    isnd    : which send this is
-!    sdir    : 't' for top, 'b' for bottom
-!
-!-----------------------------------------------------------------
-!$  USE threads
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)          :: this
-    INTEGER      ,INTENT   (IN)             :: isnd
-    INTEGER                                 :: i,j,k,m,nt,nx,ny,nxy
-    INTEGER                                 :: jm,km
-    REAL(KIND=GP),INTENT  (OUT),DIMENSION(*):: buff
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*):: v
-    CHARACTER*(*),INTENT   (IN)             :: sdir
-
-
-    IF ( sdir(1:1).NE.'b' .AND. sdir(1:1).NE.'B' &
-    .AND.sdir(1:1).NE.'t' .AND. sdir(1:1).NE.'T' ) THEN
-      WRITE(*,*) 'GPartComm_PackMF: Bad direction descriptor'
-      STOP
-    ENDIF
-
-    nx  = this%nd_(1)
-    ny  = this%nd_(2)
-    nxy = nx*ny
-    IF      ( sdir(1:1) .EQ. 'b' .OR. sdir(1:1) .EQ. 'B' ) THEN
-    ! Pack for send to rank at bottom:
-    !  ...header
-      nt = 1
-      buff(1)  = this%ibsndnz_(isnd)      ! no. z-indices included
-      DO j = 1, this%ibsndnz_(isnd)
-        nt       = nt + 1
-        buff(nt) = this%ibsnddst_(isnd,j) ! z-index in extended grid
-      ENDDO
-
-    !  ...data
-      DO m = 1,this%ibsndnz_(isnd)
-        k = this%ibsnd_(isnd,m)
-        km = k-1
-!$omp parallel do if(ny.ge.nth) private(jm,i)
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-!            nt = nt + 1
-            buff(nt+jm*nx+i) = v(i+jm*nx+km*nxy)
-          ENDDO
-        ENDDO
-        nt = nt + nxy
-      ENDDO
-
-    ELSE !  Pack for send to rank at top:
-
-      ! ...header
-      nt = 1
-      buff(1)  = this%itsndnz_(isnd)      ! no. z-indices included
-      DO j = 1, this%itsndnz_(isnd)
-        nt       = nt + 1
-        buff(nt) = this%itsnddst_(isnd,j) ! z-index in extended grid
-      ENDDO
-
-      ! ...data
-      DO m = 1,this%itsndnz_(isnd)
-        k = this%itsnd_(isnd,m)
-        km = k-1
-!$omp parallel do if(ny.ge.nth) private(jm,i)
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-!            nt = nt + 1
-            buff(nt+jm*nx+i) = v(i+jm*nx+km*nxy)
-          ENDDO
-        ENDDO
-        nt = nt + nxy
-      ENDDO
-
-    ENDIF
-
-  END SUBROUTINE GPartComm_PackSF
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_UnpackSF(this,vext,buff,nbuff,sb,ierr)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : UnpackSF
-!  DESCRIPTION: Unpacks recv buffer with into extended (single) field
-!               Messages received are self-referential, so contain info
-!               on where to 'send' recvd data. So, there is no 't' or
-!               'b' designation required for unpacking.
-!  ARGUMENTS  :
-!    this        : 'this' class instance (IN)
-!    vext        : Eulerian velocity component on extended grid
-!                  in phys. space (IN)
-!    buff        : packed buffer (input) from which to store into
-!                  extended grid quantities.
-!    nbuff       : maximum buff size
-!    sb          : optional buffer name ,'t' or 'b'.
-!    ierr        : err flag: 0 if success; else 1
-!
-!-----------------------------------------------------------------
-!$  USE threads
-
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)          :: this
-    INTEGER                                 :: i,j,k,m,ngp,nx,nex,nxy,nexy,ny,nz
-    INTEGER                                 :: im,ip,ir,ixy,iz,jm,km,nh
-    INTEGER      ,INTENT   (IN)             :: nbuff
-    INTEGER      ,INTENT(INOUT)             :: ierr ! not used now
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*):: buff
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*):: vext
-    CHARACTER(len=1),INTENT(IN),OPTIONAL    :: sb
-
-    ierr = 0
-    nx   = this%nd_(1)
-    ny   = this%nd_(2)
-    nxy  = nx*ny
-    ngp  = this%nzghost_*this%iextperp_
-    nex  = nx+2*ngp
-    nexy = (nx+2*ngp)*(ny+2*ngp)
-
-    ! Unpack from either buffer:
-    ! For each task, message is of form:
-    !     #z-indices:z-index_0:z-index_1:...:nx*ny_0:nx*ny_1: ...
-    nz = int(buff(1))
-    nh = nz + 1 ! no. items in header
-    DO m = 1, nz
-      k   = int(buff(m+1))
-      km  = k-1
-!      ixy = 1
-!$omp parallel do if(ny.ge.nth) private(jm,i,ixy,im,ir)
-      DO j = 1, ny
-        jm = j-1
-        DO i = 1, nx
-          ixy = jm*nx + i
-          im = i+ngp+(jm+ngp)*nex+km*nexy
-          ir = nh+(m-1)*nxy+ixy
-          vext(im) = buff(ir)
-!          ixy = ixy + 1
-        ENDDO
-      ENDDO
-    ENDDO
-
-  END SUBROUTINE GPartComm_UnpackSF
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_IdentifyTaskV(this,id,pz,nparts,task)
-!-----------------------------------------------------------------
-!  METHOD     : IdentifyTaskV
-!  DESCRIPTION: Identifies particle task owner for scatter. Uses V interface.
-!               Note: For this call to work, the particle positions
-!               _must_ be periodized on entry.
-!
-!               This routine is intended to be called  before PartScatterV.
-!
-!  ARGUMENTS  :
-!    this     : 'this' class instance (IN)
-!    id       : array of particle ids
-!    px,py,px : arrays containing x,y,z positions of particles
-!    nparts   : number of particles in pdb
-!    newnparts: number of particles in pdb after exchange
-!    zmin/max : min/max z-dimensions of current MPI task
-!    gext     : (3,2) real array containing global grid extents (start
-!               and stop boundaries in each direction).
-!-----------------------------------------------------------------
-    USE pdbtypes
-    USE grid
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)           :: this
-    INTEGER      ,INTENT(INOUT)              :: nparts
-    INTEGER                                  :: i,j,tsta,tend
-    INTEGER      ,INTENT(INOUT),DIMENSION(:) :: id,task
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:) :: pz
-    REAL(KIND=GP)                            :: zmaxs(this%nprocs_)
-    INTEGER                                  :: nps(this%nprocs_)
-
-    IF ( this%nprocs_ .EQ. 1 ) RETURN ! nothing to do
-    
-    IF (this%myrank_.EQ.0) THEN
-      ! Determine z-boundaries for each task
-      DO j = 1,this%nprocs_
-        nps(j) = 0
-        CALL range(1,nz,this%nprocs_,j-1,tsta,tend)
-        zmaxs(j) = REAL(tend,KIND=GP)
-      END DO
-
-      ! Determine corresponding task owner for each particle
-      DO i = 1,nparts
-        j = 1
-        DO WHILE (pz(i).GT.zmaxs(j))
-          j = j + 1
-        END DO
-        IF (j.GT.this%nprocs_) THEN
-          WRITE(*,*) 'GPartComm_IdentifyTaskV: particle outside of range z =', pz(i)
-        END IF
-        nps(j) = nps(j) + 1
-        task(i) = j - 1
-      END DO
-
-      ! Communicate number of particles to send
-      ! Build and send particle pack to each task
-      DO j = 2,this%nprocs_
-        CALL MPI_ISEND(nps(j),1,MPI_INTEGER,j-1,j-1,this%comm_,this%itsh_(1),this%ierr_)
-      END DO
-    ELSE
-      CALL MPI_IRECV(nparts,1,MPI_INTEGER,0,this%myrank_,this%comm_,this%itrh_(1),this%ierr_)
-      CALL MPI_WAIT(this%itrh_(1),this%istatus_,this%ierr_)
-    END IF
-
-    RETURN
-
-  END SUBROUTINE GPartComm_IdentifyTaskV
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_PartScatterV(this,id,px,py,pz,nparts,task)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : PartScatterV
-!  DESCRIPTION: Carries out particle scatter from task 0 to the rest.
-!               Uses V interface.
-!
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    id      : array of particle ids
-!    px,py,px: arrays containing x,y,z positions of particles
-!    nparts  : total number of particles in pdb (=maxparts for task 0,
-!                                                =0 otherwise)
-!    task    : array containing particle owners (tasks)
-!-----------------------------------------------------------------
-    USE pdbtypes
-    USE grid
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)           :: this
-    INTEGER      ,INTENT(INOUT)              :: nparts
-    INTEGER                                  :: i,j,nsend,nparts0
-    INTEGER      ,INTENT(INOUT),DIMENSION(:) :: id
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:) :: px,py,pz
-    INTEGER      ,INTENT   (IN),DIMENSION(:) :: task
-
-    IF ( this%nprocs_ .EQ. 1 ) RETURN ! nothing to do
-
-    IF (this%myrank_.EQ.0) THEN
-      ! Build and send particle pack to each task
-      DO j = 2,this%nprocs_
-        nsend = 0
-        DO i = 1,this%maxparts_
-          IF (task(i).EQ.(j-1)) THEN
-            nsend = nsend + 1
-            this%itop_(nsend) = i
-          END IF
-        END DO
-        CALL GPartComm_PPackV(this,this%stbuffp_,id,px,py,pz,this%itop_,nsend)
-        CALL MPI_ISEND(this%stbuffp_,nsend,MPI_GPDataPackType,j-1,j-1,this%comm_,this%itsh_(1),this%ierr_)
-        CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
-      END DO
-
-      ! Concatenate own particles
-      nparts0 = 0
-      DO i = 1,this%maxparts_
-        IF (task(i).EQ.0) THEN
-          nparts0 = nparts0 + 1
-          id(nparts0) = id(i)
-          px(nparts0) = px(i)
-          py(nparts0) = py(i)
-          pz(nparts0) = pz(i)
-        END IF
-      END DO
-      nparts = nparts0
-    ELSE
-      CALL MPI_IRECV(this%rtbuffp_,this%maxparts_,MPI_GPDataPackType,0,this%myrank_,this%comm_,this%itrh_(1),this%ierr_)
-      CALL MPI_WAIT(this%itrh_(1),this%istatus_,this%ierr_)
-      CALL GPartComm_PUnpackV(this,id,px,py,pz,0,this%rtbuffp_,nparts)
-    END IF
-
-    RETURN
- 
-  END SUBROUTINE GPartComm_PartScatterV
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_PPackV(this,buff,id,px,py,pz,iind,nind)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : PPack
-!  DESCRIPTION: Packs send buffer with particles. Uses V interface.
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    buff    : buffer into which to pack particles for sends
-!    id      : part. ids
-!    px,py,pz: part. locations
-!    iind    : pointers into pdb particle arrays for
-!              particles to pack
-!    nind    : no. particles to pack
-!-----------------------------------------------------------------
-    USE pdbtypes
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)             :: this
-    INTEGER      ,INTENT   (IN)                :: nind
-    INTEGER      ,INTENT   (IN),DIMENSION(:)   :: iind
-    INTEGER      ,INTENT   (IN),DIMENSION(:)   :: id
-    INTEGER                                    :: j
-    TYPE(GPData) ,INTENT(INOUT),DIMENSION(:)   :: buff
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(:)   :: px,py,pz
-
-!$omp parallel do if(nind.ge.NMIN_OMP)
-    DO j = 1,nind
-      buff(j)%idp_   = id(iind(j))
-      buff(j)%rp_(1) = px(iind(j))
-      buff(j)%rp_(2) = py(iind(j))
-      buff(j)%rp_(3) = pz(iind(j))
-    ENDDO
-
-  END SUBROUTINE GPartComm_PPackV
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_PUnpackV(this,id,px,py,pz,nparts,buff,nbuff)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : PUnpackV
-!  DESCRIPTION: Unpacks recv buffer with particles. Partlcles
-!               will be added directly to the existing particle list.
-!               Uses V interface.
-!
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    id      : part. ids
-!    px,py,pz: part. locations
-!    nparts  : new number of particles in pdb
-!              with new particles
-!    buff    : buffer from which particle data is read
-!    nbuff   : buffer length
-!-----------------------------------------------------------------
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)             :: this
-    INTEGER      ,INTENT   (IN)                :: nparts
-    INTEGER      ,INTENT   (IN)                :: nbuff
-    INTEGER      ,INTENT(INOUT),DIMENSION(:)   :: id
-    INTEGER                                    :: j
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:)   :: px,py,pz
-    TYPE(GPData) ,INTENT   (IN),DIMENSION(:)   :: buff
-
-!$omp parallel do if(nbuff.ge.NMIN_OMP) 
-    DO j = 1,nbuff
-      id(nparts+j) = buff(j)%idp_
-      px(nparts+j) = buff(j)%rp_(1)
-      py(nparts+j) = buff(j)%rp_(2)
-      pz(nparts+j) = buff(j)%rp_(3)
-    ENDDO
-
-  END SUBROUTINE GPartComm_PUnpackV
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_IdentifyExchV(this,id,pz,nparts,newnparts,zmin,zmax)
-!-----------------------------------------------------------------
-!  METHOD     : IdentifyExchV
-!  DESCRIPTION: Identifies particle Ids for exchange. Uses V interface.
-!               Note: For this call to work, the particle positions
-!               must _not_ be periodized on entry. In the same way,
-!               zmin/zmax must also _not_ be periodized.
-!
-!               This routine is intended to be called at each stage of
-!               an explicit time integration where the particle positions
-!               cannot change more than a single zone in x, y, or z
-!               in a timestep, before PartExchangeV.
-!
-!               Note that here, a particle _only on_ zmax is considered
-!               to be outside the interval defined by zmin/zmax.
-!  ARGUMENTS  :
-!    this     : 'this' class instance (IN)
-!    id       : array of particle ids
-!    px,py,px : arrays containing x,y,z positions of particles
-!    nparts   : number of particles in pdb
-!    newnparts: number of particles in pdb after exchange
-!    zmin/max : min/max z-dimensions of current MPI task
-!    gext     : (3,2) real array containing global grid extents (start
-!               and stop boundaries in each direction).
-!-----------------------------------------------------------------
-    USE pdbtypes
-    USE grid
-!$  USE omp_lib
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)           :: this
-    INTEGER      ,INTENT(INOUT)              :: nparts,newnparts
-    INTEGER                                  :: j,ibrank,itrank
-    INTEGER                                  :: nrtop,nrbot
-    INTEGER      ,INTENT(INOUT),DIMENSION(:) :: id
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:) :: pz
-    REAL(KIND=GP),INTENT   (IN)              :: zmin,zmax
-
-    IF ( this%nprocs_ .EQ. 1 ) RETURN ! nothing to do
-
-    itrank = modulo(this%myrank_+1,this%nprocs_)
-    ibrank = this%myrank_-1
-    IF ( ibrank.LT.0 ) ibrank = this%nprocs_-1
-
-    ! Find pointers into particle lists for parts that
-    ! must be sent to the top and bottom tasks. The scan is done in
-    ! two passes so that each thread counts the matches of its
-    ! contiguous chunk and then writes them at the offset given by a
-    ! prefix sum over the threads: the lists come out in ascending
-    ! index order for any number of threads, exactly as a sequential
-    ! scan produces, so the exchange stays deterministic.
-    BLOCK
-      INTEGER :: kb,kt,t,lo,hi,chunk,ntmax,nthr
-      INTEGER, ALLOCATABLE, DIMENSION(:) :: cbot,ctop,bbot,btop
-      ntmax = 1
-!$    ntmax = omp_get_max_threads()
-      ALLOCATE(cbot(0:ntmax-1),ctop(0:ntmax-1),bbot(0:ntmax-1),btop(0:ntmax-1))
-      nthr = 1
-!$omp parallel private(t,j,kb,kt,lo,hi,chunk) shared(cbot,ctop,bbot,btop,nthr)
-!$omp single
-!$    nthr = omp_get_num_threads()
-!$omp end single
-      t = 0
-!$    t = omp_get_thread_num()
-      chunk = (nparts+nthr-1)/nthr
-      lo = t*chunk + 1
-      hi = MIN(nparts,(t+1)*chunk)
-      kb = 0; kt = 0
-      DO j = lo, hi
-        IF ( pz(j).LT.zmin ) THEN
-          kb = kb + 1
-        ELSE IF ( pz(j).GE.zmax ) THEN
-          kt = kt + 1
-        ENDIF
-      ENDDO
-      cbot(t) = kb; ctop(t) = kt
-!$omp barrier
-!$omp single
-      bbot(0) = 0; btop(0) = 0
-      DO j = 1, nthr-1
-        bbot(j) = bbot(j-1) + cbot(j-1)
-        btop(j) = btop(j-1) + ctop(j-1)
-      ENDDO
-      this%nbot_ = bbot(nthr-1) + cbot(nthr-1)
-      this%ntop_ = btop(nthr-1) + ctop(nthr-1)
-!$omp end single
-      kb = bbot(t); kt = btop(t)
-      DO j = lo, hi
-        IF ( pz(j).LT.zmin ) THEN
-          kb = kb + 1
-          this%ibot_(kb) = j
-        ELSE IF ( pz(j).GE.zmax ) THEN
-          kt = kt + 1
-          this%itop_(kt) = j
-        ENDIF
-      ENDDO
-!$omp end parallel
-      DEALLOCATE(cbot,ctop,bbot,btop)
-    END BLOCK
-
-    ! Post receives:
-    CALL GTStart(this%hcomm_)
-    CALL MPI_IRECV(nrbot,1,MPI_INTEGER,ibrank,1,this%comm_,this%ibrh_(1),this%ierr_)
-    CALL MPI_IRECV(nrtop,1,MPI_INTEGER,itrank,1,this%comm_,this%itrh_(1),this%ierr_)
-    CALL GTAcc(this%hcomm_)
-
-    ! send data:
-    CALL MPI_ISEND(this%nbot_,1,MPI_INTEGER,ibrank,1,this%comm_,this%ibsh_(1),this%ierr_)
-    CALL MPI_ISEND(this%ntop_,1,MPI_INTEGER,itrank,1,this%comm_,this%itsh_(1),this%ierr_)
- 
-    CALL MPI_WAIT(this%ibrh_(1),this%istatus_,this%ierr_)
-    CALL MPI_WAIT(this%itrh_(1),this%istatus_,this%ierr_)
-    CALL MPI_WAIT(this%ibsh_(1),this%istatus_,this%ierr_)
-    CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
-    CALL GTAcc(this%hcomm_)
-
-    newnparts = nparts - (this%ntop_+this%nbot_) + (nrbot+nrtop)
- 
-    RETURN
-
-  END SUBROUTINE GPartComm_IdentifyExchV
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_PartExchangeV(this,id,px,py,pz,nparts,zmin,zmax,stg)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : PartExchangeV
-!  DESCRIPTION: Carries out particle exchange. Particles will
-!               be re-ordered after this call. Uses V interface.
-!               Must be called _after_ IdentifyExchV.
-!               Note: For this call to work, the particle positions
-!               must _not_ be periodized on entry. In the same way,
-!               zmin/zmax must also _not_ be periodized.
-!
-!               This routine is intended to be called at each stage of
-!               an explicit time integration where the particle positions
-!               cannot change more than a single zone in x, y, or z
-!               in a timestep.
-!
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    id      : array of particle ids
-!    px,py,px: arrays containing x,y,z positions of particles
-!    nparts  : number of particles in pdb
-!    zmin/max: min/max z-dimensions of current MPI task
-!    gext    : (3,2) real array containing global grid extents (start and
-!              stop boundaries in each direction).
-!    stg     : communicator stage (INIT, UPDT, END, UNIQ)
-!-----------------------------------------------------------------
-    USE pdbtypes
-    USE grid
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)           :: this
-    INTEGER      ,INTENT(INOUT)              :: nparts
-    INTEGER                                  :: j,ibrank,itrank,ng,nrt,nrb
-    INTEGER      ,INTENT(INOUT),DIMENSION(:) :: id
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:) :: px,py,pz
-    REAL(KIND=GP),INTENT   (IN)              :: zmin,zmax
-    INTEGER      ,INTENT   (IN), OPTIONAL    :: stg
-    INTEGER                                  :: stage
-
-    IF ( this%nprocs_ .EQ. 1 ) RETURN ! nothing to do
-
-    itrank = modulo(this%myrank_+1,this%nprocs_)
-    ibrank = this%myrank_-1
-    IF ( ibrank.LT.0 ) ibrank = this%nprocs_-1
-
-    IF (PRESENT(stg)) THEN
-       stage = stg
-    ELSE
-       stage = GPEXCH_UNIQ
-    ENDIF
-
-    IF ((stage.NE.GPEXCH_END).AND.(stage.NE.GPEXCH_UNIQ)) THEN
-       ng = nparts
-!$omp parallel do if(ng.ge.NMIN_OMP)
-       DO j = 1,ng
-         this%oldid_(j) = id(j)
-       END DO
-    ENDIF
-
-    ! Pack data to send
-    CALL GPartComm_PPackV(this,this%sbbuffp_,id,px,py,pz,this%ibot_,this%nbot_)
-    CALL GPartComm_PPackV(this,this%stbuffp_,id,px,py,pz,this%itop_,this%ntop_)
-    ! Send data:
-    CALL GTStart(this%hcomm_)
-    CALL MPI_ISEND(this%sbbuffp_,this%nbot_,MPI_GPDataPackType,ibrank,    &
-                   1,this%comm_,this%ibsh_(1),this%ierr_)
-    CALL MPI_ISEND(this%stbuffp_,this%ntop_,MPI_GPDataPackType,itrank,    &
-                   1,this%comm_,this%itsh_(1),this%ierr_)
-  
-    CALL MPI_RECV(this%rbbuffp_,this%maxparts_,MPI_GPDataPackType,ibrank, &
-                   1,this%comm_,this%istatus_,this%ierr_)
-    CALL MPI_GET_COUNT(this%istatus_, MPI_GPDataPackType, nrb, this%ierr_)
-    CALL MPI_RECV(this%rtbuffp_,this%maxparts_,MPI_GPDataPackType,itrank, &
-                   1,this%comm_,this%istatus_,this%ierr_)
-    CALL MPI_GET_COUNT(this%istatus_, MPI_GPDataPackType, nrt, this%ierr_)
-    CALL MPI_WAIT(this%ibsh_(1), this%istatus_, this%ierr_)
-    CALL MPI_WAIT(this%itsh_(1), this%istatus_, this%ierr_)
-    CALL GTAcc(this%hcomm_)
-
-    ! Concatenate partcle list to remove particles sent away:
-    CALL GPartComm_ConcatV(this,id,px,py,pz,nparts,this%ibot_,this%nbot_,this%itop_,this%ntop_)
-
-    ! Update particle list:
-    CALL GPartComm_PUnpackV(this,id,px,py,pz,nparts,this%rbbuffp_,nrb)
-    nparts = nparts + nrb
-    CALL GPartComm_PUnpackV(this,id,px,py,pz,nparts,this%rtbuffp_,nrt)
-    nparts = nparts + nrt
-    
-    IF ((stage.NE.GPEXCH_END).AND.(stage.NE.GPEXCH_UNIQ)) THEN
-!$omp parallel do if(ng.ge.NMIN_OMP)
-       DO j = 1,ng
-         id(j) = this%oldid_(j)
-       END DO
-       nparts = ng
-    ENDIF
-
-  END SUBROUTINE GPartComm_PartExchangeV
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_ConcatV(this,id,px,py,pz,nparts,ibind,nbind,itind,ntind)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : ConcatV
-!  DESCRIPTION: Removes particles at indices itind,ibind,and
-!               concatenates the particles list, using V interface
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    buff    : buffer into which to pack particles for sends
-!    id      : part. ids
-!    px,py,pz: part. locations
-!    nparts  : number of particles into pdb
-!              updated
-!    ibind   : list of indices of parts sent to bottom task
-!    nbind   : no. indices in ibind
-!    itind   : list of indices of parts sent to top
-!    ntind   : no. indices in itind
-!-----------------------------------------------------------------
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)                :: this
-    INTEGER      ,INTENT(INOUT)                   :: nparts
-    INTEGER      ,INTENT   (IN)                   :: nbind,ntind
-    INTEGER      ,INTENT   (IN),DIMENSION(:)      :: ibind,itind
-    INTEGER      ,INTENT(INOUT),DIMENSION(:)      :: id
-    INTEGER                                       :: i,j,k,ngood
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:)      :: px,py,pz
-
-    IF ((nbind+ntind).EQ.0) RETURN ! Nothing to do if no particle is left
-
-    DO j = 1, nbind
-      id(ibind(j)) = GPNULL
-    ENDDO
-    DO j = 1, ntind
-      id(itind(j)) = GPNULL
-    ENDDO
-
-    ! Each hole below the new list length is filled with a particle
-    ! taken from the tail of the list, skipping tail entries that are
-    ! themselves holes. This does O(holes) work, where the previous
-    ! stable compaction copied the entire list to remove a handful of
-    ! particles, and at every stage with a crossing. The local order
-    ! after the exchange is therefore no longer ascending, but it is
-    ! deterministic, and the paired exchanges of the different arrays
-    ! use identical hole lists, so their orderings remain consistent
-    ! with each other; nothing downstream may assume ascending order
-    ! of the local list after an exchange (outputs are id-keyed).
-    ngood = nparts - (nbind+ntind)
-    i     = nparts
-    DO j = 1, nbind+ntind
-      IF ( j.LE.nbind ) THEN
-        k = ibind(j)
-      ELSE
-        k = itind(j-nbind)
-      ENDIF
-      IF ( k.GT.ngood ) CYCLE      ! hole lies in the discarded tail
-      DO WHILE (id(i).EQ.GPNULL)
-         i = i - 1
-      ENDDO
-      id(k) = id(i)
-      px(k) = px(i)
-      py(k) = py(i)
-      pz(k) = pz(i)
-      i = i - 1
-    ENDDO
-    nparts = ngood
-
-  END SUBROUTINE GPartComm_ConcatV
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_PartExchangePDB(this,pdb,nparts,zmin,zmax)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : PartExchangePDB
-!  DESCRIPTION: Carries out particle exchange. Particles will
-!               be re-ordered after this call. Uses PDB interface.
-!               Note: For this call to work, the particle positions
-!               must be periodized on entry. In the same way,
-!               zmin/zmax must also be periodized.
-!
-!               This routine is intended to be called at each stage of
-!               an explicit time integration where the particle positions
-!               cannot change more than a single zone in x, y, or z
-!               in a timestep.
-!
-!               Note that here, a particle _on_ either zmin or zmax
-!               is considered to be outside the interval defined
-!               by zmin/zmax.
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    pdb     : part. d.b.
-!    nparts  : number of particles in pdb
-!    zmin/max: min/max z-dimensions of current MPI task
-!-----------------------------------------------------------------
-    USE pdbtypes
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)             :: this
-    INTEGER      ,INTENT(INOUT)                :: nparts
-    INTEGER                                    :: j,ibrank,itrank
-    TYPE(GPDBrec),INTENT(INOUT),DIMENSION(*)   :: pdb
-    REAL(KIND=GP),INTENT   (IN)                :: zmin,zmax
-
-    IF ( this%nprocs_ .EQ. 1 ) RETURN ! nothing to do
-
-    itrank = modulo(this%myrank_,this%nprocs_)
-    ibrank = this%myrank_-1
-    IF ( ibrank.LT.0 ) ibrank = this%nprocs_-1
-
-    ! Find pointers into particle lists for parts that must
-    ! be sent to the top and bottom tasks:
-    this%nbot_ = 0
-    this%ntop_ = 0
-    IF ( this%myrank_ .EQ. 0 ) THEN
-
-      DO j = 0, nparts
-        IF ( pdb(j)%z.GE.zmax ) THEN ! bottom
-          this%nbot_ = this%nbot_ + 1
-          this%ibot_(this%nbot_) = j
-        ELSE
-          this%ntop_ = this%ntop_ + 1
-          this%itop_(this%ntop_) = j
-        ENDIF
-      ENDDO
-
-    ELSE IF ( this%myrank_ .EQ. this%nprocs_-1) THEN
-
-      DO j = 0, nparts
-        IF ( pdb(j)%z.LE.zmin ) THEN ! top
-          this%ntop_ = this%ntop_ + 1
-          this%itop_(this%ntop_) = j
-        ELSE
-          this%nbot_ = this%nbot_ + 1
-          this%ibot_(this%nbot_) = j
-        ENDIF
-      ENDDO
-
-    ELSE
-
-    DO j = 0, nparts
-        IF ( pdb(j)%z.LE.zmin ) THEN ! bottom
-        this%nbot_ = this%nbot_ + 1
-          this%ibot_(this%nbot_) = j
-        ENDIF
-        IF ( pdb(j)%z.GE.zmax ) THEN ! top
-          this%ntop_ = this%ntop_ + 1
-          this%itop_(this%ntop_) = j
-        ENDIF
-      ENDDO
-
-    ENDIF
-
-    ! Post receives:
-    CALL GTStart(this%hcomm_)
-    CALL MPI_IRECV(this%rbbuff_,this%nbuff_,GC_REAL,ibrank, &
-                   1,this%comm_,this%ibrh_(1),this%ierr_)
-    CALL MPI_IRECV(this%rtbuff_,this%nbuff_,GC_REAL,itrank, &
-                   1,this%comm_,this%itrh_(1),this%ierr_)
-    CALL GTAcc(this%hcomm_)
-
-
-    !
-    ! send data:
-    CALL GPartComm_PPackPDB(this,this%sbbuff_,this%nbuff_,pdb,nparts,this%ibot_,this%nbot_)
-    CALL GTStart(this%hcomm_)
-    CALL MPI_ISEND(this%sbbuff_,this%nbuff_,GC_REAL,ibrank, &
-                   1,this%comm_,this%itsh_(1),this%ierr_)
-    CALL GTAcc(this%hcomm_)
-
-    CALL GPartComm_PPackPDB(this,this%sbbuff_,this%nbuff_,pdb,nparts,this%itop_,this%ntop_)
-    CALL GTStart(this%hcomm_)
-    CALL MPI_ISEND(this%stbuff_,this%nbuff_,GC_REAL,itrank, &
-                   1,this%comm_,this%itsh_(1),this%ierr_)
-    CALL GTAcc(this%hcomm_)
-
-
-    ! Concatenate partcle list to remove particles sent away:
-    CALL GPartComm_ConcatPDB(this,pdb,nparts,this%ibot_,&
-                          this%nbot_,this%itop_,this%ntop_)
-
-    CALL GTStart(this%hcomm_)
-    CALL MPI_WAIT(this%ibrh_(1),this%istatus_,this%ierr_)
-    CALL MPI_WAIT(this%itrh_(1),this%istatus_,this%ierr_)
-    CALL MPI_WAIT(this%ibsh_(1),this%istatus_,this%ierr_)
-    CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
-    CALL GTAcc(this%hcomm_)
-
-
-    ! Update particle list:
-    CALL GPartComm_PUnpackPDB(this,pdb,nparts,this%rbbuff_,this%nbuff_)
-    CALL GPartComm_PUnpackPDB(this,pdb,nparts,this%rtbuff_,this%nbuff_)
-
-  END SUBROUTINE GPartComm_PartExchangePDB
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_PPackPDB(this,buff,nbuff,pdb,nparts,iind,nind)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : PPackPDB
-!  DESCRIPTION: Packs send buffer with particles. Uses PDB interface.
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    buff    : buffer into which to pack particles for sends
-!    nbuff   : max buffer length
-!    pdb     : part. d.b.
-!    nparts  : number of particles in pdb
-!    iind    : pointers into pdb particle arrays for
-!              particles to pack
-!    nind    : no. particles to pack
-!-----------------------------------------------------------------
-    USE pdbtypes
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)             :: this
-    INTEGER      ,INTENT(INOUT)                :: nbuff,nparts,nind
-    INTEGER      ,INTENT(INOUT),DIMENSION(*)   :: iind
-    INTEGER                                    :: j,nb
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)   :: buff
-    TYPE(GPDBrec),INTENT(INOUT),DIMENSION(*)   :: pdb
-
-    buff(1) = nind
-    nb = 1
-    DO j = 1, nind
-      buff(nb+1) = pdb(iind(j))%id
-      buff(nb+2) = pdb(iind(j))%x
-      buff(nb+3) = pdb(iind(j))%y
-      buff(nb+4) = pdb(iind(j))%z
-      nb = nb + 4
-    ENDDO
-
-  END SUBROUTINE GPartComm_PPackPDB
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_ConcatPDB(this,pdb,nparts,ibind,nbind,itind,ntind)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : ConcatPDB
-!  DESCRIPTION: Removes particles at indices itind,ibind,and
-!               concatenates the particles list, using PDB interface
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    buff    : buffer into which to pack particles for sends
-!    pdb     : part. d.b.
-!    nparts  : number of particles into pdb
-!              updated
-!    ibind   : list of indices of parts sent to bottom task
-!    nbind   : no. indices in ibind
-!    itind   : list of indices of parts sent to top
-!    ntind   : no. indices in itind
-!-----------------------------------------------------------------
-    USE pdbtypes
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)             :: this
-    INTEGER      ,INTENT(INOUT)                :: nparts
-    INTEGER      ,INTENT   (IN)                :: nbind,ntind
-    INTEGER      ,INTENT   (IN),DIMENSION(*)   :: ibind,itind
-    INTEGER                                    :: i,j,ngood
-    TYPE(GPDBrec),INTENT(INOUT),DIMENSION(*)   :: pdb
-
-    DO j = 1, nbind
-      pdb(ibind(j))%id = GPNULL
-    ENDDO
-    DO j = 1, nbind
-      pdb(itind(j))%id = GPNULL
-    ENDDO
-
-    ngood = nparts - (nbind+ntind)
-    j     = 1
-    DO i = 1, ngood
-      DO WHILE ( j.LE.nparts .AND. pdb(j)%id.EQ.GPNULL )
-        j = j + 1
-      ENDDO
-      IF ( j.LE.nparts .AND. j.NE.i ) THEN
-        pdb(i)%id = pdb(j)%id; pdb(j)%id = GPNULL
-        pdb(i)%x = pdb(j)%x
-        pdb(i)%y = pdb(j)%y
-        pdb(i)%z = pdb(j)%z
-      ENDIF
-
-    ENDDO
-    nparts = ngood
-
-  END SUBROUTINE GPartComm_ConcatPDB
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_PUnpackPDB(this,pdb,nparts,buff,nbuff)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : PUnpackPDB
-!  DESCRIPTION: Unpacks recv buffer with particles. Partlcles
-!               will be added directly to the existing particle list.
-!               Uses PDB interface.
-!
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    pdb     : part. d.b.
-!    nparts  : new number of particles in pdb
-!              with new particles
-!    buff    : buffer from which particle data is read
-!    nbuff   : buffer length
-!-----------------------------------------------------------------
-    USE pdbtypes
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)             :: this
-    INTEGER      ,INTENT(INOUT)                :: nparts
-    INTEGER      ,INTENT   (IN)                :: nbuff
-    INTEGER                                    :: j,nb
-    TYPE(GPDBrec),INTENT(INOUT),DIMENSION(*)   :: pdb
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*)   :: buff
-
-    nb = 1
-    DO j = 1, int(buff(1))
-      nparts = nparts + 1
-      pdb(nparts)%id = int(buff(nb+1))
-      pdb(nparts)%x =      buff(nb+2)
-      pdb(nparts)%y =      buff(nb+3)
-      pdb(nparts)%z =      buff(nb+4)
-      nb = nb+4
-    ENDDO
-
-  END SUBROUTINE GPartComm_PUnpackPDB
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_Transpose(this,ofield,od,ifield,id,rank,tmp)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : Transpose
-!  DESCRIPTION: Does global transpose to take a x-y complete field,
-!               infield, to a yz-complete field, outfield. Handles
-!               2D and 3D fields.
-!
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    ofield  : output field, yz-complete
-!    od      : local dimensions of ofield.
-!    ifield  : input field that is xy complete
-!    id      : local dimensions of ifield.
-!    rank    : rank of field (how many 'od, id' array elements)
-!    tmp     : real field of size required to hold field
-!              transpose locally (i.e., of size ofield)
-!-----------------------------------------------------------------
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)             :: this
-    INTEGER      ,INTENT(INOUT),DIMENSION(3,2) :: od,id
-    INTEGER      ,INTENT   (IN)                :: rank
-    INTEGER                                    :: i,ii,j,jj,k,kk
-    INTEGER                                    :: igetfrom,iproc,irank,isendto,istrip
-    REAL(KIND=GP),INTENT(INOUT)                :: &
-      ofield(od(1,1):od(1,2),od(2,1):od(2,2),od(3,1):od(3,2))
-    REAL(KIND=GP),INTENT(INOUT)                :: &
-      ifield(id(1,1):id(1,2),id(2,1):id(2,2),id(3,1):id(3,2))
-    REAL(KIND=GP),INTENT(INOUT)                :: &
-      tmp   (od(3,1):od(3,2),od(2,1):od(2,2),od(1,1):od(1,2))
-
-    IF ( .NOT.this%btransinit_ ) THEN
-      IF ( rank.EQ.2 ) THEN
-        CALL GPartComm_InitTrans2D(this)
-      ENDIF
-      IF ( rank.EQ.3 ) THEN
-        CALL GPartComm_InitTrans3D(this)
-      ENDIF
-    ENDIF
-
-    ! NOTE: rank is transpose problem rank; irank is MPI rank...
-
-    CALL GTStart(this%hcomm_)
-    DO iproc = 0, this%nprocs_-1, this%nstrip_
-       DO istrip=0, this%nstrip_-1
-          irank = iproc + istrip
-
-          isendto = this%myrank_ + irank
-          IF ( isendto .ge. this%nprocs_ ) isendto = isendto - this%nprocs_
-
-          igetfrom = this%myrank_- irank
-          IF ( igetfrom .lt. 0 ) igetfrom = igetfrom + this%nprocs_
-          CALL MPI_IRECV(tmp,1,this%itypeip_(igetfrom),igetfrom,      &
-                        1,this%comm_,this%igrh_(irank),this%ierr_)
-
-          IF ( this%ierr_ .ne. mpi_success ) THEN
-            WRITE(*,*)'Transpose: irecv ierr=',this%ierr_
-            STOP
-          endif
-          CALL MPI_ISEND(ifield,1,this%itypekp_(isendto),isendto, &
-                        1,this%comm_,this%igsh_(irank),this%ierr_)
-          IF ( this%ierr_ .ne. mpi_success ) THEN
-            WRITE(*,*)'Transpose: isnd ierr=',this%ierr_
-            STOP
-          ENDIF
-       ENDDO
-
-       DO istrip=0, this%nstrip_-1
-          irank = iproc + istrip
-          CALL MPI_WAIT(this%igsh_(irank),this%istatus_,this%ierr_)
-          IF ( this%ierr_ .ne. mpi_success ) THEN
-            WRITE(*,*)'Transpose: Send Wait: ierr=',this%ierr_
-            STOP
-          ENDIF
-          CALL MPI_WAIT(this%igrh_(irank),this%istatus_,this%ierr_)
-          IF ( this%ierr_ .ne. mpi_success ) THEN
-            WRITE(*,*)'Transpose: Rcv Wait: ierr=',this%ierr_
-            STOP
-          ENDIF
-       ENDDO
-    ENDDO
-    CALL GTAcc(this%hcomm_)
-
-    IF ( rank .EQ. 3 ) THEN
-
-!!!$omp parallel do if ((idims(3)-1)/this%csize_.ge.this%nth_) private (jj,kk,i,j,k)
-     DO ii = od(3,1),od(3,2),this%csize_
-!!!$omp parallel do if ((idims(3)-1)/this%csize_.lt.this%nth_) private (kk,i,j,k)
-        DO jj = od(2,1),od(2,2),this%csize_
-           DO kk = od(1,1),od(1,2),this%csize_
-
-              DO i = ii,min(od(3,2)-od(3,1)+1,ii+this%csize_-1)
-                DO j = jj,min(od(2,2)-od(2,1)+1,jj+this%csize_-1)
-                  DO k = kk,min(od(1,2)-od(1,1)+1,kk+this%csize_-1)
-                     ofield(k,j,i) = tmp(i,j,k)
-                  END DO
-                END DO
-              END DO
-
-           END DO
-        END DO
-     END DO
-
-    ELSE
-
-      write(*,*) 'GPartComm_Transpose: rank two not implemented'
-      stop
-    ENDIF
-
-  END SUBROUTINE GPartComm_Transpose
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_ITranspose(this,ofield,od,ifield,id,rank,tmp)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : ITranspose
-!  DESCRIPTION: Does global 'inverse'transpose to take a x-y complete field,
-!               infield, to a yz-complete field, outfield. Handles
-!               2D and 3D fields.
-!
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    ofield  : output field, yz-complete 
-!    od      : local dimensions of ofield. 
-!    ifield  : input field that is xy complete
-!    id      : local dimensions of ifield. 
-!    rank    : rank of field (how many 'od, id' array elements)
-!    tmp     : real field of size required to hold field locally
-!              (i.e., of size ifield)
-!-----------------------------------------------------------------
-    USE gtimer
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)             :: this
-    INTEGER      ,INTENT(INOUT),DIMENSION(3,2) :: od,id
-    INTEGER      ,INTENT   (IN)                :: rank
-    INTEGER                                    :: i,ii,j,jj,k,kk
-    INTEGER                                    :: igetfrom,iproc,irank,isendto,istrip
-    INTEGER                                    :: nx,ny,nz,nxy,nzy
-    REAL(KIND=GP),INTENT(INOUT)                :: &
-      ofield(od(1,1):od(1,2),od(2,1):od(2,2),od(3,1):od(3,2))
-    REAL(KIND=GP),INTENT(INOUT)                :: &
-      ifield(id(1,1):id(1,2),id(2,1):id(2,2),id(3,1):id(3,2))
-    REAL(KIND=GP),INTENT(INOUT)                :: &
-      tmp   (id(3,1):id(3,2),id(2,1):id(2,2),id(1,1):id(1,2))
-
-    IF ( .NOT.this%btransinit_ ) THEN
-      IF ( rank.EQ.2 ) THEN
-        CALL GPartComm_InitTrans2D(this)
-      ENDIF
-      IF ( rank.EQ.3 ) THEN
-        CALL GPartComm_InitTrans3D(this)
-      ENDIF
-    ENDIF
-
-    ! NOTE: rank is transpose problem rank; irank is MPI rank...
-
-    IF ( rank .EQ. 3 ) THEN
-
-!!!$omp parallel do if ((idims(3)-1)/this%csize_.ge.this%nth_) private (jj,kk,i,j,k)
-     DO ii = id(3,1),id(3,2),this%csize_
-!!!$omp parallel do if ((idims(3)-1)/this%csize_.lt.this%nth_) private (kk,i,j,k)
-        DO jj = id(2,1),id(2,2),this%csize_
-           DO kk = id(1,1),id(1,2),this%csize_
-
-              DO i = ii,min(id(3,2)-id(3,1)+1,ii+this%csize_-1)
-                DO j = jj,min(id(2,2)-id(2,1)+1,jj+this%csize_-1)
-                  DO k = kk,min(id(1,2)-id(1,1)+1,kk+this%csize_-1)
-                     tmp(i,j,k) = ifield(k,j,i)
-                  END DO
-                END DO
-              END DO
-
-           END DO
-        END DO
-     END DO
-
-    ELSE
-
-    ENDIF
-
-    CALL GTStart(this%hcomm_)
-    DO iproc = 0, this%nprocs_-1, this%nstrip_
-       DO istrip=0, this%nstrip_-1
-          irank = iproc + istrip
-
-          isendto = this%myrank_ + irank
-          IF ( isendto .ge. this%nprocs_ ) isendto = isendto - this%nprocs_
-
-          igetfrom = this%myrank_- irank
-          IF ( igetfrom .lt. 0 ) igetfrom = igetfrom + this%nprocs_
-          CALL MPI_IRECV(ofield,1,this%itypekp_(igetfrom),igetfrom,      &
-                        1,this%comm_,this%igrh_(irank),this%ierr_)
-
-          IF  ( this%ierr_ .ne. mpi_success ) THEN
-            WRITE (*,*)'ITranspose: irecv ierr=',this%ierr_
-            STOP
-         ENDIF
-          CALL MPI_ISEND(tmp,1,this%itypeip_(isendto),isendto, &
-                        1,this%comm_,this%igsh_(irank),this%ierr_)
-          IF ( this%ierr_ .ne. mpi_success ) THEN
-            WRITE (*,*)'ITranspose: isnd ierr=',this%ierr_
-            STOP
-          ENDIF
-       ENDDO
-
-       DO istrip=0, this%nstrip_-1
-          irank = iproc + istrip
-          CALL MPI_WAIT(this%igsh_(irank),this%istatus_,this%ierr_)
-          IF ( this%ierr_ .ne. mpi_success ) THEN
-            WRITE(*,*)'ITranspose: Send Wait: ierr=',this%ierr_
-            STOP
-          endif
-          CALL MPI_WAIT(this%igrh_(irank),this%istatus_,this%ierr_)
-          IF ( this%ierr_ .ne. mpi_success ) THEN
-            WRITE (*,*)'ITranspose: Rcv Wait: ierr=',this%ierr_
-            STOP
-          ENDIF
-       ENDDO
-    ENDDO
-    CALL GTAcc(this%hcomm_)
-
-  END SUBROUTINE GPartComm_ITranspose
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_InitTrans2D(this)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : InitTranspose2D
-!  DESCRIPTION: Initializes communcation quantities for 2D transpose.
-!               Derived from 2D/src/fftp-3/fftp2d.fpp:fftp2d_create_block
-!               and calls function from that module.
-!
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!-----------------------------------------------------------------
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)             :: this
-    INTEGER                                    :: ista,iend
-    INTEGER                                    :: jsta,jend
-    INTEGER                                    :: irank,jrank
-    TYPE(MPI_Datatype)                         :: itemp1,itemp2
-
-    write(*,*)'GPartComm_InitTrans2D: block2d not resolved'
-    stop
-
-    CALL range(1,this%nd_(2),this%nprocs_,this%myrank_,jsta,jend)
-    DO irank = 0,this%nprocs_-1
-       CALL range(1,this%nd_(1),this%nprocs_,irank,ista,iend)
-!      CALL block2d(1,this%nd_(1),jsta,ista,iend,jsta,jend, &
-!                   GC_REAL,itemp1)
-       this%itypekp_(irank) = itemp1
-    END DO
-    CALL range(1,this%nd_(1),this%nprocs_,this%myrank_,ista,iend)
-    DO jrank = 0,this%nprocs_-1
-       CALL range(1,this%nd_(2),this%nprocs_,jrank,jsta,jend)
-!      CALL block2d(ista,iend,1,ista,iend,jsta,jend,  &
-!                  GC_REAL,itemp2)
-       this%itypeip_(jrank) = itemp2
-    END DO
-    this%btransinit_ = .TRUE.
-
-    RETURN
-
-  END SUBROUTINE GPartComm_InitTrans2D
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_InitTrans3D(this)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : InitTranspose3D
-!  DESCRIPTION: Initializes communcation quantities for 3D transpose.
-!               Derived from 3D/src/fftp-3/fftp3d.fpp:fftp3d_create_block
-!               and calls function from that module.
-!
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!-----------------------------------------------------------------
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)             :: this
-    INTEGER                                    :: ista,iend
-    INTEGER                                    :: ksta,kend
-    INTEGER                                    :: irank,krank
-    TYPE(MPI_Datatype)                         :: itemp1,itemp2
-
-    CALL range(1,this%nd_(3),this%nprocs_,this%myrank_,ksta,kend)
-    DO irank = 0,this%nprocs_-1
-       CALL range(1,this%nd_(1),this%nprocs_,irank,ista,iend)
-       CALL block3d(1,this%nd_(1),1,this%nd_(2),ksta,ista,iend, &
-                    1,this%nd_(2),ksta,kend,GC_REAL,itemp1)
-       this%itypekp_(irank) = itemp1
-    END DO
-    CALL range(1,this%nd_(1),this%nprocs_,this%myrank_,ista,iend)
-    DO krank = 0,this%nprocs_-1
-       CALL range(1,this%nd_(3),this%nprocs_,krank,ksta,kend)
-       CALL block3d(ista,iend,1,this%nd_(2),1,ista,iend, &
-                   1,this%nd_(2),ksta,kend,GC_REAL,itemp2)
-       this%itypeip_(krank) = itemp2
-    END DO
-    this%btransinit_ = .TRUE.
-
-    RETURN
-
-  END SUBROUTINE GPartComm_InitTrans3D
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
 
   FUNCTION GPartComm_GetNumGhost(this) result(nzghost_result)
 !-----------------------------------------------------------------
@@ -2406,1405 +1377,270 @@ MODULE class_GPartComm
     nzghost_result = this%nzghost_
 
   END FUNCTION GPartComm_GetNumGhost
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
 
-  SUBROUTINE GPartComm_VDBSynch_t0(this,gvdb,ngvdb,id,lx,ly,lz,nl)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : VDBSynch_t0
-!  DESCRIPTION: Synch up only task 0 VDB from local vector data
-!
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    gvdb    : VDB containing part. position records, returned (task 0 only)
-!    ngvdb   : no. records in global VDB. Fixed on entry
-!    id      : local part. ids
-!    lx,ly,lz: local part. d.b. vectors
-!    nl      : no. parts. in local pdb
-!-----------------------------------------------------------------
+!=================================================================
+! Transposes of a real field between the slab layout (nx,ny,kl),
+! kl = kend-ksta+1 local planes, and the z-complete layout
+! (nz,ny,il), il = local x range, used by the spline solve in z.
+! The blocks destined to each task are packed into a contiguous
+! device buffer, exchanged with one message per task pair, and
+! unpacked on the device (GPU-aware MPI; the buffers keep their
+! device copies between calls). The block sent to task t in the
+! forward transpose has the same layout as the block received
+! from t in the inverse one, so the offsets and counts are shared.
+!=================================================================
+
+! Tables of the exchange: x and z ranges of every task, offsets
+! and counts (in reals) of the blocks; buffers of the size of the
+! larger of the two layouts
+  SUBROUTINE GPartComm_InitTrans(this)
     IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT) :: this
+    INTEGER                        :: t,nx,ny,nz,kl,il,ntot,ttot,nb
 
-    CLASS(GPartComm),INTENT(INOUT)                  :: this
-    INTEGER      ,INTENT   (IN),DIMENSION(:)        :: id
-    INTEGER      ,INTENT   (IN)                     :: nl
-    INTEGER      ,INTENT   (IN)                     :: ngvdb
-    INTEGER                                         :: t,i,j,m
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(:)        :: lx,ly,lz
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,ngvdb)  :: gvdb
+    nx = this%nd_(1); ny = this%nd_(2); nz = this%nd_(3)
+    ALLOCATE(this%txsta_(0:this%nprocs_-1),this%txend_(0:this%nprocs_-1))
+    ALLOCATE(this%tzsta_(0:this%nprocs_-1),this%tzend_(0:this%nprocs_-1))
+    ALLOCATE(this%tso_(0:this%nprocs_-1),this%tsc_(0:this%nprocs_-1))
+    ALLOCATE(this%tro_(0:this%nprocs_-1),this%trc_(0:this%nprocs_-1))
+    DO t = 0,this%nprocs_-1
+      CALL range(1,nx,this%nprocs_,t,this%txsta_(t),this%txend_(t))
+      CALL range(1,nz,this%nprocs_,t,this%tzsta_(t),this%tzend_(t))
+    ENDDO
+    kl = this%kend_-this%ksta_+1
+    il = this%txend_(this%myrank_)-this%txsta_(this%myrank_)+1
+    ntot = 0; ttot = 0
+    DO t = 0,this%nprocs_-1
+      this%tso_(t) = ntot                    ! block (x range of t, ny, my kl planes)
+      this%tsc_(t) = (this%txend_(t)-this%txsta_(t)+1)*ny*kl
+      ntot = ntot + this%tsc_(t)
+      this%tro_(t) = ttot                    ! block (my x range, ny, z range of t)
+      this%trc_(t) = il*ny*(this%tzend_(t)-this%tzsta_(t)+1)
+      ttot = ttot + this%trc_(t)
+    ENDDO
+    nb = MAX(ntot,ttot)
+    CALL galloc(this%gtsbuf_,nb)
+    CALL galloc(this%gtrbuf_,nb)
+    this%btransinit_ = .TRUE.
+  END SUBROUTINE GPartComm_InitTrans
 
-    IF (this%myrank_.NE.0) THEN
-!$omp parallel do
-      DO i = 1,nl
-        this%itop_(i) = i
-      END DO 
-      CALL GPartComm_PPackV(this,this%stbuffp_,id,lx,ly,lz,this%itop_,nl)
-      CALL GTStart(this%hcomm_)
-      CALL MPI_ISEND(this%stbuffp_,nl,MPI_GPDataPackType,0,this%myrank_,this%comm_,this%itsh_(1),this%ierr_)
-      CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
-      CALL GTAcc(this%hcomm_)
+
+!-----------------------------------------------------------------
+!  METHOD     : GTranspose
+!  DESCRIPTION: ofield(nz,ny,il) = transpose of ifield(nx,ny,kl)
+!-----------------------------------------------------------------
+  SUBROUTINE GPartComm_Transpose(this,ofield,ifield)
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)           :: this
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*) :: ofield
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(*) :: ifield
+    INTEGER                                  :: t,nx,ny,nz,kl,il,ista,ksta
+
+    IF ( .NOT.this%btransinit_ ) CALL GPartComm_InitTrans(this)
+    nx = this%nd_(1); ny = this%nd_(2); nz = this%nd_(3)
+    kl = this%kend_-this%ksta_+1
+    ista = this%txsta_(this%myrank_); il = this%txend_(this%myrank_)-ista+1
+    ksta = this%ksta_
+    DO t = 0,this%nprocs_-1
+      CALL gpc_tpack_fwd(nx,ny,kl,this%txsta_(t),this%txend_(t),this%tso_(t),SIZE(this%gtsbuf_),ifield,this%gtsbuf_)
+    ENDDO
+    CALL GTStart(this%hcomm_)
+    CALL gpc_texch(this,SIZE(this%gtsbuf_),this%gtsbuf_,this%gtrbuf_,this%tso_,this%tsc_,this%tro_,this%trc_)
+    CALL GTAcc(this%hcomm_)
+    DO t = 0,this%nprocs_-1
+      CALL gpc_tunpack_fwd(nz,ny,il,this%tzsta_(t),this%tzend_(t),this%tro_(t),SIZE(this%gtrbuf_),this%gtrbuf_,ofield)
+    ENDDO
+  END SUBROUTINE GPartComm_Transpose
+
+
+!-----------------------------------------------------------------
+!  METHOD     : GITranspose
+!  DESCRIPTION: ofield(nx,ny,kl) = inverse transpose of ifield(nz,ny,il)
+!-----------------------------------------------------------------
+  SUBROUTINE GPartComm_ITranspose(this,ofield,ifield)
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)           :: this
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*) :: ofield
+    REAL(KIND=GP),INTENT   (IN),DIMENSION(*) :: ifield
+    INTEGER                                  :: t,nx,ny,nz,kl,il,ista
+
+    IF ( .NOT.this%btransinit_ ) CALL GPartComm_InitTrans(this)
+    nx = this%nd_(1); ny = this%nd_(2); nz = this%nd_(3)
+    kl = this%kend_-this%ksta_+1
+    ista = this%txsta_(this%myrank_); il = this%txend_(this%myrank_)-ista+1
+    DO t = 0,this%nprocs_-1
+      CALL gpc_tpack_inv(nz,ny,il,this%tzsta_(t),this%tzend_(t),this%tro_(t),SIZE(this%gtsbuf_),ifield,this%gtsbuf_)
+    ENDDO
+    CALL GTStart(this%hcomm_)
+    CALL gpc_texch(this,SIZE(this%gtsbuf_),this%gtsbuf_,this%gtrbuf_,this%tro_,this%trc_,this%tso_,this%tsc_)
+    CALL GTAcc(this%hcomm_)
+    DO t = 0,this%nprocs_-1
+      CALL gpc_tunpack_inv(nx,ny,kl,this%txsta_(t),this%txend_(t),this%tso_(t),SIZE(this%gtrbuf_),this%gtrbuf_,ofield)
+    ENDDO
+  END SUBROUTINE GPartComm_ITranspose
+
+
+! Contiguous exchange of the blocks (device addresses in offload
+! builds): the block for task t starts at so(t)+1 in sb and the
+! block from t lands at ro(t)+1 in rb; the own block is copied
+  SUBROUTINE gpc_texch(this,nb,sb,rb,so,sc,ro,rc)
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)   :: this
+    INTEGER      ,INTENT(IN)           :: nb
+    ! Explicit-shape buffers: with assumed-shape dummies the compiler
+    ! may copy them through the host when they are passed on inside
+    ! the use_device_addr region, reading device memory from the CPU
+    REAL(KIND=GP),INTENT(IN)   ,TARGET :: sb(nb)
+    REAL(KIND=GP),INTENT(INOUT),TARGET :: rb(nb)
+    INTEGER      ,INTENT(IN)           :: so(0:this%nprocs_-1),sc(0:this%nprocs_-1)
+    INTEGER      ,INTENT(IN)           :: ro(0:this%nprocs_-1),rc(0:this%nprocs_-1)
+    CALL gpc_copy_seg(sc(this%myrank_),nb,so(this%myrank_),ro(this%myrank_),sb,rb)
+    IF ( this%nprocs_ .EQ. 1 ) RETURN
+#if defined(GHOST_GPU)
+    IF ( gdev_active ) THEN
+!$omp target data use_device_addr(sb,rb)
+      CALL gpc_texch_do(this,sb,rb,so,sc,ro,rc)
+!$omp end target data
     ELSE
+      CALL gpc_texch_do(this,sb,rb,so,sc,ro,rc)
+    ENDIF
+#else
+    CALL gpc_texch_do(this,sb,rb,so,sc,ro,rc)
+#endif
+  END SUBROUTINE gpc_texch
+
+  SUBROUTINE gpc_texch_do(this,sb,rb,so,sc,ro,rc)
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)   :: this
+    REAL(KIND=GP),INTENT(IN)         :: sb(*)
+    REAL(KIND=GP),INTENT(INOUT)      :: rb(*)
+    INTEGER      ,INTENT(IN)         :: so(0:this%nprocs_-1),sc(0:this%nprocs_-1)
+    INTEGER      ,INTENT(IN)         :: ro(0:this%nprocs_-1),rc(0:this%nprocs_-1)
+    TYPE(MPI_Request)                :: req(2*this%nprocs_)
+    INTEGER                          :: irank,isendto,igetfrom,nreq
+    nreq = 0
+    DO irank = 1,this%nprocs_-1
+      igetfrom = modulo(this%myrank_-irank+this%nprocs_,this%nprocs_)
+      nreq = nreq+1
+      CALL MPI_IRECV(rb(ro(igetfrom)+1),rc(igetfrom),GC_REAL,igetfrom,1,this%comm_,req(nreq),this%ierr_)
+    ENDDO
+    DO irank = 1,this%nprocs_-1
+      isendto = modulo(this%myrank_+irank,this%nprocs_)
+      nreq = nreq+1
+      CALL MPI_ISEND(sb(so(isendto)+1),sc(isendto),GC_REAL,isendto,1,this%comm_,req(nreq),this%ierr_)
+    ENDDO
+    CALL MPI_WAITALL(nreq,req(1:nreq),MPI_STATUSES_IGNORE,this%ierr_)
+  END SUBROUTINE gpc_texch_do
+
+
+! rb(roff+1:roff+n) = sb(soff+1:soff+n)
+  SUBROUTINE gpc_copy_seg(n,nb,soff,roff,sb,rb)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n,nb,soff,roff
+    REAL(KIND=GP),INTENT(IN)    :: sb(nb)
+    REAL(KIND=GP),INTENT(INOUT) :: rb(nb)
+    INTEGER                     :: i
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active)
+#else
 !$omp parallel do
-      DO j = 1,nl
-        i = id(j) + 1
-        gvdb(1,i) = lx(j)
-        gvdb(2,i) = ly(j)
-        gvdb(3,i) = lz(j)
-      END DO
-    
-      DO t = 1,this%nprocs_-1
-        CALL GTStart(this%hcomm_)
-        CALL MPI_RECV(this%rbbuffp_,this%maxparts_,MPI_GPDataPackType,t, &
-                      t,this%comm_,this%istatus_,this%ierr_)
-        CALL MPI_GET_COUNT(this%istatus_,MPI_GPDataPackType,m,this%ierr_)
-        CALL GTAcc(this%hcomm_)
-!$omp parallel do
-        DO j = 1,m
-          i = this%rbbuffp_(j)%idp_ + 1
-          gvdb(1,i) = this%rbbuffp_(j)%rp_(1)
-          gvdb(2,i) = this%rbbuffp_(j)%rp_(2)
-          gvdb(3,i) = this%rbbuffp_(j)%rp_(3)
-        END DO
-      END DO
-    END IF
+#endif
+    DO i = 1,n
+      rb(roff+i) = sb(soff+i)
+    ENDDO
+  END SUBROUTINE gpc_copy_seg
 
- END SUBROUTINE GPartComm_VDBSynch_t0
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
 
-  SUBROUTINE GPartComm_VDBSynch(this,gvdb,ngvdb,id,lx,ly,lz,nl,ptmp)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : VDBSynch
-!  DESCRIPTION: Synch up global VDB from local vector data
-!
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    gvdb    : global VDB containing part. position records, returned.
-!    ngvdb   : no. records in global VDB. Fixed on entry.
-!    id      : local part. ids
-!    lx,ly,lz: local part. d.b. vectors
-!    nl      : no. parts. in local pdb
-!    ptmp    : tmp array of size of gvdb
-!-----------------------------------------------------------------
+! Forward pack: block f(i1:i2,1:ny,1:kl) of the slab, i fastest
+  SUBROUTINE gpc_tpack_fwd(nx,ny,kl,i1,i2,off,nb,f,b)
     IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)                  :: this
-    INTEGER      ,INTENT   (IN),DIMENSION(:)        :: id
-    INTEGER      ,INTENT   (IN)                     :: nl
-    INTEGER      ,INTENT   (IN)                     :: ngvdb
-    INTEGER                                         :: i,j
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(:)        :: lx,ly,lz
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,ngvdb)  :: gvdb,ptmp
-
-!   CALL GTStart(this%hcomm_)
-!   CALL MPI_ALLREDUCE(nl,ng,1,MPI_INTEGER,   &
-!                      MPI_SUM,this%comm_,this%ierr_)
-!   CALL GTAcc(this%hcomm_)
-!   IF ( this%myrank_.EQ.0 .AND. ng.NE.ngvdb ) THEN
-!    IF ( .NOT.present(scaller) ) THEN
-!      WRITE(*,*)'GPartComm_VDBSynch: inconsistent d.b.: expected: ', &
-!                 ngvdb, '; found: ',ng
-!    ELSE
-!      WRITE(*,*)'GPartComm_VDBSynch: caller:',trim(scaller),': inconsistent d.b.: expected: ', &
-!                 ngvdb, '; found: ',ng
-!    ENDIF
-!    STOP
-!  ENDIF
-
-    DO j = 1, ngvdb
-      gvdb(1:3,j) = 0.0_GP
-      ptmp(1:3,j) = 0.0_GP
+    INTEGER      ,INTENT(IN)    :: nx,ny,kl,i1,i2,off,nb
+    REAL(KIND=GP),INTENT(IN)    :: f(nx,ny,kl)
+    REAL(KIND=GP),INTENT(INOUT) :: b(nb)
+    INTEGER                     :: i,j,k,ni
+    ni = i2-i1+1
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private(i)
+#endif
+    DO k = 1,kl
+      DO j = 1,ny
+        DO i = i1,i2
+          b(off+(i-i1+1)+(j-1)*ni+(k-1)*ni*ny) = f(i,j,k)
+        ENDDO
+      ENDDO
     ENDDO
+  END SUBROUTINE gpc_tpack_fwd
 
-    DO j = 1, nl
-      i = id(j) + 1
-      ptmp(1,i) = lx(j)
-      ptmp(2,i) = ly(j)
-      ptmp(3,i) = lz(j)
-    ENDDO
-    CALL GTStart(this%hcomm_)
-    CALL MPI_ALLREDUCE(ptmp,gvdb,3*ngvdb,GC_REAL,   &
-                       MPI_SUM,this%comm_,this%ierr_)
-    CALL GTAcc(this%hcomm_)
 
- END SUBROUTINE GPartComm_VDBSynch
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_LagSynch_t0(this,gs,ngs,id,ls,nl)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : LagSynch
-!  DESCRIPTION: Synch up task 0 Lagrangian scalar from local scalar data
-!
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    gs      : global scalar containing 'synched' records, returned (task 0 only).
-!    ngs     : no. records in global scalar. Fixed on entry.
-!    id      : local part. ids
-!    ls      : local scalar
-!    nl      : no. parts. in local Lag. scalar
-!-----------------------------------------------------------------
+! Forward unpack: block (1:il,1:ny,k1:k2) received from a task
+! into the z-complete layout o(nz,ny,il)
+  SUBROUTINE gpc_tunpack_fwd(nz,ny,il,k1,k2,off,nb,b,o)
     IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: nz,ny,il,k1,k2,off,nb
+    REAL(KIND=GP),INTENT(IN)    :: b(nb)
+    REAL(KIND=GP),INTENT(INOUT) :: o(nz,ny,il)
+    INTEGER                     :: i,j,k
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private(k)
+#endif
+    DO i = 1,il
+      DO j = 1,ny
+        DO k = k1,k2
+          o(k,j,i) = b(off+i+(j-1)*il+(k-k1)*il*ny)
+        ENDDO
+      ENDDO
+    ENDDO
+  END SUBROUTINE gpc_tunpack_fwd
 
-    CLASS(GPartComm),INTENT(INOUT)                  :: this
-    INTEGER      ,INTENT   (IN),DIMENSION(:)        :: id
-    INTEGER      ,INTENT   (IN)                     :: nl
-    INTEGER      ,INTENT   (IN)                     :: ngs
-    INTEGER                                         :: i,j,t,m
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(:)        :: ls
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:)        :: gs
 
-    IF (this%myrank_.NE.0) THEN
-      this%stbuff_(1,1) = REAL(nl,kind=GP)
-!$omp parallel do
-      DO i = 1,nl
-        this%stbuffp_(i)%idp_   = id(i)
-        this%stbuffp_(i)%rp_(1) = ls(i)
-      END DO 
-      CALL GTStart(this%hcomm_)
-      CALL MPI_ISEND(this%stbuffp_,nl,MPI_GPDataPackType,0,this%myrank_,this%comm_,this%itsh_(1),this%ierr_)
-      CALL MPI_WAIT(this%itsh_(1),this%istatus_,this%ierr_)
-      CALL GTAcc(this%hcomm_)
-    ELSE
-!$omp parallel do
-      DO j = 1,nl
-        i = id(j) + 1
-        gs(i) = ls(j)
-      END DO
-     
-      DO t = 1,this%nprocs_-1
-        CALL GTStart(this%hcomm_)
-        CALL MPI_RECV(this%rbbuffp_,this%maxparts_,MPI_GPDataPackType,t, &
-                      t,this%comm_,this%istatus_,this%ierr_)
-        CALL MPI_GET_COUNT(this%istatus_,MPI_GPDataPackType,m,this%ierr_)
-        CALL GTAcc(this%hcomm_)
-!$omp parallel do
-        DO j = 1,m
-          i     = this%rbbuffp_(j)%idp_ + 1
-          gs(i) = this%rbbuffp_(j)%rp_(1)
-        END DO
-      END DO
-    END IF
-
-  END SUBROUTINE GPartComm_LagSynch_t0
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_LagSynch(this,gs,ngs,id,ls,nl,ptmp)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : LagSynch
-!  DESCRIPTION: Synch up global Lagrangian scalar from local scalar data
-!
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    gs      : global scalar containing 'synched' records, returned.
-!    ngs     : no. records in global scalar. Fixed on entry.
-!    id      : local part. ids
-!    ls      : local scalar
-!    nl      : no. parts. in local Lag. scalar
-!    ptmp    : tmp array of size of gs
-!-----------------------------------------------------------------
+! Inverse pack: block (k1:k2,1:ny,1:il) of the z-complete layout,
+! stored i fastest (the layout the receiver unpacks)
+  SUBROUTINE gpc_tpack_inv(nz,ny,il,k1,k2,off,nb,f,b)
     IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)                  :: this
-    INTEGER      ,INTENT   (IN),DIMENSION(*)        :: id
-    INTEGER      ,INTENT   (IN)                     :: nl
-    INTEGER      ,INTENT   (IN)                     :: ngs
-    INTEGER                                         :: i,j
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*)        :: ls
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)        :: gs,ptmp
-
-    DO j = 1, ngs
-      gs  (j) = 0.0_GP
-      ptmp(j) = 0.0_GP
+    INTEGER      ,INTENT(IN)    :: nz,ny,il,k1,k2,off,nb
+    REAL(KIND=GP),INTENT(IN)    :: f(nz,ny,il)
+    REAL(KIND=GP),INTENT(INOUT) :: b(nb)
+    INTEGER                     :: i,j,k
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private(k)
+#endif
+    DO i = 1,il
+      DO j = 1,ny
+        DO k = k1,k2
+          b(off+i+(j-1)*il+(k-k1)*il*ny) = f(k,j,i)
+        ENDDO
+      ENDDO
     ENDDO
+  END SUBROUTINE gpc_tpack_inv
 
-    DO j = 1, nl
-      i = id(j) + 1
-      ptmp(i) = ls(j)
-    ENDDO
-    CALL GTStart(this%hcomm_)
-    CALL MPI_ALLREDUCE(ptmp,gs,ngs,GC_REAL,   &
-                       MPI_SUM,this%comm_,this%ierr_)
-    CALL GTAcc(this%hcomm_)
 
-  END SUBROUTINE GPartComm_LagSynch
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_SetCacheParam(this,csize,nstrip)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : SetCacheParam
-!  DESCRIPTION: Set cache size and strip-mining size for transpose
-!
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    csize   : cache-size
-!    nstrip  : strip mining size
-!-----------------------------------------------------------------
+! Inverse unpack: block (i1:i2,1:ny,1:kl) into the slab o(nx,ny,kl)
+  SUBROUTINE gpc_tunpack_inv(nx,ny,kl,i1,i2,off,nb,b,o)
     IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)                  :: this
-    INTEGER      ,INTENT   (IN)                     :: csize,nstrip
-
-    this%csize_  = csize
-    this%nstrip_ = nstrip
-
-  END SUBROUTINE GPartComm_SetCacheParam
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_Copy2Ext(this,vext,v)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : Copy2Ext
-!  DESCRIPTION: Copy field from regular to extended grid
-!
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    vext    : extended-grid field
-!    v       : regular-grid field
-!    ldims   : local dims of v
-!-----------------------------------------------------------------
-!$  USE threads
-    IMPLICIT NONE
-    CLASS(GPartComm),INTENT(INOUT)                      :: this
-    INTEGER                                             :: i,j,jm,k,km,ngp,ngz,nex,nexy
-    INTEGER                                             :: nx,nxy,ny
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*)            :: v
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)            :: vext
-
-    ngz  = this%nzghost_
-    ngp  = ngz * this%iextperp_
-    nexy = (this%nd_(1)+2*ngp) * (this%nd_(2)+2*ngp)
-    nex  = this%nd_(1)+2*ngp
-    nx   = this%nd_(1)
-    ny   = this%nd_(2)
-    nxy  = nx*ny
-
-!$omp parallel do if(ny*(this%kend_-this%ksta_+1).GE.nth) collapse(2) private(jm,i)
-     DO km = 0,this%kend_-this%ksta_
-      DO j=1,ny
-        jm = j-1
-        DO i=1,nx
-          vext(i+ngp+(jm+ngp)*nex+(km+ngz)*nexy) = v(i+jm*nx+km*nxy)
+    INTEGER      ,INTENT(IN)    :: nx,ny,kl,i1,i2,off,nb
+    REAL(KIND=GP),INTENT(IN)    :: b(nb)
+    REAL(KIND=GP),INTENT(INOUT) :: o(nx,ny,kl)
+    INTEGER                     :: i,j,k,ni
+    ni = i2-i1+1
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private(i)
+#endif
+    DO k = 1,kl
+      DO j = 1,ny
+        DO i = i1,i2
+          o(i,j,k) = b(off+(i-i1+1)+(j-1)*ni+(k-1)*ni*ny)
         ENDDO
       ENDDO
     ENDDO
+  END SUBROUTINE gpc_tunpack_inv
 
-  END SUBROUTINE GPartComm_Copy2Ext
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
- SUBROUTINE GPartComm_ResizeArrays(this,newmparts,onlyinc)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : Resize_Arrays
-!  DESCRIPTION: Resize all arrays in the GPart class (including 
-!               subclases, i.e. communicator, spline)
-!  ARGUMENTS  :
-!    this     : 'this' class instance
-!    newmparts: new number of particles
-!    onlyinc  : if true, will only resize to increase array size
-!-----------------------------------------------------------------
-    IMPLICIT NONE
-    CLASS(GPartComm),INTENT(INOUT)  :: this
-    INTEGER         ,INTENT(IN)     :: newmparts
-    LOGICAL         ,INTENT(IN)     :: onlyinc
-    INTEGER                         :: n,nzg,nd(3),newbuff
-
-    nzg = this%nzghost_
-    nd  = this%nd_
-
-    this%maxparts_ = newmparts
-
-    n = SIZE(this%ibot_)
-    IF ((n.lt.newmparts).OR.((n.gt.newmparts).AND..NOT.onlyinc)) THEN
-      CALL Resize_IntArray(this%ibot_ ,newmparts,.true. )
-      CALL Resize_IntArray(this%itop_ ,newmparts,.true.)
-      CALL Resize_IntArray(this%oldid_,newmparts,.false.)
-      CALL Resize_DataPack(this%sbbuffp_,newmparts)
-      CALL Resize_DataPack(this%stbuffp_,newmparts)
-      CALL Resize_DataPack(this%rbbuffp_,newmparts)
-      CALL Resize_DataPack(this%rtbuffp_,newmparts)
-      this%maxparts_ = newmparts
-      IF ( this%intrfc_ .GE. 1 ) THEN
-        newbuff = 3*nd(1)*nd(2)*nzg+nzg+2
-      ELSE
-        newbuff =   nd(1)*nd(2)*nzg+nzg+2
-      ENDIF
-      n = this%nbuff_
-      IF ((n.lt.newbuff).OR.((n.gt.newbuff).AND..NOT.onlyinc)) THEN
-        CALL Resize_ArrayRank2Transposed(this%sbbuff_,newbuff,.false.)
-        CALL Resize_ArrayRank2Transposed(this%stbuff_,newbuff,.false.)
-        CALL Resize_ArrayRank2Transposed(this%rbbuff_,newbuff,.false.)
-        CALL Resize_ArrayRank2Transposed(this%rtbuff_,newbuff,.false.)
-        this%nbuff_ = newbuff
-      ENDIF
-    ENDIF
-
-    RETURN
-  END SUBROUTINE GPartComm_ResizeArrays
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE Resize_DataPack(a,new_size)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : Resize_DataPack
-!  DESCRIPTION: Resize input 1D GPData array to new size, without copying
-!  ARGUMENTS  :
-!    a       : array to be resized
-!    new_size: new size for array
-!-----------------------------------------------------------------
-!$  USE threads
-
-    IMPLICIT NONE
-    TYPE(GPData),INTENT(INOUT),ALLOCATABLE,DIMENSION(:) :: a
-    INTEGER,INTENT(IN)                                  :: new_size
-    TYPE(GPData)              ,ALLOCATABLE,DIMENSION(:) :: temp
-
-    ALLOCATE ( temp(new_size) )
-
-    CALL move_alloc(temp, a)
-
-    RETURN
-  END SUBROUTINE Resize_DataPack
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE Resize_IntArray(a,new_size,docpy)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : Resize_ArrayRank1
-!  DESCRIPTION: Resize input 1D integer array to new size
-!  ARGUMENTS  :
-!    a       : array to be resized
-!    new_size: new size for array
-!    docpy   : if true, keeps previous data in resized array
-!-----------------------------------------------------------------
-!$  USE threads
-
-    IMPLICIT NONE
-    INTEGER,INTENT(INOUT),ALLOCATABLE,DIMENSION(:) :: a
-    INTEGER,INTENT(IN)                             :: new_size
-    LOGICAL,INTENT(IN)                             :: docpy
-    INTEGER              ,ALLOCATABLE,DIMENSION(:) :: temp
-    INTEGER                                        :: i,n
-
-    ALLOCATE ( temp(new_size) )
-    IF (docpy) THEN
-      n = SIZE(a)
-      n = MIN(n,new_size)
-!$omp parallel do if(n.gt.NMIN_OMP)
-      DO i = 1,n
-        temp(i) = a(i)
-      END DO
-    END IF
-
-    CALL move_alloc(temp, a)
-
-    RETURN
-  END SUBROUTINE Resize_IntArray
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE Resize_IntArrayRank2(a,new_size,docpy)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : Resize_IntArrayRank2
-!  DESCRIPTION: Resize input integer 2D array to new size
-!  ARGUMENTS  :
-!    a       : array to be resized
-!    new_size: new size for array (second axis)
-!    docpy   : if true, keeps previous data in resized array
-!-----------------------------------------------------------------
-!$  USE threads
-
-    IMPLICIT NONE
-    INTEGER,INTENT(INOUT),ALLOCATABLE,DIMENSION(:,:) :: a
-    INTEGER      ,INTENT(IN)                         :: new_size
-    LOGICAL      ,INTENT(IN)                         :: docpy
-    INTEGER              ,ALLOCATABLE,DIMENSION(:,:) :: temp
-    INTEGER                                          :: i,n,shp(2)
-
-    shp = SHAPE(a)
-    ALLOCATE ( temp(shp(1),new_size) )
-
-    IF (docpy) THEN
-      n = shp(2)
-      n = MIN(n,new_size)
-!$omp parallel do if(n.gt.NMIN_OMP)
-      DO i = 1,n
-        temp(:,i) = a(:,i)
-      END DO
-    END IF
-
-    CALL move_alloc(temp, a)
-
-    RETURN
-  END SUBROUTINE Resize_IntArrayRank2
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE Resize_ArrayRank1(a,new_size,docpy)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : Resize_ArrayRank1
-!  DESCRIPTION: Resize input 1D array to new size
-!  ARGUMENTS  :
-!    a       : array to be resized
-!    new_size: new size for array
-!    docpy   : if true, keeps previous data in resized array
-!-----------------------------------------------------------------
-!$  USE threads
-
-    IMPLICIT NONE
-    REAL(KIND=GP),INTENT(INOUT),ALLOCATABLE,DIMENSION(:) :: a
-    INTEGER      ,INTENT(IN)                             :: new_size
-    LOGICAL      ,INTENT(IN)                             :: docpy
-    REAL(KIND=GP)              ,ALLOCATABLE,DIMENSION(:) :: temp
-    INTEGER                                              :: i,n
-
-    ALLOCATE ( temp(new_size) )
-    IF (docpy) THEN
-      n = SIZE(a)
-      n = MIN(n,new_size)
-!$omp parallel do if(n.gt.NMIN_OMP)
-      DO i = 1,n
-        temp(i) = a(i)
-      END DO
-    END IF
-
-    CALL move_alloc(temp, a)
-
-    RETURN
-  END SUBROUTINE Resize_ArrayRank1
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE Resize_ArrayRank2(a,new_size,docpy)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : Resize_ArrayRank2
-!  DESCRIPTION: Resize input 2D array to new size
-!  ARGUMENTS  :
-!    a       : array to be resized
-!    new_size: new size for array (second axis)
-!    docpy   : if true, keeps previous data in resized array
-!-----------------------------------------------------------------
-!$  USE threads
-
-    IMPLICIT NONE
-    REAL(KIND=GP),INTENT(INOUT),ALLOCATABLE,DIMENSION(:,:) :: a
-    INTEGER      ,INTENT(IN)                               :: new_size
-    LOGICAL      ,INTENT(IN)                               :: docpy
-    REAL(KIND=GP)              ,ALLOCATABLE,DIMENSION(:,:) :: temp
-    INTEGER                                                :: i,n,shp(2)
-
-    shp = SHAPE(a)
-    ALLOCATE ( temp(shp(1),new_size) )
-
-    IF (docpy) THEN
-      n = shp(2)
-      n = MIN(n,new_size)
-!$omp parallel do if(n.gt.NMIN_OMP)
-      DO i = 1,n
-        temp(:,i) = a(:,i)
-      END DO
-    END IF
-
-    CALL move_alloc(temp, a)
-
-    RETURN
-  END SUBROUTINE Resize_ArrayRank2
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE Resize_ArrayRank2Transposed(a,new_size,docpy)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : Resize_ArrayRank2Transposed
-!  DESCRIPTION: Resize input 2D array to new size
-!  ARGUMENTS  :
-!    a       : array to be resized
-!    new_size: new size for array (first axis)
-!    docpy   : if true, keeps previous data in resized array
-!-----------------------------------------------------------------
-!$  USE threads
- 
-    IMPLICIT NONE
-    REAL(KIND=GP),INTENT(INOUT),ALLOCATABLE,DIMENSION(:,:) :: a
-    INTEGER      ,INTENT(IN)                               :: new_size
-    LOGICAL      ,INTENT(IN)                               :: docpy
-    REAL(KIND=GP)              ,ALLOCATABLE,DIMENSION(:,:) :: temp
-    INTEGER                                                :: i,n,j,shp(2)
-
-    shp = SHAPE(a) 
-    ALLOCATE ( temp(new_size,shp(2)) )
-    
-    IF (docpy) THEN
-      n = shp(1)
-      n = MIN(n,new_size)
-!$omp parallel do if((n*shp(2)).gt.NMIN_OMP) collapse(2)
-      DO i = 1,n
-        DO j = 1,shp(2)
-          temp(i,j) = a(i,j)
-        END DO
-      END DO
-    END IF
-    
-    CALL move_alloc(temp, a)
-
-    RETURN
-  END SUBROUTINE Resize_ArrayRank2Transposed
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-!-------------------- RETURN SUBROUTINES -------------------------
-
-  SUBROUTINE GPartComm_SlabDataReturnSF(this,v,vext,method)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : GPartComm_SlabDataReturnSF
-!  DESCRIPTION: Does bdy exchange of field component, v. Output
-!               is to data on regular grids, v. 'SF' means
-!               that this is the 'single-field' interface.
-!  ARGUMENTS  :
-!    this      : 'this' class instance (IN)
-!    v         : Eulerian velocity component returned on regular
-!                grid.
-!    vext      : Eulerian velocity components on extended grid.
-!    method    : Ghost zone aggregation method
-!                   = UNPACK_REP for replacement
-!                   = UNPACK_SUM for sum
-!
-!-----------------------------------------------------------------
-    IMPLICIT NONE
-    CLASS(GPartComm),INTENT(INOUT)                      :: this
-    INTEGER      ,INTENT   (IN)                         :: method
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)            :: v
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*)            :: vext
-
-    INTEGER                                             :: itask,j,buffsize
-
-    IF ( this%intrfc_ .GE. 1 ) THEN
-      WRITE(*,*) 'GPartComm_SlabDataReturnSF: SF interface expected'
-      STOP
-    ENDIF
-    IF ( this%nprocs_ .EQ. 1 ) THEN
-      CALL GPartComm_LocalDataRetSF(this,vext,v,method)
-      RETURN
-    ENDIF
-
-    buffsize = this%nd_(1)*this%nd_(2)*this%nzghost_ + this%nzghost_ + 2
-
-    CALL GPartComm_Copy2Reg(this,v,vext)
-
-    ! post receives:
-    CALL GTStart(this%hcomm_)
-    DO j=1,this%nbsnd_  ! from bottom task:
-      itask = this%ibsndp_(j)
-      CALL MPI_IRECV(this%rbbuff_(:,j),2*this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%ibrh_(j),this%ierr_)
-    ENDDO
-    CALL GTAcc(this%hcomm_)
-
-    ! return data:
-    DO j=1,this%nbret_  ! to bottom task:
-      itask = this%ibretp_(j)
-      CALL GPartComm_PackRetSF(this,this%sbbuff_(:,j),vext,j,'b')
-      CALL GTStart(this%hcomm_)
-      CALL MPI_ISEND(this%sbbuff_,buffsize,GC_REAL,itask, &
-                     1,this%comm_,this%ibsh_(j),this%ierr_)
-      CALL GTAcc(this%hcomm_)
-    ENDDO
-!
-
-    CALL GTStart(this%hcomm_)
-    DO j=1,this%ntsnd_  ! from top task:
-      itask = this%itsndp_(j)
-      CALL MPI_IRECV(this%rtbuff_(:,j),2*this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%itrh_(j),this%ierr_)
-    ENDDO
-    CALL GTAcc(this%hcomm_)
-
-
-    DO j=1,this%ntret_  ! to top task:
-      itask = this%itretp_(j)
-      CALL GPartComm_PackRetSF(this,this%stbuff_(:,j),vext,j,'t')
-      CALL GTStart(this%hcomm_)
-      CALL MPI_ISEND(this%stbuff_,buffsize,GC_REAL,itask, &
-                     1,this%comm_,this%itsh_(j),this%ierr_)
-      CALL GTAcc(this%hcomm_)
-    ENDDO
-
-    CALL GTStart(this%hcomm_)
-    DO j=1,this%nbret_
-      CALL MPI_WAIT(this%ibsh_(j),this%istatus_,this%ierr_)
-    ENDDO
-    DO j=1,this%nbsnd_
-      CALL MPI_WAIT(this%ibrh_(j),this%istatus_,this%ierr_)
-    ENDDO
-
-
-    DO j=1,this%ntret_
-      CALL MPI_WAIT(this%itsh_(j),this%istatus_,this%ierr_)
-    ENDDO
-    DO j=1,this%ntsnd_
-      CALL MPI_WAIT(this%itrh_(j),this%istatus_,this%ierr_)
-    ENDDO
-    CALL GTAcc(this%hcomm_)
-
-
-    ! Unpack received data:
-    DO j=1,this%nbsnd_
-       CALL GPartComm_UnpackRetSF(this,v,this%rbbuff_(:,j),&
-                          this%nbuff_,'b',method,this%ierr_)
-    ENDDO
-    DO j=1,this%ntsnd_
-       CALL GPartComm_UnpackRetSF(this,v,this%rtbuff_(:,j),&
-                          this%nbuff_,'t',method,this%ierr_)
-    ENDDO
-
-  END SUBROUTINE GPartComm_SlabDataReturnSF
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_PackRetSF(this,buff,vext,isnd,sdir)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : PPackSF
-!  DESCRIPTION: packs ret buffer with (single) field
-!  ARGUMENTS  :
-!    this    : 'this' class instance (IN)
-!    buff    : packed buffer (returned)
-!    vext    : Eulerian velocity component on extended grid
-!              in phys. space (IN)
-!    isnd    : which send this is
-!    sdir    : 't' for top, 'b' for bottom
-!
-!-----------------------------------------------------------------
-!$  USE threads
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)          :: this
-    INTEGER      ,INTENT   (IN)             :: isnd
-    INTEGER                                 :: i,j,k,m,nt,nx,ny,nxy
-    INTEGER                                 :: jm,km
-    REAL(KIND=GP),INTENT  (OUT),DIMENSION(*):: buff
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*):: vext
-    CHARACTER*(*),INTENT   (IN)             :: sdir
-
-
-    IF ( sdir(1:1).NE.'b' .AND. sdir(1:1).NE.'B' &
-    .AND.sdir(1:1).NE.'t' .AND. sdir(1:1).NE.'T' ) THEN
-      WRITE(*,*) 'GPartComm_PackRetSF: Bad direction descriptor'
-      STOP
-    ENDIF
-
-    nx  = this%nd_(1)
-    ny  = this%nd_(2)
-    nxy = nx*ny
-    IF      ( sdir(1:1) .EQ. 'b' .OR. sdir(1:1) .EQ. 'B' ) THEN
-    ! Pack for send to rank at bottom:
-    !  ...header
-      nt = 1
-      buff(1)  = this%ibretnz_(isnd)      ! no. z-indices included
-      DO j = 1, this%ibretnz_(isnd)
-        nt       = nt + 1
-        buff(nt) = this%ibretdst_(isnd,j) ! z-index in regular grid
-      ENDDO
-
-    !  ...data
-      DO m = 1,this%ibretnz_(isnd)
-        k = this%ibret_(isnd,m)
-        km = k-1
-!$omp parallel do if(ny.ge.nth) private(jm,i)
-        DO j = 1,ny
-          jm = j-1
-          DO i = 1,nx
-!            nt = nt + 1
-            buff(nt+jm*nx+i) = vext(i+jm*nx+km*nxy)
-          ENDDO
-        ENDDO
-        nt = nt + nxy
-      ENDDO
-
-    ELSE !  Pack for send to rank at top:
-
-      ! ...header
-      nt = 1
-      buff(1)  = this%itretnz_(isnd)      ! no. z-indices included
-      DO j = 1, this%itretnz_(isnd)
-        nt       = nt + 1
-        buff(nt) = this%itretdst_(isnd,j) ! z-index in regular grid
-      ENDDO
-
-      ! ...data
-      DO m = 1,this%itretnz_(isnd)
-        k = this%itret_(isnd,m)
-        km = k-1
-!$omp parallel do if(ny.ge.nth) private(jm,i)
-        DO j = 1,ny
-          jm = j-1
-          DO i = 1,nx
-!            nt = nt + 1
-            buff(nt+jm*nx+i) = vext(i+jm*nx+km*nxy)
-          ENDDO
-        ENDDO
-        nt = nt + nxy
-      ENDDO
-
-    ENDIF
-
-  END SUBROUTINE GPartComm_PackRetSF
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_UnpackRetSF(this,v,buff,nbuff,sb,method,ierr)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : RetUnpackSF
-!  DESCRIPTION: Unpacks recv buffer with into regular (single) field.
-!               Messages received are self-referential, so contain info
-!               on where to 'return' recvd data. So, there is no 't'
-!               or 'b' designation required for unpacking.
-!  ARGUMENTS  :
-!    this        : 'this' class instance (IN)
-!    v           : Eulerian velocity component on regular grid
-!                  in phys. space (IN)
-!    buff        : packed buffer (input) from which to store into
-!                  extended grid quantities.
-!    nbuff       : maximum buff size
-!    sb          : optional buffer name ,'t' or 'b'.
-!    method      : data aggregation method
-!                   = UNPACK_REP for replacement
-!                   = UNPACK_SUM for sum
-!    ierr        : err flag: 0 if success; else 1
-!
-!-----------------------------------------------------------------
-!$  USE threads
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)          :: this
-    INTEGER                                 :: i,j,k,m,ngp,nx,nex,nxy,nexy,ny,nz
-    INTEGER                                 :: im,ip,ir,ixy,iz,jm,km,nh
-    INTEGER      ,INTENT   (IN)             :: nbuff,method
-    INTEGER      ,INTENT(INOUT)             :: ierr ! not used now
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*):: buff
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*):: v
-    CHARACTER(len=1),INTENT(IN),OPTIONAL    :: sb
-
-    ierr = 0
-    nx   = this%nd_(1)
-    ny   = this%nd_(2)
-    nxy  = nx*ny
-    ngp  = this%nzghost_*this%iextperp_
-    nex  = nx+2*ngp
-    nexy = (nx+2*ngp)*(ny+2*ngp)
-
-    ! Unpack from either buffer:
-    ! For each task, message is of form:
-    !     #z-indices:z-index_0:z-index_1:...:nx*ny_0:nx*ny_1: ...
-    nz = int(buff(1))
-    nh = nz + 1 ! no. items in header
-    IF ( method .EQ. UNPACK_REP ) THEN
-      DO m = 1,nz
-        k   = int(buff(m+1))
-        km  = k-1
-!        ixy = 1
-!$omp parallel do if(ny.ge.nth) private(jm,i,ixy,im,ir)
-        DO j = 1,ny
-          jm = j-1
-          DO i = 1,nx
-            ixy = jm*nx + i
-            im = i+ngp+(jm+ngp)*nex+km*nexy
-            ir = nh+(m-1)*nxy+ixy
-            v(im) = buff(ir)
-!            ixy = ixy + 1
-          ENDDO
-        ENDDO
-      ENDDO
-    ELSE IF ( method .EQ. UNPACK_SUM ) THEN
-      DO m = 1,nz
-        k   = int(buff(m+1))
-        km  = k-1
-!        ixy = 1
-!$omp parallel do if(ny.ge.nth) private(jm,i,ixy,im,ir)
-        DO j = 1,ny
-          jm = j-1
-          DO i = 1,nx
-            ixy = jm*nx + i
-            im = i+ngp+(jm+ngp)*nex+km*nexy
-            ir = nh+(m-1)*nxy+ixy
-            v(im) = v(im) + buff(ir)
-!            ixy = ixy + 1
-          ENDDO
-        ENDDO
-      ENDDO
-    ENDIF
-
-  END SUBROUTINE GPartComm_UnpackRetSF
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_LocalDataRetSF(this,vext,v,method)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : LocalDataExchSF
-!  DESCRIPTION: Does 'bdy exchange' of (single) velocity component, when there's
-!               only a single MPI task. This is a single-field interface.
-!  ARGUMENTS  :
-!    this              : 'this' class instance (IN)
-!    v                 : Eulerian velocity components returned on regular grid.
-!                        Must be of size nd_ set in constructor.
-!    vext              : Eulerian velocity components on extended grid (that
-!                        used to hold ghost zones).
-!    method            : data aggregation method
-!                         = UNPACK_REP for replacement
-!                         = UNPACK_SUM for sum
-!
-!-----------------------------------------------------------------
-!$  USE threads
-    USE mpivars
-
-    IMPLICIT NONE
-    CLASS(GPartComm),INTENT(INOUT)                      :: this
-    INTEGER                                             :: i,j,k,ngp,ngz,nex,nexy,nez
-    INTEGER                                             :: nx,nxy,ny,nz
-    INTEGER      ,INTENT   (IN)                         :: method
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)            :: v
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*)            :: vext
-
-    ngz  = this%nzghost_
-    ngp  = ngz * this%iextperp_
-    nexy = (this%nd_(1)+2*ngp) * (this%nd_(2)+2*ngp)
-    nex  = this%nd_(1)+2*ngp
-    nez  = this%nd_(3)+  ngz
-    nx   = this%nd_(1)
-    ny   = this%nd_(2)
-    nz   = this%nd_(3)
-    nxy  = nx*ny
-
-    CALL GPartComm_Copy2Reg(this,v,vext)
-    IF ( method .EQ. UNPACK_REP ) THEN
-!$omp parallel do if(ngz*ny.ge.nth) collapse(2) private(i)
-      DO k = 1,ngz  ! extended zones
-        DO j = 1,ny
-          DO i = 1,nx
-            ! set top bcs:
-            v(i+(j-1)*nx+       (k-1)*nxy) = vext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy)
-
-            ! set bottom bcs:
-            v(i+(j-1)*nx+(nz-ngz+k-1)*nxy) = vext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy)
-
-          ENDDO
-        ENDDO
-      ENDDO
-    ELSE IF ( method .EQ. UNPACK_SUM ) THEN
-!$omp parallel do if(ngz*ny.ge.nth) collapse(2) private(i)
-      DO k = 1,ngz  ! extended zones
-        DO j = 1,ny
-          DO i = 1,nx
-            ! set top bcs:
-            v(i+(j-1)*nx+(k-1)*nxy)        = &
-                   v(i+(j-1)*nx+(k-1)*nxy) + vext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy)
-
-            ! set bottom bcs:
-            v(i+(j-1)*nx+(nz-ngz+k-1)*nxy) = &
-                v(i+(j-1)*nx+(nz-ngz+k-1)*nxy) + vext(i+ngp+(j+ngp-1)*nex+(k-1)*nexy)
-
-          ENDDO
-        ENDDO
-      ENDDO
-    ENDIF
-
-  END SUBROUTINE GPartComm_LocalDataRetSF
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_SlabDataReturnMF(this,vx,vy,vz,vxext,vyext,vzext,method)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : GPartComm_SlabDataReturnMF
-!  DESCRIPTION: Does bdy exchange of velocity component, vx,vy,vz. Output
-!               is to data on extended grids, vxext, vyext, vzexy. 'MF'
-!               means that this is the 'multi-field' interface.
-!  ARGUMENTS  :
-!    this              : 'this' class instance (IN)
-!    vx,vy,vz          : Eulerian velocity components returned on regular
-!                        grid
-!    vxext,vyext,vzext : Eulerian velocity components on extended grid.
-!    method            : Ghost zone aggregation method
-!                         = UNPACK_REP for replacement
-!                         = UNPACK_SUM for sum
-!
-!-----------------------------------------------------------------
-    IMPLICIT NONE
-    CLASS(GPartComm),INTENT(INOUT)                      :: this
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*)            :: vxext,vyext,vzext
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)            :: vx,vy,vz
-    INTEGER      ,INTENT   (IN)                         :: method
-    INTEGER                                             :: itask,j
-
-    IF ( this%intrfc_ .LT. 1 ) THEN
-      WRITE(*,*) 'GPartComm_SlabDataReturnMF: SF interface expected'
-      STOP
-    ENDIF
-
-    IF ( this%nprocs_ .EQ. 1 ) THEN
-      CALL GPartComm_LocalDataRetMF(this,vxext,vyext,vzext,vx,vy,vz,method)
-      RETURN
-    ENDIF
-
-    ! Post receives:
-    CALL GTStart(this%hcomm_)
-    DO j=1,this%nbsnd_  ! from bottom task:
-      itask = this%ibsndp_(j)
-      CALL MPI_IRECV(this%rbbuff_(:,j),this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%ibrh_(j),this%ierr_)
-    ENDDO
-    CALL GTAcc(this%hcomm_)
-
-    CALL GTStart(this%hcomm_)
-    DO j=1,this%ntsnd_  ! from top task:
-      itask = this%itsndp_(j)
-      CALL MPI_IRECV(this%rtbuff_(:,j),this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%itrh_(j),this%ierr_)
-    ENDDO
-    CALL GTAcc(this%hcomm_)
-
-    !
-    ! return data:
-    DO j=1,this%nbret_  ! to bottom task:
-      itask = this%ibretp_(j)
-      CALL GPartComm_PackRetMF(this,this%sbbuff_(:,j),vxext,vyext,vzext,j,'b')
-      CALL GTStart(this%hcomm_)
-      CALL MPI_ISEND(this%sbbuff_,this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%ibsh_(j),this%ierr_)
-      CALL GTAcc(this%hcomm_)
-    ENDDO
-    DO j=1,this%ntret_  ! to top task:
-      itask = this%itretp_(j)
-      CALL GPartComm_PackRetMF(this,this%stbuff_(:,j),vxext,vyext,vzext,j,'t')
-      CALL GTStart(this%hcomm_)
-      CALL MPI_ISEND(this%stbuff_,this%nbuff_,GC_REAL,itask, &
-                     1,this%comm_,this%itsh_(j),this%ierr_)
-      CALL GTAcc(this%hcomm_)
-
-    ENDDO
-
-    CALL GTStart(this%hcomm_)
-    DO j=1,this%nbret_
-      CALL MPI_WAIT(this%ibsh_(j),this%istatus_,this%ierr_)
-    ENDDO
-    DO j=1,this%ntret_
-      CALL MPI_WAIT(this%itsh_(j),this%istatus_,this%ierr_)
-    ENDDO
-    DO j=1,this%nbsnd_
-      CALL MPI_WAIT(this%ibrh_(j),this%istatus_,this%ierr_)
-    ENDDO
-    DO j=1,this%ntsnd_
-      CALL MPI_WAIT(this%itrh_(j),this%istatus_,this%ierr_)
-    ENDDO
-    CALL GTAcc(this%hcomm_)
-
-    ! Unpack received data:
-    DO j=1,this%nbsnd_
-      CALL GPartComm_UnpackRetMF(this,vx,vy,vz,this%rbbuff_(:,j),method)
-    ENDDO
-    DO j=1,this%ntsnd_
-      CALL GPartComm_UnpackRetMF(this,vx,vy,vz,this%rtbuff_(:,j),method)
-    ENDDO
-
-  END SUBROUTINE GPartComm_SlabDataReturnMF
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_PackRetMF(this,buff,vxext,vyext,vzext,isnd,sdir)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : PackMF
-!  DESCRIPTION: packs ret buffer with fields; multi-field interface
-!  ARGUMENTS  :
-!    this             : 'this' class instance (IN)
-!    buff             : packed buffer (returned)
-!    vxext,vyext,vzext: Eulerian velocity component on extended
-!                       grid in phys. space (IN)
-!    isnd             : which send this is
-!    sdir             : 't' for top, 'b' for bottom
-!
-!-----------------------------------------------------------------
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)          :: this
-    INTEGER      ,INTENT   (IN)             :: isnd
-    INTEGER                                 :: i,j,k,m,nt,nx,nxy,ny
-    INTEGER                                 :: jm,km
-    REAL(KIND=GP),INTENT  (OUT),DIMENSION(*):: buff
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*):: vxext,vyext,vzext
-    CHARACTER*(*),INTENT   (IN)             :: sdir
-
-
-    IF ( sdir(1:1).NE.'b' .AND. sdir(1:1).NE.'B' &
-    .AND.sdir(1:1).NE.'t' .AND. sdir(1:1).NE.'T' ) THEN
-      WRITE(*,*) 'GPartComm_PackRetMF: Bad direction descriptor'
-      STOP
-    ENDIF
-
-    nx  = this%nd_(1)
-    ny  = this%nd_(2)
-    nxy = nx*ny
-    IF      ( sdir(1:1) .EQ. 'b' .OR. sdir(1:1) .EQ. 'B' ) THEN
-    ! Pack for send to rank at bottom:
-    !  ...header
-      nt = 1
-      buff(1)  = this%ibretnz_(isnd)       ! no. z-indices included
-      DO j = 1, this%ibretnz_(isnd)
-        nt       = nt + 1
-        buff(nt) = this%ibretdst_(isnd,j) ! z-index in regular grid
-      ENDDO
-
-    !  ...data
-      DO m = 1,this%ibretnz_(isnd)
-        k = this%ibret_(isnd,m)
-        km = k-1
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-            buff(nt) = vxext(i+jm*nx+km*nxy)
-            nt = nt + 1
-          ENDDO
-        ENDDO
-      ENDDO
-
-      DO m = 1, this%ibretnz_(isnd)
-        k = this%ibret_(isnd,m)
-        km = k-1
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-            buff(nt) = vyext(i+jm*nx+km*nxy)
-            nt = nt + 1
-          ENDDO
-        ENDDO
-      ENDDO
-
-      DO m = 1,this%ibretnz_(isnd)
-        k = this%ibret_(isnd,m)
-        km = k-1
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-            buff(nt) = vzext(i+jm*nx+km*nxy)
-            nt = nt + 1
-          ENDDO
-        ENDDO
-      ENDDO
-
-    ELSE !  Pack for send to rank at top:
-
-      ! ...header
-      nt = 1
-      buff(1)  = this%itretnz_(isnd)      ! no. z-indices included
-      DO j = 1, this%itretnz_(isnd)
-        nt       = nt + 1
-        buff(nt) = this%itretdst_(isnd,j) ! z-index in regular grid
-      ENDDO
-
-      ! ...data
-      DO m = 1,this%itretnz_(isnd)
-        k = this%itret_(isnd,m)
-        km = k-1
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-            buff(nt) = vxext(i+jm*nx+km*nxy)
-            nt = nt + 1
-          ENDDO
-        ENDDO
-      ENDDO
-
-      DO m = 1,this%itretnz_(isnd)
-        k = this%itret_(isnd,m)
-        km = k-1
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-            buff(nt) = vyext(i+jm*nx+km*nxy)
-            nt = nt + 1
-          ENDDO
-        ENDDO
-      ENDDO
-
-      DO m = 1,this%itretnz_(isnd)
-        k = this%itret_(isnd,m)
-        km = k-1
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-            buff(nt) = vzext(i+jm*nx+km*nxy)
-            nt = nt + 1
-          ENDDO
-        ENDDO
-      ENDDO
-
-    ENDIF
-
-  END SUBROUTINE GPartComm_PackRetMF
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_UnpackRetMF(this,vx,vy,vz,buff,method)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : UnpackMF
-!  DESCRIPTION: Unpacks recv buffer with into extended (single) field
-!               Messages received are self-referential, so contain info
-!               on where to 'send' recvd data. So, there is no 't' or
-!               'b' designation required for unpacking.
-!  ARGUMENTS  :
-!    this        : 'this' class instance (IN)
-!    buff        : packed buffer (input) from which to store into
-!                  extended grid quantities.
-!    vx,vy,vz    : Eulerian velocity component on regular grid
-!                  in phys. space (IN)
-!    method      : data aggregation method
-!                   = UNPACK_REP for replacement
-!                   = UNPACK_SUM for sum
-!
-!-----------------------------------------------------------------
-    USE mpivars
-    IMPLICIT NONE
-
-    CLASS(GPartComm),INTENT(INOUT)          :: this
-    INTEGER                                 :: i,j,k,m,ngp,ngz,nx,nxy,ny,nz
-    INTEGER                                 :: ixy,jm,km,nh
-    INTEGER      ,INTENT   (IN)             :: method
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*):: buff
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*):: vx,vy,vz
-
-    nx  = this%nd_(1)
-    ny  = this%nd_(2)
-    nxy = nx*ny
-    ngz = this%nzghost_;
-    ngp = ngz*this%iextperp_
-
-  ! Unpack from either top or bottom buffer:
-    nz = int(buff(1))
-    nh = nz + 1 ! no. items in header
-    IF ( method .EQ. UNPACK_REP ) THEN
-      DO m = 1,nz
-        k   = int(buff(m+1))
-        km  = k-1
-
-        ixy = 1
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-            vx(i+ngp+(jm+ngp)*nx+km*nxy) = buff(nh+(m-1)*nxy+ixy)
-            ixy = ixy + 1
-          ENDDO
-        ENDDO
-
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-            vy(i+ngp+(jm+ngp)*nx+km*nxy) = buff(nh+(m-1)*nxy+ixy)
-            ixy = ixy + 1
-          ENDDO
-        ENDDO
-
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-            vz(i+ngp+(jm+ngp)*nx+km*nxy) = buff(nh+(m-1)*nxy+ixy)
-            ixy = ixy + 1
-          ENDDO
-        ENDDO
-
-      ENDDO
-    ELSE IF ( method .EQ. UNPACK_SUM ) THEN
-      DO m = 1,nz
-        k   = int(buff(m+1))
-        km  = k-1
-
-        ixy = 1
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-            vx(i+ngp+(jm+ngp)*nx+km*nxy) = vx(i+ngp+(jm+ngp)*nx+km*nxy) &
-                                          + buff(nh+(m-1)*nxy+ixy)
-            ixy = ixy + 1
-          ENDDO
-        ENDDO
-
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-            vy(i+ngp+(jm+ngp)*nx+km*nxy) = vy(i+ngp+(jm+ngp)*nx+km*nxy) &
-                                          + buff(nh+(m-1)*nxy+ixy)
-            ixy = ixy + 1
-          ENDDO
-        ENDDO
-
-        DO j = 1, ny
-          jm = j-1
-          DO i = 1, nx
-            vz(i+ngp+(jm+ngp)*nx+km*nxy) = vz(i+ngp+(jm+ngp)*nx+km*nxy) &
-                                          + buff(nh+(m-1)*nxy+ixy)
-            ixy = ixy + 1
-          ENDDO
-        ENDDO
-
-      ENDDO
-    ENDIF
-
-  END SUBROUTINE GPartComm_UnpackRetMF
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_LocalDataRetMF(this,vxext,vyext,vzext,vx,vy,vz,method)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : LocalDataExch
-!  DESCRIPTION: Does 'bdy exchange' of velocity component, when there's
-!               only a single MPI task.
-!  ARGUMENTS  :
-!    this              : 'this' class instance (IN)
-!    vxext,vyext,vzext : Eulerian velocity components returned on extended
-!                        grid (that used to hold ghost zones). Only z-conditions
-!                        are imposed; lateral periodicity is not handled here.
-!                        Lateral ghost zones can be accounted for by setting
-!                        this%iextperp_=1 in contructor.
-!    vx,vy,vz          : Eulerian velocity components returned on regular
-!                        grid. Must be of size nd_ set in constructor
-!    method            : data aggregation method
-!                         = UNPACK_REP for replacement
-!                         = UNPACK_SUM for sum
-!
-!-----------------------------------------------------------------
-    USE mpivars
-
-    IMPLICIT NONE
-    CLASS(GPartComm),INTENT(INOUT)                      :: this
-    INTEGER                                             :: i,j,k,ngp,ngz,nex,nexy,nez
-    INTEGER                                             :: nx,nxy,ny,nz
-    INTEGER                                             :: jm,km
-    INTEGER      , INTENT  (IN)                         :: method
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)            :: vx,vy,vz
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*)            :: vxext,vyext,vzext
-
-    ngz  = this%nzghost_
-    ngp  = ngz * this%iextperp_
-    nexy = (this%nd_(1)+2*ngp) * (this%nd_(2)+2*ngp)
-    nex  = this%nd_(1)+2*ngp
-    nez  = this%nd_(3)+  ngz
-    nx   = this%nd_(1)
-    ny   = this%nd_(2)
-    nz   = this%nd_(3)
-    nxy  = nx*ny
-
-    CALL GPartComm_Copy2Reg(this,vx,vxext)
-    CALL GPartComm_Copy2Reg(this,vy,vyext)
-    CALL GPartComm_Copy2Reg(this,vz,vzext)
-    IF ( method .EQ. UNPACK_REP ) THEN
-      DO k = 1, ngz  ! bottom extended zones
-        km = k-1
-        DO j=1,ny
-          jm = j-1
-          DO i=1,nx
-            ! set top bcs:
-            vx(i+(j-1)*nx+(k-1)*nxy) = vxext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy)
-            vy(i+(j-1)*nx+(k-1)*nxy) = vyext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy)
-            vz(i+(j-1)*nx+(k-1)*nxy) = vzext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy)
-
-            ! set bottom bcs:
-            vx(i+(j-1)*nx+(nz-ngz+k-1)*nxy) = vxext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy)
-            vy(i+(j-1)*nx+(nz-ngz+k-1)*nxy) = vyext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy)
-            vz(i+(j-1)*nx+(nz-ngz+k-1)*nxy) = vzext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy)
-
-          ENDDO
-        ENDDO
-      ENDDO
-    ELSE IF ( method .EQ. UNPACK_SUM ) THEN
-      DO k = 1, ngz  ! bottom extended zones
-        km = k-1
-        DO j=1,ny
-          jm = j-1
-          DO i=1,nx
-            ! set top bcs:
-            vx(i+(j-1)*nx+(k-1)*nxy) = vx(i+(j-1)*nx+(k-1)*nxy) &
-                              + vxext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy)
-            vy(i+(j-1)*nx+(k-1)*nxy) = vy(i+(j-1)*nx+(k-1)*nxy) &
-                              + vyext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy)
-            vz(i+(j-1)*nx+(k-1)*nxy) = vz(i+(j-1)*nx+(k-1)*nxy) &
-                              + vzext(i+ngp+(j+ngp-1)*nex+(nez+k-1)*nexy)
-
-            ! set bottom bcs:
-            vx(i+(j-1)*nx+(nz-ngz+k-1)*nxy) = vx(i+(j-1)*nx+(nz-ngz+k-1)*nxy) &
-                              + vxext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy)
-            vy(i+(j-1)*nx+(nz-ngz+k-1)*nxy) = vy(i+(j-1)*nx+(nz-ngz+k-1)*nxy) &
-                              + vyext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy)
-            vz(i+(j-1)*nx+(nz-ngz+k-1)*nxy) = vz(i+(j-1)*nx+(nz-ngz+k-1)*nxy) &
-                              + vzext(i+ngp+(j+ngp-1)*nex+    (k-1)*nexy)
-
-          ENDDO
-        ENDDO
-      ENDDO
-    ENDIF
-
-  END SUBROUTINE GPartComm_LocalDataRetMF
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-
-  SUBROUTINE GPartComm_Copy2Reg(this,v,vext)
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
-!  METHOD     : Copy2Reg
-!  DESCRIPTION: Copy field from extended to regular grid,
-!               without ghost zones.
-!
-!  ARGUMENTS  :
-!    this     : 'this' class instance (IN)
-!    v        : regular-grid field
-!    vext     : extended-grid field
-!    ldims    : local dims of v
-!-----------------------------------------------------------------
-!$  USE threads
-    IMPLICIT NONE
-    CLASS(GPartComm),INTENT(INOUT)                      :: this
-    INTEGER                                             :: i,j,jm,k,km,ngp,ngz,nex,nexy
-    INTEGER                                             :: nx,nxy,ny
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)            :: v
-    REAL(KIND=GP),INTENT   (IN),DIMENSION(*)            :: vext
-
-    ngz  = this%nzghost_
-    ngp  = ngz * this%iextperp_
-    nexy = (this%nd_(1)+2*ngp) * (this%nd_(2)+2*ngp)
-    nex  = this%nd_(1)+2*ngp
-    nx   = this%nd_(1)
-    ny   = this%nd_(2)
-    nxy  = nx*ny
-!$omp parallel do if(ny*(this%kend_-this%ksta_+1).GE.nth) collapse(2) private(jm,i)
-    DO km = 0,this%kend_-this%ksta_
-!    DO k = 1,this%kend_-this%ksta_+1
-!      km = k-1
-      DO j=1,ny
-        jm = j-1
-        DO i=1,nx
-          v(i+jm*nx+km*nxy) = vext(i+ngp+(jm+ngp)*nex+(km+ngz)*nexy)
-        ENDDO
-      ENDDO
-    ENDDO
-
-  END SUBROUTINE GPartComm_Copy2Reg
-!-----------------------------------------------------------------
-!-----------------------------------------------------------------
 
 END MODULE class_GPartComm

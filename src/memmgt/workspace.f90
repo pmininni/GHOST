@@ -201,8 +201,9 @@ CONTAINS
  
     do i = 1, this%pcomp_size_
       if (.NOT. ALLOCATED(this%pcomp_entries_(i)%array)) then
-        ALLOCATE(this%pcomp_entries_(i)%array(partbuff))
+        call galloc(this%pcomp_entries_(i)%array, partbuff)
         this%pcomp_entries_(i)%array   = 0.0_GP
+        call gupdate_to(this%pcomp_entries_(i)%array)
         this%pcomp_entries_(i)%is_free = .TRUE.
       end if
     end do
@@ -224,8 +225,7 @@ CONTAINS
     integer          , intent(in)            :: new_size
     logical          , intent(in), optional  :: keep_data
     logical                                  :: do_keep
-    real(kind=GP)    , allocatable           :: tmp(:)
-    integer                                  :: i, copy_n
+    integer                                  :: i
  
     if (.NOT. this%pcomp_initialised_) &
       stop 'resize_pcomp_arrays: call init_pcomp_arrays first.'
@@ -236,10 +236,7 @@ CONTAINS
     if (present(keep_data)) do_keep = keep_data
     do i = 1, this%pcomp_size_
       if (ALLOCATED(this%pcomp_entries_(i)%array)) then
-        copy_n = min(this%nparts_, new_size)
-        ALLOCATE(tmp(new_size))
-        if (do_keep) tmp(1:copy_n) = this%pcomp_entries_(i)%array(1:copy_n)
-        call MOVE_ALLOC(tmp, this%pcomp_entries_(i)%array)          
+        call gresize(this%pcomp_entries_(i)%array, new_size, do_keep)
       end if
     end do
     this%nparts_ = new_size
@@ -301,6 +298,9 @@ CONTAINS
       this%hcomplex_size_ = 0
     end if
     if (ALLOCATED(this%pcomp_entries_)) THEN
+      do i = 1, this%pcomp_size_
+        call gfree(this%pcomp_entries_(i)%array)
+      end do
       DEALLOCATE(this%pcomp_entries_)
       this%pcomp_size_ = 0
     end if
@@ -436,14 +436,19 @@ CONTAINS
     if (num_new > this%ncurr_pcompreserve_) then
       ALLOCATE(tmp_copy(1:this%pcomp_size_+num_new+this%nreserve_))
       ! Preserve existing slots
-      tmp_copy(1:this%pcomp_size_) = this%pcomp_entries_(1:this%pcomp_size_)
+      do i = 1, this%pcomp_size_  ! moved, not copied (see add_real_entries)
+        if (ALLOCATED(this%pcomp_entries_(i)%array)) &
+          call MOVE_ALLOC(this%pcomp_entries_(i)%array, tmp_copy(i)%array)
+        tmp_copy(i)%is_free = this%pcomp_entries_(i)%is_free
+      end do
       call MOVE_ALLOC(tmp_copy, this%pcomp_entries_)
       do i = this%pcomp_size_+1, this%pcomp_size_+num_new
         this%pcomp_entries_(i)%is_free = .TRUE.
         ! If pcomp already initialised, allocate data in new slots too
         if (this%pcomp_initialised_) then
-          ALLOCATE(this%pcomp_entries_(i)%array(this%nparts_))
+          call galloc(this%pcomp_entries_(i)%array, this%nparts_)
           this%pcomp_entries_(i)%array = 0.0_GP
+          call gupdate_to(this%pcomp_entries_(i)%array)
         end if
       end do
       this%ncurr_pcompreserve_ = this%nreserve_
@@ -451,8 +456,9 @@ CONTAINS
       do i = this%pcomp_size_+1, this%pcomp_size_+num_new
         this%pcomp_entries_(i)%is_free = .TRUE.
         if (this%pcomp_initialised_) then
-          ALLOCATE(this%pcomp_entries_(i)%array(this%nparts_))
+          call galloc(this%pcomp_entries_(i)%array, this%nparts_)
           this%pcomp_entries_(i)%array = 0.0_GP
+          call gupdate_to(this%pcomp_entries_(i)%array)
         end if
         this%ncurr_pcompreserve_ = this%ncurr_pcompreserve_ - 1
       end do

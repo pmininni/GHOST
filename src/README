@@ -184,8 +184,8 @@ output. See src/memmgt/gdevice_mod.f90 for the details. The kernels
 are written twice, as OpenMP target regions for the offload build and
 as threaded loops for the host build, selected with
 #if defined(GHOST_GPU). The fluid solvers (HD, MHD, Boussinesq and
-moist, with passive scalars) run on the device; particles are not
-supported in offload builds yet.
+moist, with passive scalars) and the particle solvers (Lagrangian
+tracers and inertial particles) run on the device.
 
 The FFTs of the offload build are computed by the fftp-gpu backend
 (src/fftp-gpu, selected automatically with P_GPU): cuFFT or hipFFT on
@@ -225,6 +225,50 @@ src/pdes/equation_factory.f90 from the peak usage measured on the
 example inputs, which GHOST prints at the end of every run
 ("Workspace peak usage"); a pool that is too small stops the run with
 an explicit message.
+
+Particles in offload builds: the particle states, the arrays of the
+particle classes (ids, global database, spline indices and weights,
+extended coefficient field, communication buffers) and the particle
+pool of the workspace all have device copies, allocated with the same
+allocator as the fields (galloc in src/memmgt/gmem_mod.f90, which
+also handles integer and rank-2 arrays and resizes). The right-hand
+side of the particles stays entirely on the device: the fluid
+velocity is transformed by the device FFT, the spline coefficients
+are computed by the periodic tridiagonal solves written as kernels
+with one thread per pencil (src/particles/gpsplineint_mod.F90), the
+z direction on a z-complete layout reached through transposes that
+pack the blocks on the device and exchange contiguous messages with
+GPU-aware MPI (GTranspose in src/particles/gpartcomm_mod.f90), the
+ghost planes of the coefficients are exchanged the same way, and the
+interpolation gathers the 64 control points per particle on the
+device. The exchange of particles between slabs (nearest-neighbor
+mode) and the global database (VDB mode) also run on the device; the
+particle records travel as two contiguous messages (ids, then the
+three coordinates) instead of a struct datatype. Selections of
+particles (leaving a slab, belonging to a slab, holes left by the
+departed particles) use a deterministic block count and scan
+(src/particles/gpselect_mod.f90), so the local order of the particles
+is reproducible for any number of threads or teams; it differs from
+the order of the old serial compaction, which does not matter since
+the particle files are written by id. The I/O routines of the
+particles run on the host copies: they copy the ids and Lagrangian
+velocities back from the device on entry (the main program copies the
+positions), and write_pstate computes the Lagrangian quantities on
+the device before calling them. Only the initial conditions and the
+file reads run on the host, after which the states and the class
+arrays are copied to the device (sync_device). The pencil kernels of
+the spline solve carry the running values of the recurrences in
+registers; without that they are latency bound (three times slower).
+
+Performance reference for particles (HD solver, single precision, one
+million particles, nearest-neighbor exchange, second order stepper):
+on two MI210, tracers take 0.016 s per step at 128^3 and 0.063 s at
+256^3 (0.024 and 0.052 s for the fluid alone), inertial particles
+0.019 s at 128^3 and 0.12 s at 256^3. On the host, two ranks of 8
+threads take 0.063 s per step at 128^3 with tracers. The pure MPI
+build (four tasks, 128^3, one million tracers) runs at the same speed
+as before the port, 0.099 s per step, with the spline solve written
+as pencil kernels and the transposes as packed contiguous messages.
 
 Note for the ROCm modules on sakura: the llvm module loaded with
 openmpi5-rocm puts lib/llvm/lib-debug first in LD_LIBRARY_PATH; the

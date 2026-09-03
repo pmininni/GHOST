@@ -157,15 +157,13 @@
       CALL GState_update_to(force)
       fstatic = forcing_is_static(forcemethod)
       if (dopart) then
-#if defined(GHOST_GPU)
-         PRINT *,'Particles are not supported yet in offload builds'
-         STOP
-#endif
          CALL init_allpstates(icplist,fluid,field,particle,part)
          if (size(part(1)%rcomp) .ne. size(part_nxt(1)%rcomp)) then
             call GPState_resize(part_nxt,particle%partbuff_) ! We resize part_nxt
          endif
-         part_nxt = part ! We also update part_nxt
+         CALL GPState_update_to(part)     ! device copies of the particle
+         CALL particle%sync_device()      ! states and of the class arrays
+         CALL GPState_copy(part_nxt,part) ! We also update part_nxt
       endif
 
 ! Sets up the time stepper
@@ -206,6 +204,7 @@
             IF ((timep.eq.pstep).and.(bench.eq.0)) THEN
                timep = 0
                pind = pind+1
+               CALL GPState_update_from(part_nxt) ! host copies for the I/O
                CALL particle%write_pstate(time,fluid,field_nxt,part_nxt)
             ENDIF
          endif
@@ -229,7 +228,7 @@
          gdev_active = .TRUE.
          if (dopart) then
             CALL GState_copy(field,field_nxt)
-            part  = part_nxt
+            CALL GPState_copy(part,part_nxt)
             CALL stepper%gstep(time, field, part, force, dt, field_nxt, part_nxt)
          else
             CALL GState_copy(field,field_nxt)

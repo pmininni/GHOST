@@ -186,13 +186,8 @@ contains
       eff_dt = dt/real(o,kind=GP)
       ! We compute dpdt; we assume that at input, upout has a copy of upin
       call this%psolver_%dpdt(time, this%solver_, uin, upout, eff_dt, upout)
-      ! Update particles:
-!$omp parallel do collapse(2)
-      do ip = 1,this%traits_%npstate
-        do k = 1,this%psolver_%nparts_
-          upout(ip)%rcomp(k) = upin(ip)%rcomp(k) + eff_dt*upout(ip)%rcomp(k)
-        end do
-      end do
+      ! Update particles (device kernel in offload builds):
+      call GPState_upd(upout, eff_dt, upin, this%psolver_%nparts_)
       ! Sync particles at each stage
       call this%psolver_%end_stage(upin,upout)
     end do ! end, o-loop
@@ -207,14 +202,16 @@ contains
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine cstep_impl(this, time, uin, upin, uf, dt, uout, upout)
     use gpstate_mod
+    use gdevice, only: gdev_active
     implicit none
 
     class(CanutoStepper), intent(inout)         :: this
-    type    (GStateComp), intent(inout)         :: uin (:), uf(:), uout(:)
+    type    (GStateComp), intent(inout), target :: uin (:), uf(:), uout(:)
     type    (GStateComp), allocatable           :: fdbk(:)
     type   (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
     real       (kind=GP), intent   (in)         :: time, dt
     real       (kind=GP)                        :: eff_dt
+    complex    (kind=GP), pointer, dimension(:,:,:) :: po,pi
     integer                                     :: i,j,k,o,state_size
     integer                                     :: ic,ip,nparts
     logical                                     :: bret
@@ -250,28 +247,27 @@ contains
           uout(ic)%ccomp = uout(ic)%ccomp + fdbk(ic)%ccomp
         end do
       endif
-      ! Update fields and particles inside one parallel region, so the
-      ! team is forked once per stage for both updates:
-!$omp parallel private (k)
-!$omp do collapse(3)
+      ! Update fields and particles (device kernels in offload builds)
       do ic = 1,this%traits_%nstate
+        po => uout(ic)%ccomp
+        pi => uin (ic)%ccomp
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+        do i = ista,iend
+          do j = 1,ny
+            do k = 1,nz
+#else
+!$omp parallel do collapse(2) private (k)
         do i = ista,iend
           do j = 1,ny
             do concurrent (k=1:nz)
-              uout(ic)%ccomp(k,j,i) = uin(ic)%ccomp(k,j,i) + eff_dt*uout(ic)%ccomp(k,j,i)
+#endif
+              po(k,j,i) = pi(k,j,i) + eff_dt*po(k,j,i)
             end do
           end do
         end do
       end do
-!$omp end do
-!$omp do collapse(2)
-      do ip = 1,this%traits_%npstate
-        do k = 1,this%psolver_%nparts_
-          upout(ip)%rcomp(k) = upin(ip)%rcomp(k) + eff_dt*upout(ip)%rcomp(k)
-        end do
-      end do
-!$omp end do
-!$omp end parallel
+      call GPState_upd(upout, eff_dt, upin, this%psolver_%nparts_)
       ! Sync particles at each stage
       call this%psolver_%end_stage(upin,upout)
     end do ! end, o-loop

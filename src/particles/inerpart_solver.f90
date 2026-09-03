@@ -40,6 +40,9 @@
 module inerpart_mod
   use particlebase_mod
   use gpstate_mod
+  use pseudospec_fluid, only: copy3, scal3, saxpby_c, rotor3, derivk3
+  use gmem
+  use gdevice, only: gdev_active
 
   implicit none
 
@@ -147,14 +150,15 @@ CONTAINS
     class       (Ipart),             intent(inout) :: this
     class(EquationBase),             intent   (in) :: pde
     real      (kind=GP),             intent   (in) :: time, dt
-    type   (GStateComp),             intent   (in) :: fluidstate(:)
+    type   (GStateComp), target ,    intent   (in) :: fluidstate(:)
     type  (GPStateComp), target ,    intent   (in) :: pstate(:)
-    type  (GPStateComp),             intent(inout) :: dpdtout(:)
-    complex   (KIND=GP), pointer, dimension(:,:,:) :: velc
+    type  (GPStateComp), target ,    intent(inout) :: dpdtout(:)
+    complex   (KIND=GP), pointer, dimension(:,:,:) :: velc,vc
     real      (KIND=GP), pointer, dimension(:,:,:) :: velr,tmp1,tmp2
     real      (kind=GP)                            :: rmp, invtau, grav
     real      (kind=GP)                            :: cdrag, rep2, dx, dy, dz
     real      (kind=GP)                            :: rep2_coef
+    real      (kind=GP), pointer, dimension(:)     :: dpx,dpy,dpz,dvx,dvy,dvz,pvx,pvy,pvz
     integer                                        :: i,j,k
     logical                                        :: bret
 
@@ -183,92 +187,39 @@ CONTAINS
       ! Step 1: Interpolate fluid velocity to lvx_, lvy_, lvz_
       rmp = 1.0_GP/(real(this%nd_(1),kind=GP)*real(this%nd_(2),kind=GP)* &
                     real(this%nd_(3),kind=GP))
-      !$omp parallel do collapse(2) private (k)
-      do i = ista,iend
-        do j = 1,ny
-          do concurrent (k=1:nz)
-            velc(k,j,i) = fluidstate(pde%VELOCITY  )%ccomp(k,j,i)*rmp
-          end do
-        end do
-      end do
+      vc => fluidstate(pde%VELOCITY)%ccomp
+      CALL copy3(vc,velc)
+      CALL scal3(velc,rmp)
       call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
       call this%EulerToLag(this%lvx_,this%nparts_,velr,.true. ,tmp1,tmp2)
-      !$omp parallel do collapse(2) private (k)
-      do i = ista,iend
-        do j = 1,ny
-          do concurrent (k=1:nz)
-            velc(k,j,i) = fluidstate(pde%VELOCITY+1)%ccomp(k,j,i)*rmp
-          end do
-        end do
-      end do
+      vc => fluidstate(pde%VELOCITY+1)%ccomp
+      CALL copy3(vc,velc)
+      CALL scal3(velc,rmp)
       call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
       call this%EulerToLag(this%lvy_,this%nparts_,velr,.false.,tmp1,tmp2)
-      !$omp parallel do collapse(2) private (k)
-      do i = ista,iend
-        do j = 1,ny
-          do concurrent (k=1:nz)
-            velc(k,j,i) = fluidstate(pde%VELOCITY+2)%ccomp(k,j,i)*rmp
-          end do
-        end do
-      end do
+      vc => fluidstate(pde%VELOCITY+2)%ccomp
+      CALL copy3(vc,velc)
+      CALL scal3(velc,rmp)
       call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
       call this%EulerToLag(this%lvz_,this%nparts_,velr,.false.,tmp1,tmp2)
 
       rep2_coef = this%traits_%nld_rep
-      ! One parallel region for the position, drag and gravity loops:
-      ! the team is forked once, and every thread takes the same IF branches
-!$omp parallel private(dx,dy,dz,rep2,cdrag)
-      ! Step 2: Position RHS: dx/dt = v_p
-      ! (may overwrite pstate(POSITION) depending on the stepper call)
-!$omp do
-      do j = 1,this%nparts_
-        dpdtout(this%POSITION  )%rcomp(j)=pstate(this%VELOCITY  )%rcomp(j)*this%invdel_(1)
-        dpdtout(this%POSITION+1)%rcomp(j)=pstate(this%VELOCITY+1)%rcomp(j)*this%invdel_(2)
-        dpdtout(this%POSITION+2)%rcomp(j)=pstate(this%VELOCITY+2)%rcomp(j)*this%invdel_(3)
-      end do
-
-      ! Step 3: Velocity RHS: dv_p/dt = cdrag/tau * (u - v_p)
-      ! (reads pstate(VELOCITY) before it may be overwritten by some steppers)
-      if ( .not. this%traits_%donldrag ) then
-        ! Linear Stokes drag
-!$omp do
-        do j = 1,this%nparts_
-          dpdtout(this%VELOCITY  )%rcomp(j) = &
-            (this%lvx_(j) - pstate(this%VELOCITY  )%rcomp(j)) * invtau
-          dpdtout(this%VELOCITY+1)%rcomp(j) = &
-            (this%lvy_(j) - pstate(this%VELOCITY+1)%rcomp(j)) * invtau
-          dpdtout(this%VELOCITY+2)%rcomp(j) = &
-            (this%lvz_(j) - pstate(this%VELOCITY+2)%rcomp(j)) * invtau
-        end do
-      else
-        ! Nonlinear drag (Clift & Gauvin 1971):
-        !   cdrag = 1 + 0.15 * Re_p^0.687
-        !             + Re_p^2.16 / (57.14 * (Re_p^1.16 + 4.25e4))
-        !   where Re_p^2 = rep2_coef * |u - v_p|^2,
-        !         rep2_coef = 18 tau gamma / nu
-!$omp do
-        do j = 1,this%nparts_
-          dx = this%lvx_(j) - pstate(this%VELOCITY  )%rcomp(j)
-          dy = this%lvy_(j) - pstate(this%VELOCITY+1)%rcomp(j)
-          dz = this%lvz_(j) - pstate(this%VELOCITY+2)%rcomp(j)
-          rep2 = rep2_coef * (dx**2 + dy**2 + dz**2)
-          cdrag = 1.0_GP + 0.15_GP * rep2 ** 0.3435_GP                  &
-                + rep2 ** 1.08_GP / (57.14_GP * (rep2 ** 0.58_GP + 4.25e4_GP))
-          dpdtout(this%VELOCITY  )%rcomp(j) = dx * cdrag * invtau
-          dpdtout(this%VELOCITY+1)%rcomp(j) = dy * cdrag * invtau
-          dpdtout(this%VELOCITY+2)%rcomp(j) = dz * cdrag * invtau
-        end do
-      endif
-
-      ! Add gravity in z-direction
-      if ( this%traits_%dograv ) then
-!$omp do
-        do j = 1,this%nparts_
-          dpdtout(this%VELOCITY+2)%rcomp(j) = &
-            dpdtout(this%VELOCITY+2)%rcomp(j) - grav
-        end do
-      endif
-!$omp end parallel
+      ! Steps 2 and 3 in one kernel over the particles: position RHS
+      ! dx/dt = v_p and velocity RHS dv_p/dt = cdrag/tau (u - v_p) - g.
+      ! pstate and dpdtout may alias (some steppers pass upout for
+      ! both): each particle reads its velocity before writing its RHS.
+      dpx => dpdtout(this%POSITION  )%rcomp
+      dpy => dpdtout(this%POSITION+1)%rcomp
+      dpz => dpdtout(this%POSITION+2)%rcomp
+      dvx => dpdtout(this%VELOCITY  )%rcomp
+      dvy => dpdtout(this%VELOCITY+1)%rcomp
+      dvz => dpdtout(this%VELOCITY+2)%rcomp
+      pvx => pstate (this%VELOCITY  )%rcomp
+      pvy => pstate (this%VELOCITY+1)%rcomp
+      pvz => pstate (this%VELOCITY+2)%rcomp
+      call ipart_rhs(this%nparts_,this%lvx_,this%lvy_,this%lvz_,pvx,pvy,pvz,   &
+                     dpx,dpy,dpz,dvx,dvy,dvz,this%invdel_,invtau,grav,rep2_coef, &
+                     this%traits_%donldrag,this%traits_%dograv)
     class default
       stop "Inerpart: This solver does not support pdes without a velocity field"
     end select
@@ -465,54 +416,43 @@ CONTAINS
 !$  use threads
     class       (IPart),             intent(inout) :: this
     class(EquationBase),             intent   (in) :: pde
-    type   (GStateComp),             intent   (in) :: fluidstate(:)
+    type   (GStateComp), target ,    intent   (in) :: fluidstate(:)
     type  (GPStateComp), target ,    intent   (in) :: pstate(:)
     real      (kind=GP),             intent   (in) :: time
-    complex   (kind=GP), pointer, dimension(:,:,:) :: velc, velc2
+    complex   (kind=GP), pointer, dimension(:,:,:) :: velc, velc2, vc
     real      (kind=GP), pointer, dimension(:,:,:) :: velr,tmp1,tmp2
     real      (kind=GP)                            :: rmp
     integer                                        :: i,j,k
-    logical                                        :: bret
+    logical                                        :: bret,wasdev
 
     call this%workspace_%get_complex_tmp(velc,bret)
     call this%workspace_%get_real_tmp   (velr,bret)
     call this%workspace_%get_real_tmp   (tmp1,bret)
     call this%workspace_%get_real_tmp   (tmp2,bret)
     call this%AssignLagPos(pstate)
+    ! The interpolations run on the device copies (the fluid state is
+    ! current there); the I/O routines switch to the host copies
+    wasdev = gdev_active
+    gdev_active = .TRUE.
 
     select type (pde)
     class is (VelocityBase)
       rmp = 1.0_GP/(real(this%nd_(1),kind=GP)*real(this%nd_(2),kind=GP)* &
                     real(this%nd_(3),kind=GP))
       ! Interpolate fluid velocity to particle positions
-!$omp parallel do collapse(2) private (k)
-      DO i = ista,iend
-        DO j = 1,ny
-          DO CONCURRENT (k=1:nz)
-            velc(k,j,i) = fluidstate(pde%VELOCITY  )%ccomp(k,j,i)*rmp
-          END DO
-        END DO
-      END DO
+      vc => fluidstate(pde%VELOCITY)%ccomp
+      CALL copy3(vc,velc)
+      CALL scal3(velc,rmp)
       CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
       CALL this%EulerToLag(this%lvx_,this%nparts_,velr,.true. ,tmp1,tmp2)
-!$omp parallel do collapse(2) private (k)
-      DO i = ista,iend
-        DO j = 1,ny
-          DO CONCURRENT (k=1:nz)
-            velc(k,j,i) = fluidstate(pde%VELOCITY+1)%ccomp(k,j,i)*rmp
-          END DO
-        END DO
-      END DO
+      vc => fluidstate(pde%VELOCITY+1)%ccomp
+      CALL copy3(vc,velc)
+      CALL scal3(velc,rmp)
       CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
       CALL this%EulerToLag(this%lvy_,this%nparts_,velr,.false.,tmp1,tmp2)
-!$omp parallel do collapse(2) private (k)
-      DO i = ista,iend
-        DO j = 1,ny
-          DO CONCURRENT (k=1:nz)
-            velc(k,j,i) = fluidstate(pde%VELOCITY+2)%ccomp(k,j,i)*rmp
-          END DO
-        END DO
-      END DO
+      vc => fluidstate(pde%VELOCITY+2)%ccomp
+      CALL copy3(vc,velc)
+      CALL scal3(velc,rmp)
       CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
       CALL this%EulerToLag(this%lvz_,this%nparts_,velr,.false.,tmp1,tmp2)
       ! Write positions and Lagrangian fluid velocity
@@ -520,49 +460,26 @@ CONTAINS
       CALL this%io_write_pdb(1,this%odir_,trim(this%sstate_pos_),lgext,time)
       CALL this%io_write_vec(1,this%odir_,trim(this%sstate_lag_),lgext,time)
       ! Write inertial particle velocity
-      do j = 1,this%nparts_
-        this%lvx_(j) = pstate(this%VELOCITY  )%rcomp(j)
-        this%lvy_(j) = pstate(this%VELOCITY+1)%rcomp(j)
-        this%lvz_(j) = pstate(this%VELOCITY+2)%rcomp(j)
-      end do
+      call gcopy(this%lvx_, pstate(this%VELOCITY  )%rcomp)
+      call gcopy(this%lvy_, pstate(this%VELOCITY+1)%rcomp)
+      call gcopy(this%lvz_, pstate(this%VELOCITY+2)%rcomp)
       CALL this%io_write_vec(1,this%odir_,trim(this%sstate_vel_),lgext,time)
 ! partlod >= 2: write Lagrangian vorticity and strain-rate tensor
       if ( this%traits_%partlod .ge. 2 ) then
 ! Write Lagrangian vorticity components
         CALL rotor3(fluidstate(pde%VELOCITY+1)%ccomp, &
                     fluidstate(pde%VELOCITY+2)%ccomp, velc, 1)
-!$omp parallel do collapse(2) private (k)
-        DO i = ista,iend
-          DO j = 1,ny
-            DO CONCURRENT (k=1:nz)
-              velc(k,j,i) = velc(k,j,i)*rmp
-            END DO
-          END DO
-        END DO
+        CALL scal3(velc,rmp)
         CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
         CALL this%EulerToLag(this%lvx_,this%nparts_,velr,.false.,tmp1,tmp2)
         CALL rotor3(fluidstate(pde%VELOCITY  )%ccomp, &
                     fluidstate(pde%VELOCITY+2)%ccomp, velc, 2)
-!$omp parallel do collapse(2) private (k)
-        DO i = ista,iend
-          DO j = 1,ny
-            DO CONCURRENT (k=1:nz)
-              velc(k,j,i) = velc(k,j,i)*rmp
-            END DO
-          END DO
-        END DO
+        CALL scal3(velc,rmp)
         CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
         CALL this%EulerToLag(this%lvy_,this%nparts_,velr,.false.,tmp1,tmp2)
         CALL rotor3(fluidstate(pde%VELOCITY  )%ccomp, &
                     fluidstate(pde%VELOCITY+1)%ccomp, velc, 3)
-!$omp parallel do collapse(2) private (k)
-        DO i = ista,iend
-          DO j = 1,ny
-            DO CONCURRENT (k=1:nz)
-              velc(k,j,i) = velc(k,j,i)*rmp
-            END DO
-          END DO
-        END DO
+        CALL scal3(velc,rmp)
         CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
         CALL this%EulerToLag(this%lvz_,this%nparts_,velr,.false.,tmp1,tmp2)
         CALL this%io_write_vec(1,this%odir_,'wlg',lgext,time)
@@ -570,65 +487,30 @@ CONTAINS
         call this%workspace_%get_complex_tmp(velc2,bret)
         ! S11 = dv_x/dx
         CALL derivk3(fluidstate(pde%VELOCITY  )%ccomp, velc, 1)
-!$omp parallel do collapse(2) private (k)
-        DO i = ista,iend
-          DO j = 1,ny
-            DO CONCURRENT (k=1:nz)
-              velc(k,j,i) = velc(k,j,i)*rmp
-            END DO
-          END DO
-        END DO
+        CALL scal3(velc,rmp)
         CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
         CALL this%io_write_euler(1,this%odir_,'s11',lgext,time,velr,.false.,tmp1,tmp2)
         ! S12 = 0.5*(dv_x/dy + dv_y/dx)
         CALL derivk3(fluidstate(pde%VELOCITY  )%ccomp, velc,  2)
         CALL derivk3(fluidstate(pde%VELOCITY+1)%ccomp, velc2, 1)
-!$omp parallel do collapse(2) private (k)
-        DO i = ista,iend
-          DO j = 1,ny
-            DO CONCURRENT (k=1:nz)
-              velc(k,j,i) = 0.5_GP*(velc(k,j,i)+velc2(k,j,i))*rmp
-            END DO
-          END DO
-        END DO
+        CALL saxpby_c(velc,velc,0.5_GP*rmp,velc2,0.5_GP*rmp)
         CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
         CALL this%io_write_euler(1,this%odir_,'s12',lgext,time,velr,.false.,tmp1,tmp2)
         ! S13 = 0.5*(dv_x/dz + dv_z/dx)
         CALL derivk3(fluidstate(pde%VELOCITY  )%ccomp, velc,  3)
         CALL derivk3(fluidstate(pde%VELOCITY+2)%ccomp, velc2, 1)
-!$omp parallel do collapse(2) private (k)
-        DO i = ista,iend
-          DO j = 1,ny
-            DO CONCURRENT (k=1:nz)
-              velc(k,j,i) = 0.5_GP*(velc(k,j,i)+velc2(k,j,i))*rmp
-            END DO
-          END DO
-        END DO
+        CALL saxpby_c(velc,velc,0.5_GP*rmp,velc2,0.5_GP*rmp)
         CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
         CALL this%io_write_euler(1,this%odir_,'s13',lgext,time,velr,.false.,tmp1,tmp2)
         ! S22 = dv_y/dy
         CALL derivk3(fluidstate(pde%VELOCITY+1)%ccomp, velc, 2)
-!$omp parallel do collapse(2) private (k)
-        DO i = ista,iend
-          DO j = 1,ny
-            DO CONCURRENT (k=1:nz)
-              velc(k,j,i) = velc(k,j,i)*rmp
-            END DO
-          END DO
-        END DO
+        CALL scal3(velc,rmp)
         CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
         CALL this%io_write_euler(1,this%odir_,'s22',lgext,time,velr,.false.,tmp1,tmp2)
         ! S23 = 0.5*(dv_y/dz + dv_z/dy)
         CALL derivk3(fluidstate(pde%VELOCITY+1)%ccomp, velc,  3)
         CALL derivk3(fluidstate(pde%VELOCITY+2)%ccomp, velc2, 2)
-!$omp parallel do collapse(2) private (k)
-        DO i = ista,iend
-          DO j = 1,ny
-            DO CONCURRENT (k=1:nz)
-              velc(k,j,i) = 0.5_GP*(velc(k,j,i)+velc2(k,j,i))*rmp
-            END DO
-          END DO
-        END DO
+        CALL saxpby_c(velc,velc,0.5_GP*rmp,velc2,0.5_GP*rmp)
         CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
         CALL this%io_write_euler(1,this%odir_,'s23',lgext,time,velr,.false.,tmp1,tmp2)
         call this%workspace_%free_complex_tmp(velc2)
@@ -641,6 +523,7 @@ CONTAINS
     call this%workspace_%free_real_tmp   (velr)
     call this%workspace_%free_real_tmp   (tmp1)
     call this%workspace_%free_real_tmp   (tmp2)
+    gdev_active = wasdev
   end subroutine write_pstate_impl
 
 
@@ -737,7 +620,6 @@ CONTAINS
     ! Initialize communicators
     CALL this%gpcomm_%GPartComm_ctor(GPCOMM_INTRFC_SF,this%partbuff_, &
          this%nd_,this%intorder_-1,this%comm_,this%htimers_(GPTIME_COMM))
-    CALL this%gpcomm_%SetCacheParam(csize,nstrip)
     CALL this%gpcomm_%Init()
 
     this%libnds_(1,1) = 1
@@ -791,10 +673,11 @@ CONTAINS
 
     ! Allocate particle arrays
     CALL MPI_TYPE_SIZE(GC_REAL,szreal,this%ierr_)
-    ALLOCATE(this%id_      (this%partbuff_))
-    ALLOCATE(this%tmpint_  (this%partbuff_))
-    ALLOCATE(this%ptmp0_ (3,this%partbuff_))
-    ALLOCATE(this%gptmp0_(3,this%partbuff_))
+    CALL galloc(this%id_    ,this%partbuff_)
+    CALL galloc(this%tmpint_,this%partbuff_)
+    CALL galloc(this%iwrk_  ,this%partbuff_)
+    CALL galloc(this%ptmp0_ ,3,this%partbuff_)
+    CALL galloc(this%gptmp0_,3,this%partbuff_)
     num_components = this%state_size()  ! Returns 6
     CALL GPState_alloc(pstate    , num_components, this%partbuff_)
     CALL GPState_alloc(pstate_cpy, num_components, this%partbuff_)
@@ -804,7 +687,7 @@ CONTAINS
     call this%workspace_%get_pcomp_tmp(this%lvy_,bret)
     call this%workspace_%get_pcomp_tmp(this%lvz_,bret)
     IF ( this%iexchtype_.EQ.GPEXCHTYPE_VDB ) THEN
-      ALLOCATE(this%vdb_   (3,this%partbuff_))
+      CALL galloc(this%vdb_,3,this%partbuff_)
     ENDIF
   END SUBROUTINE Ipart_ctor
 
@@ -816,12 +699,12 @@ CONTAINS
     IMPLICIT NONE
     TYPE(Ipart),INTENT(INOUT) :: this
     integer                   :: j
-    IF ( ALLOCATED    (this%id_) ) DEALLOCATE    (this%id_)
-    IF ( ALLOCATED(this%tmpint_) ) DEALLOCATE(this%tmpint_)
-    IF ( ALLOCATED   (this%idm_) ) DEALLOCATE   (this%idm_)
-    IF ( ALLOCATED   (this%vdb_) ) DEALLOCATE   (this%vdb_)
-    IF ( ALLOCATED (this%ptmp0_) ) DEALLOCATE (this%ptmp0_)
-    IF ( ALLOCATED(this%gptmp0_) ) DEALLOCATE(this%gptmp0_)
+    CALL gfree(this%id_)
+    CALL gfree(this%tmpint_)
+    CALL gfree(this%iwrk_)
+    CALL gfree(this%vdb_)
+    CALL gfree(this%ptmp0_)
+    CALL gfree(this%gptmp0_)
     IF ( ASSOCIATED   (this%px_) ) NULLIFY       (this%px_)
     IF ( ASSOCIATED   (this%py_) ) NULLIFY       (this%py_)
     IF ( ASSOCIATED   (this%pz_) ) NULLIFY       (this%pz_)
@@ -832,6 +715,57 @@ CONTAINS
       CALL GTFree(this%htimers_(j))
     ENDDO
   END SUBROUTINE Ipart_dtor
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Kernel: right-hand side of the n inertial particles
+  !!   dp/dt = v_p / delta       (positions in grid units)
+  !!   dv/dt = cdrag/tau (u - v_p) - grav z_hat
+  !! with cdrag = 1 for linear Stokes drag, or the nonlinear
+  !! drag of Clift & Gauvin (1971):
+  !!   cdrag = 1 + 0.15 Re_p^0.687 + Re_p^2.16/(57.14 (Re_p^1.16+4.25e4))
+  !!   Re_p^2 = rep2_coef |u - v_p|^2, rep2_coef = 18 tau gamma / nu
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine ipart_rhs(n,lvx,lvy,lvz,pvx,pvy,pvz,dpx,dpy,dpz,dvx,dvy,dvz, &
+                       invdel,invtau,grav,rep2_coef,donldrag,dograv)
+    implicit none
+    integer      , intent(in)    :: n
+    real(kind=GP), intent(in)    :: lvx(n),lvy(n),lvz(n),pvx(n),pvy(n),pvz(n)
+    real(kind=GP), intent(inout) :: dpx(n),dpy(n),dpz(n),dvx(n),dvy(n),dvz(n)
+    real(kind=GP), intent(in)    :: invdel(3),invtau,grav,rep2_coef
+    logical      , intent(in)    :: donldrag,dograv
+    real(kind=GP)                :: vx,vy,vz,dx,dy,dz,rep2,cdrag,tz
+    integer                      :: j
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active) &
+!$omp   private(vx,vy,vz,dx,dy,dz,rep2,cdrag,tz)
+#else
+!$omp parallel do private(vx,vy,vz,dx,dy,dz,rep2,cdrag,tz)
+#endif
+    do j = 1,n
+      vx = pvx(j); vy = pvy(j); vz = pvz(j)
+      dpx(j) = vx*invdel(1)
+      dpy(j) = vy*invdel(2)
+      dpz(j) = vz*invdel(3)
+      dx = lvx(j) - vx
+      dy = lvy(j) - vy
+      dz = lvz(j) - vz
+      if ( donldrag ) then
+        rep2 = rep2_coef * (dx**2 + dy**2 + dz**2)
+        cdrag = 1.0_GP + 0.15_GP * rep2 ** 0.3435_GP                  &
+              + rep2 ** 1.08_GP / (57.14_GP * (rep2 ** 0.58_GP + 4.25e4_GP))
+        dvx(j) = dx * cdrag * invtau
+        dvy(j) = dy * cdrag * invtau
+        tz     = dz * cdrag * invtau
+      else
+        dvx(j) = dx * invtau
+        dvy(j) = dy * invtau
+        tz     = dz * invtau
+      endif
+      if ( dograv ) tz = tz - grav
+      dvz(j) = tz
+    end do
+  end subroutine ipart_rhs
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

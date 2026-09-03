@@ -1,6 +1,6 @@
 add_library(particles_lib STATIC
   pstatus_mod.f90
-  gpdbrec_mod.f90
+  gpselect_mod.f90
   gpartcomm_mod.f90
   gpsplineint_mod.F90
   particle_base.f90
@@ -24,4 +24,4 @@ add_dependencies(particles_lib
   )
 
 # Link MPI if needed
-target_link_libraries(particles_lib PUBLIC project_mpi pseudo_lib utils_lib pdes_lib)
+target_link_libraries(particles_lib PUBLIC project_mpi pseudo_lib utils_lib pdes_lib gmem_lib)
