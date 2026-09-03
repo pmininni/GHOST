@@ -234,7 +234,7 @@ contains
     implicit none
 
     class(GExRKStepper), intent(inout) :: this
-    type   (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
+    type   (GStateComp), intent(inout), target :: uin(:), uf(:), uout(:)
     real      (kind=GP), intent   (in) :: time, dt
        
     if ( size(uin) .ne. this%traits_%nstate &
@@ -310,7 +310,7 @@ contains
     implicit none
 
     class(GExRKStepper), intent(inout)         :: this
-    type   (GStateComp), intent(inout)         :: uin (:), uf(:), uout(:)
+    type   (GStateComp), intent(inout), target         :: uin(:), uf(:), uout(:)
     type   (GStateComp), allocatable           :: fdbk(:)
     type  (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
     real      (kind=GP), intent   (in)         :: time, dt
@@ -349,7 +349,7 @@ contains
     implicit none
 
     class(GExRKStepper), intent(inout) :: this
-    type   (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
+    type   (GStateComp), intent(inout), target :: uin(:), uf(:), uout(:)
     real      (kind=GP), intent   (in) :: time, dt
     real      (kind=GP)                :: tt, eff_dt
     integer                            :: j,m,n
@@ -360,7 +360,7 @@ contains
    
     ! Compute stage data:
     do m = 1, this%traits_%nstage
-      this%utmp_ = uin                 ! set temp state
+      call GState_copy(this%utmp_, uin) ! set temp state
       do j = 1, m-1                    ! utmp = utmp + h beta K_j
         do n = 1, this%traits_%nstate  ! set utmp components
           call saxpby_c(this%utmp_(n)%ccomp, this%utmp_(n)%ccomp,    &
@@ -373,7 +373,7 @@ contains
     enddo ! stage m loop
 
     ! Combine stages to get step update:
-    uout = uin
+    call GState_copy(uout, uin)
     do m = 1, this%traits_%nstage  
       do n = 1, this%traits_%nstate    ! uout = uout + h * c_m * K_m
         call saxpby_c(uout(n)%ccomp, uout(n)%ccomp, 1.0_GP,          &
@@ -404,21 +404,22 @@ contains
 
     ! We allocate tmp arrays for particles here as we need the particle state size
     nparts = this%psolver_%partbuff_
-    call GPState_alloc(this%putmp_,this%traits_%npstate,nparts)
-    call GPStateArr_alloc(this%pK_,this%traits_%nstage,this%traits_%npstate,nparts)
+    ! The particle temporaries persist between steps; they are
+    ! (re)allocated only when the particle buffer changes size
+    if ( .not.allocated(this%putmp_) ) then
+      call GPState_alloc(this%putmp_,this%traits_%npstate,nparts)
+      call GPStateArr_alloc(this%pK_,this%traits_%nstage,this%traits_%npstate,nparts)
+    else if ( size(this%putmp_(1)%rcomp) .ne. nparts ) then
+      call GPState_resize(this%putmp_,nparts,.false.)
+      call GPStateArr_resize(this%pK_,nparts,.false.)
+    endif
     
     ! Compute stage data:
     do m = 1, this%traits_%nstage
-      this%putmp_ = upin               ! set temp state
+      call GPState_copy(this%putmp_, upin) ! set temp state
       do j = 1, m-1                    ! putmp = putmp + h beta pK_j
         eff_dt = this%beta_(m,j) * dt
-!$omp parallel do collapse(2)
-        do n = 1, this%traits_%npstate ! set putmp components
-          do k = 1, nparts
-            this%putmp_(n)%rcomp(k) = this%putmp_(n)%rcomp(k)                  &
-                                    + this%pK_(j)%rpstate(n)%rcomp(k)*eff_dt
-          enddo
-        enddo
+        call GPState_axpy(this%putmp_, eff_dt, this%pK_(j)%rpstate, nparts)
       enddo ! j-loop
       tt = time + this%alpha_(m) * dt  ! dpdt called AFTER j-loop
       eff_dt    = this%alpha_(m) * dt
@@ -426,23 +427,15 @@ contains
     enddo ! stage m loop
 
     ! Combine stages to get step update
-    upout = upin
+    call GPState_copy(upout, upin)
     do m = 1, this%traits_%nstage  
       eff_dt = this%c_(m) * dt
-!$omp parallel do collapse(2)
-      do n = 1, this%traits_%npstate   ! upout = upout + h * c_m * pK_m
-        do k = 1, nparts
-          upout(n)%rcomp(k) = upout(n)%rcomp(k)                                &
-                            + this%pK_(m)%rpstate(n)%rcomp(k) * eff_dt
-        enddo
-      enddo
+      call GPState_axpy(upout, eff_dt, this%pK_(m)%rpstate, nparts)
     enddo ! m-loop
 
     ! We now can deallocate the tmp arrays, and sync/resize upin, upout.
     ! Note that this is the only sync done, if the particles move too fast
     ! during the substepping stages (dt too long) this method may fail.
-    call GPState_dealloc(this%putmp_)
-    call GPStateArr_dealloc(this%pK_)
     call this%psolver_%end_stage(upin,upout)
   end subroutine pstep_butcher
 
@@ -456,7 +449,7 @@ contains
     implicit none
 
     class(GExRKStepper), intent(inout) :: this
-    type   (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
+    type   (GStateComp), intent(inout), target :: uin(:), uf(:), uout(:)
     type   (GStateComp), allocatable   :: fdbk(:)
     type  (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
     real      (kind=GP), intent   (in) :: time, dt
@@ -476,26 +469,27 @@ contains
 
     ! We allocate tmp arrays for particles here as we need the particle state size
     nparts = this%psolver_%partbuff_
-    call GPState_alloc(this%putmp_,this%traits_%npstate,nparts)
-    call GPStateArr_alloc(this%pK_,this%traits_%nstage,this%traits_%npstate,nparts)
+    ! The particle temporaries persist between steps; they are
+    ! (re)allocated only when the particle buffer changes size
+    if ( .not.allocated(this%putmp_) ) then
+      call GPState_alloc(this%putmp_,this%traits_%npstate,nparts)
+      call GPStateArr_alloc(this%pK_,this%traits_%nstage,this%traits_%npstate,nparts)
+    else if ( size(this%putmp_(1)%rcomp) .ne. nparts ) then
+      call GPState_resize(this%putmp_,nparts,.false.)
+      call GPStateArr_resize(this%pK_,nparts,.false.)
+    endif
     
     ! Compute stage data:
     do m = 1, this%traits_%nstage
-      this%utmp_  = uin                ! set temp states
-      this%putmp_ = upin
+      call GState_copy(this%utmp_, uin)    ! set temp states
+      call GPState_copy(this%putmp_, upin)
       do j = 1, m-1
         do n = 1, this%traits_%nstate  ! set utmp  = utmp  + h beta K_j
           call saxpby_c(this%utmp_(n)%ccomp,  this%utmp_(n)%ccomp,   &
                1.0_GP, this%K_(j)%cstate(n)%ccomp,   this%beta_(m,j)*dt)
         enddo
         eff_dt  = this%beta_(m,j) * dt
-!$omp parallel do collapse(2)
-        do n = 1, this%traits_%npstate ! set putmp = putmp + h beta pK_j
-          do k = 1, nparts
-            this%putmp_(n)%rcomp(k) = this%putmp_(n)%rcomp(k)                  &
-                                    + this%pK_(j)%rpstate(n)%rcomp(k)*eff_dt
-          enddo
-        enddo
+        call GPState_axpy(this%putmp_, eff_dt, this%pK_(j)%rpstate, nparts)
       enddo ! j-loop
       tt = time + this%alpha_(m) * dt  ! feedback and d/dt called AFTER j-loop
       eff_dt    = this%alpha_(m) * dt
@@ -513,28 +507,20 @@ contains
     enddo ! stage m loop
     
     ! Combine stages to get step update
-    uout  = uin
-    upout = upin
+    call GState_copy(uout, uin)
+    call GPState_copy(upout, upin)
     do m = 1, this%traits_%nstage  
       do n = 1, this%traits_%nstate    ! uout  = uout  + h * c_m * K_m
         call saxpby_c(uout(n)%ccomp, uout(n)%ccomp, 1.0_GP,          &
              this%K_(m)%cstate(n)%ccomp, this%c_(m)*dt)
-     enddo
-     eff_dt = this%c_(m) * dt
-!$omp parallel do collapse(2)
-     do n = 1, this%traits_%npstate   ! upout = upout + h * c_m * pK_m
-        do k = 1, nparts
-          upout(n)%rcomp(k) = upout(n)%rcomp(k)                                &
-                            + this%pK_(m)%rpstate(n)%rcomp(k) * eff_dt
-        enddo
       enddo
+      eff_dt = this%c_(m) * dt
+      call GPState_axpy(upout, eff_dt, this%pK_(m)%rpstate, nparts)
     enddo ! m-loop
     
     ! We now can deallocate the tmp arrays, and sync/resize upin, upout.
     ! Note that this is the only sync done, if the particles move too fast
     ! during the substepping stages (dt too long) this method may fail.
-    call GPState_dealloc(this%putmp_)
-    call GPStateArr_dealloc(this%pK_)
     if ( this%psolver_%hasfeedback_ ) call GState_dealloc(fdbk)
     call this%psolver_%end_stage(upin,upout)    
   end subroutine cstep_butcher
@@ -547,7 +533,7 @@ contains
     implicit none
 
     class(GExRKStepper), intent   (in) :: this
-    type   (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
+    type   (GStateComp), intent(inout), target :: uin(:), uf(:), uout(:)
     real      (kind=GP), intent   (in) :: time, dt
     stop 'GExRKStepper::step_mixed: GEXRK_MIXED not yet supported!'
   end subroutine step_mixed
@@ -574,7 +560,7 @@ contains
     implicit none
 
     class(GExRKStepper), intent   (in) :: this
-    type   (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
+    type   (GStateComp), intent(inout), target :: uin(:), uf(:), uout(:)
     type  (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
     real      (kind=GP), intent   (in) :: time, dt
     stop 'GExRKStepper::cstep_mixed: GEXRK_MIXED not yet supported!'
@@ -588,7 +574,7 @@ contains
     implicit none
 
     class(GExRKStepper), intent   (in) :: this
-    type   (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
+    type   (GStateComp), intent(inout), target :: uin(:), uf(:), uout(:)
     real      (kind=GP), intent   (in) :: time, dt
     stop 'GExRKStepper::step_ssp: GEXRK_SSP not yet supported!'
   end subroutine step_ssp
@@ -615,7 +601,7 @@ contains
     implicit none
 
     class(GExRKStepper), intent   (in) :: this
-    type   (GStateComp), intent(inout) :: uin(:), uf(:), uout(:)
+    type   (GStateComp), intent(inout), target :: uin(:), uf(:), uout(:)
     type  (GPStateComp), intent(inout), target, allocatable :: upin(:), upout(:)
     real      (kind=GP), intent   (in) :: time, dt
     stop 'GExRKStepper::cstep_ssp: GEXRK_SSP not yet supported!'

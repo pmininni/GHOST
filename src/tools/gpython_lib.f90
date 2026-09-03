@@ -10,7 +10,7 @@ MODULE gpython_lib
   USE iovar
   USE fft
   USE threads
-  USE offloading
+  USE gdevice
   USE boxsize
   USE status
   USE pstatus
@@ -25,7 +25,7 @@ MODULE gpython_lib
   ! --- Global State (Persists between Python calls) ---
   TYPE    (GStateComp), ALLOCATABLE, TARGET :: field(:),field_nxt(:),force(:)
   TYPE(GStateRealComp), ALLOCATABLE, TARGET :: realfield(:)
-  TYPE    (GWorkspace)                      :: workspace
+  TYPE    (GWorkspace), TARGET              :: workspace
   TYPE        (ioplan)                      :: planio
   CLASS (EquationBase), ALLOCATABLE         :: fluid
   CLASS (GStepperBase), ALLOCATABLE         :: stepper
@@ -75,6 +75,7 @@ CONTAINS
     ! PDE & Arrays
     fluid = init_pdes_from_file(trim(file))
     CALL workspace%initialize_pool(NUMTMPREAL, NUMTMPCOMP)
+    CALL workspace%init_host_entries(NUMTMPHREAL, NUMTMPHCOMP)
     CALL fluid%Solver_ctor(trim(file), workspace, planio)
 
     num_components = fluid%state_size()

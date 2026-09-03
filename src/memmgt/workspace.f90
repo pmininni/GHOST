@@ -8,6 +8,11 @@
 ! an array not from the pool results in error. Resizing the pool
 ! invalidates all pointers to arrays in the pool.
 !
+! Besides the device-resident real and complex pools there is a host-only
+! pool (get_*_htmp / free_*_htmp) for the temporaries of routines that
+! run on the host copies of the fields, such as the diagnostics; in
+! offload builds those arrays have no device copy.
+!
 ! Arrays handed out by get_*_tmp are NOT zeroed: the free_*_tmp
 ! methods used to zero each array on release, but that is a full
 ! field sized memset every time a temporary is returned, sixteen of
@@ -31,6 +36,7 @@ module class_GWorkspace3D
   USE fprecision
   USE mpivars
   USE grid
+  USE gmem
 
   IMPLICIT NONE
   PRIVATE
@@ -65,9 +71,22 @@ module class_GWorkspace3D
     TYPE   (RealEntry), ALLOCATABLE  :: real_entries_   (:)
     TYPE(ComplexEntry), ALLOCATABLE  :: complex_entries_(:)
     TYPE  (PCompEntry), ALLOCATABLE  :: pcomp_entries_  (:)
+    ! Host-only entries: arrays without device copy, for routines that
+    ! run on the host copies of the fields (diagnostics, I/O). They cost
+    ! no device memory and are handed out by get_*_htmp.
+    TYPE   (RealEntry), ALLOCATABLE  :: hreal_entries_   (:)
+    TYPE(ComplexEntry), ALLOCATABLE  :: hcomplex_entries_(:)
     integer :: real_size_           = 0
     integer :: complex_size_        = 0
     integer :: pcomp_size_          = 0
+    integer :: hreal_size_          = 0
+    integer :: hcomplex_size_       = 0
+    ! Peak number of arrays checked out at the same time, per pool,
+    ! reported by cleanup_pool (used to size the pools per solver)
+    integer :: real_peak_           = 0
+    integer :: complex_peak_        = 0
+    integer :: hreal_peak_          = 0
+    integer :: hcomplex_peak_       = 0
     integer :: nreserve_            = 8
     integer :: ncurr_realreserve_   = 8
     integer :: ncurr_complexreserve_= 8
@@ -80,11 +99,22 @@ module class_GWorkspace3D
     procedure, public :: resize_pcomp_arrays  ! resizes pcomp data in-place
     procedure, public :: get_real_tmp     , get_complex_tmp     , get_pcomp_tmp
     procedure, public :: free_real_tmp    , free_complex_tmp    , free_pcomp_tmp 
+    procedure, public :: init_host_entries
+    procedure, public :: report_peaks
+    procedure, public :: get_real_htmp    , get_complex_htmp
+    procedure, public :: free_real_htmp   , free_complex_htmp
     procedure, public :: get_real_tmp_size, get_complex_tmp_size, get_pcomp_tmp_size
     procedure, public :: add_real_entries , add_complex_entries , add_pcomp_entries
     procedure, public :: set_nparts, get_nparts
     final             :: cleanup_pool
   end type GWorkspace
+
+  ! The workspace of the run. GHOST has one pool; this pointer lets
+  ! the pseudospectral routines, which have no access to the solver
+  ! objects, take their field-sized temporaries from it instead of
+  ! declaring automatic arrays (which would not exist on the device).
+  ! It is set by initialize_pool.
+  CLASS(GWorkspace), POINTER, PUBLIC, SAVE :: gws => null()
 
 CONTAINS
 
@@ -97,7 +127,7 @@ CONTAINS
   ! number of arrays.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine initialize_pool(this, num_real, num_complex, num_pcomp)
-    CLASS(GWorkspace), intent(inout) :: this
+    CLASS(GWorkspace), intent(inout), target :: this
     integer          , intent(in)    :: num_real
     integer          , intent(in)    :: num_complex
     integer, optional, intent(in)    :: num_pcomp
@@ -127,17 +157,19 @@ CONTAINS
 
     ! Initialize Real entries
     do i = 1, this%real_size_
-      ! Allocate the derived type contained array
-      ALLOCATE(this%real_entries_(i)%array(nx, ny, ksta:kend))
+      ! Allocate the derived type contained array (and its device copy)
+      call galloc(this%real_entries_(i)%array, nx, ny, ksta, kend)
       this%real_entries_(i)%is_free = .TRUE.
     end do
 
     ! Initialize Complex entries
     do i = 1, this%complex_size_
-      ! Allocate the derived type contained array
-      ALLOCATE(this%complex_entries_(i)%array(nz, ny, ista:iend))
+      ! Allocate the derived type contained array (and its device copy)
+      call galloc(this%complex_entries_(i)%array, nz, ny, ista, iend)
       this%complex_entries_(i)%is_free = .TRUE.
     end do
+
+    gws => this
 
     ! PComp: create slots only, no array allocation yet.
     if (this%pcomp_size_ > 0) then
@@ -169,8 +201,9 @@ CONTAINS
  
     do i = 1, this%pcomp_size_
       if (.NOT. ALLOCATED(this%pcomp_entries_(i)%array)) then
-        ALLOCATE(this%pcomp_entries_(i)%array(partbuff))
+        call galloc(this%pcomp_entries_(i)%array, partbuff)
         this%pcomp_entries_(i)%array   = 0.0_GP
+        call gupdate_to(this%pcomp_entries_(i)%array)
         this%pcomp_entries_(i)%is_free = .TRUE.
       end if
     end do
@@ -192,8 +225,7 @@ CONTAINS
     integer          , intent(in)            :: new_size
     logical          , intent(in), optional  :: keep_data
     logical                                  :: do_keep
-    real(kind=GP)    , allocatable           :: tmp(:)
-    integer                                  :: i, copy_n
+    integer                                  :: i
  
     if (.NOT. this%pcomp_initialised_) &
       stop 'resize_pcomp_arrays: call init_pcomp_arrays first.'
@@ -204,10 +236,7 @@ CONTAINS
     if (present(keep_data)) do_keep = keep_data
     do i = 1, this%pcomp_size_
       if (ALLOCATED(this%pcomp_entries_(i)%array)) then
-        copy_n = min(this%nparts_, new_size)
-        ALLOCATE(tmp(new_size))
-        if (do_keep) tmp(1:copy_n) = this%pcomp_entries_(i)%array(1:copy_n)
-        call MOVE_ALLOC(tmp, this%pcomp_entries_(i)%array)          
+        call gresize(this%pcomp_entries_(i)%array, new_size, do_keep)
       end if
     end do
     this%nparts_ = new_size
@@ -219,18 +248,59 @@ CONTAINS
   ! Subroutine to clean up and deallocate the entire array 
   ! pool.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Reports (from task 0) the peak number of arrays checked out
+  ! at the same time from each pool, to size the pools per solver
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine report_peaks(this)
+    CLASS(GWorkspace), intent(in) :: this
+    if ( myrank .eq. 0 ) then
+      write(*,'(A,4(I0,A))') 'Workspace peak usage: ', this%real_peak_,     &
+        ' of ', this%real_size_, ' real, ', this%complex_peak_, ' of ',     &
+        this%complex_size_, ' complex'
+      write(*,'(A,4(I0,A))') 'Host pool peak usage: ', this%hreal_peak_,    &
+        ' of ', this%hreal_size_, ' real, ', this%hcomplex_peak_, ' of ',   &
+        this%hcomplex_size_, ' complex'
+    endif
+  end subroutine report_peaks
+
+
   subroutine cleanup_pool(this)
     TYPE(GWorkspace), intent(inout) :: this
+    integer :: i
 
     if (ALLOCATED(this%real_entries_)) THEN
+      do i = 1, this%real_size_
+        call gfree(this%real_entries_(i)%array)
+      end do
       DEALLOCATE(this%real_entries_)
       this%real_size_ = 0
     end if
     if (ALLOCATED(this%complex_entries_)) THEN
+      do i = 1, this%complex_size_
+        call gfree(this%complex_entries_(i)%array)
+      end do
       DEALLOCATE(this%complex_entries_)
       this%complex_size_ = 0
     end if
+    if (ALLOCATED(this%hreal_entries_)) THEN
+      do i = 1, this%hreal_size_
+        call gfree(this%hreal_entries_(i)%array)
+      end do
+      DEALLOCATE(this%hreal_entries_)
+      this%hreal_size_ = 0
+    end if
+    if (ALLOCATED(this%hcomplex_entries_)) THEN
+      do i = 1, this%hcomplex_size_
+        call gfree(this%hcomplex_entries_(i)%array)
+      end do
+      DEALLOCATE(this%hcomplex_entries_)
+      this%hcomplex_size_ = 0
+    end if
     if (ALLOCATED(this%pcomp_entries_)) THEN
+      do i = 1, this%pcomp_size_
+        call gfree(this%pcomp_entries_(i)%array)
+      end do
       DEALLOCATE(this%pcomp_entries_)
       this%pcomp_size_ = 0
     end if
@@ -256,14 +326,19 @@ CONTAINS
     ! Resize this%real_entries_ array, if necessary:    
     if ( num_new .GT. this%ncurr_realreserve_ ) THEN
 
-      ! Need to extend arrays and copy old data
+      ! Need to extend the list of entries. The arrays are moved, not
+      ! copied: a copy would place them at new addresses without device
+      ! copies and leave stale device associations behind.
       ALLOCATE(tmp_copy(1:this%real_size_+num_new+this%nreserve_))
-      tmp_copy(1:this%real_size_) = this%real_entries_(1:this%real_size_)
+      do i = 1, this%real_size_
+        call MOVE_ALLOC(this%real_entries_(i)%array, tmp_copy(i)%array)
+        tmp_copy(i)%is_free = this%real_entries_(i)%is_free
+      end do
       call MOVE_ALLOC(tmp_copy, this%real_entries_)
       
       ! Allocate the remaining arrays
       do i = this%real_size_+1,this%real_size_+num_new
-        ALLOCATE(this%real_entries_(i)%array(nx, ny, ksta:kend))
+        call galloc(this%real_entries_(i)%array, nx, ny, ksta, kend)
         this%real_entries_(i)%is_free = .TRUE.
       end do
       this%ncurr_realreserve_ = this%nreserve_
@@ -272,7 +347,7 @@ CONTAINS
       
       ! Have enough reserves left to fill:
       do i = this%real_size_+1,this%real_size_+num_new
-        ALLOCATE(this%real_entries_(i)%array(nx, ny, ksta:kend))
+        call galloc(this%real_entries_(i)%array, nx, ny, ksta, kend)
         this%real_entries_(i)%is_free = .TRUE.
         this%ncurr_realreserve_ = this%ncurr_realreserve_ - 1
       end do
@@ -301,14 +376,18 @@ CONTAINS
     ! Resize this%complex_entries_ array, if necessary:    
     if ( num_new .GT. this%ncurr_complexreserve_ ) THEN
 
-      ! Need to extend arrays and copy old data
+      ! Need to extend the list of entries. The arrays are moved, not
+      ! copied (see add_real_entries).
       ALLOCATE(tmp_copy(1:this%complex_size_+num_new+this%nreserve_))
-      tmp_copy(1:this%complex_size_) = this%complex_entries_(1:this%complex_size_)
-      call MOVE_ALLOC(tmp_copy, this%complex_entries_) 
+      do i = 1, this%complex_size_
+        call MOVE_ALLOC(this%complex_entries_(i)%array, tmp_copy(i)%array)
+        tmp_copy(i)%is_free = this%complex_entries_(i)%is_free
+      end do
+      call MOVE_ALLOC(tmp_copy, this%complex_entries_)
       
       ! Allocate the remaining arrays
       do i = this%complex_size_+1,this%complex_size_+num_new
-        ALLOCATE(this%complex_entries_(i)%array(nz, ny, ista:iend))
+        call galloc(this%complex_entries_(i)%array, nz, ny, ista, iend)
         this%complex_entries_(i)%is_free = .TRUE.
       end do
       this%ncurr_complexreserve_ = this%nreserve_
@@ -317,7 +396,7 @@ CONTAINS
       
       ! Have enough reserves left to fill:
       do i = this%complex_size_+1,this%complex_size_+num_new
-        ALLOCATE(this%complex_entries_(i)%array(nz, ny, ista:iend))
+        call galloc(this%complex_entries_(i)%array, nz, ny, ista, iend)
         this%complex_entries_(i)%is_free = .TRUE.
         this%ncurr_complexreserve_ = this%ncurr_complexreserve_ - 1
       end do
@@ -357,14 +436,19 @@ CONTAINS
     if (num_new > this%ncurr_pcompreserve_) then
       ALLOCATE(tmp_copy(1:this%pcomp_size_+num_new+this%nreserve_))
       ! Preserve existing slots
-      tmp_copy(1:this%pcomp_size_) = this%pcomp_entries_(1:this%pcomp_size_)
+      do i = 1, this%pcomp_size_  ! moved, not copied (see add_real_entries)
+        if (ALLOCATED(this%pcomp_entries_(i)%array)) &
+          call MOVE_ALLOC(this%pcomp_entries_(i)%array, tmp_copy(i)%array)
+        tmp_copy(i)%is_free = this%pcomp_entries_(i)%is_free
+      end do
       call MOVE_ALLOC(tmp_copy, this%pcomp_entries_)
       do i = this%pcomp_size_+1, this%pcomp_size_+num_new
         this%pcomp_entries_(i)%is_free = .TRUE.
         ! If pcomp already initialised, allocate data in new slots too
         if (this%pcomp_initialised_) then
-          ALLOCATE(this%pcomp_entries_(i)%array(this%nparts_))
+          call galloc(this%pcomp_entries_(i)%array, this%nparts_)
           this%pcomp_entries_(i)%array = 0.0_GP
+          call gupdate_to(this%pcomp_entries_(i)%array)
         end if
       end do
       this%ncurr_pcompreserve_ = this%nreserve_
@@ -372,8 +456,9 @@ CONTAINS
       do i = this%pcomp_size_+1, this%pcomp_size_+num_new
         this%pcomp_entries_(i)%is_free = .TRUE.
         if (this%pcomp_initialised_) then
-          ALLOCATE(this%pcomp_entries_(i)%array(this%nparts_))
+          call galloc(this%pcomp_entries_(i)%array, this%nparts_)
           this%pcomp_entries_(i)%array = 0.0_GP
+          call gupdate_to(this%pcomp_entries_(i)%array)
         end if
         this%ncurr_pcompreserve_ = this%ncurr_pcompreserve_ - 1
       end do
@@ -382,6 +467,113 @@ CONTAINS
     this%pcomp_size_ = this%pcomp_size_ + num_new
   end subroutine add_pcomp_entries
  
+
+  ! ===================================================================
+  ! Host-only pool
+  ! ===================================================================
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Allocates the host-only entries (no device copies). May be
+  ! called once, after initialize_pool.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine init_host_entries(this, num_hreal, num_hcomplex)
+    CLASS(GWorkspace), intent(inout), target :: this
+    integer          , intent(in)            :: num_hreal, num_hcomplex
+    integer                                  :: i
+
+    if ( ALLOCATED(this%hreal_entries_) .or. ALLOCATED(this%hcomplex_entries_) ) then
+      stop 'init_host_entries: host entries already initialized.'
+    end if
+    this%hreal_size_    = max(num_hreal,0)
+    this%hcomplex_size_ = max(num_hcomplex,0)
+    ALLOCATE(this%hreal_entries_   (this%hreal_size_   ))
+    ALLOCATE(this%hcomplex_entries_(this%hcomplex_size_))
+    do i = 1, this%hreal_size_
+      call galloc_host(this%hreal_entries_(i)%array, nx, ny, ksta, kend)
+      this%hreal_entries_(i)%is_free = .TRUE.
+    end do
+    do i = 1, this%hcomplex_size_
+      call galloc_host(this%hcomplex_entries_(i)%array, nz, ny, ista, iend)
+      this%hcomplex_entries_(i)%is_free = .TRUE.
+    end do
+    write(*,*) 'Host pool initialized: ', num_hreal, ' Real and', &
+               num_hcomplex, ' Complex arrays'
+  end subroutine init_host_entries
+
+  subroutine get_real_htmp(this, ret_ptr, success)
+    CLASS(GWorkspace), target , intent(inout) :: this
+    real   (kind=GP) , pointer, intent(out)   :: ret_ptr(:,:,:)
+    logical         , optional, intent(out)   :: success
+    integer                                   :: i
+
+    if (present(success)) success = .FALSE.
+    do i = 1, this%hreal_size_
+      if ( this%hreal_entries_(i)%is_free ) THEN
+        this%hreal_entries_(i)%is_free = .FALSE.
+        this%hreal_peak_ = max(this%hreal_peak_, this%hreal_size_ - count(this%hreal_entries_(1:this%hreal_size_)%is_free))
+        ret_ptr => this%hreal_entries_(i)%array
+        if (present(success)) success = .TRUE.
+        return
+      endif
+    enddo
+    ret_ptr => null()
+    write(*,*) 'GWorkspace::get_real_htmp: all ', this%hreal_size_, &
+               ' host real arrays in the pool are checked out'
+    error stop 'GWorkspace::get_real_htmp: host real workspace pool exhausted'
+  end subroutine get_real_htmp
+
+  subroutine get_complex_htmp(this, ret_ptr, success)
+    CLASS(GWorkspace), target , intent(inout) :: this
+    complex(kind=GP) , pointer, intent(out)   :: ret_ptr(:,:,:)
+    logical         , optional, intent(out)   :: success
+    integer                                   :: i
+
+    if (present(success)) success = .FALSE.
+    do i = 1, this%hcomplex_size_
+      if ( this%hcomplex_entries_(i)%is_free ) THEN
+        this%hcomplex_entries_(i)%is_free = .FALSE.
+        this%hcomplex_peak_ = max(this%hcomplex_peak_, this%hcomplex_size_ - count(this%hcomplex_entries_(1:this%hcomplex_size_)%is_free))
+        ret_ptr => this%hcomplex_entries_(i)%array
+        if (present(success)) success = .TRUE.
+        return
+      endif
+    enddo
+    ret_ptr => null()
+    write(*,*) 'GWorkspace::get_complex_htmp: all ', this%hcomplex_size_, &
+               ' host complex arrays in the pool are checked out'
+    error stop 'GWorkspace::get_complex_htmp: host complex workspace pool exhausted'
+  end subroutine get_complex_htmp
+
+  subroutine free_real_htmp(this, in_ptr)
+    CLASS(GWorkspace), target, intent(inout) :: this
+    real   (kind=GP), pointer, intent(inout) :: in_ptr(:,:,:)
+    integer                                  :: i
+
+    do i = 1, this%hreal_size_
+      if (associated(in_ptr, this%hreal_entries_(i)%array)) then
+        NULLIFY(in_ptr)
+        this%hreal_entries_(i)%is_free = .TRUE.
+        return
+      endif
+    enddo
+    stop 'free_real_htmp: array not found in the host pool. Check-in failed'
+  end subroutine free_real_htmp
+
+  subroutine free_complex_htmp(this, in_ptr)
+    CLASS(GWorkspace), target, intent(inout) :: this
+    complex(kind=GP), pointer, intent(inout) :: in_ptr(:,:,:)
+    integer                                  :: i
+
+    do i = 1, this%hcomplex_size_
+      if (associated(in_ptr, this%hcomplex_entries_(i)%array)) then
+        NULLIFY(in_ptr)
+        this%hcomplex_entries_(i)%is_free = .TRUE.
+        return
+      endif
+    enddo
+    stop 'free_complex_htmp: array not found in the host pool. Check-in failed'
+  end subroutine free_complex_htmp
+
 
   ! ===================================================================
   ! Size query and nparts helpers
@@ -455,6 +647,7 @@ CONTAINS
       ! Look for a free entry
       if ( this%real_entries_(i)%is_free ) THEN
         this%real_entries_(i)%is_free = .FALSE. ! Mark as in use
+        this%real_peak_ = max(this%real_peak_, this%real_size_ - count(this%real_entries_(1:this%real_size_)%is_free))
         ret_ptr => this%real_entries_(i)%array
         if (present(success)) success = .TRUE.
         return
@@ -488,6 +681,7 @@ CONTAINS
       ! Look for a free entry
       if ( this%complex_entries_(i)%is_free ) THEN
         this%complex_entries_(i)%is_free = .FALSE. ! Mark as in use
+        this%complex_peak_ = max(this%complex_peak_, this%complex_size_ - count(this%complex_entries_(1:this%complex_size_)%is_free))
         ret_ptr => this%complex_entries_(i)%array
         if (present(success)) success = .TRUE.
         return

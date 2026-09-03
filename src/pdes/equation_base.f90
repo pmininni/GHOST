@@ -81,7 +81,7 @@ module equationbase_mod
        class(EquationBase), intent   (in)         :: this
        real      (kind=GP), intent   (in)         :: time, dt
        type   (GStateComp), intent(inout), target :: uin(:),uf(:)
-       type   (GStateComp), intent(inout)         :: dudt(:) 
+       type   (GStateComp), intent(inout), target :: dudt(:) 
      end subroutine dudt_interface
 
      subroutine global_interface(this, uin, uf, t) 
@@ -144,7 +144,7 @@ CONTAINS
     type      (GStateComp), intent   (in) :: uf(:)
     type      (GStateComp), intent(inout) :: dudt(:) 
     logical                           :: bret
-    integer                           :: i,j,k,n
+    integer                           :: n
     complex  (kind=GP), pointer       :: adve(:,:,:),lapl(:,:,:)
 
     if ( this%numpassive_ .eq. 0 ) return
@@ -160,20 +160,7 @@ CONTAINS
                      uin(this%VELOCITY+2)%ccomp, &
                      uin(n)%ccomp,adve)
         call laplak3(uin(n)%ccomp,lapl)
-!$omp parallel do collapse(2) private (k)
-        do i = ista,iend
-           do j = 1,ny
-              do concurrent (k=1:nz)
-                if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
-                  dudt(n)%ccomp(k,j,i) =                  &
-                    kappa(n-this%PASSIVE+1)*lapl(k,j,i) + &
-                    adve(k,j,i) + uf(n)%ccomp(k,j,i)
-                else if ((kn2(k,j,i).gt.kmax).or.(kn2(k,j,i).lt.tiny)) then
-                    dudt(n)%ccomp(k,j,i) = 0.0_GP
-                endif
-              end do
-           end do
-        end do
+        call rhs_scalar3(lapl,adve,uf(n)%ccomp,kappa(n-this%PASSIVE+1),dudt(n)%ccomp)
       enddo ! end, loop over all scalars
     endif
     call this%workspace_%free_complex_tmp(adve)

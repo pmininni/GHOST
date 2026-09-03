@@ -2,6 +2,7 @@ module gstate_mod
   use fprecision
   use mpivars
   use grid
+  use gmem
   implicit none
 
   ! ================= Base field data types =========================
@@ -43,14 +44,12 @@ contains
 
     if ( allocated(state) ) then
       do i = 1, size(state) 
-        if ( allocated(state(i)%ccomp) ) then
-          deallocate(state(i)%ccomp)
-        endif
+        call gfree(state(i)%ccomp)
       enddo
     endif
     allocate( state(nc) )
     do i = 1,nc
-      allocate( state(i)%ccomp(nz,ny,ista:iend) )
+      call galloc( state(i)%ccomp, nz, ny, ista, iend )
     end do
   end subroutine GState_alloc
 
@@ -67,9 +66,7 @@ contains
 
     if ( allocated(state) ) then
       do i = 1, size(state) 
-        if ( allocated(state(i)%ccomp) ) then
-          deallocate(state(i)%ccomp)
-        endif
+        call gfree(state(i)%ccomp)
       enddo
     endif
   end subroutine GState_dealloc
@@ -88,14 +85,12 @@ contains
 
     if ( allocated(state) ) then
       do i = 1, size(state) 
-        if ( allocated(state(i)%rcomp) ) then
-          deallocate(state(i)%rcomp)
-        endif
+        call gfree(state(i)%rcomp)
       enddo
     endif
     allocate( state(nc) )
     do i = 1,nc
-      allocate( state(i)%rcomp(nx,ny,ksta:kend) )
+      call galloc( state(i)%rcomp, nx, ny, ksta, kend )
     end do
   end subroutine GStateReal_alloc
 
@@ -112,12 +107,59 @@ contains
 
     if ( allocated(state) ) then
       do i = 1, size(state) 
-        if ( allocated(state(i)%rcomp) ) then
-          deallocate(state(i)%rcomp)
-        endif
+        call gfree(state(i)%rcomp)
       enddo
     endif
   end subroutine GStateReal_dealloc
+
+
+  ! ============ Transfers between host and device copies ===========
+  ! In host builds these are no-ops (GState_copy is an assignment).
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Copies the host arrays of a state to their device copies
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine GState_update_to(state)
+    implicit none
+    type (GStateComp), intent(in) :: state(:)
+    integer                       :: i
+    do i = 1, size(state)
+      call gupdate_to(state(i)%ccomp)
+    end do
+  end subroutine GState_update_to
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Copies the device copies of a state back to the host arrays
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine GState_update_from(state)
+    implicit none
+    type (GStateComp), intent(inout) :: state(:)
+    integer                          :: i
+    do i = 1, size(state)
+      call gupdate_from(state(i)%ccomp)
+    end do
+  end subroutine GState_update_from
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Copies one state into another: dst = src. In offload
+  !! builds only the device copies are copied (the host copies
+  !! are refreshed with GState_update_from when needed), so this
+  !! must be used instead of the array assignment dst = src.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine GState_copy(dst, src)
+    implicit none
+    type (GStateComp), intent(inout) :: dst(:)
+    type (GStateComp), intent(in)    :: src(:)
+    integer                          :: i
+    if ( size(dst) .ne. size(src) ) then
+      stop 'GState_copy: inconsistent state sizes'
+    endif
+    do i = 1, size(src)
+      call gcopy(dst(i)%ccomp, src(i)%ccomp)
+    end do
+  end subroutine GState_copy
 
 
   ! ============ StateArr Allocation routines ===============

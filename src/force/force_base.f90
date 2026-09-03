@@ -82,6 +82,21 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Updates all forcing states from a list
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! True if no forcing method has an update scheme, i.e. the
+  !! forcing is constant in time (the arrays never change after
+  !! init_forcing and need not be copied to the device again)
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  logical function forcing_is_static(chain) result(bstatic)
+    implicit none
+    type   (forceChain), intent(in) :: chain(:)
+    integer                         :: i
+    bstatic = .true.
+    do i = 1,size(chain)
+      if ( allocated(chain(i)%update) ) bstatic = .false.
+    end do
+  end function forcing_is_static
+
   subroutine update_forcing(chain, solver, state)
     USE equationbase_mod
     USE gstate_mod

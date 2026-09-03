@@ -24,6 +24,8 @@
 
 MODULE pseudospec_magnetic
    USE pseudospec_fluid
+   USE class_GWorkspace3D, ONLY: gws
+   USE gdevice, ONLY: gdev_active
    CONTAINS
 
 !*****************************************************************
@@ -56,45 +58,44 @@ MODULE pseudospec_magnetic
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: x,y,z
-      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend) :: r1,r2
-      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend) :: r3,r4
-      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend) :: r5,r6
-      REAL(KIND=GP), DIMENSION(nx,ny,ksta:kend) :: r7
+      REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: r1,r2,r3,r4,r5,r6,r7
       REAL(KIND=GP)    :: tmp
       INTEGER :: i,j,k
+      LOGICAL :: bret
 
-!$omp parallel do collapse(2) private (k)
-      DO i = ista,iend
-         DO j = 1,ny
-            DO CONCURRENT (k=1:nz)
-               x(k,j,i) = a(k,j,i)
-               y(k,j,i) = b(k,j,i)
-               z(k,j,i) = c(k,j,i)
-            END DO
-         END DO
-      END DO
+      CALL gws%get_real_tmp(r1,bret)
+      CALL gws%get_real_tmp(r2,bret)
+      CALL gws%get_real_tmp(r3,bret)
+      CALL gws%get_real_tmp(r4,bret)
+      CALL gws%get_real_tmp(r5,bret)
+      CALL gws%get_real_tmp(r6,bret)
+      CALL gws%get_real_tmp(r7,bret)
+
+      CALL copy3(a,x)
+      CALL copy3(b,y)
+      CALL copy3(c,z)
       CALL fftp3d_complex_to_real(plancr,x,r1,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,y,r2,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,z,r3,MPI_COMM_WORLD)
-!$omp parallel do collapse(2) private (k)
-      DO i = ista,iend
-         DO j = 1,ny
-            DO CONCURRENT (k=1:nz)
-               x(k,j,i) = d(k,j,i)
-               y(k,j,i) = e(k,j,i)
-               z(k,j,i) = f(k,j,i)
-            END DO
-         END DO
-      END DO
+      CALL copy3(d,x)
+      CALL copy3(e,y)
+      CALL copy3(f,z)
       CALL fftp3d_complex_to_real(plancr,x,r4,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,y,r5,MPI_COMM_WORLD)
       CALL fftp3d_complex_to_real(plancr,z,r6,MPI_COMM_WORLD)
 
       tmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+      DO k = ksta,kend
+         DO j = 1,ny
+            DO i = 1,nx
+#else
 !$omp parallel do collapse(2) private (i)
       DO k = ksta,kend
          DO j = 1,ny
             DO CONCURRENT (i=1:nx)
+#endif
                r7(i,j,k) = (r2(i,j,k)*r6(i,j,k)-r5(i,j,k)*r3(i,j,k))*tmp
                r3(i,j,k) = (r3(i,j,k)*r4(i,j,k)-r6(i,j,k)*r1(i,j,k))*tmp
                r1(i,j,k) = (r1(i,j,k)*r5(i,j,k)-r4(i,j,k)*r2(i,j,k))*tmp
@@ -105,10 +106,16 @@ MODULE pseudospec_magnetic
       CALL fftp3d_real_to_complex(planrc,r7,x,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,r3,y,MPI_COMM_WORLD)
       CALL fftp3d_real_to_complex(planrc,r1,z,MPI_COMM_WORLD)
+      CALL gws%free_real_tmp(r1)
+      CALL gws%free_real_tmp(r2)
+      CALL gws%free_real_tmp(r3)
+      CALL gws%free_real_tmp(r4)
+      CALL gws%free_real_tmp(r5)
+      CALL gws%free_real_tmp(r6)
+      CALL gws%free_real_tmp(r7)
 
       RETURN
       END SUBROUTINE vector3
-
 !*****************************************************************
       SUBROUTINE nonlin3(a,b,c,d,e,f,g,dir)
 !-----------------------------------------------------------------
@@ -144,59 +151,64 @@ MODULE pseudospec_magnetic
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: g
+      COMPLEX(KIND=GP)    :: tmq
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
 
+! The plane k_dir = 0 is treated apart: the pressure term vanishes
+! there and the mode (0,0,0) has kk2 = 0. The division of the complex
+! pressure term by the real kk2 is written for the real and imaginary
+! parts, since a complex division becomes a runtime call that does not
+! exist on the device.
 !
 ! Computes the x-component
 !
       IF (dir.eq.1) THEN
-         IF (ista.eq.1) THEN
-!$omp parallel do private (k)
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) private (tmq) if(target: gdev_active)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO k = 1,nz
+#else
+!$omp parallel do collapse(2) private (k,tmq)
+         DO i = ista,iend
             DO j = 1,ny
                DO CONCURRENT (k=1:nz)
-                  g(k,j,1) = -a(k,j,1)+d(k,j,1)
+#endif
+                  IF (i.eq.1) THEN
+                     g(k,j,i) = -a(k,j,i)+d(k,j,i)
+                  ELSE
+                     tmq = kx(i)*(kx(i)*(a(k,j,i)-d(k,j,i))+ky(j)*(b(k,j,i)-e(k,j,i)) &
+                                 +kz(k)*(c(k,j,i)-f(k,j,i)))
+                     g(k,j,i) = -a(k,j,i)+d(k,j,i)+CMPLX(REAL(tmq)/kk2(k,j,i), &
+                                          AIMAG(tmq)/kk2(k,j,i),KIND=GP)
+                  ENDIF
                END DO
             END DO
-!$omp parallel do collapse(2) private (k)
-            DO i = 2,iend
-               DO j = 1,ny
-                  DO CONCURRENT (k=1:nz)
-                     g(k,j,i) = -a(k,j,i)+d(k,j,i)+kx(i)*(kx(i)*(a(k,j,i) &
-                     -d(k,j,i))+ky(j)*(b(k,j,i)-e(k,j,i))+kz(k)*(c(k,j,i) &
-                     -f(k,j,i)))/kk2(k,j,i)
-                  END DO
-               END DO
-            END DO
-         ELSE
-!$omp parallel do collapse(2) private (k)
-            DO i = ista,iend
-               DO j = 1,ny
-                  DO CONCURRENT (k=1:nz)
-                     g(k,j,i) = -a(k,j,i)+d(k,j,i)+kx(i)*(kx(i)*(a(k,j,i) &
-                     -d(k,j,i))+ky(j)*(b(k,j,i)-e(k,j,i))+kz(k)*(c(k,j,i) &
-                     -f(k,j,i)))/kk2(k,j,i)
-                  END DO
-               END DO
-            END DO
-         ENDIF
+         END DO
 !
 ! Computes the y-component
 !
       ELSE IF (dir.eq.2) THEN
-!$omp parallel do private (k)
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) private (tmq) if(target: gdev_active)
          DO i = ista,iend
-            DO CONCURRENT (k=1:nz)
-               g(k,1,i) = -b(k,1,i)+e(k,1,i)
-            END DO
-         END DO
-!$omp parallel do collapse(2) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+#else
+!$omp parallel do collapse(2) private (k,tmq)
          DO i = ista,iend
-            DO j = 2,ny
+            DO j = 1,ny
                DO CONCURRENT (k=1:nz)
-                  g(k,j,i) = -b(k,j,i)+e(k,j,i)+ky(j)*(kx(i)*(a(k,j,i) &
-                  -d(k,j,i))+ky(j)*(b(k,j,i)-e(k,j,i))+kz(k)*(c(k,j,i) &
-                  -f(k,j,i)))/kk2(k,j,i)
+#endif
+                  IF (j.eq.1) THEN
+                     g(k,j,i) = -b(k,j,i)+e(k,j,i)
+                  ELSE
+                     tmq = ky(j)*(kx(i)*(a(k,j,i)-d(k,j,i))+ky(j)*(b(k,j,i)-e(k,j,i)) &
+                                 +kz(k)*(c(k,j,i)-f(k,j,i)))
+                     g(k,j,i) = -b(k,j,i)+e(k,j,i)+CMPLX(REAL(tmq)/kk2(k,j,i), &
+                                          AIMAG(tmq)/kk2(k,j,i),KIND=GP)
+                  ENDIF
                END DO
             END DO
          END DO
@@ -204,19 +216,25 @@ MODULE pseudospec_magnetic
 ! Computes the z-component
 !
       ELSE
-!$omp parallel do private (j)
-         DO i = ista,iend
-            DO CONCURRENT (j=1:ny)
-               g(1,j,i) = -c(1,j,i)+f(1,j,i)
-            END DO
-         END DO
-!$omp parallel do collapse(2) private (k)
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) private (tmq) if(target: gdev_active)
          DO i = ista,iend
             DO j = 1,ny
-               DO CONCURRENT (k=2:nz)
-                  g(k,j,i) = -c(k,j,i)+f(k,j,i)+kz(k)*(kx(i)*(a(k,j,i) &
-                  -d(k,j,i))+ky(j)*(b(k,j,i)-e(k,j,i))+kz(k)*(c(k,j,i) &
-                  -f(k,j,i)))/kk2(k,j,i)
+               DO k = 1,nz
+#else
+!$omp parallel do collapse(2) private (k,tmq)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+#endif
+                  IF (k.eq.1) THEN
+                     g(k,j,i) = -c(k,j,i)+f(k,j,i)
+                  ELSE
+                     tmq = kz(k)*(kx(i)*(a(k,j,i)-d(k,j,i))+ky(j)*(b(k,j,i)-e(k,j,i)) &
+                                 +kz(k)*(c(k,j,i)-f(k,j,i)))
+                     g(k,j,i) = -c(k,j,i)+f(k,j,i)+CMPLX(REAL(tmq)/kk2(k,j,i), &
+                                          AIMAG(tmq)/kk2(k,j,i),KIND=GP)
+                  ENDIF
                END DO
             END DO
          END DO
@@ -224,7 +242,6 @@ MODULE pseudospec_magnetic
 
       RETURN
       END SUBROUTINE nonlin3
-
 !*****************************************************************
       SUBROUTINE gauge3(a,b,c,g,dir)
 !-----------------------------------------------------------------
@@ -251,56 +268,59 @@ MODULE pseudospec_magnetic
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: g
+      COMPLEX(KIND=GP)    :: tmq
       INTEGER, INTENT(IN) :: dir
       INTEGER             :: i,j,k
 
+! See nonlin3 for the treatment of the plane k_dir = 0 and of the
+! complex division.
 !
 ! Computes the x-component
 !
       IF (dir.eq.1) THEN
-         IF (ista.eq.1) THEN
-!$omp parallel do private (k)
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) private (tmq) if(target: gdev_active)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO k = 1,nz
+#else
+!$omp parallel do collapse(2) private (k,tmq)
+         DO i = ista,iend
             DO j = 1,ny
                DO CONCURRENT (k=1:nz)
-                  g(k,j,1) = a(k,j,1)
+#endif
+                  IF (i.eq.1) THEN
+                     g(k,j,i) = a(k,j,i)
+                  ELSE
+                     tmq = kx(i)*(kx(i)*a(k,j,i)+ky(j)*b(k,j,i)+kz(k)*c(k,j,i))
+                     g(k,j,i) = a(k,j,i)-CMPLX(REAL(tmq)/kk2(k,j,i), &
+                                          AIMAG(tmq)/kk2(k,j,i),KIND=GP)
+                  ENDIF
                END DO
             END DO
-!$omp parallel do collapse(2) private (k)
-            DO i = 2,iend
-               DO j = 1,ny
-                  DO CONCURRENT (k=1:nz)
-                     g(k,j,i) = a(k,j,i)-kx(i)*(kx(i)*a(k,j,i) &
-                      +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
-                  END DO
-               END DO
-            END DO
-         ELSE
-!$omp parallel do collapse(2) private (k)
-            DO i = ista,iend
-               DO j = 1,ny
-                  DO CONCURRENT (k=1:nz)
-                     g(k,j,i) = a(k,j,i)-kx(i)*(kx(i)*a(k,j,i) &
-                      +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
-                  END DO
-               END DO
-            END DO
-         ENDIF
+         END DO
 !
 ! Computes the y-component
 !
       ELSE IF (dir.eq.2) THEN
-!$omp parallel do private (k)
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) private (tmq) if(target: gdev_active)
          DO i = ista,iend
-            DO CONCURRENT (k=1:nz)
-               g(k,1,i) = b(k,1,i)
-            END DO
-         END DO
-!$omp parallel do collapse(2) private (k)
+            DO j = 1,ny
+               DO k = 1,nz
+#else
+!$omp parallel do collapse(2) private (k,tmq)
          DO i = ista,iend
-            DO j = 2,ny
+            DO j = 1,ny
                DO CONCURRENT (k=1:nz)
-                  g(k,j,i) = b(k,j,i)-ky(j)*(kx(i)*a(k,j,i) &
-                   +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
+#endif
+                  IF (j.eq.1) THEN
+                     g(k,j,i) = b(k,j,i)
+                  ELSE
+                     tmq = ky(j)*(kx(i)*a(k,j,i)+ky(j)*b(k,j,i)+kz(k)*c(k,j,i))
+                     g(k,j,i) = b(k,j,i)-CMPLX(REAL(tmq)/kk2(k,j,i), &
+                                          AIMAG(tmq)/kk2(k,j,i),KIND=GP)
+                  ENDIF
                END DO
             END DO
          END DO
@@ -308,18 +328,24 @@ MODULE pseudospec_magnetic
 ! Computes the z-component
 !
       ELSE
-!$omp parallel do private (j)
-         DO i = ista,iend
-            DO CONCURRENT (j=1:ny)
-               g(1,j,i) = c(1,j,i)
-            END DO
-         END DO
-!$omp parallel do collapse(2) private (k)
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) private (tmq) if(target: gdev_active)
          DO i = ista,iend
             DO j = 1,ny
-               DO CONCURRENT (k=2:nz)
-                  g(k,j,i) = c(k,j,i)-kz(k)*(kx(i)*a(k,j,i) &
-                   +ky(j)*b(k,j,i)+kz(k)*c(k,j,i))/kk2(k,j,i)
+               DO k = 1,nz
+#else
+!$omp parallel do collapse(2) private (k,tmq)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO CONCURRENT (k=1:nz)
+#endif
+                  IF (k.eq.1) THEN
+                     g(k,j,i) = c(k,j,i)
+                  ELSE
+                     tmq = kz(k)*(kx(i)*a(k,j,i)+ky(j)*b(k,j,i)+kz(k)*c(k,j,i))
+                     g(k,j,i) = c(k,j,i)-CMPLX(REAL(tmq)/kk2(k,j,i), &
+                                          AIMAG(tmq)/kk2(k,j,i),KIND=GP)
+                  ENDIF
                END DO
             END DO
          END DO
@@ -327,7 +353,6 @@ MODULE pseudospec_magnetic
 
       RETURN
       END SUBROUTINE gauge3
-
 !*****************************************************************
       SUBROUTINE crosspec(a,b,c,d,e,f,path,nmb)
 !-----------------------------------------------------------------
@@ -413,7 +438,7 @@ MODULE pseudospec_magnetic
       DOUBLE PRECISION    :: tmq
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend)             :: c1,c2,c3
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1, c2, c3
       REAL(KIND=GP), INTENT(IN)                              :: shift
       REAL(KIND=GP)       :: tmp,rmp
       INTEGER             :: i,j,k
@@ -422,6 +447,10 @@ MODULE pseudospec_magnetic
 !
 ! Computes the curl of the field if needed
 !
+      LOGICAL :: bret_
+      CALL gws%get_complex_htmp(c1,bret_)
+      CALL gws%get_complex_htmp(c2,bret_)
+      CALL gws%get_complex_htmp(c3,bret_)
       CALL rotor3(e,f,c1,1)
       CALL rotor3(d,f,c2,2)
       CALL rotor3(d,e,c3,3)
@@ -491,6 +520,9 @@ MODULE pseudospec_magnetic
       CALL MPI_ALLREDUCE(Ck,Cktot,nmax/2+1,MPI_DOUBLE_PRECISION,      &
                          MPI_SUM,MPI_COMM_WORLD,ierr)
 
+      CALL gws%free_complex_htmp(c1)
+      CALL gws%free_complex_htmp(c2)
+      CALL gws%free_complex_htmp(c3)
       RETURN
       END SUBROUTINE crosspecc
 
@@ -500,6 +532,7 @@ END MODULE pseudospec_magnetic
 
 MODULE pseudospec_mhd
    USE pseudospec_magnetic
+   USE class_GWorkspace3D, ONLY: gws
    CONTAINS
 
 !*****************************************************************
@@ -544,7 +577,7 @@ MODULE pseudospec_mhd
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: ma,mb,mc
-      COMPLEX(KIND=GP), DIMENSION(nz,ny,ista:iend) :: c1,c2,c3
+      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1, c2, c3
       DOUBLE PRECISION    :: engk,engm,eng,ens
       DOUBLE PRECISION    :: divk,divm,asq,crh
       DOUBLE PRECISION    :: helk,helm,cur,tmp
@@ -556,6 +589,10 @@ MODULE pseudospec_mhd
       INTEGER             :: i,j,k
       CHARACTER(len=*), INTENT(IN) :: path
 
+      LOGICAL :: bret_
+      CALL gws%get_complex_htmp(c1,bret_)
+      CALL gws%get_complex_htmp(c2,bret_)
+      CALL gws%get_complex_htmp(c3,bret_)
       divk = 0.0D0
       divm = 0.0D0
       tmp = 0.0D0
@@ -707,6 +744,9 @@ MODULE pseudospec_mhd
          ENDIF
       ENDIF
 
+      CALL gws%free_complex_htmp(c1)
+      CALL gws%free_complex_htmp(c2)
+      CALL gws%free_complex_htmp(c3)
       RETURN
       END SUBROUTINE mhdcheck
 

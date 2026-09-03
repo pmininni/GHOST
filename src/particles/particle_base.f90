@@ -12,6 +12,9 @@ module particlebase_mod
   use gstate_mod
   use commtypes
   use gtimer
+  use gmem
+  use gdevice, only: gdev_active
+  use gpselect
   implicit none
 
   ! ================= Global parameters =============================
@@ -62,7 +65,10 @@ module particlebase_mod
       INTEGER                             :: partbuff_,partchunksize_,stepcounter_
       TYPE(MPI_Comm)                      :: comm_
       TYPE(MPI_Status)                    :: istatus_
-      INTEGER      , ALLOCATABLE, DIMENSION  (:) :: id_,idm_,tmpint_
+      ! Particle-sized arrays (device copies in offload builds):
+      ! ids, selection flags and index scratch, global database and
+      ! its scratch (VDB exchange), temporaries of the I/O
+      INTEGER      , ALLOCATABLE, DIMENSION  (:) :: id_,tmpint_,iwrk_
       REAL(KIND=GP), ALLOCATABLE, DIMENSION(:,:) :: vdb_,ptmp0_,gptmp0_
       REAL(KIND=GP), pointer    , DIMENSION  (:) :: px_  => null()
       REAL(KIND=GP), pointer    , DIMENSION  (:) :: py_  => null()
@@ -102,19 +108,16 @@ module particlebase_mod
       procedure, public                         :: EulerToLag
       procedure, public                         :: MakePeriodicP
       procedure, public                         :: MakePeriodicZ
-      procedure, public                         :: MakePeriodicExt
-      procedure, public                         :: Part_Delete
       procedure, public                         :: GetLocalWrk
       procedure, public                         :: GetLocalWrk_aux
       procedure, public                         :: CopyLocalWrk
-      procedure, public                         :: GetVDB
-      procedure, public                         :: GetVel
       procedure, public                         :: GetTime
       procedure, public                         :: GetNParts
       procedure, public                         :: GetLoadBal
       procedure, public                         :: PartNumConsistent
-      procedure, public                         :: R3toR3
       procedure, public                         :: ResizeArrays
+      procedure, public                         :: sync_device
+      procedure, public                         :: sync_host
   end type ParticleBase
 
   type, abstract, extends(ParticleBase)      :: VelocParticleBase
@@ -147,9 +150,9 @@ module particlebase_mod
        class(ParticleBase),         intent(inout) :: this
        class(EquationBase),         intent   (in) :: pde
        real      (kind=GP),         intent   (in) :: time, dt
-       type   (GStateComp),         intent   (in) :: fluidstate(:)
+       type   (GStateComp), target, intent   (in) :: fluidstate(:)
        type  (GPStateComp), target, intent   (in) :: pstate(:) 
-       type  (GPStateComp),         intent(inout) :: dpdtout(:) 
+       type  (GPStateComp), target, intent(inout) :: dpdtout(:) 
      end subroutine dpdt_interface
 
      subroutine end_stage_interface(this, upin, upout)
@@ -176,7 +179,7 @@ module particlebase_mod
        class(ParticleBase),         intent(inout) :: this
        class(EquationBase),         intent   (in) :: pde
        real      (kind=GP),         intent   (in) :: time
-       type   (GStateComp),         intent   (in) :: fluidstate(:)
+       type   (GStateComp), target, intent   (in) :: fluidstate(:)
        type  (GPStateComp), target, intent   (in) :: pstate(:) 
      end subroutine write_interface
 
@@ -278,14 +281,13 @@ CONTAINS
     CHARACTER(len=*),INTENT(IN)        :: dir
     CHARACTER(len=*),INTENT(IN)        :: nmb
     CHARACTER(len=*),INTENT(IN)        :: spref
+    LOGICAL                            :: wasdev
 
-    ! Do a sanity check:
-    !!  CALL MPI_ALLREDUCE(this%nparts_,nt,1,MPI_INTEGER,MPI_SUM,this%comm_,this%ierr_)
-    !!  IF ( nt .NE. this%maxparts_ ) THEN
-    !!    WRITE(*,*) this%myrank_, ': io_write_pdb: particle inconsistency: no. required=',&
-    !!               this%maxparts_,' no. found=',nt
-    !!    STOP
-    !!  ENDIF
+    ! The I/O runs on the host copies (positions are updated by the
+    ! caller, the class arrays here)
+    wasdev = gdev_active
+    gdev_active = .FALSE.
+    CALL this%sync_host()
 
     IF (this%iexchtype_.EQ.GPEXCHTYPE_NN) THEN
       IF (this%bcollective_.EQ.0) THEN
@@ -345,6 +347,7 @@ CONTAINS
     CALL GTStop(ht)
     if(this%myrank_.eq.0) write(*,*)'io_write_pdb: file: ', spref,'  write time: ', GTGetTime(ht)
     CALL GTFree(ht)
+    gdev_active = wasdev
   END SUBROUTINE io_write_pdb
 
   
@@ -378,7 +381,11 @@ CONTAINS
     CHARACTER(len=*),INTENT(IN)        :: nmb
     CHARACTER(len=*),INTENT(IN)        :: spref
     INTEGER                            :: gsum,ht,j
+    LOGICAL                            :: wasdev
 
+    wasdev = gdev_active   ! the I/O runs on the host copies
+    gdev_active = .FALSE.
+    CALL this%sync_host()
     IF ( .NOT.this%PartNumConsistent(this%nparts_,gsum) ) THEN
       write(*,*)'io_write_vec: global sum=',gsum,' maxparts=',this%maxparts_
       IF ( this%myrank_.eq.0 ) THEN
@@ -409,6 +416,7 @@ CONTAINS
     CALL GTStop(ht)
     if(this%myrank_.eq.0) write(*,*)'io_write_vec: file: ', spref,'  write time: ', GTGetTime(ht)
     CALL GTFree(ht)
+    gdev_active = wasdev
   END SUBROUTINE io_write_vec
 
 
@@ -451,9 +459,12 @@ CONTAINS
     CHARACTER(len=*)  , INTENT(IN)               :: nmb
     CHARACTER(len=*)  , INTENT(IN)               :: spref
     CHARACTER(len=1024)                          :: sfile
-    logical                                      :: bret
+    logical                                      :: bret,wasdev
 
     CALL this%EulerToLag(this%lvy_,this%nparts_,evar,doupdate,tmp1,tmp2)
+    wasdev = gdev_active   ! the I/O runs on the host copies
+    gdev_active = .FALSE.
+    CALL this%sync_host()
     CALL GTInitHandle(ht,GT_WTIME)
 
     ! If doing non-collective binary or ascii writes, synch up vector:
@@ -473,6 +484,7 @@ CONTAINS
     CALL GTStop(ht)
     if(this%myrank_.eq.0) write(*,*)'io_write_euler: file: ', spref,'  write time: ', GTGetTime(ht)
     CALL GTFree(ht)
+    gdev_active = wasdev
   END SUBROUTINE io_write_euler
 
 
@@ -1372,7 +1384,7 @@ CONTAINS
       CALL GTAcc(this%htimers_(GPTIME_PUPDATE))
     ENDIF
     CALL GTStart(this%htimers_(GPTIME_SPLINE))
-    CALL this%intop_%CompSpline3D(evar,tmp1,tmp2)
+    CALL this%intop_%CompSpline3D(evar,tmp2)
     CALL GTAcc(this%htimers_(GPTIME_SPLINE))
 
     CALL GTStart(this%htimers_(GPTIME_INTERP))
@@ -1401,66 +1413,17 @@ CONTAINS
     CLASS(ParticleBase) ,INTENT(INOUT)               :: this
     INTEGER,INTENT(IN)                               :: idir,npdb
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(*)         :: px,py,pz
-    INTEGER                                          :: j
 
 ! The old form of the wrap, modulo(p+2*L,L), also perturbs by one ULP
 ! the low bits of most particles that do NOT wrap (adding 2L and
 ! reducing is not bit-exact), and it did so at every stage of every
-! step. Besides the noise this injected in the trajectories, the VDB
-! exchange periodizes all three directions while the NN exchange only
-! periodizes z conditionally, so the two exchange modes slowly drifted
-! apart from these seeds. The conditional form below, the same one
-! MakePeriodicZ uses, leaves particles inside the box bit-untouched;
-! it assumes the positions are within one box length of the domain,
-! which holds at every call site since the callers periodize right
-! after a single stage displacement (the NN exchange already requires
-! motion of less than one zone per step).
-! One parallel region for the three directions; every thread sees the
-! same idir, so all of them take the same branches of the IFs.
-!$omp parallel
-    IF ( btest(idir,0) ) THEN
-!$omp do
-      DO j = 1, npdb
-        IF ( px(j).LT.0 ) THEN
-          px(j) = px(j) + this%gext_(1)
-          ! p+L can round up to exactly L when p is a tiny negative
-          ! number, and L is outside [0,L): fold it to 0. The subtract
-          ! branch below is exact (Sterbenz) and needs no guard.
-          IF ( px(j).GE.this%gext_(1) ) px(j) = 0.0_GP
-        ELSE IF ( px(j).GE.this%gext_(1) ) THEN
-          px(j) = px(j) - this%gext_(1)
-        ENDIF
-      ENDDO
-    ENDIF
-    IF ( btest(idir,1) ) THEN
-!$omp do
-      DO j = 1, npdb
-        IF ( py(j).LT.0 ) THEN
-          py(j) = py(j) + this%gext_(2)
-          ! p+L can round up to exactly L when p is a tiny negative
-          ! number, and L is outside [0,L): fold it to 0. The subtract
-          ! branch below is exact (Sterbenz) and needs no guard.
-          IF ( py(j).GE.this%gext_(2) ) py(j) = 0.0_GP
-        ELSE IF ( py(j).GE.this%gext_(2) ) THEN
-          py(j) = py(j) - this%gext_(2)
-        ENDIF
-      ENDDO
-    ENDIF
-    IF ( btest(idir,2) ) THEN
-!$omp do
-      DO j = 1, npdb
-        IF ( pz(j).LT.0 ) THEN
-          pz(j) = pz(j) + this%gext_(3)
-          ! p+L can round up to exactly L when p is a tiny negative
-          ! number, and L is outside [0,L): fold it to 0. The subtract
-          ! branch below is exact (Sterbenz) and needs no guard.
-          IF ( pz(j).GE.this%gext_(3) ) pz(j) = 0.0_GP
-        ELSE IF ( pz(j).GE.this%gext_(3) ) THEN
-          pz(j) = pz(j) - this%gext_(3)
-        ENDIF
-      ENDDO
-    ENDIF
-!$omp end parallel
+! step. The conditional form of gpb_periodic leaves particles inside
+! the box bit-untouched; it assumes the positions are within one box
+! length of the domain, which holds at every call site since the
+! callers periodize right after a single stage displacement.
+    IF ( btest(idir,0) ) CALL gpb_periodic(npdb,px,this%gext_(1))
+    IF ( btest(idir,1) ) CALL gpb_periodic(npdb,py,this%gext_(2))
+    IF ( btest(idir,2) ) CALL gpb_periodic(npdb,pz,this%gext_(3))
   END SUBROUTINE MakePeriodicP
 
   
@@ -1481,8 +1444,6 @@ CONTAINS
     CLASS(ParticleBase) ,INTENT(INOUT)               :: this
     INTEGER,INTENT(IN)                               :: npdb
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(npdb)      :: pz,tpz
-    INTEGER                                          :: j
-!$omp parallel do 
     ! Unlike MakePeriodicP, a result of p+L that rounds up to exactly L
     ! must NOT be folded to zero here. This routine wraps particles the
     ! NN exchange has just delivered to the opposite end of the domain,
@@ -1492,104 +1453,8 @@ CONTAINS
     ! z=0 does not. The VDB exchange, which re-bins ownership from the
     ! coordinate value, needs the opposite convention and gets it from
     ! MakePeriodicP.
-    DO j = 1,npdb
-       IF (pz(j).LT.0) THEN
-          pz(j)  =  pz(j) + this%gext_(3)
-          tpz(j) = tpz(j) + this%gext_(3)
-       ELSE IF (pz(j).GE.this%gext_(3)) THEN
-          pz(j)  =  pz(j) - this%gext_(3)
-          tpz(j) = tpz(j) - this%gext_(3)
-       ENDIF
-    ENDDO
+    CALL gpb_periodic_z(npdb,pz,tpz,this%gext_(3))
   END SUBROUTINE MakePeriodicZ
-
-  
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !!  METHOD     : MakePeriodicExt
-  !!  DESCRIPTION: Enforces periodic b.c.'s on extended field
-  !!  ARGUMENTS  :
-  !!    this    : 'this' class instance (IN)
-  !!    v       : real field on extended grid 
-  !!    nx,ny   : global size of field in x-y (including ghost zones)
-  !!    kb,ke   : starting, ending z-indices of slab (including ghost zones)
-  !!    nc      : index in x and y (and z) s.t. f(nc+1,:,:) = f(nx-nc,:,:), etc.
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE MakePeriodicExt(this,v,nx,ny,kb,ke,nc)
-    USE fprecision
-    USE commtypes
-!$  USE threads
-    IMPLICIT NONE
-    CLASS(ParticleBase) ,INTENT(INOUT)               :: this
-    INTEGER      ,INTENT(IN)                         :: nc,nx,ny,kb,ke
-    REAL(KIND=GP),INTENT(INOUT)                      :: v(nx,ny,kb:ke)
-    INTEGER                                          :: i,j,k
-    ! Recall: nx, ny are the dimensions _including_ ghost zones:
-    !
-    ! Periodicity s.t.:
-    !   | | [ | | | | ] | |
-    !   a b       a b 
-!$omp parallel do if (ke-kb.ge.nth) private (i,j,k)
-    DO k = kb,ke 
-!$omp parallel do if (ke-kb.lt.nth) private (i,j)
-      DO j = 1,ny
-        DO i = 1,nc
-          v(i,j,k) = v(nx-nc+i,j,k)
-        ENDDO
-        DO i = nx-nc+1,nx
-          v(i,j,k) = v(2*nc+i-nx,j,k)
-        ENDDO
-      ENDDO
-      DO i = 1,nx
-        DO j = 1,nc
-          v(i,j,k) = v(i,nx-nc+j,k)
-        ENDDO
-        DO j = ny-nc+1,ny
-          v(i,j,k) = v(i,2*nc+j-nx,k)
-        ENDDO
-      ENDDO
-    ENDDO
-  END SUBROUTINE MakePeriodicExt
-
-  
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !!  METHOD     : Part_Delete
-  !!  DESCRIPTION: Removes from PDB NULL particles, concatenates list,
-  !!               and sets new number of particles
-  !!  ARGUMENTS  :
-  !!    this    : 'this' class instance (IN)
-  !!    id      : part ids
-  !!    px,py pz: part. d.b.
-  !!    npdb    : no. parts. in pdb
-  !!    nnew    : no. non-NULL particles (set in GPartComm class)
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE Part_Delete(this,id,px,py,pz,npdb,nnew)
-    USE fprecision
-    USE commtypes
-    IMPLICIT NONE
-    CLASS(ParticleBase) ,INTENT(INOUT)         :: this
-    INTEGER      ,INTENT   (IN)                :: npdb
-    INTEGER      ,INTENT(INOUT),DIMENSION(npdb):: id
-    INTEGER      ,INTENT  (OUT)                :: nnew
-    INTEGER                                    :: i,j
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(npdb):: px,py,pz
-    nnew = 0
-!$omp parallel do 
-    DO i = 1, npdb
-       IF ( this%id_(i) .NE. GPNULL ) nnew = nnew + 1
-    ENDDO
-    j    = 1
-    DO i = 1, nnew
-      DO WHILE ( j.LE.npdb .AND. id(j).EQ.GPNULL )
-        j = j + 1
-      ENDDO
-      IF ( j.LE.npdb .AND. j.NE.i ) THEN
-        id(i) = id(j); id(j) = GPNULL
-        px(i) = px(j)
-        py(i) = py(j)
-        pz(i) = pz(j)
-      ENDIF
-    ENDDO
-  END SUBROUTINE Part_Delete
 
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1620,76 +1485,29 @@ CONTAINS
   !!              local particles, ascending
   !!    nl      : no. local particles found
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE SelectLocalIds(zlo,zhi,gvdb,ngvdb,id,nl)
+  SUBROUTINE SelectLocalIds(zlo,zhi,gvdb,ngvdb,flag,id,nl)
     USE fprecision
-!$  USE omp_lib
     IMPLICIT NONE
     REAL(KIND=GP),INTENT   (IN)                    :: zlo,zhi
     INTEGER      ,INTENT   (IN)                    :: ngvdb
     REAL(KIND=GP),INTENT   (IN),DIMENSION(3,ngvdb) :: gvdb
+    INTEGER      ,INTENT(INOUT),DIMENSION(ngvdb)   :: flag
     INTEGER      ,INTENT(INOUT),DIMENSION(*)       :: id
     INTEGER      ,INTENT  (OUT)                    :: nl
-    INTEGER                                        :: j,k,t,lo,hi,chunk,ntmax
-    INTEGER                                        :: nthr
-    INTEGER      ,ALLOCATABLE  ,DIMENSION(:)       :: cnt,base
-
-    ntmax = 1
-!$  ntmax = omp_get_max_threads()
-    ALLOCATE(cnt(0:ntmax-1),base(0:ntmax-1))
-    nthr = 1
-!$omp parallel private(t,j,k,lo,hi,chunk) shared(cnt,base,nthr)
-!$omp single
-!$  nthr = omp_get_num_threads()
-!$omp end single
-    t = 0
-!$  t = omp_get_thread_num()
-    chunk = (ngvdb+nthr-1)/nthr
-    lo = t*chunk + 1
-    hi = MIN(ngvdb,(t+1)*chunk)
-    ! Pass 1: each thread counts the matches in its chunk
-    k = 0
-    DO j = lo, hi
-      IF ( gvdb(3,j).GE.zlo .AND. gvdb(3,j).LT.zhi ) k = k + 1
-    ENDDO
-    cnt(t) = k
-!$omp barrier
-!$omp single
-    base(0) = 0
-    DO j = 1, nthr-1
-      base(j) = base(j-1) + cnt(j-1)
-    ENDDO
-!$omp end single
-    ! Pass 2: each thread writes its matches at its offset
-    k = base(t)
-    DO j = lo, hi
-      IF ( gvdb(3,j).GE.zlo .AND. gvdb(3,j).LT.zhi ) THEN
-        k = k + 1
-        id(k) = j - 1
-      ENDIF
-    ENDDO
-!$omp end parallel
-    nl = base(nthr-1) + cnt(nthr-1)
-    DEALLOCATE(cnt,base)
+    ! Deterministic selection (ascending id) of the entries of the
+    ! global database whose z lies in [zlo,zhi); id(k) = index-1
+    CALL gpb_flag_zrange(ngvdb,gvdb,zlo,zhi,flag)
+    CALL gpsel_compact(1,ngvdb,flag,id,nl,-1)
   END SUBROUTINE SelectLocalIds
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!  METHOD     : GetLocalWrk
-  !!  DESCRIPTION: Removes from PDB NULL particles, concatenates list,
-  !!               and sets new number of particles
-  !!  ARGUMENTS  :
-  !!    this    : 'this' class instance (IN)
-  !!    id      : part ids, returned if gfill not specified
-  !!    lx,ly,lz: local part. d.b. vectors
-  !!    nl      : no. parts. in local pdb. If gfill specified, this is read
-  !!              as the local no. particles.
-  !!    gvdb    : global VDB containing part. position records. Location
-  !!              gives particle id.
-  !!    ngvdb   : no. records in global VDB
-  !!    gfill   : if specified, the gvdb will be used to locate the 
-  !!              particles this task owns, and will return the correct
-  !!              local arrays, lx, ly, lz, from the global d.b. gfill,
-  !!              using id array as indirection.
+  !!  DESCRIPTION: Selects from the global database gvdb the
+  !!               particles that lie in the slab of this task,
+  !!               setting id(1:nl) (global ids) and lx,ly,lz. If
+  !!               gfill is present the selection is not redone:
+  !!               lx,ly,lz are gathered from gfill at the ids.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   SUBROUTINE GetLocalWrk(this,id,lx,ly,lz,nl,gvdb,ngvdb,gfill)
     USE fprecision
@@ -1699,51 +1517,24 @@ CONTAINS
     INTEGER      ,INTENT(INOUT)                            :: nl
     INTEGER      ,INTENT(INOUT),DIMENSION(this%maxparts_)  :: id
     INTEGER      ,INTENT   (IN)                            :: ngvdb
-    INTEGER                                                :: i,j
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%maxparts_)  :: lx,ly,lz
     REAL(KIND=GP),INTENT   (IN),DIMENSION(3,ngvdb)         :: gvdb
     REAL(KIND=GP),INTENT   (IN),DIMENSION(3,ngvdb),OPTIONAL:: gfill
     IF ( .NOT.present(gfill) ) THEN
-      id = GPNULL
-      ! Deterministic (ascending id) selection of the local particles
-      CALL SelectLocalIds(this%lxbnds_(3,1),this%lxbnds_(3,2),gvdb,ngvdb,id,nl)
-!$omp parallel do private (i)
-      DO j = 1, nl
-        i = id(j) + 1
-        lx (j) = gvdb(1,i)
-        ly (j) = gvdb(2,i)
-        lz (j) = gvdb(3,i)
-      ENDDO
+      CALL gpb_fill_i(this%maxparts_,id,GPNULL)
+      CALL SelectLocalIds(this%lxbnds_(3,1),this%lxbnds_(3,2),gvdb,ngvdb,this%tmpint_,id,nl)
+      CALL gpb_gather3(nl,this%maxparts_,id,ngvdb,gvdb,lx,ly,lz)
     ELSE
-!$omp parallel do
-      DO j = 1, nl
-        lx (j) = gfill(1,id(j)+1)
-        ly (j) = gfill(2,id(j)+1)
-        lz (j) = gfill(3,id(j)+1)
-      ENDDO
+      CALL gpb_gather3(nl,this%maxparts_,id,ngvdb,gfill,lx,ly,lz)
     ENDIF
   END SUBROUTINE GetLocalWrk
 
-  
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!  METHOD     : GetLocalWrk_aux
-  !!  DESCRIPTION: Removes from PDB NULL particles, concatenates list,
-  !!               and sets new number of particles. This auxiliary 
-  !!               subroutines also updates arrays used during the 
-  !!               intermediate steps of the RK solver, and is needed 
-  !!               if local work is recomputed in the midde of a RK 
-  !!               iteration.
-  !!  ARGUMENTS  :
-  !!    this    : 'this' class instance (IN)
-  !!    id      : part ids
-  !!    lx,ly,lz: local part. d.b. vectors
-  !!    tx,ty,tz: local initial part. d.b. vectors
-  !!    nl      : no. parts. in local pdb
-  !!    gvdb    : global VDB containing part. position records. Location
-  !!              gives particle id.
-  !!    gtmp    : global VDB containing part. position records at the
-  !!              beginning of the RK loop. Location gives particle id.
-  !!    ngvdb   : no. records in global VDB
+  !!  DESCRIPTION: As GetLocalWrk, and also gathers from the
+  !!               auxiliary database gtmp (the positions of the
+  !!               previous stage) into tx,ty,tz
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   SUBROUTINE GetLocalWrk_aux(this,id,lx,ly,lz,tx,ty,tz,nl,gvdb,gtmp,ngvdb)
     USE fprecision
@@ -1753,37 +1544,24 @@ CONTAINS
     INTEGER      ,INTENT(INOUT)                           :: nl
     INTEGER      ,INTENT(INOUT),DIMENSION(this%maxparts_) :: id
     INTEGER      ,INTENT   (IN)                           :: ngvdb
-    INTEGER                                               :: i,j
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%maxparts_) :: lx,ly,lz
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%maxparts_) :: tx,ty,tz
     REAL(KIND=GP),INTENT   (IN),DIMENSION(3,ngvdb)        :: gvdb,gtmp
-    id = GPNULL
-    ! Deterministic (ascending id) selection of the local particles
-    CALL SelectLocalIds(this%lxbnds_(3,1),this%lxbnds_(3,2),gvdb,ngvdb,id,nl)
-!$omp parallel do private (i)
-    DO j = 1, nl
-      i = id(j) + 1
-      lx (j) = gvdb(1,i)
-      ly (j) = gvdb(2,i)
-      lz (j) = gvdb(3,i)
-      tx (j) = gtmp(1,i)
-      ty (j) = gtmp(2,i)
-      tz (j) = gtmp(3,i)
-    ENDDO
+    CALL gpb_fill_i(this%maxparts_,id,GPNULL)
+    CALL SelectLocalIds(this%lxbnds_(3,1),this%lxbnds_(3,2),gvdb,ngvdb,this%tmpint_,id,nl)
+    CALL gpb_gather3(nl,this%maxparts_,id,ngvdb,gvdb,lx,ly,lz)
+    CALL gpb_gather3(nl,this%maxparts_,id,ngvdb,gtmp,tx,ty,tz)
   END SUBROUTINE GetLocalWrk_aux
 
-  
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!  METHOD     : CopyLocalWrk
-  !!  DESCRIPTION: Updates records of the VDB.
-  !!  ARGUMENTS  :
-  !!    this    : 'this' class instance (IN)
-  !!    lx,ly,lz: local part. d.b. vectors
-  !!    gvdb    : global VDB containing part. position records. Location
-  !!              gives particle id.
-  !!    vgvdb   : global VDB containing part. property records
-  !!              (can be velocity or anything associated to the particle).
-  !!    ngvdb   : no. records in global VDB
+  !!  DESCRIPTION: Gathers into lx,ly,lz the entries of vgvdb of
+  !!               the particles that lie in the slab of this task
+  !!               according to the positions in gvdb. The same
+  !!               deterministic selection as GetLocalWrk is used,
+  !!               so the records pair entry by entry with the
+  !!               local arrays built from the same database.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   SUBROUTINE CopyLocalWrk(this,lx,ly,lz,gvdb,vgvdb,ngvdb)
     USE fprecision
@@ -1791,90 +1569,153 @@ CONTAINS
     IMPLICIT NONE
     CLASS(ParticleBase) ,INTENT(INOUT)                    :: this
     INTEGER      ,INTENT   (IN)                           :: ngvdb
-    INTEGER                                               :: i,j,nll
-    INTEGER      ,ALLOCATABLE  ,DIMENSION(:)              :: sid
+    INTEGER                                               :: nll
     REAL(KIND=GP),INTENT(INOUT),DIMENSION(this%maxparts_) :: lx,ly,lz
     REAL(KIND=GP),INTENT   (IN),DIMENSION(3,ngvdb)        :: gvdb
     REAL(KIND=GP),INTENT   (IN),DIMENSION(3,ngvdb)        :: vgvdb
-    ! Same deterministic two pass selection used by GetLocalWrk: the
-    ! records extracted here must pair, entry by entry, with the local
-    ! arrays that GetLocalWrk and GetLocalWrk_aux build from the same
-    ! VDB, so the ascending id order is required.
-    ALLOCATE(sid(ngvdb))
-    CALL SelectLocalIds(this%lxbnds_(3,1),this%lxbnds_(3,2),gvdb,ngvdb,sid,nll)
-!$omp parallel do private (i)
-    DO j = 1, nll
-      i = sid(j) + 1
-      lx (j) = vgvdb(1,i)
-      ly (j) = vgvdb(2,i)
-      lz (j) = vgvdb(3,i)
-    ENDDO
-    DEALLOCATE(sid)
+    CALL SelectLocalIds(this%lxbnds_(3,1),this%lxbnds_(3,2),gvdb,ngvdb,this%tmpint_,this%iwrk_,nll)
+    CALL gpb_gather3(nll,this%maxparts_,this%iwrk_,ngvdb,vgvdb,lx,ly,lz)
   END SUBROUTINE CopyLocalWrk
 
-  
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !!  METHOD     : GetVDB
-  !!  DESCRIPTION: Gets particle d.b.
-  !!  ARGUMENTS  :
-  !!    this    : 'this' class instance (IN)
-  !!    pdb     : part pdb, of size (3,npdb)
-  !!    npdb    : size of pdb array (2nd dimension); must be >= maxparts_
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE GetVDB(this,pdb,npdb)
-    USE fprecision
-    USE commtypes
 
-    IMPLICIT NONE 
-    CLASS(ParticleBase) ,INTENT(INOUT)            :: this 
-    INTEGER      ,INTENT   (IN)                   :: npdb
-    INTEGER                                       :: j
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,npdb) :: pdb
-    IF ( this%iexchtype_.EQ.GPEXCHTYPE_NN ) THEN
-      IF ( .NOT.this%PartNumConsistent(this%nparts_) ) THEN
-          IF ( this%myrank_.eq.0 ) THEN
-            WRITE(*,*) 'GetVDB: Inconsistent particle count'
-            STOP
-        ENDIF
-      ENDIF
-      CALL this%gpcomm_%VDBSynch(pdb,this%maxparts_,this%id_, &
-           this%px_,this%py_,this%pz_,this%nparts_,this%ptmp0_)
-    ELSE
-!$omp parallel do 
-      DO j = 1, npdb
-        pdb(1:3,j) = this%vdb_(1:3,j)
-     ENDDO
-    ENDIF
-   END SUBROUTINE GetVDB
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!  METHOD     : sync_device / sync_host
+  !!  DESCRIPTION: Copy the class arrays that the host code
+  !!               modifies (initialization) to the device, and
+  !!               the ones the I/O needs (ids, Lagrangian
+  !!               velocities) back to the host. No-ops in host
+  !!               builds. The particle states are synchronized
+  !!               by the main program (GPState_update_to/from).
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SUBROUTINE sync_device(this)
+    IMPLICIT NONE
+    CLASS(ParticleBase) ,INTENT(INOUT) :: this
+    CALL gupdate_to(this%id_)
+    IF ( ALLOCATED(this%vdb_) ) CALL gupdate_to(this%vdb_)
+    IF ( ASSOCIATED(this%lvx_) ) CALL gupdate_to(this%lvx_)
+    IF ( ASSOCIATED(this%lvy_) ) CALL gupdate_to(this%lvy_)
+    IF ( ASSOCIATED(this%lvz_) ) CALL gupdate_to(this%lvz_)
+  END SUBROUTINE sync_device
 
-   
+  SUBROUTINE sync_host(this)
+    IMPLICIT NONE
+    CLASS(ParticleBase) ,INTENT(INOUT) :: this
+    CALL gupdate_from(this%id_)
+    IF ( ASSOCIATED(this%lvx_) ) CALL gupdate_from(this%lvx_)
+    IF ( ASSOCIATED(this%lvy_) ) CALL gupdate_from(this%lvy_)
+    IF ( ASSOCIATED(this%lvz_) ) CALL gupdate_from(this%lvz_)
+  END SUBROUTINE sync_host
+
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !!  METHOD     : GetVel
-  !!  DESCRIPTION: Gets current particle velocities by doing 'synch'
-  !!               of local velocities
-  !!         
-  !!  ARGUMENTS  :
-  !!    this     : 'this' class instance (IN)
-  !!    lvel     : part velocity array, of size (3,nparts)
-  !!    nparts   : size of lvel array, must be >= maxparts_
+  !! Particle kernels (module procedures with explicit-shape
+  !! arrays; device kernels while gdev_active is set)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE GetVel(this,lvel,nparts)
-    USE fprecision
-    USE commtypes
-    IMPLICIT NONE 
-    CLASS(ParticleBase) ,INTENT(INOUT)             :: this 
-    INTEGER      ,INTENT   (IN)                    :: nparts
-    INTEGER                                        :: j
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(3,nparts):: lvel
-    IF ( .NOT.this%PartNumConsistent(this%nparts_) ) THEN
-      IF ( this%myrank_.eq.0 ) THEN
-        WRITE(*,*) 'GetVel: Inconsistent particle count'
-        STOP
+
+  ! Periodic wrap of one coordinate; p+L can round up to exactly L
+  ! when p is a tiny negative number, and L is outside [0,L): fold
+  ! it to 0. The subtract branch is exact (Sterbenz), no guard.
+  SUBROUTINE gpb_periodic(n,p,gl)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n
+    REAL(KIND=GP),INTENT(INOUT) :: p(n)
+    REAL(KIND=GP),INTENT(IN)    :: gl
+    INTEGER                     :: j
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active)
+#else
+!$omp parallel do
+#endif
+    DO j = 1, n
+      IF ( p(j).LT.0 ) THEN
+        p(j) = p(j) + gl
+        IF ( p(j).GE.gl ) p(j) = 0.0_GP
+      ELSE IF ( p(j).GE.gl ) THEN
+        p(j) = p(j) - gl
       ENDIF
-    ENDIF
-    CALL this%gpcomm_%VDBSynch(lvel,this%maxparts_,this%id_, &
-         this%lvx_,this%lvy_,this%lvz_,this%nparts_,this%ptmp0_)
-   END SUBROUTINE GetVel
+    ENDDO
+  END SUBROUTINE gpb_periodic
+
+  ! Periodic wrap in z of the positions of two stages together
+  SUBROUTINE gpb_periodic_z(n,pz,tpz,gl)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n
+    REAL(KIND=GP),INTENT(INOUT) :: pz(n),tpz(n)
+    REAL(KIND=GP),INTENT(IN)    :: gl
+    INTEGER                     :: j
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active)
+#else
+!$omp parallel do
+#endif
+    DO j = 1, n
+      IF ( pz(j).LT.0 ) THEN
+        pz(j)  =  pz(j) + gl
+        tpz(j) = tpz(j) + gl
+      ELSE IF ( pz(j).GE.gl ) THEN
+        pz(j)  =  pz(j) - gl
+        tpz(j) = tpz(j) - gl
+      ENDIF
+    ENDDO
+  END SUBROUTINE gpb_periodic_z
+
+  ! flag(j) = 1 for the entries of the database with z in [zlo,zhi)
+  SUBROUTINE gpb_flag_zrange(n,g,zlo,zhi,flag)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n
+    REAL(KIND=GP),INTENT(IN)    :: g(3,n),zlo,zhi
+    INTEGER      ,INTENT(INOUT) :: flag(n)
+    INTEGER                     :: j
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active)
+#else
+!$omp parallel do
+#endif
+    DO j = 1, n
+      IF ( g(3,j).GE.zlo .AND. g(3,j).LT.zhi ) THEN
+        flag(j) = 1
+      ELSE
+        flag(j) = 0
+      ENDIF
+    ENDDO
+  END SUBROUTINE gpb_flag_zrange
+
+  ! lx,ly,lz(j) = g(:,id(j)+1) for the nl local particles
+  SUBROUTINE gpb_gather3(nl,np,id,ng,g,lx,ly,lz)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: nl,np,ng
+    INTEGER      ,INTENT(IN)    :: id(np)
+    REAL(KIND=GP),INTENT(IN)    :: g(3,ng)
+    REAL(KIND=GP),INTENT(INOUT) :: lx(np),ly(np),lz(np)
+    INTEGER                     :: j,i
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active) private(i)
+#else
+!$omp parallel do private(i)
+#endif
+    DO j = 1, nl
+      i = id(j) + 1
+      lx(j) = g(1,i)
+      ly(j) = g(2,i)
+      lz(j) = g(3,i)
+    ENDDO
+  END SUBROUTINE gpb_gather3
+
+  ! a(1:n) = val
+  SUBROUTINE gpb_fill_i(n,a,val)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n,val
+    INTEGER      ,INTENT(INOUT) :: a(n)
+    INTEGER                     :: j
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active)
+#else
+!$omp parallel do
+#endif
+    DO j = 1, n
+      a(j) = val
+    ENDDO
+  END SUBROUTINE gpb_fill_i
 
    
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1951,37 +1792,6 @@ CONTAINS
      PartNumConsistent = ng .EQ. this%maxparts_
   END FUNCTION PartNumConsistent
 
- 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !!  METHOD     : R3toR3
-  !!  DESCRIPTION: Copies input 3D real array to output 3D real array.
-  !!  ARGUMENTS  :
-  !!    this    : 'this' class instance
-  !!    vout    : result, returned; size standard in GHOST: (nx,ny,ksta:kend)
-  !!    vin     : input array, size standard in GHOST
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE R3toR3(this, vout, vin)
-    USE grid
-    USE fprecision
-    USE commtypes
-    USE mpivars
-!$  USE threads
-    IMPLICIT NONE
-    CLASS(ParticleBase) ,INTENT(INOUT)                   :: this
-    REAL(KIND=GP),INTENT(OUT),DIMENSION(nx,ny,ksta:kend) :: vout
-    REAL(KIND=GP),INTENT (IN),DIMENSION(nx,ny,ksta:kend) :: vin
-    INTEGER                                              :: i,j,k
-!$omp parallel do if (kend-ksta.ge.nth) private (i,k)
-    DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-      DO j = 1, ny
-        DO i = 1, nx
-          vout(i,j,k) = vin(i,j,k)
-        ENDDO
-      ENDDO
-    ENDDO
-  END SUBROUTINE R3toR3
-
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!  METHOD     : Resize_Arrays
@@ -1994,7 +1804,6 @@ CONTAINS
   !!    onlyinc : if true, will only resize to increase array size
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   SUBROUTINE ResizeArrays(this,new_size,onlyinc,exc)
-!$  USE threads 
     IMPLICIT NONE
     CLASS(ParticleBase) ,INTENT(INOUT)             :: this
     INTEGER      ,INTENT(IN)                       :: new_size
@@ -2005,19 +1814,12 @@ CONTAINS
 
     n = SIZE(this%id_)
     IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
-      CALL Resize_IntArray(this%id_,new_size,.true.)
-    END IF
-    n = SIZE(this%tmpint_)
-    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
-      CALL Resize_IntArray(this%tmpint_,new_size,.true.)
-    END IF
-    n = SIZE(this%ptmp0_,2)
-    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
-      CALL Resize_ArrayRank2(this%ptmp0_,new_size,.true.)
-    END IF
-    n = SIZE(this%gptmp0_,2)
-    IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
-      CALL Resize_ArrayRank2(this%gptmp0_,new_size,.false.)
+      CALL gresize(this%id_    ,new_size,.true. )
+      CALL gresize(this%tmpint_,new_size,.false.)
+      CALL gresize(this%iwrk_  ,new_size,.false.)
+      CALL gresize(this%ptmp0_ ,3,new_size,.true. )
+      CALL gresize(this%gptmp0_,3,new_size,.false.)
+      IF ( ALLOCATED(this%vdb_) ) CALL gresize(this%vdb_,3,new_size,.false.)
     END IF
 
     ! Resize workspace
@@ -2042,14 +1844,6 @@ CONTAINS
     IF (assocptr(1)) call this%workspace_%get_pcomp_tmp(this%lvx_,bret)
     IF (assocptr(2)) call this%workspace_%get_pcomp_tmp(this%lvy_,bret)
     IF (assocptr(3)) call this%workspace_%get_pcomp_tmp(this%lvz_,bret)
-
-    ! Resize VDB
-    IF (this%iexchtype_.EQ.GPEXCHTYPE_VDB) THEN
-      n = SIZE(this%vdb_)
-      IF ((n.lt.new_size).OR.((n.gt.new_size).AND..NOT.onlyinc)) THEN
-        CALL Resize_ArrayRank2(this%vdb_,new_size,.false.)
-      END IF
-    ENDIF
 
     IF (PRESENT(exc)) THEN
       IF (exc) RETURN    ! Skip subclass resizing

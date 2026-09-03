@@ -20,8 +20,26 @@ module equation_factory
   IMPLICIT NONE
 
   ! ================= Global parameters ===============================
+  ! Number of complex and real temporary arrays in the workspace pool,
+  ! the peak of the nested requests of each solver as measured with
+  ! report_peaks on the example inputs. The pseudospectral routines take
+  ! their temporaries from the pool: prodre3, gradre3 and vector3 need 7
+  ! real arrays, advect3 2 complex and 3 real, on top of the ones held by
+  ! the caller (rotor3 and derivk3 need none).
+  !   HD   : 8 complex (random forcing or initial conditions), 7 real
+  !   BOUSS: dudt holds 8 complex, +2 in advect3 = 10; 7 real
+  !   MOIST: dudt holds 8 complex and 2 real, +7 real in prodre3 = 9 real
+  !   MHD  : dudt holds 12 complex (+3 with Hall, added by the solver);
+  !          7 real
+  ! Forcing methods with permanent storage (shuffle) add their own
+  ! entries in the forcing factory.
   integer, public :: NUMTMPCOMP = 0 ! Number of cmplx tmp arrays
   integer, public :: NUMTMPREAL = 0 ! Number of real tmp arrays
+  ! Host-only temporaries, for the diagnostics (all solvers): hdcheck or
+  ! mhdcheck hold 3 complex while energy holds 3; maxabs holds 3 complex
+  ! and 3 real; havgcomp 4 complex and 3 real.
+  integer, public :: NUMTMPHCOMP = 6 ! Number of host-only cmplx tmp arrays
+  integer, public :: NUMTMPHREAL = 3 ! Number of host-only real tmp arrays
   
 CONTAINS
   
@@ -50,16 +68,16 @@ CONTAINS
     select case (trim(adjustl(solver)))
       case ('HD')
         allocate(HDsolver    :: new_object)
-        NUMTMPCOMP =  8; NUMTMPREAL = 3
+        NUMTMPCOMP =  8; NUMTMPREAL = 7
       case ('BOUSS')
         allocate(BOUSSsolver :: new_object)
-        NUMTMPCOMP = 10; NUMTMPREAL = 3
+        NUMTMPCOMP = 10; NUMTMPREAL = 7
       case ('MOIST')
         allocate(MOISTsolver :: new_object)
-        NUMTMPCOMP = 10; NUMTMPREAL = 3
+        NUMTMPCOMP = 10; NUMTMPREAL = 9
       case ('MHD')
         allocate(MHDsolver   :: new_object)
-        NUMTMPCOMP = 12; NUMTMPREAL = 3
+        NUMTMPCOMP = 12; NUMTMPREAL = 7
 !     case ('UserDefined')
 !       allocate(UserDefinedsolver :: new_object)
 !       NUMFIELDS = 3; NUMTMPCOMP =  8; NUMTMPREAL = 3

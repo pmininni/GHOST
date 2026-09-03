@@ -30,7 +30,7 @@
       USE iovar
       USE fft
       USE threads
-      USE offloading
+      USE gdevice
       USE boxsize
       USE status
       USE pstatus
@@ -47,7 +47,7 @@
 ! Arrays for the field and particle states, workspace, I/O, and solver classes
       TYPE   (GStateComp), ALLOCATABLE :: field(:),field_nxt(:),force (:)
       TYPE  (GPStateComp), ALLOCATABLE :: part (:),part_nxt (:)
-      TYPE   (GWorkspace)              :: workspace
+      TYPE   (GWorkspace), TARGET      :: workspace
       TYPE       (ioplan)              :: planio
       CLASS(EquationBase), ALLOCATABLE :: fluid
       CLASS(ParticleBase), ALLOCATABLE :: particle
@@ -59,6 +59,7 @@
 ! Auxiliary variables
       REAL(KIND=GP) :: time
       INTEGER       :: t, num_components
+      LOGICAL       :: fstatic
 
 ! Initialization
 ! Initializes the MPI and I/O libraries
@@ -69,14 +70,10 @@
 ! Initializes the grid. This must be done early to have nx, ny, nz.
       CALL grid_init('parameter.inp')
 
-! Initialization of offloading to GPUs using OpenMP (this is independent
-! of CUDA initialization in systems with NVIDIA GPUs). GHOST
-! assumes the number of MPI jobs in each node is equal to the
-! number of GPUs available in the node. The user must ensure this
-! condition is fulfilled.
-#if defined(DO_HYBRIDoffl)
-      CALL init_offload(myrank,numdev,hostdev,targetdev)
-#endif
+! Binds this MPI task to a GPU in offload builds (no-op otherwise).
+! GHOST assumes the number of MPI tasks per node is a multiple of the
+! number of GPUs per node; the user must ensure this condition.
+      CALL device_init(myrank)
 
 ! Initialization of fluid and particles integration parameters
       CALL status_init ('parameter.inp')
@@ -91,6 +88,7 @@
       fluid        = init_pdes_from_file('parameter.inp')
       if (dopart) particle = init_particles_from_file('parameter.inp')
       CALL workspace%initialize_pool(NUMTMPREAL,NUMTMPCOMP,NUMTMPPART)
+      CALL workspace%init_host_entries(NUMTMPHREAL,NUMTMPHCOMP)
       CALL fluid%Solver_ctor('parameter.inp',workspace,planio)
       num_components = fluid%state_size()
       CALL GState_alloc(field    , num_components)
@@ -116,9 +114,7 @@
 ! about 23% faster than FFTW_ESTIMATE, 13 to 18% of the whole time step.
       nth = 1
 !$    nth = omp_get_max_threads()
-#if !defined(DEF_GHOST_CUDA_)
 !$    CALL fftp3d_init_threads(ierr)
-#endif
       CALL GTBenchInit(bench,ihcpu1,ihomp1,ihwtm1,ihcpu2,ihomp2,ihwtm2)
       IF (bench.eq.2) THEN
          CALL GTStart(ihcpu2); CALL GTStart(ihomp2); CALL GTStart(ihwtm2)
@@ -155,14 +151,19 @@
         timef = int(modulo(float(ini-1),float(fstep)))
       ENDIF IC
       CALL init_allstates(iclist,fluid,field)
-      field_nxt = field  ! We update nxt to work with I/O and all steppers
+      CALL GState_update_to(field)  ! Device copies (no-op in host builds)
+      CALL GState_copy(field_nxt,field) ! nxt is used by I/O and all steppers
       CALL init_forcing(forcemethod,fluid,force)
+      CALL GState_update_to(force)
+      fstatic = forcing_is_static(forcemethod)
       if (dopart) then
          CALL init_allpstates(icplist,fluid,field,particle,part)
          if (size(part(1)%rcomp) .ne. size(part_nxt(1)%rcomp)) then
             call GPState_resize(part_nxt,particle%partbuff_) ! We resize part_nxt
          endif
-         part_nxt = part ! We also update part_nxt
+         CALL GPState_update_to(part)     ! device copies of the particle
+         CALL particle%sync_device()      ! states and of the class arrays
+         CALL GPState_copy(part_nxt,part) ! We also update part_nxt
       endif
 
 ! Sets up the time stepper
@@ -172,7 +173,11 @@
         stepper = build_stepper_from_file('parameter.inp',workspace,fluid)
       endif
 
-! Time integration scheme starts here.
+! Time integration scheme starts here. In offload builds the fields
+! are worked on the device inside the time step (gdev_active set) and
+! on their host copies elsewhere: the host copies of the fields are
+! refreshed before any output, and the forcing, which is computed on
+! the host, is copied to the device after each update.
 ! If we are doing a benchmark, we measure cputime before
 ! starting. We also re-inititialize the fftp timers.
       IF (bench.eq.1) THEN
@@ -182,6 +187,11 @@
 
  RK : DO t = ini,step
          time = (t-1)*dt
+! Refreshes the host copies of the fields if any output is due
+         IF (((timet.eq.tstep).or.(timec.eq.cstep).or.(times.eq.sstep) &
+              .or.(dopart.and.(timep.eq.pstep))).and.(bench.eq.0)) THEN
+            CALL GState_update_from(field_nxt)
+         ENDIF
 ! Every 'tstep' steps, stores the fields in binary files
          IF ((timet.eq.tstep).and.(bench.eq.0)) THEN
             timet = 0
@@ -194,6 +204,7 @@
             IF ((timep.eq.pstep).and.(bench.eq.0)) THEN
                timep = 0
                pind = pind+1
+               CALL GPState_update_from(part_nxt) ! host copies for the I/O
                CALL particle%write_pstate(time,fluid,field_nxt,part_nxt)
             ENDIF
          endif
@@ -213,14 +224,17 @@
 
 ! Time evolution
          CALL update_forcing(forcemethod,fluid,force)
+         IF (.not.fstatic) CALL GState_update_to(force)
+         gdev_active = .TRUE.
          if (dopart) then
-            field = field_nxt
-            part  = part_nxt
+            CALL GState_copy(field,field_nxt)
+            CALL GPState_copy(part,part_nxt)
             CALL stepper%gstep(time, field, part, force, dt, field_nxt, part_nxt)
          else
-            field = field_nxt
+            CALL GState_copy(field,field_nxt)
             CALL stepper%gstep(time, field, force, dt, field_nxt)
          endif
+         gdev_active = .FALSE.
          timet = timet+1; timep = timep+1; timec = timec+1; times = times+1
       END DO RK
 
@@ -241,6 +255,7 @@
       ENDIF
 
 ! End of main
+      CALL workspace%report_peaks()
       CALL GTFree(ihcpu1)
       CALL GTFree(ihomp1)
       CALL GTFree(ihwtm1)

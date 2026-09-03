@@ -219,17 +219,19 @@ contains
     use mpivars
     use commtypes
     use fft
+    use gdevice, only: gdev_active
 !$  use threads
     implicit none
 
     class(BOUSSSolver), intent   (in)             :: this
     real     (kind=GP), intent   (in)             :: time, dt
     type  (GStateComp), intent(inout), target     :: uin(:),uf(:)
-    type  (GStateComp), intent(inout)             :: dudt(:) 
+    type  (GStateComp), intent(inout), target             :: dudt(:) 
     complex  (kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
     complex  (kind=GP), pointer, dimension(:,:,:) :: fth,th
     complex  (kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4,C5,C6
     complex  (kind=GP), pointer, dimension(:,:,:) :: C7,C8
+    complex  (kind=GP), pointer, dimension(:,:,:) :: dvx,dvy,dvz,dth
     real     (kind=GP)                            :: bkappa,bvfreq,nu
     real     (kind=GP)                            :: xmom,xtemp
     real     (kind=GP)                            :: omegax,omegay,omegaz
@@ -263,6 +265,10 @@ contains
     fy  => uf (this%VELOCITY+1)%ccomp
     fz  => uf (this%VELOCITY+2)%ccomp
     fth => uf (this%ACTIVESC  )%ccomp
+    dvx => dudt(this%VELOCITY  )%ccomp
+    dvy => dudt(this%VELOCITY+1)%ccomp
+    dvz => dudt(this%VELOCITY+2)%ccomp
+    dth => dudt(this%ACTIVESC  )%ccomp
       
     call prodre3(vx,vy,vz,C4,C5,C6)                    ! w x v
     if ( this%traits_%dorot ) then
@@ -272,10 +278,17 @@ contains
       call saxpby_c(C1, vz, 2*omegay, vy, -2.0*omegaz) ! 2 Omega x v
       call saxpby_c(C2, vx, 2*omegaz, vz, -2.0*omegax)
       call saxpby_c(C3, vy, 2*omegax, vx, -2.0*omegay)
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+      do i = ista,iend
+      do j = 1,ny
+      do k = 1,nz
+#else
 !$omp parallel do collapse(2) private (k)
       do i = ista,iend
       do j = 1,ny
       do concurrent (k=1:nz)
+#endif
          C4(k,j,i) = C4(k,j,i) + C1(k,j,i) ! (w x v + 2 Omega x v)_x
          C5(k,j,i) = C5(k,j,i) + C2(k,j,i) ! (w x v + 2 Omega x v)_y
          C6(k,j,i) = C6(k,j,i) + C3(k,j,i) ! (w x v + 2 Omega x v)_z
@@ -284,10 +297,17 @@ contains
       end do
     endif
 
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+    do i = ista,iend
+    do j = 1,ny                               ! Buoyancy term
+    do k = 1,nz                    ! It becomes negative as it changes
+#else
 !$omp parallel do collapse(2) private (k)
     do i = ista,iend
     do j = 1,ny                               ! Buoyancy term
     do concurrent (k=1:nz)                    ! It becomes negative as it changes
+#endif
        C6(k,j,i) = C6(k,j,i) + xmom*th(k,j,i) ! sign after the call to nonlhd3
     end do
     end do
@@ -302,29 +322,43 @@ contains
     call advect3(vx,vy,vz,th,C7) ! -(v.Grad) th
     call laplak3(th,C8)          ! Del^2 th
 
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+    do i = ista,iend
+    do j = 1,ny
+    do k = 1,nz   ! heat 'currrent'
+#else
 !$omp parallel do collapse(2) private (k)
     do i = ista,iend
     do j = 1,ny
     do concurrent (k=1:nz)   ! heat 'currrent'
+#endif
       C7(k,j,i) = C7(k,j,i) + xtemp*vz(k,j,i)
     end do
     end do
     end do
 
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+    do i = ista,iend
+    do j = 1,ny
+    do k = 1,nz
+#else
 !$omp parallel do collapse(2) private (k)
     do i = ista,iend
     do j = 1,ny
     do concurrent (k=1:nz)
+#endif
       if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
-        dudt(this%VELOCITY  )%ccomp(k,j,i) = nu*C4(k,j,i) + C1(k,j,i) + fx(k,j,i)
-        dudt(this%VELOCITY+1)%ccomp(k,j,i) = nu*C5(k,j,i) + C2(k,j,i) + fy(k,j,i)
-        dudt(this%VELOCITY+2)%ccomp(k,j,i) = nu*C6(k,j,i) + C3(k,j,i) + fz(k,j,i)
-        dudt(this%ACTIVESC  )%ccomp(k,j,i) = bkappa*C8(k,j,i) + C7(k,j,i) + fth(k,j,i)
+        dvx(k,j,i) = nu*C4(k,j,i) + C1(k,j,i) + fx(k,j,i)
+        dvy(k,j,i) = nu*C5(k,j,i) + C2(k,j,i) + fy(k,j,i)
+        dvz(k,j,i) = nu*C6(k,j,i) + C3(k,j,i) + fz(k,j,i)
+        dth(k,j,i) = bkappa*C8(k,j,i) + C7(k,j,i) + fth(k,j,i)
       else
-        dudt(this%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
-        dudt(this%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
-        dudt(this%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
-        dudt(this%ACTIVESC  )%ccomp(k,j,i) = 0.0_GP
+        dvx(k,j,i) = 0.0_GP
+        dvy(k,j,i) = 0.0_GP
+        dvz(k,j,i) = 0.0_GP
+        dth(k,j,i) = 0.0_GP
       endif
     end do
     end do
@@ -414,6 +448,7 @@ contains
     use filefmt
     use status
     use iovar
+    use pseudospec_fluid, only: scal3
     implicit none
 
     class (BOUSSSolver), intent(in)             :: this
@@ -437,19 +472,24 @@ contains
     call this%workspace_%get_complex_tmp(c2,bret)
     call this%workspace_%get_complex_tmp(c3,bret)
     call gradre3(vx,vy,vz,c1,c2,c3)                      ! Computes v.Grad(v)
-    call entrans(vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1) ! Writes the energy flux
+    ! The transfer routines need -v.Grad(v): the arrays are negated in
+    ! place (passing -c1 as an argument creates a field-sized temporary)
+    call scal3(c1,-1.0_GP)
+    call scal3(c2,-1.0_GP)
+    call scal3(c3,-1.0_GP)
+    call entrans(vx,vy,vz,c1,c2,c3,this%todir_,ext,1) ! Writes the energy flux
 
     call specpara(vx,vy,vz,this%todir_,ext,1,1)
     call specperp(vx,vy,vz,this%todir_,ext,1,1)
     call spectrsc(th,this%todir_,ext,0,trim(this%sstate_(this%ACTIVESC)))
     call specscpa(th,this%todir_,ext,0,trim(this%sstate_(this%ACTIVESC)))
     call specscpe(th,this%todir_,ext,0,trim(this%sstate_(this%ACTIVESC)))
-    call entpara (vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1) ! Energy flux
-    call entperp (vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1) ! Energy flux
+    call entpara (vx,vy,vz,c1,c2,c3,this%todir_,ext,1) ! Energy flux
+    call entperp (vx,vy,vz,c1,c2,c3,this%todir_,ext,1) ! Energy flux
 
     ! Write helicity fluxes, 2D spectra:
     if ( this%traits_%spectlod .ge. 2 ) then
-      call heltrans(vx,vy,vz,-c1,-c2,-c3,this%todir_,ext,1)
+      call heltrans(vx,vy,vz,c1,c2,c3,this%todir_,ext,1)
       ! Write 2D spectra:
       call spec2D  (vx,vy,vz,ext,this%odir_,1,1)
       call specsc2D(th,ext,this%odir_,0,trim(this%sstate_(this%ACTIVESC)))

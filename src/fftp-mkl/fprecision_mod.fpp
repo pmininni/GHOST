@@ -6,18 +6,10 @@
 !=================================================================
 
 !=================================================================
-#if defined(DO_HYBRIDoffl)
-!$    INCLUDE 'mkl_dfti_omp_offload.f90'
-#else
       INCLUDE 'mkl_dfti.f90'
-#endif
 
   MODULE fprecision
-#if defined(DO_HYBRIDoffl)
-!$    USE MKL_DFTI_OMP_OFFLOAD
-#else
       USE MKL_DFTI
-#endif
 #if defined(GDOUBLE_PRECISION)
       INTEGER, PARAMETER :: GP = KIND(0.0D0)
       INTEGER, PARAMETER :: GP_FFT_PREC = DFTI_DOUBLE
