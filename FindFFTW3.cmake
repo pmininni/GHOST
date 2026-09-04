@@ -10,7 +10,7 @@
 #   FFTW3F_LIBRARY         # raw single-precision library path
 #
 # Hints:
-#   Set FFTW_ROOT to help the search.
+#   Set FFTW3_ROOT to help the search.
 #   Example:
 #     -DFFTW3_ROOT=/opt/fftw/3.3.10
 

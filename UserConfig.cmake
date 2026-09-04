@@ -7,15 +7,14 @@
 # -------------------------------------------------------------------
 
 # ----------------------- Options / variants ------------------------
-option(P_HYBRID "Enable hybrid OpenMP"       OFF)
+option(P_HYBRID "Enable hybrid OpenMP"                             OFF)
 option(P_GPU    "Enable OpenMP offload to GPUs (implies P_HYBRID)" OFF)
 set(GPU_VENDOR "NVIDIA" CACHE STRING "GPU vendor for P_GPU (NVIDIA or AMD)")
 set(GPU_ARCH   ""       CACHE STRING "GPU architecture for P_GPU (e.g. cc80, sm_80, gfx90a)")
-set(PRECISION "SINGLE" CACHE STRING "Precision (SINGLE or DOUBLE)")
-set(FFTP "fftp-3"      CACHE STRING "FFT library (fftp-3, fftp-gpu, fftp-mkl)")
-set(IOLIB "mpiio"      CACHE STRING "IO library (mpiio)")
+set(PRECISION  "SINGLE" CACHE STRING "Precision (SINGLE or DOUBLE)")
+set(FFTP       "fftp-3" CACHE STRING "FFT library (fftp-3, fftp-gpu)")
+set(IOLIB      "mpiio"  CACHE STRING "IO library (mpiio)")
 
 # ----------------------- Advanced set up params --------------------
-set(IKIND 8  CACHE STRING "Integer kind")
-set(CSIZE 8  CACHE STRING "Cache size")
+set(CSIZE  8 CACHE STRING "Cache size")
 set(NSTRIP 1 CACHE STRING "Strip mining")

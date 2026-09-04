@@ -10,7 +10,7 @@
 # Python library elsewhere than GHOST/bin and GHOST/lib (useful to keep
 # several builds).
 # Other Options:
-# -DPRECISION=SINGLE(default)/DOUBLE
+# -DPRECISION=SINGLE (SINGLE or DOUBLE, default: SINGLE)
 # -DP_HYBRID=ON (multithreaded, default: OFF)
 # -DP_GPU=ON -DGPU_VENDOR=NVIDIA|AMD -DGPU_ARCH=<arch> (OpenMP offload,
 #    default: OFF; needs nvfortran or flang, see src/README)
@@ -158,7 +158,7 @@ endif()
 # P_GPU the default backend is fftp-gpu.
 add_library(project_fft INTERFACE)
 if(P_GPU AND FFTP STREQUAL "fftp-3")
-    set(FFTP "fftp-gpu" CACHE STRING "FFT library (fftp-3, fftp-gpu, fftp-mkl)" FORCE)
+    set(FFTP "fftp-gpu" CACHE STRING "FFT library (fftp-3, fftp-gpu)" FORCE)
     message(STATUS "P_GPU: using the fftp-gpu backend")
 endif()
 if(FFTP STREQUAL "fftp-gpu" AND NOT P_GPU)
@@ -202,13 +202,6 @@ if(FFTP STREQUAL "fftp-3" OR FFTP STREQUAL "fftp-gpu")
         target_link_libraries(project_fft INTERFACE ${GPU_FFT_LIB})
         message(STATUS "Device FFT: ${GPU_FFT_LIB}")
     endif()
-elseif(FFTP STREQUAL "fftp-mkl")
-    set(MKLDIR "" CACHE PATH "MKL root")
-    target_include_directories(project_fft INTERFACE "${MKLDIR}/include")
-    target_link_directories(project_fft INTERFACE "${MKLDIR}/lib/intel64")
-    target_link_libraries(project_fft INTERFACE
-        mkl_intel_lp64 mkl_core mkl_sequential
-    )
 else()
     message(FATAL_ERROR "Unsupported FFT: ${FFTP}")
 endif()

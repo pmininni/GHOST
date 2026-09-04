@@ -71,7 +71,7 @@ Most users can skip this section and move on to compilation in Sec.
 # ----------------------- Options / variants ----------------------
 option(P_HYBRID "Enable hybrid OpenMP"       OFF)
 set(PRECISION "SINGLE" CACHE STRING "Precision (SINGLE or DOUBLE)")
-set(FFTP "fftp-3"      CACHE STRING "FFT library (fftp-3, fftp-gpu, fftp-mkl)")
+set(FFTP "fftp-3"      CACHE STRING "FFT library (fftp-3, fftp-gpu)")
 set(IOLIB "mpiio"      CACHE STRING "IO library (mpiio)")
 -------------------------------------------------------------------
 
@@ -81,26 +81,24 @@ library used at compile time. Note that GHOST 3.x now only supports
 mpi I/O for binary files.
 
 The remaining options in this file are optional and the defaults give
-good performance in most computers. But if needed, you can set three
+good performance in most computers. But if needed, you can set two
 more parameters for optimization purposes (again, the default values
 work fine in most computers, don't change the values if you are unsure
 about the meaning of these variables). The lines
 
 # ----------------------- Advanced set up params ------------------
-set(IKIND 8  CACHE STRING "Integer kind")
-set(CSIZE 8  CACHE STRING "Cache size")
+set(CSIZE  8 CACHE STRING "Cache size")
 set(NSTRIP 1 CACHE STRING "Strip mining")
 -------------------------------------------------------------------
 
-set the variables 'ikind', 'csize', and 'nstrip' used in parallel
-FFTs. 'IKIND' should be ketp at 8. 'CSIZE' is used by the parallel
-FFT to do cache-friendly transpositions. The optimal value for a
-particular machine can be adjusted doing benchmarks, but rule of
-thumb values are 8 if the L1 cache is smaller or equal to 64 kb,
-and 16 if the L1 cache is larger than 64 kb (24 or 32 may be best
-in some processors). The variable 'NSTRIP' controls strip mining
-during the transpositions. The default value is 1 and in that case
-no strip mining is done.
+set the variables 'csize', and 'nstrip' used in parallel FFTs. 
+'CSIZE' is used by the parallel FFT to do cache-friendly 
+transpositions. The optimal value for a particular machine can be 
+adjusted doing benchmarks, but rule of thumb values are 8 if the 
+L1 cache is smaller or equal to 64 kb, and 16 if the L1 cache is 
+larger than 64 kb (24 or 32 may be best in some processors). The 
+variable 'NSTRIP' controls strip mining during the transpositions. 
+The default value is 1 and in that case no strip mining is done.
 
 3.2 Compiling the code:
 
@@ -165,7 +163,7 @@ cmake .. -DP_GPU=ON -DGPU_VENDOR=NVIDIA -DGPU_ARCH=cc80
 P_GPU implies P_HYBRID (the host parts of the code stay threaded).
 The offload build needs a compiler with OpenMP offload support for
 Fortran: nvfortran (NVIDIA GPUs of compute capability 7.0 or newer,
-GPU_ARCH=ccXX) or flang (AMD GPUs with the ROCm flang, GPU_ARCH=gfxXXX;
+GPU_ARCH=ccXX) or flang (AMD GPUs with ROCm flang, GPU_ARCH=gfxXXX;
 NVIDIA GPUs with an upstream LLVM flang built with the NVPTX backend,
 GPU_ARCH=sm_XX). gfortran builds the host versions only. The MPI
 library must be built with the same compiler and, for performance,
@@ -173,19 +171,17 @@ must be GPU-aware (UCX with the ROCm or CUDA transports). The vendor
 runtime is found through the ROCM_PATH or CUDA_HOME environment
 variables (or -DROCM_PATH=, -DCUDA_PATH=).
 
-At run time GHOST binds each MPI task to the GPU number
-rank modulo (GPUs per node), so the number of tasks per node must be
-a multiple of the number of GPUs per node (one task per GPU is the
-intended configuration). All field arrays (states, workspace,
-wavenumbers) are allocated through src/memmgt/gmem_mod.f90, which
-creates a device copy of every array; the fields live on the device
-during the time step and their host copies are refreshed only for
-output. See src/memmgt/gdevice_mod.f90 for the details. The kernels
-are written twice, as OpenMP target regions for the offload build and
-as threaded loops for the host build, selected with
-#if defined(GHOST_GPU). The fluid solvers (HD, MHD, Boussinesq and
-moist, with passive scalars) and the particle solvers (Lagrangian
-tracers and inertial particles) run on the device.
+At run time GHOST binds each MPI task to the GPU number rank modulo 
+(GPUs per node), so the number of tasks per node must be a multiple 
+of the number of GPUs per node (one task per GPU is the intended 
+configuration). All field arrays (states, workspace, wavenumbers) 
+are allocated through src/memmgt/gmem_mod.f90, which creates a 
+device copy of every array; the fields live on the device during 
+the time step and host copies are refreshed only for output. See 
+src/memmgt/gdevice_mod.f90 for details. Kernels are written twice, 
+as OpenMP target regions for the offload build, and as threaded
+loops for the host build, selected with #if defined(GHOST_GPU).
+Both fluid and particle solvers run on the device.
 
 The FFTs of the offload build are computed by the fftp-gpu backend
 (src/fftp-gpu, selected automatically with P_GPU): cuFFT or hipFFT on
@@ -195,41 +191,25 @@ The host path of the same backend uses FFTW, so the FFTs of the
 initial conditions and of the diagnostics, which run on the host
 copies, are the same as in fftp-3. If the MPI library is not
 GPU-aware, set the environment variable GHOST_GPU_EXCHANGE=staged to
-move the exchange buffers through the host (slower). The transforms
-are unnormalized and produce the same layout as fftp-3, so the two
-backends are interchangeable; results differ only by round-off.
-
-With ROCm, GPU-aware MPI performs best with OMPI_MCA_pml=ucx and
-UCX_TLS=rocm_copy,rocm_ipc,sm,self,rc,tcp (the last two are the
-network transports needed for runs on more than one node; without
-them the tasks on other nodes are unreachable).
-
-Performance reference (HD solver, single precision, 20 steps, second
-order stepper, one MPI task per GPU): on two AMD MI210 connected by
-PCIe, 256^3 takes 0.052 s per step and 512^3 0.53 s per step. At 512^3
-the slab exchange (0.36 s) is bound by the PCIe bandwidth between the
-two GPUs, the device FFTs take 0.19 s and the transpositions 0.05 s.
-Two ranks of 8 threads on the host take 0.85 s per step at 256^3.
-Across two nodes the exchange goes through the network, and a UCX
-without InfiniBand transports (as the one shipped with ROCm here)
-falls back to TCP, which is much slower than a single node.
+move the exchange buffers through the host (slower). In our tests  
+with ROCm (AMD), GPU-aware MPI performs best with OMPI_MCA_pml=ucx 
+and UCX_TLS=rocm_copy,rocm_ipc,sm,self,rc,tcp.
 
 Temporaries of the diagnostics (energy, spectra, transfer functions)
 come from a host-only pool of the workspace (get_*_htmp), since those
 routines run on the host copies of the fields; in offload builds the
-arrays of that pool have no device copy. This also matters for flang,
-which places automatic arrays on the stack whatever their size: the
-four fluid solvers no longer have field-sized automatic arrays in
-their paths. The sizes of the pools are set per solver in
+arrays of that pool have no device copy. This matters for flang,
+which places automatic arrays on the stack whatever their size.
+For new solvers, the sizes of the pools should be set per solver in
 src/pdes/equation_factory.f90 from the peak usage measured on the
 example inputs, which GHOST prints at the end of every run
 ("Workspace peak usage"); a pool that is too small stops the run with
 an explicit message.
 
-Particles in offload builds: the particle states, the arrays of the
-particle classes (ids, global database, spline indices and weights,
-extended coefficient field, communication buffers) and the particle
-pool of the workspace all have device copies, allocated with the same
+In offload builds, the particle states, the arrays of the particle 
+classes (ids, global database, spline indices and weights, extended 
+coefficient field, communication buffers) and the particle pool of 
+the workspace all have device copies, allocated with the same 
 allocator as the fields (galloc in src/memmgt/gmem_mod.f90, which
 also handles integer and rank-2 arrays and resizes). The right-hand
 side of the particles stays entirely on the device: the fluid
@@ -244,37 +224,15 @@ interpolation gathers the 64 control points per particle on the
 device. The exchange of particles between slabs (nearest-neighbor
 mode) and the global database (VDB mode) also run on the device; the
 particle records travel as two contiguous messages (ids, then the
-three coordinates) instead of a struct datatype. Selections of
-particles (leaving a slab, belonging to a slab, holes left by the
-departed particles) use a deterministic block count and scan
-(src/particles/gpselect_mod.f90), so the local order of the particles
-is reproducible for any number of threads or teams; it differs from
-the order of the old serial compaction, which does not matter since
-the particle files are written by id. The I/O routines of the
-particles run on the host copies: they copy the ids and Lagrangian
-velocities back from the device on entry (the main program copies the
-positions), and write_pstate computes the Lagrangian quantities on
-the device before calling them. Only the initial conditions and the
-file reads run on the host, after which the states and the class
-arrays are copied to the device (sync_device). The pencil kernels of
-the spline solve carry the running values of the recurrences in
-registers; without that they are latency bound (three times slower).
-
-Performance reference for particles (HD solver, single precision, one
-million particles, nearest-neighbor exchange, second order stepper):
-on two MI210, tracers take 0.016 s per step at 128^3 and 0.063 s at
-256^3 (0.024 and 0.052 s for the fluid alone), inertial particles
-0.019 s at 128^3 and 0.12 s at 256^3. On the host, two ranks of 8
-threads take 0.063 s per step at 128^3 with tracers. The pure MPI
-build (four tasks, 128^3, one million tracers) runs at the same speed
-as before the port, 0.099 s per step, with the spline solve written
-as pencil kernels and the transposes as packed contiguous messages.
-
-Note for the ROCm modules on sakura: the llvm module loaded with
-openmpi5-rocm puts lib/llvm/lib-debug first in LD_LIBRARY_PATH; the
-debug OpenMP runtimes found there make the host fallback of the target
-regions crash. Remove that directory from LD_LIBRARY_PATH before
-running (see src/tests/gpu_miniapp/run_amd.sh).
+three coordinates). Selections of particles (leaving a slab, 
+belonging to a slab, holes left by the departed particles) use a 
+deterministic block count and scan (src/particles/gpselect_mod.f90), 
+so the local order of the particles is reproducible for any number 
+of threads or teams. I/O routines of the particles run on the host 
+copies: they copy the ids and Lagrangian velocities back from the 
+device on entry (the main program copies the positions), and 
+write_pstate computes the Lagrangian quantities on the device before
+calling them. Only initial conditions and file reads run on the host.
 
 3.4 About the solvers:
 
