@@ -13,7 +13,7 @@
 !
 ! 2007 Pablo D. Mininni.
 !      National Center for Atmospheric Research.
-!      e-mail: mininni@ucar.uba.ar 
+!      e-mail: mininni@ucar.edu
 !
 ! 16 Feb 2004: Performs complex FFTs in place.
 !  8 Jul 2004: itype pointers only used to store datatypes of 
@@ -245,7 +245,7 @@
 
 !
 ! In offload builds the fields live on the device while gdev_active is
-! set. This backend transforms on the host when needed: the input is
+! set. This backend always transforms on the host if called: the input is
 ! staged to its host copy first and the result is sent back to the device
 ! at the end (the fftp-gpu backend transforms on the device instead).
 !

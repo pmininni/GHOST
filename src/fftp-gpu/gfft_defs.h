@@ -42,7 +42,7 @@
 #  error 'FFTP-GPU: GPU_NVIDIA or GPU_AMD must be defined (build with P_GPU)'
 #endif
 
-! Transform type codes (identical in cuFFT and hipFFT) and directions
+! Transform type codes (identical in cuFFT and hipFFT) and FFT directions
 #if defined(GDOUBLE_PRECISION)
 #  define GFFT_TYPE_R2C  106
 #  define GFFT_TYPE_C2R  108

@@ -23,7 +23,7 @@
 !
 ! 2007 Pablo D. Mininni.
 !      National Center for Atmospheric Research.
-!      e-mail: mininni@ucar.uba.ar 
+!      e-mail: mininni@ucar.edu 
 !
 ! 16 Feb 2004: Performs complex FFTs in place.
 !  8 Jul 2004: itype pointers only used to store datatypes of 
@@ -33,12 +33,10 @@
 ! 25 Aug 2009: Hybrid MPI/OpenMP support (D. Rosenberg & P. Mininni)
 ! 30 Aug 2009: SINGLE/DOUBLE precision (D. Rosenberg & P. Mininni)
 !  3 Jan 2017: Anisotropic boxes (P. Mininni)
-!  2 Sep 2026: GPU version with cuFFT/hipFFT and OpenMP offload
+! 30 Jan 2020: First GPU version with cuFFT (D. Rosenberg)
+!  2 Sep 2026: Full GPU version with cuFFT/hipFFT and OpenMP offload
 !
 ! References:
-! Mininni PD, Gomez DO, Mahajan SM; Astrophys. J. 619, 1019 (2005)
-! Gomez DO, Mininni PD, Dmitruk P; Phys. Scripta T116, 123 (2005)
-! Gomez DO, Mininni PD, Dmitruk P; Adv. Sp. Res. 35, 899 (2005)
 ! Rosenberg DL, Mininni PD, Reddy R, Pouquet A.: Atmosph.11, 178 (2020)
 !=================================================================
 #include "fftw_wrappers.h"
@@ -501,21 +499,21 @@
       CALL GFFTW_PLAN_WITH_NTHREADS(nth)
 #endif
       IF (fftdir.eq.FFTW_REAL_TO_COMPLEX) THEN
-      CALL GFFTW_PLAN_MANY_DFT_R2C(plan%planr,2,(/n(1),n(2)/),          &
+      CALL GFFTW_PLAN_MANY_DFT_R2C(plan%planr,2,(/n(1),n(2)/),        &
                          kend-ksta+1,plan%rarr,                       &
                          (/n(1),n(2)*(kend-ksta+1)/),1,n(1)*n(2),     &
                          plan%carr,(/n(1)/2+1,n(2)*(kend-ksta+1)/),1, &
                          (n(1)/2+1)*n(2),flags)
       ELSE
-      CALL GFFTW_PLAN_MANY_DFT_C2R(plan%planr,2,(/n(1),n(2)/),          &
+      CALL GFFTW_PLAN_MANY_DFT_C2R(plan%planr,2,(/n(1),n(2)/),        &
                          kend-ksta+1,plan%carr,                       &
                          (/n(1)/2+1,n(2)*(kend-ksta+1)/),1,           &
                          (n(1)/2+1)*n(2),plan%rarr,                   &
                          (/n(1),n(2)*(kend-ksta+1)/),1,n(1)*n(2),flags)
       ENDIF
-      CALL GFFTW_PLAN_MANY_DFT(plan%planc,1,n(3),n(2)*(iend-ista+1),    &
-                         plan%ccarr,(iend-ista+1)*n(2)*n(3),1,n(3),      &
-                         plan%ccarr,(iend-ista+1)*n(2)*n(3),1,n(3),      &
+      CALL GFFTW_PLAN_MANY_DFT(plan%planc,1,n(3),n(2)*(iend-ista+1),  &
+                         plan%ccarr,(iend-ista+1)*n(2)*n(3),1,n(3),   &
+                         plan%ccarr,(iend-ista+1)*n(2)*n(3),1,n(3),   &
                          fftdir,flags)
       plan%nx = n(1)
       plan%ny = n(2)

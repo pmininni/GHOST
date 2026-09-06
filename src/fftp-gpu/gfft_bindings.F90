@@ -8,7 +8,8 @@
 ! data layout and the (absent) normalization are those of FFTW, so
 ! the transforms are interchangeable with the FFTW ones of fftp-3.
 ! Execution routines receive device addresses, obtained by the
-! caller inside a "target data use_device_addr" region.
+! caller inside "target data use_device_addr" regions (this fails
+! with NVHPC<24.11 as a result of a bug in the NVIDIA compiler).
 !
 ! 2026 Pablo D. Mininni
 !      Department of Physics,

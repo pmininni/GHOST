@@ -4,7 +4,7 @@
 !
 ! 2007 Pablo D. Mininni.
 !      National Center for Atmospheric Research.
-!      e-mail: mininni@ucar.uba.ar 
+!      e-mail: mininni@ucar.edu
 !=================================================================
 
 !=================================================================
@@ -53,7 +53,6 @@
 
   END MODULE threads
 !=================================================================
-
 
   MODULE mpivars
       INTEGER, SAVE :: ista,iend

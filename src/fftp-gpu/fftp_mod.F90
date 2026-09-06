@@ -4,7 +4,7 @@
 !
 ! 2007 Pablo D. Mininni.
 !      National Center for Atmospheric Research.
-!      e-mail: mininni@ucar.uba.ar 
+!      e-mail: mininni@ucar.edu
 ! 2026 GPU version with cuFFT/hipFFT (P.D. Mininni)
 !=================================================================
 
@@ -37,10 +37,10 @@
          COMPLEX(KIND=GP), DIMENSION (:,:,:), POINTER :: ccarr
          COMPLEX(KIND=GP), DIMENSION (:,:,:), POINTER :: carr
          REAL(KIND=GP)   , DIMENSION (:,:,:), POINTER :: rarr
-         TYPE(C_PTR) :: planr,planc              ! host (FFTW) plans
+         TYPE(C_PTR)   :: planr,planc            ! host (FFTW) plans
          GFFT_HANDLE_T :: dplanr,dplanc          ! device plans
-         INTEGER     :: nx,ny,nz
-         INTEGER     :: fftdir
+         INTEGER       :: nx,ny,nz
+         INTEGER       :: fftdir
          TYPE(MPI_Datatype), DIMENSION (:), POINTER :: itype1, itype2
       END TYPE FFTPLAN
 !
@@ -76,7 +76,6 @@
 
   END MODULE threads
 !=================================================================
-
 
   MODULE mpivars
       INTEGER, SAVE :: ista,iend

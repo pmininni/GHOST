@@ -4,7 +4,7 @@
 !
 ! Performs parallel real-to-complex and complex-to-real FFTs 
 ! using MPI and the FFTW library in each node. This file contains 
-! subroutines common to the 2D and 3D versions of FFTP.
+! subroutines common to 2D and 3D versions of FFTP.
 !
 ! 2003 Pablo D. Mininni.
 !      Department of Physics, 
