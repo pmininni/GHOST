@@ -9,10 +9,10 @@
 ! on the device or on the host.
 !
 ! Device copies are not created with "target enter data": for a
-! derived type component as list item flang maps the whole chain
+! derived type component as list item, flang maps the whole chain
 ! of enclosing descriptors (including the CLASS descriptor of a
 ! "this" dummy, which lives on the caller's stack), and those
-! entries later collide with the descriptors kernels map. Instead
+! entries later collide with the descriptors kernels map. Instead,
 ! the device memory is allocated with the vendor allocator and
 ! registered in the OpenMP device table with
 ! omp_target_associate_ptr on the raw data address, so only the
@@ -55,7 +55,7 @@
       INTEGER, SAVE :: hostdev     = -1      ! the host as a device
       LOGICAL, SAVE :: gdev_active = .FALSE. ! fields are worked on the device
 
-! Registry of the device copies: host address, device address and
+! Registry of the device copies: host address, device address, and
 ! size of every array created with gdev_alloc. The registry is what
 ! the transfers use to find the device copy (omp_get_mapped_ptr does
 ! not return the pointers registered with omp_target_associate_ptr
@@ -116,7 +116,8 @@
 ! number of devices in the node, for OpenMP and for the vendor
 ! runtime (used by the FFT library and by the allocator). GHOST
 ! assumes the number of MPI tasks per node is a multiple of the
-! number of devices per node; the user must ensure this.
+! number of devices per node; the user must ensure this. The most
+! common (and tested use) is to use one MPI task per device.
 !
 ! Parameters
 !     myrank : MPI rank of this task [IN]

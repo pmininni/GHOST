@@ -245,10 +245,6 @@ CONTAINS
   
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  ! Subroutine to clean up and deallocate the entire array 
-  ! pool.
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Reports (from task 0) the peak number of arrays checked out
   ! at the same time from each pool, to size the pools per solver
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -265,6 +261,10 @@ CONTAINS
   end subroutine report_peaks
 
 
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Subroutine to clean up and deallocate the entire array 
+  ! pool.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine cleanup_pool(this)
     TYPE(GWorkspace), intent(inout) :: this
     integer :: i
@@ -311,7 +311,7 @@ CONTAINS
   ! Subroutine to add real arrays to the real array pool.
   ! Note that this routine makes all pointers to the arrays
   ! become undefined. It should not be used after initiating
-  ! arrays in the pool intended for permanent storage.
+  ! arrays in the pool that are intended for permanent storage.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine add_real_entries(this, num_new)
     CLASS(GWorkspace), intent(inout), target  :: this
@@ -361,7 +361,7 @@ CONTAINS
   ! Subroutine to add complex arrays to the complex array pool.
   ! Note that this routine makes all pointers to the arrays
   ! become undefined. It should not be used after initiating
-  ! arrays in the pool intended for permanent storage.
+  ! arrays in the pool that are intended for permanent storage.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine add_complex_entries(this, num_new)
     CLASS (GWorkspace), intent(inout), target  :: this
@@ -500,6 +500,10 @@ CONTAINS
                num_hcomplex, ' Complex arrays'
   end subroutine init_host_entries
 
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Get a real array from the host-only pool
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine get_real_htmp(this, ret_ptr, success)
     CLASS(GWorkspace), target , intent(inout) :: this
     real   (kind=GP) , pointer, intent(out)   :: ret_ptr(:,:,:)
@@ -510,7 +514,8 @@ CONTAINS
     do i = 1, this%hreal_size_
       if ( this%hreal_entries_(i)%is_free ) THEN
         this%hreal_entries_(i)%is_free = .FALSE.
-        this%hreal_peak_ = max(this%hreal_peak_, this%hreal_size_ - count(this%hreal_entries_(1:this%hreal_size_)%is_free))
+        this%hreal_peak_ = max(this%hreal_peak_, this%hreal_size_ - &
+             count(this%hreal_entries_(1:this%hreal_size_)%is_free))
         ret_ptr => this%hreal_entries_(i)%array
         if (present(success)) success = .TRUE.
         return
@@ -522,6 +527,10 @@ CONTAINS
     error stop 'GWorkspace::get_real_htmp: host real workspace pool exhausted'
   end subroutine get_real_htmp
 
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Get a complex array from the host-only pool
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine get_complex_htmp(this, ret_ptr, success)
     CLASS(GWorkspace), target , intent(inout) :: this
     complex(kind=GP) , pointer, intent(out)   :: ret_ptr(:,:,:)
@@ -532,7 +541,8 @@ CONTAINS
     do i = 1, this%hcomplex_size_
       if ( this%hcomplex_entries_(i)%is_free ) THEN
         this%hcomplex_entries_(i)%is_free = .FALSE.
-        this%hcomplex_peak_ = max(this%hcomplex_peak_, this%hcomplex_size_ - count(this%hcomplex_entries_(1:this%hcomplex_size_)%is_free))
+        this%hcomplex_peak_ = max(this%hcomplex_peak_, this%hcomplex_size_ - &
+             count(this%hcomplex_entries_(1:this%hcomplex_size_)%is_free))
         ret_ptr => this%hcomplex_entries_(i)%array
         if (present(success)) success = .TRUE.
         return
@@ -544,6 +554,10 @@ CONTAINS
     error stop 'GWorkspace::get_complex_htmp: host complex workspace pool exhausted'
   end subroutine get_complex_htmp
 
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Free a real array from the host-only pool
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine free_real_htmp(this, in_ptr)
     CLASS(GWorkspace), target, intent(inout) :: this
     real   (kind=GP), pointer, intent(inout) :: in_ptr(:,:,:)
@@ -559,6 +573,10 @@ CONTAINS
     stop 'free_real_htmp: array not found in the host pool. Check-in failed'
   end subroutine free_real_htmp
 
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Free a complex array from the host-only pool
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine free_complex_htmp(this, in_ptr)
     CLASS(GWorkspace), target, intent(inout) :: this
     complex(kind=GP), pointer, intent(inout) :: in_ptr(:,:,:)
@@ -647,7 +665,8 @@ CONTAINS
       ! Look for a free entry
       if ( this%real_entries_(i)%is_free ) THEN
         this%real_entries_(i)%is_free = .FALSE. ! Mark as in use
-        this%real_peak_ = max(this%real_peak_, this%real_size_ - count(this%real_entries_(1:this%real_size_)%is_free))
+        this%real_peak_ = max(this%real_peak_, this%real_size_ - &
+             count(this%real_entries_(1:this%real_size_)%is_free))
         ret_ptr => this%real_entries_(i)%array
         if (present(success)) success = .TRUE.
         return
@@ -681,7 +700,8 @@ CONTAINS
       ! Look for a free entry
       if ( this%complex_entries_(i)%is_free ) THEN
         this%complex_entries_(i)%is_free = .FALSE. ! Mark as in use
-        this%complex_peak_ = max(this%complex_peak_, this%complex_size_ - count(this%complex_entries_(1:this%complex_size_)%is_free))
+        this%complex_peak_ = max(this%complex_peak_, this%complex_size_ - &
+             count(this%complex_entries_(1:this%complex_size_)%is_free))
         ret_ptr => this%complex_entries_(i)%array
         if (present(success)) success = .TRUE.
         return
@@ -747,7 +767,6 @@ CONTAINS
       if (associated(in_ptr, this%real_entries_(i)%array)) then
         NULLIFY(in_ptr)
         this%real_entries_(i)%is_free = .TRUE. ! Mark as available
-!       this%real_entries_(i)%array = 0.0_GP   ! Optional: Zero the array
         return
       endif
     enddo
@@ -768,7 +787,6 @@ CONTAINS
       if (associated(in_ptr, this%complex_entries_(i)%array)) then
         NULLIFY(in_ptr)
         this%complex_entries_(i)%is_free = .TRUE. ! Mark as available
-!       this%complex_entries_(i)%array = 0.0_GP   ! Optional: Zero the array
         return
       endif
     enddo
@@ -789,7 +807,6 @@ CONTAINS
       if (associated(in_ptr, this%pcomp_entries_(i)%array)) then
         NULLIFY(in_ptr)
         this%pcomp_entries_(i)%is_free = .TRUE. ! Mark as available
-!       this%pcomp_entries_(i)%array = 0.0_GP   ! Optional: Zero the array
         return
       endif
     enddo

@@ -31,5 +31,5 @@ add_dependencies(memmgt_lib
   pseudobase_lib
   )
 
-# Link MPI if needed
+# Link libraries
 target_link_libraries(memmgt_lib PUBLIC project_mpi gmem_lib pseudobase_lib)

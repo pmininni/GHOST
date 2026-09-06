@@ -15,5 +15,5 @@ target_include_directories(mpiio_lib PUBLIC
 # Make sure dependencies are satisfied
 add_dependencies(mpiio_lib fftp_lib utils_lib timer_lib pseudo_lib)
 
-# Link MPI if needed
+# Link libraries
 target_link_libraries(mpiio_lib PUBLIC project_mpi pseudo_lib)
