@@ -95,21 +95,21 @@
 #endif
 
       IF (fftdir.eq.FFTW_REAL_TO_COMPLEX) THEN
-      CALL GFFTW_PLAN_MANY_DFT_R2C(plan%planr,2,(/n(1),n(2)/),    &
+      CALL GFFTW_PLAN_MANY_DFT_R2C(plan%planr,2,(/n(1),n(2)/),        &
                          kend-ksta+1,plan%rarr,                       &
                          (/n(1),n(2)*(kend-ksta+1)/),1,n(1)*n(2),     &
                          plan%carr,(/n(1)/2+1,n(2)*(kend-ksta+1)/),1, &
                          (n(1)/2+1)*n(2),flags)
       ELSE
-      CALL GFFTW_PLAN_MANY_DFT_C2R(plan%planr,2,(/n(1),n(2)/),    &
+      CALL GFFTW_PLAN_MANY_DFT_C2R(plan%planr,2,(/n(1),n(2)/),        &
                          kend-ksta+1,plan%carr,                       &
                          (/n(1)/2+1,n(2)*(kend-ksta+1)/),1,           &
                          (n(1)/2+1)*n(2),plan%rarr,                   &
                          (/n(1),n(2)*(kend-ksta+1)/),1,n(1)*n(2),flags)
       ENDIF
-      CALL GFFTW_PLAN_MANY_DFT(plan%planc,1,n(3),n(2)*(iend-ista+1), &
-                         plan%ccarr,(iend-ista+1)*n(2)*n(3),1,n(3),      &
-                         plan%ccarr,(iend-ista+1)*n(2)*n(3),1,n(3),      &
+      CALL GFFTW_PLAN_MANY_DFT(plan%planc,1,n(3),n(2)*(iend-ista+1),  &
+                         plan%ccarr,(iend-ista+1)*n(2)*n(3),1,n(3),   &
+                         plan%ccarr,(iend-ista+1)*n(2)*n(3),1,n(3),   &
                          fftdir,flags)
       plan%nx = n(1)
       plan%ny = n(2)
@@ -244,15 +244,15 @@
       INTEGER :: istrip,iproc
 
 !
-! In offload builds the fields live on the device while gdev_active
-! is set. This backend transforms on the host: the input is staged
-! to its host copy first and the result is sent back to the device
+! In offload builds the fields live on the device while gdev_active is
+! set. This backend transforms on the host when needed: the input is
+! staged to its host copy first and the result is sent back to the device
 ! at the end (the fftp-gpu backend transforms on the device instead).
 !
       CALL GTStart(htot)
 #if defined(GHOST_GPU)
       IF (gdev_active) CALL gdev_update_from(C_LOC(in),                &
-                            INT(SIZE(in),C_SIZE_T)*INT(STORAGE_SIZE(in)/8,C_SIZE_T))
+                       INT(SIZE(in),C_SIZE_T)*INT(STORAGE_SIZE(in)/8,C_SIZE_T))
 #endif
 !
 ! 2D FFT in each node using the FFTW library
@@ -278,7 +278,6 @@
             if ( igetFrom .lt. 0 ) igetFrom = igetFrom + nprocs
             CALL MPI_IRECV(c1,1,plan%itype2(igetFrom),igetFrom,      & 
                           1,comm,ireq2(irank),ierr)
-
             CALL MPI_ISEND(plan%carr,1,plan%itype1(isendTo),isendTo, &
                           1,comm,ireq1(irank),ierr)
          enddo
@@ -322,7 +321,7 @@
       CALL GTStop(hfft); 
 #if defined(GHOST_GPU)
       IF (gdev_active) CALL gdev_update_to(C_LOC(out),                 &
-                            INT(SIZE(out),C_SIZE_T)*INT(STORAGE_SIZE(out)/8,C_SIZE_T))
+                       INT(SIZE(out),C_SIZE_T)*INT(STORAGE_SIZE(out)/8,C_SIZE_T))
 #endif
 
       CALL GTStop(htot); 
@@ -383,7 +382,7 @@
       CALL GTStart(htot)
 #if defined(GHOST_GPU)
       IF (gdev_active) CALL gdev_update_from(C_LOC(in),                &
-                            INT(SIZE(in),C_SIZE_T)*INT(STORAGE_SIZE(in)/8,C_SIZE_T))
+                       INT(SIZE(in),C_SIZE_T)*INT(STORAGE_SIZE(in)/8,C_SIZE_T))
 #endif
 !
 ! 1D FFT in each node using the FFTW library
@@ -397,10 +396,7 @@
 !
       CALL GTStart(htra)
 ! The block loops are collapsed and shared out over the threads. The
-! innermost loop is left an ordinary DO on purpose: this is a
-! transposition, so one of its two sides is always strided, and
-! vectorizing it turns that side into a gather/scatter that costs
-! about 3% of the transposition time.
+! innermost loop is left an ordinary DO as in fftp3d_real_to_complex
 !$omp parallel do collapse(3) private (i,j,k)
       DO ii = ista,iend,csize
          DO jj = 1,plan%ny,csize
@@ -451,7 +447,7 @@
       CALL GTStop(hfft); 
 #if defined(GHOST_GPU)
       IF (gdev_active) CALL gdev_update_to(C_LOC(out),                 &
-                            INT(SIZE(out),C_SIZE_T)*INT(STORAGE_SIZE(out)/8,C_SIZE_T))
+                       INT(SIZE(out),C_SIZE_T)*INT(STORAGE_SIZE(out)/8,C_SIZE_T))
 #endif
       
       CALL GTStop(htot); 

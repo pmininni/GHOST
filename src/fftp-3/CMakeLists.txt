@@ -19,5 +19,5 @@ target_include_directories(fftp_lib PUBLIC
 # device staging used in offload builds)
 add_dependencies(fftp_lib timer_lib gdevice_lib)
 
-# Link MPI if needed
+# Link libraries
 target_link_libraries(fftp_lib PUBLIC project_mpi project_fft gdevice_lib timer_lib)
