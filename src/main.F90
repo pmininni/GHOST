@@ -151,8 +151,8 @@
         timef = int(modulo(float(ini-1),float(fstep)))
       ENDIF IC
       CALL init_allstates(iclist,fluid,field)
-      CALL GState_update_to(field)  ! Device copies (no-op in host builds)
-      CALL GState_copy(field_nxt,field) ! nxt is used by I/O and all steppers
+      CALL GState_update_to(field)        ! Device copies (no-op in host builds).
+      CALL GState_copy(field_nxt,field)   ! nxt is used by I/O and all steppers.
       CALL init_forcing(forcemethod,fluid,force)
       CALL GState_update_to(force)
       fstatic = forcing_is_static(forcemethod)
@@ -161,9 +161,9 @@
          if (size(part(1)%rcomp) .ne. size(part_nxt(1)%rcomp)) then
             call GPState_resize(part_nxt,particle%partbuff_) ! We resize part_nxt
          endif
-         CALL GPState_update_to(part)     ! device copies of the particle
-         CALL particle%sync_device()      ! states and of the class arrays
-         CALL GPState_copy(part_nxt,part) ! We also update part_nxt
+         CALL GPState_update_to(part)     ! Device copies of the particle
+         CALL particle%sync_device()      ! states and of the class arrays.
+         CALL GPState_copy(part_nxt,part) ! We also update part_nxt.
       endif
 
 ! Sets up the time stepper
@@ -178,8 +178,8 @@
 ! on their host copies elsewhere: the host copies of the fields are
 ! refreshed before any output, and the forcing, which is computed on
 ! the host, is copied to the device after each update.
-! If we are doing a benchmark, we measure cputime before
-! starting. We also re-inititialize the fftp timers.
+! If we are doing a benchmark, we measure cputime before starting. We
+! also re-inititialize the fftp timers.
       IF (bench.eq.1) THEN
          ffttime  = 0.D00; tratime  = 0.0D0; comtime  = 0.D00; tottime  = 0.0D0
          CALL GTStart(ihcpu1); CALL GTStart(ihomp1); CALL GTStart(ihwtm1)
@@ -187,19 +187,19 @@
 
  RK : DO t = ini,step
          time = (t-1)*dt
-! Refreshes the host copies of the fields if any output is due
+         ! Refreshes the host copies of the fields if any output is due
          IF (((timet.eq.tstep).or.(timec.eq.cstep).or.(times.eq.sstep) &
               .or.(dopart.and.(timep.eq.pstep))).and.(bench.eq.0)) THEN
             CALL GState_update_from(field_nxt)
          ENDIF
-! Every 'tstep' steps, stores the fields in binary files
+         ! Every 'tstep' steps, stores the fields in binary files
          IF ((timet.eq.tstep).and.(bench.eq.0)) THEN
             timet = 0
             tind = tind+1
             CALL fluid%write_states(field_nxt, planio)
          ENDIF
 
-! Every 'pstep' steps, stores the particle states
+         ! Every 'pstep' steps, stores the particle states
          if (dopart) then
             IF ((timep.eq.pstep).and.(bench.eq.0)) THEN
                timep = 0
@@ -209,20 +209,20 @@
             ENDIF
          endif
 
-! Every 'cstep' steps writes global quantities
+         ! Every 'cstep' steps writes global quantities
          IF ((timec.eq.cstep).and.(bench.eq.0)) THEN
             timec = 0
             CALL fluid%global(field_nxt, force, t)
          ENDIF
 
-! Every 'sstep' steps writes spectra
+         ! Every 'sstep' steps writes spectra
          IF ((times.eq.sstep).and.(bench.eq.0)) THEN
             times = 0
             sind = sind+1
             CALL fluid%spectra(field_nxt)
          ENDIF
 
-! Time evolution
+         ! Time evolution
          CALL update_forcing(forcemethod,fluid,force)
          IF (.not.fstatic) CALL GState_update_to(force)
          gdev_active = .TRUE.
