@@ -27,5 +27,5 @@ add_dependencies(force_lib
   utils_lib
   )
 
-# Link MPI if needed
+# Link libraries
 target_link_libraries(force_lib PUBLIC project_mpi utils_lib)

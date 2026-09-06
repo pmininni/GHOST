@@ -63,7 +63,6 @@ CONTAINS
     use hd_mod
     use grid
     use mpivars
-!$  use threads
     implicit none
     
     class(forceNull_fs), intent   (in) :: this
@@ -107,7 +106,6 @@ CONTAINS
     use commtypes
     use fft
     use pseudospec_scalar
-!$  use threads
     implicit none
     
     class(forcePuff_fs), intent   (in) :: this
@@ -190,7 +188,6 @@ CONTAINS
     use var
     use kes
     use pseudospec_scalar
-!$  use threads
     implicit none
     
     class(forceRandom_fs), intent   (in) :: this

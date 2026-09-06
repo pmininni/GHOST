@@ -68,7 +68,6 @@ CONTAINS
     use mhd_mod
     use grid
     use mpivars
-!$  use threads
     implicit none
     
     class(forceNull_fb), intent   (in) :: this
@@ -117,7 +116,6 @@ CONTAINS
     use ali
     use kes
     use pseudospec_norm
-!$  use threads
     implicit none
 
     class(forceRandom_fb), intent   (in)          :: this
@@ -568,7 +566,6 @@ CONTAINS
     use filefmt
     use fft
     use commtypes
-!$  use threads
     implicit none
     
     class(shuffleupdt_fb), intent(inout)             :: this

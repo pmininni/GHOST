@@ -100,7 +100,6 @@ CONTAINS
     use hd_mod
     use grid
     use mpivars
-!$  use threads
     implicit none
     
     class    (icNull_v), intent   (in) :: this
@@ -142,7 +141,6 @@ CONTAINS
     use ali
     use var
     use pseudospec_norm
-!$  use threads
     implicit none
     
     class      (icTg_v), intent   (in)       :: this
@@ -237,7 +235,6 @@ CONTAINS
     use ali
     use var
     use pseudospec_norm
-!$  use threads
     implicit none
 
     class     (icAbc_v), intent   (in)       :: this
@@ -334,7 +331,6 @@ CONTAINS
     use ali
     use kes
     use pseudospec_norm
-!$  use threads
     implicit none
 
     class  (icRandom_v), intent   (in)          :: this

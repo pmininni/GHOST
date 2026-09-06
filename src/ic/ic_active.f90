@@ -89,7 +89,6 @@ contains
     use grid
     use commtypes
     use mpivars
-!$  use threads
     implicit none
 
     class(icUniform_as), intent(in)           :: this
@@ -142,7 +141,6 @@ contains
     use commtypes
     use fft
     use pseudospec_scalar
-!$  use threads
     implicit none
 
     class   (icPuff_as), intent(in)            :: this
@@ -222,7 +220,6 @@ contains
     use var
     use kes
     use pseudospec_scalar
-!$  use threads
     implicit none
 
     class (icRandom_as), intent(in)            :: this

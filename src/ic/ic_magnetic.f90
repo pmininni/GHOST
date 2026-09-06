@@ -92,7 +92,6 @@ CONTAINS
     use mhd_mod
     use grid
     use mpivars
-!$  use threads
     implicit none
     
     class    (icNull_b), intent   (in) :: this
@@ -141,7 +140,6 @@ CONTAINS
     use ali
     use kes
     use pseudospec_norm
-!$  use threads
     implicit none
 
     class  (icRandom_b), intent   (in)          :: this

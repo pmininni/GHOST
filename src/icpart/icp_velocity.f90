@@ -112,7 +112,6 @@ CONTAINS
     use gpstate_mod
     use random
     use fft
-!$  use threads
     implicit none
     class   (fluid_vel),             intent   (in) :: this
     class(EquationBase),             intent   (in) :: pde
@@ -208,9 +207,7 @@ CONTAINS
     ! This loop is sequential on purpose: the draws consume the random
     ! stream in particle order, which keeps the initial condition
     ! deterministic and independent of the number of threads. It also
-    ! assigns each particle its own draw; it previously assigned the
-    ! whole component array the value of the last draw, so that every
-    ! particle started with the same velocity.
+    ! assigns each particle its own draw so they get different velocities.
     DO j = 1, psolver%nparts_
       CALL prandom_number(u1)
       CALL prandom_number(u2)
