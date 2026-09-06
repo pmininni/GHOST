@@ -2,7 +2,7 @@
 % Type 'plot_spectrum' in MATLAB to execute
 
 % Path to the data
-path = '../../3D/bin/';
+path = '../../bin/';
 
 % Spatial resolution
 N = 128;

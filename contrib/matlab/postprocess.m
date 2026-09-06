@@ -3,10 +3,13 @@
 % VAPOR). Note that for big runs, GHOST can do some
 % automatic postprocessing (e.g., compute vorticity)
 % at run time.
+% This example assumes a simulation in a cubic box
+% with N^3 grid points, and the same box length in
+% all directions.
 % Type 'postprocess.m' in MATLAB to execute
 
 % Path to the binary data
-path = '../../3D/bin/outs/';
+path = '../../bin/outs/';
 
 % Spatial resolution
 N = 128;

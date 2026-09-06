@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 # Execute in ipython with '%run plot_spectrum.py'
 
 # Path to the data
-path = '../../3D/bin/'
+path = '../../bin/'
 
 # Reads and plots all spectra in the directory.
 # We only plot one every five spectra, starting

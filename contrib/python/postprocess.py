@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 # Execute in ipython with '%run postprocess.py'
 
 # Path to the binary data
-path = '../../3D/bin/outs/'
+path = '../../bin/outs/'
 
 # Box size
 Lx = 2*np.pi

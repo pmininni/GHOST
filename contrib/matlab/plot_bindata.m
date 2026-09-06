@@ -1,8 +1,9 @@
-% Reads a binary file and plots a cut in the x-y plane
-% Type 'plot_bindata' in MATLAB to execute
+% Reads a binary file and plots a cut in the x-y plane.
+% Assumes a simulation in a cubic box with N^3 points.
+% Type 'plot_bindata' in MATLAB to execute.
 
 % Path to the data
-path = '../../3D/bin/outs/';
+path = '../../bin/outs/';
 
 % Spatial resolution
 N = 128;

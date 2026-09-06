@@ -2,7 +2,7 @@
 ; Type '.r plot_spectrum' in IDL to execute
 
 ; Path to the data and number of files to read
-path = '../../3D/bin/'
+path = '../../bin/'
 nfiles = 20
 
 ; Spatial resolution

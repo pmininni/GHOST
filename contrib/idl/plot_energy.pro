@@ -3,7 +3,7 @@
 ; Type '.r plot_energy' in IDL to execute
 
 ; Path to the data
-path = '../../3D/bin/'
+path = '../../bin/'
 
 ; Reads balance.txt
 ;  balance(:,1) = time

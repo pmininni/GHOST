@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 # Execute in ipython with '%run plot_energy.py'
 
 # Path to the data
-path = '../../3D/bin/'
+path = '../../bin/'
 
 # Reads balance.txt
 #  t   = time
@@ -22,5 +22,5 @@ plt.xlabel('time')
 plt.ylabel('Energy')
 plt.show()
 
-# Saves plot to an EPS file
-plt.savefig('figure.eps', format='eps', dpi=1000)
+# Saves plot to a PDF file
+plt.savefig('figure.pdf', format='pdf', dpi=1000)

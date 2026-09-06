@@ -1,13 +1,14 @@
 #!/bin/bash
 
 # This bash script converts all GHOST binary output files in a 
-# directory to VDF format. VDF is the file format used by VAPOR, 
+# directory to VDC format. VDC is the file format used by VAPOR, 
 # a software for 3D interactive visualization: 
 # https://www.vapor.ucar.edu
 
 # File name for VAPOR VDC file and number of levels used to compress.
 VDC='output.vdc'
 LEV='3'
+
 # Path to GHOST binary files.
 DIR="../../bin/outs"
 

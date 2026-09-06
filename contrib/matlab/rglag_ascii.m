@@ -6,16 +6,14 @@ function [data np time] = rglag_ascii(sfile,irank,hdonly)
 %      [data np t] = rglag_ascii('glag.010.txt');
 %
 %  Inputs:
-%
 %  sfile    : input file (required)
 %  irank    : Rank of each record. Default is 3.
 %  hdonly   : if >0, fill only np, and t, with data=null
-
-%  Outputs:
 %
-%  data    : particle data in (irank,np) array with x,y,z in each record
-%  np      : no. particles required, as found in first file
-%  time    : time stamp of file
+%  Outputs:
+%  data     : particle data in (irank,np) array with x,y,z in each record
+%  np       : no. particles required, as found in first file
+%  time     : time stamp of file
 %
 if nargin < 1
   error('Input file name prefix at least! Do a "help rglag".');
@@ -56,4 +54,3 @@ while ~feof(fp) & i < np
   data(i,1:irank) = cell2mat(sdat);
 end
 fclose(fp);
-

@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 # Execute in ipython with '%run plot_bindata.py'
 
 # Path to the binary data
-path = '../../3D/bin/outs/'
+path = '../../bin/outs/'
 
 # Spatial resolution
 NX = 128

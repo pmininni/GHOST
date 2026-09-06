@@ -7,8 +7,7 @@ function [spavg tindex] = spectavgn2(sprefix, nr, trange, isz, sformat, nfield)
 % sizes (e.g., due to bootstrapping ), the average and time-dependent spectra
 % will be sized to the maximum found in that range.
 %
-%	Usage:
-%
+%  Usage:
 %           [spec_avg tindex] = spectavgn2('sspec2D','1:end');
 %
 %           Input:
@@ -30,7 +29,6 @@ function [spavg tindex] = spectavgn2(sprefix, nr, trange, isz, sformat, nfield)
 %  tindex : (optional) array of the output index of the spectrum; when multiplied by dt * sstep, it
 %           yields the time  at which the spectrum is taken
 %
-
 if nargin<2
   error('Must provide a filename prefix, rank');
 end
@@ -38,7 +36,6 @@ end
 if length(nr) < 2
   error('Rank of nr must be >= 2.');
 end
-% function [spavg tindex] = spectavgn2(sprefix, [nx nz], trange, isz, sform, nfield)
 
 if nargin < 3
   trange = '1:end';
@@ -67,7 +64,6 @@ ltad=length(d) ;                    % length of time series
 if ltad <= 0 
   spavg = zeros(nr(1),nr(2)/2+1);
   return;
-% error('Files not found');
 end
 
 ir = strfind(trange,'1:end');
@@ -116,6 +112,5 @@ end
 if NT <= 0
   spavg = zeros(nx,nz);
   return;
-% error('No spectra read!');
 end
 spavg = accum ./ NT;

@@ -4,11 +4,10 @@ function [st spect tindex] = spectavg(sprefix, trange, ncol, icol)
 %
 % Reads ASCII data files produced by GHOST, and averages over specified
 % index range, if there is one. If time range contains spectra with different
-% sizes (e.g., due to bootstrapping ), the average and time-dependent spectra
+% sizes (e.g., due to bootstrapping), the average and time-dependent spectra
 % will be sized to the maximum found.
 %
-%	Usage:
-%
+%  Usage:
 %           [spec_avg spec_t tindex] = spectavg('khelicity','1:end');
 %
 %           Input:
@@ -171,5 +170,3 @@ if nargout >= 2 & nmax ~= nmin
     end
   end
 end
-
-

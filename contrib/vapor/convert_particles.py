@@ -3,8 +3,8 @@ import numpy as np
 import glob as glob
 
 # This example shows how to convert GHOST particle data into
-# VAPOR netCDF DCP files (Data Collection Particles). It
-# assumes GHOST particle files are in binary format.
+# VAPOR netCDF DCP files (Data Collection Particles) using Python. 
+# It assumes GHOST particle files are in binary format.
 
 # Path to the binary data and simulation information
 path = 'data'

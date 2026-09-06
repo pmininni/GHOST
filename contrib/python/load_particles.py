@@ -8,7 +8,7 @@ import numpy as np
 # Execute in ipython with '%run load_particles.py'
 
 # Path to the binary data
-path = '../../3D/bin/outs/'
+path = '../../bin/outs/'
 
 # Reads positions of any type of particles
 pos  = np.fromfile(path+'/xlg.00000001.lag',dtype=np.float32)

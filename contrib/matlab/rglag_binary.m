@@ -6,19 +6,17 @@ function [data np time] = rglag_binary(sfile,irank,nbytes,machform,hdonly)
 %      [data np t] = rglag_binary('glag.010.txt');
 %
 %  Inputs:
-%
 %  sfile    : input file (required)
 %  irank    : rank of each record. Default is 3.
 %  nbytes   : byte size (4, 8) of real data; default is 4
 %  machform : machine format (endian-ness) of real data: 'ieee-be' for
 %             big-endian, or 'ieee-le' for little-endian; default is 'ieee-le'.
 %  hdonly   : = 1: fill header info only (np and time; data==null); if 0, neglect; default is 0.
-
-%  Outputs:
 %
-%  data    : particle data in (irank,np) array with x,y,z in each record
-%  np      : no. particles required, as found in first file
-%  time    : time stamp of file
+%  Outputs:
+%  data     : particle data in (irank,np) array with x,y,z in each record
+%  np       : no. particles required, as found in first file
+%  time     : time stamp of file
 %
 if nargin < 1
   error('Input file name prefix at least! Do a "help rglag".');
@@ -62,9 +60,7 @@ if hdonly > 0
  return;
 end
 
-%data = zeros(np,irank);
 data = fread(fp,irank*np,prec,0,machform);
 fclose(fp);
 data = reshape(data,irank,np);
 data = data';
-

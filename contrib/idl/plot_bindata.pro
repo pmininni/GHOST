@@ -1,8 +1,9 @@
 ; Reads a binary file and plots a cut in the x-y plane.
+; Assumes we are reading a cubic box with resolution N^3.
 ; Type '.r plot_bindata' in IDL to execute
 
 ; Path to the binary data
-path = '../../3D/bin/outs/'
+path = '../../bin/outs/'
 
 ; Spatial resolution
 N = 128

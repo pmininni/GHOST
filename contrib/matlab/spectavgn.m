@@ -7,8 +7,7 @@ function [st spect tindex kw] = spectavgn(sprefix, ivers, trange, ncol, icol, nf
 % sizes (e.g., due to bootstrapping ), the average and time-dependent spectra
 % will be sized to the maximum found.
 %
-%	Usage:
-%
+%  Usage:
 %           [spec_avg spec_t tindex k] = spectavgn('khelicity',0,'1:end');
 %
 %           Input:
@@ -121,7 +120,6 @@ NT = 0;
 k = 0;
 for j = 1:length(fnrange)
     i = fnrange(j); 
-%   si = textread(filename{i});
     sfile = sprintf(['%s.' sprec '.txt'],sprefix,i);
     fid= fopen(sfile);
     if fid < 0
@@ -194,4 +192,3 @@ if nargout >= 2 & nmax ~= nmin
     end
   end
 end
-

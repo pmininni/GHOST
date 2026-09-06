@@ -3,10 +3,12 @@
 ; VAPOR). Note that for big runs, GHOST can do some
 ; automatic postprocessing (e.g., compute vorticity)
 ; at run time.
+; Assumes we are reading a cubic box with resolution
+; N^3, and the same box length in all directions.
 ; Type '.r postprocess' in IDL to execute
 
 ; Path to the binary data and number of files to read
-path = '../../3D/bin/outs/'
+path = '../../bin/outs/'
 nfiles = 4
 
 ; Spatial resolution

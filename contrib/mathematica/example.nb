@@ -30,7 +30,7 @@ Cell[TextData[{
   3.660145230278544*^9, 3.6601452307631693`*^9}}],
 
 Cell[BoxData[
- RowBox[{"SetDirectory", "[", "\"\</Users/mininni/ghost/3D/bin\>\"", 
+ RowBox[{"SetDirectory", "[", "\"\</Users/mininni/GHOST/bin\>\"", 
   "]"}]], "Input",
  CellChangeTimes->{{3.572769213508238*^9, 3.57276922253941*^9}, {
    3.572774375705515*^9, 3.572774381320552*^9}, 3.623667438301544*^9, {

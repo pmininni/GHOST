@@ -1,6 +1,7 @@
 function data = rghost(filein, N, rank, isz, sformat)
 %
 % Reads binary GHOST data, and stores in local variable data.
+% This function assumes data in a cubic box with N^3 grid points.
 %
 %  Usage:
 %      data = rghost(filename, N, isz, 'ieee-be');
@@ -8,7 +9,7 @@ function data = rghost(filein, N, rank, isz, sformat)
 %  filein  : input file to read
 %  N       : data cube dimension
 %  rank    : problem rank (2 or 3)
-%  isz     : data size (in bytes: either 4 or 8, e.g.);
+%  isz     : data size (in bytes: either 4 or 8)
 %  sformat : data format of file: 'ieee-be' or 'ieee-le' for big-endian or little
 %            endian if isz=4, or 'ieee-be.l64', 'ieee-le.l64' if isz=8.
 %
@@ -57,15 +58,3 @@ fclose(lun);
 if isempty(data)
   error(['File ' filein ' corrupted']);
 end
-
-%data(1:20)
-
-%wun = fopen(fileout,'w');
-%if  wun == -1
-%  error(['File ' fileout ' cannot be opened for writing']);
-%end
-%fwrite(wun,data,ssize);
-%fclose(wun);
-%warning(['swapbl: swap data written to file ' fileout '.']);
-
-
