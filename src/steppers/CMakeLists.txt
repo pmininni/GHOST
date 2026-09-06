@@ -26,5 +26,5 @@ add_dependencies(stepper_lib
   particles_lib
   )
 
-# Link MPI if needed
+# Link libraries
 target_link_libraries(stepper_lib PUBLIC project_mpi pseudo_lib utils_lib)

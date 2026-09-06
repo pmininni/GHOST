@@ -259,7 +259,8 @@ MODULE pseudospec_fluid
       ENDIF
 
       RETURN
-      END SUBROUTINE rotor3
+    END SUBROUTINE rotor3
+ 
 !*****************************************************************
       SUBROUTINE gradre3(a,b,c,d,e,f)
 !-----------------------------------------------------------------

@@ -16,7 +16,7 @@
 !
 ! 2005 Pablo D. Mininni.
 !      National Center for Atmospheric Research.
-!      e-mail: mininni@ucar.uba.ar
+!      e-mail: mininni@ucar.edu
 !
 ! 7 Aug 2010: New specperp and 2D spectrum (T. Teitelbaum)
 !=================================================================

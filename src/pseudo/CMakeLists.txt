@@ -43,5 +43,5 @@ add_dependencies(pseudo_lib
   memmgt_lib
   )
 
-# Link MPI if needed
+# Link libraries
 target_link_libraries(pseudo_lib PUBLIC project_mpi fftp_lib pseudobase_lib memmgt_lib)
