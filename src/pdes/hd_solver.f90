@@ -181,7 +181,6 @@ CONTAINS
     use grid
     use mpivars
     use gdevice, only: gdev_active
-!$  use threads
     implicit none
 
     class (HDSolver), intent   (in)             :: this

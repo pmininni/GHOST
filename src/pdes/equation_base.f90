@@ -135,17 +135,16 @@ CONTAINS
     use grid
     use mpivars
     use gstate_mod
-!$  use threads
     implicit none
 
-    class(VelocityBase), intent(in)   :: this
-    real     (kind=GP), intent   (in) :: kappa(:)
-    type      (GStateComp), intent(inout) :: uin(:)
-    type      (GStateComp), intent   (in) :: uf(:)
-    type      (GStateComp), intent(inout) :: dudt(:) 
-    logical                           :: bret
-    integer                           :: n
-    complex  (kind=GP), pointer       :: adve(:,:,:),lapl(:,:,:)
+    class(VelocityBase), intent(in)    :: this
+    real      (kind=GP), intent   (in) :: kappa(:)
+    type   (GStateComp), intent(inout) :: uin(:)
+    type   (GStateComp), intent   (in) :: uf(:)
+    type   (GStateComp), intent(inout) :: dudt(:) 
+    logical                            :: bret
+    integer                            :: n
+    complex  (kind=GP), pointer        :: adve(:,:,:),lapl(:,:,:)
 
     if ( this%numpassive_ .eq. 0 ) return
     call this%workspace_%get_complex_tmp(adve,bret)
@@ -179,7 +178,6 @@ CONTAINS
     use fft
     use commtypes
     use pseudospec_fluid
-!$  use threads
     implicit none
 
     class (EquationBase), intent   (in)             :: this

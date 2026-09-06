@@ -220,13 +220,12 @@ contains
     use commtypes
     use fft
     use gdevice, only: gdev_active
-!$  use threads
     implicit none
 
     class(BOUSSSolver), intent   (in)             :: this
     real     (kind=GP), intent   (in)             :: time, dt
     type  (GStateComp), intent(inout), target     :: uin(:),uf(:)
-    type  (GStateComp), intent(inout), target             :: dudt(:) 
+    type  (GStateComp), intent(inout), target     :: dudt(:) 
     complex  (kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
     complex  (kind=GP), pointer, dimension(:,:,:) :: fth,th
     complex  (kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4,C5,C6
@@ -281,36 +280,36 @@ contains
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
       do i = ista,iend
-      do j = 1,ny
-      do k = 1,nz
+        do j = 1,ny
+          do k = 1,nz
 #else
 !$omp parallel do collapse(2) private (k)
       do i = ista,iend
-      do j = 1,ny
-      do concurrent (k=1:nz)
+        do j = 1,ny
+          do concurrent (k=1:nz)
 #endif
-         C4(k,j,i) = C4(k,j,i) + C1(k,j,i) ! (w x v + 2 Omega x v)_x
-         C5(k,j,i) = C5(k,j,i) + C2(k,j,i) ! (w x v + 2 Omega x v)_y
-         C6(k,j,i) = C6(k,j,i) + C3(k,j,i) ! (w x v + 2 Omega x v)_z
-      end do
-      end do
+            C4(k,j,i) = C4(k,j,i) + C1(k,j,i) ! (w x v + 2 Omega x v)_x
+            C5(k,j,i) = C5(k,j,i) + C2(k,j,i) ! (w x v + 2 Omega x v)_y
+            C6(k,j,i) = C6(k,j,i) + C3(k,j,i) ! (w x v + 2 Omega x v)_z
+          end do
+        end do
       end do
     endif
 
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
     do i = ista,iend
-    do j = 1,ny                               ! Buoyancy term
-    do k = 1,nz                    ! It becomes negative as it changes
+      do j = 1,ny
+        do k = 1,nz
 #else
 !$omp parallel do collapse(2) private (k)
     do i = ista,iend
-    do j = 1,ny                               ! Buoyancy term
-    do concurrent (k=1:nz)                    ! It becomes negative as it changes
+      do j = 1,ny
+        do concurrent (k=1:nz)
 #endif
-       C6(k,j,i) = C6(k,j,i) + xmom*th(k,j,i) ! sign after the call to nonlhd3
-    end do
-    end do
+          C6(k,j,i) = C6(k,j,i) + xmom*th(k,j,i) ! Buoyancy term: later becomes
+        end do                                   ! negative as it changes sign
+      end do                                     ! after the call to nonlhd3
     end do
 
     call nonlhd3(C4,C5,C6,C1,1)  ! -[(w + 2 Omega) x v + Grad p]_x
@@ -325,43 +324,43 @@ contains
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
     do i = ista,iend
-    do j = 1,ny
-    do k = 1,nz   ! heat 'currrent'
+      do j = 1,ny
+        do k = 1,nz
 #else
 !$omp parallel do collapse(2) private (k)
     do i = ista,iend
-    do j = 1,ny
-    do concurrent (k=1:nz)   ! heat 'currrent'
+      do j = 1,ny
+        do concurrent (k=1:nz)
 #endif
-      C7(k,j,i) = C7(k,j,i) + xtemp*vz(k,j,i)
-    end do
-    end do
+          C7(k,j,i) = C7(k,j,i) + xtemp*vz(k,j,i) ! heat 'currrent'
+        end do
+      end do
     end do
 
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
     do i = ista,iend
-    do j = 1,ny
-    do k = 1,nz
+      do j = 1,ny
+        do k = 1,nz
 #else
 !$omp parallel do collapse(2) private (k)
     do i = ista,iend
-    do j = 1,ny
-    do concurrent (k=1:nz)
+      do j = 1,ny
+        do concurrent (k=1:nz)
 #endif
-      if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
-        dvx(k,j,i) = nu*C4(k,j,i) + C1(k,j,i) + fx(k,j,i)
-        dvy(k,j,i) = nu*C5(k,j,i) + C2(k,j,i) + fy(k,j,i)
-        dvz(k,j,i) = nu*C6(k,j,i) + C3(k,j,i) + fz(k,j,i)
-        dth(k,j,i) = bkappa*C8(k,j,i) + C7(k,j,i) + fth(k,j,i)
-      else
-        dvx(k,j,i) = 0.0_GP
-        dvy(k,j,i) = 0.0_GP
-        dvz(k,j,i) = 0.0_GP
-        dth(k,j,i) = 0.0_GP
-      endif
-    end do
-    end do
+          if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
+            dvx(k,j,i) = nu*C4(k,j,i) + C1(k,j,i) + fx(k,j,i)
+            dvy(k,j,i) = nu*C5(k,j,i) + C2(k,j,i) + fy(k,j,i)
+            dvz(k,j,i) = nu*C6(k,j,i) + C3(k,j,i) + fz(k,j,i)
+            dth(k,j,i) = bkappa*C8(k,j,i) + C7(k,j,i) + fth(k,j,i)
+          else
+            dvx(k,j,i) = 0.0_GP
+            dvy(k,j,i) = 0.0_GP
+            dvz(k,j,i) = 0.0_GP
+            dth(k,j,i) = 0.0_GP
+          endif
+        end do
+      end do
     end do
 
     call this%workspace_%free_complex_tmp(C1)

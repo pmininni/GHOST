@@ -145,7 +145,6 @@ CONTAINS
   SUBROUTINE dpdt_impl(this, time, pde, fluidstate, pstate, dt, dpdtout)
     use equationbase_mod
     use fft
-!$  use threads
     IMPLICIT NONE
     class       (Ipart),             intent(inout) :: this
     class(EquationBase),             intent   (in) :: pde
@@ -208,6 +207,7 @@ CONTAINS
       ! dx/dt = v_p and velocity RHS dv_p/dt = cdrag/tau (u - v_p) - g.
       ! pstate and dpdtout may alias (some steppers pass upout for
       ! both): each particle reads its velocity before writing its RHS.
+      ! Pointers and a kernel (ipart_rhs) are used to help offloading.
       dpx => dpdtout(this%POSITION  )%rcomp
       dpy => dpdtout(this%POSITION+1)%rcomp
       dpz => dpdtout(this%POSITION+2)%rcomp
@@ -413,7 +413,6 @@ CONTAINS
     use status
     use pstatus
     use fft
-!$  use threads
     class       (IPart),             intent(inout) :: this
     class(EquationBase),             intent   (in) :: pde
     type   (GStateComp), target ,    intent   (in) :: fluidstate(:)
@@ -718,7 +717,7 @@ CONTAINS
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Kernel: right-hand side of the n inertial particles
+  !! Kernel: right-hand side of the n inertial particles.
   !!   dp/dt = v_p / delta       (positions in grid units)
   !!   dv/dt = cdrag/tau (u - v_p) - grav z_hat
   !! with cdrag = 1 for linear Stokes drag, or the nonlinear

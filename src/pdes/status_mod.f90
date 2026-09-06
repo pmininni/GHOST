@@ -54,7 +54,6 @@
       USE grid
       USE kes
       USE ali
-!$    USE threads
       IMPLICIT NONE
 
       REAL(KIND=GP)                :: cort

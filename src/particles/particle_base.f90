@@ -1183,7 +1183,6 @@ CONTAINS
     USE fprecision
     USE commtypes
     USE mpivars
-!$  USE threads
     IMPLICIT NONE
     CLASS(ParticleBase)    ,INTENT(INOUT)          :: this
     TYPE  (GPStateComp)    ,INTENT(INOUT)          :: pstate(:)

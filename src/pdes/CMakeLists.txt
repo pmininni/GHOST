@@ -25,5 +25,5 @@ add_dependencies(pdes_lib
   memmgt_lib
   )
 
-# Link MPI if needed
+# Link libraries
 target_link_libraries(pdes_lib PUBLIC project_mpi pseudo_lib utils_lib)

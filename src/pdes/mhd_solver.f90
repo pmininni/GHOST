@@ -202,13 +202,12 @@ CONTAINS
     use grid
     use mpivars
     use gdevice, only: gdev_active
-!$  use threads
     implicit none
 
     class(MHDSolver), intent   (in)             :: this
     real   (kind=GP), intent   (in)             :: time, dt
     type(GStateComp), intent(inout), target     :: uin(:),uf(:)
-    type(GStateComp), intent(inout), target             :: dudt(:) 
+    type(GStateComp), intent(inout), target     :: dudt(:) 
     complex(kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
     complex(kind=GP), pointer, dimension(:,:,:) :: mx,my,mz,ax,ay,az
     complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4,C5,C6
@@ -323,31 +322,31 @@ CONTAINS
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
     do i = ista,iend
-    do j = 1,ny
-    do k = 1,nz
+      do j = 1,ny
+        do k = 1,nz
 #else
 !$omp parallel do collapse(2) private (k)
     do i = ista,iend
-    do j = 1,ny
-    do concurrent (k=1:nz)
+      do j = 1,ny
+        do concurrent (k=1:nz)
 #endif
-      if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
-        dvx(k,j,i) = nu*C7(k,j,i) + C10(k,j,i) + fx(k,j,i)
-        dvy(k,j,i) = nu*C8(k,j,i) + C11(k,j,i) + fy(k,j,i)
-        dvz(k,j,i) = nu*C9(k,j,i) + C12(k,j,i) + fz(k,j,i)
-        dax(k,j,i) = eta*C4(k,j,i) + C1(k,j,i) + mx(k,j,i)
-        day(k,j,i) = eta*C5(k,j,i) + C2(k,j,i) + my(k,j,i)
-        daz(k,j,i) = eta*C6(k,j,i) + C3(k,j,i) + mz(k,j,i)
-      else
-        dvx(k,j,i) = 0.0_GP
-        dvy(k,j,i) = 0.0_GP
-        dvz(k,j,i) = 0.0_GP
-        dax(k,j,i) = 0.0_GP
-        day(k,j,i) = 0.0_GP
-        daz(k,j,i) = 0.0_GP
-      endif
-    end do
-    end do
+          if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
+            dvx(k,j,i) = nu*C7(k,j,i) + C10(k,j,i) + fx(k,j,i)
+            dvy(k,j,i) = nu*C8(k,j,i) + C11(k,j,i) + fy(k,j,i)
+            dvz(k,j,i) = nu*C9(k,j,i) + C12(k,j,i) + fz(k,j,i)
+            dax(k,j,i) = eta*C4(k,j,i) + C1(k,j,i) + mx(k,j,i)
+            day(k,j,i) = eta*C5(k,j,i) + C2(k,j,i) + my(k,j,i)
+            daz(k,j,i) = eta*C6(k,j,i) + C3(k,j,i) + mz(k,j,i)
+          else
+            dvx(k,j,i) = 0.0_GP
+            dvy(k,j,i) = 0.0_GP
+            dvz(k,j,i) = 0.0_GP
+            dax(k,j,i) = 0.0_GP
+            day(k,j,i) = 0.0_GP
+            daz(k,j,i) = 0.0_GP
+          endif
+        end do
+      end do
     end do
 
     CALL this%workspace_%free_complex_tmp(C1)

@@ -90,8 +90,6 @@ MODULE class_GPartComm
 
   CONTAINS
 
-  SUBROUTINE GPartComm_ctor(this,intrface,maxparts,nd,nzghost,comm,hcomm)
-!-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  Main explicit constructor
 !  ARGUMENTS:
@@ -107,6 +105,7 @@ MODULE class_GPartComm
 !    comm    : MPI communicator
 !    hcomm   : externally-managed comm-timer handle; must be non-null on entry
 !-----------------------------------------------------------------
+  SUBROUTINE GPartComm_ctor(this,intrface,maxparts,nd,nzghost,comm,hcomm)
     IMPLICIT NONE
     CLASS(GPartComm),INTENT(INOUT):: this
     INTEGER, INTENT(IN)           :: intrface,maxparts,nd(3),nzghost
@@ -175,6 +174,9 @@ MODULE class_GPartComm
   END SUBROUTINE GPartComm_AllocParts
 
 
+!-----------------------------------------------------------------
+! Main explicity destructor
+!-----------------------------------------------------------------
   SUBROUTINE GPartComm_dtor(this)
     IMPLICIT NONE
     TYPE(GPartComm),INTENT(INOUT)        :: this
@@ -182,6 +184,9 @@ MODULE class_GPartComm
   END SUBROUTINE GPartComm_dtor
 
 
+!-----------------------------------------------------------------
+! Main deallocator, called by the destructor
+!-----------------------------------------------------------------
   SUBROUTINE GPartComm_DoDealloc(this)
     IMPLICIT NONE
     CLASS(GPartComm),INTENT(INOUT)        :: this
@@ -282,8 +287,10 @@ MODULE class_GPartComm
   END SUBROUTINE GPartComm_SlabDataExchangeSF
 
 
+!-----------------------------------------------------------------
 ! Posts the receives and sends of the ghost planes (device
 ! addresses of the buffers in offload builds) and waits for all
+!-----------------------------------------------------------------
   SUBROUTINE gpc_exch_planes(this,sb,st,rb,rt,nt)
     IMPLICIT NONE
     CLASS(GPartComm),INTENT(INOUT)               :: this
@@ -303,6 +310,10 @@ MODULE class_GPartComm
 #endif
   END SUBROUTINE gpc_exch_planes
 
+  
+!-----------------------------------------------------------------
+! Performs the actual exchange of the ghost planes
+!-----------------------------------------------------------------
   SUBROUTINE gpc_exch_planes_do(this,sb,st,rb,rt,nt)
     IMPLICIT NONE
     CLASS(GPartComm),INTENT(INOUT)               :: this
@@ -338,7 +349,9 @@ MODULE class_GPartComm
   END SUBROUTINE gpc_exch_planes_do
 
 
+!-----------------------------------------------------------------
 ! Interior of the extended field
+!-----------------------------------------------------------------
   SUBROUTINE gpc_copy2ext(nx,ny,nzl,nex,ney,nez,ngp,ngz,v,vext)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: nx,ny,nzl,nex,ney,nez,ngp,ngz
@@ -360,7 +373,9 @@ MODULE class_GPartComm
   END SUBROUTINE gpc_copy2ext
 
 
+!-----------------------------------------------------------------
 ! Ghost planes of a single task (periodic wrap of its own slab)
+!-----------------------------------------------------------------
   SUBROUTINE gpc_localexch(nx,ny,nzl,nex,ney,nez,ngp,ngz,v,vext)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: nx,ny,nzl,nex,ney,nez,ngp,ngz
@@ -383,8 +398,10 @@ MODULE class_GPartComm
   END SUBROUTINE gpc_localexch
 
 
+!-----------------------------------------------------------------
 ! Packs npl planes ksrc(1:npl) of v into column jc of buff, with
 ! the header (number of planes, destination plane indices kdst)
+!-----------------------------------------------------------------
   SUBROUTINE gpc_packsf(nx,ny,nzl,npl,ksrc,kdst,nbuff,nt,jc,v,buff)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: nx,ny,nzl,npl,nbuff,nt,jc
@@ -418,8 +435,10 @@ MODULE class_GPartComm
   END SUBROUTINE gpc_packsf
 
 
+!-----------------------------------------------------------------
 ! Unpacks the npl planes of column jc of buff into the extended
 ! field, at the plane indices carried by the header
+!-----------------------------------------------------------------
   SUBROUTINE gpc_unpacksf(nx,ny,nex,ney,nez,ngp,npl,nbuff,nt,jc,buff,vext)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: nx,ny,nex,ney,nez,ngp,npl,nbuff,nt,jc
@@ -559,9 +578,11 @@ MODULE class_GPartComm
   END SUBROUTINE GPartComm_PartExchangeV
 
 
+!-----------------------------------------------------------------
 ! Sends the packed records to the two neighbors and receives
 ! theirs; nrb, nrt are the numbers of records received from the
 ! bottom and the top. Two messages per direction: ids, coordinates.
+!-----------------------------------------------------------------
   SUBROUTINE gpc_exch_parts(this,sbid,sbpr,stid,stpr,rbid,rbpr,rtid,rtpr,ibrank,itrank,nrb,nrt)
     IMPLICIT NONE
     CLASS(GPartComm),INTENT(INOUT)   :: this
@@ -584,6 +605,10 @@ MODULE class_GPartComm
 #endif
   END SUBROUTINE gpc_exch_parts
 
+
+!-----------------------------------------------------------------
+! Performs the actual exchanges
+!-----------------------------------------------------------------
   SUBROUTINE gpc_exch_parts_do(this,sbid,sbpr,stid,stpr,rbid,rbpr,rtid,rtpr,ibrank,itrank,nrb,nrt)
     IMPLICIT NONE
     CLASS(GPartComm),INTENT(INOUT)   :: this
@@ -649,10 +674,9 @@ MODULE class_GPartComm
 !-----------------------------------------------------------------
 ! Particle kernels (explicit-shape arrays; np is the size of the
 ! particle arrays, n the number of entries to process)
-!-----------------------------------------------------------------
-
 ! flag(j) = 1 for the particles below zmin (ibelow=1) or at/above
 ! zmax (ibelow=0), 0 otherwise
+!-----------------------------------------------------------------
   SUBROUTINE gpc_flag_out(n,np,pz,zmin,zmax,ibelow,flag)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: n,np,ibelow
@@ -683,7 +707,9 @@ MODULE class_GPartComm
   END SUBROUTINE gpc_flag_out
 
 
+!-----------------------------------------------------------------
 ! Gathers the records idx(1:n) into the send buffers
+!-----------------------------------------------------------------
   SUBROUTINE gpc_pack(n,np,idx,id,px,py,pz,bid,bpr)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: n,np
@@ -707,7 +733,9 @@ MODULE class_GPartComm
   END SUBROUTINE gpc_pack
 
 
+!-----------------------------------------------------------------
 ! Appends the n received records after entry ioff
+!-----------------------------------------------------------------
   SUBROUTINE gpc_unpack(n,ioff,np,id,px,py,pz,bid,bpr)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: n,ioff,np
@@ -730,7 +758,9 @@ MODULE class_GPartComm
   END SUBROUTINE gpc_unpack
 
 
+!-----------------------------------------------------------------
 ! Marks the particles idx(1:n) as departed
+!-----------------------------------------------------------------
   SUBROUTINE gpc_mark(n,np,idx,id)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: n,np
@@ -748,7 +778,9 @@ MODULE class_GPartComm
   END SUBROUTINE gpc_mark
 
 
+!-----------------------------------------------------------------
 ! flag(j) = 1 where (id(j) == GPNULL) .eqv. wantnull, for j in [n1,n2]
+!-----------------------------------------------------------------
   SUBROUTINE gpc_flag_null(n1,n2,np,id,wantnull,flag)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: n1,n2,np
@@ -771,7 +803,9 @@ MODULE class_GPartComm
   END SUBROUTINE gpc_flag_null
 
 
+!-----------------------------------------------------------------
 ! Fills the holes ihole(1:m) with the survivors isurv(1:m)
+!-----------------------------------------------------------------
   SUBROUTINE gpc_move(m,np,ihole,isurv,id,px,py,pz)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: m,np
@@ -795,7 +829,9 @@ MODULE class_GPartComm
   END SUBROUTINE gpc_move
 
 
+!-----------------------------------------------------------------
 ! dst(1:n) = src(1:n)
+!-----------------------------------------------------------------
   SUBROUTINE gpc_copy_i(n,np,dst,src)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: n,np
@@ -813,7 +849,9 @@ MODULE class_GPartComm
   END SUBROUTINE gpc_copy_i
 
 
+!-----------------------------------------------------------------
 ! idx(j) = j
+!-----------------------------------------------------------------
   SUBROUTINE gpc_iota(n,np,idx)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: n,np
@@ -830,7 +868,9 @@ MODULE class_GPartComm
   END SUBROUTINE gpc_iota
 
 
+!-----------------------------------------------------------------
 ! a(1:3,1:n) = 0
+!-----------------------------------------------------------------
   SUBROUTINE gpc_zero3(n,a)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: n
@@ -849,7 +889,9 @@ MODULE class_GPartComm
   END SUBROUTINE gpc_zero3
 
 
+!-----------------------------------------------------------------
 ! Scatters the nl local records into the global array by id
+!-----------------------------------------------------------------
   SUBROUTINE gpc_scatter3(nl,np,id,lx,ly,lz,ng,g)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: nl,np,ng
@@ -1145,16 +1187,15 @@ MODULE class_GPartComm
   END SUBROUTINE GPartComm_ResizeArrays
 
 
-  SUBROUTINE GPartComm_Init(this)
-!-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : Init
 !  DESCRIPTION: Initializes particle locations before integration.
 !               Call after construction.
 !  ARGUMENTS  :
 !    this    : 'this' class instance
-!    comm    : MP:I communicator
+!    comm    : MPI communicator
 !-----------------------------------------------------------------
+  SUBROUTINE GPartComm_Init(this)
     IMPLICIT NONE
     CLASS(GPartComm),INTENT(INOUT)        :: this
     INTEGER                               :: i,ibrank,itrank,j,jf,k,kf,kend,ksta
@@ -1360,8 +1401,6 @@ MODULE class_GPartComm
 
   END SUBROUTINE GPartComm_Init
 
-  FUNCTION GPartComm_GetNumGhost(this) result(nzghost_result)
-!-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : GetNumGhost
 !  DESCRIPTION: Get no. ghost zones expected to be transferred.
@@ -1369,6 +1408,7 @@ MODULE class_GPartComm
 !  ARGUMENTS  :
 !    this    : 'this' class instance (IN)
 !-----------------------------------------------------------------
+  FUNCTION GPartComm_GetNumGhost(this) result(nzghost_result)
     IMPLICIT NONE
 
     CLASS(GPartComm),INTENT(INOUT)             :: this
@@ -1378,7 +1418,8 @@ MODULE class_GPartComm
 
   END FUNCTION GPartComm_GetNumGhost
 
-!=================================================================
+
+!-----------------------------------------------------------------
 ! Transposes of a real field between the slab layout (nx,ny,kl),
 ! kl = kend-ksta+1 local planes, and the z-complete layout
 ! (nz,ny,il), il = local x range, used by the spline solve in z.
@@ -1388,11 +1429,10 @@ MODULE class_GPartComm
 ! device copies between calls). The block sent to task t in the
 ! forward transpose has the same layout as the block received
 ! from t in the inverse one, so the offsets and counts are shared.
-!=================================================================
-
 ! Tables of the exchange: x and z ranges of every task, offsets
 ! and counts (in reals) of the blocks; buffers of the size of the
 ! larger of the two layouts
+!-----------------------------------------------------------------
   SUBROUTINE GPartComm_InitTrans(this)
     IMPLICIT NONE
     CLASS(GPartComm),INTENT(INOUT) :: this
@@ -1480,9 +1520,11 @@ MODULE class_GPartComm
   END SUBROUTINE GPartComm_ITranspose
 
 
+!-----------------------------------------------------------------
 ! Contiguous exchange of the blocks (device addresses in offload
 ! builds): the block for task t starts at so(t)+1 in sb and the
 ! block from t lands at ro(t)+1 in rb; the own block is copied
+!-----------------------------------------------------------------
   SUBROUTINE gpc_texch(this,nb,sb,rb,so,sc,ro,rc)
     IMPLICIT NONE
     CLASS(GPartComm),INTENT(INOUT)   :: this
@@ -1509,6 +1551,10 @@ MODULE class_GPartComm
 #endif
   END SUBROUTINE gpc_texch
 
+
+!-----------------------------------------------------------------
+! Performs the actual exchange
+!-----------------------------------------------------------------  
   SUBROUTINE gpc_texch_do(this,sb,rb,so,sc,ro,rc)
     IMPLICIT NONE
     CLASS(GPartComm),INTENT(INOUT)   :: this
@@ -1533,7 +1579,9 @@ MODULE class_GPartComm
   END SUBROUTINE gpc_texch_do
 
 
+!-----------------------------------------------------------------
 ! rb(roff+1:roff+n) = sb(soff+1:soff+n)
+!-----------------------------------------------------------------
   SUBROUTINE gpc_copy_seg(n,nb,soff,roff,sb,rb)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: n,nb,soff,roff
@@ -1551,7 +1599,9 @@ MODULE class_GPartComm
   END SUBROUTINE gpc_copy_seg
 
 
+!-----------------------------------------------------------------
 ! Forward pack: block f(i1:i2,1:ny,1:kl) of the slab, i fastest
+!-----------------------------------------------------------------
   SUBROUTINE gpc_tpack_fwd(nx,ny,kl,i1,i2,off,nb,f,b)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: nx,ny,kl,i1,i2,off,nb
@@ -1574,8 +1624,10 @@ MODULE class_GPartComm
   END SUBROUTINE gpc_tpack_fwd
 
 
+!-----------------------------------------------------------------
 ! Forward unpack: block (1:il,1:ny,k1:k2) received from a task
 ! into the z-complete layout o(nz,ny,il)
+!-----------------------------------------------------------------
   SUBROUTINE gpc_tunpack_fwd(nz,ny,il,k1,k2,off,nb,b,o)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: nz,ny,il,k1,k2,off,nb
@@ -1597,8 +1649,10 @@ MODULE class_GPartComm
   END SUBROUTINE gpc_tunpack_fwd
 
 
+!-----------------------------------------------------------------
 ! Inverse pack: block (k1:k2,1:ny,1:il) of the z-complete layout,
 ! stored i fastest (the layout the receiver unpacks)
+!-----------------------------------------------------------------
   SUBROUTINE gpc_tpack_inv(nz,ny,il,k1,k2,off,nb,f,b)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: nz,ny,il,k1,k2,off,nb
@@ -1620,7 +1674,9 @@ MODULE class_GPartComm
   END SUBROUTINE gpc_tpack_inv
 
 
+!-----------------------------------------------------------------
 ! Inverse unpack: block (i1:i2,1:ny,1:kl) into the slab o(nx,ny,kl)
+!-----------------------------------------------------------------
   SUBROUTINE gpc_tunpack_inv(nx,ny,kl,i1,i2,off,nb,b,o)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: nx,ny,kl,i1,i2,off,nb

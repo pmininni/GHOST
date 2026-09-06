@@ -17,8 +17,8 @@
 !                 three directions on the host (transposes for z)
 !                 and fills the extended field;
 !   SetCoeffs3D : takes a field that already holds the spline
-!                 coefficients (computed in Fourier space by the
-!                 caller) and only fills the extended field.
+!                 coefficients (computed by the caller) and only
+!                 fills the extended field.
 !=================================================================
 MODULE class_GPSplineInt
       USE mpivars
@@ -126,6 +126,9 @@ MODULE class_GPSplineInt
   END SUBROUTINE GPSplineInt_ctor
 
 
+!-----------------------------------------------------------------
+! Main destructor
+!-----------------------------------------------------------------
   SUBROUTINE GPSplineInt_dtor(this)
     IMPLICIT NONE
     TYPE(GPSplineInt),INTENT(INOUT) :: this
@@ -162,6 +165,9 @@ MODULE class_GPSplineInt
   END SUBROUTINE GPSplineInt_Init
 
 
+!-----------------------------------------------------------------
+! Allocator
+!-----------------------------------------------------------------
   SUBROUTINE GPSplineInt_DoAlloc(this)
     IMPLICIT NONE
     CLASS(GPSplineInt)        :: this
@@ -191,6 +197,9 @@ MODULE class_GPSplineInt
   END SUBROUTINE GPSplineInt_DoAlloc
 
 
+!-----------------------------------------------------------------
+! Deallocator
+!-----------------------------------------------------------------
   SUBROUTINE GPSplineInt_DoDealloc(this)
     IMPLICIT NONE
     CLASS(GPSplineInt)        :: this
@@ -269,8 +278,10 @@ MODULE class_GPSplineInt
   END SUBROUTINE GPSplineInt_PartUpdate3D
 
 
+!-----------------------------------------------------------------
 ! Stencil indices (periodic) and fractional position in one of
 ! the two periodic directions
+!-----------------------------------------------------------------
   SUBROUTINE gpsi_update_xy(n,xp,xb,dxi,nx,ilg,xrk)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: n,nx
@@ -294,7 +305,9 @@ MODULE class_GPSplineInt
   END SUBROUTINE gpsi_update_xy
 
 
+!-----------------------------------------------------------------
 ! Number of particles outside the ghost-extended slab
+!-----------------------------------------------------------------
   SUBROUTINE gpsi_check_z(n,zp,zlo,zhi,nbad)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: n
@@ -313,8 +326,10 @@ MODULE class_GPSplineInt
   END SUBROUTINE gpsi_check_z
 
 
+!-----------------------------------------------------------------
 ! Stencil indices (clamped to the extended local grid) and
 ! fractional position in z
+!-----------------------------------------------------------------
   SUBROUTINE gpsi_update_z(n,zp,zb,dxi,kmin,kmax,klg,zrk)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: n,kmin,kmax
@@ -366,9 +381,11 @@ MODULE class_GPSplineInt
   END SUBROUTINE GPSplineInt_Interp3D
 
 
+!-----------------------------------------------------------------
 ! Basis weights of one direction from the fractional positions
 ! (slots ioff+1..ioff+3 of wrkl; the 4th weight is completed in
 ! the interpolation kernel as xsm-w1-w2-w3)
+!-----------------------------------------------------------------
   SUBROUTINE gpsi_weights(n,xrk,ider,dxi,ioff,wrkl)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: n,ider,ioff
@@ -413,8 +430,10 @@ MODULE class_GPSplineInt
   END SUBROUTINE gpsi_weights
 
 
+!-----------------------------------------------------------------
 ! The 4x4x4 tensor-product sum over the control points, in the
 ! same term order as the original expression (same round-off)
+!-----------------------------------------------------------------
   SUBROUTINE gpsi_interp(n,nx,ny,nez,xsm,ysm,zsm,wrkl,ilg,jlg,klg,e,fp)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: n,nx,ny,nez
@@ -559,15 +578,13 @@ MODULE class_GPSplineInt
 ! Spline coefficients by the periodic tridiagonal solves
 !=================================================================
 
-  SUBROUTINE GPSplineInt_MatInvQ(this,n,a,b,c,p,gam,bet,xx,zeta)
-!-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !  METHOD     : MatInvQ
 !  DESCRIPTION: Computes quantities for matrix inversion
 !  ARGUMENTS  : 
 !    this     : 'this' class instance
 !-----------------------------------------------------------------
-
+  SUBROUTINE GPSplineInt_MatInvQ(this,n,a,b,c,p,gam,bet,xx,zeta)
     IMPLICIT NONE
     CLASS(GPSplineInt)                       :: this
     INTEGER      ,INTENT   (IN)              :: n
@@ -659,12 +676,14 @@ MODULE class_GPSplineInt
   END SUBROUTINE GPSplineInt_CompSpline3D
 
 
+!-----------------------------------------------------------------
 ! Periodic tridiagonal solve along the first index of f(n1,n2,n3),
 ! one pencil (j,k) per thread, result in t (a,bet,gam,p,xx,zeta:
 ! factorization of MatInvQ). The running values of the recurrences
 ! are carried in registers (tp, tn) so that no step waits for the
 ! value the thread has just stored; the arithmetic is the same as
 ! the original sweeps.
+!-----------------------------------------------------------------
   SUBROUTINE gpsi_solve1(n1,n2,n3,a,bet,gam,p,xx,zeta,f,t)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: n1,n2,n3
@@ -705,9 +724,11 @@ MODULE class_GPSplineInt
   END SUBROUTINE gpsi_solve1
 
 
+!-----------------------------------------------------------------
 ! Periodic tridiagonal solve along the second index of f(n1,n2,n3),
 ! one pencil (i,k) per thread (consecutive threads read consecutive
 ! i), result in t
+!-----------------------------------------------------------------
   SUBROUTINE gpsi_solve2(n1,n2,n3,a,bet,gam,p,xx,zeta,f,t)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: n1,n2,n3
