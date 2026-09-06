@@ -100,7 +100,7 @@ larger than 64 kb (24 or 32 may be best in some processors). The
 variable 'NSTRIP' controls strip mining during the transpositions. 
 The default value is 1 and in that case no strip mining is done.
 
-3.2 Compiling the code:
+3.2. Compiling the code:
 
 If all libraries and compilers are defined in your path, you can
 compile just by doing
@@ -126,14 +126,16 @@ make
 where /foo/openmpi is the path to the MPI libraries, and /foo/fftw
 is the path to the FFTW libraries.
 
-3.3 Parallelization models
+3.3. Parallelization models:
+
+3.3.1. Hybrid parallelization
 
 By default, GHOST uses 1D domain decomposition with pure MPI 
 parallelization. If hybrid parallelization was enabled at compile
-time, the number of MPI jobs and the number of threads in each job
-can be set independently at run time. To define the number of
-threads (in this example, set to 4 threads) in a Bourne-like shell,
-set the environment variable 
+time (with cmake .. -DP_HYBRID=ON), the number of MPI jobs and the 
+number of threads in each job can be set independently at run time. 
+To define the number of threads (in this example, set to 4 threads) 
+in a Bourne-like shell, set the environment variable 
 
 -------------------------------------------------------------------
 export OMP_NUM_THREADS=4
@@ -150,7 +152,7 @@ binding are crucial. How to set processor affinity and binding is
 platform dependent; check the platform documentation where you are 
 running for more information.
 
-3.3.1 GPU offload
+3.3.2 GPU offload
 
 GHOST can offload the field computations to GPUs with OpenMP target
 directives. The build is selected with
@@ -234,7 +236,7 @@ device on entry (the main program copies the positions), and
 write_pstate computes the Lagrangian quantities on the device before
 calling them. Only initial conditions and file reads run on the host.
 
-3.4 About the solvers:
+3.4. About the solvers:
 
 Solvers, with their equations, output, and definitions, are defined
 in GHOST/src/pdes (for fluids) and GHOST/src/particles (for
@@ -242,6 +244,19 @@ particles). Each solver has its own file, with its own methods
 (e.g., the incompressible Navier-Stokes equations are defined in
 GHOST/src/pdes/hd_solver.f90). See each solver file for more
 information.
+
+3.5. Other tools:
+
+When compiled, GHOST also generates BOOTS, and a dynamic library to 
+call GHOST from Python. BOOTS is the 'boostrap regridding' procedure
+which allows computation of scalar and vector fields extrapolated to
+larger resolutions from data at lower resolution. An example input 
+file for BOOTS can be found in GHOST/src/examples/boots.inp.
+
+The GHOST Python library allows calling GHOST from Python, in 
+interactive sessions or to be used in machine learning workflows. 
+Example scripts showing how to call GHOST from Python can be found 
+in GHOST/contrib/python.
 
 4. Running the code
 ===================
@@ -435,7 +450,7 @@ Similar lists are used for solvers with active scalars, magnetic
 fields, wave functions, particles, etc. See the examples in
 'GHOST/src/examples' for more details.
 
-4.3. Running:
+4.2. Running:
 
 How to run GHOST depends on the system. A serial (no parallelization)
 run can be done just by doing:
@@ -469,8 +484,8 @@ to read these binary files (as well as particles binary files) are
 given in GHOST/contrib.
 
 Energy spectra and other spectral quantities are written to files
-named  'kspectrum.MMMM.txt', 'mspectrum.MMMM.txt', and so on. Spectra 
-of kinetic or magnetic helicity are written to files
+named  'kspectrum.MMMM.txt', 'mspectrum.MMMM.txt', and so on. 
+Spectra of kinetic or magnetic helicity are written to files
 'khelicity.MMMM.txt' and 'mhelicity.MMMM.txt'. Extra files with 
 the energy transfer function, or the spectrum in the parallel and 
 perpendicular directions (e.g., to the axis of rotation), are also 

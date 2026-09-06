@@ -10,10 +10,10 @@
 # Python library elsewhere than GHOST/bin and GHOST/lib (useful to keep
 # several builds).
 # Other Options:
-# -DPRECISION=SINGLE (SINGLE or DOUBLE, default: SINGLE)
+# -DPRECISION=SINGLE|DOUBLE (default: SINGLE)
 # -DP_HYBRID=ON (multithreaded, default: OFF)
 # -DP_GPU=ON -DGPU_VENDOR=NVIDIA|AMD -DGPU_ARCH=<arch> (OpenMP offload,
-#    default: OFF; needs nvfortran or flang, see src/README)
+#    default: OFF; needs nvfortran, flang, or amdflang, see src/README)
 # -------------------------------------------------------------------
 
 cmake_minimum_required(VERSION 3.12)
@@ -37,7 +37,7 @@ file(MAKE_DIRECTORY "${BIN_DIR}")
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O4 -funroll-loops")
     # GNU debug flags
-    #set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -gdwarf-2 -O0 \
+    # set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -g -gdwarf-2 -O0 \
     #      -fno-omit-frame-pointer -fbacktrace -fcheck=bounds \
     #      -finit-real=snan -finit-integer=-999999 -finit-logical=true \
     #      -finit-character=0 -Wall -Wextra")
@@ -48,12 +48,11 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES "NVHPC")
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3")
 elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
-    # No LTO: it needs the gold plugin or lld and cannot build the shared
-    # Python library with some flang versions, for little gain here
-    # -fPIC explicitly: CMake does not apply POSITION_INDEPENDENT_CODE
+    # LLVM cannot build the shared Python library with some flang versions.
+    # Uses -fPIC explicitly: CMake does not apply POSITION_INDEPENDENT_CODE
     # to flang, and the Python library is shared
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -funroll-loops -fPIC \
-           -Wno-incompatible-implicit-interfaces")
+           -Wno-incompatible-implicit-interfaces -Wno-experimental-option")
 endif()
 
 # ----------------------- Hybrid OpenMP ------------------------------
@@ -101,7 +100,7 @@ if(P_GPU)
         message(FATAL_ERROR "GPU_VENDOR must be NVIDIA or AMD (got '${GPU_VENDOR}')")
     endif()
     if(GPU_ARCH STREQUAL "")
-        message(FATAL_ERROR "P_GPU needs GPU_ARCH (e.g. cc80 or sm_80 for NVIDIA, gfx90a for AMD)")
+        message(FATAL_ERROR "P_GPU needs GPU_ARCH (e.g., cc80 or sm_80 for NVIDIA, gfx90a for AMD)")
     endif()
     add_compile_definitions(GHOST_GPU GPU_${GPU_VENDOR})
     if(CMAKE_Fortran_COMPILER_ID MATCHES "NVHPC")
