@@ -127,15 +127,12 @@ contains
         pi => uin (ic)%ccomp
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
         do i = ista,iend
           do j = 1,ny
             do k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-        do i = ista,iend
-          do j = 1,ny
-            do concurrent (k=1:nz)
-#endif
               po(k,j,i) = pi(k,j,i) + eff_dt*po(k,j,i)
             end do
           end do
@@ -253,15 +250,12 @@ contains
         pi => uin (ic)%ccomp
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
         do i = ista,iend
           do j = 1,ny
             do k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-        do i = ista,iend
-          do j = 1,ny
-            do concurrent (k=1:nz)
-#endif
               po(k,j,i) = pi(k,j,i) + eff_dt*po(k,j,i)
             end do
           end do

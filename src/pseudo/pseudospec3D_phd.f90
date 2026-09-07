@@ -89,15 +89,12 @@ MODULE pseudospec_scalar
          IF (dir.eq.1) THEN
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (i)
+#endif
             DO k = ksta,kend
                DO j = 1,ny
                   DO i = 1,nx
-#else
-!$omp parallel do collapse(2) private (i)
-            DO k = ksta,kend
-               DO j = 1,ny
-                  DO CONCURRENT (i=1:nx)
-#endif
                      r3(i,j,k) = r1(i,j,k)*r2(i,j,k)
                   END DO
                END DO
@@ -105,15 +102,12 @@ MODULE pseudospec_scalar
          ELSE IF (dir.eq.2) THEN
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (i)
+#endif
             DO k = ksta,kend
                DO j = 1,ny
                   DO i = 1,nx
-#else
-!$omp parallel do collapse(2) private (i)
-            DO k = ksta,kend
-               DO j = 1,ny
-                  DO CONCURRENT (i=1:nx)
-#endif
                      r3(i,j,k) = r3(i,j,k)+r1(i,j,k)*r2(i,j,k)
                   END DO
                END DO
@@ -121,15 +115,12 @@ MODULE pseudospec_scalar
          ELSE
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (i)
+#endif
             DO k = ksta,kend
                DO j = 1,ny
                   DO i = 1,nx
-#else
-!$omp parallel do collapse(2) private (i)
-            DO k = ksta,kend
-               DO j = 1,ny
-                  DO CONCURRENT (i=1:nx)
-#endif
                      r3(i,j,k) = (r3(i,j,k)+r1(i,j,k)*r2(i,j,k))*tmp
                   END DO
                END DO
@@ -177,15 +168,12 @@ MODULE pseudospec_scalar
 
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
       DO i = ista,iend
          DO j = 1,ny
             DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-      DO i = ista,iend
-         DO j = 1,ny
-            DO CONCURRENT (k=1:nz)
-#endif
                IF ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) THEN
                   out(k,j,i) = kappa*lapl(k,j,i) + adve(k,j,i) + f(k,j,i)
                ELSE

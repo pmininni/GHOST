@@ -288,15 +288,12 @@ CONTAINS
     if ( this%traits_%dohall ) then ! electron velocity: v_e = v - epsilon j
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
       do i = ista,iend
         do j = 1,ny
           do k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-      do i = ista,iend
-        do j = 1,ny
-          do concurrent (k=1:nz)
-#endif
             C7(k,j,i) = vx(k,j,i)+ep*C4(k,j,i)
             C8(k,j,i) = vy(k,j,i)+ep*C5(k,j,i)
             C9(k,j,i) = vz(k,j,i)+ep*C6(k,j,i)
@@ -321,15 +318,12 @@ CONTAINS
     ! HD solver)
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
     do i = ista,iend
       do j = 1,ny
         do k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-    do i = ista,iend
-      do j = 1,ny
-        do concurrent (k=1:nz)
-#endif
           if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
             dvx(k,j,i) = nu*C7(k,j,i) + C10(k,j,i) + fx(k,j,i)
             dvy(k,j,i) = nu*C8(k,j,i) + C11(k,j,i) + fy(k,j,i)

@@ -228,15 +228,12 @@ CONTAINS
       call saxpby_c(C3, vy, 2*omegax, vx, -2.0*omegay)
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
       do i = ista,iend
          do j = 1,ny
            do k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-      do i = ista,iend
-         do j = 1,ny
-           do concurrent (k=1:nz)
-#endif
              C4(k,j,i) = C4(k,j,i) + C1(k,j,i) ! (w x v + 2 Omega x v)_x
              C5(k,j,i) = C5(k,j,i) + C2(k,j,i) ! (w x v + 2 Omega x v)_y
              C6(k,j,i) = C6(k,j,i) + C3(k,j,i) ! (w x v + 2 Omega x v)_z
@@ -257,15 +254,12 @@ CONTAINS
     ! device arrays are never touched).
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
     do i = ista,iend
        do j = 1,ny
          do k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-    do i = ista,iend
-       do j = 1,ny
-         do concurrent (k=1:nz)
-#endif
            if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
              dx(k,j,i) = nu*C4(k,j,i) + C1(k,j,i) + fx(k,j,i)
              dy(k,j,i) = nu*C5(k,j,i) + C2(k,j,i) + fy(k,j,i)

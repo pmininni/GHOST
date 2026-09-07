@@ -87,15 +87,12 @@ MODULE pseudospec_magnetic
       tmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (i)
+#endif
       DO k = ksta,kend
          DO j = 1,ny
             DO i = 1,nx
-#else
-!$omp parallel do collapse(2) private (i)
-      DO k = ksta,kend
-         DO j = 1,ny
-            DO CONCURRENT (i=1:nx)
-#endif
                r7(i,j,k) = (r2(i,j,k)*r6(i,j,k)-r5(i,j,k)*r3(i,j,k))*tmp
                r3(i,j,k) = (r3(i,j,k)*r4(i,j,k)-r6(i,j,k)*r1(i,j,k))*tmp
                r1(i,j,k) = (r1(i,j,k)*r5(i,j,k)-r4(i,j,k)*r2(i,j,k))*tmp
@@ -166,15 +163,12 @@ MODULE pseudospec_magnetic
       IF (dir.eq.1) THEN
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) private (tmq) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k,tmq)
+#endif
          DO i = ista,iend
             DO j = 1,ny
                DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k,tmq)
-         DO i = ista,iend
-            DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
-#endif
                   IF (i.eq.1) THEN
                      g(k,j,i) = -a(k,j,i)+d(k,j,i)
                   ELSE
@@ -192,15 +186,12 @@ MODULE pseudospec_magnetic
       ELSE IF (dir.eq.2) THEN
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) private (tmq) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k,tmq)
+#endif
          DO i = ista,iend
             DO j = 1,ny
                DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k,tmq)
-         DO i = ista,iend
-            DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
-#endif
                   IF (j.eq.1) THEN
                      g(k,j,i) = -b(k,j,i)+e(k,j,i)
                   ELSE
@@ -218,15 +209,12 @@ MODULE pseudospec_magnetic
       ELSE
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) private (tmq) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k,tmq)
+#endif
          DO i = ista,iend
             DO j = 1,ny
                DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k,tmq)
-         DO i = ista,iend
-            DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
-#endif
                   IF (k.eq.1) THEN
                      g(k,j,i) = -c(k,j,i)+f(k,j,i)
                   ELSE
@@ -280,15 +268,12 @@ MODULE pseudospec_magnetic
       IF (dir.eq.1) THEN
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) private (tmq) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k,tmq)
+#endif
          DO i = ista,iend
             DO j = 1,ny
                DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k,tmq)
-         DO i = ista,iend
-            DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
-#endif
                   IF (i.eq.1) THEN
                      g(k,j,i) = a(k,j,i)
                   ELSE
@@ -305,15 +290,12 @@ MODULE pseudospec_magnetic
       ELSE IF (dir.eq.2) THEN
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) private (tmq) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k,tmq)
+#endif
          DO i = ista,iend
             DO j = 1,ny
                DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k,tmq)
-         DO i = ista,iend
-            DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
-#endif
                   IF (j.eq.1) THEN
                      g(k,j,i) = b(k,j,i)
                   ELSE
@@ -330,15 +312,12 @@ MODULE pseudospec_magnetic
       ELSE
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) private (tmq) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k,tmq)
+#endif
          DO i = ista,iend
             DO j = 1,ny
                DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k,tmq)
-         DO i = ista,iend
-            DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
-#endif
                   IF (k.eq.1) THEN
                      g(k,j,i) = c(k,j,i)
                   ELSE

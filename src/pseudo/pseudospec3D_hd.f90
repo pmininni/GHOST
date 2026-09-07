@@ -29,12 +29,12 @@ MODULE pseudospec_fluid
 ! pool of the run (gws) instead of declaring automatic arrays, so
 ! that the temporaries exist on the device in offload builds.
 !
-! Kernels are written twice: for offload builds as OpenMP target
-! regions that run on the device while gdev_active is set and on the
-! host copies otherwise (if(target: gdev_active)), and for host builds
-! as threaded loops over DO CONCURRENT. The arrays are resident on the
-! device (allocated through gmem), so the target regions transfer no
-! data.
+! Kernels are plain triple loops with two sets of directives: for
+! offload builds an OpenMP target region that runs on the device while
+! gdev_active is set and on the host copies otherwise (if(target:
+! gdev_active)), and for host builds a threaded parallel do. The
+! arrays are resident on the device (allocated through gmem), so the
+! target regions transfer no data.
       USE class_GWorkspace3D, ONLY: gws
       USE gdevice, ONLY: gdev_active
    CONTAINS
@@ -70,15 +70,12 @@ MODULE pseudospec_fluid
       IF (dir.eq.1) THEN
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
          DO i = ista,iend
             DO j = 1,ny
                DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-         DO i = ista,iend
-            DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
-#endif
                   b(k,j,i) = im*kx(i)*a(k,j,i)
                END DO
             END DO
@@ -89,15 +86,12 @@ MODULE pseudospec_fluid
       ELSE IF (dir.eq.2) THEN
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
          DO i = ista,iend
             DO j = 1,ny
                DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-         DO i = ista,iend
-            DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
-#endif
                   b(k,j,i) = im*ky(j)*a(k,j,i)
                END DO
             END DO
@@ -108,15 +102,12 @@ MODULE pseudospec_fluid
       ELSE
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
          DO i = ista,iend
             DO j = 1,ny
                DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-         DO i = ista,iend
-            DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
-#endif
                   b(k,j,i) = im*kz(k)*a(k,j,i)
                END DO
             END DO
@@ -148,15 +139,12 @@ MODULE pseudospec_fluid
 
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
       DO i = ista,iend
          DO j = 1,ny
             DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-      DO i = ista,iend
-         DO j = 1,ny
-            DO CONCURRENT (k=1:nz)
-#endif
                b(k,j,i) = -kk2(k,j,i)*a(k,j,i)
             END DO
          END DO
@@ -205,15 +193,12 @@ MODULE pseudospec_fluid
       IF (dir.eq.1) THEN
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
          DO i = ista,iend
             DO j = 1,ny
                DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-         DO i = ista,iend
-            DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
-#endif
                   c(k,j,i) = im*(ky(j)*b(k,j,i)-kz(k)*a(k,j,i))
                END DO
             END DO
@@ -224,15 +209,12 @@ MODULE pseudospec_fluid
       ELSE IF (dir.eq.2) THEN
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
          DO i = ista,iend
             DO j = 1,ny
                DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-         DO i = ista,iend
-            DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
-#endif
                   c(k,j,i) = im*(kz(k)*a(k,j,i)-kx(i)*b(k,j,i))
                END DO
             END DO
@@ -243,15 +225,12 @@ MODULE pseudospec_fluid
       ELSE
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
          DO i = ista,iend
             DO j = 1,ny
                DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-         DO i = ista,iend
-            DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
-#endif
                   c(k,j,i) = im*(kx(i)*b(k,j,i)-ky(j)*a(k,j,i))
                END DO
             END DO
@@ -329,15 +308,12 @@ MODULE pseudospec_fluid
          IF (dir.eq.1) THEN
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (i)
+#endif
             DO k = ksta,kend
                DO j = 1,ny
                   DO i = 1,nx
-#else
-!$omp parallel do collapse(2) private (i)
-            DO k = ksta,kend
-               DO j = 1,ny
-                  DO CONCURRENT (i=1:nx)
-#endif
                      rx(i,j,k) = r1(i,j,k)*r2(i,j,k)
                      ry(i,j,k) = r1(i,j,k)*r3(i,j,k)
                      rz(i,j,k) = r1(i,j,k)*r4(i,j,k)
@@ -347,15 +323,12 @@ MODULE pseudospec_fluid
          ELSE IF (dir.eq.2) THEN
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (i)
+#endif
             DO k = ksta,kend
                DO j = 1,ny
                   DO i = 1,nx
-#else
-!$omp parallel do collapse(2) private (i)
-            DO k = ksta,kend
-               DO j = 1,ny
-                  DO CONCURRENT (i=1:nx)
-#endif
                      rx(i,j,k) = rx(i,j,k)+r1(i,j,k)*r2(i,j,k)
                      ry(i,j,k) = ry(i,j,k)+r1(i,j,k)*r3(i,j,k)
                      rz(i,j,k) = rz(i,j,k)+r1(i,j,k)*r4(i,j,k)
@@ -365,15 +338,12 @@ MODULE pseudospec_fluid
          ELSE
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (i)
+#endif
             DO k = ksta,kend
                DO j = 1,ny
                   DO i = 1,nx
-#else
-!$omp parallel do collapse(2) private (i)
-            DO k = ksta,kend
-               DO j = 1,ny
-                  DO CONCURRENT (i=1:nx)
-#endif
                      rx(i,j,k) = (rx(i,j,k)+r1(i,j,k)*r2(i,j,k))*tmp
                      ry(i,j,k) = (ry(i,j,k)+r1(i,j,k)*r3(i,j,k))*tmp
                      rz(i,j,k) = (rz(i,j,k)+r1(i,j,k)*r4(i,j,k))*tmp
@@ -463,15 +433,12 @@ MODULE pseudospec_fluid
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (i)
+#endif
       DO k = ksta,kend
          DO j = 1,ny
             DO i = 1,nx
-#else
-!$omp parallel do collapse(2) private (i)
-      DO k = ksta,kend
-         DO j = 1,ny
-            DO CONCURRENT (i=1:nx)
-#endif
                r7(i,j,k) = (r2(i,j,k)*r6(i,j,k)-r5(i,j,k)*r3(i,j,k))*tmp
                r3(i,j,k) = (r3(i,j,k)*r4(i,j,k)-r6(i,j,k)*r1(i,j,k))*tmp
                r1(i,j,k) = (r1(i,j,k)*r5(i,j,k)-r4(i,j,k)*r2(i,j,k))*tmp
@@ -537,15 +504,12 @@ MODULE pseudospec_fluid
       IF (dir.eq.1) THEN
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) private (tmq) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k,tmq)
+#endif
          DO i = ista,iend
             DO j = 1,ny
                DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k,tmq)
-         DO i = ista,iend
-            DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
-#endif
                   IF (i.eq.1) THEN
                      g(k,j,i) = -a(k,j,i)
                   ELSE
@@ -562,15 +526,12 @@ MODULE pseudospec_fluid
       ELSE IF (dir.eq.2) THEN
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) private (tmq) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k,tmq)
+#endif
          DO i = ista,iend
             DO j = 1,ny
                DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k,tmq)
-         DO i = ista,iend
-            DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
-#endif
                   IF (j.eq.1) THEN
                      g(k,j,i) = -b(k,j,i)
                   ELSE
@@ -587,15 +548,12 @@ MODULE pseudospec_fluid
       ELSE
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) private (tmq) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k,tmq)
+#endif
          DO i = ista,iend
             DO j = 1,ny
                DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k,tmq)
-         DO i = ista,iend
-            DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
-#endif
                   IF (k.eq.1) THEN
                      g(k,j,i) = -c(k,j,i)
                   ELSE
@@ -628,15 +586,12 @@ MODULE pseudospec_fluid
 
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
       DO i = ista,iend
          DO j = 1,ny
             DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-      DO i = ista,iend
-         DO j = 1,ny
-            DO CONCURRENT (k=1:nz)
-#endif
                a(k,j,i) = c*a(k,j,i)
             END DO
          END DO
@@ -689,15 +644,12 @@ MODULE pseudospec_fluid
 
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
       DO i = ista,iend
          DO j = 1,ny
             DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-      DO i = ista,iend
-         DO j = 1,ny
-            DO CONCURRENT (k=1:nz)
-#endif
                b(k,j,i) = a(k,j,i)
             END DO
          END DO
@@ -734,15 +686,12 @@ MODULE pseudospec_fluid
 
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
       DO i = ista,iend
          DO j = 1,ny
             DO k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-      DO i = ista,iend
-         DO j = 1,ny
-            DO CONCURRENT (k=1:nz)
-#endif
                z(k,j,i) = a * x(k,j,i) + b * y(k,j,i)
             END DO
          END DO

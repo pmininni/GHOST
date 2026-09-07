@@ -300,15 +300,12 @@ contains
       call saxpby_c(C3, vy, 2*omegax, vx, -2.0*omegay)
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
       do i = ista,iend
         do j = 1,ny
           do k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-      do i = ista,iend
-        do j = 1,ny
-          do concurrent (k=1:nz)
-#endif
             C4(k,j,i) = C4(k,j,i) + C1(k,j,i) ! (w x v + 2 Omega x v)_x
             C5(k,j,i) = C5(k,j,i) + C2(k,j,i) ! (w x v + 2 Omega x v)_y
             C6(k,j,i) = C6(k,j,i) + C3(k,j,i) ! (w x v + 2 Omega x v)_z
@@ -324,15 +321,12 @@ contains
     tmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (i)
+#endif
     do k = ksta,kend
       do j = 1,ny
         do i = 1,nx
-#else
-!$omp parallel do collapse(2) private (i)
-    do k = ksta,kend
-      do j = 1,ny
-        do concurrent (i=1:nx)
-#endif
           if ( (bvuns*R1(i,j,k)).gt.(bvsat*R2(i,j,k)) ) then ! Buoyancy force
             R1(i,j,k) = tmp*bvuns*xmom*R1(i,j,k)             ! w/Heaviside
           else
@@ -345,15 +339,12 @@ contains
     call fftp3d_real_to_complex(planrc, R1, C7, MPI_COMM_WORLD)
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
     do i = ista,iend
       do j = 1,ny
         do k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-    do i = ista,iend
-      do j = 1,ny
-        do concurrent (k=1:nz)
-#endif
           C6(k,j,i) = C6(k,j,i) + C7(k,j,i) ! NL term in z + Buoyancy later
         end do                              ! becomes negative as it changes
       end do                                ! sign in the call to nonlhd3
@@ -367,15 +358,12 @@ contains
 
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
     do i = ista,iend
       do j = 1,ny
         do k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-    do i = ista,iend
-      do j = 1,ny
-        do concurrent (k=1:nz)
-#endif
           C7(k,j,i) = C7(k,j,i) + bvuns*xtemp*vz(k,j,i) ! heat 'currrents'
           C8(k,j,i) = C8(k,j,i) + bvsat*xtemp*vz(k,j,i)
         end do
@@ -390,15 +378,12 @@ contains
 
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
+#else
+!$omp parallel do collapse(2) private (k)
+#endif
     do i = ista,iend
       do j = 1,ny
         do k = 1,nz
-#else
-!$omp parallel do collapse(2) private (k)
-    do i = ista,iend
-      do j = 1,ny
-        do concurrent (k=1:nz)
-#endif
           if ((kn2(k,j,i).le.kmax).and.(kn2(k,j,i).ge.tiny)) then
             dvx(k,j,i)  = nu*C4(k,j,i) + C1(k,j,i) + fx(k,j,i)
             dvy(k,j,i)  = nu*C5(k,j,i) + C2(k,j,i) + fy(k,j,i)
