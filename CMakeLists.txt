@@ -52,7 +52,14 @@ elseif(CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
     # Uses -fPIC explicitly: CMake does not apply POSITION_INDEPENDENT_CODE
     # to flang, and the Python library is shared
     set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O3 -funroll-loops -fPIC \
-           -Wno-incompatible-implicit-interfaces -Wno-experimental-option")
+           -Wno-incompatible-implicit-interfaces")
+    # Upstream flang (>= 23) warns about the OpenMP 5.2 syntax unless
+    # this option is given; the ROCm amdflang rejects it as unknown
+    include(CheckFortranCompilerFlag)
+    check_fortran_compiler_flag("-Wno-experimental-option" FLANG_HAS_WNO_EXPERIMENTAL)
+    if(FLANG_HAS_WNO_EXPERIMENTAL)
+        set(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -Wno-experimental-option")
+    endif()
 endif()
 
 # ----------------------- Hybrid OpenMP ------------------------------

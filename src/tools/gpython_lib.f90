@@ -98,7 +98,7 @@ CONTAINS
     CALL init_allstates(iclist,fluid,field)
     field_nxt = field
     CALL init_forcing(forcemethod,fluid,force)
-    stepper   = build_stepper_from_file(trim(file),workspace,fluid)
+    call build_stepper_from_file(trim(file),stepper,workspace,fluid)
   END SUBROUTINE ghost_init
 
   !=================================================================

@@ -168,9 +168,9 @@
 
 ! Sets up the time stepper
       if (dopart) then
-        stepper = build_stepper_from_file('parameter.inp',workspace,fluid,particle)
+        CALL build_stepper_from_file('parameter.inp',stepper,workspace,fluid,particle)
       else
-        stepper = build_stepper_from_file('parameter.inp',workspace,fluid)
+        CALL build_stepper_from_file('parameter.inp',stepper,workspace,fluid)
       endif
 
 ! Time integration scheme starts here. In offload builds the fields

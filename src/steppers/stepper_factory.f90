@@ -14,12 +14,17 @@ module stepper_factory
   
 contains
   
-  ! ================= Factory function ==============================
-  function build_stepper_from_file(infile, workspace, solver, psolver) result(new_object)
+  ! ================= Factory subroutine ============================
+  ! Allocates and constructs the stepper in the caller's variable. It
+  ! is a subroutine and not a function on purpose: the constructor
+  ! allocates temporaries with device copies (GEXRK), and returning
+  ! the object as a function result would copy them into new host
+  ! arrays without device copies while finalizing the registered ones.
+  subroutine build_stepper_from_file(infile, new_object, workspace, solver, psolver)
     use equationbase_mod
     use particlebase_mod
     use commtypes
-    class(GStepperBase), allocatable                     :: new_object
+    class(GStepperBase), allocatable, intent(out)        :: new_object
     class  (GWorkspace), intent(inout)                   :: workspace
     class(EquationBase), intent   (in), target           :: solver
     class(ParticleBase), intent   (in), target, optional :: psolver
@@ -79,6 +84,6 @@ contains
     else
       call new_object%GStepper_ctor(straits,workspace,solver)
     endif
-  end function build_stepper_from_file
+  end subroutine build_stepper_from_file
 
 end module stepper_factory

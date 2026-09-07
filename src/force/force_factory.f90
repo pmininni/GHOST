@@ -121,9 +121,16 @@ CONTAINS
         stop 'Unknown or undefined forcing update method'
       end select
     end do
-    ! If needed, we increase the pool size here as it is still safe for 
-    ! for permanent storage
-    if ( poolsz .gt. 0 ) call workspace%add_complex_entries(poolsz)
+    ! If needed, we increase the pool size here as it is still safe for
+    ! permanent storage: the random forcings keep their old and new
+    ! states in pool arrays that are never released, and the solver's
+    ! pool size (set in the equation factory) does not account for them
+    if ( poolsz .gt. 0 ) then
+      call workspace%add_complex_entries(poolsz)
+      if ( myrank .eq. 0 ) write(*,'(A,I0,A,I0,A)') ' Forcing: ', poolsz,  &
+        ' complex arrays added to the pool for the forcing states (now ',   &
+        workspace%get_complex_tmp_size(), ')'
+    endif
   end function init_forcing_from_file
 
 end module force_factory
