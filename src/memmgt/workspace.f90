@@ -6,20 +6,14 @@
 ! return arrays via free_*_tmp, and do not keep aliases to the arrays
 ! after returning them. Returning the same array twice or returning
 ! an array not from the pool results in error. Resizing the pool
-! invalidates all pointers to arrays in the pool.
+! invalidates all pointers to arrays in the pool. Arrays handed out
+! by get_*_tmp are NOT zeroed Callers must therefore initialize a 
+! temporary before accumulating into it.
 !
 ! Besides the device-resident real and complex pools there is a host-only
 ! pool (get_*_htmp / free_*_htmp) for the temporaries of routines that
 ! run on the host copies of the fields, such as the diagnostics; in
 ! offload builds those arrays have no device copy.
-!
-! Arrays handed out by get_*_tmp are NOT zeroed: the free_*_tmp
-! methods used to zero each array on release, but that is a full
-! field sized memset every time a temporary is returned, sixteen of
-! them per time step in the HD solver, and removing it makes the
-! whole step 4 to 6% faster. The lines are kept, commented out, in
-! the three free_*_tmp methods. Callers must therefore initialize
-! a temporary before accumulating into it.
 !
 ! For particles (PComp), the pool life cycle is:
 !  1. initialize_pool(..., num_pcomp): Allocates num_pcomp PCompEntry

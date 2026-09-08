@@ -140,7 +140,7 @@ CONTAINS
   !! Function to compute the rhs of the equations of motion
   !! of inertial particles:
   !!   dx/dt   = v_p
-  !!   dv_p/dt = (1/tau)*(u - v_p) - grav * z_hat (or nonlinear-drag)
+  !!   dv_p/dt = linear or nonlinear-drag
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   SUBROUTINE dpdt_impl(this, time, pde, fluidstate, pstate, dt, dpdtout)
     use equationbase_mod
@@ -395,6 +395,57 @@ CONTAINS
       end if
     end if  ! GPEXCHTYPE_VDB
   end subroutine end_stage_impl
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Internal kernel to compute right-hand side of n particles
+  !!   dx/dt = v_p/delta         (positions in grid units)
+  !!   dv/dt = cdrag/tau (u - v_p) - grav z_hat
+  !! with cdrag = 1 for linear Stokes drag, or the nonlinear
+  !! drag of Clift & Gauvin (1971):
+  !!   cdrag = 1 + 0.15 Re_p^0.687 + Re_p^2.16/(57.14 (Re_p^1.16+4.25e4))
+  !!   Re_p^2 = rep2_coef |u - v_p|^2, rep2_coef = 18 tau gamma / nu
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine ipart_rhs(n,lvx,lvy,lvz,pvx,pvy,pvz,dpx,dpy,dpz,dvx,dvy,dvz, &
+                       invdel,invtau,grav,rep2_coef,donldrag,dograv)
+    implicit none
+    integer      , intent(in)    :: n
+    real(kind=GP), intent(in)    :: lvx(n),lvy(n),lvz(n),pvx(n),pvy(n),pvz(n)
+    real(kind=GP), intent(inout) :: dpx(n),dpy(n),dpz(n),dvx(n),dvy(n),dvz(n)
+    real(kind=GP), intent(in)    :: invdel(3),invtau,grav,rep2_coef
+    logical      , intent(in)    :: donldrag,dograv
+    real(kind=GP)                :: vx,vy,vz,dx,dy,dz,rep2,cdrag,tz
+    integer                      :: j
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active) &
+!$omp   private(vx,vy,vz,dx,dy,dz,rep2,cdrag,tz)
+#else
+!$omp parallel do private(vx,vy,vz,dx,dy,dz,rep2,cdrag,tz)
+#endif
+    do j = 1,n
+      vx = pvx(j); vy = pvy(j); vz = pvz(j)
+      dpx(j) = vx*invdel(1)
+      dpy(j) = vy*invdel(2)
+      dpz(j) = vz*invdel(3)
+      dx = lvx(j) - vx
+      dy = lvy(j) - vy
+      dz = lvz(j) - vz
+      if ( donldrag ) then
+        rep2 = rep2_coef * (dx**2 + dy**2 + dz**2)
+        cdrag = 1.0_GP + 0.15_GP * rep2 ** 0.3435_GP                  &
+              + rep2 ** 1.08_GP / (57.14_GP * (rep2 ** 0.58_GP + 4.25e4_GP))
+        dvx(j) = dx * cdrag * invtau
+        dvy(j) = dy * cdrag * invtau
+        tz     = dz * cdrag * invtau
+      else
+        dvx(j) = dx * invtau
+        dvy(j) = dy * invtau
+        tz     = dz * invtau
+      endif
+      if ( dograv ) tz = tz - grav
+      dvz(j) = tz
+    end do
+  end subroutine ipart_rhs
 
 
   ! ===================================================================
@@ -714,57 +765,6 @@ CONTAINS
       CALL GTFree(this%htimers_(j))
     ENDDO
   END SUBROUTINE Ipart_dtor
-
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Kernel: right-hand side of the n inertial particles.
-  !!   dp/dt = v_p / delta       (positions in grid units)
-  !!   dv/dt = cdrag/tau (u - v_p) - grav z_hat
-  !! with cdrag = 1 for linear Stokes drag, or the nonlinear
-  !! drag of Clift & Gauvin (1971):
-  !!   cdrag = 1 + 0.15 Re_p^0.687 + Re_p^2.16/(57.14 (Re_p^1.16+4.25e4))
-  !!   Re_p^2 = rep2_coef |u - v_p|^2, rep2_coef = 18 tau gamma / nu
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine ipart_rhs(n,lvx,lvy,lvz,pvx,pvy,pvz,dpx,dpy,dpz,dvx,dvy,dvz, &
-                       invdel,invtau,grav,rep2_coef,donldrag,dograv)
-    implicit none
-    integer      , intent(in)    :: n
-    real(kind=GP), intent(in)    :: lvx(n),lvy(n),lvz(n),pvx(n),pvy(n),pvz(n)
-    real(kind=GP), intent(inout) :: dpx(n),dpy(n),dpz(n),dvx(n),dvy(n),dvz(n)
-    real(kind=GP), intent(in)    :: invdel(3),invtau,grav,rep2_coef
-    logical      , intent(in)    :: donldrag,dograv
-    real(kind=GP)                :: vx,vy,vz,dx,dy,dz,rep2,cdrag,tz
-    integer                      :: j
-#if defined(GHOST_GPU)
-!$omp target teams distribute parallel do if(target: gdev_active) &
-!$omp   private(vx,vy,vz,dx,dy,dz,rep2,cdrag,tz)
-#else
-!$omp parallel do private(vx,vy,vz,dx,dy,dz,rep2,cdrag,tz)
-#endif
-    do j = 1,n
-      vx = pvx(j); vy = pvy(j); vz = pvz(j)
-      dpx(j) = vx*invdel(1)
-      dpy(j) = vy*invdel(2)
-      dpz(j) = vz*invdel(3)
-      dx = lvx(j) - vx
-      dy = lvy(j) - vy
-      dz = lvz(j) - vz
-      if ( donldrag ) then
-        rep2 = rep2_coef * (dx**2 + dy**2 + dz**2)
-        cdrag = 1.0_GP + 0.15_GP * rep2 ** 0.3435_GP                  &
-              + rep2 ** 1.08_GP / (57.14_GP * (rep2 ** 0.58_GP + 4.25e4_GP))
-        dvx(j) = dx * cdrag * invtau
-        dvy(j) = dy * cdrag * invtau
-        tz     = dz * cdrag * invtau
-      else
-        dvx(j) = dx * invtau
-        dvy(j) = dy * invtau
-        tz     = dz * invtau
-      endif
-      if ( dograv ) tz = tz - grav
-      dvz(j) = tz
-    end do
-  end subroutine ipart_rhs
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

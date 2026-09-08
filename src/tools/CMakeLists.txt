@@ -2,8 +2,7 @@
 # Boots3D:
 add_executable(BOOTS "${SRC_DIR}/tools/boots3D.f90")
 
-# pseudo_lib comes in through utils_lib and mpiio_lib; listing it here
-# too puts it twice on the link line (ld warns about the duplicate).
+# pseudo_lib comes in through utils_lib and mpiio_lib
 target_link_libraries(BOOTS
     PRIVATE
         project_includes

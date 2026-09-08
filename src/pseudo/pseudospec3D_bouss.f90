@@ -18,6 +18,7 @@ module pseudospec_bouss
     use pseudospec_scalar
     use class_GWorkspace3D, only: gws
     contains
+
 !*****************************************************************
       SUBROUTINE havgcomp(gsh, u, v, w, s, fo, bv, itype)
 !-----------------------------------------------------------------
@@ -58,7 +59,6 @@ module pseudospec_bouss
       USE mpivars
       USE filefmt
       USE fft
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: u,v
@@ -623,7 +623,6 @@ module pseudospec_bouss
       use mpivars
       use filefmt
       use boxsize
-!$    use threads
       implicit none
 
       complex(kind=gp), intent(in), dimension(nz,ny,ista:iend) :: u,v
@@ -689,7 +688,6 @@ module pseudospec_bouss
       use grid
       use mpivars
       use filefmt
-!$    use threads
       implicit none
 
       complex(kind=gp), intent(in), dimension(nz,ny,ista:iend) :: u,v

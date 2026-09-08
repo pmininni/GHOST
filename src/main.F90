@@ -173,11 +173,11 @@
         CALL build_stepper_from_file('parameter.inp',stepper,workspace,fluid)
       endif
 
-! Time integration scheme starts here. In offload builds the fields
-! are worked on the device inside the time step (gdev_active set) and
-! on their host copies elsewhere: the host copies of the fields are
-! refreshed before any output, and the forcing, which is computed on
-! the host, is copied to the device after each update.
+! Time integration scheme starts here. In offload builds the fields are
+! worked on the device inside the time step (gdev_active set) and on
+! their host copies elsewhere (for I/O and diagnostics): the host copies
+! of the fields are refreshed before any output, and the forcing, 
+! which is computed on the host, is copied to the device after each update.
 ! If we are doing a benchmark, we measure cputime before starting. We
 ! also re-inititialize the fftp timers.
       IF (bench.eq.1) THEN

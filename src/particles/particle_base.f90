@@ -1578,146 +1578,6 @@ CONTAINS
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !!  METHOD     : sync_device / sync_host
-  !!  DESCRIPTION: Copy the class arrays that the host code
-  !!               modifies (initialization) to the device, and
-  !!               the ones the I/O needs (ids, Lagrangian
-  !!               velocities) back to the host. No-ops in host
-  !!               builds. The particle states are synchronized
-  !!               by the main program (GPState_update_to/from).
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE sync_device(this)
-    IMPLICIT NONE
-    CLASS(ParticleBase) ,INTENT(INOUT) :: this
-    CALL gupdate_to(this%id_)
-    IF ( ALLOCATED(this%vdb_) ) CALL gupdate_to(this%vdb_)
-    IF ( ASSOCIATED(this%lvx_) ) CALL gupdate_to(this%lvx_)
-    IF ( ASSOCIATED(this%lvy_) ) CALL gupdate_to(this%lvy_)
-    IF ( ASSOCIATED(this%lvz_) ) CALL gupdate_to(this%lvz_)
-  END SUBROUTINE sync_device
-
-  SUBROUTINE sync_host(this)
-    IMPLICIT NONE
-    CLASS(ParticleBase) ,INTENT(INOUT) :: this
-    CALL gupdate_from(this%id_)
-    IF ( ASSOCIATED(this%lvx_) ) CALL gupdate_from(this%lvx_)
-    IF ( ASSOCIATED(this%lvy_) ) CALL gupdate_from(this%lvy_)
-    IF ( ASSOCIATED(this%lvz_) ) CALL gupdate_from(this%lvz_)
-  END SUBROUTINE sync_host
-
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Particle kernels (module procedures with explicit-shape
-  !! arrays; device kernels while gdev_active is set)
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-  ! Periodic wrap of one coordinate; p+L can round up to exactly L
-  ! when p is a tiny negative number, and L is outside [0,L): fold
-  ! it to 0. The subtract branch is exact (Sterbenz), no guard.
-  SUBROUTINE gpb_periodic(n,p,gl)
-    IMPLICIT NONE
-    INTEGER      ,INTENT(IN)    :: n
-    REAL(KIND=GP),INTENT(INOUT) :: p(n)
-    REAL(KIND=GP),INTENT(IN)    :: gl
-    INTEGER                     :: j
-#if defined(GHOST_GPU)
-!$omp target teams distribute parallel do if(target: gdev_active)
-#else
-!$omp parallel do
-#endif
-    DO j = 1, n
-      IF ( p(j).LT.0 ) THEN
-        p(j) = p(j) + gl
-        IF ( p(j).GE.gl ) p(j) = 0.0_GP
-      ELSE IF ( p(j).GE.gl ) THEN
-        p(j) = p(j) - gl
-      ENDIF
-    ENDDO
-  END SUBROUTINE gpb_periodic
-
-  ! Periodic wrap in z of the positions of two stages together
-  SUBROUTINE gpb_periodic_z(n,pz,tpz,gl)
-    IMPLICIT NONE
-    INTEGER      ,INTENT(IN)    :: n
-    REAL(KIND=GP),INTENT(INOUT) :: pz(n),tpz(n)
-    REAL(KIND=GP),INTENT(IN)    :: gl
-    INTEGER                     :: j
-#if defined(GHOST_GPU)
-!$omp target teams distribute parallel do if(target: gdev_active)
-#else
-!$omp parallel do
-#endif
-    DO j = 1, n
-      IF ( pz(j).LT.0 ) THEN
-        pz(j)  =  pz(j) + gl
-        tpz(j) = tpz(j) + gl
-      ELSE IF ( pz(j).GE.gl ) THEN
-        pz(j)  =  pz(j) - gl
-        tpz(j) = tpz(j) - gl
-      ENDIF
-    ENDDO
-  END SUBROUTINE gpb_periodic_z
-
-  ! flag(j) = 1 for the entries of the database with z in [zlo,zhi)
-  SUBROUTINE gpb_flag_zrange(n,g,zlo,zhi,flag)
-    IMPLICIT NONE
-    INTEGER      ,INTENT(IN)    :: n
-    REAL(KIND=GP),INTENT(IN)    :: g(3,n),zlo,zhi
-    INTEGER      ,INTENT(INOUT) :: flag(n)
-    INTEGER                     :: j
-#if defined(GHOST_GPU)
-!$omp target teams distribute parallel do if(target: gdev_active)
-#else
-!$omp parallel do
-#endif
-    DO j = 1, n
-      IF ( g(3,j).GE.zlo .AND. g(3,j).LT.zhi ) THEN
-        flag(j) = 1
-      ELSE
-        flag(j) = 0
-      ENDIF
-    ENDDO
-  END SUBROUTINE gpb_flag_zrange
-
-  ! lx,ly,lz(j) = g(:,id(j)+1) for the nl local particles
-  SUBROUTINE gpb_gather3(nl,np,id,ng,g,lx,ly,lz)
-    IMPLICIT NONE
-    INTEGER      ,INTENT(IN)    :: nl,np,ng
-    INTEGER      ,INTENT(IN)    :: id(np)
-    REAL(KIND=GP),INTENT(IN)    :: g(3,ng)
-    REAL(KIND=GP),INTENT(INOUT) :: lx(np),ly(np),lz(np)
-    INTEGER                     :: j,i
-#if defined(GHOST_GPU)
-!$omp target teams distribute parallel do if(target: gdev_active) private(i)
-#else
-!$omp parallel do private(i)
-#endif
-    DO j = 1, nl
-      i = id(j) + 1
-      lx(j) = g(1,i)
-      ly(j) = g(2,i)
-      lz(j) = g(3,i)
-    ENDDO
-  END SUBROUTINE gpb_gather3
-
-  ! a(1:n) = val
-  SUBROUTINE gpb_fill_i(n,a,val)
-    IMPLICIT NONE
-    INTEGER      ,INTENT(IN)    :: n,val
-    INTEGER      ,INTENT(INOUT) :: a(n)
-    INTEGER                     :: j
-#if defined(GHOST_GPU)
-!$omp target teams distribute parallel do if(target: gdev_active)
-#else
-!$omp parallel do
-#endif
-    DO j = 1, n
-      a(j) = val
-    ENDDO
-  END SUBROUTINE gpb_fill_i
-
-   
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!  METHOD     : GetTime
   !!  DESCRIPTION: gets elapsed time from timer index itime
   !!         
@@ -1852,5 +1712,155 @@ CONTAINS
     CALL this%gpcomm_%ResizeArrays(new_size,onlyinc)
     RETURN 
   END SUBROUTINE ResizeArrays
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!  METHOD     : sync_device / sync_host
+  !!  DESCRIPTION: Copy the class arrays that the host code
+  !!               modifies (initialization) to the device, and
+  !!               the ones the I/O needs (ids, Lagrangian
+  !!               velocities) back to the host. No-ops in host
+  !!               builds. The particle states are synchronized
+  !!               by the main program (GPState_update_to/from).
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SUBROUTINE sync_device(this)
+    IMPLICIT NONE
+    CLASS(ParticleBase) ,INTENT(INOUT) :: this
+    CALL gupdate_to(this%id_)
+    IF ( ALLOCATED(this%vdb_) ) CALL gupdate_to(this%vdb_)
+    IF ( ASSOCIATED(this%lvx_) ) CALL gupdate_to(this%lvx_)
+    IF ( ASSOCIATED(this%lvy_) ) CALL gupdate_to(this%lvy_)
+    IF ( ASSOCIATED(this%lvz_) ) CALL gupdate_to(this%lvz_)
+  END SUBROUTINE sync_device
+
+  SUBROUTINE sync_host(this)
+    IMPLICIT NONE
+    CLASS(ParticleBase) ,INTENT(INOUT) :: this
+    CALL gupdate_from(this%id_)
+    IF ( ASSOCIATED(this%lvx_) ) CALL gupdate_from(this%lvx_)
+    IF ( ASSOCIATED(this%lvy_) ) CALL gupdate_from(this%lvy_)
+    IF ( ASSOCIATED(this%lvz_) ) CALL gupdate_from(this%lvz_)
+  END SUBROUTINE sync_host
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Particle kernels (module procedures with explicit-shape
+  !! arrays; device kernels while gdev_active is set)
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ 
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Periodic wrap of one coordinate; p+L can round up to exactly L
+  ! when p is a tiny negative number, and L is outside [0,L): fold
+  ! it to 0. The subtract branch is exact (Sterbenz), no guard.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SUBROUTINE gpb_periodic(n,p,gl)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n
+    REAL(KIND=GP),INTENT(INOUT) :: p(n)
+    REAL(KIND=GP),INTENT(IN)    :: gl
+    INTEGER                     :: j
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active)
+#else
+!$omp parallel do
+#endif
+    DO j = 1, n
+      IF ( p(j).LT.0 ) THEN
+        p(j) = p(j) + gl
+        IF ( p(j).GE.gl ) p(j) = 0.0_GP
+      ELSE IF ( p(j).GE.gl ) THEN
+        p(j) = p(j) - gl
+      ENDIF
+    ENDDO
+  END SUBROUTINE gpb_periodic
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! Periodic wrap in z of the positions of two stages together
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SUBROUTINE gpb_periodic_z(n,pz,tpz,gl)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n
+    REAL(KIND=GP),INTENT(INOUT) :: pz(n),tpz(n)
+    REAL(KIND=GP),INTENT(IN)    :: gl
+    INTEGER                     :: j
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active)
+#else
+!$omp parallel do
+#endif
+    DO j = 1, n
+      IF ( pz(j).LT.0 ) THEN
+        pz(j)  =  pz(j) + gl
+        tpz(j) = tpz(j) + gl
+      ELSE IF ( pz(j).GE.gl ) THEN
+        pz(j)  =  pz(j) - gl
+        tpz(j) = tpz(j) - gl
+      ENDIF
+    ENDDO
+  END SUBROUTINE gpb_periodic_z
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! flag(j) = 1 for the entries of the database with z in [zlo,zhi)
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SUBROUTINE gpb_flag_zrange(n,g,zlo,zhi,flag)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n
+    REAL(KIND=GP),INTENT(IN)    :: g(3,n),zlo,zhi
+    INTEGER      ,INTENT(INOUT) :: flag(n)
+    INTEGER                     :: j
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active)
+#else
+!$omp parallel do
+#endif
+    DO j = 1, n
+      IF ( g(3,j).GE.zlo .AND. g(3,j).LT.zhi ) THEN
+        flag(j) = 1
+      ELSE
+        flag(j) = 0
+      ENDIF
+    ENDDO
+  END SUBROUTINE gpb_flag_zrange
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! lx,ly,lz(j) = g(:,id(j)+1) for the nl local particles
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SUBROUTINE gpb_gather3(nl,np,id,ng,g,lx,ly,lz)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: nl,np,ng
+    INTEGER      ,INTENT(IN)    :: id(np)
+    REAL(KIND=GP),INTENT(IN)    :: g(3,ng)
+    REAL(KIND=GP),INTENT(INOUT) :: lx(np),ly(np),lz(np)
+    INTEGER                     :: j,i
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active) private(i)
+#else
+!$omp parallel do private(i)
+#endif
+    DO j = 1, nl
+      i = id(j) + 1
+      lx(j) = g(1,i)
+      ly(j) = g(2,i)
+      lz(j) = g(3,i)
+    ENDDO
+  END SUBROUTINE gpb_gather3
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! a(1:n) = val
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SUBROUTINE gpb_fill_i(n,a,val)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n,val
+    INTEGER      ,INTENT(INOUT) :: a(n)
+    INTEGER                     :: j
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active)
+#else
+!$omp parallel do
+#endif
+    DO j = 1, n
+      a(j) = val
+    ENDDO
+  END SUBROUTINE gpb_fill_i
 
 end module particlebase_mod

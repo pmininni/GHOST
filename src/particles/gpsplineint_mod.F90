@@ -2,6 +2,20 @@
 ! GPSplineInt: cubic spline interpolation of a slab-decomposed
 ! field at the particle positions.
 !
+! PartUpdate3D updates the interpolation points.
+! Then, two ways of computing the spline coefficients are available:
+!   CompSpline3D: solves the periodic tridiagonal systems in the
+!                 three directions on the host (transposes for z)
+!                 and fills the extended field;
+!   SetCoeffs3D : takes a field that already holds the spline
+!                 coefficients (computed by the caller) and only
+!                 fills the extended field.
+! Finally, DoInterp3D carries out the actual interpolation.
+!
+! The spline and the tridiagonal solves are derived from several
+! sources including the presentation given in the book 'The theory
+! of splines and their application', 1967, Ahlberg, Nilson, Walsh.
+!
 ! The interpolation reads the spline coefficients on the extended
 ! grid esplfld_(nx,ny,nzl+2*nzghost), with nzghost planes of the
 ! neighbor slabs below and above the local slab, filled by the
@@ -12,13 +26,10 @@
 ! kernels on the device while gdev_active is set. The kernels are
 ! module procedures taking explicit-shape arrays.
 !
-! Two ways of computing the spline coefficients are available:
-!   CompSpline3D: solves the periodic tridiagonal systems in the
-!                 three directions on the host (transposes for z)
-!                 and fills the extended field;
-!   SetCoeffs3D : takes a field that already holds the spline
-!                 coefficients (computed by the caller) and only
-!                 fills the extended field.
+! 2013: A. Pumir (ENS, Lyon)
+!       D. Rosenberg (NCCS: ORNL) - Initial version
+! 2016: CompSpline3D loops optimized for speed (P. Mininni)
+! 2026: GPU offloading (P. Mininni)
 !=================================================================
 MODULE class_GPSplineInt
       USE mpivars
@@ -65,6 +76,10 @@ MODULE class_GPSplineInt
       END TYPE GPSplineInt
 
   CONTAINS
+
+!=================================================================
+! Constructor, destructor, allocator, PartUpdate3D and helpers
+!=================================================================
 
 !-----------------------------------------------------------------
 !  METHOD     : GPSplineInt_ctor
@@ -353,6 +368,10 @@ MODULE class_GPSplineInt
   END SUBROUTINE gpsi_update_z
 
 
+!=================================================================
+! Interpolator (DoInterp3D) and helpers
+!=================================================================
+
 !-----------------------------------------------------------------
 !  METHOD     : DoInterp3D
 !  DESCRIPTION: Interpolates the field whose spline coefficients
@@ -534,6 +553,11 @@ MODULE class_GPSplineInt
   END SUBROUTINE gpsi_interp
 
 
+!=================================================================
+! Computation of coefficients and resizing, spline coefficients
+! by the periodic tridiagonal solves, and helpers 
+!=================================================================
+
 !-----------------------------------------------------------------
 !  METHOD     : SetCoeffs3D
 !  DESCRIPTION: Fills the extended coefficient field from a
@@ -573,10 +597,6 @@ MODULE class_GPSplineInt
     END IF
   END SUBROUTINE GPSplineInt_ResizeArrays
 
-
-!=================================================================
-! Spline coefficients by the periodic tridiagonal solves
-!=================================================================
 
 !-----------------------------------------------------------------
 !  METHOD     : MatInvQ

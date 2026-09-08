@@ -1,4 +1,8 @@
 !=================================================================
+! GHOST GPartComm particles communication class. 
+! 2013 D. Rosenberg - Original version
+!      ORNL: NCCS
+!
 ! GPartComm: communication for the particle classes: exchange of
 ! the ghost z-planes of the field the particles interpolate from,
 ! exchange of the particles that leave the slab of a task,
@@ -16,11 +20,9 @@
 ! of particles (leaving through the bottom or the top of the slab,
 ! holes left by the departed particles) uses gpselect, so the
 ! local order of the particles is the same for any number of
-! threads or teams.
-!
-! The routines used only at initialization or for the I/O
-! (IdentifyTaskV, PartScatterV, VDBSynch_t0, LagSynch_t0) run on
-! the host copies and must be called with gdev_active unset.
+! threads or teams. The routines used only at initialization or for
+! the I/O (IdentifyTaskV, PartScatterV, VDBSynch_t0, LagSynch_t0)
+! run on the host copies, and must be called with gdev_active unset.
 !=================================================================
 MODULE class_GPartComm
       USE fprecision
@@ -89,6 +91,10 @@ MODULE class_GPartComm
       END TYPE GPartComm
 
   CONTAINS
+
+!=================================================================
+! Methods: Constructors, destructors, allocators and deallocators
+!=================================================================
 
 !-----------------------------------------------------------------
 !  Main explicit constructor
@@ -226,7 +232,7 @@ MODULE class_GPartComm
 
 
 !=================================================================
-! Ghost-plane exchange of a single field
+! Ghost-plane exchange of a single field, and helpers
 !=================================================================
 
 !-----------------------------------------------------------------
@@ -463,7 +469,7 @@ MODULE class_GPartComm
 
 
 !=================================================================
-! Particle exchange between neighboring slabs
+! Particle exchange between neighboring slabs, and helpers
 !=================================================================
 
 !-----------------------------------------------------------------
@@ -579,6 +585,41 @@ MODULE class_GPartComm
 
 
 !-----------------------------------------------------------------
+!  METHOD     : ConcatV
+!  DESCRIPTION: Removes the particles listed in ibot_ and itop_
+!               and compacts the arrays: the holes left below the
+!               new count are filled with the survivors found
+!               above it, in ascending order on both sides, so the
+!               result is deterministic (though not the original
+!               order). nparts is updated.
+!-----------------------------------------------------------------
+  SUBROUTINE GPartComm_ConcatV(this,id,px,py,pz,nparts)
+    IMPLICIT NONE
+    CLASS(GPartComm),INTENT(INOUT)           :: this
+    INTEGER      ,INTENT(INOUT)              :: nparts
+    INTEGER      ,INTENT(INOUT),DIMENSION(:) :: id
+    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:) :: px,py,pz
+    INTEGER                                  :: ngood,nh,ns,np
+
+    IF ((this%nbot_+this%ntop_).EQ.0) RETURN ! nothing to do
+    np    = SIZE(id)
+    ngood = nparts - (this%nbot_+this%ntop_)
+    CALL gpc_mark(this%nbot_,np,this%ibot_,id)
+    CALL gpc_mark(this%ntop_,np,this%itop_,id)
+    CALL gpc_flag_null(1,ngood,np,id,.TRUE.,this%iflag_)
+    CALL gpsel_compact(1,ngood,this%iflag_,this%ihole_,nh,0)
+    CALL gpc_flag_null(ngood+1,nparts,np,id,.FALSE.,this%iflag_)
+    CALL gpsel_compact(ngood+1,nparts,this%iflag_,this%isurv_,ns,0)
+    IF ( nh .NE. ns ) THEN
+      WRITE(*,*) this%myrank_,' GPartComm_ConcatV: inconsistent compaction: ',nh,ns
+      STOP
+    ENDIF
+    CALL gpc_move(nh,np,this%ihole_,this%isurv_,id,px,py,pz)
+    nparts = ngood
+  END SUBROUTINE GPartComm_ConcatV
+
+
+!-----------------------------------------------------------------
 ! Sends the packed records to the two neighbors and receives
 ! theirs; nrb, nrt are the numbers of records received from the
 ! bottom and the top. Two messages per direction: ids, coordinates.
@@ -634,41 +675,6 @@ MODULE class_GPartComm
     CALL MPI_RECV(rtpr,3*this%maxparts_,GC_REAL    ,itrank,2,this%comm_,st,this%ierr_)
     CALL MPI_WAITALL(4,req,MPI_STATUSES_IGNORE,this%ierr_)
   END SUBROUTINE gpc_exch_parts_do
-
-
-!-----------------------------------------------------------------
-!  METHOD     : ConcatV
-!  DESCRIPTION: Removes the particles listed in ibot_ and itop_
-!               and compacts the arrays: the holes left below the
-!               new count are filled with the survivors found
-!               above it, in ascending order on both sides, so the
-!               result is deterministic (though not the original
-!               order). nparts is updated.
-!-----------------------------------------------------------------
-  SUBROUTINE GPartComm_ConcatV(this,id,px,py,pz,nparts)
-    IMPLICIT NONE
-    CLASS(GPartComm),INTENT(INOUT)           :: this
-    INTEGER      ,INTENT(INOUT)              :: nparts
-    INTEGER      ,INTENT(INOUT),DIMENSION(:) :: id
-    REAL(KIND=GP),INTENT(INOUT),DIMENSION(:) :: px,py,pz
-    INTEGER                                  :: ngood,nh,ns,np
-
-    IF ((this%nbot_+this%ntop_).EQ.0) RETURN ! nothing to do
-    np    = SIZE(id)
-    ngood = nparts - (this%nbot_+this%ntop_)
-    CALL gpc_mark(this%nbot_,np,this%ibot_,id)
-    CALL gpc_mark(this%ntop_,np,this%itop_,id)
-    CALL gpc_flag_null(1,ngood,np,id,.TRUE.,this%iflag_)
-    CALL gpsel_compact(1,ngood,this%iflag_,this%ihole_,nh,0)
-    CALL gpc_flag_null(ngood+1,nparts,np,id,.FALSE.,this%iflag_)
-    CALL gpsel_compact(ngood+1,nparts,this%iflag_,this%isurv_,ns,0)
-    IF ( nh .NE. ns ) THEN
-      WRITE(*,*) this%myrank_,' GPartComm_ConcatV: inconsistent compaction: ',nh,ns
-      STOP
-    ENDIF
-    CALL gpc_move(nh,np,this%ihole_,this%isurv_,id,px,py,pz)
-    nparts = ngood
-  END SUBROUTINE GPartComm_ConcatV
 
 
 !-----------------------------------------------------------------
@@ -914,7 +920,8 @@ MODULE class_GPartComm
 
 
 !=================================================================
-! Global particle database (VDB exchange)
+! Global particle database (VDB exchange) methods, init, resizing,
+! accounting and transposition methods, plus helpers.
 !=================================================================
 
 !-----------------------------------------------------------------
@@ -1047,10 +1054,6 @@ MODULE class_GPartComm
     END IF
   END SUBROUTINE GPartComm_LagSynch_t0
 
-
-!=================================================================
-! Initial distribution of the particles read by task 0
-!=================================================================
 
 !-----------------------------------------------------------------
 !  METHOD     : IdentifyTaskV

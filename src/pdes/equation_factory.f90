@@ -6,7 +6,7 @@
 ! allocate the solver class, and declare the number of field
 ! components the solver needs.
 !
-! DATE : 03/29/26 (JBG)
+! DATE : 03/29/26 (PDM)
 ! ===================================================================
 
 module equation_factory
@@ -73,7 +73,7 @@ CONTAINS
         NUMTMPCOMP = 12; NUMTMPREAL = 7
 !     case ('UserDefined')
 !       allocate(UserDefinedsolver :: new_object)
-!       NUMFIELDS = 3; NUMTMPCOMP =  8; NUMTMPREAL = 3
+!       NUMTMPCOMP =  8; NUMTMPREAL = 3
       case default
         stop 'Equation factory :: init_pdes_from_file : Unknown solver name'
     end select

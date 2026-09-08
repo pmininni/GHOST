@@ -4,7 +4,7 @@
 ! This factory applies chain operation to create multiple initial
 ! conditions for all fields in a pde solver.
 !
-! DATE : 04/08/26 (JBG)
+! DATE : 04/08/26 (PDM)
 ! ===================================================================
 
 module ic_factory

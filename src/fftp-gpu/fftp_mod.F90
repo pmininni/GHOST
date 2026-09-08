@@ -41,7 +41,7 @@
          GFFT_HANDLE_T :: dplanr,dplanc          ! device plans
          INTEGER       :: nx,ny,nz
          INTEGER       :: fftdir
-         TYPE(MPI_Datatype), DIMENSION (:), POINTER :: itype1, itype2
+         TYPE(MPI_Datatype),   DIMENSION (:), POINTER :: itype1, itype2
          ! Exchange buffer of the host path: the shared gc1 when the
          ! plan has the layout of the first plan created, otherwise a
          ! buffer of its own (host only, see fftp3d_create_plan)

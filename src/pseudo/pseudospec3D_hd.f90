@@ -27,14 +27,19 @@ MODULE pseudospec_fluid
 !
 ! The routines take their field-sized temporaries from the workspace
 ! pool of the run (gws) instead of declaring automatic arrays, so
-! that the temporaries exist on the device in offload builds.
+! that the temporaries exist on the device in offload builds. For
+! diagnostics, host-only temporaries can be used. This is the
+! methodology for all pseudo routines, except those that haven't
+! been ported yet to the new paradigm.
 !
 ! Kernels are plain triple loops with two sets of directives: for
 ! offload builds an OpenMP target region that runs on the device while
 ! gdev_active is set and on the host copies otherwise (if(target:
 ! gdev_active)), and for host builds a threaded parallel do. The
 ! arrays are resident on the device (allocated through gmem), so the
-! target regions transfer no data.
+! target regions transfer no data. For diagnostics computed in the
+! host, threaded parallel do is used. This is the methodology for
+! all pseudo routines, except those that remain to be ported.
       USE class_GWorkspace3D, ONLY: gws
       USE gdevice, ONLY: gdev_active
    CONTAINS
@@ -56,7 +61,6 @@ MODULE pseudospec_fluid
       USE var
       USE grid
       USE mpivars
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
@@ -130,7 +134,6 @@ MODULE pseudospec_fluid
       USE kes
       USE grid
       USE mpivars
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
@@ -179,7 +182,6 @@ MODULE pseudospec_fluid
       USE var
       USE grid
       USE mpivars
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b
@@ -261,7 +263,6 @@ MODULE pseudospec_fluid
       USE mpivars
       USE grid
       USE fft
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
@@ -391,7 +392,6 @@ MODULE pseudospec_fluid
       USE mpivars
       USE grid
       USE fft
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
@@ -484,7 +484,6 @@ MODULE pseudospec_fluid
       USE grid
       USE mpivars
       USE commtypes
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
@@ -577,7 +576,6 @@ MODULE pseudospec_fluid
       USE fprecision
       USE grid
       USE mpivars
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: a
@@ -635,7 +633,6 @@ MODULE pseudospec_fluid
       USE fprecision
       USE grid
       USE mpivars
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
@@ -675,7 +672,6 @@ MODULE pseudospec_fluid
       USE mpivars
       USE ali
       USE fft
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: z
@@ -716,7 +712,6 @@ MODULE pseudospec_fluid
       USE mpivars
       USE ali
       USE fft
-!$    USE threads
       IMPLICIT NONE
 
       REAL(KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend) :: z
@@ -754,7 +749,6 @@ MODULE pseudospec_fluid
       USE commtypes
       USE grid
       USE mpivars
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
@@ -917,7 +911,6 @@ MODULE pseudospec_fluid
       USE commtypes
       USE grid
       USE mpivars
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
@@ -1055,7 +1048,6 @@ MODULE pseudospec_fluid
       USE kes
       USE grid
       USE mpivars
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
@@ -1180,7 +1172,6 @@ MODULE pseudospec_fluid
       USE fft
       USE grid
       USE mpivars
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
@@ -1351,7 +1342,6 @@ MODULE pseudospec_fluid
       USE grid
       USE mpivars
       USE boxsize
-!$    USE threads
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(nmax/2+1)              :: Ek
@@ -1594,7 +1584,6 @@ MODULE pseudospec_fluid
       USE mpivars
       USE filefmt
       USE boxsize
-!$    USE threads
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(nmax/2+1) :: Ek,Ektot
@@ -1821,7 +1810,6 @@ MODULE pseudospec_fluid
       USE mpivars
       USE filefmt
       USE boxsize
-!$    USE threads
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(nmax/2+1) :: Ek,Ektot
@@ -2008,7 +1996,6 @@ MODULE pseudospec_fluid
       USE mpivars
       USE filefmt
       USE boxsize
-!$    USE threads
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(nmax/2+1) :: Hk,Hktot
@@ -2172,7 +2159,6 @@ MODULE pseudospec_fluid
       USE grid
       USE mpivars
       USE boxsize
-!$    USE threads
       IMPLICIT NONE
 
       DOUBLE PRECISION,              DIMENSION(nmax/2+1)      :: Ek
@@ -2267,7 +2253,6 @@ MODULE pseudospec_fluid
       USE fprecision
       USE mpivars
       USE grid
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: a
@@ -2373,7 +2358,6 @@ MODULE pseudospec_hd
       USE commtypes
       USE grid
       USE mpivars
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c

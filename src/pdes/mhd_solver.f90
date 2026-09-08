@@ -461,6 +461,7 @@ CONTAINS
       call this%workspace_%get_complex_tmp(C1,bret)
       call this%workspace_%get_complex_tmp(C2,bret)
       call this%workspace_%get_complex_tmp(C3,bret)
+      !$omp parallel do collapse(2) private (k)
       DO i = ista,iend
         DO j = 1,ny
           DO k = 1,nz

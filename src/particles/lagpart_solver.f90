@@ -35,10 +35,7 @@ module lagpart_mod
     integer       :: partlod  = 1       ! particle output level of detail
   end type
 
-  ! ================= Global parameters ===============================
-  
   ! ================= Solver ==========================================
-  ! Define class:
   type, extends(VelocParticleBase) :: GPart 
     ! Member data:
     type  (NHTraits)  :: traits_

@@ -113,6 +113,7 @@ MODULE pseudospec_magnetic
 
       RETURN
       END SUBROUTINE vector3
+    
 !*****************************************************************
       SUBROUTINE nonlin3(a,b,c,d,e,f,g,dir)
 !-----------------------------------------------------------------
@@ -230,6 +231,7 @@ MODULE pseudospec_magnetic
 
       RETURN
       END SUBROUTINE nonlin3
+
 !*****************************************************************
       SUBROUTINE gauge3(a,b,c,g,dir)
 !-----------------------------------------------------------------
@@ -332,6 +334,7 @@ MODULE pseudospec_magnetic
 
       RETURN
       END SUBROUTINE gauge3
+
 !*****************************************************************
       SUBROUTINE crosspec(a,b,c,d,e,f,path,nmb)
 !-----------------------------------------------------------------

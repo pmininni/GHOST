@@ -68,7 +68,7 @@
       USE gfft
       USE gdevice
       IMPLICIT NONE
-      TYPE(FFTPLAN), INTENT(IN) :: plan
+      TYPE(FFTPLAN)   , INTENT(IN)          :: plan
       REAL(KIND=GP)   , INTENT(IN) , TARGET :: in (plan%nx,plan%ny,ksta:kend)
       COMPLEX(KIND=GP), INTENT(OUT), TARGET :: out(plan%nx/2+1,plan%ny,ksta:kend)
       INTEGER(C_INT) :: ier
@@ -91,7 +91,7 @@
       USE gfft
       USE gdevice
       IMPLICIT NONE
-      TYPE(FFTPLAN), INTENT(IN) :: plan
+      TYPE(FFTPLAN)   , INTENT(IN)          :: plan
       COMPLEX(KIND=GP), INTENT(IN) , TARGET :: in (plan%nx/2+1,plan%ny,ksta:kend)
       REAL(KIND=GP)   , INTENT(OUT), TARGET :: out(plan%nx,plan%ny,ksta:kend)
       INTEGER(C_INT) :: ier
@@ -114,7 +114,7 @@
       USE gfft
       USE gdevice
       IMPLICIT NONE
-      TYPE(FFTPLAN), INTENT(IN) :: plan
+      TYPE(FFTPLAN)   , INTENT(IN)            :: plan
       COMPLEX(KIND=GP), INTENT(INOUT), TARGET :: a(plan%nz,plan%ny,ista:iend)
       INTEGER, INTENT(IN) :: dir
       INTEGER(C_INT) :: ier
@@ -136,8 +136,8 @@
       USE mpivars
       USE fftplans
       IMPLICIT NONE
-      TYPE(FFTPLAN), INTENT(IN) :: plan
-      COMPLEX(KIND=GP), INTENT (IN) :: c1 (ista:iend,plan%ny,plan%nz)
+      TYPE(FFTPLAN)   , INTENT(IN)  :: plan
+      COMPLEX(KIND=GP), INTENT(IN)  :: c1 (ista:iend,plan%ny,plan%nz)
       COMPLEX(KIND=GP), INTENT(OUT) :: out(plan%nz,plan%ny,ista:iend)
 
       CALL fftp3d_tr13_dev(iend-ista+1,plan%ny,plan%nz,c1,out)
@@ -154,8 +154,8 @@
       USE mpivars
       USE fftplans
       IMPLICIT NONE
-      TYPE(FFTPLAN), INTENT(IN) :: plan
-      COMPLEX(KIND=GP), INTENT (IN) :: in(plan%nz,plan%ny,ista:iend)
+      TYPE(FFTPLAN)   , INTENT(IN)  :: plan
+      COMPLEX(KIND=GP), INTENT(IN)  :: in(plan%nz,plan%ny,ista:iend)
       COMPLEX(KIND=GP), INTENT(OUT) :: c1(ista:iend,plan%ny,plan%nz)
 
       CALL fftp3d_tr13_dev(plan%nz,plan%ny,iend-ista+1,in,c1)
@@ -166,22 +166,21 @@
 !-----------------------------------------------------------------
 !
 ! Transposition of the first and third indices on the device:
-! b(k,j,i) = a(i,j,k). Register-tile kernel (the same pattern as
-! gpsi_xytr in the particle spline, for complex data): each thread
+! b(k,j,i) = a(i,j,k). Register-tile kernel: each thread
 ! transposes a T1 x T3 block of one j plane through registers, so
 ! that it reads T1 and writes T3 consecutive elements at a time
 ! (whole cache lines) instead of one element per thread, whose
 ! partial line accesses multiply the traffic; consecutive threads
 ! take consecutive i blocks (contiguous reads across a wavefront).
 ! Keep the inner loops free of bounds tests (they prevent the
-! vector loads of a block row): the strips of incomplete blocks are
-! handled by separate kernels. Measured
-! on an MI210 for a 129x256x256 array: 0.39 ms against 0.87 ms for
-! one element per thread in single precision (8x4 tiles), 0.51 ms
-! against 1.11 ms in double precision (4x8 tiles; 8x8 tiles spill
-! registers). Team-private tiles in local memory were slower and
-! wrong with amdflang 22. The strips left by incomplete blocks are
-! done one element per thread.
+! vector loads of a block row): the strips of incomplete blocks
+! are handled by separate kernels. Measured on an MI210 for a
+! 129x256x256 array: 0.39 ms against 0.87 ms for one element per
+! thread in single precision (8x4 tiles), 0.51 ms against 1.11 ms
+! in double precision (4x8 tiles; 8x8 tiles spill registers).
+! Team-private tiles in local memory are slower and wrong with
+! amdflang 22. The strips left by incomplete blocks are done one
+! element per thread.
 !
 ! Parameters
 !     n1,n2,n3 : dimensions of a
@@ -190,8 +189,8 @@
 !-----------------------------------------------------------------
       USE fprecision
       IMPLICIT NONE
-      INTEGER, INTENT(IN) :: n1,n2,n3
-      COMPLEX(KIND=GP), INTENT (IN) :: a(n1,n2,n3)
+      INTEGER         , INTENT(IN)  :: n1,n2,n3
+      COMPLEX(KIND=GP), INTENT(IN)  :: a(n1,n2,n3)
       COMPLEX(KIND=GP), INTENT(OUT) :: b(n3,n2,n1)
 #if defined(GDOUBLE_PRECISION)
       INTEGER, PARAMETER :: T1 = 4, T3 = 8
@@ -252,8 +251,8 @@
       USE fprecision
       USE mpivars
       IMPLICIT NONE
-      INTEGER, INTENT(IN) :: nxh,ny,ntot,i0,lr,o
-      COMPLEX(KIND=GP), INTENT (IN)   :: carr(nxh,ny,ksta:kend)
+      INTEGER         , INTENT(IN)    :: nxh,ny,ntot,i0,lr,o
+      COMPLEX(KIND=GP), INTENT(IN)    :: carr(nxh,ny,ksta:kend)
       COMPLEX(KIND=GP), INTENT(INOUT) :: sbuf(ntot)
       INTEGER :: i,j,k
 !$omp target teams distribute parallel do collapse(3)
@@ -275,8 +274,8 @@
       USE fprecision
       USE mpivars
       IMPLICIT NONE
-      INTEGER, INTENT(IN) :: nxh,ny,ntot,i0,lr,o
-      COMPLEX(KIND=GP), INTENT   (IN) :: sbuf(ntot)
+      INTEGER         , INTENT(IN)    :: nxh,ny,ntot,i0,lr,o
+      COMPLEX(KIND=GP), INTENT(IN)    :: sbuf(ntot)
       COMPLEX(KIND=GP), INTENT(INOUT) :: carr(nxh,ny,ksta:kend)
       INTEGER :: i,j,k
 !$omp target teams distribute parallel do collapse(3)
@@ -298,7 +297,7 @@
 !-----------------------------------------------------------------
       USE fprecision
       IMPLICIT NONE
-      INTEGER, INTENT(IN) :: n
+      INTEGER         , INTENT(IN)  :: n
       COMPLEX(KIND=GP), INTENT(OUT) :: dst(n)
       COMPLEX(KIND=GP), INTENT(IN)  :: src(n)
       INTEGER :: i
@@ -323,12 +322,12 @@
       USE mpivars
       USE commtypes
       IMPLICIT NONE
-      INTEGER, INTENT(IN) :: nsend,nrecv
+      INTEGER         , INTENT(IN)          :: nsend,nrecv
       COMPLEX(KIND=GP), INTENT(IN) , TARGET :: sendbuf(nsend)
       COMPLEX(KIND=GP), INTENT(OUT), TARGET :: recvbuf(nrecv)
       INTEGER, INTENT(IN) :: so(0:nprocs-1),sc(0:nprocs-1)
       INTEGER, INTENT(IN) :: ro(0:nprocs-1),rc(0:nprocs-1)
-      TYPE(MPI_Comm), INTENT(IN) :: comm
+      TYPE(MPI_Comm)  , INTENT(IN)          :: comm
 
       CALL fftp3d_copy_dev(recvbuf(ro(myrank)+1),sendbuf(so(myrank)+1),sc(myrank))
 !$omp target data use_device_addr(sendbuf,recvbuf)
@@ -350,7 +349,7 @@
       COMPLEX(KIND=GP), INTENT(OUT) :: recvbuf(*)
       INTEGER, INTENT(IN) :: so(0:nprocs-1),sc(0:nprocs-1)
       INTEGER, INTENT(IN) :: ro(0:nprocs-1),rc(0:nprocs-1)
-      TYPE(MPI_Comm), INTENT(IN) :: comm
+      TYPE(MPI_Comm)  , INTENT(IN)  :: comm
       TYPE(MPI_Request) :: ireq(2*nprocs)
       INTEGER :: irank,isendTo,igetFrom
 
@@ -371,28 +370,34 @@
 
 !*****************************************************************
       SUBROUTINE fftp3d_irecv(buf,n,src,comm,req)
+!-----------------------------------------------------------------
 !
 ! Receives n complex numbers starting at buf (sequence association)
+!-----------------------------------------------------------------
       USE fprecision
       USE mpivars
       USE commtypes
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: n,src
-      COMPLEX(KIND=GP), INTENT(OUT) :: buf(n)
-      TYPE(MPI_Comm), INTENT(IN) :: comm
+      COMPLEX(KIND=GP) , INTENT(OUT) :: buf(n)
+      TYPE(MPI_Comm)   , INTENT(IN)  :: comm
       TYPE(MPI_Request), INTENT(OUT) :: req
       CALL MPI_IRECV(buf,n,GC_COMPLEX,src,1,comm,req,ierr)
       END SUBROUTINE fftp3d_irecv
 
 !*****************************************************************
       SUBROUTINE fftp3d_isend(buf,n,dst,comm,req)
+!-----------------------------------------------------------------
+!
+! Sends n complex numbers starting at buf
+!-----------------------------------------------------------------
       USE fprecision
       USE mpivars
       USE commtypes
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: n,dst
-      COMPLEX(KIND=GP), INTENT(IN) :: buf(n)
-      TYPE(MPI_Comm), INTENT(IN) :: comm
+      COMPLEX(KIND=GP) , INTENT(IN)  :: buf(n)
+      TYPE(MPI_Comm)   , INTENT(IN)  :: comm
       TYPE(MPI_Request), INTENT(OUT) :: req
       CALL MPI_ISEND(buf,n,GC_COMPLEX,dst,1,comm,req,ierr)
       END SUBROUTINE fftp3d_isend
@@ -408,10 +413,10 @@
       USE commtypes
       IMPLICIT NONE
       INTEGER, INTENT(IN) :: nsend,nrecv
-      COMPLEX(KIND=GP), INTENT(IN)  :: sendbuf(nsend)
-      COMPLEX(KIND=GP), INTENT(OUT) :: recvbuf(nrecv)
-      TYPE(MPI_Datatype), INTENT(IN) :: stype(0:nprocs-1),rtype(0:nprocs-1)
-      TYPE(MPI_Comm), INTENT(IN) :: comm
+      COMPLEX(KIND=GP)  , INTENT(IN)  :: sendbuf(nsend)
+      COMPLEX(KIND=GP)  , INTENT(OUT) :: recvbuf(nrecv)
+      TYPE(MPI_Datatype), INTENT(IN)  :: stype(0:nprocs-1),rtype(0:nprocs-1)
+      TYPE(MPI_Comm)    , INTENT(IN)  :: comm
       TYPE(MPI_Request) :: ireq1,ireq2
       TYPE(MPI_Status)  :: istatus
       INTEGER :: irank,isendTo,igetFrom
@@ -440,7 +445,7 @@
       USE fftplans
       USE gdevice
       IMPLICIT NONE
-      TYPE(FFTPLAN), INTENT(IN) :: plan
+      TYPE(FFTPLAN) , INTENT(IN) :: plan
       TYPE(MPI_Comm), INTENT(IN) :: comm
       INTEGER :: r,nxh,ntot
 
@@ -470,7 +475,7 @@
       USE fftplans
       USE gdevice
       IMPLICIT NONE
-      TYPE(FFTPLAN), INTENT(IN) :: plan
+      TYPE(FFTPLAN) , INTENT(IN) :: plan
       TYPE(MPI_Comm), INTENT(IN) :: comm
       INTEGER :: r,nxh,ntot
 
@@ -489,6 +494,15 @@
       END SUBROUTINE fftp3d_exchange_bwd
 
       END MODULE fftp3d_gpu
+
+
+!=================================================================
+! General FFTP-GPU routines
+!
+! Initialization, plan creator, destructor, block creator,
+! complex-to-real and real-to-complex parallel FFT subroutines
+! for host and device paths.
+!=================================================================
 
 !*****************************************************************
       SUBROUTINE fftp3d_init_threads(err)
@@ -813,7 +827,8 @@
       CALL GTStart(htot)
 
       IF (gdev_active) THEN
-      IF (plan%ownc1) STOP 'fftp3d: the device path supports only plans with the layout of the first plan created'
+      IF (plan%ownc1) &
+         STOP 'fftp3d: the device path supports only plans with the layout of the first plan created'
 !
 ! Device path: 2D FFT of the (x,y) planes on the device
 !
@@ -862,7 +877,6 @@
             if ( igetFrom .lt. 0 ) igetFrom = igetFrom + nprocs
             CALL MPI_IRECV(plan%c1,1,plan%itype2(igetFrom),igetFrom, & 
                           1,comm,ireq2(irank),ierr)
-
             CALL MPI_ISEND(plan%carr,1,plan%itype1(isendTo),isendTo, &
                           1,comm,ireq1(irank),ierr)
          enddo
@@ -957,7 +971,8 @@
       CALL GTStart(htot)
 
       IF (gdev_active) THEN
-      IF (plan%ownc1) STOP 'fftp3d: the device path supports only plans with the layout of the first plan created'
+      IF (plan%ownc1) &
+         STOP 'fftp3d: the device path supports only plans with the layout of the first plan created'
 !
 ! Device path: 1D FFT along z on the device
 !
