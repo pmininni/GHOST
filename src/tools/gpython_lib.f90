@@ -20,6 +20,7 @@ MODULE gpython_lib
   USE particle_factory
   USE icp_factory
   USE stepper_factory
+  USE gmem
   IMPLICIT NONE
 
   ! --- Global State (Persists between Python calls) ---
@@ -34,6 +35,14 @@ MODULE gpython_lib
   REAL       (KIND=GP) :: time
   INTEGER              :: current_step = 0
   INTEGER              :: num_components
+  LOGICAL              :: fstatic       ! static forcing (no upload per step)
+
+  ! Offload builds follow the same rules as main.F90: the states are
+  ! worked on the device inside the time step (gdev_active set) and on
+  ! their host copies elsewhere. The host copies of the fields are
+  ! refreshed before they are handed to Python, and the forcing, which
+  ! is computed on the host, is copied to the device after each update.
+  ! In host builds all these calls are no-ops or plain copies.
 
 CONTAINS
 
@@ -64,6 +73,8 @@ CONTAINS
 
     ! Grid & Status
     CALL grid_init  (trim(file))
+    ! Binds this MPI task to a GPU in offload builds (no-op otherwise)
+    CALL device_init(myrank)
     CALL status_init(trim(file))
     time = 0.0_GP
     
@@ -74,7 +85,7 @@ CONTAINS
 
     ! PDE & Arrays
     fluid = init_pdes_from_file(trim(file))
-    CALL workspace%initialize_pool(NUMTMPREAL, NUMTMPCOMP)
+    CALL workspace%initialize_pool(NUMTMPREAL, NUMTMPCOMP, NUMTMPPART)
     CALL workspace%init_host_entries(NUMTMPHREAL, NUMTMPHCOMP)
     CALL fluid%Solver_ctor(trim(file), workspace, planio)
 
@@ -90,15 +101,20 @@ CONTAINS
     ! Initialization of the numerical domain
     CALL box_init(trim(file))
 
-    ! FFT Init (Crucial: Must match main.fpp logic)
-    CALL fftp3d_create_plan(planrc, (/nx,ny,nz/), FFTW_REAL_TO_COMPLEX, FFTW_ESTIMATE)
-    CALL fftp3d_create_plan(plancr, (/nx,ny,nz/), FFTW_COMPLEX_TO_REAL, FFTW_ESTIMATE)
+    ! FFT Init (Crucial: Must match main.F90 logic)
+    CALL fftp3d_create_plan(planrc, (/nx,ny,nz/), FFTW_REAL_TO_COMPLEX, FFTW_MEASURE)
+    CALL fftp3d_create_plan(plancr, (/nx,ny,nz/), FFTW_COMPLEX_TO_REAL, FFTW_MEASURE)
 
-    ! Initialize fluid states and the stepper
+    ! Initialize fluid states and the stepper. The states are uploaded
+    ! to the device after the (host) initialization, and field_nxt is
+    ! copied with GState_copy (device copies in offload builds).
     CALL init_allstates(iclist,fluid,field)
-    field_nxt = field
+    CALL GState_update_to(field)
+    CALL GState_copy(field_nxt,field)
     CALL init_forcing(forcemethod,fluid,force)
-    call build_stepper_from_file(trim(file),stepper,workspace,fluid)
+    CALL GState_update_to(force)
+    fstatic = forcing_is_static(forcemethod)
+    CALL build_stepper_from_file(trim(file),stepper,workspace,fluid)
   END SUBROUTINE ghost_init
 
   !=================================================================
@@ -109,11 +125,18 @@ CONTAINS
     INTEGER :: i
     REAL(KIND=GP) :: dt_val
 
+    ! Same sequence as the time loop of main.F90: the forcing is
+    ! updated on the host and uploaded, the step runs on the device
+    ! (gdev_active set) from the copy of the last state, and 'time' is
+    ! the time at the beginning of the step
     DO i = 1, num_steps
-       time = time + dt
        CALL update_forcing(forcemethod,fluid,force)
-       field = field_nxt
+       IF (.not.fstatic) CALL GState_update_to(force)
+       gdev_active = .TRUE.
+       CALL GState_copy(field,field_nxt)
        CALL stepper%gstep(time, field, force, dt, field_nxt)
+       gdev_active = .FALSE.
+       time = time + dt
        current_step = current_step + 1
     END DO
   END SUBROUTINE ghost_run
@@ -139,10 +162,12 @@ CONTAINS
   !=================================================================
   ! Helpers
   !=================================================================
-  ! Returns the pointer to the latest field component at position num_field
+  ! Returns the pointer to the latest field component at position
+  ! num_field (its host copy, refreshed from the device first)
   FUNCTION ghost_get_complex_field(num_field) RESULT(ptr) BIND(C)
     INTEGER(C_INT), VALUE :: num_field
     TYPE   (C_PTR)        :: ptr
+    CALL gupdate_from(field_nxt(num_field)%ccomp)
     ptr = C_LOC(field_nxt(num_field)%ccomp)
   END FUNCTION ghost_get_complex_field
   
@@ -154,18 +179,21 @@ CONTAINS
   END FUNCTION ghost_get_complex_forcing
 
   ! Returns the pointer to the Fourier-transformed (real) latest field
-  ! component at position num_field.
+  ! component at position num_field. The transform is done on the host
+  ! (gdev_active is unset here) from the refreshed host copy, with a
+  ! temporary of the host pool, as the diagnostics do.
   FUNCTION ghost_get_real_field(num_field) RESULT(ptr) BIND(C)
     INTEGER(C_INT)  , VALUE                     :: num_field
     TYPE   (C_PTR)                              :: ptr
     REAL   (kind=GP)                            :: rmp
     COMPLEX(kind=GP), POINTER, DIMENSION(:,:,:) :: ctmp
     LOGICAL                                     :: bret
-    CALL workspace%get_complex_tmp(ctmp,bret)
+    CALL gupdate_from(field_nxt(num_field)%ccomp)
+    CALL workspace%get_complex_htmp(ctmp,bret)
     rmp = 1.0_GP/(real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))
     ctmp = field_nxt(num_field)%ccomp * rmp
     CALL fftp3d_complex_to_real(plancr,ctmp,realfield(num_field)%rcomp,MPI_COMM_WORLD)
-    CALL workspace%free_complex_tmp(ctmp)
+    CALL workspace%free_complex_htmp(ctmp)
     ptr = C_LOC(realfield(num_field)%rcomp)
   END FUNCTION ghost_get_real_field
   

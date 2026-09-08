@@ -179,8 +179,10 @@ CONTAINS
       end do
     endif
     
+    ! (this%pcomp_size_ and not num_pcomp: the optional argument may
+    ! be absent, and referencing it then dereferences a null pointer)
     write(*,*) 'Pool initialized: ', num_real, ' Real,', & 
-               num_complex, ' Complex, and', num_pcomp, ' PComp arrays'  
+               num_complex, ' Complex, and', this%pcomp_size_, ' PComp arrays'  
   end subroutine initialize_pool
 
 
