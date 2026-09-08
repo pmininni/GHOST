@@ -37,7 +37,7 @@ MODULE class_GPSplineInt
         REAL(KIND=GP),ALLOCATABLE,DIMENSION    (:) :: xrk_,yrk_,zrk_
         REAL(KIND=GP),ALLOCATABLE,DIMENSION  (:,:) :: wrkl_
         INTEGER      ,ALLOCATABLE,DIMENSION  (:,:) :: ilg_,jlg_,klg_
-        REAL(KIND=GP),ALLOCATABLE,DIMENSION    (:) :: tmptr_,tmpt2_  ! z-complete layout
+        REAL(KIND=GP),ALLOCATABLE,DIMENSION    (:) :: tmptr_,tmpt2_  ! z-complete layout (il,ny,nz)
         ! Factorization of the tridiagonal systems (computed on the
         ! host; the five arrays the solves use have device copies)
         REAL(KIND=GP),ALLOCATABLE,DIMENSION    (:) :: ax_,bx_,betx_,cx_,gamx_,px_,xxx_
@@ -633,14 +633,29 @@ MODULE class_GPSplineInt
 !               field(nx,ny,kl) (periodic cubic spline) and fills
 !               the extended coefficient field esplfld_. The
 !               periodic tridiagonal systems are solved pencil by
-!               pencil: in x (field -> tmp2), in y (tmp2 -> field),
-!               then the field is transposed to the z-complete
-!               layout, solved in z (tmptr_ -> tmpt2_) and
-!               transposed back. Every pencil is independent, so
-!               the kernels run one thread per pencil on the device
-!               (one OpenMP thread per pencil on the host) with the
-!               same arithmetic as the original sweeps. tmp2 is a
-!               temporary of the size of the field.
+!               pencil, in x, then y, then z; every pencil is
+!               independent and the arithmetic in each pencil is
+!               that of the original sweeps, so host and device
+!               builds give the same results while their loops are
+!               organized differently:
+!               - Device (GHOST_GPU): one thread per pencil, running
+!                 values in registers. A recurrence must never run
+!                 along the contiguous index (each step of every
+!                 thread would touch a different cache line, 16x
+!                 slower), so x is solved on the slab transposed to
+!                 (ny,nx,kl) with the register-tile transpose
+!                 gpsi_xytr, y on (nx,ny,kl) along the second index
+!                 (gpsi_solve2), and z on the z-complete layout
+!                 (il,ny,nz) along the third index (gpsi_solve3);
+!                 that layout keeps x contiguous, so the MPI
+!                 transpose is a pure block copy (gpartcomm).
+!               - Host: the opposite. x is solved along the
+!                 contiguous index (gpsi_solve1, host only, streams
+!                 through the caches); y and z advance plane by
+!                 plane with the contiguous index innermost, so the
+!                 sweeps vectorize and stream (host branches of
+!                 gpsi_solve2/3). No local transposes are needed.
+!               tmp2 is a temporary of the size of the field.
 !-----------------------------------------------------------------
   SUBROUTINE GPSplineInt_CompSpline3D(this,field,tmp2)
     USE mpivars
@@ -655,15 +670,42 @@ MODULE class_GPSplineInt
     nz = this%ldims_(3)
     il = this%odims_(3)
 
-    ! Solves in x and y on the slab
+    ! Solves in x and y on the slab. On the device a recurrence must
+    ! not run along the fastest index (each step of every thread would
+    ! touch a different cache line, 16 times slower than a solve along
+    ! a slower index), so the x solve is done on the slab transposed to
+    ! (ny,nx,kl). On the host the opposite holds: the solve along the
+    ! contiguous index streams through the caches and the transposes
+    ! would only add memory traffic (25% slower at 256^3 with 8 MPI
+    ! tasks), so the host solves x in place. The order of the
+    ! operations in each pencil is that of the original sweeps in
+    ! both cases, and the results are identical
+#if defined(GHOST_GPU)
+    CALL GTStart(this%htransp_)
+    CALL gpsi_xytr(nx,ny,nz,field,tmp2)                          ! tmp2(ny,nx,kl)
+    CALL GTAcc(this%htransp_)
+    CALL gpsi_solve2(ny,nx,nz,this%ax_,this%betx_,this%gamx_,this%px_,this%xxx_,this%zetax_,tmp2,field)
+    CALL GTStart(this%htransp_)
+    CALL gpsi_xytr(ny,nx,nz,field,tmp2)                          ! tmp2(nx,ny,kl)
+    CALL GTAcc(this%htransp_)
+#else
     CALL gpsi_solve1(nx,ny,nz,this%ax_,this%betx_,this%gamx_,this%px_,this%xxx_,this%zetax_,field,tmp2)
+#endif
     CALL gpsi_solve2(nx,ny,nz,this%ay_,this%bety_,this%gamy_,this%py_,this%xxy_,this%zetay_,tmp2,field)
 
-    ! Solve in z on the z-complete layout
+    ! Solve in z on the z-complete layout (il,ny,nz), along the third
+    ! index. With a single task that layout is the slab itself
+    IF ( nprocs .EQ. 1 ) THEN
+      CALL gpsi_solve3(nx,ny,nz,this%az_,this%betz_,this%gamz_,this%pz_,this%xxz_,this%zetaz_,field,tmp2)
+      CALL GTStart(this%hdataex_)
+      CALL this%gpcomm_%SlabDataExchangeSF(this%esplfld_,tmp2)
+      CALL GTAcc(this%hdataex_)
+      RETURN
+    ENDIF
     CALL GTStart(this%htransp_)
     CALL this%gpcomm_%GTranspose(this%tmptr_,field)
     CALL GTAcc(this%htransp_)
-    CALL gpsi_solve1(this%nd_(3),ny,il,this%az_,this%betz_,this%gamz_,this%pz_,this%xxz_,this%zetaz_, &
+    CALL gpsi_solve3(il,ny,this%nd_(3),this%az_,this%betz_,this%gamz_,this%pz_,this%xxz_,this%zetaz_, &
                      this%tmptr_,this%tmpt2_)
     CALL GTStart(this%htransp_)
     CALL this%gpcomm_%GITranspose(field,this%tmpt2_)
@@ -677,12 +719,272 @@ MODULE class_GPSplineInt
 
 
 !-----------------------------------------------------------------
-! Periodic tridiagonal solve along the first index of f(n1,n2,n3),
-! one pencil (j,k) per thread, result in t (a,bet,gam,p,xx,zeta:
-! factorization of MatInvQ). The running values of the recurrences
-! are carried in registers (tp, tn) so that no step waits for the
-! value the thread has just stored; the arithmetic is the same as
-! the original sweeps.
+! Local transpose of the two fastest indices: t(j,i,k) = f(i,j,k).
+! Each thread transposes a TS x TS block through registers, so that
+! it reads and writes TS consecutive elements (32 bytes) at a time;
+! consecutive threads take consecutive j blocks, which makes the
+! writes of a wavefront contiguous. Measured on an MI210 at 256^3
+! this is 5.6 times faster than one element per thread (the partial
+! line writes of the latter multiply the traffic by 16). Used only
+! in GHOST_GPU builds (the host solves x in place); in those builds
+! the host fallback (gdev_active unset) transposes the blocks of one
+! plane per OpenMP thread.
+!-----------------------------------------------------------------
+  SUBROUTINE gpsi_xytr(n1,n2,n3,f,t)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n1,n2,n3
+    REAL(KIND=GP),INTENT(IN)    :: f(n1,n2,n3)
+    REAL(KIND=GP),INTENT(INOUT) :: t(n2,n1,n3)
+    INTEGER      ,PARAMETER     :: TS = 8
+    REAL(KIND=GP)               :: b(TS,TS)
+    INTEGER                     :: i,j,k,ib,jb,ii,jj,nb1,nb2
+
+    nb1 = (n1+TS-1)/TS
+    nb2 = (n2+TS-1)/TS
+    IF ( MOD(n1,TS).EQ.0 .AND. MOD(n2,TS).EQ.0 ) THEN
+      ! Whole blocks only: no bounds tests in the inner loops, so that
+      ! the compiler issues vector loads and stores of a block row
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active) private(b,ii,jj)
+#else
+!$omp parallel do collapse(2) private(b,ii,jj,jb)
+#endif
+      DO k = 1,n3
+        DO ib = 0,nb1-1
+          DO jb = 0,nb2-1
+            DO jj = 1,TS
+              DO ii = 1,TS
+                b(ii,jj) = f(ib*TS+ii,jb*TS+jj,k)
+              ENDDO
+            ENDDO
+            DO ii = 1,TS
+              DO jj = 1,TS
+                t(jb*TS+jj,ib*TS+ii,k) = b(ii,jj)
+              ENDDO
+            ENDDO
+          ENDDO
+        ENDDO
+      ENDDO
+    ELSE
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do collapse(3) if(target: gdev_active) private(b,i,j,ii,jj)
+#else
+!$omp parallel do collapse(2) private(b,i,j,ii,jj,jb)
+#endif
+      DO k = 1,n3
+        DO ib = 0,nb1-1
+          DO jb = 0,nb2-1
+            DO jj = 1,TS
+              j = jb*TS+jj
+              DO ii = 1,TS
+                i = ib*TS+ii
+                IF ( i.LE.n1 .AND. j.LE.n2 ) b(ii,jj) = f(i,j,k)
+              ENDDO
+            ENDDO
+            DO ii = 1,TS
+              i = ib*TS+ii
+              DO jj = 1,TS
+                j = jb*TS+jj
+                IF ( i.LE.n1 .AND. j.LE.n2 ) t(j,i,k) = b(ii,jj)
+              ENDDO
+            ENDDO
+          ENDDO
+        ENDDO
+      ENDDO
+    ENDIF
+  END SUBROUTINE gpsi_xytr
+
+
+!-----------------------------------------------------------------
+! Periodic tridiagonal solve along the second index of f(n1,n2,n3),
+! result in t (a,bet,gam,p,xx,zeta: factorization of MatInvQ).
+! - Device: one pencil (i,k) per thread; consecutive threads take
+!   consecutive i, so the loads and stores of a wavefront are
+!   coalesced. The running values of the recurrences are carried in
+!   registers (tp, tn), so no step waits for the value the thread
+!   has just stored. Do not move the recurrence to the first index.
+! - Host: the recurrence advances plane by plane; each sweep runs
+!   over the contiguous index i innermost, so it vectorizes and
+!   streams through memory (one OpenMP thread per k plane). The
+!   accumulators of the last row are kept in the vector tnv(i).
+! Both forms do the same operations on each pencil, in the same
+! order, and give identical results.
+!-----------------------------------------------------------------
+  SUBROUTINE gpsi_solve2(n1,n2,n3,a,bet,gam,p,xx,zeta,f,t)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n1,n2,n3
+    REAL(KIND=GP),INTENT(IN)    :: a(n2),bet(n2),gam(n2),p(n2),xx(n2),zeta
+    REAL(KIND=GP),INTENT(IN)    :: f(n1,n2,n3)
+    REAL(KIND=GP),INTENT(INOUT) :: t(n1,n2,n3)
+    REAL(KIND=GP)               :: tp,tn
+    REAL(KIND=GP),ALLOCATABLE   :: tnv(:)
+    INTEGER                     :: i,j,k
+#if defined(GHOST_GPU)
+    ! Device: one pencil per thread, (k,i) collapsed with i fastest
+!$omp target teams distribute parallel do collapse(2) if(target: gdev_active) private(j,tp,tn)
+    DO k = 1,n3
+      DO i = 1,n1
+        tp = f(i,1,k)*bet(1)
+        t(i,1,k) = tp
+        tn = f(i,n2,k)
+        DO j = 2,n2-2
+          tp = ( f(i,j,k) - a(j)*tp )*bet(j)
+          t(i,j,k) = tp
+        ENDDO
+        DO j = 2,n2-2
+          tn = tn - xx(j-1)*t(i,j-1,k)
+        ENDDO
+        tp = (f(i,n2-1,k) - a(n2-1)*t(i,n2-2,k))*bet(n2-1)
+        tn = tn - xx(n2-2)*tp
+        tn = (tn - tp*zeta)*bet(n2)
+        tp = tp - gam(n2)*tn
+        t(i,n2,k)   = tn
+        t(i,n2-1,k) = tp
+        DO j = n2-2,1,-1
+          tp = t(i,j,k) - gam(j+1)*tp - p(j)*tn
+          t(i,j,k) = tp
+        ENDDO
+      ENDDO
+    ENDDO
+#else
+    ! Host: the recurrence runs over planes, with the contiguous index
+    ! innermost (vectorized, streaming), and the same operations per
+    ! pencil as above; tnv holds the last-row accumulators of one plane
+    ALLOCATE(tnv(n1))
+!$omp parallel do private(i,j,tp,tn,tnv)
+    DO k = 1,n3
+      DO i = 1,n1
+        t(i,1,k) = f(i,1,k)*bet(1)
+        tnv(i)   = f(i,n2,k)
+      ENDDO
+      DO j = 2,n2-2
+        DO i = 1,n1
+          t(i,j,k) = ( f(i,j,k) - a(j)*t(i,j-1,k) )*bet(j)
+          tnv(i)   = tnv(i) - xx(j-1)*t(i,j-1,k)
+        ENDDO
+      ENDDO
+      DO i = 1,n1
+        tp = (f(i,n2-1,k) - a(n2-1)*t(i,n2-2,k))*bet(n2-1)
+        tn = tnv(i) - xx(n2-2)*tp
+        tn = (tn - tp*zeta)*bet(n2)
+        tp = tp - gam(n2)*tn
+        t(i,n2,k)   = tn
+        t(i,n2-1,k) = tp
+      ENDDO
+      DO j = n2-2,1,-1
+        DO i = 1,n1
+          t(i,j,k) = t(i,j,k) - gam(j+1)*t(i,j+1,k) - p(j)*t(i,n2,k)
+        ENDDO
+      ENDDO
+    ENDDO
+    DEALLOCATE(tnv)
+#endif
+  END SUBROUTINE gpsi_solve2
+
+
+!-----------------------------------------------------------------
+! Periodic tridiagonal solve along the third index of f(n1,n2,n3),
+! result in t.
+! - Device: one pencil (i,j) per thread with the running values in
+!   registers; consecutive threads take consecutive i (coalesced
+!   accesses). This is the fastest of the three device solves: a
+!   whole (i,j) plane of threads is in flight at each step.
+! - Host: the recurrence advances plane by plane in k; each sweep
+!   over a plane (i,j) has the contiguous index innermost and is
+!   split over the OpenMP threads by rows j, so it vectorizes and
+!   streams. The last-plane accumulators are kept in tnv(i,j).
+! Same operations per pencil in both forms, identical results.
+!-----------------------------------------------------------------
+  SUBROUTINE gpsi_solve3(n1,n2,n3,a,bet,gam,p,xx,zeta,f,t)
+    IMPLICIT NONE
+    INTEGER      ,INTENT(IN)    :: n1,n2,n3
+    REAL(KIND=GP),INTENT(IN)    :: a(n3),bet(n3),gam(n3),p(n3),xx(n3),zeta
+    REAL(KIND=GP),INTENT(IN)    :: f(n1,n2,n3)
+    REAL(KIND=GP),INTENT(INOUT) :: t(n1,n2,n3)
+    REAL(KIND=GP)               :: tp,tn
+    REAL(KIND=GP),ALLOCATABLE   :: tnv(:,:)
+    INTEGER                     :: i,j,k
+#if defined(GHOST_GPU)
+    ! Device: one pencil per thread, (j,i) collapsed with i fastest
+!$omp target teams distribute parallel do collapse(2) if(target: gdev_active) private(k,tp,tn)
+    DO j = 1,n2
+      DO i = 1,n1
+        tp = f(i,j,1)*bet(1)
+        t(i,j,1) = tp
+        tn = f(i,j,n3)
+        DO k = 2,n3-2
+          tp = ( f(i,j,k) - a(k)*tp )*bet(k)
+          t(i,j,k) = tp
+        ENDDO
+        DO k = 2,n3-2
+          tn = tn - xx(k-1)*t(i,j,k-1)
+        ENDDO
+        tp = (f(i,j,n3-1) - a(n3-1)*t(i,j,n3-2))*bet(n3-1)
+        tn = tn - xx(n3-2)*tp
+        tn = (tn - tp*zeta)*bet(n3)
+        tp = tp - gam(n3)*tn
+        t(i,j,n3)   = tn
+        t(i,j,n3-1) = tp
+        DO k = n3-2,1,-1
+          tp = t(i,j,k) - gam(k+1)*tp - p(k)*tn
+          t(i,j,k) = tp
+        ENDDO
+      ENDDO
+    ENDDO
+#else
+    ! Host: the recurrence runs over planes (i,j), each sweep streams
+    ! through a contiguous plane; same operations per pencil as above
+    ALLOCATE(tnv(n1,n2))
+!$omp parallel do private(i)
+    DO j = 1,n2
+      DO i = 1,n1
+        t(i,j,1) = f(i,j,1)*bet(1)
+        tnv(i,j) = f(i,j,n3)
+      ENDDO
+    ENDDO
+    DO k = 2,n3-2
+!$omp parallel do private(i)
+      DO j = 1,n2
+        DO i = 1,n1
+          t(i,j,k)  = ( f(i,j,k) - a(k)*t(i,j,k-1) )*bet(k)
+          tnv(i,j)  = tnv(i,j) - xx(k-1)*t(i,j,k-1)
+        ENDDO
+      ENDDO
+    ENDDO
+!$omp parallel do private(i,tp,tn)
+    DO j = 1,n2
+      DO i = 1,n1
+        tp = (f(i,j,n3-1) - a(n3-1)*t(i,j,n3-2))*bet(n3-1)
+        tn = tnv(i,j) - xx(n3-2)*tp
+        tn = (tn - tp*zeta)*bet(n3)
+        tp = tp - gam(n3)*tn
+        t(i,j,n3)   = tn
+        t(i,j,n3-1) = tp
+      ENDDO
+    ENDDO
+    DO k = n3-2,1,-1
+!$omp parallel do private(i)
+      DO j = 1,n2
+        DO i = 1,n1
+          t(i,j,k) = t(i,j,k) - gam(k+1)*t(i,j,k+1) - p(k)*t(i,j,n3)
+        ENDDO
+      ENDDO
+    ENDDO
+    DEALLOCATE(tnv)
+#endif
+  END SUBROUTINE gpsi_solve3
+
+
+#if !defined(GHOST_GPU)
+!-----------------------------------------------------------------
+! Periodic tridiagonal solve along the first (contiguous) index of
+! f(n1,n2,n3), result in t. Host builds only: each OpenMP thread
+! walks one pencil (j,k) along contiguous memory with the running
+! values in registers (tp, tn), the cache-friendly form on a CPU
+! (sequential access, hardware prefetch). On the device this access
+! pattern is 16 times slower than the solves along the other indices
+! (one cache line per thread and step), so GHOST_GPU builds solve x
+! on the slab transposed by gpsi_xytr with gpsi_solve2 instead.
 !-----------------------------------------------------------------
   SUBROUTINE gpsi_solve1(n1,n2,n3,a,bet,gam,p,xx,zeta,f,t)
     IMPLICIT NONE
@@ -692,11 +994,7 @@ MODULE class_GPSplineInt
     REAL(KIND=GP),INTENT(INOUT) :: t(n1,n2,n3)
     REAL(KIND=GP)               :: tp,tn
     INTEGER                     :: i,j,k
-#if defined(GHOST_GPU)
-!$omp target teams distribute parallel do collapse(2) if(target: gdev_active) private(i,tp,tn)
-#else
 !$omp parallel do collapse(2) private(i,tp,tn)
-#endif
     DO k = 1,n3
       DO j = 1,n2
         tp = f(1,j,k)*bet(1)
@@ -722,50 +1020,6 @@ MODULE class_GPSplineInt
       ENDDO
     ENDDO
   END SUBROUTINE gpsi_solve1
-
-
-!-----------------------------------------------------------------
-! Periodic tridiagonal solve along the second index of f(n1,n2,n3),
-! one pencil (i,k) per thread (consecutive threads read consecutive
-! i), result in t
-!-----------------------------------------------------------------
-  SUBROUTINE gpsi_solve2(n1,n2,n3,a,bet,gam,p,xx,zeta,f,t)
-    IMPLICIT NONE
-    INTEGER      ,INTENT(IN)    :: n1,n2,n3
-    REAL(KIND=GP),INTENT(IN)    :: a(n2),bet(n2),gam(n2),p(n2),xx(n2),zeta
-    REAL(KIND=GP),INTENT(IN)    :: f(n1,n2,n3)
-    REAL(KIND=GP),INTENT(INOUT) :: t(n1,n2,n3)
-    REAL(KIND=GP)               :: tp,tn
-    INTEGER                     :: i,j,k
-#if defined(GHOST_GPU)
-!$omp target teams distribute parallel do collapse(2) if(target: gdev_active) private(j,tp,tn)
-#else
-!$omp parallel do collapse(2) private(j,tp,tn)
 #endif
-    DO k = 1,n3
-      DO i = 1,n1
-        tp = f(i,1,k)*bet(1)
-        t(i,1,k) = tp
-        tn = f(i,n2,k)
-        DO j = 2,n2-2
-          tp = ( f(i,j,k) - a(j)*tp )*bet(j)
-          t(i,j,k) = tp
-        ENDDO
-        DO j = 2,n2-2
-          tn = tn - xx(j-1)*t(i,j-1,k)
-        ENDDO
-        tp = (f(i,n2-1,k) - a(n2-1)*t(i,n2-2,k))*bet(n2-1)
-        tn = tn - xx(n2-2)*tp
-        tn = (tn - tp*zeta)*bet(n2)
-        tp = tp - gam(n2)*tn
-        t(i,n2,k)   = tn
-        t(i,n2-1,k) = tp
-        DO j = n2-2,1,-1
-          tp = t(i,j,k) - gam(j+1)*tp - p(j)*tn
-          t(i,j,k) = tp
-        ENDDO
-      ENDDO
-    ENDDO
-  END SUBROUTINE gpsi_solve2
 
 END MODULE class_GPSplineInt

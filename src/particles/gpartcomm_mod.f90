@@ -1467,7 +1467,19 @@ MODULE class_GPartComm
 
 !-----------------------------------------------------------------
 !  METHOD     : GTranspose
-!  DESCRIPTION: ofield(nz,ny,il) = transpose of ifield(nx,ny,kl)
+!  DESCRIPTION: ofield(il,ny,nz) = transpose of ifield(nx,ny,kl):
+!               the slab, distributed in z, is redistributed in x
+!               so that every task holds complete z pencils (used
+!               for the z solve of the spline coefficients). Both
+!               layouts keep x as the contiguous index, so the pack
+!               and unpack kernels are contiguous block copies (no
+!               element reordering) and the MPI messages are
+!               contiguous blocks; the only true transpositions of
+!               the spline pipeline are the local ones done by
+!               gpsi_xytr on the device. On the device the messages
+!               are exchanged directly from device memory; with a
+!               single task both layouts coincide and the routine
+!               reduces to one copy.
 !-----------------------------------------------------------------
   SUBROUTINE GPartComm_Transpose(this,ofield,ifield)
     IMPLICIT NONE
@@ -1481,6 +1493,10 @@ MODULE class_GPartComm
     kl = this%kend_-this%ksta_+1
     ista = this%txsta_(this%myrank_); il = this%txend_(this%myrank_)-ista+1
     ksta = this%ksta_
+    IF ( this%nprocs_ .EQ. 1 ) THEN  ! both layouts coincide
+      CALL gpc_copy_seg(nx*ny*kl,nx*ny*kl,0,0,ifield,ofield)
+      RETURN
+    ENDIF
     DO t = 0,this%nprocs_-1
       CALL gpc_tpack_fwd(nx,ny,kl,this%txsta_(t),this%txend_(t),this%tso_(t),SIZE(this%gtsbuf_),ifield,this%gtsbuf_)
     ENDDO
@@ -1495,7 +1511,8 @@ MODULE class_GPartComm
 
 !-----------------------------------------------------------------
 !  METHOD     : GITranspose
-!  DESCRIPTION: ofield(nx,ny,kl) = inverse transpose of ifield(nz,ny,il)
+!  DESCRIPTION: ofield(nx,ny,kl) = inverse transpose of ifield(il,ny,nz)
+!               (see GTranspose: block copies, no element reordering)
 !-----------------------------------------------------------------
   SUBROUTINE GPartComm_ITranspose(this,ofield,ifield)
     IMPLICIT NONE
@@ -1508,6 +1525,10 @@ MODULE class_GPartComm
     nx = this%nd_(1); ny = this%nd_(2); nz = this%nd_(3)
     kl = this%kend_-this%ksta_+1
     ista = this%txsta_(this%myrank_); il = this%txend_(this%myrank_)-ista+1
+    IF ( this%nprocs_ .EQ. 1 ) THEN  ! both layouts coincide
+      CALL gpc_copy_seg(nx*ny*kl,nx*ny*kl,0,0,ifield,ofield)
+      RETURN
+    ENDIF
     DO t = 0,this%nprocs_-1
       CALL gpc_tpack_inv(nz,ny,il,this%tzsta_(t),this%tzend_(t),this%tro_(t),SIZE(this%gtsbuf_),ifield,this%gtsbuf_)
     ENDDO
@@ -1600,7 +1621,12 @@ MODULE class_GPartComm
 
 
 !-----------------------------------------------------------------
-! Forward pack: block f(i1:i2,1:ny,1:kl) of the slab, i fastest
+! Forward pack: block f(i1:i2,1:ny,1:kl) of the slab, i fastest.
+! The four pack/unpack kernels below copy contiguous rows of the
+! block: one element per thread with the contiguous index fastest
+! (coalesced on the device, vectorized on the host). They must not
+! reorder elements; a transposing copy here would cost 16x the
+! traffic on the device (partial cache line writes).
 !-----------------------------------------------------------------
   SUBROUTINE gpc_tpack_fwd(nx,ny,kl,i1,i2,off,nb,f,b)
     IMPLICIT NONE
@@ -1626,23 +1652,24 @@ MODULE class_GPartComm
 
 !-----------------------------------------------------------------
 ! Forward unpack: block (1:il,1:ny,k1:k2) received from a task
-! into the z-complete layout o(nz,ny,il)
+! into the z-complete layout o(il,ny,nz) (a contiguous copy: the
+! layout keeps x fastest so that no kernel transposes the data)
 !-----------------------------------------------------------------
   SUBROUTINE gpc_tunpack_fwd(nz,ny,il,k1,k2,off,nb,b,o)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: nz,ny,il,k1,k2,off,nb
     REAL(KIND=GP),INTENT(IN)    :: b(nb)
-    REAL(KIND=GP),INTENT(INOUT) :: o(nz,ny,il)
+    REAL(KIND=GP),INTENT(INOUT) :: o(il,ny,nz)
     INTEGER                     :: i,j,k
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
 #else
-!$omp parallel do collapse(2) private(k)
+!$omp parallel do collapse(2) private(i)
 #endif
-    DO i = 1,il
+    DO k = k1,k2
       DO j = 1,ny
-        DO k = k1,k2
-          o(k,j,i) = b(off+i+(j-1)*il+(k-k1)*il*ny)
+        DO i = 1,il
+          o(i,j,k) = b(off+i+(j-1)*il+(k-k1)*il*ny)
         ENDDO
       ENDDO
     ENDDO
@@ -1650,24 +1677,24 @@ MODULE class_GPartComm
 
 
 !-----------------------------------------------------------------
-! Inverse pack: block (k1:k2,1:ny,1:il) of the z-complete layout,
+! Inverse pack: block (1:il,1:ny,k1:k2) of the z-complete layout,
 ! stored i fastest (the layout the receiver unpacks)
 !-----------------------------------------------------------------
   SUBROUTINE gpc_tpack_inv(nz,ny,il,k1,k2,off,nb,f,b)
     IMPLICIT NONE
     INTEGER      ,INTENT(IN)    :: nz,ny,il,k1,k2,off,nb
-    REAL(KIND=GP),INTENT(IN)    :: f(nz,ny,il)
+    REAL(KIND=GP),INTENT(IN)    :: f(il,ny,nz)
     REAL(KIND=GP),INTENT(INOUT) :: b(nb)
     INTEGER                     :: i,j,k
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do collapse(3) if(target: gdev_active)
 #else
-!$omp parallel do collapse(2) private(k)
+!$omp parallel do collapse(2) private(i)
 #endif
-    DO i = 1,il
+    DO k = k1,k2
       DO j = 1,ny
-        DO k = k1,k2
-          b(off+i+(j-1)*il+(k-k1)*il*ny) = f(k,j,i)
+        DO i = 1,il
+          b(off+i+(j-1)*il+(k-k1)*il*ny) = f(i,j,k)
         ENDDO
       ENDDO
     ENDDO
