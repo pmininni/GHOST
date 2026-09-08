@@ -653,6 +653,18 @@
          ENDIF
          gbuffers_ready = .TRUE.
       ENDIF
+! Host exchange buffer of this plan: the shared gc1 if the plan has
+! its layout (the usual case, one grid), otherwise a buffer of its
+! own. The device path (exchange tables, device buffers) is set up
+! for the first layout only, so such a plan works only on the host.
+      IF ( LBOUND(gc1,1).eq.ista .AND. UBOUND(gc1,1).eq.iend .AND.    &
+           SIZE(gc1,2).eq.n(2) .AND. SIZE(gc1,3).eq.n(3) ) THEN
+         plan%c1 => gc1
+         plan%ownc1 = .FALSE.
+      ELSE
+         ALLOCATE( plan%c1(ista:iend,n(2),n(3)) )
+         plan%ownc1 = .TRUE.
+      ENDIF
 
       CALL GTInitHandle(hcom,GT_WTIME)
       CALL GTInitHandle(hfft,GT_WTIME)
@@ -690,6 +702,11 @@
       DEALLOCATE( plan%rarr   )
       DEALLOCATE( plan%itype1 )
       DEALLOCATE( plan%itype2 )
+      IF (plan%ownc1) THEN
+         DEALLOCATE( plan%c1 )
+      ELSE
+         NULLIFY( plan%c1 )
+      ENDIF
       IF (gbuffers_ready) THEN
          CALL gdev_free(C_LOC(gcarr))
          CALL gdev_free(C_LOC(gc1))
@@ -796,6 +813,7 @@
       CALL GTStart(htot)
 
       IF (gdev_active) THEN
+      IF (plan%ownc1) STOP 'fftp3d: the device path supports only plans with the layout of the first plan created'
 !
 ! Device path: 2D FFT of the (x,y) planes on the device
 !
@@ -842,7 +860,7 @@
 
             igetFrom = myrank - irank
             if ( igetFrom .lt. 0 ) igetFrom = igetFrom + nprocs
-            CALL MPI_IRECV(gc1,1,plan%itype2(igetFrom),igetFrom,     & 
+            CALL MPI_IRECV(plan%c1,1,plan%itype2(igetFrom),igetFrom, & 
                           1,comm,ireq2(irank),ierr)
 
             CALL MPI_ISEND(plan%carr,1,plan%itype1(isendTo),isendTo, &
@@ -867,7 +885,7 @@
                DO i = ii,min(iend,ii+csize-1)
                DO j = jj,min(plan%ny,jj+csize-1)
                DO k = kk,min(plan%nz,kk+csize-1)
-                  out(k,j,i) = gc1(i,j,k)
+                  out(k,j,i) = plan%c1(i,j,k)
                END DO
                END DO
                END DO
@@ -939,6 +957,7 @@
       CALL GTStart(htot)
 
       IF (gdev_active) THEN
+      IF (plan%ownc1) STOP 'fftp3d: the device path supports only plans with the layout of the first plan created'
 !
 ! Device path: 1D FFT along z on the device
 !
@@ -982,7 +1001,7 @@
                DO i = ii,min(iend,ii+csize-1)
                DO j = jj,min(plan%ny,jj+csize-1)
                DO k = kk,min(plan%nz,kk+csize-1)
-                  gc1(i,j,k) = in(k,j,i)
+                  plan%c1(i,j,k) = in(k,j,i)
                END DO
                END DO
                END DO
@@ -1006,7 +1025,7 @@
             if ( igetFrom .lt. 0 ) igetFrom = igetFrom + nprocs
             CALL MPI_IRECV(plan%carr,1,plan%itype1(igetFrom),igetFrom, & 
                           1,comm,ireq2(irank),ierr)
-            CALL MPI_ISEND(gc1,1,plan%itype2(isendTo),isendTo, &
+            CALL MPI_ISEND(plan%c1,1,plan%itype2(isendTo),isendTo, &
                           1,comm,ireq1(irank),ierr)
          enddo
 

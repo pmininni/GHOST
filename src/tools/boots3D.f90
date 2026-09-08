@@ -24,6 +24,21 @@
 ! 17 Nov 2010: Initial version
 ! 15 Mar 2019: Added support for anisotropic boxes and
 !              error checking for number of tasks (M. Fontana)
+!  8 Sep 2026: Loops threaded with collapse; tasks outside the
+!              truncated communicator no longer copy unset data
+!              (NaN with more than one task); BOOTS runs on the host
+!              also in offload builds (see below)
+!
+! BOOTS is a host program. In hybrid builds the loops are threaded
+! with OpenMP; in offload builds (P_GPU) nothing is sent to the
+! device: gdev_active is never set, so the FFTs take the host FFTW
+! path of fftp-gpu and the loops run on the host threads. The device
+! path is not used because fftp-gpu creates its exchange buffers and
+! block tables once, for the first plan and the full set of tasks,
+! while BOOTS needs two grids (old and new) with different numbers of
+! tasks. Note that fftp3d_create_plan creates the device plans and
+! registers its buffers anyway, so an offload build of BOOTS must run
+! in a node with a visible GPU and call device_init.
 !=================================================================
 
 !
@@ -45,6 +60,7 @@
       USE fftplans
       USE threads
       USE gutils
+      USE gdevice
       IMPLICIT NONE
 
 !
@@ -86,6 +102,11 @@
 
 ! Initializes the grid. This must be done early to have nx, ny, nz.
       CALL grid_init('boots.inp')
+
+! Binds this MPI task to a GPU in offload builds (no-op otherwise):
+! the FFT plans register their exchange buffers on the device even
+! though BOOTS transforms on the host (see the header)
+      CALL device_init(myrank)
 
 ! Initializes I/O libraries considering all the tasks and
 ! the biggest possible array size (i.e. the new dimensions)
@@ -250,9 +271,8 @@
       rmq = 1.0_GP/real(ny,kind=GP)**2
       rms = 1.0_GP/real(nz,kind=GP)**2
 
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
       DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
          DO j = 1,ny
             DO k = 1,nz
                kn2(k,j,i) = rmp*kx(i)**2+rmq*ky(j)**2+rms*kz(k)**2
@@ -319,7 +339,21 @@
 !
 ! Prolongate in Fourier space:
          fact = 1.0_GP/(real(nxt,kind=GP)*real(nyt,kind=GP)*real(nzt,kind=GP))
-         B1 = 0.0
+!$omp parallel do collapse(2) private (k)
+         DO i = ista,iend
+            DO j = 1,ny
+               DO k = 1,nz
+                  B1(k,j,i) = 0.0_GP
+               END DO
+            END DO
+         END DO
+         ! Only the tasks of the truncated communicator hold modes of
+         ! the old grid (their x range itsta:itend is contained in
+         ! ista:iend, see the constraint on the number of tasks); for
+         ! the other tasks 'range' still returns a nonempty interval
+         ! and C1t was never filled, so they must not copy anything
+         IF ( myrank .LT. ntprocs ) THEN
+!$omp parallel do private (j,k)
          DO i = itsta,itend
             DO j = 1,nyt/2
                DO k = 1,nzt/2
@@ -338,11 +372,11 @@
                END DO
             END DO
          END DO
+         ENDIF
 
 ! Spherically truncate prolongated spectrum in Fourier space:
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+!$omp parallel do collapse(2) private (k)
          DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
             DO j = 1,ny
                DO k = 1,nz
                   IF (  kn2(k,j,i).GT.kmax ) B1(k,j,i) = 0.0

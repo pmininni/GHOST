@@ -42,13 +42,21 @@
          INTEGER       :: nx,ny,nz
          INTEGER       :: fftdir
          TYPE(MPI_Datatype), DIMENSION (:), POINTER :: itype1, itype2
+         ! Exchange buffer of the host path: the shared gc1 when the
+         ! plan has the layout of the first plan created, otherwise a
+         ! buffer of its own (host only, see fftp3d_create_plan)
+         COMPLEX(KIND=GP), DIMENSION (:,:,:), POINTER :: c1 => NULL()
+         LOGICAL       :: ownc1 = .FALSE.
       END TYPE FFTPLAN
 !
 ! Buffers of the device path, shared by all plans (the forward and
 ! the backward plans are never used at the same time) and resident on
 ! the device: the output of the 2D transform (gcarr), the transposed
 ! slabs after the exchange (gc1) and the packed messages (gsbuf).
-! The host copy of gc1 is also the exchange buffer of the host path.
+! The host copy of gc1 is also the exchange buffer of the host path
+! for the plans with the layout of the first plan created; a plan
+! with another grid or task count (e.g. the two grids of BOOTS) gets
+! its own host buffer (plan%c1) and can only use the host path.
 ! The tables hold the kx ranges (gioff/gilen) and z ranges (gkoff/gklen)
 ! of every task, and the offsets and counts of the packed send
 ! blocks (gsoff/gscnt) and of the contiguous receive blocks in gc1
