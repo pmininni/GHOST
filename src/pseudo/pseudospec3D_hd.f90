@@ -1584,6 +1584,7 @@ MODULE pseudospec_fluid
       USE mpivars
       USE filefmt
       USE boxsize
+!$    USE threads
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(nmax/2+1) :: Ek,Ektot
@@ -2159,6 +2160,7 @@ MODULE pseudospec_fluid
       USE grid
       USE mpivars
       USE boxsize
+!$    USE threads
       IMPLICIT NONE
 
       DOUBLE PRECISION,              DIMENSION(nmax/2+1)      :: Ek
