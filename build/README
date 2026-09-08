@@ -21,4 +21,4 @@ make install
 
 The shell scripts in this directory are not needed for compilation, but provide
 examples on how to compile GHOST with different configurations (host only, amd
-offloading, and nvidia offloading).
+offloading, and nvidia offloading with NVIDIA and LLVM compilers).
