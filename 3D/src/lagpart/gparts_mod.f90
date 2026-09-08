@@ -2495,20 +2495,16 @@ MODULE class_GPart
     IF ( .NOT.present(gfill) ) THEN
       nl = 0
       id = GPNULL
-!$omp parallel do 
       DO j = 1, ngvdb
         IF ( gvdb(3,j).GE.this%lxbnds_(3,1) .AND. gvdb(3,j).LT.this%lxbnds_(3,2) ) THEN 
-!$omp critical
           nl = nl + 1
           id (nl) = j-1
           lx (nl) = gvdb(1,j)
           ly (nl) = gvdb(2,j)
           lz (nl) = gvdb(3,j)
-!$omp end critical
         ENDIF
       ENDDO
     ELSE
-!$omp parallel do 
       DO j = 1, nl
         lx (j) = gfill(1,id(j)+1)
         ly (j) = gfill(2,id(j)+1)
@@ -2558,10 +2554,8 @@ MODULE class_GPart
 
     nl = 0
     id = GPNULL
-!$omp parallel do 
     DO j = 1, ngvdb
       IF ( gvdb(3,j).GE.this%lxbnds_(3,1) .AND. gvdb(3,j).LT.this%lxbnds_(3,2) ) THEN 
-!$omp critical
         nl = nl + 1
         id (nl) = j-1
         lx (nl) = gvdb(1,j)
@@ -2570,7 +2564,6 @@ MODULE class_GPart
         tx (nl) = gtmp(1,j)
         ty (nl) = gtmp(2,j)
         tz (nl) = gtmp(3,j)
-!$omp end critical
       ENDIF
     ENDDO
 
