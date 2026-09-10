@@ -223,8 +223,8 @@ CONTAINS
         if ( this%traits_%dokinelv ) then  ! u_e = u - dii j = u + dii Del^2 a
           ! COMPRESSIBLE: the electron velocity is u_e = u - dii j/rho.
           ! For compressible solvers divide -j (velc2) by the density
-          ! (in the old code: divide(th,C14,C15,C16), a real-space
-          ! product with the FFTs it requires) before adding it to u.
+          ! (in the old code: divide(th,C14,C15,C16), requires a
+          ! real-space product using the FFTs) before adding it to u.
           ac => fluidstate(pde%MAGNETIC+m-1)%ccomp
           CALL laplak3(ac,velc2)
           CALL saxpby_c(velc,vc,rmp,velc2,this%traits_%dii*rmp)
@@ -445,8 +445,46 @@ CONTAINS
 
 
   ! ===================================================================
-  ! Internal routines: fields at the particles and RHS kernel
+  ! Internal routines: RHS kernel and fields at the particles
   ! ===================================================================
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Internal kernel to compute right-hand side of n particles
+  !!   dx/dt   = v_p/delta         (positions in grid units)
+  !!   dv_p/dt = gyrof [ (v_p - u_e) x B + eta j ]
+  !! with u_e in lv*, B in lb*, j in lf*, and gyeta = gyrof*eta.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine tpart_rhs(n,lvx,lvy,lvz,lbx,lby,lbz,lfx,lfy,lfz,pvx,pvy,pvz, &
+                       dpx,dpy,dpz,dvx,dvy,dvz,invdel,gyrof,gyeta)
+    implicit none
+    integer      , intent(in)    :: n
+    real(kind=GP), intent(in)    :: lvx(n),lvy(n),lvz(n),lbx(n),lby(n),lbz(n)
+    real(kind=GP), intent(in)    :: lfx(n),lfy(n),lfz(n),pvx(n),pvy(n),pvz(n)
+    real(kind=GP), intent(inout) :: dpx(n),dpy(n),dpz(n),dvx(n),dvy(n),dvz(n)
+    real(kind=GP), intent(in)    :: invdel(3),gyrof,gyeta
+    real(kind=GP)                :: vx,vy,vz,wx,wy,wz,bx,by,bz
+    integer                      :: j
+#if defined(GHOST_GPU)
+!$omp target teams distribute parallel do if(target: gdev_active) &
+!$omp   private(vx,vy,vz,wx,wy,wz,bx,by,bz)
+#else
+!$omp parallel do private(vx,vy,vz,wx,wy,wz,bx,by,bz)
+#endif
+    do j = 1,n
+      vx = pvx(j); vy = pvy(j); vz = pvz(j)
+      bx = lbx(j); by = lby(j); bz = lbz(j)
+      wx = vx - lvx(j)                       ! v_p - u_e
+      wy = vy - lvy(j)
+      wz = vz - lvz(j)
+      dpx(j) = vx*invdel(1)
+      dpy(j) = vy*invdel(2)
+      dpz(j) = vz*invdel(3)
+      dvx(j) = gyeta*lfx(j) + gyrof*(wy*bz - wz*by)
+      dvy(j) = gyeta*lfy(j) + gyrof*(wz*bx - wx*bz)
+      dvz(j) = gyeta*lfz(j) + gyrof*(wx*by - wy*bx)
+    end do
+  end subroutine tpart_rhs
+
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Transforms the (already normalized) Fourier field velc to
@@ -458,12 +496,11 @@ CONTAINS
     use grid
     use mpivars
     implicit none
-    class     (Tpart), intent(inout)                          :: this
+    class    (Tpart), intent(inout)                             :: this
     complex(kind=GP), intent(inout), dimension(nz,ny,ista:iend) :: velc
     real   (kind=GP), intent(inout), dimension(nx,ny,ksta:kend) :: velr,tmp1,tmp2
     real   (kind=GP), intent(inout), dimension(*)               :: lag
     logical         , intent   (in)                             :: doupdate
-
     call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
     call this%EulerToLag(lag,this%nparts_,velr,doupdate,tmp1,tmp2)
   end subroutine tpart_c2lag
@@ -479,7 +516,7 @@ CONTAINS
     use grid
     use mpivars
     implicit none
-    class      (Tpart), intent(inout)                          :: this
+    class       (Tpart), intent(inout)                          :: this
     class(MagneticBase), intent   (in)                          :: pde
     type   (GStateComp), intent   (in), target                  :: fluidstate(:)
     complex(kind=GP), intent(inout), dimension(nz,ny,ista:iend) :: velc
@@ -542,7 +579,7 @@ CONTAINS
     use grid
     use mpivars
     implicit none
-    class      (Tpart), intent(inout)                          :: this
+    class       (Tpart), intent(inout)                          :: this
     class(MagneticBase), intent   (in)                          :: pde
     type   (GStateComp), intent   (in), target                  :: fluidstate(:)
     complex(kind=GP), intent(inout), dimension(nz,ny,ista:iend) :: velc
@@ -567,44 +604,6 @@ CONTAINS
       endif
     end do
   end subroutine tpart_current
-
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Internal kernel to compute right-hand side of n particles
-  !!   dx/dt   = v_p/delta         (positions in grid units)
-  !!   dv_p/dt = gyrof [ (v_p - u_e) x B + eta j ]
-  !! with u_e in lv*, B in lb*, j in lf*, and gyeta = gyrof*eta.
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine tpart_rhs(n,lvx,lvy,lvz,lbx,lby,lbz,lfx,lfy,lfz,pvx,pvy,pvz, &
-                       dpx,dpy,dpz,dvx,dvy,dvz,invdel,gyrof,gyeta)
-    implicit none
-    integer      , intent(in)    :: n
-    real(kind=GP), intent(in)    :: lvx(n),lvy(n),lvz(n),lbx(n),lby(n),lbz(n)
-    real(kind=GP), intent(in)    :: lfx(n),lfy(n),lfz(n),pvx(n),pvy(n),pvz(n)
-    real(kind=GP), intent(inout) :: dpx(n),dpy(n),dpz(n),dvx(n),dvy(n),dvz(n)
-    real(kind=GP), intent(in)    :: invdel(3),gyrof,gyeta
-    real(kind=GP)                :: vx,vy,vz,wx,wy,wz,bx,by,bz
-    integer                      :: j
-#if defined(GHOST_GPU)
-!$omp target teams distribute parallel do if(target: gdev_active) &
-!$omp   private(vx,vy,vz,wx,wy,wz,bx,by,bz)
-#else
-!$omp parallel do private(vx,vy,vz,wx,wy,wz,bx,by,bz)
-#endif
-    do j = 1,n
-      vx = pvx(j); vy = pvy(j); vz = pvz(j)
-      bx = lbx(j); by = lby(j); bz = lbz(j)
-      wx = vx - lvx(j)                       ! v_p - u_e
-      wy = vy - lvy(j)
-      wz = vz - lvz(j)
-      dpx(j) = vx*invdel(1)
-      dpy(j) = vy*invdel(2)
-      dpz(j) = vz*invdel(3)
-      dvx(j) = gyeta*lfx(j) + gyrof*(wy*bz - wz*by)
-      dvy(j) = gyeta*lfy(j) + gyrof*(wz*bx - wx*bz)
-      dvz(j) = gyeta*lfz(j) + gyrof*(wx*by - wy*bx)
-    end do
-  end subroutine tpart_rhs
 
 
   ! ===================================================================

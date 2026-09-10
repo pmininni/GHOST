@@ -126,12 +126,11 @@ psolver = "testpart" ! Solver name, reads a namelist with the same name
 ! testpart solver specific parameters. The particles evolve with
 ! dv_p/dt = gyrof [(v_p - u_e) x B + eta j], where B = curl(a) + B_0
 ! is the total magnetic field, j the current density, and u_e = u or
-! u_e = u - dii j (if dokinelv is .TRUE.). eta and B_0 are taken from
-! the MHD solver.
+! u_e = u - dii j (if dokinelv is .TRUE.).
 &testpart
 gyrof = 1.0       ! Gyrofrequency for a unit magnetic field (q/m)
 dii = 0.0         ! Ion inertial length (Hall epsilon, used if dokinelv)
-dokinelv = .FALSE.! Use the electron velocity in E if .TRUE. (Hall-MHD)
+dokinelv = .FALSE.! Use the electron velocity in E if .TRUE.
 partlod = 1       ! particle output level of detail
 /
 

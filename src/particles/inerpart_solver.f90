@@ -397,6 +397,10 @@ CONTAINS
   end subroutine end_stage_impl
 
 
+  ! ===================================================================
+  ! Internal routines: RHS kernel
+  ! ===================================================================
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Internal kernel to compute right-hand side of n particles
   !!   dx/dt = v_p/delta         (positions in grid units)

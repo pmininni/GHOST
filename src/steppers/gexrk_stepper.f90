@@ -260,7 +260,7 @@ contains
   !! This time stepper does not perform computation of feedback
   !! forces on the fluid (one-way coupled), and evolves the
   !! particles in a fixed velocity field during the substepping 
-  !! stages. This method is mainly inteded for manual
+  !! stages. This method is mainly intended for manual
   !! integration of multiple sets of (same type) one-way
   !! coupled particles.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -506,9 +506,8 @@ contains
         call this%solver_%dudt(tt,this%utmp_,  uf,eff_dt,this%K_(m)%cstate)
       end if
       ! The particle RHS is evaluated with the stage state of the fields
-      ! (utmp_, the same state passed to dudt), not with uin: using the
-      ! fields at the beginning of the step in all the stages limits the
-      ! particles to first order in dt whatever the number of stages.
+      ! (utmp_), not with uin: using the fields at the beginning of the 
+      ! step in all the stages limits the particles to first order in dt.
       call this%psolver_%dpdt(tt,this%solver_,this%utmp_,this%putmp_,eff_dt,this%pK_(m)%rpstate)
     enddo ! stage m loop
     
