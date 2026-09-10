@@ -1,0 +1,150 @@
+! Example of parameter.inp
+! Rename this file as 'parameter.inp' and place it in the same
+! directory as the GHOST executable to do an MHD simulation
+! with test particles (charged particles, testpart).
+
+! Grid resolution
+&grid
+nx = 64
+ny = 64
+nz = 64
+/
+
+! Boz size, if not present GHOST uses a 2.pi cubic box
+&boxparams
+Lx = 1.00        ! Length of the box in x
+Ly = 1.00        ! Length of the box in y
+Lz = 1.00        ! Length of the box in z
+/
+
+! General configuration flags
+&status
+idir = "outs"
+odir = "outs"
+stat = 0         ! last binary file if restarting an old run
+mult = 1         ! decreases the time step
+bench = 0        ! benchmark mode if 1
+outs = 0         ! controls the amount of binary output
+dt = 1e-3        ! time step
+step = 501       ! total number of steps
+tstep = 250      ! number of steps between binary output
+sstep = 250      ! number of steps between spectrum output
+cstep = 5        ! number of steps between writing global quantities
+cort = 0.2       ! global correlation time for random forcing methods
+seed = 1000      ! global seed for random number generators
+/
+
+! Time stepping method
+&stepper
+sname  = "TRADITIONAL" ! TRADITIONAL or GEXRK
+norder = 2             ! order
+/
+
+! Solver
+&pdes
+solver = "MHD"   ! Solver name, reads a namelist with the same name
+/
+
+! MHD solver specific parameters
+&MHD
+nu  = 3.e-3      ! kinematic viscosity
+eta = 3.e-3      ! magnetic diffusivity
+doB0   = .TRUE.  ! do MHD/Hall-MHD with guide field
+dohall = .FALSE. ! do Hall-MHD
+B0x = 0.0        ! guide field in x (ignored if doB0 is FALSE)
+B0y = 0.0        ! guide field in y (ignored if doB0 is FALSE)
+B0z = 1.0        ! guide field in z (ignored if doB0 is FALSE)
+epsilon = 0.0    ! amplitude of the Hall term (ignored if dohall is FALSE)
+npassive = 0     ! number of passive scalars
+spectlod = 1     ! spectral output level of detail [1-3]
+/
+
+! Initial conditions. List separated by ';' to set up ICs. 
+! For v, ICs can be: read_v, null_v, tg_v, abc_v, random_v
+! For b, ICs can be: read_b, null_b, random_b
+! Use "read_v;read_b" if restarting from a previous file with stat > 0
+! If stat > 0 and some ICs are not "read_?", GHOST resets that field.
+&initial_conditions
+iclist = "abc_v;random_b"
+/
+
+! Forcing. List separated by ';', each forcing is a pair of
+! methods separated by ',': an initial forcing, and an update scheme
+! Forcings for v: null_fv, tg_fv, abc_fv, random_fv
+! Updates for fv: constant_fv, shift_fv, shuffle_fv
+! Forcings for b: null_fb, random_fb
+! Updates for fb: constant_fb, shift_fb, shuffle_fb
+&forcing
+forces = "abc_fv,constant_fv;null_fb,constant_fb"
+/
+
+! IC and forcing specific parameters, in namelists with their names:
+! Parameters for ABC initial conditions
+&abc_v
+u0 = 1.00        ! normalized amplitude of the velocity 
+kdn = 1.00       ! minimum wavenumber
+kup = 2.00       ! maximum wavenumber
+A = 1.00         ! A amplitude in ABC
+B = 1.00         ! B amplitude in ABC
+C = 1.00         ! C amplitude in ABC
+/
+
+! Parameters for random magnetic initial conditions
+&random_b
+b0 = 0.50        ! normalized amplitude of the magnetic field
+kdn = 1          ! minimum wavenumber
+kup = 2          ! maximum wavenumber
+alpha = 0.0      ! relative helicity
+corr  = 0.0      ! cross-correlation with the velocity
+/
+
+! Parameters for ABC velocity forcing
+&abc_fv
+f0 = 1.00        ! amplitude of the mechanical forcing
+kdn = 1.00       ! minimum wavenumber
+kup = 2.00       ! maximum wavenumber
+A = 1.00         ! A amplitude in ABC
+B = 1.00         ! B amplitude in ABC
+C = 1.00         ! C amplitude in ABC
+/
+
+! Particles general configuration flags
+&pstatus
+maxparts   = 1000 ! Maximum number of particles
+lgmult     = 10   ! Multiplier for part output (must divide tstep evenly)
+ilgexchtype = 1   ! Boundary exchange type: 0 (nearest-neighbor); 1 (VDB)
+ilgwrtunit = 1    ! write positions in box (=1) or grid (=0) units
+ilgouttype = 0    ! Particle output type: 0=binary; 1=ASCII
+ilgcoll    = 0    ! 1=binary collective I/O; 0=task 0 binary (posix) I/O
+/
+
+! Particle solver
+&particles
+psolver = "testpart" ! Solver name, reads a namelist with the same name
+/
+
+! testpart solver specific parameters. The particles evolve with
+! dv_p/dt = gyrof [(v_p - u_e) x B + eta j], where B = curl(a) + B_0
+! is the total magnetic field, j the current density, and u_e = u or
+! u_e = u - dii j (if dokinelv is .TRUE.). eta and B_0 are taken from
+! the MHD solver.
+&testpart
+gyrof = 1.0       ! Gyrofrequency for a unit magnetic field (q/m)
+dii = 0.0         ! Ion inertial length (Hall epsilon, used if dokinelv)
+dokinelv = .FALSE.! Use the electron velocity in E if .TRUE. (Hall-MHD)
+partlod = 1       ! particle output level of detail
+/
+
+! Initial conditions for particles. List separated by ';' to set up ICs.
+! For the position, ICs can be: read_x, user_x, random_x
+! For the velocity, ICs can be: read_v, fluid_v, null_v, thermal_v
+! Use "read_x;read_v" if restarting from a previous file with stat > 0
+! If stat > 0 and the ICs are not "read", GHOST resets the particles.
+&part_initial_conditions
+iclist = "random_x;thermal_v"
+/
+
+! Parameters for the thermal velocity initial conditions
+&thermal_v
+vtherm = 1.0      ! Thermal speed of the particles
+/

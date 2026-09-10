@@ -1,12 +1,21 @@
 ! =====================================================================
 ! NAME       : testpart_solver.f90
-! DESCRIPTION: Forms solver class for test particles, computing:
+! DESCRIPTION: Forms solver class for test particles (charged particles
+!              that do not act back on the fields), computing:
 !
 !              dx/dt   = v_p
-!              dv_p/dt = F[u(x(t)),E(x(t)),B(x(t))]
+!              dv_p/dt = gyrof * [ E(x(t)) + v_p x B(x(t)) ]
+!                      = gyrof * [ (v_p - u_e) x B + eta j ]
 !
-!                     where F[u(x(t)),E(x(t)),B(x(t))] is the
-!                     electromagnetic force on the particle.
+!                     where gyrof = q/m is the gyrofrequency for a unit
+!                     magnetic field, B = curl(a) + B_0 is the total
+!                     magnetic field, j = curl(B) the current density,
+!                     eta the magnetic diffusivity, and E the electric
+!                     field from Ohm's law, E = -u_e x B + eta j. The
+!                     velocity u_e is the fluid velocity u, or the
+!                     electron velocity u_e = u - dii j if dokinelv is
+!                     .TRUE. (Hall-MHD). The magnetic diffusivity and the
+!                     guide field are those of the MHD solver.
 !
 !              State ordering is:
 !                x1 (x2, x3), v1 (v2, v3)
@@ -16,6 +25,36 @@
 !                VELOCITY (VELOCITY+1, VELOCITY+2)
 !
 ! INPUT FILE : For psolver='testpart', looks for a "&testpart" namelist with:
+!              pidir   : changes class binary input  dir (default: status idir)
+!              podir   : changes class binary output dir (default: status odir)
+!              gyrof   : gyrofrequency for a unit magnetic field (q/m,
+!                        default=1)
+!              dii     : ion inertial length scale (Hall-MHD epsilon,
+!                        default=0, only used if dokinelv is .TRUE.)
+!              dokinelv: .false.=E computed with the fluid velocity [default],
+!                        .true.=E computed with the electron velocity
+!                        u_e = u - dii j (Hall-MHD correction)
+!              partlod : particle output level of detail (default=1):
+!                         1: position (xlg), fluid velocity (vlg), test
+!                            particle velocity (vtp), magnetic field (blg)
+!                            and current density (jlg) at the particles
+!                         2: Lagrangian vorticity (wlg),
+!                            strain-rate tensor (s11,s12,s13,s22,s23)
+!              The initial velocity of the particles is set by the
+!              particle initial conditions (e.g., 'thermal_v' with a
+!              "&thermal_v" namelist and the thermal speed vtherm).
+!
+! NOTE       : For compressible MHD solvers (not available yet) the old
+!              code also supported the electron pressure correction to
+!              the electric field (ambipolar diffusion), selected with
+!              the namelist flag dokinelp:
+!                E = -u_e x B + eta j - (dii/2) grad(p)/rho
+!              with u_e = u - dii j/rho. The places where dokinelp and
+!              the density enter are marked with "COMPRESSIBLE" comments
+!              in this file: the traits and the namelist (init_impl),
+!              the electron velocity (dpdt_impl) and the current density
+!              term (tpart_current), and the selection of the solver
+!              traits in the constructor (Tpart_ctor).
 !
 ! DATE       : 09/10/26 (PDM)
 ! =====================================================================
@@ -23,7 +62,8 @@
 module testpart_mod
   use particlebase_mod
   use gpstate_mod
-  use pseudospec_fluid, only: copy3, scal3, saxpby_c, rotor3, derivk3
+  use pseudospec_fluid, only: copy3, scal3, saxpby_c, rotor3, derivk3, &
+                              laplak3, setmode3
   use gmem
   use gdevice, only: gdev_active
 
@@ -32,7 +72,17 @@ module testpart_mod
   ! ================= Solver traits ===================================
   type, public  :: TestTraits
     integer       :: partlod  = 1       ! particle output level of detail
-    real(kind=GP) :: invtau   = 1.0_GP  ! precomputed 1/tau
+    real(kind=GP) :: gyrof    = 1.0_GP  ! gyrofrequency (q/m)
+    real(kind=GP) :: dii      = 0.0_GP  ! ion inertial length (Hall epsilon)
+    real(kind=GP) :: eta      = 0.0_GP  ! magnetic diffusivity (from the pde)
+    real(kind=GP) :: gyeta    = 0.0_GP  ! precomputed gyrof*eta
+    real(kind=GP) :: B0(3)    = 0.0_GP  ! guide field (from the pde)
+    logical       :: doB0     = .false. ! guide field flag (from the pde)
+    logical       :: dokinelv = .false. ! .true.=electron velocity in E
+    ! COMPRESSIBLE: add here the traits of compressible MHD solvers,
+    ! e.g., dokinelp (.true.=electron pressure correction to E) and the
+    ! equation of state parameters needed to compute grad(p)/rho (in the
+    ! old code, cp1 = dii*betae/2 and gam1 = gamma-1 from the solver).
   end type
 
   ! ================= Solver ==========================================
@@ -58,14 +108,20 @@ CONTAINS
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Subroutine to initialize the solver.
-  !! Reads the &inerpart namelist and sets sector indices.
+  !! Reads the &testpart namelist and sets sector indices.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine init_impl(this)
     use commtypes
     class      (Tpart), intent (inout) :: this
+    real     (kind=GP)                 :: gyrof, dii
     integer                            :: ierr, partlod
+    logical                            :: dokinelv
     character(len=128)                 :: pidir, podir
-    namelist/ testpart / pidir,podir,partlod
+    ! COMPRESSIBLE: add dokinelp (logical, default .false.) to the
+    ! namelist, its default, MPI_BCAST and trait below, next to dokinelv.
+    ! It must be rejected (or ignored with a warning) when the pde is
+    ! not compressible, since grad(p)/rho is not available then.
+    namelist/ testpart / pidir,podir,partlod,gyrof,dii,dokinelv
 
     this%POSITION = 1
     this%VELOCITY = this%POSITION + this%nc_
@@ -73,6 +129,9 @@ CONTAINS
     pidir    = this%idir_ ! Set to the pde class idir at ctor
     podir    = this%odir_ ! Set to the pde class odir at ctor
     partlod  = 1
+    gyrof    = 1.0_GP
+    dii      = 0.0_GP
+    dokinelv = .false.
     if ( this%myrank_ .eq. 0 ) then
       open(1,file=this%infile_,status='unknown',form="formatted")
       read(1,NML=testpart)
@@ -81,13 +140,19 @@ CONTAINS
     call MPI_BCAST(pidir   ,128,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
     call MPI_BCAST(podir   ,128,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
     call MPI_BCAST(partlod ,1  ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(gyrof   ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(dii     ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(dokinelv,1  ,MPI_LOGICAL  ,0,MPI_COMM_WORLD,ierr)
 
-    this%idir_ = pidir ! If present in &inerpart, replaces the class default idir
-    this%odir_ = podir ! If present in &inerpart, replaces the class default odir
+    this%idir_ = pidir ! If present in &testpart, replaces the class default idir
+    this%odir_ = podir ! If present in &testpart, replaces the class default odir
     this%sstate_pos_ = 'xlg' ! state name of positions
     this%sstate_lag_ = 'vlg' ! state name of Lagrangian velocities
-    this%sstate_vel_ = 'vip' ! state name of particles velocities
+    this%sstate_vel_ = 'vtp' ! state name of particles velocities
     this%traits_% partlod = partlod
+    this%traits_%   gyrof = gyrof
+    this%traits_%     dii = dii
+    this%traits_%dokinelv = dokinelv
   end subroutine init_impl
 
   ! ===================================================================
@@ -96,9 +161,9 @@ CONTAINS
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Function to compute the rhs of the equations of motion
-  !! of inertial particles:
+  !! of test particles:
   !!   dx/dt   = v_p
-  !!   dv_p/dt = linear or nonlinear-drag
+  !!   dv_p/dt = gyrof [ (v_p - u_e) x B + eta j ]
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   SUBROUTINE dpdt_impl(this, time, pde, fluidstate, pstate, dt, dpdtout)
     use equationbase_mod
@@ -110,19 +175,29 @@ CONTAINS
     type   (GStateComp), target ,    intent   (in) :: fluidstate(:)
     type  (GPStateComp), target ,    intent   (in) :: pstate(:)
     type  (GPStateComp), target ,    intent(inout) :: dpdtout(:)
-    complex   (KIND=GP), pointer, dimension(:,:,:) :: velc,vc
+    complex   (KIND=GP), pointer, dimension(:,:,:) :: velc,velc2,vc,ac
     real      (KIND=GP), pointer, dimension(:,:,:) :: velr,tmp1,tmp2
+    real      (kind=GP), pointer, dimension(:)     :: lbx,lby,lbz,lfx,lfy,lfz
+    real      (kind=GP), pointer, dimension(:)     :: dpx,dpy,dpz,dvx,dvy,dvz
+    real      (kind=GP), pointer, dimension(:)     :: pvx,pvy,pvz
     real      (kind=GP)                            :: rmp
-    real      (kind=GP)                            :: dx, dy, dz
-    real      (kind=GP), pointer, dimension(:)     :: dpx,dpy,dpz,dvx,dvy,dvz,pvx,pvy,pvz
-    integer                                        :: i,j,k
+    integer                                        :: m
     logical                                        :: bret
 
     CALL GTStart(this%htimers_(GPTIME_STEP))
     call this%workspace_%get_complex_tmp(velc,bret)
+    if ( this%traits_%dokinelv ) call this%workspace_%get_complex_tmp(velc2,bret)
     call this%workspace_%get_real_tmp   (velr,bret)
     call this%workspace_%get_real_tmp   (tmp1,bret)
     call this%workspace_%get_real_tmp   (tmp2,bret)
+    ! Particle-sized temporaries for the magnetic field and the current
+    ! density at the particles (lvx_,lvy_,lvz_ hold the fluid velocity)
+    call this%workspace_%get_pcomp_tmp  (lbx ,bret)
+    call this%workspace_%get_pcomp_tmp  (lby ,bret)
+    call this%workspace_%get_pcomp_tmp  (lbz ,bret)
+    call this%workspace_%get_pcomp_tmp  (lfx ,bret)
+    call this%workspace_%get_pcomp_tmp  (lfy ,bret)
+    call this%workspace_%get_pcomp_tmp  (lfz ,bret)
     call this%AssignLagPos(pstate) ! We assign px_,py_,pz_ to the pstate
 
     select type (pde)
@@ -133,34 +208,46 @@ CONTAINS
 
       ! IMPORTANT: pstate and dpdtout may alias the same array (some steppers
       ! can pass upout for both). We must be careful about ordering:
-      !   1. Interpolate fluid velocity with positions still intact
+      !   1. Interpolate u_e, B and j with positions still intact
       !   2. Write position RHS (overwrites pstate(POSITION), but we're done)
       !   3. Compute velocity RHS (reads particle velocity before overwrite)
 
-      ! Step 1: Interpolate fluid velocity to lvx_, lvy_, lvz_
+      ! Step 1: Interpolate the fluid (or electron) velocity to lvx_,
+      ! lvy_, lvz_, the magnetic field to lbx, lby, lbz, and the current
+      ! density to lfx, lfy, lfz. Only the first interpolation updates
+      ! the interpolation points.
       rmp = 1.0_GP/(real(this%nd_(1),kind=GP)*real(this%nd_(2),kind=GP)* &
                     real(this%nd_(3),kind=GP))
-      vc => fluidstate(pde%VELOCITY)%ccomp
-      CALL copy3(vc,velc)
-      CALL scal3(velc,rmp)
-      call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-      call this%EulerToLag(this%lvx_,this%nparts_,velr,.true. ,tmp1,tmp2)
-      vc => fluidstate(pde%VELOCITY+1)%ccomp
-      CALL copy3(vc,velc)
-      CALL scal3(velc,rmp)
-      call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-      call this%EulerToLag(this%lvy_,this%nparts_,velr,.false.,tmp1,tmp2)
-      vc => fluidstate(pde%VELOCITY+2)%ccomp
-      CALL copy3(vc,velc)
-      CALL scal3(velc,rmp)
-      call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-      call this%EulerToLag(this%lvz_,this%nparts_,velr,.false.,tmp1,tmp2)
+      do m = 1,3
+        vc => fluidstate(pde%VELOCITY+m-1)%ccomp
+        if ( this%traits_%dokinelv ) then  ! u_e = u - dii j = u + dii Del^2 a
+          ! COMPRESSIBLE: the electron velocity is u_e = u - dii j/rho.
+          ! For compressible solvers divide -j (velc2) by the density
+          ! (in the old code: divide(th,C14,C15,C16), a real-space
+          ! product with the FFTs it requires) before adding it to u.
+          ac => fluidstate(pde%MAGNETIC+m-1)%ccomp
+          CALL laplak3(ac,velc2)
+          CALL saxpby_c(velc,vc,rmp,velc2,this%traits_%dii*rmp)
+        else
+          CALL copy3(vc,velc)
+          CALL scal3(velc,rmp)
+        endif
+        if (m.eq.1) then
+          call tpart_c2lag(this,velc,this%lvx_,.true. ,velr,tmp1,tmp2)
+        else if (m.eq.2) then
+          call tpart_c2lag(this,velc,this%lvy_,.false.,velr,tmp1,tmp2)
+        else
+          call tpart_c2lag(this,velc,this%lvz_,.false.,velr,tmp1,tmp2)
+        endif
+      end do
+      call tpart_magnetic(this,pde,fluidstate,lbx,lby,lbz,velc,velr,tmp1,tmp2)
+      call tpart_current (this,pde,fluidstate,lfx,lfy,lfz,velc,velr,tmp1,tmp2)
 
       ! Steps 2 and 3 in one kernel over the particles: position RHS
-      ! dx/dt = v_p and velocity RHS dv_p/dt = cdrag/tau (u - v_p) - g.
+      ! dx/dt = v_p and velocity RHS dv_p/dt = gyrof [(v_p-u_e) x B + eta j].
       ! pstate and dpdtout may alias (some steppers pass upout for
       ! both): each particle reads its velocity before writing its RHS.
-      ! Pointers and a kernel (ipart_rhs) are used to help offloading.
+      ! Pointers and a kernel (tpart_rhs) are used to help offloading.
       dpx => dpdtout(this%POSITION  )%rcomp
       dpy => dpdtout(this%POSITION+1)%rcomp
       dpz => dpdtout(this%POSITION+2)%rcomp
@@ -170,16 +257,24 @@ CONTAINS
       pvx => pstate (this%VELOCITY  )%rcomp
       pvy => pstate (this%VELOCITY+1)%rcomp
       pvz => pstate (this%VELOCITY+2)%rcomp
-      call tpart_rhs(this%nparts_,this%lvx_,this%lvy_,this%lvz_,pvx,pvy,pvz,   &
-                     dpx,dpy,dpz,dvx,dvy,dvz,this%invdel_)
+      call tpart_rhs(this%nparts_,this%lvx_,this%lvy_,this%lvz_,lbx,lby,lbz,  &
+                     lfx,lfy,lfz,pvx,pvy,pvz,dpx,dpy,dpz,dvx,dvy,dvz,          &
+                     this%invdel_,this%traits_%gyrof,this%traits_%gyeta)
     class default
       stop "Testpart: This solver does not support pdes without a magnetic field"
     end select
 
-    call this%workspace_%free_complex_tmp(velc)
-    call this%workspace_%free_real_tmp   (velr)
-    call this%workspace_%free_real_tmp   (tmp1)
+    call this%workspace_%free_pcomp_tmp  (lfz)
+    call this%workspace_%free_pcomp_tmp  (lfy)
+    call this%workspace_%free_pcomp_tmp  (lfx)
+    call this%workspace_%free_pcomp_tmp  (lbz)
+    call this%workspace_%free_pcomp_tmp  (lby)
+    call this%workspace_%free_pcomp_tmp  (lbx)
     call this%workspace_%free_real_tmp   (tmp2)
+    call this%workspace_%free_real_tmp   (tmp1)
+    call this%workspace_%free_real_tmp   (velr)
+    if ( this%traits_%dokinelv ) call this%workspace_%free_complex_tmp(velc2)
+    call this%workspace_%free_complex_tmp(velc)
     CALL GTAcc(this%htimers_(GPTIME_STEP))
   END SUBROUTINE dpdt_impl
 
@@ -288,7 +383,7 @@ CONTAINS
       ! Consistency check
       if (.NOT. this%PartNumConsistent(this%nparts_)) then
         if (this%myrank_ .EQ. 0) then
-          WRITE(*,*) 'Inerpart EndStage (VDB): inconsistent particle count'
+          WRITE(*,*) 'Testpart EndStage (VDB): inconsistent particle count'
           print *,this%nparts_,this%maxparts_
         end if
       end if
@@ -339,7 +434,7 @@ CONTAINS
       CALL MPI_ALLREDUCE(this%nparts_, ng, 1, MPI_INTEGER,             &
                          MPI_SUM, this%comm_, this%ierr_)
       if (this%myrank_ .EQ. 0 .AND. ng .NE. this%maxparts_) then
-        WRITE(*,*) 'Inerpart EndStage (VDB): inconsistent d.b.: expected: ', &
+        WRITE(*,*) 'Testpart EndStage (VDB): inconsistent d.b.: expected: ', &
                    this%maxparts_, '; found: ', ng
         CALL this%ascii_write_lag(1, '.', trim(this%sstate_pos_) // 'err',   &
              '000', 0.0_GP, this%maxparts_,this%vdb_)
@@ -349,34 +444,165 @@ CONTAINS
   end subroutine end_stage_impl
 
 
+  ! ===================================================================
+  ! Internal routines: fields at the particles and RHS kernel
+  ! ===================================================================
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Transforms the (already normalized) Fourier field velc to
+  !! real space in velr and interpolates it to the particles
+  !! in lag. Contents of velc and velr are lost.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine tpart_c2lag(this,velc,lag,doupdate,velr,tmp1,tmp2)
+    use fft
+    use grid
+    use mpivars
+    implicit none
+    class     (Tpart), intent(inout)                          :: this
+    complex(kind=GP), intent(inout), dimension(nz,ny,ista:iend) :: velc
+    real   (kind=GP), intent(inout), dimension(nx,ny,ksta:kend) :: velr,tmp1,tmp2
+    real   (kind=GP), intent(inout), dimension(*)               :: lag
+    logical         , intent   (in)                             :: doupdate
+
+    call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
+    call this%EulerToLag(lag,this%nparts_,velr,doupdate,tmp1,tmp2)
+  end subroutine tpart_c2lag
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Computes the total magnetic field B = curl(a) + B_0 and
+  !! interpolates it to the particles in lbx, lby, lbz. The
+  !! interpolation points must be already updated.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine tpart_magnetic(this,pde,fluidstate,lbx,lby,lbz,velc,velr,tmp1,tmp2)
+    use equationbase_mod
+    use grid
+    use mpivars
+    implicit none
+    class      (Tpart), intent(inout)                          :: this
+    class(MagneticBase), intent   (in)                          :: pde
+    type   (GStateComp), intent   (in), target                  :: fluidstate(:)
+    complex(kind=GP), intent(inout), dimension(nz,ny,ista:iend) :: velc
+    real   (kind=GP), intent(inout), dimension(nx,ny,ksta:kend) :: velr,tmp1,tmp2
+    real   (kind=GP), intent(inout), dimension(*)               :: lbx,lby,lbz
+    complex(kind=GP), pointer, dimension(:,:,:)                 :: ax,ay,az
+    real   (kind=GP)                                            :: rmp,b0
+    integer                                                     :: m
+
+    rmp = 1.0_GP/(real(this%nd_(1),kind=GP)*real(this%nd_(2),kind=GP)* &
+                  real(this%nd_(3),kind=GP))
+    ax => fluidstate(pde%MAGNETIC  )%ccomp
+    ay => fluidstate(pde%MAGNETIC+1)%ccomp
+    az => fluidstate(pde%MAGNETIC+2)%ccomp
+    do m = 1,3
+      if (m.eq.1) then
+        CALL rotor3(ay,az,velc,1)
+      else if (m.eq.2) then
+        CALL rotor3(ax,az,velc,2)
+      else
+        CALL rotor3(ax,ay,velc,3)
+      endif
+      if ( this%traits_%doB0 .and. (this%myrank_.eq.0) ) then ! b = b + B_0
+        b0 = this%traits_%B0(m)/rmp
+        CALL setmode3(velc,1,1,1,cmplx(b0,0.0_GP,kind=GP))
+      endif
+      CALL scal3(velc,rmp)
+      if (m.eq.1) then
+        call tpart_c2lag(this,velc,lbx,.false.,velr,tmp1,tmp2)
+      else if (m.eq.2) then
+        call tpart_c2lag(this,velc,lby,.false.,velr,tmp1,tmp2)
+      else
+        call tpart_c2lag(this,velc,lbz,.false.,velr,tmp1,tmp2)
+      endif
+    end do
+  end subroutine tpart_magnetic
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Computes the current density j = curl(B) = -Del^2 a and
+  !! interpolates it to the particles in lfx, lfy, lfz. The
+  !! interpolation points must be already updated.
+  !!
+  !! COMPRESSIBLE: with the electron pressure correction (dokinelp)
+  !! the dissipative part of E is eta j - (dii/2) grad(p)/rho. The
+  !! simplest way to add it here is to interpolate, instead of j,
+  !! the field f = j - (dii/(2 eta)) grad(p)/rho (or, if eta = 0,
+  !! to pass gyrof and gyeta = gyrof*eta separately and add a third
+  !! term in tpart_rhs). In the old code grad(p)/rho was computed
+  !! by gradpstate(cp1,gam1,th,C11,C12,C13) from the density th and
+  !! the equation of state, and combined in Fourier space as
+  !! C14 = -gyrof*eta*C14 - 0.5*gyrof*dii*C11 (C14 = -j) before the
+  !! inverse FFT. Both branches (dokinelp true/false) need a check
+  !! that the pde is compressible; write_pstate_impl uses this
+  !! routine to write jlg, so keep the plain current density
+  !! available there (e.g., with an optional argument).
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine tpart_current(this,pde,fluidstate,lfx,lfy,lfz,velc,velr,tmp1,tmp2)
+    use equationbase_mod
+    use grid
+    use mpivars
+    implicit none
+    class      (Tpart), intent(inout)                          :: this
+    class(MagneticBase), intent   (in)                          :: pde
+    type   (GStateComp), intent   (in), target                  :: fluidstate(:)
+    complex(kind=GP), intent(inout), dimension(nz,ny,ista:iend) :: velc
+    real   (kind=GP), intent(inout), dimension(nx,ny,ksta:kend) :: velr,tmp1,tmp2
+    real   (kind=GP), intent(inout), dimension(*)               :: lfx,lfy,lfz
+    complex(kind=GP), pointer, dimension(:,:,:)                 :: ac
+    real   (kind=GP)                                            :: rmp
+    integer                                                     :: m
+
+    rmp = 1.0_GP/(real(this%nd_(1),kind=GP)*real(this%nd_(2),kind=GP)* &
+                  real(this%nd_(3),kind=GP))
+    do m = 1,3
+      ac => fluidstate(pde%MAGNETIC+m-1)%ccomp
+      CALL laplak3(ac,velc)    ! Del^2 a = -j
+      CALL scal3(velc,-rmp)
+      if (m.eq.1) then
+        call tpart_c2lag(this,velc,lfx,.false.,velr,tmp1,tmp2)
+      else if (m.eq.2) then
+        call tpart_c2lag(this,velc,lfy,.false.,velr,tmp1,tmp2)
+      else
+        call tpart_c2lag(this,velc,lfz,.false.,velr,tmp1,tmp2)
+      endif
+    end do
+  end subroutine tpart_current
+
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Internal kernel to compute right-hand side of n particles
   !!   dx/dt   = v_p/delta         (positions in grid units)
-  !!   dv_p/dt = F[u(x(t)),E(x(t)),B(x(t))]
+  !!   dv_p/dt = gyrof [ (v_p - u_e) x B + eta j ]
+  !! with u_e in lv*, B in lb*, j in lf*, and gyeta = gyrof*eta.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine tpart_rhs(n,lvx,lvy,lvz,pvx,pvy,pvz,dpx,dpy,dpz,dvx,dvy,dvz, &
-                       invdel)
+  subroutine tpart_rhs(n,lvx,lvy,lvz,lbx,lby,lbz,lfx,lfy,lfz,pvx,pvy,pvz, &
+                       dpx,dpy,dpz,dvx,dvy,dvz,invdel,gyrof,gyeta)
     implicit none
     integer      , intent(in)    :: n
-    real(kind=GP), intent(in)    :: lvx(n),lvy(n),lvz(n),pvx(n),pvy(n),pvz(n)
+    real(kind=GP), intent(in)    :: lvx(n),lvy(n),lvz(n),lbx(n),lby(n),lbz(n)
+    real(kind=GP), intent(in)    :: lfx(n),lfy(n),lfz(n),pvx(n),pvy(n),pvz(n)
     real(kind=GP), intent(inout) :: dpx(n),dpy(n),dpz(n),dvx(n),dvy(n),dvz(n)
-    real(kind=GP), intent(in)    :: invdel(3)
-    real(kind=GP)                :: vx,vy,vz,dx,dy,dz,rep2,cdrag,tz
+    real(kind=GP), intent(in)    :: invdel(3),gyrof,gyeta
+    real(kind=GP)                :: vx,vy,vz,wx,wy,wz,bx,by,bz
     integer                      :: j
 #if defined(GHOST_GPU)
 !$omp target teams distribute parallel do if(target: gdev_active) &
-!$omp   private(vx,vy,vz,dx,dy,dz,rep2,cdrag,tz)
+!$omp   private(vx,vy,vz,wx,wy,wz,bx,by,bz)
 #else
-!$omp parallel do private(vx,vy,vz,dx,dy,dz,rep2,cdrag,tz)
+!$omp parallel do private(vx,vy,vz,wx,wy,wz,bx,by,bz)
 #endif
     do j = 1,n
       vx = pvx(j); vy = pvy(j); vz = pvz(j)
+      bx = lbx(j); by = lby(j); bz = lbz(j)
+      wx = vx - lvx(j)                       ! v_p - u_e
+      wy = vy - lvy(j)
+      wz = vz - lvz(j)
       dpx(j) = vx*invdel(1)
       dpy(j) = vy*invdel(2)
       dpz(j) = vz*invdel(3)
-      dx = lvx(j) - vx
-      dy = lvy(j) - vy
-      dz = lvz(j) - vz
+      dvx(j) = gyeta*lfx(j) + gyrof*(wy*bz - wz*by)
+      dvy(j) = gyeta*lfy(j) + gyrof*(wz*bx - wx*bz)
+      dvz(j) = gyeta*lfz(j) + gyrof*(wx*by - wy*bx)
     end do
   end subroutine tpart_rhs
 
@@ -387,8 +613,9 @@ CONTAINS
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Function to compute and write particle states.
-  !! Writes: positions (xlg), fluid velocity (vlg),
-  !!         inertial particle velocity (vip)
+  !! Writes: positions (xlg), fluid velocity (vlg), test
+  !!         particle velocity (vtp), magnetic field (blg) and
+  !!         current density (jlg) at the particles
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine write_pstate_impl(this, time, pde, fluidstate, pstate)
     use equationbase_mod
@@ -405,7 +632,7 @@ CONTAINS
     complex   (kind=GP), pointer, dimension(:,:,:) :: velc, velc2, vc
     real      (kind=GP), pointer, dimension(:,:,:) :: velr,tmp1,tmp2
     real      (kind=GP)                            :: rmp
-    integer                                        :: i,j,k
+    integer                                        :: m
     logical                                        :: bret,wasdev
 
     call this%workspace_%get_complex_tmp(velc,bret)
@@ -423,48 +650,50 @@ CONTAINS
       rmp = 1.0_GP/(real(this%nd_(1),kind=GP)*real(this%nd_(2),kind=GP)* &
                     real(this%nd_(3),kind=GP))
       ! Interpolate fluid velocity to particle positions
-      vc => fluidstate(pde%VELOCITY)%ccomp
-      CALL copy3(vc,velc)
-      CALL scal3(velc,rmp)
-      CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-      CALL this%EulerToLag(this%lvx_,this%nparts_,velr,.true. ,tmp1,tmp2)
-      vc => fluidstate(pde%VELOCITY+1)%ccomp
-      CALL copy3(vc,velc)
-      CALL scal3(velc,rmp)
-      CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-      CALL this%EulerToLag(this%lvy_,this%nparts_,velr,.false.,tmp1,tmp2)
-      vc => fluidstate(pde%VELOCITY+2)%ccomp
-      CALL copy3(vc,velc)
-      CALL scal3(velc,rmp)
-      CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-      CALL this%EulerToLag(this%lvz_,this%nparts_,velr,.false.,tmp1,tmp2)
+      do m = 1,3
+        vc => fluidstate(pde%VELOCITY+m-1)%ccomp
+        CALL copy3(vc,velc)
+        CALL scal3(velc,rmp)
+        if (m.eq.1) then
+          call tpart_c2lag(this,velc,this%lvx_,.true. ,velr,tmp1,tmp2)
+        else if (m.eq.2) then
+          call tpart_c2lag(this,velc,this%lvy_,.false.,velr,tmp1,tmp2)
+        else
+          call tpart_c2lag(this,velc,this%lvz_,.false.,velr,tmp1,tmp2)
+        endif
+      end do
       ! Write positions and Lagrangian fluid velocity
       WRITE(lgext,lgfmtext) pind
       CALL this%io_write_pdb(1,this%odir_,trim(this%sstate_pos_),lgext,time)
       CALL this%io_write_vec(1,this%odir_,trim(this%sstate_lag_),lgext,time)
-      ! Write inertial particle velocity
+      ! Write test particle velocity
       call gcopy(this%lvx_, pstate(this%VELOCITY  )%rcomp)
       call gcopy(this%lvy_, pstate(this%VELOCITY+1)%rcomp)
       call gcopy(this%lvz_, pstate(this%VELOCITY+2)%rcomp)
       CALL this%io_write_vec(1,this%odir_,trim(this%sstate_vel_),lgext,time)
+      ! Write magnetic field (including the guide field) at the particles
+      call tpart_magnetic(this,pde,fluidstate,this%lvx_,this%lvy_,this%lvz_, &
+                          velc,velr,tmp1,tmp2)
+      CALL this%io_write_vec(1,this%odir_,'blg',lgext,time)
+      ! Write current density at the particles
+      call tpart_current (this,pde,fluidstate,this%lvx_,this%lvy_,this%lvz_, &
+                          velc,velr,tmp1,tmp2)
+      CALL this%io_write_vec(1,this%odir_,'jlg',lgext,time)
 ! partlod >= 2: write Lagrangian vorticity and strain-rate tensor
       if ( this%traits_%partlod .ge. 2 ) then
 ! Write Lagrangian vorticity components
         CALL rotor3(fluidstate(pde%VELOCITY+1)%ccomp, &
                     fluidstate(pde%VELOCITY+2)%ccomp, velc, 1)
         CALL scal3(velc,rmp)
-        CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-        CALL this%EulerToLag(this%lvx_,this%nparts_,velr,.false.,tmp1,tmp2)
+        call tpart_c2lag(this,velc,this%lvx_,.false.,velr,tmp1,tmp2)
         CALL rotor3(fluidstate(pde%VELOCITY  )%ccomp, &
                     fluidstate(pde%VELOCITY+2)%ccomp, velc, 2)
         CALL scal3(velc,rmp)
-        CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-        CALL this%EulerToLag(this%lvy_,this%nparts_,velr,.false.,tmp1,tmp2)
+        call tpart_c2lag(this,velc,this%lvy_,.false.,velr,tmp1,tmp2)
         CALL rotor3(fluidstate(pde%VELOCITY  )%ccomp, &
                     fluidstate(pde%VELOCITY+1)%ccomp, velc, 3)
         CALL scal3(velc,rmp)
-        CALL fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
-        CALL this%EulerToLag(this%lvz_,this%nparts_,velr,.false.,tmp1,tmp2)
+        call tpart_c2lag(this,velc,this%lvz_,.false.,velr,tmp1,tmp2)
         CALL this%io_write_vec(1,this%odir_,'wlg',lgext,time)
 ! Write strain-rate tensor components
         call this%workspace_%get_complex_tmp(velc2,bret)
@@ -499,7 +728,7 @@ CONTAINS
         call this%workspace_%free_complex_tmp(velc2)
       endif
     class default
-      stop "testpart: This solver does not support pdes without a magnetic field"
+      stop "Testpart: This solver does not support pdes without a magnetic field"
     end select
 
     call this%workspace_%free_complex_tmp(velc)
@@ -519,10 +748,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   SUBROUTINE Tpart_ctor(this,infile, pde, workspace, pstate, pstate_cpy)
     USE equationbase_mod
-!    USE hd_mod,    ONLY: HDSolver
     USE mhd_mod,   ONLY: MHDSolver
-!    USE moist_mod, ONLY: MOISTSolver
-!    USE bouss_mod, ONLY: BOUSSSolver
     USE var
     USE grid
     USE boxsize
@@ -539,9 +765,8 @@ CONTAINS
     type   (GWorkspace), intent(inout), target      :: workspace
     type  (GPStateComp), intent(inout), allocatable :: pstate(:), pstate_cpy(:)
     character   (len=*), intent   (in)              :: infile
-    integer                                         :: disp(3),lens(3),types(3)
     integer                                         :: tsta,tend,num_components
-    integer                                         :: j,nc,szreal
+    integer                                         :: j,szreal
     logical                                         :: bret
 
     this%infile_      =  infile
@@ -595,7 +820,7 @@ CONTAINS
     DO j = 1, GPMAXTIMERS
       CALL GTInitHandle(this%htimers_(j),this%itimetype_)
       IF ( this%htimers_(j).EQ.GTNULLHANDLE ) THEN
-        WRITE(*,*) 'Inerpart_ctor: Not enough timers available'
+        WRITE(*,*) 'Testpart_ctor: Not enough timers available'
         STOP
       ENDIF
     ENDDO
@@ -630,6 +855,28 @@ CONTAINS
 
     ! Call init (reads &testpart namelist, sets POSITION/VELOCITY indices)
     call this%init()
+
+    ! The magnetic diffusivity and the guide field are those of the pde.
+    ! The traits are private to each solver class, so each magnetic
+    ! solver needs its own "type is" clause here (and a USE of its
+    ! module above). To add a solver: copy eta, doB0 and B0 from its
+    ! traits, and any other trait the force needs.
+    ! COMPRESSIBLE: for compressible MHD solvers also copy here the
+    ! parameters of the equation of state needed for grad(p)/rho (see
+    ! the COMPRESSIBLE notes in TestTraits and tpart_current), and set a
+    ! trait flagging that the density is available (the electron
+    ! velocity and the electron pressure correction need it). If the
+    ! solver stores b instead of a, tpart_magnetic and tpart_current
+    ! must also branch on that trait (rotor3/laplak3 assume a).
+    select type (pde)
+    type is (MHDSolver)
+      this%traits_% eta = pde%traits_%eta
+      this%traits_%doB0 = pde%traits_%doB0
+      this%traits_%  B0 = pde%traits_%B0
+    class default
+      stop "Testpart_ctor: eta and B_0 are only known for the MHD solver"
+    end select
+    this%traits_%gyeta = this%traits_%gyrof*this%traits_%eta
 
     ! Instantiate interp operation
     CALL this%intop_%GPSplineInt_ctor(3,this%nd_,this%libnds_,this%lxbnds_, &

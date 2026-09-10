@@ -55,7 +55,7 @@ CONTAINS
           NUMTMPPART = 3
         case ('testpart')
           allocate(Tpart  :: new_object)
-          NUMTMPPART = 5
+          NUMTMPPART = 9
 !       case ('maxey')
 !         allocate(MRpart :: new_object)
 !         NUMTMPPART = 3
