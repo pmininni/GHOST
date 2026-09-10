@@ -12,6 +12,7 @@ module particle_factory
   USE particlebase_mod
   USE lagpart_mod
   USE inerpart_mod
+  USE testpart_mod
 ! USE userdefinedparticle_mod
 
   IMPLICIT NONE
@@ -52,12 +53,12 @@ CONTAINS
         case ('inerpart')
           allocate(Ipart  :: new_object)
           NUMTMPPART = 3
+        case ('testpart')
+          allocate(Tpart  :: new_object)
+          NUMTMPPART = 5
 !       case ('maxey')
 !         allocate(MRpart :: new_object)
 !         NUMTMPPART = 3
-!       case ('testpart')
-!         allocate(Tpart  :: new_object)
-!         NUMTMPPART = 5
 !       case ('UserDefined')
 !         allocate(UserDefinedpart :: new_object)
 !         NUMTMPPART = 2
