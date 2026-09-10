@@ -827,7 +827,7 @@ CONTAINS
 
     ! Initialize communicators
     CALL this%gpcomm_%GPartComm_ctor(GPCOMM_INTRFC_SF,this%partbuff_, &
-         this%nd_,this%intorder_-1,this%comm_,this%htimers_(GPTIME_COMM))
+         this%nd_,GPSI_NZGHOST,this%comm_,this%htimers_(GPTIME_COMM))
     CALL this%gpcomm_%Init()
 
     this%libnds_(1,1) = 1
@@ -880,7 +880,7 @@ CONTAINS
 
     ! Instantiate interp operation
     CALL this%intop_%GPSplineInt_ctor(3,this%nd_,this%libnds_,this%lxbnds_, &
-         this%tibnds_,this%intorder_,this%partbuff_,this%gpcomm_,&
+         this%tibnds_,this%partbuff_,this%gpcomm_,&
          this%htimers_(GPTIME_DATAEX),this%htimers_(GPTIME_TRANSP))
 
     ! Allocate particle arrays

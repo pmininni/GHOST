@@ -19,7 +19,16 @@
 ! The interpolation reads the spline coefficients on the extended
 ! grid esplfld_(nx,ny,nzl+2*nzghost), with nzghost planes of the
 ! neighbor slabs below and above the local slab, filled by the
-! ghost-plane exchange of GPartComm. The particle-sized arrays
+! ghost-plane exchange of GPartComm. The cubic B-spline stencil of
+! a point between the planes k and k+1 spans the planes k-1 to k+2,
+! so a particle in the first cell above the slab needs three ghost
+! planes above it (and one in the first cell below needs two):
+! GPSI_NZGHOST = 3 planes are exchanged on each side, and particles
+! may be interpolated up to one cell above and two cells below the
+! slab (this happens in the stages of multi-stage steppers, which
+! exchange particles between tasks only at the end of the step).
+! PartUpdate3D stops if a particle lies outside that range (the
+! time step is too long for the stepper). The particle-sized arrays
 ! (cell indices ilg_,jlg_,klg_, fractional positions xrk_,yrk_,
 ! zrk_ and weights wrkl_) and the coefficient field have device
 ! copies in offload builds; PartUpdate3D and DoInterp3D run their
@@ -39,6 +48,8 @@ MODULE class_GPSplineInt
       USE gmem
       USE gdevice, ONLY: gdev_active
       IMPLICIT NONE
+      ! Ghost planes on each side of the slab (see the header comment)
+      INTEGER, PARAMETER, PUBLIC :: GPSI_NZGHOST = 3
 
       PRIVATE
       TYPE, PUBLIC :: GPSplineInt
@@ -55,6 +66,7 @@ MODULE class_GPSplineInt
         REAL(KIND=GP),ALLOCATABLE,DIMENSION    (:) :: ay_,by_,bety_,cy_,gamy_,py_,xxy_
         REAL(KIND=GP),ALLOCATABLE,DIMENSION    (:) :: az_,bz_,betz_,cz_,gamz_,pz_,xxz_
         REAL(KIND=GP)                              :: dxi_(3),xbnds_(3,2),zetax_,zetay_,zetaz_
+        REAL(KIND=GP)                              :: zlo_ ! lowest valid particle z
         TYPE(GPartComm),POINTER                    :: gpcomm_
         INTEGER                                    :: maxint_
         INTEGER                                    :: ierr_,ider_(3),nd_(3)
@@ -83,17 +95,22 @@ MODULE class_GPSplineInt
 
 !-----------------------------------------------------------------
 !  METHOD     : GPSplineInt_ctor
-!  DESCRIPTION: Constructor. Stores the grid and slab bounds
-!               (xbnds widened by nzghost planes in z), the
+!  DESCRIPTION: Constructor. Stores the grid and slab bounds, the
 !               transposed bounds used by CompSpline3D, the
-!               particle buffer size and the timer handles.
+!               particle buffer size and the timer handles. In z,
+!               xbnds_(3,1) is the origin of the extended grid
+!               (the plane below the first ghost plane, so that
+!               INT(z-xbnds_(3,1)) is the extended index of the
+!               plane at or below z), xbnds_(3,2) and zlo_ are the
+!               bounds of the z range that can be interpolated.
 !-----------------------------------------------------------------
-  SUBROUTINE GPSplineInt_ctor(this,rank,nd,ibnds,xbnds,obnds,nzghost,maxpart,gpcomm, &
+  SUBROUTINE GPSplineInt_ctor(this,rank,nd,ibnds,xbnds,obnds,maxpart,gpcomm, &
                               hdataex,htransp)
     IMPLICIT NONE
     CLASS(GPSplineInt)                           :: this
     TYPE(GPartComm),TARGET                       :: gpcomm
-    INTEGER        ,INTENT(IN)                   :: hdataex,htransp,maxpart,nzghost,rank
+    INTEGER        ,INTENT(IN)                   :: hdataex,htransp,maxpart,rank
+    INTEGER                                      :: nzg
     INTEGER        ,INTENT(IN),DIMENSION  (rank) :: nd
     INTEGER        ,INTENT(IN),DIMENSION(rank,2) :: ibnds,obnds
     INTEGER                                      :: j,k
@@ -135,8 +152,20 @@ MODULE class_GPSplineInt
       this%ntot_ = this%ntot_*this%ldims_(j)
       this%ttot_ = this%ttot_*this%odims_(j)
     ENDDO
-    this%xbnds_(3,1)  = this%xbnds_(3,1)-real(nzghost,kind=GP)
-    this%xbnds_(3,2)  = this%xbnds_(3,2)+real(nzghost,kind=GP)
+    ! Extended grid in z: nzg ghost planes on each side. A stencil
+    ! (4 planes from the one below the point) fits in the extended
+    ! grid for points from the second ghost plane below the slab to
+    ! the end of the first ghost cell above it.
+    nzg = gpcomm%GetNumGhost()
+    IF ( nzg.LT.3 ) THEN
+      WRITE(*,*)'GPSplineInt::ctor: at least 3 ghost planes are needed'
+      STOP
+    ENDIF
+    ! (here xbnds_(3,1) = ksta-1 and xbnds_(3,2) = kend-1 are the
+    ! first and last planes of the slab)
+    this%zlo_         = this%xbnds_(3,1)-real(nzg-1,kind=GP) ! ksta-3
+    this%xbnds_(3,2)  = this%xbnds_(3,2)+real(nzg-1,kind=GP) ! kend+1
+    this%xbnds_(3,1)  = this%xbnds_(3,1)-real(nzg+1,kind=GP) ! ksta-5
     CALL GPSplineInt_Init(this)
   END SUBROUTINE GPSplineInt_ctor
 
@@ -258,8 +287,9 @@ MODULE class_GPSplineInt
 !               points of the stencil in each direction and the
 !               fractional positions in the cell. x and y are
 !               periodic; in z the indices refer to the extended
-!               local grid, and every particle must lie in the
-!               ghost-extended slab of this task.
+!               local grid, and every particle must lie between
+!               zlo_ and xbnds_(3,2) (from two cells below to one
+!               cell above the slab of this task).
 !-----------------------------------------------------------------
   SUBROUTINE GPSplineInt_PartUpdate3D(this,xp,yp,zp,np)
     IMPLICIT NONE
@@ -272,21 +302,23 @@ MODULE class_GPSplineInt
     nx = this%ldims_(1)
     ny = this%ldims_(2)
     nz = this%ldims_(3)
-    kmax = nz+this%gpcomm_%GetNumGhost()-1
-    kmin = this%gpcomm_%GetNumGhost()-1
+    ! Bounds of the first stencil index in the extended grid (a
+    ! safety clamp: particles in the valid z range never reach them)
+    kmax = nz+2*this%gpcomm_%GetNumGhost()-3
+    kmin = 1
 
     CALL gpsi_update_xy(np,xp,this%xbnds_(1,1),this%dxi_(1),nx,this%ilg_,this%xrk_)
     CALL gpsi_update_xy(np,yp,this%xbnds_(2,1),this%dxi_(2),ny,this%jlg_,this%yrk_)
-    CALL gpsi_check_z(np,zp,this%xbnds_(3,1),this%xbnds_(3,2),nbad)
+    CALL gpsi_check_z(np,zp,this%zlo_,this%xbnds_(3,2),nbad)
     IF ( nbad.GT.0 ) THEN
+      WRITE(*,*) myrank, ' GPSplineInt::PartUpdate3D: ',nbad,' particles out of the z-range'
+      WRITE(*,*) myrank, ' GPSplineInt::PartUpdate3D: the particles moved more than one', &
+                         ' grid cell out of the slab during the time step (dt too long)'
       DO j = 1, np
-        IF ( .NOT.(zp(j).GE.this%xbnds_(3,1).AND.zp(j).LT.this%xbnds_(3,2)) ) THEN
-          WRITE(*,*) myrank, ' GPSplineInt::PartUpdate3D: Invalid particle z-range'
-          WRITE(*,*) myrank, ' GPSplineInt::zbnd_0=',this%xbnds_(3,1),';  zbnd_1=',this%xbnds_(3,2), 'zp=',zp(j)
-          STOP
+        IF ( .NOT.(zp(j).GE.this%zlo_.AND.zp(j).LT.this%xbnds_(3,2)) ) THEN
+          WRITE(*,*) myrank, ' GPSplineInt::zbnd_0=',this%zlo_,';  zbnd_1=',this%xbnds_(3,2), 'zp=',zp(j)
         ENDIF
       ENDDO
-      WRITE(*,*) myrank, ' GPSplineInt::PartUpdate3D: ',nbad,' particles out of the z-range'
       STOP
     ENDIF
     CALL gpsi_update_z(np,zp,this%xbnds_(3,1),this%dxi_(3),kmin,kmax,this%klg_,this%zrk_)

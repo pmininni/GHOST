@@ -434,8 +434,10 @@ contains
     enddo ! m-loop
 
     ! We now can deallocate the tmp arrays, and sync/resize upin, upout.
-    ! Note that this is the only sync done, if the particles move too fast
-    ! during the substepping stages (dt too long) this method may fail.
+    ! Note that this is the only sync done: during the stages the particles
+    ! can be outside their slab, which the interpolation supports up to one
+    ! grid cell above and two below the slab (see gpsplineint_mod); if they
+    ! move further in one step (dt too long) PartUpdate3D stops the run.
     call this%psolver_%end_stage(upin,upout)
   end subroutine pstep_butcher
 
@@ -503,7 +505,11 @@ contains
       else
         call this%solver_%dudt(tt,this%utmp_,  uf,eff_dt,this%K_(m)%cstate)
       end if
-      call this%psolver_%dpdt(tt,this%solver_,uin,this%putmp_,eff_dt,this%pK_(m)%rpstate)
+      ! The particle RHS is evaluated with the stage state of the fields
+      ! (utmp_, the same state passed to dudt), not with uin: using the
+      ! fields at the beginning of the step in all the stages limits the
+      ! particles to first order in dt whatever the number of stages.
+      call this%psolver_%dpdt(tt,this%solver_,this%utmp_,this%putmp_,eff_dt,this%pK_(m)%rpstate)
     enddo ! stage m loop
     
     ! Combine stages to get step update
@@ -519,8 +525,11 @@ contains
     enddo ! m-loop
     
     ! We now can deallocate the tmp arrays, and sync/resize upin, upout.
-    ! Note that this is the only sync done, if the particles move too fast
-    ! during the substepping stages (dt too long) this method may fail.
+    ! Note that this is the only sync done: during the stages the particles
+    ! can be outside their slab, and the interpolation supports this only
+    ! up to one grid cell above and two below the slab (three ghost planes
+    ! are exchanged, see gpsplineint_mod). If the particles move further
+    ! in one step (dt too long) GPSplineInt::PartUpdate3D stops the run.
     if ( this%psolver_%hasfeedback_ ) call GState_dealloc(fdbk)
     call this%psolver_%end_stage(upin,upout)    
   end subroutine cstep_butcher
