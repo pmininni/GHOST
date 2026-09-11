@@ -40,7 +40,7 @@ module forcebase_mod
       USE gstate_mod
       import :: forceBase
       class   (forceBase),   intent   (in) :: this
-      class(EquationBase),   intent   (in) :: solver
+      class(EquationBase),   intent(inout) :: solver
       type   (GStateComp),   intent(inout) :: state(:)
     end subroutine
   end interface
@@ -53,7 +53,7 @@ module forcebase_mod
       import :: forceUpdt
       class   (forceUpdt),   intent(inout) :: this
       class   (forceBase),   intent   (in) :: force
-      class(EquationBase),   intent   (in) :: solver
+      class(EquationBase),   intent(inout) :: solver
       type   (GStateComp),   intent(inout) :: state(:)
     end subroutine
   end interface
@@ -70,7 +70,7 @@ CONTAINS
     USE gstate_mod
     implicit none
     type   (forceChain), intent   (in) :: chain(:)
-    class(EquationBase), intent   (in) :: solver
+    class(EquationBase), intent(inout) :: solver
     type   (GStateComp), intent(inout) :: state(:)
     integer                            :: i
     do i = 1,size(chain)
@@ -88,7 +88,7 @@ CONTAINS
     USE status
     implicit none
     type   (forceChain), intent(inout) :: chain(:)
-    class(EquationBase), intent   (in) :: solver
+    class(EquationBase), intent(inout) :: solver
     type   (GStateComp), intent(inout) :: state(:)
     integer                            :: i
     do i = 1,size(chain)

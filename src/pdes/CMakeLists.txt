@@ -6,6 +6,7 @@ add_library(pdes_lib STATIC
   moist_solver.f90
   mhd_solver.f90
   cmhd_solver.f90
+  gl_solver.f90
   equation_factory.f90
 )
 

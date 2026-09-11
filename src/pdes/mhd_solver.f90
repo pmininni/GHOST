@@ -204,7 +204,7 @@ CONTAINS
     use gdevice, only: gdev_active
     implicit none
 
-    class(MHDSolver), intent   (in)             :: this
+    class(MHDSolver), intent(inout) :: this
     real   (kind=GP), intent   (in)             :: time, dt
     type(GStateComp), intent(inout), target     :: uin(:),uf(:)
     type(GStateComp), intent(inout), target     :: dudt(:) 

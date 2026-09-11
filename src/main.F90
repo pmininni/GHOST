@@ -155,6 +155,7 @@
       CALL GState_copy(field_nxt,field)   ! nxt is used by I/O and all steppers.
       CALL init_forcing(forcemethod,fluid,force)
       CALL GState_update_to(force)
+      CALL fluid%sync_device()            ! Auxiliary arrays of the solver (if any).
       fstatic = forcing_is_static(forcemethod)
       if (dopart) then
          CALL init_allpstates(icplist,fluid,field,particle,part)

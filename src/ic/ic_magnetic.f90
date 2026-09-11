@@ -59,7 +59,7 @@ CONTAINS
     implicit none
 
     class    (icRead_b), intent   (in)             :: this
-    class(EquationBase), intent   (in)             :: solver
+    class(EquationBase), intent(inout)             :: solver
     type   (GStateComp), intent(inout)             :: state(:)
     real      (kind=GP), pointer, dimension(:,:,:) :: R1
     integer                                        :: i
@@ -95,7 +95,7 @@ CONTAINS
     implicit none
     
     class    (icNull_b), intent   (in) :: this
-    class(EquationBase), intent   (in) :: solver
+    class(EquationBase), intent(inout) :: solver
     type   (GstateComp), intent(inout) :: state(:)
     integer                            :: i,j,k
 
@@ -143,7 +143,7 @@ CONTAINS
     implicit none
 
     class  (icRandom_b), intent   (in)          :: this
-    class(EquationBase), intent   (in)          :: solver
+    class(EquationBase), intent(inout)          :: solver
     type   (GstateComp), intent(inout)          :: state(:)
     complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4
     complex(kind=GP), pointer, dimension(:,:,:) :: C5,C6,C7,C8

@@ -296,7 +296,7 @@
 ! and the value of mask in randu.
       REAL(KIND=GP), INTENT (OUT) :: x,y
       REAL(KIND=GP)       :: fac,phi
-      INTEGER, INTENT(IN) :: idum
+      INTEGER, INTENT(INOUT) :: idum
 
       x = randu(idum)
       y = randu(idum)

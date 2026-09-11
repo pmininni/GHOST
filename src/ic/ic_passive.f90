@@ -59,7 +59,7 @@ CONTAINS
     implicit none
 
     class    (icRead_s), intent   (in)          :: this
-    class(EquationBase), intent   (in)          :: solver
+    class(EquationBase), intent(inout)          :: solver
     type(GStateComp), intent(inout)             :: state(:)
     real   (kind=GP), pointer, dimension(:,:,:) :: R1
     integer                                     :: i
@@ -100,7 +100,7 @@ CONTAINS
     implicit none
     
     class (icUniform_s), intent   (in) :: this
-    class(EquationBase), intent   (in) :: solver
+    class(EquationBase), intent(inout) :: solver
     type   (GstateComp), intent(inout) :: state(:)
     real      (kind=GP), allocatable   :: c0(:)
     integer                            :: i,j,k,n
@@ -156,7 +156,7 @@ CONTAINS
     implicit none
     
     class    (icPuff_s), intent   (in) :: this
-    class(EquationBase), intent   (in) :: solver
+    class(EquationBase), intent(inout) :: solver
     type   (GStateComp), intent(inout) :: state(:)
     real      (kind=GP), pointer       :: R1(:,:,:)
     real      (kind=GP), allocatable, dimension(:)  :: c0,x0,y0,z0,r0
@@ -239,7 +239,7 @@ CONTAINS
     implicit none
     
     class  (icRandom_s), intent   (in) :: this
-    class(EquationBase), intent   (in) :: solver
+    class(EquationBase), intent(inout) :: solver
     type   (GstateComp), intent(inout) :: state(:)
     real      (kind=GP), allocatable, dimension(:)  :: c0,kdn,kup
     real      (kind=GP)                             :: skup,skdn

@@ -66,7 +66,7 @@ CONTAINS
     implicit none
     
     class(forceNull_fs), intent   (in) :: this
-    class(EquationBase), intent   (in) :: solver
+    class(EquationBase), intent(inout) :: solver
     type   (GStateComp), intent(inout) :: state(:)
     integer                            :: i,j,k,n
 
@@ -109,7 +109,7 @@ CONTAINS
     implicit none
     
     class(forcePuff_fs), intent   (in) :: this
-    class(EquationBase), intent   (in) :: solver
+    class(EquationBase), intent(inout) :: solver
     type   (GStateComp), intent(inout) :: state(:)
     real      (kind=GP), pointer       :: R1(:,:,:)
     real      (kind=GP), allocatable, dimension(:)  :: f0,x0,y0,z0,r0
@@ -191,7 +191,7 @@ CONTAINS
     implicit none
     
     class(forceRandom_fs), intent   (in) :: this
-    class  (EquationBase), intent   (in) :: solver
+    class  (EquationBase), intent(inout) :: solver
     type     (GStateComp), intent(inout) :: state(:)
     real        (kind=GP), allocatable, dimension(:)  :: f0,kdn,kup
     real        (kind=GP)                :: skup,skdn
@@ -320,7 +320,7 @@ CONTAINS
     
     class(shiftupdt_fs),   intent(inout) :: this
     class   (forceBase),   intent   (in) :: force
-    class(EquationBase),   intent   (in) :: solver
+    class(EquationBase),   intent(inout) :: solver
     type   (GStateComp),   intent(inout) :: state(:)
     complex(kind=GP)                     :: cdump
     real(kind=GP)                        :: phase

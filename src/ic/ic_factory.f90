@@ -13,6 +13,7 @@ module ic_factory
   USE ic_magnetic
   USE ic_active
   USE ic_passive
+  USE ic_quantum
   
   IMPLICIT NONE
   
@@ -83,6 +84,25 @@ CONTAINS
         allocate( icPuff_s      :: new_object(i)%ic )
       case ('random_s')
         allocate( icRandom_s    :: new_object(i)%ic )
+      ! Order parameter ICs (quantum solvers) --
+      case ('read_z')
+        allocate( icRead_z      :: new_object(i)%ic )
+      case ('uniform_z')
+        allocate( icUniform_z   :: new_object(i)%ic )
+      case ('gaussian_z')
+        allocate( icGaussian_z  :: new_object(i)%ic )
+      case ('abc_z')
+        allocate( icAbc_z       :: new_object(i)%ic )
+      case ('tg_z')
+        allocate( icTg_z        :: new_object(i)%ic )
+      case ('ring_z')
+        allocate( icRing_z      :: new_object(i)%ic )
+      case ('trefoil_z')
+        allocate( icTrefoil_z   :: new_object(i)%ic )
+      case ('tworings_z')
+        allocate( icTworings_z  :: new_object(i)%ic )
+      case ('trap_z')
+        allocate( icTrap_z      :: new_object(i)%ic )
       case default
         stop 'Unknown initial conditions'
       end select

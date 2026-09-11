@@ -1,0 +1,114 @@
+! Example of parameter.inp
+! Rename this file as 'parameter.inp' and place it in the same
+! directory as the GHOST executable to do a simulation of the
+! advective real Ginzburg-Landau equation (GL solver), e.g., to
+! prepare initial conditions for the GPE solver.
+
+! Grid resolution
+&grid
+nx = 64
+ny = 64
+nz = 64
+/
+
+! Boz size, if not present GHOST uses a 2.pi cubic box
+&boxparams
+Lx = 1.00        ! Length of the box in x
+Ly = 1.00        ! Length of the box in y
+Lz = 1.00        ! Length of the box in z
+/
+
+! General configuration flags
+&status
+idir = "outs"
+odir = "outs"
+stat = 0         ! last binary file if restarting an old run
+mult = 1         ! decreases the time step
+bench = 0        ! benchmark mode if 1
+outs = 0         ! controls the amount of binary output (1 writes |z|^2)
+dt = 5e-3        ! time step
+step = 401       ! total number of steps
+tstep = 200      ! number of steps between binary output
+sstep = 200      ! number of steps between spectrum output
+cstep = 5        ! number of steps between writing global quantities
+cort = 5e-3      ! correlation time of the forcing (thermal_fq is renewed every cort/dt steps)
+seed = 1000      ! global seed for random number generators
+/
+
+! Time stepping method. The GL solver integrates the diffusion term
+! implicitly (first order): it requires TRADITIONAL with norder = 1.
+&stepper
+sname  = "TRADITIONAL" ! TRADITIONAL or GEXRK
+norder = 1             ! order
+/
+
+! Solver
+&pdes
+solver = "GL"    ! Solver name, reads a namelist with the same name
+/
+
+! GL solver specific parameters
+&GL
+cspeed = 2.00    ! speed of sound
+lambda = 0.10    ! coherence length
+rho0 = 1.00      ! density at infinity (or at the zero of the potential)
+kttherm = 0.0    ! k.T of the thermal bath (>0: finite temperature run)
+rhom = 1.00      ! mean density (finite temperature runs with a trap)
+V0 = 0.00        ! amplitude of the trapping potential (cyltrap_vq)
+docflow = .FALSE.! counterflow run (drops the |v|^2 term)
+dorot = .FALSE.  ! rotating frame
+omegaz = 0.0     ! rotation rate along z (ignored if dorot is FALSE)
+spectlod = 1     ! spectral output level of detail [1-3]
+/
+
+! Initial conditions. List separated by ';' to set up ICs.
+! For z, ICs can be: read_z, uniform_z, gaussian_z, abc_z, tg_z,
+! ring_z, trefoil_z, tworings_z, trap_z. The ICs abc_z, tg_z and
+! the knots also set the advective velocity of the GL solver.
+! Use "read_z" if restarting from a previous file with stat > 0
+&initial_conditions
+iclist = "abc_z"
+/
+
+! Forcing. List separated by ';', each forcing is a pair of
+! methods separated by ',': an initial forcing, and an update scheme
+! Forcings for z: null_fq, thermal_fq
+! Updates for fq: constant_fq, renew_fq
+! External potentials: cyltrap_vq (update: constant_vq)
+&forcing
+forces = "null_fq,constant_fq"
+/
+
+! IC and forcing specific parameters, in namelists with their names:
+! Parameters for the ABC array of vortices
+&abc_z
+kdn = 1          ! minimum wavenumber
+kup = 1          ! maximum wavenumber
+A = 1.00         ! A amplitude in ABC
+B = 1.00         ! B amplitude in ABC
+C = 1.00         ! C amplitude in ABC
+/
+
+! Parameters for the Gaussian perturbation (gaussian_z)
+&gaussian_z
+z0 = 0.01        ! amplitude of the perturbation
+l0 = 1.00        ! length of the perturbation (in 2.pi units)
+/
+
+! Parameters for the vortex knots (ring_z, trefoil_z, tworings_z)
+&ring_z
+r0 = 1.00        ! radius of the ring
+sig = 1.00       ! width of the velocity filter (in coherence lengths)
+/
+
+! Parameters for the trefoil knot (trefoil_z)
+&trefoil_z
+r0 = 1.00        ! size of the knot
+sig = 1.00       ! width of the velocity filter (in coherence lengths)
+/
+
+! Parameters for the two linked rings (tworings_z)
+&tworings_z
+r0 = 1.00        ! radius of the rings
+sig = 1.00       ! width of the velocity filter (in coherence lengths)
+/

@@ -34,6 +34,7 @@ module equationbase_mod
       procedure(spectra_interface),     deferred :: spectra     ! Spectra
       procedure(state_size_interface),  deferred :: state_size  ! Number of states
       procedure, public                          :: write_states
+      procedure, public                          :: sync_device ! Aux. arrays to the device
   end type EquationBase
 
   type, abstract, extends(EquationBase) :: VelocityBase
@@ -65,6 +66,29 @@ module equationbase_mod
 
   type, abstract, extends(EquationBase) :: QuantumBase
       integer :: ZFUNC       ! start of wavefunction sector
+      ! Constants of the GPE-type equations (set by the solvers, read by
+      ! the initial conditions and the forcing): alpha = c.xi/sqrt(2),
+      ! omegag = c/(xi.sqrt(2)), beta = omegag/rho0, with c the speed of
+      ! sound, xi the coherence length and rho0 the equilibrium density
+      real(kind=GP) :: alpha_  = 0.0_GP
+      real(kind=GP) :: beta_   = 0.0_GP
+      real(kind=GP) :: omegag_ = 0.0_GP
+      real(kind=GP) :: rho0_   = 1.0_GP
+      real(kind=GP) :: V0_     = 0.0_GP ! amplitude of the trapping potential
+      real(kind=GP) :: omegaz_ = 0.0_GP ! rotation rate (rotating frame)
+      logical       :: hasadv_ = .false. ! advective velocity in use
+      logical       :: haspot_ = .false. ! external potential in use
+      logical       :: dorot_  = .false. ! rotating frame
+      ! Auxiliary fields, constant in time, with device copies: the
+      ! advective velocity (Fourier space, unnormalized), |v|^2/(4 alpha
+      ! beta) (real space, unnormalized), the external potential divided
+      ! by beta, and the linear ramps omegaz.x and omegaz.y for the
+      ! angular momentum operator (real space, unnormalized). They are
+      ! set by the initial conditions (velocity) and the forcing
+      ! (potential), and copied to the device by sync_device.
+      complex(kind=GP), allocatable, dimension(:,:,:) :: vx_,vy_,vz_
+      real   (kind=GP), allocatable, dimension(:,:,:) :: vsq_,vpot_
+      real   (kind=GP), allocatable, dimension(:,:,:) :: vlinx_,vliny_
   end type QuantumBase
   
   abstract interface
@@ -86,7 +110,7 @@ module equationbase_mod
      subroutine dudt_interface(this, time, uin, uf, dt, dudt) 
        use gstate_mod
        import :: EquationBase
-       class(EquationBase), intent   (in)         :: this
+       class(EquationBase), intent(inout)         :: this
        real      (kind=GP), intent   (in)         :: time, dt
        type   (GStateComp), intent(inout), target :: uin(:),uf(:)
        type   (GStateComp), intent(inout), target :: dudt(:) 
@@ -175,6 +199,17 @@ CONTAINS
   end subroutine rhs_passive
 
   
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Copies the auxiliary arrays of the solver (if any) to the
+  !! device, after they are set by the initial conditions and the
+  !! forcing. Default: the solver has no auxiliary arrays.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine sync_device(this)
+    class (EquationBase), intent(inout) :: this
+    return
+  end subroutine sync_device
+
+
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Concrete method to write field states
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -277,6 +312,27 @@ CONTAINS
             call io_write(1,this%odir_,'jz',ext,planio,-R3)
           endif
         end select
+      class is (QuantumBase) ! density of the order parameter, |z|^2
+!$omp parallel do collapse(2) private (k)
+        do i = ista,iend
+           do j = 1,ny
+              do concurrent (k=1:nz)
+                C1(k,j,i) = uin(this%ZFUNC  )%ccomp(k,j,i)*rmp
+                C2(k,j,i) = uin(this%ZFUNC+1)%ccomp(k,j,i)*rmp
+              end do
+           end do
+        end do
+        call fftp3d_complex_to_real(plancr,C1,R1,MPI_COMM_WORLD)
+        call fftp3d_complex_to_real(plancr,C2,R2,MPI_COMM_WORLD)
+!$omp parallel do collapse(2) private (i)
+        do k = ksta,kend
+           do j = 1,ny
+              do concurrent (i=1:nx)
+                R1(i,j,k) = R1(i,j,k)**2+R2(i,j,k)**2
+              end do
+           end do
+        end do
+        call io_write(1,this%odir_,'rho',ext,planio,R1)
       end select 
       call this%workspace_%free_complex_tmp(C2)
       call this%workspace_%free_complex_tmp(C3)

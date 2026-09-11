@@ -4,6 +4,7 @@ add_library(ic_lib STATIC
   ic_magnetic.f90
   ic_passive.f90
   ic_active.f90
+  ic_quantum.f90
   ic_factory.f90
 )
 

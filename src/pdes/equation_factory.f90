@@ -16,6 +16,7 @@ module equation_factory
   USE moist_mod
   USE bouss_mod
   USE cmhd_mod
+  USE gl_mod
 ! USE userdefinedpde_mod
   
   IMPLICIT NONE
@@ -75,6 +76,11 @@ CONTAINS
       case ('CMHD')
         allocate(CMHDsolver  :: new_object)
         NUMTMPCOMP = 19; NUMTMPREAL = 7
+      case ('GL')
+        allocate(GLsolver    :: new_object)
+        NUMTMPCOMP = 10; NUMTMPREAL = 4
+        ! The GPE diagnostics (helicity) need many host temporaries
+        NUMTMPHCOMP = 12; NUMTMPHREAL = 12
 !     case ('UserDefined')
 !       allocate(UserDefinedsolver :: new_object)
 !       NUMTMPCOMP =  8; NUMTMPREAL = 3

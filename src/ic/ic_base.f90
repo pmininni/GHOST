@@ -26,7 +26,7 @@ module icbase_mod
       USE gstate_mod
       import :: icBase
       class      (icBase), intent   (in) :: this
-      class(EquationBase), intent   (in) :: solver
+      class(EquationBase), intent(inout) :: solver
       type   (GStateComp), intent(inout) :: state(:)
     end subroutine
   end interface
@@ -43,7 +43,7 @@ contains
     USE gstate_mod
     implicit none
     type      (icChain), intent   (in) :: chain(:)
-    class(EquationBase), intent   (in) :: solver
+    class(EquationBase), intent(inout) :: solver
     type   (GstateComp), intent(inout) :: state(:)
     integer                            :: i
     do i = 1,size(chain)

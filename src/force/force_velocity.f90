@@ -79,7 +79,7 @@ CONTAINS
     implicit none
     
     class(forceNull_fv), intent   (in) :: this
-    class(EquationBase), intent   (in) :: solver
+    class(EquationBase), intent(inout) :: solver
     type   (GStateComp), intent(inout) :: state(:)
     integer                            :: i,j,k
 
@@ -120,7 +120,7 @@ CONTAINS
     implicit none
     
     class  (forceTg_fv), intent   (in)       :: this
-    class(EquationBase), intent   (in)       :: solver
+    class(EquationBase), intent(inout)       :: solver
     type   (GStateComp), intent(inout)       :: state(:)
     real(kind=GP), pointer, dimension(:,:,:) :: R1,R2
     real(kind=GP)                            :: f0,kdn,kup
@@ -214,7 +214,7 @@ CONTAINS
     implicit none
 
     class (forceAbc_fv), intent   (in)       :: this
-    class(EquationBase), intent   (in)       :: solver
+    class(EquationBase), intent(inout)       :: solver
     type   (GStateComp), intent(inout)       :: state(:)
     real(kind=GP), pointer, dimension(:,:,:) :: R1,R2,R3
     real(kind=GP)                            :: f0,kdn,kup
@@ -310,7 +310,7 @@ CONTAINS
     implicit none
 
     class(forceRandom_fv), intent   (in)          :: this
-    class  (EquationBase), intent   (in)          :: solver
+    class  (EquationBase), intent(inout)          :: solver
     type     (GStateComp), intent(inout)          :: state(:)
     complex  (kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3,C4
     complex  (kind=GP), pointer, dimension(:,:,:) :: C5,C6,C7,C8
@@ -683,7 +683,7 @@ CONTAINS
     
     class(shiftupdt_fv),   intent(inout) :: this
     class   (forceBase),   intent   (in) :: force
-    class(EquationBase),   intent   (in) :: solver
+    class(EquationBase),   intent(inout) :: solver
     type   (GStateComp),   intent(inout) :: state(:)
     complex(kind=GP)                     :: cdump
     real(kind=GP)                        :: phase
@@ -719,7 +719,7 @@ CONTAINS
     
     class(shuffleupdt_fv), intent(inout)             :: this
     class     (forceBase), intent   (in)             :: force
-    class  (EquationBase), intent   (in)             :: solver
+    class  (EquationBase), intent(inout)             :: solver
     type     (GStateComp), intent(inout)             :: state(:)
     complex     (kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3
     real        (kind=GP), pointer, dimension(:,:,:) :: R1,R2,R3

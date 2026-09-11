@@ -27,6 +27,8 @@ add_library(pseudo_lib STATIC
   pseudospec3D_mhd.f90
   pseudospec3D_bouss.f90
   pseudospec3D_compr.f90
+  pseudospec3D_gpe.f90
+  pseudospec3D_rgpe.f90
 )
 
 target_include_directories(pseudo_lib PUBLIC

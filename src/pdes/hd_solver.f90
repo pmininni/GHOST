@@ -183,7 +183,7 @@ CONTAINS
     use gdevice, only: gdev_active
     implicit none
 
-    class (HDSolver), intent   (in)             :: this
+    class (HDSolver), intent(inout) :: this
     real   (kind=GP), intent   (in)             :: time, dt
     type(GStateComp), intent(inout), target     :: uin(:),uf(:)
     type(GStateComp), intent(inout), target     :: dudt(:) 

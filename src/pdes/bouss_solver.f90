@@ -222,7 +222,7 @@ contains
     use gdevice, only: gdev_active
     implicit none
 
-    class(BOUSSSolver), intent   (in)             :: this
+    class(BOUSSSolver), intent(inout) :: this
     real     (kind=GP), intent   (in)             :: time, dt
     type  (GStateComp), intent(inout), target     :: uin(:),uf(:)
     type  (GStateComp), intent(inout), target     :: dudt(:) 

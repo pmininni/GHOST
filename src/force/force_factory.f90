@@ -13,6 +13,7 @@ module force_factory
   USE force_magnetic
   USE force_active
   USE force_passive
+  USE force_quantum
   
   IMPLICIT NONE
   
@@ -84,6 +85,14 @@ CONTAINS
         allocate( forcePuff_fs    :: new_object(i)%force )
       case ('random_fs')
         allocate( forceRandom_fs  :: new_object(i)%force )
+      ! Order parameter forcing (quantum solvers) --
+      case ('null_fq')
+        allocate( forceNull_fq    :: new_object(i)%force )
+      case ('thermal_fq')
+        allocate( forceThermal_fq :: new_object(i)%force )
+      ! External potentials (quantum solvers) -----
+      case ('cyltrap_vq')
+        allocate( forceCyltrap_vq :: new_object(i)%force )
       case default
         stop 'Unknown forcing function'
       end select
@@ -117,6 +126,14 @@ CONTAINS
         if ( allocated(new_object(i)%update) ) deallocate(new_object(i)%update)
       case ('shift_fs')
         allocate( shiftupdt_fs    :: new_object(i)%update )
+      ! Order parameter forcing update methods ---
+      case ('constant_fq')
+        if ( allocated(new_object(i)%update) ) deallocate(new_object(i)%update)
+      case ('renew_fq')
+        allocate( renewupdt_fq    :: new_object(i)%update )
+      ! External potential update methods --------
+      case ('constant_vq')
+        if ( allocated(new_object(i)%update) ) deallocate(new_object(i)%update)
       case default
         stop 'Unknown or undefined forcing update method'
       end select
