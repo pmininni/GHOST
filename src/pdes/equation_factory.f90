@@ -15,6 +15,7 @@ module equation_factory
   USE mhd_mod
   USE moist_mod
   USE bouss_mod
+  USE cmhd_mod
 ! USE userdefinedpde_mod
   
   IMPLICIT NONE
@@ -71,6 +72,9 @@ CONTAINS
       case ('MHD')
         allocate(MHDsolver   :: new_object)
         NUMTMPCOMP = 12; NUMTMPREAL = 7
+      case ('CMHD')
+        allocate(CMHDsolver  :: new_object)
+        NUMTMPCOMP = 19; NUMTMPREAL = 7
 !     case ('UserDefined')
 !       allocate(UserDefinedsolver :: new_object)
 !       NUMTMPCOMP =  8; NUMTMPREAL = 3
