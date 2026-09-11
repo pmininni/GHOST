@@ -1,7 +1,7 @@
 ! Example of parameter.inp
 ! Rename this file as 'parameter.inp' and place it in the same
-! directory as the GHOST executable to do an MHD simulation
-! with test particles (charged particles, testpart).
+! directory as the GHOST executable to do a compressible MHD
+! simulation (CMHD) with test particles (charged particles, testpart).
 
 ! Grid resolution
 &grid
@@ -42,18 +42,23 @@ norder = 2             ! order
 
 ! Solver
 &pdes
-solver = "MHD"   ! Solver name, reads a namelist with the same name
+solver = "CMHD"  ! Solver name, reads a namelist with the same name
 /
 
-! MHD solver specific parameters
-&MHD
+! CMHD solver specific parameters
+&CMHD
 nu  = 3.e-3      ! kinematic viscosity
 eta = 3.e-3      ! magnetic diffusivity
-doB0   = .TRUE.  ! do MHD/Hall-MHD with guide field
+nu2 = 0.0        ! bulk viscosity (see Stokeshyp)
+Stokeshyp = 0    ! 0: nu2+nu/3, >0: Stokes hypothesis, <0: nu2 as given
+smach = 0.5      ! sound Mach number (sound speed 1/smach at rho=1)
+amach = 1.0      ! Alfvenic Mach number (Alfven speed 1/amach at rho=B=1)
+gamma = 1.6667   ! polytropic index
+doB0   = .FALSE. ! do MHD/Hall-MHD with guide field
 dohall = .FALSE. ! do Hall-MHD
 B0x = 0.0        ! guide field in x (ignored if doB0 is FALSE)
 B0y = 0.0        ! guide field in y (ignored if doB0 is FALSE)
-B0z = 1.0        ! guide field in z (ignored if doB0 is FALSE)
+B0z = 0.0        ! guide field in z (ignored if doB0 is FALSE)
 epsilon = 0.0    ! amplitude of the Hall term (ignored if dohall is FALSE)
 npassive = 0     ! number of passive scalars
 spectlod = 1     ! spectral output level of detail [1-3]
@@ -62,10 +67,11 @@ spectlod = 1     ! spectral output level of detail [1-3]
 ! Initial conditions. List separated by ';' to set up ICs. 
 ! For v, ICs can be: read_v, null_v, tg_v, abc_v, random_v
 ! For b, ICs can be: read_b, null_b, random_b
-! Use "read_v;read_b" if restarting from a previous file with stat > 0
+! For rho, ICs can be: read_as, uniform_as, puff_as, random_as
+! Use "read_v;read_b;read_as" if restarting from a previous file with stat > 0
 ! If stat > 0 and some ICs are not "read_?", GHOST resets that field.
 &initial_conditions
-iclist = "abc_v;random_b"
+iclist = "abc_v;random_b;uniform_as"
 /
 
 ! Forcing. List separated by ';', each forcing is a pair of
@@ -75,7 +81,7 @@ iclist = "abc_v;random_b"
 ! Forcings for b: null_fb, random_fb
 ! Updates for fb: constant_fb, shift_fb, shuffle_fb
 &forcing
-forces = "abc_fv,constant_fv;null_fb,constant_fb"
+forces = "random_fv,shuffle_fv;random_fb,shuffle_fb"
 /
 
 ! IC and forcing specific parameters, in namelists with their names:
@@ -98,14 +104,26 @@ alpha = 0.0      ! relative helicity
 corr  = 0.0      ! cross-correlation with the velocity
 /
 
-! Parameters for ABC velocity forcing
-&abc_fv
+! Parameters for random velocity forcing
+&random_fv
 f0 = 1.00        ! amplitude of the mechanical forcing
-kdn = 1.00       ! minimum wavenumber
-kup = 2.00       ! maximum wavenumber
-A = 1.00         ! A amplitude in ABC
-B = 1.00         ! B amplitude in ABC
-C = 1.00         ! C amplitude in ABC
+kdn = 1          ! minimum wavenumber
+kup = 2          ! maximum wavenumber
+alpha = 0.0      ! relative helicity
+/
+
+! Parameters for random electromotive forcing
+&random_fb
+f0 = 1.00        ! amplitude of the mechanical forcing
+kdn = 1          ! minimum wavenumber
+kup = 2          ! maximum wavenumber
+alpha = 0.0      ! relative helicity
+corr  = 0.7      ! Cross-correlation between fv and fb
+/
+
+! Parameters for the uniform initial density
+&uniform_as
+c0 = 1.0         ! mean mass density
 /
 
 ! Particles general configuration flags
@@ -133,7 +151,7 @@ psolver = "testpart" ! Solver name, reads a namelist with the same name
 gyrof = 1.0        ! Gyrofrequency for a unit magnetic field (q/m)
 dii = 0.0          ! Ion inertial length (Hall epsilon, used if dokinelv)
 dokinelv = .FALSE. ! Use the electron velocity in E if .TRUE.
-dokinelp = .FALSE. ! Add the electron pressure to E if .TRUE. (CMHD only)
+dokinelp = .TRUE.  ! Add the electron pressure to E if .TRUE. (CMHD only)
 partlod = 1        ! particle output level of detail
 /
 

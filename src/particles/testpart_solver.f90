@@ -13,9 +13,15 @@
 !                     eta the magnetic diffusivity, and E the electric
 !                     field from Ohm's law, E = -u_e x B + eta j. The
 !                     velocity u_e is the fluid velocity u, or the
-!                     electron velocity u_e = u - dii j if dokinelv is
-!                     .TRUE. (Hall-MHD). The magnetic diffusivity and the
-!                     guide field are those of the MHD solver.
+!                     electron velocity u_e = u - dii j (u - dii j/rho in
+!                     compressible solvers) if dokinelv is .TRUE.
+!                     (Hall-MHD). In compressible solvers the electron
+!                     pressure can be added to E (dokinelp):
+!                       E = -u_e x B + eta j - (dii/2) Grad(p)/rho
+!                     with Grad(p)/rho = Grad(h), h the enthalpy of the
+!                     polytropic gas of the solver. The magnetic
+!                     diffusivity, the guide field and the equation of
+!                     state are those of the fluid solver (MHD or CMHD).
 !
 !              State ordering is:
 !                x1 (x2, x3), v1 (v2, v3)
@@ -33,7 +39,11 @@
 !                        default=0, only used if dokinelv is .TRUE.)
 !              dokinelv: .false.=E computed with the fluid velocity [default],
 !                        .true.=E computed with the electron velocity
-!                        u_e = u - dii j (Hall-MHD correction)
+!                        u_e = u - dii j/rho (Hall-MHD correction; rho=1
+!                        in incompressible solvers)
+!              dokinelp: .false.=Ohmic electric field eta j [default],
+!                        .true.=adds the electron pressure to E,
+!                        - (dii/2) Grad(p)/rho (compressible solvers only)
 !              partlod : particle output level of detail (default=1):
 !                         1: position (xlg), fluid velocity (vlg), test
 !                            particle velocity (vtp), magnetic field (blg)
@@ -43,18 +53,6 @@
 !              The initial velocity of the particles is set by the
 !              particle initial conditions (e.g., 'thermal_v' with a
 !              "&thermal_v" namelist and the thermal speed vtherm).
-!
-! NOTE       : For compressible MHD solvers (not available yet) the old
-!              code also supported the electron pressure correction to
-!              the electric field (ambipolar diffusion), selected with
-!              the namelist flag dokinelp:
-!                E = -u_e x B + eta j - (dii/2) grad(p)/rho
-!              with u_e = u - dii j/rho. The places where dokinelp and
-!              the density enter are marked with "COMPRESSIBLE" comments
-!              in this file: the traits and the namelist (init_impl),
-!              the electron velocity (dpdt_impl) and the current density
-!              term (tpart_current), and the selection of the solver
-!              traits in the constructor (Tpart_ctor).
 !
 ! DATE       : 09/10/26 (PDM)
 ! =====================================================================
@@ -79,10 +77,11 @@ module testpart_mod
     real(kind=GP) :: B0(3)    = 0.0_GP  ! guide field (from the pde)
     logical       :: doB0     = .false. ! guide field flag (from the pde)
     logical       :: dokinelv = .false. ! .true.=electron velocity in E
-    ! COMPRESSIBLE: add here the traits of compressible MHD solvers,
-    ! e.g., dokinelp (.true.=electron pressure correction to E) and the
-    ! equation of state parameters needed to compute grad(p)/rho (in the
-    ! old code, cp1 = dii*betae/2 and gam1 = gamma-1 from the solver).
+    logical       :: dokinelp = .false. ! .true.=electron pressure in E
+    ! Compressible solvers: density available, equation of state
+    logical       :: compressible = .false.
+    real(kind=GP) :: cp1      = 0.0_GP  ! enthalpy h = cp1 rho^gam1/2
+    real(kind=GP) :: gam1     = 0.0_GP  ! gamma - 1 (from the pde)
   end type
 
   ! ================= Solver ==========================================
@@ -114,13 +113,9 @@ CONTAINS
     class      (Tpart), intent (inout) :: this
     real     (kind=GP)                 :: gyrof, dii
     integer                            :: ierr, partlod
-    logical                            :: dokinelv
+    logical                            :: dokinelv, dokinelp
     character(len=128)                 :: pidir, podir
-    ! COMPRESSIBLE: add dokinelp (logical, default .false.) to the
-    ! namelist, its default, MPI_BCAST and trait below, next to dokinelv.
-    ! It must be rejected (or ignored with a warning) when the pde is
-    ! not compressible, since grad(p)/rho is not available then.
-    namelist/ testpart / pidir,podir,partlod,gyrof,dii,dokinelv
+    namelist/ testpart / pidir,podir,partlod,gyrof,dii,dokinelv,dokinelp
 
     this%POSITION = 1
     this%VELOCITY = this%POSITION + this%nc_
@@ -131,6 +126,7 @@ CONTAINS
     gyrof    = 1.0_GP
     dii      = 0.0_GP
     dokinelv = .false.
+    dokinelp = .false.
     if ( this%myrank_ .eq. 0 ) then
       open(1,file=this%infile_,status='unknown',form="formatted")
       read(1,NML=testpart)
@@ -142,6 +138,7 @@ CONTAINS
     call MPI_BCAST(gyrof   ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
     call MPI_BCAST(dii     ,1  ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
     call MPI_BCAST(dokinelv,1  ,MPI_LOGICAL  ,0,MPI_COMM_WORLD,ierr)
+    call MPI_BCAST(dokinelp,1  ,MPI_LOGICAL  ,0,MPI_COMM_WORLD,ierr)
 
     this%idir_ = pidir ! If present in &testpart, replaces the class default idir
     this%odir_ = podir ! If present in &testpart, replaces the class default odir
@@ -152,6 +149,7 @@ CONTAINS
     this%traits_%   gyrof = gyrof
     this%traits_%     dii = dii
     this%traits_%dokinelv = dokinelv
+    this%traits_%dokinelp = dokinelp
   end subroutine init_impl
 
   ! ===================================================================
@@ -166,6 +164,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   SUBROUTINE dpdt_impl(this, time, pde, fluidstate, pstate, dt, dpdtout)
     use equationbase_mod
+    use pseudospec_compressible, only: divide
     use fft
     IMPLICIT NONE
     class       (Tpart),             intent(inout) :: this
@@ -174,23 +173,37 @@ CONTAINS
     type   (GStateComp), target ,    intent   (in) :: fluidstate(:)
     type  (GPStateComp), target ,    intent   (in) :: pstate(:)
     type  (GPStateComp), target ,    intent(inout) :: dpdtout(:)
-    complex   (KIND=GP), pointer, dimension(:,:,:) :: velc,velc2,vc,ac
+    complex   (KIND=GP), pointer, dimension(:,:,:) :: velc,velc2,vc,ac,rho
+    complex   (KIND=GP), pointer, dimension(:,:,:) :: C1,C2,C3
     real      (KIND=GP), pointer, dimension(:,:,:) :: velr,tmp1,tmp2
     real      (kind=GP), pointer, dimension(:)     :: lbx,lby,lbz,lfx,lfy,lfz
     real      (kind=GP), pointer, dimension(:)     :: dpx,dpy,dpz,dvx,dvy,dvz
     real      (kind=GP), pointer, dimension(:)     :: pvx,pvy,pvz
-    real      (kind=GP)                            :: rmp
+    real      (kind=GP)                            :: rmp,cf
     integer                                        :: m
-    logical                                        :: bret
+    logical                                        :: bret,dorho,dolap
+
+    ! The density enters the electron velocity (dokinelv) and the
+    ! electron pressure (dokinelp) in the compressible solvers; the
+    ! incompressible electron velocity only needs Del^2 a
+    dorho = this%traits_%compressible .and. &
+            (this%traits_%dokinelv .or. this%traits_%dokinelp)
+    dolap = this%traits_%dokinelv .and. .not.this%traits_%compressible
 
     CALL GTStart(this%htimers_(GPTIME_STEP))
     call this%workspace_%get_complex_tmp(velc,bret)
-    if ( this%traits_%dokinelv ) call this%workspace_%get_complex_tmp(velc2,bret)
+    if ( dolap ) call this%workspace_%get_complex_tmp(velc2,bret)
+    if ( dorho ) then
+      call this%workspace_%get_complex_tmp(C1,bret)
+      call this%workspace_%get_complex_tmp(C2,bret)
+      call this%workspace_%get_complex_tmp(C3,bret)
+    endif
     call this%workspace_%get_real_tmp   (velr,bret)
     call this%workspace_%get_real_tmp   (tmp1,bret)
     call this%workspace_%get_real_tmp   (tmp2,bret)
     ! Particle-sized temporaries for the magnetic field and the current
-    ! density at the particles (lvx_,lvy_,lvz_ hold the fluid velocity)
+    ! density (or the dissipative electric field) at the particles
+    ! (lvx_,lvy_,lvz_ hold the fluid velocity)
     call this%workspace_%get_pcomp_tmp  (lbx ,bret)
     call this%workspace_%get_pcomp_tmp  (lby ,bret)
     call this%workspace_%get_pcomp_tmp  (lbz ,bret)
@@ -204,6 +217,11 @@ CONTAINS
       if (this%nc_ .ne. pde%nc_) then
         stop "Testpart: # of components of the particles and pdes must be equal"
       endif
+      rho => null()
+      select type (pde)
+      class is (CompMagneticBase)
+        rho => fluidstate(pde%DENSITY)%ccomp
+      end select
 
       ! IMPORTANT: pstate and dpdtout may alias the same array (some steppers
       ! can pass upout for both). We must be careful about ordering:
@@ -213,20 +231,33 @@ CONTAINS
 
       ! Step 1: Interpolate the fluid (or electron) velocity to lvx_,
       ! lvy_, lvz_, the magnetic field to lbx, lby, lbz, and the current
-      ! density to lfx, lfy, lfz. Only the first interpolation updates
-      ! the interpolation points.
+      ! density (or the dissipative electric field) to lfx, lfy, lfz.
+      ! Only the first interpolation updates the interpolation points.
       rmp = 1.0_GP/(real(this%nd_(1),kind=GP)*real(this%nd_(2),kind=GP)* &
                     real(this%nd_(3),kind=GP))
+      if ( this%traits_%dokinelv .and. this%traits_%compressible ) then
+        CALL laplak3(fluidstate(pde%MAGNETIC  )%ccomp,C1) ! Del^2 a = -j
+        CALL laplak3(fluidstate(pde%MAGNETIC+1)%ccomp,C2)
+        CALL laplak3(fluidstate(pde%MAGNETIC+2)%ccomp,C3)
+        CALL divide(rho,C1,C2,C3)                         ! -j/rho
+      endif
       do m = 1,3
         vc => fluidstate(pde%VELOCITY+m-1)%ccomp
-        if ( this%traits_%dokinelv ) then  ! u_e = u - dii j = u + dii Del^2 a
-          ! COMPRESSIBLE: the electron velocity is u_e = u - dii j/rho.
-          ! For compressible solvers divide -j (velc2) by the density
-          ! (in the old code: divide(th,C14,C15,C16), requires a
-          ! real-space product using the FFTs) before adding it to u.
-          ac => fluidstate(pde%MAGNETIC+m-1)%ccomp
-          CALL laplak3(ac,velc2)
-          CALL saxpby_c(velc,vc,rmp,velc2,this%traits_%dii*rmp)
+        if ( this%traits_%dokinelv ) then
+          if ( this%traits_%compressible ) then ! u_e = u - dii j/rho
+            if (m.eq.1) then
+              ac => C1
+            else if (m.eq.2) then
+              ac => C2
+            else
+              ac => C3
+            endif
+            CALL saxpby_c(velc,vc,rmp,ac,this%traits_%dii*rmp)
+          else                                  ! u_e = u - dii j = u + dii Del^2 a
+            ac => fluidstate(pde%MAGNETIC+m-1)%ccomp
+            CALL laplak3(ac,velc2)
+            CALL saxpby_c(velc,vc,rmp,velc2,this%traits_%dii*rmp)
+          endif
         else
           CALL copy3(vc,velc)
           CALL scal3(velc,rmp)
@@ -240,10 +271,20 @@ CONTAINS
         endif
       end do
       call tpart_magnetic(this,pde,fluidstate,lbx,lby,lbz,velc,velr,tmp1,tmp2)
-      call tpart_current (this,pde,fluidstate,lfx,lfy,lfz,velc,velr,tmp1,tmp2)
+      if ( this%traits_%dokinelp ) then
+        ! Dissipative electric field eta j - (dii/2) Grad(h) in lf*,
+        ! multiplied by gyrof in the kernel
+        call tpart_edissip(this,pde,fluidstate,rho,lfx,lfy,lfz,velc,C1,C2,C3, &
+                           velr,tmp1,tmp2)
+        cf = this%traits_%gyrof
+      else
+        ! Current density in lf*, multiplied by gyrof*eta in the kernel
+        call tpart_current(this,pde,fluidstate,lfx,lfy,lfz,velc,velr,tmp1,tmp2)
+        cf = this%traits_%gyeta
+      endif
 
       ! Steps 2 and 3 in one kernel over the particles: position RHS
-      ! dx/dt = v_p and velocity RHS dv_p/dt = gyrof [(v_p-u_e) x B + eta j].
+      ! dx/dt = v_p and velocity RHS dv_p/dt = gyrof [(v_p-u_e) x B + E_d].
       ! pstate and dpdtout may alias (some steppers pass upout for
       ! both): each particle reads its velocity before writing its RHS.
       ! Pointers and a kernel (tpart_rhs) are used to help offloading.
@@ -258,7 +299,7 @@ CONTAINS
       pvz => pstate (this%VELOCITY+2)%rcomp
       call tpart_rhs(this%nparts_,this%lvx_,this%lvy_,this%lvz_,lbx,lby,lbz,  &
                      lfx,lfy,lfz,pvx,pvy,pvz,dpx,dpy,dpz,dvx,dvy,dvz,          &
-                     this%invdel_,this%traits_%gyrof,this%traits_%gyeta)
+                     this%invdel_,this%traits_%gyrof,cf)
     class default
       stop "Testpart: This solver does not support pdes without a magnetic field"
     end select
@@ -272,7 +313,12 @@ CONTAINS
     call this%workspace_%free_real_tmp   (tmp2)
     call this%workspace_%free_real_tmp   (tmp1)
     call this%workspace_%free_real_tmp   (velr)
-    if ( this%traits_%dokinelv ) call this%workspace_%free_complex_tmp(velc2)
+    if ( dorho ) then
+      call this%workspace_%free_complex_tmp(C3)
+      call this%workspace_%free_complex_tmp(C2)
+      call this%workspace_%free_complex_tmp(C1)
+    endif
+    if ( dolap ) call this%workspace_%free_complex_tmp(velc2)
     call this%workspace_%free_complex_tmp(velc)
     CALL GTAcc(this%htimers_(GPTIME_STEP))
   END SUBROUTINE dpdt_impl
@@ -296,8 +342,10 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Internal kernel to compute right-hand side of n particles
   !!   dx/dt   = v_p/delta         (positions in grid units)
-  !!   dv_p/dt = gyrof [ (v_p - u_e) x B + eta j ]
-  !! with u_e in lv*, B in lb*, j in lf*, and gyeta = gyrof*eta.
+  !!   dv_p/dt = gyrof [ (v_p - u_e) x B ] + gyeta lf
+  !! with u_e in lv*, B in lb*, and in lf* either the current density
+  !! j (then gyeta = gyrof*eta) or the dissipative electric field
+  !! E_d = eta j - (dii/2) Grad(h) (then gyeta = gyrof).
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine tpart_rhs(n,lvx,lvy,lvz,lbx,lby,lbz,lfx,lfy,lfz,pvx,pvy,pvz, &
                        dpx,dpy,dpz,dvx,dvy,dvz,invdel,gyrof,gyeta)
@@ -404,20 +452,6 @@ CONTAINS
   !! Computes the current density j = curl(B) = -Del^2 a and
   !! interpolates it to the particles in lfx, lfy, lfz. The
   !! interpolation points must be already updated.
-  !!
-  !! COMPRESSIBLE: with the electron pressure correction (dokinelp)
-  !! the dissipative part of E is eta j - (dii/2) grad(p)/rho. The
-  !! simplest way to add it here is to interpolate, instead of j,
-  !! the field f = j - (dii/(2 eta)) grad(p)/rho (or, if eta = 0,
-  !! to pass gyrof and gyeta = gyrof*eta separately and add a third
-  !! term in tpart_rhs). In the old code grad(p)/rho was computed
-  !! by gradpstate(cp1,gam1,th,C11,C12,C13) from the density th and
-  !! the equation of state, and combined in Fourier space as
-  !! C14 = -gyrof*eta*C14 - 0.5*gyrof*dii*C11 (C14 = -j) before the
-  !! inverse FFT. Both branches (dokinelp true/false) need a check
-  !! that the pde is compressible; write_pstate_impl uses this
-  !! routine to write jlg, so keep the plain current density
-  !! available there (e.g., with an optional argument).
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine tpart_current(this,pde,fluidstate,lfx,lfy,lfz,velc,velr,tmp1,tmp2)
     use equationbase_mod
@@ -449,6 +483,55 @@ CONTAINS
       endif
     end do
   end subroutine tpart_current
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Computes the dissipative part of the electric field of the
+  !! compressible solvers with the electron pressure,
+  !!   E_d = eta j - (dii/2) Grad(p)/rho = -eta Del^2 a - (dii/2) Grad(h)
+  !! with h = cp1 rho^gam1/2 the enthalpy of the polytropic gas,
+  !! and interpolates it to the particles in lfx, lfy, lfz. The
+  !! interpolation points must be already updated. gx, gy, gz are
+  !! field-sized temporaries for Grad(h).
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine tpart_edissip(this,pde,fluidstate,rho,lfx,lfy,lfz,velc,gx,gy,gz, &
+                           velr,tmp1,tmp2)
+    use equationbase_mod
+    use pseudospec_compressible, only: gradpstate
+    use grid
+    use mpivars
+    implicit none
+    class       (Tpart), intent(inout)                          :: this
+    class(MagneticBase), intent   (in)                          :: pde
+    type   (GStateComp), intent   (in), target                  :: fluidstate(:)
+    complex(kind=GP), intent   (in), dimension(nz,ny,ista:iend) :: rho
+    complex(kind=GP), intent(inout), dimension(nz,ny,ista:iend) :: velc,gx,gy,gz
+    real   (kind=GP), intent(inout), dimension(nx,ny,ksta:kend) :: velr,tmp1,tmp2
+    real   (kind=GP), intent(inout), dimension(*)               :: lfx,lfy,lfz
+    complex(kind=GP), pointer, dimension(:,:,:)                 :: ac
+    real   (kind=GP)                                            :: rmp,ceta,cdii
+    integer                                                     :: m
+
+    rmp  = 1.0_GP/(real(this%nd_(1),kind=GP)*real(this%nd_(2),kind=GP)* &
+                   real(this%nd_(3),kind=GP))
+    ceta = -this%traits_%eta*rmp          ! eta j = -eta Del^2 a
+    cdii = -0.5_GP*this%traits_%dii*rmp   ! -(dii/2) Grad(h)
+    CALL gradpstate(this%traits_%cp1,this%traits_%gam1,rho,gx,gy,gz) ! Grad(h)
+    do m = 1,3
+      ac => fluidstate(pde%MAGNETIC+m-1)%ccomp
+      CALL laplak3(ac,velc)               ! Del^2 a = -j
+      if (m.eq.1) then
+        CALL saxpby_c(velc,velc,ceta,gx,cdii)
+        call tpart_c2lag(this,velc,lfx,.false.,velr,tmp1,tmp2)
+      else if (m.eq.2) then
+        CALL saxpby_c(velc,velc,ceta,gy,cdii)
+        call tpart_c2lag(this,velc,lfy,.false.,velr,tmp1,tmp2)
+      else
+        CALL saxpby_c(velc,velc,ceta,gz,cdii)
+        call tpart_c2lag(this,velc,lfz,.false.,velr,tmp1,tmp2)
+      endif
+    end do
+  end subroutine tpart_edissip
 
 
   ! ===================================================================
@@ -593,6 +676,7 @@ CONTAINS
   SUBROUTINE Tpart_ctor(this,infile, pde, workspace, pstate, pstate_cpy)
     USE equationbase_mod
     USE mhd_mod,   ONLY: MHDSolver
+    USE cmhd_mod,  ONLY: CMHDSolver
     USE var
     USE grid
     USE boxsize
@@ -701,27 +785,36 @@ CONTAINS
     ! Call init (reads &testpart namelist, sets POSITION/VELOCITY indices)
     call this%init()
 
-    ! The magnetic diffusivity and the guide field are those of the pde.
-    ! The traits are private to each solver class, so each magnetic
-    ! solver needs its own "type is" clause here (and a USE of its
-    ! module above). To add a solver: copy eta, doB0 and B0 from its
-    ! traits, and any other trait the force needs.
-    ! COMPRESSIBLE: for compressible MHD solvers also copy here the
-    ! parameters of the equation of state needed for grad(p)/rho (see
-    ! the COMPRESSIBLE notes in TestTraits and tpart_current), and set a
-    ! trait flagging that the density is available (the electron
-    ! velocity and the electron pressure correction need it). If the
-    ! solver stores b instead of a, tpart_magnetic and tpart_current
-    ! must also branch on that trait (rotor3/laplak3 assume a).
+    ! The magnetic diffusivity, the guide field and (for compressible
+    ! solvers) the equation of state are those of the pde. The traits
+    ! are private to each solver class, so each magnetic solver needs
+    ! its own "type is" clause here (and a USE of its module above);
+    ! tpart_magnetic and tpart_current assume the solver stores the
+    ! vector potential a.
     select type (pde)
     type is (MHDSolver)
-      this%traits_% eta = pde%traits_%eta
+      this%traits_%eta  = pde%traits_%eta
       this%traits_%doB0 = pde%traits_%doB0
-      this%traits_%  B0 = pde%traits_%B0
+      this%traits_%B0   = pde%traits_%B0
+      this%traits_%compressible = .false.
+    type is (CMHDSolver)
+      this%traits_%eta  = pde%traits_%eta
+      this%traits_%doB0 = pde%traits_%doB0
+      this%traits_%B0   = pde%traits_%B0
+      this%traits_%cp1  = pde%traits_%cp1
+      this%traits_%gam1 = pde%traits_%gam1
+      this%traits_%compressible = .true.
     class default
-      stop "Testpart_ctor: eta and B_0 are only known for the MHD solver"
+      stop "Testpart_ctor: the traits of this magnetic solver are not known"
     end select
     this%traits_%gyeta = this%traits_%gyrof*this%traits_%eta
+    if ( this%traits_%dokinelp .and. .not.this%traits_%compressible ) then
+      if ( this%myrank_ .eq. 0 ) then
+        WRITE(*,*) 'Testpart_ctor: dokinelp (electron pressure) requires', &
+                   ' a compressible solver (CMHD)'
+      endif
+      stop
+    endif
 
     ! Instantiate interp operation
     CALL this%intop_%GPSplineInt_ctor(3,this%nd_,this%libnds_,this%lxbnds_, &
