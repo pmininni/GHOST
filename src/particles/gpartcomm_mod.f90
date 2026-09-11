@@ -112,12 +112,12 @@ MODULE class_GPartComm
 !    hcomm   : externally-managed comm-timer handle; must be non-null on entry
 !-----------------------------------------------------------------
   SUBROUTINE GPartComm_ctor(this,intrface,maxparts,nd,nzghost,comm,hcomm)
+!$  USE omp_lib, ONLY: omp_get_max_threads
     IMPLICIT NONE
     CLASS(GPartComm),INTENT(INOUT):: this
     INTEGER, INTENT(IN)           :: intrface,maxparts,nd(3),nzghost
     TYPE(mpi_comm), INTENT(IN)    :: comm
     INTEGER, INTENT(IN)           :: hcomm
-!$  INTEGER, EXTERNAL             :: omp_get_max_threads
 
     IF ( intrface .NE. GPCOMM_INTRFC_SF ) THEN
       WRITE(*,*) 'GPartComm_ctor: only the single-field interface is supported'
