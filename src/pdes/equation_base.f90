@@ -12,8 +12,8 @@ module equationbase_mod
   implicit none
 
   private :: Solver_ctor_interface, init_interface
-  private :: dudt_interface, global_interface
-  private :: spectra_interface, state_size_interface
+  private :: dudt_interface       , global_interface
+  private :: spectra_interface    , state_size_interface
 
   ! ================= Base class for all PDEs =======================
   ! Define an abstract base class
