@@ -128,10 +128,10 @@ psolver = "testpart" ! Solver name, reads a namelist with the same name
 ! is the total magnetic field, j the current density, and u_e = u or
 ! u_e = u - dii j (if dokinelv is .TRUE.).
 &testpart
-gyrof = 1.0       ! Gyrofrequency for a unit magnetic field (q/m)
-dii = 0.0         ! Ion inertial length (Hall epsilon, used if dokinelv)
-dokinelv = .FALSE.! Use the electron velocity in E if .TRUE.
-partlod = 1       ! particle output level of detail
+gyrof = 1.0        ! Gyrofrequency for a unit magnetic field (q/m)
+dii = 0.0          ! Ion inertial length (Hall epsilon, used if dokinelv)
+dokinelv = .FALSE. ! Use the electron velocity in E if .TRUE.
+partlod = 1        ! particle output level of detail
 /
 
 ! Initial conditions for particles. List separated by ';' to set up ICs.
