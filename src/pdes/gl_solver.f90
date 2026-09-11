@@ -77,7 +77,6 @@
 module gl_mod
   use equationbase_mod
   use gstate_mod
-  use gmem
   use gdevice, only: gdev_active
 
   implicit none
@@ -459,7 +458,7 @@ CONTAINS
     call momentum(zre,zim,this%alpha_,t,dt,this%todir_)
     call gpehelicity(zre,zim,this%alpha_,this%beta_,this%omegag_,t,dt,this%todir_)
     if ( this%haspot_ ) then
-      call trapenergy(zre,zim,this%vpot_,this%alpha_,t,dt,this%todir_)
+      call trapenergy(zre,zim,this%vpot_,this%alpha_,this%beta_,t,dt,this%todir_)
     endif
     if ( this%dorot_ ) then
       call rotenergy(zre,zim,this%vlinx_,this%vliny_,this%alpha_,t,dt,this%todir_)
@@ -554,13 +553,7 @@ CONTAINS
       call this%workspace_%free_real_tmp(R1)
       call this%workspace_%free_complex_tmp(C1)
     endif
-    call gupdate_to(this%vx_)
-    call gupdate_to(this%vy_)
-    call gupdate_to(this%vz_)
-    call gupdate_to(this%vsq_)
-    call gupdate_to(this%vpot_)
-    call gupdate_to(this%vlinx_)
-    call gupdate_to(this%vliny_)
+    call this%aux_to_device()
   end subroutine sync_device_impl
 
 
@@ -570,8 +563,6 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine GLSolver_ctor(this, infile, workspace, plan)
     use iovar
-    use grid
-    use mpivars
     class  (GLSolver), intent(inout)         :: this
     type(GWorkspace) , intent(inout), target :: workspace
     type(ioplan)     , intent(inout), target :: plan
@@ -580,20 +571,7 @@ CONTAINS
     this%workspace_ => workspace
     this%planio_    => plan
     call this%init()
-    call galloc(this%vx_   ,nz,ny,ista,iend)
-    call galloc(this%vy_   ,nz,ny,ista,iend)
-    call galloc(this%vz_   ,nz,ny,ista,iend)
-    call galloc(this%vsq_  ,nx,ny,ksta,kend)
-    call galloc(this%vpot_ ,nx,ny,ksta,kend)
-    call galloc(this%vlinx_,nx,ny,ksta,kend)
-    call galloc(this%vliny_,nx,ny,ksta,kend)
-    this%vx_    = 0.0_GP
-    this%vy_    = 0.0_GP
-    this%vz_    = 0.0_GP
-    this%vsq_   = 0.0_GP
-    this%vpot_  = 0.0_GP
-    this%vlinx_ = 0.0_GP
-    this%vliny_ = 0.0_GP
+    call this%alloc_aux()
   end subroutine GLSolver_ctor
 
 
@@ -605,13 +583,7 @@ CONTAINS
     if (associated(this%workspace_))   nullify(this%workspace_)
     if (associated(this%planio_))      nullify(this%planio_)
     if (allocated(this%sstate_))       deallocate(this%sstate_)
-    call gfree(this%vx_)
-    call gfree(this%vy_)
-    call gfree(this%vz_)
-    call gfree(this%vsq_)
-    call gfree(this%vpot_)
-    call gfree(this%vlinx_)
-    call gfree(this%vliny_)
+    call this%free_aux()
   end subroutine GLSolver_dtor
 
 

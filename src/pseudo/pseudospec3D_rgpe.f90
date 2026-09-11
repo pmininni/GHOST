@@ -35,7 +35,7 @@ MODULE pseudospec_rgpe
    CONTAINS
 
 !*****************************************************************
-      SUBROUTINE trapenergy(a,b,v,alpha,t,dt,path)
+      SUBROUTINE trapenergy(a,b,v,alpha,beta,t,dt,path)
 !-----------------------------------------------------------------
 !
 ! Computes the potential energy associated to the trapping
@@ -66,7 +66,7 @@ MODULE pseudospec_rgpe
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
       REAL(KIND=GP), INTENT(IN), DIMENSION(nx,ny,ksta:kend)    :: v
-      REAL(KIND=GP), INTENT(IN)    :: dt,alpha
+      REAL(KIND=GP), INTENT(IN)    :: dt,alpha,beta
       INTEGER, INTENT(IN)          :: t
       CHARACTER(len=*), INTENT(IN) :: path
       REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: r
@@ -93,7 +93,7 @@ MODULE pseudospec_rgpe
             END DO
          END DO
       END DO
-      ene = 2.0D0*ene*alpha
+      ene = 2.0D0*ene*alpha*beta ! v is the potential divided by beta
       CALL MPI_REDUCE(ene,enet,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
                       MPI_COMM_WORLD,ierr)
 !
@@ -115,13 +115,16 @@ MODULE pseudospec_rgpe
 !-----------------------------------------------------------------
 !
 ! Computes the energy associated to the rotation of the
-! condensante (including the effective repulsive centrifugal
+! condensate (including the effective repulsive centrifugal
 ! potential), in the rotating frame of reference,
-! Erot = < z* Omega . (r x P) z >, where P is the momentum
-! operator. This subroutine writes the output to a file.
+! Erot = - < z* Omega . (r x P) z > = - Omega . L, where P is
+! the momentum operator and L the angular momentum. With this
+! sign, the energy in the rotating frame H + Etrap + Erot is
+! conserved (H is the energy in 'balance.txt', Etrap the energy
+! in 'trenergy.txt'). This subroutine writes the output to a file.
 !
 ! Output file contains:
-! 'rotenergy.txt': time, rot. energy < z* Omega.(r x P) z >
+! 'rotenergy.txt': time, rot. energy - < z* Omega.(r x P) z >
 !
 ! Parameters
 !     a     : real part of the wavefunction in Fourier space
@@ -178,7 +181,7 @@ MODULE pseudospec_rgpe
       CALL derivk3(b,c1,2) ! dz*/dy
       CALL fftp3d_complex_to_real(plancr,c1,dy2,MPI_COMM_WORLD)
       ene = 0.0D0
-      tmp = 2.0D0*alpha/ &
+      tmp = -2.0D0*alpha/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**4
 !$omp parallel do collapse(2) private (i,tmq,tmr) reduction(+:ene)
       DO k = ksta,kend

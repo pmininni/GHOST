@@ -73,6 +73,36 @@ module ic_quantum
 
 contains
 
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Dealiases the order parameter (zeroes the modes with
+  !! kn2 > kmax). The ICs built in real space have modes up to
+  !! the Nyquist wavenumber; the solvers evolve only the modes
+  !! with kn2 <= kmax, and the others must be removed (the
+  !! old code did this at every time step, the new steppers
+  !! do not modify the modes with zero time derivative)
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine dealias_z(solver,state)
+    use grid
+    use mpivars
+    use kes
+    use ali
+    class(QuantumBase), intent(in)    :: solver
+    type  (GStateComp), intent(inout) :: state(:)
+    integer                           :: i,j,k
+!$omp parallel do collapse(2) private (k)
+    do i = ista,iend
+      do j = 1,ny
+        do k = 1,nz
+          if (kn2(k,j,i).gt.kmax) then
+            state(solver%ZFUNC  )%ccomp(k,j,i) = 0.0_GP
+            state(solver%ZFUNC+1)%ccomp(k,j,i) = 0.0_GP
+          endif
+        end do
+      end do
+    end do
+  end subroutine dealias_z
+
+
   ! ===================================================================
   ! Initial conditions
   ! ===================================================================
@@ -207,6 +237,7 @@ contains
           end do
         end do
       end do
+      call dealias_z(solver,state)
       call solver%workspace_%free_real_tmp(R1)
     class default
       error stop 'IC: This solver does not support order parameter ICs'
@@ -327,6 +358,7 @@ contains
       end do
       call fftp3d_real_to_complex(planrc,R1,state(solver%ZFUNC  )%ccomp,MPI_COMM_WORLD)
       call fftp3d_real_to_complex(planrc,R2,state(solver%ZFUNC+1)%ccomp,MPI_COMM_WORLD)
+      call dealias_z(solver,state)
       call solver%workspace_%free_real_tmp(R3)
       call solver%workspace_%free_real_tmp(R2)
       call solver%workspace_%free_real_tmp(R1)
@@ -461,6 +493,7 @@ contains
       end do
       call fftp3d_real_to_complex(planrc,R1,state(solver%ZFUNC  )%ccomp,MPI_COMM_WORLD)
       call fftp3d_real_to_complex(planrc,R2,state(solver%ZFUNC+1)%ccomp,MPI_COMM_WORLD)
+      call dealias_z(solver,state)
       call solver%workspace_%free_real_tmp(R2)
       call solver%workspace_%free_real_tmp(R1)
     class default
@@ -790,6 +823,7 @@ contains
       end do
       call fftp3d_real_to_complex(planrc,R1,state(solver%ZFUNC  )%ccomp,MPI_COMM_WORLD)
       call fftp3d_real_to_complex(planrc,R2,state(solver%ZFUNC+1)%ccomp,MPI_COMM_WORLD)
+      call dealias_z(solver,state)
       call solver%workspace_%free_real_tmp(R3)
       call solver%workspace_%free_real_tmp(R2)
       call solver%workspace_%free_real_tmp(R1)

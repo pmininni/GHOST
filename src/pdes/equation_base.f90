@@ -89,6 +89,10 @@ module equationbase_mod
       complex(kind=GP), allocatable, dimension(:,:,:) :: vx_,vy_,vz_
       real   (kind=GP), allocatable, dimension(:,:,:) :: vsq_,vpot_
       real   (kind=GP), allocatable, dimension(:,:,:) :: vlinx_,vliny_
+    contains
+      procedure, public :: alloc_aux     => quantum_alloc_aux     ! Allocates aux. arrays
+      procedure, public :: free_aux      => quantum_free_aux      ! Frees aux. arrays
+      procedure, public :: aux_to_device => quantum_aux_to_device ! Copies them to the device
   end type QuantumBase
   
   abstract interface
@@ -208,6 +212,59 @@ CONTAINS
     class (EquationBase), intent(inout) :: this
     return
   end subroutine sync_device
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Concrete methods of the quantum solvers: allocation (with
+  !! device copies, zero by default), deallocation, and copy to
+  !! the device of the auxiliary arrays shared by the quantum
+  !! solvers (advective velocity, |v|^2, potential, and linear
+  !! ramps for the rotation)
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine quantum_alloc_aux(this)
+    use gmem
+    use grid
+    use mpivars
+    class (QuantumBase), intent(inout) :: this
+    call galloc(this%vx_   ,nz,ny,ista,iend)
+    call galloc(this%vy_   ,nz,ny,ista,iend)
+    call galloc(this%vz_   ,nz,ny,ista,iend)
+    call galloc(this%vsq_  ,nx,ny,ksta,kend)
+    call galloc(this%vpot_ ,nx,ny,ksta,kend)
+    call galloc(this%vlinx_,nx,ny,ksta,kend)
+    call galloc(this%vliny_,nx,ny,ksta,kend)
+    this%vx_    = 0.0_GP
+    this%vy_    = 0.0_GP
+    this%vz_    = 0.0_GP
+    this%vsq_   = 0.0_GP
+    this%vpot_  = 0.0_GP
+    this%vlinx_ = 0.0_GP
+    this%vliny_ = 0.0_GP
+  end subroutine quantum_alloc_aux
+
+  subroutine quantum_free_aux(this)
+    use gmem
+    class (QuantumBase), intent(inout) :: this
+    call gfree(this%vx_)
+    call gfree(this%vy_)
+    call gfree(this%vz_)
+    call gfree(this%vsq_)
+    call gfree(this%vpot_)
+    call gfree(this%vlinx_)
+    call gfree(this%vliny_)
+  end subroutine quantum_free_aux
+
+  subroutine quantum_aux_to_device(this)
+    use gmem
+    class (QuantumBase), intent(inout) :: this
+    call gupdate_to(this%vx_)
+    call gupdate_to(this%vy_)
+    call gupdate_to(this%vz_)
+    call gupdate_to(this%vsq_)
+    call gupdate_to(this%vpot_)
+    call gupdate_to(this%vlinx_)
+    call gupdate_to(this%vliny_)
+  end subroutine quantum_aux_to_device
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
