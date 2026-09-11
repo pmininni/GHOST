@@ -53,7 +53,7 @@ module equationbase_mod
 
   type, abstract, extends(VelocityBase) :: CompVelocityBase
       integer :: DENSITY     ! start of mass density sector
-  end type CompMagneticBase
+  end type CompVelocityBase
 
   type, abstract, extends(VelocityBase) :: MagneticBase
       integer :: MAGNETIC    ! start of magnetic sector
