@@ -559,7 +559,7 @@ contains
     class(BOUSSSolver), intent   (in) :: this
     character  (len=8), intent   (in) :: sstate(:)
     integer           , intent(inout) :: istate(:)
-    integer                                       :: i,j
+    integer                           :: i,j
     if ( size(sstate) .ne. size(istate) ) then
       stop 'BOUSSSolver::sstate2istate_impl: Incompatible sstate and istate'
     endif  

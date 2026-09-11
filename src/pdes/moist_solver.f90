@@ -609,10 +609,10 @@ contains
   !! Convert input state name to index in state vector
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine sstate2istate_impl(this, sstate, istate)
-    class(MOISTSolver), intent(in)            :: this
-    character(len=8), intent(in)              :: sstate(:)
-    integer, allocatable, intent(inout)       :: istate(:)
-    integer                                   :: i, j
+    class(MOISTSolver), intent(in)      :: this
+    character(len=8), intent(in)        :: sstate(:)
+    integer, allocatable, intent(inout) :: istate(:)
+    integer                             :: i, j
     if (.not. allocated(istate)) then
       allocate(istate(size(sstate)))
     else if (size(istate) /= size(sstate)) then

@@ -51,9 +51,17 @@ module equationbase_mod
       integer :: numactivesc_ ! # active scalars
   end type ActiveScalarBase
 
+  type, abstract, extends(VelocityBase) :: CompVelocityBase
+      integer :: DENSITY     ! start of mass density sector
+  end type CompMagneticBase
+
   type, abstract, extends(VelocityBase) :: MagneticBase
       integer :: MAGNETIC    ! start of magnetic sector
   end type MagneticBase
+
+  type, abstract, extends(MagneticBase) :: CompMagneticBase
+      integer :: DENSITY     ! start of mass density sector
+  end type CompMagneticBase
 
   type, abstract, extends(EquationBase) :: QuantumBase
       integer :: ZFUNC       ! start of wavefunction sector

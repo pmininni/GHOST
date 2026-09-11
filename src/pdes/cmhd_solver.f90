@@ -1,20 +1,22 @@
 ! =====================================================================
-! NAME       : mhd_solver.f90
-! DESCRIPTION: Forms class for incompressible MHD solver, computing:
+! NAME       : cmhd_solver.f90
+! DESCRIPTION: Forms class for compressible MHD solver, computing:
 !
 !              dv/dt +  w x v  = j x (b+B_0) - Grad p + nu Del^2 v
 !              da/dt = (v - eps j) x (b+B_0) - Grad phi + eta Del^2 a 
+!              drho/dt = 
 !              ds_i/dt + v.Grad s_i = kappa_i Del^2 s_i 
 !                                             i = 1, ..., numpassive
 !              State ordering is:
-!                v1, v2, v3, a1, a2, a3, s1, s2, ..., s_numpassive
+!                v1, v2, v3, a1, a2, a3, rho, s1, s2, ..., s_numpassive
 !
 !              State sector ids are:
-!                VELOCITY (VELOCITY+1, VELOCITY+2)
-!                MAGNETIC (MAGNETIC+1, MAGNETIC+2)
-!                PASSIVE  ( PASSIVE+1,  PASSIVE+2, ...)
+!                VELOCITY (VELOCITY+1, VELOCITY+2)     : momentum sector
+!                MAGNETIC (MAGNETIC+1, MAGNETIC+2)     : magnetic sector
+!                ACTIVESC                              : mass density
+!                PASSIVE  ( PASSIVE+1,  PASSIVE+2, ...): passive scalars
 !
-! INPUT FILE : For solver='MHD', looks for a "&MHD" namelist with:
+! INPUT FILE : For solver='CMHD', looks for a "&CMHD" namelist with:
 !              fidir   : changes class binary input  dir (default: idir)
 !              fodir   : changes class binary output dir (default: odir)
 !              todir   : changes the class TXT output dir (default: '')
@@ -36,17 +38,17 @@
 !              For npassive > 0, looks for a "&passive" namelist with:
 !              kappa   : vector with npassive diffusivities
 !
-! DATE       : 01/17/26 (PDM)
+! DATE       : 09/11/26 (PDM)
 ! =====================================================================
 
-module mhd_mod
+module cmhd_mod
   USE equationbase_mod
   USE gstate_mod
 
   IMPLICIT NONE
 
   ! ================= Solver traits ===================================
-  type, public  :: MHDTraits
+  type, public  :: CMHDTraits
     logical       :: doB0         = .FALSE. ! guide field flag
     logical       :: dohall       = .FALSE. ! compute hall term
     integer       :: spectlod     = 1       ! standard level of spectra detail 
@@ -62,10 +64,10 @@ module mhd_mod
 
   ! ================= Solver ==========================================
   ! Define class:
-  type, extends(MagneticBase) :: MHDSolver 
+  type, extends(CompMagneticBase) :: CMHDSolver 
     ! Member data:
     logical           :: binit_ = .false. ! is initialized?
-    type  (MHDTraits) :: traits_
+    type (CMHDTraits) :: traits_
 
   CONTAINS
     procedure, public :: init          =>          init_impl ! init method
@@ -75,9 +77,9 @@ module mhd_mod
     procedure, public :: state_size    =>    state_size_impl ! state size
     procedure, public :: sstate2istate => sstate2istate_impl ! state names
     procedure, public :: get_sstate    =>    get_sstate_impl ! get state name list
-    procedure, public :: Solver_ctor   =>     MHDSolver_ctor ! constructor
-    final             :: MHDSolver_dtor
-  end type MHDSolver
+    procedure, public :: Solver_ctor   =>    CMHDSolver_ctor ! constructor
+    final             :: CMHDSolver_dtor
+  end type CMHDSolver
 
 CONTAINS
 
@@ -91,7 +93,7 @@ CONTAINS
   subroutine init_impl(this)
     USE commtypes
     use status
-    class  (MHDSolver), intent (inout) :: this
+    class(CMHDSolver), intent (inout) :: this
 
     ! Temporary data to read from namelists:
     logical                    :: doB0
@@ -105,9 +107,9 @@ CONTAINS
     character(len=128)         :: fidir, fodir, todir
 
     ! Required namelists:
-    namelist/ MHD     / fidir, fodir, todir
-    namelist/ MHD     / nu, eta, doB0, B0x, B0y, B0z
-    namelist/ MHD     / dohall, epsilon, npassive, spectlod
+    namelist/ CMHD    / fidir, fodir, todir
+    namelist/ CMHD    / nu, eta, doB0, B0x, B0y, B0z
+    namelist/ CMHD    / dohall, epsilon, npassive, spectlod
     namelist/ passive / kappa
 
     call MPI_COMM_SIZE(MPI_COMM_WORLD,this%nprocs_,ierr)
@@ -126,7 +128,7 @@ CONTAINS
     B0x = 0.0_GP; B0y = 0.0_GP; B0z = 0.0_GP
     if ( this%myrank_ .eq. 0 ) then
       open(1,file=this%infile_,status='unknown',form="formatted")
-      read(1,NML=MHD)
+      read(1,NML=CMHD)
       close(1)
     endif
     call MPI_BCAST(fidir    ,128,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
@@ -155,9 +157,9 @@ CONTAINS
     endif
 
     ! Set I/O and traits from inputfile data:
-    this%idir_  = fidir ! If present in &MHD, replaces the class default idir
-    this%odir_  = fodir ! If present in &MHD, replaces the class default odir
-    this%todir_ = todir ! If present in &MHD, replaces the class default todir
+    this%idir_  = fidir ! If present in &CMHD, replaces the class default idir
+    this%odir_  = fodir ! If present in &CMHD, replaces the class default odir
+    this%todir_ = todir ! If present in &CMHD, replaces the class default todir
     this%traits_%    doB0 = doB0
     this%traits_%  dohall = dohall
     this%traits_%spectlod = spectlod
@@ -179,7 +181,8 @@ CONTAINS
     this%nc_      = this%nd_                 ! # field components
     this%VELOCITY = 1                        ! start of vel sector
     this%MAGNETIC = this%VELOCITY + this%nc_ ! start of mag sector
-    this%PASSIVE  = this%MAGNETIC + this%nc_ ! start of scalar sector
+    this%DENSITY  = this%MAGNETIC + this%nc_ ! start of density sector
+    this%PASSIVE  = this%DENSITY  + 1        ! start of scalar sector
 
     allocate(this%sstate_(this%state_size()))
     call this%get_sstate(this%sstate_)
@@ -204,7 +207,7 @@ CONTAINS
     use gdevice, only: gdev_active
     implicit none
 
-    class(MHDSolver), intent   (in)             :: this
+    class(CMHDSolver), intent   (in)             :: this
     real   (kind=GP), intent   (in)             :: time, dt
     type(GStateComp), intent(inout), target     :: uin(:),uf(:)
     type(GStateComp), intent(inout), target     :: dudt(:) 
@@ -220,7 +223,7 @@ CONTAINS
     logical                                     :: bret
 
     if ( .not. this%binit_ ) then
-      stop 'MHDSolver::dudt: Solver not initialized'
+      stop 'CMHDSolver::dudt: Solver not initialized'
     endif
 
     nu  = this%traits_%nu
@@ -379,14 +382,14 @@ CONTAINS
     use status
     implicit none
 
-    class(MHDSolver), intent(in)                :: this
-    type(GStateComp), intent(in), target        :: uin(:), uf(:)
-    integer         , intent(in)                :: t
-    complex(kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
-    complex(kind=GP), pointer, dimension(:,:,:) :: mx,my,mz,ax,ay,az
-    double precision                            :: eps,epm
-    real   (kind=GP)                            :: rmp,rmq
-    integer                                     :: i
+    class(CMHDSolver), intent(in)                :: this
+    type (GStateComp), intent(in), target        :: uin(:), uf(:)
+    integer          , intent(in)                :: t
+    complex (kind=GP), pointer, dimension(:,:,:) :: fx,fy,fz,vx,vy,vz
+    complex (kind=GP), pointer, dimension(:,:,:) :: mx,my,mz,ax,ay,az
+    double precision                             :: eps,epm
+    real    (kind=GP)                            :: rmp,rmq
+    integer                                      :: i
 
     vx => uin(this%VELOCITY  )%ccomp
     vy => uin(this%VELOCITY+1)%ccomp
@@ -434,13 +437,13 @@ CONTAINS
     use status
     implicit none
 
-    class(MHDSolver), intent(in)                :: this
-    type(GStateComp), intent(in), target        :: uin(:)
-    complex(kind=GP), pointer, dimension(:,:,:) :: vx,vy,vz
-    complex(kind=GP), pointer, dimension(:,:,:) :: ax,ay,az
-    complex(kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3
-    integer                                     :: i,j,k
-    logical                                     :: bret
+    class(CMHDSolver), intent(in)                :: this
+    type (GStateComp), intent(in), target        :: uin(:)
+    complex (kind=GP), pointer, dimension(:,:,:) :: vx,vy,vz
+    complex (kind=GP), pointer, dimension(:,:,:) :: ax,ay,az
+    complex (kind=GP), pointer, dimension(:,:,:) :: C1,C2,C3
+    integer                                      :: i,j,k
+    logical                                      :: bret
 
     WRITE(ext, fmtext) sind
     vx => uin(this%VELOCITY  )%ccomp
@@ -500,9 +503,9 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Constructor
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine MHDSolver_ctor(this, infile, workspace, plan)
+  subroutine CMHDSolver_ctor(this, infile, workspace, plan)
     use iovar
-    class (MHDSolver), intent(inout)         :: this
+    class(CMHDSolver), intent(inout)         :: this
     type(GWorkspace) , intent(inout), target :: workspace
     type    (ioplan) , intent(inout), target :: plan
     character(len=*) , intent   (in)         :: infile
@@ -510,31 +513,31 @@ CONTAINS
     this%workspace_ => workspace
     this%planio_    => plan
     call this%init();
-  end subroutine MHDSolver_ctor
+  end subroutine CMHDSolver_ctor
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Destructor
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine MHDSolver_dtor(this) 
-    type  (MHDSolver), intent(inout) :: this
+  subroutine CMHDSolver_dtor(this) 
+    type  (CMHDSolver), intent(inout) :: this
     if (associated(this%workspace_))   nullify(this%workspace_)
     if (associated(this%planio_))      nullify(this%planio_)
     if (allocated(this%sstate_))       deallocate(this%sstate_)
     if (allocated(this%traits_%kappa)) deallocate(this%traits_%kappa)
-  end subroutine MHDSolver_dtor
+  end subroutine CMHDSolver_dtor
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Convert input state name to index in state vector
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine sstate2istate_impl(this, sstate, istate) 
-    class(MHDSolver), intent   (in) :: this
-    character(len=8), intent   (in) :: sstate(:)
-    integer         , intent(inout) :: istate(:)
-    integer                         :: i,j
+    class(CMHDSolver), intent   (in) :: this
+    character (len=8), intent   (in) :: sstate(:)
+    integer          , intent(inout) :: istate(:)
+    integer                          :: i,j
     if ( size(sstate) .ne. size(istate) ) then
-      stop 'MHDSolver::sstate2istate_impl: Incompatible sstate and istate'
+      stop 'CMHDSolver::sstate2istate_impl: Incompatible sstate and istate'
     endif  
     do i = 1, size(sstate)
       istate(i) = -1 ! return unusable index
@@ -551,11 +554,11 @@ CONTAINS
   !! Get state variable names
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine get_sstate_impl(this, sstate) 
-    class (MHDSolver), intent   (in) :: this
-    character (len=8), intent(inout) :: sstate(:)
-    character(len=100)               :: snum
-    character(len=1)                 :: comp(3)
-    integer                          :: j
+    class (CMHDSolver), intent   (in) :: this
+    character  (len=8), intent(inout) :: sstate(:)
+    character(len=100)                :: snum
+    character  (len=1)                :: comp(3)
+    integer                           :: j
     comp = ['x', 'y', 'z']
     do j = this%VELOCITY,this%VELOCITY+this%nc_-1
        sstate(j) = 'v' // comp(j-this%VELOCITY+1)
@@ -563,6 +566,7 @@ CONTAINS
     do j = this%MAGNETIC,this%MAGNETIC+this%nc_-1
        sstate(j) = 'a' // comp(j-this%MAGNETIC+1)
     enddo
+    sstate(this%DENSITY) = 'rho'
     do j = this%PASSIVE,this%PASSIVE+this%numpassive_-1
        write(snum,'(I0)') j-this%PASSIVE+1
        sstate(j) = 's' // trim(snum)
@@ -574,11 +578,12 @@ CONTAINS
   !! Function to compute number of state members (equations)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   PURE function state_size_impl(this) result(num)
-    class(MHDSolver), intent(in) :: this
-    integer                      :: num
+    class(CMHDSolver), intent(in) :: this
+    integer                       :: num
     num = this%nc_               ! # vel. components
     num = num + this%nc_         ! # vec. potential components
+    num = num + 1                ! # mass density
     num = num + this%numpassive_ ! # scalars
   end function state_size_impl
 
-end module mhd_mod
+end module cmhd_mod
