@@ -65,7 +65,7 @@ MODULE pseudospec_quantum
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend)  :: a,b
       REAL(KIND=GP), INTENT(OUT), DIMENSION(nx,ny,ksta:kend)    :: r
       COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1
-      REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: r1
+      REAL(KIND=GP)   , POINTER, DIMENSION(:,:,:) :: r1
       REAL(KIND=GP)       :: rmp
       INTEGER, INTENT(IN) :: dealias
       INTEGER :: i,j,k
@@ -287,7 +287,6 @@ MODULE pseudospec_gpe
 ! 'balance.txt': time, mass, kinetic+quantum en., potential en., quartic en.
 !   [Ekq = 2.alpha^2.|grad(z)|^2, Equart = alpha.beta.|z|^4, and the      ]
 !   [pot. energy is Epot = Equart-2*alpha.omegag.mass+alpha.omegag^2/beta.]
-!   [Note this output replaces all 'balance.txt' files in quantum solvers.]
 !
 ! Parameters
 !     a : input matrix with the real part of the wavefunction
@@ -572,7 +571,7 @@ MODULE pseudospec_gpe
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
       REAL(KIND=GP), INTENT(IN)    :: alpha,beta,omegag
-      DOUBLE PRECISION, DIMENSION(nmax/2+1)        :: Eint,Equa,Einc,Ecom
+      DOUBLE PRECISION, DIMENSION(nmax/2+1)    :: Eint,Equa,Einc,Ecom
       INTEGER                      :: i
       CHARACTER(len=*), INTENT(IN) :: path,nmb
 

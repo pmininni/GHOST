@@ -16,7 +16,6 @@ CONTAINS
     USE commtypes
     USE grid
     USE mpivars
-!$  USE threads
     IMPLICIT NONE
 
     DOUBLE PRECISION           :: tmp

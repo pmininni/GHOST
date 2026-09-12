@@ -52,7 +52,6 @@ MODULE pseudospec_magnetic
       USE mpivars
       USE grid
       USE fft
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
@@ -143,7 +142,6 @@ MODULE pseudospec_magnetic
       USE kes
       USE grid
       USE mpivars
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
@@ -253,7 +251,6 @@ MODULE pseudospec_magnetic
       USE kes
       USE grid
       USE mpivars
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
@@ -412,7 +409,6 @@ MODULE pseudospec_magnetic
       USE grid
       USE mpivars
       USE boxsize
-!$    USE threads
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(nmax/2+1) :: Ck
@@ -554,7 +550,6 @@ MODULE pseudospec_mhd
       USE commtypes
       USE grid
       USE mpivars
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c

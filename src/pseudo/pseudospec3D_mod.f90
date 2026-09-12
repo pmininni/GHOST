@@ -99,7 +99,6 @@
       USE kes
       USE ali
       USE gmem
-!$    USE threads
       IMPLICIT NONE
 
       CHARACTER  (len=*), INTENT(IN) :: infile_

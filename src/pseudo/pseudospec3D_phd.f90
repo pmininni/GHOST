@@ -52,7 +52,6 @@ MODULE pseudospec_scalar
       USE pseudospec_fluid
       USE class_GWorkspace3D, ONLY: gws
       USE gdevice, ONLY: gdev_active
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b
@@ -158,7 +157,6 @@ MODULE pseudospec_scalar
       USE grid
       USE mpivars
       USE gdevice, ONLY: gdev_active
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: lapl,adve,f
@@ -203,7 +201,6 @@ MODULE pseudospec_scalar
       USE kes
       USE grid
       USE mpivars
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a
@@ -308,7 +305,6 @@ MODULE pseudospec_scalar
       USE commtypes
       USE grid
       USE mpivars
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
@@ -389,7 +385,6 @@ MODULE pseudospec_scalar
       USE mpivars
       USE filefmt
       USE boxsize
-!$    USE threads
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(nmax/2+1)                    :: Ek
@@ -451,7 +446,6 @@ MODULE pseudospec_scalar
       USE grid
       USE mpivars
       USE boxsize
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a
@@ -527,378 +521,6 @@ MODULE pseudospec_scalar
 
       RETURN
       END SUBROUTINE spectrscc
-
-!*****************************************************************
-      SUBROUTINE sctrans(a,b,path,nmb,isc,tail)
-!-----------------------------------------------------------------
-!
-! Computes the scalar transfer in Fourier space in 3D.
-! Normalization of the transfer function is such that the
-! flux is Pi = -sum[T(k).Dkk], where Dkk is the width of the
-! Fourier shells. The output is written to a file by the 
-! first node.
-!
-! Output files contain:
-! 'stransfer.XXX.txt' : k, Ts(k) (scalar transfer function)
-! 'sNtransfer.XXX.txt': k, Ts(k) (same for the N-th scalar)
-!
-! Parameters
-!     a   : scalar
-!     b   : nonlinear term
-!     path: path for the output
-!     nmb : the extension used when writting the file
-!     isc : if doing multi-scalar, gives index of scalar 
-!           whose transfer is being computed (1, 2, or 3) and
-!           names file as s<isc>transfer.XXX.txt. If isc=0, then
-!           filename is stransfer.XXX.txt
-!     tail: Appends tail at the end of the file name [optional]
-!          
-!
-      USE fprecision
-      USE commtypes
-      USE kes
-      USE grid
-      USE mpivars
-      USE filefmt
-      USE boxsize
-!$    USE threads
-      IMPLICIT NONE
-
-      COMPLEX (KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
-      DOUBLE PRECISION, DIMENSION(nmax/2+1) :: Ek,Ektot
-      DOUBLE PRECISION :: tmq
-      REAL(KIND=GP)    :: tmp
-      INTEGER         , INTENT(IN)           :: isc
-      INTEGER          :: i,j,k
-      INTEGER          :: kmn
-      CHARACTER(len=*), INTENT(IN)           :: path,nmb
-      CHARACTER(len=*), INTENT(IN), OPTIONAL :: tail
-      CHARACTER(len=128)                     :: fname
-      CHARACTER(len=1)                       :: si
-!
-! Sets Ek to zero
-!
-      DO i = 1,nmax/2+1
-         Ek(i) = 0.0D0
-      END DO
-!
-! Computes the scalar transfer
-!
-      tmp = 1.0_GP/ &
-            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
-      IF (ista.eq.1) THEN
-!$omp parallel private (k,kmn,tmq,j)
-!$omp do
-         DO j = 1,ny
-            DO k = 1,nz
-               kmn = int(sqrt(kk2(k,j,1))/Dkk+.501)
-               IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                  tmq = tmp*real(a(k,j,1)*conjg(b(k,j,1)))
-!$omp atomic
-                  Ek(kmn) = Ek(kmn)+tmq
-               ENDIF
-            END DO
-         END DO
-!$omp end do
-!$omp do
-         DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-            DO j = 1,ny
-               DO k = 1,nz
-                  kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                     tmq = 2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
-!$omp atomic
-                     Ek(kmn) = Ek(kmn)+tmq
-                  ENDIF
-               END DO
-            END DO
-         END DO
-!$omp end do
-!$omp end parallel
-      ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-            DO j = 1,ny
-               DO k = 1,nz
-                  kmn = int(sqrt(kk2(k,j,i))/Dkk+.501)
-                  IF ((kmn.gt.0).and.(kmn.le.nmax/2+1)) THEN
-                     tmq = 2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
-!$omp atomic
-                     Ek(kmn) = Ek(kmn)+tmq
-                  ENDIF
-               END DO
-            END DO
-         END DO
-      ENDIF
-!
-! Computes the reduction between nodes
-! and exports the result to a file
-!
-      CALL MPI_REDUCE(Ek,Ektot,nmax/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
-                      MPI_COMM_WORLD,ierr)
-      IF ( myrank.eq.0 ) THEN
-         IF ( isc.ge.0 ) THEN
-           IF ( isc.gt.0 ) THEN
-              WRITE(si,'(i1.1)') isc
-              fname = 's' // si // 'transfer'
-           ELSE
-              fname = 'stransfer'
-           ENDIF
-         ELSE IF ( isc .eq. -1 ) THEN
-           fname = 'rhotransfer'
-         ENDIF
-         if (present(tail)) then
-            fname = trim(adjustl(fname)) // '_' // trim(adjustl(tail))
-         endif
-         OPEN(1,file= trim(path) // '/' // trim(adjustl(fname)) // '.' &
-              // nmb // '.txt')
-         DO i=1,nmax/2+1
-            WRITE(1,FMT='(E13.6,E23.15)') Dkk*i,Ektot(i)/Dkk
-         END DO
-      ENDIF
-
-      RETURN
-      END SUBROUTINE sctrans
-
-!*****************************************************************
-      SUBROUTINE difucx(a,b,path,nmb,tail)
-!-----------------------------------------------------------------
-!
-! Computes the mean profiles in x of the velocity, the 
-! passive scalar, and their product. The output is 
-! written to a file by the first node.
-!
-! Output file contains:
-! 'profilex.txt': x, <v_i>(x), <theta>(x), <v_i.theta>(x)
-!
-! Parameters
-!     a    : vector field component in the x-direction
-!     b    : scalar field
-!     path : path for the output
-!     nmb  : the extension used when writting the file
-!     tail : Appends tail at the end of the file name [optional]
-!
-      USE fprecision
-      USE commtypes
-      USE var
-      USE kes
-      USE fft
-      USE grid
-      USE mpivars
-      USE boxsize
-!$    USE threads
-      IMPLICIT NONE
-
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
-      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1, c2
-      REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: r1, r2
-      REAL(KIND=GP), DIMENSION(nx) :: meth,mev,methv
-      REAL(KIND=GP), DIMENSION(nx) :: mth,mv,mthv
-      REAL(KIND=GP)                :: tmp,tmq
-      INTEGER                      :: i,j,k
-      CHARACTER(len=*), INTENT(IN) :: path,nmb
-      CHARACTER(len=*), INTENT(IN), OPTIONAL :: tail
-      CHARACTER(len=128)                     :: fname
-
-!
-! Transforms the input arrays to real space
-!
-      LOGICAL :: bret_
-      CALL gws%get_complex_htmp(c1,bret_)
-      CALL gws%get_complex_htmp(c2,bret_)
-      CALL gws%get_real_htmp(r1,bret_)
-      CALL gws%get_real_htmp(r2,bret_)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,ny
-            DO k = 1,nz
-               c1(k,j,i) = a(k,j,i)
-               c2(k,j,i) = b(k,j,i)
-            END DO
-         END DO
-      END DO
-      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
-!
-! Computes the mean profiles
-!    
-      DO i = 1,nx
-         mev(i) = 0.0_GP
-         meth(i) = 0.0_GP
-         methv(i) = 0.0_GP
-      END DO
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-      DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,ny
-            DO i = 1,nx
-!$omp critical
-               mev(i) = mev(i)+r1(i,j,k)
-               meth(i) = meth(i)+r2(i,j,k)
-               methv(i) = methv(i)+r1(i,j,k)*r2(i,j,k)
-!$omp end critical
-            END DO
-         END DO
-      END DO
-      tmp = 1.0_GP/(real(nx,kind=GP)*      &
-                    real(ny,kind=GP)**2*real(nz,kind=GP)**2)
-      tmq = 1.0_GP/(real(nx,kind=GP)**2*   &
-                    real(ny,kind=GP)**3*real(nz,kind=GP)**3)
-      DO i = 1,nx
-         mev(i) = mev(i)*tmp
-         meth(i) = meth(i)*tmp
-         methv(i) = methv(i)*tmq
-      END DO
-!
-! Computes the reduction between nodes
-!
-      CALL MPI_REDUCE(mev,mv,nx,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_REDUCE(meth,mth,nx,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_REDUCE(methv,mthv,nx,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
-
-      IF (myrank.eq.0) THEN
-         fname = 'profilex'
-         if (present(tail)) then
-            fname = trim(adjustl(fname)) // '_' // trim(adjustl(tail))
-         endif
-         OPEN(1,file= trim(path) // '/' // trim(adjustl(fname)) // '.' &
-              // nmb // '.txt')
-         DO i = 1,nx
-            WRITE(1,40) 2*pi*Lx*(real(i,kind=GP)-1)/real(nx,kind=GP),  &
-                        mv(i),mth(i),mthv(i)
-         END DO
-         CLOSE(1) 
-   40    FORMAT( E23.15,E23.15,E23.15,E23.15 )
-      ENDIF
-
-      CALL gws%free_complex_htmp(c1)
-      CALL gws%free_complex_htmp(c2)
-      CALL gws%free_real_htmp(r1)
-      CALL gws%free_real_htmp(r2)
-      RETURN
-      END SUBROUTINE difucx
-
-!*****************************************************************
-      SUBROUTINE difucz(a,b,path,nmb,tail)
-!-----------------------------------------------------------------
-!
-! Computes the mean profiles in z of the velocity, the 
-! passive scalar, and their product. The output is 
-! written to a file by the first node.
-!
-! Output file contains:
-! 'profilez.txt': z, <v_i>(z), <theta>(z), <v_i.theta>(z)
-!
-! Parameters
-!     a    : vector field component in the z-direction
-!     b    : scalar field
-!     path : path for the output
-!     nmb  : the extension used when writting the file
-!     tail : Appends tail at the end of the file name [optional]
-!
-      USE fprecision
-      USE commtypes
-      USE var
-      USE kes
-      USE fft
-      USE grid
-      USE mpivars
-      USE boxsize
-!$    USE threads
-      IMPLICIT NONE
-
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b
-      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1, c2
-      REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: r1, r2
-      REAL(KIND=GP), DIMENSION(nz) :: meth,mev,methv
-      REAL(KIND=GP), DIMENSION(nz) :: mth,mv,mthv
-      REAL(KIND=GP)                :: tmp,tmq
-      INTEGER                      :: i,j,k
-      CHARACTER(len=*), INTENT(IN) :: path,nmb
-      CHARACTER(len=*), INTENT(IN), OPTIONAL :: tail
-      CHARACTER(len=128)                     :: fname
-
-!
-! Transforms the input arrays to real space
-!
-      LOGICAL :: bret_
-      CALL gws%get_complex_htmp(c1,bret_)
-      CALL gws%get_complex_htmp(c2,bret_)
-      CALL gws%get_real_htmp(r1,bret_)
-      CALL gws%get_real_htmp(r2,bret_)
-!$omp parallel do if (iend-ista.ge.nth) private (j,k)
-      DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k)
-         DO j = 1,ny
-            DO k = 1,nz
-               c1(k,j,i) = a(k,j,i)
-               c2(k,j,i) = b(k,j,i)
-            END DO
-         END DO
-      END DO
-      CALL fftp3d_complex_to_real(plancr,c1,r1,MPI_COMM_WORLD)
-      CALL fftp3d_complex_to_real(plancr,c2,r2,MPI_COMM_WORLD)
-!
-! Computes the mean profiles
-!    
-      DO i = 1,nz
-         mev(i) = 0.0_GP
-         meth(i) = 0.0_GP
-         methv(i) = 0.0_GP
-      END DO
-!$omp parallel do if (kend-ksta.ge.nth) private (j,i)
-      DO k = ksta,kend
-!$omp parallel do if (kend-ksta.lt.nth) private (i)
-         DO j = 1,ny
-            DO i = 1,nx
-!$omp critical
-               mev(k) =  mev(k)+r1(i,j,k)
-               meth(k) = meth(k)+r2(i,j,k)
-               methv(k) = methv(k)+r1(i,j,k)*r2(i,j,k)  
-!$omp end critical
-            END DO
-         END DO
-      END DO
-      tmp = 1.0_GP/(real(nx,kind=GP)**2*   &
-                    real(ny,kind=GP)**2*real(nz,kind=GP))
-      tmq = 1.0_GP/(real(nx,kind=GP)**3*   &
-                    real(ny,kind=GP)**3*real(nz,kind=GP)**2)
-      DO k = 1,nz
-         mev(k) = mev(k)*tmp
-         meth(k) = meth(k)*tmp
-         methv(k) = methv(k)*tmq
-      END DO
-!
-! Computes the reduction between nodes
-!
-      CALL MPI_REDUCE(mev,mv,nz,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_REDUCE(meth,mth,nz,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_REDUCE(methv,mthv,nz,GC_REAL,MPI_SUM,0,MPI_COMM_WORLD,ierr)
-
-      IF (myrank.eq.0) THEN
-         fname = 'profilez'
-         if (present(tail)) then
-            fname = trim(adjustl(fname)) // '_' // trim(adjustl(tail))
-         endif
-         OPEN(1,file= trim(path) // '/' // trim(adjustl(fname)) // '.' &
-              // nmb // '.txt')
-         DO k = 1,nz
-            WRITE(1,50) 2*pi*Lz*(real(k,kind=GP)-1)/real(nz,kind=GP),  &
-                        mv(k),mth(k),mthv(k)
-         END DO
-         CLOSE(1) 
-   50    FORMAT( E23.15,E23.15,E23.15,E23.15 ) 
-      ENDIF
-
-      CALL gws%free_complex_htmp(c1)
-      CALL gws%free_complex_htmp(c2)
-      CALL gws%free_real_htmp(r1)
-      CALL gws%free_real_htmp(r2)
-      RETURN
-      END SUBROUTINE difucz
 
 END MODULE pseudospec_scalar
 
