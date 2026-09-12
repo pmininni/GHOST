@@ -253,7 +253,7 @@ CONTAINS
               ac => C3
             endif
             CALL saxpby_c(velc,vc,rmp,ac,this%traits_%dii*rmp)
-          else                                  ! u_e = u - dii j = u + dii Del^2 a
+          else                              ! u_e = u - dii j = u + dii Del^2 a
             ac => fluidstate(pde%MAGNETIC+m-1)%ccomp
             CALL laplak3(ac,velc2)
             CALL saxpby_c(velc,vc,rmp,velc2,this%traits_%dii*rmp)

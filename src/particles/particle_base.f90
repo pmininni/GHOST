@@ -87,10 +87,11 @@ module particlebase_mod
       procedure(part_ctor_interface) , deferred :: part_ctor
       procedure(init_interface)      , deferred :: init
       procedure(dpdt_interface)      , deferred :: dpdt
-      procedure, public                         :: end_stage   ! Default sync after a step
       procedure(feedback_interface)  , deferred :: feedback
-      procedure(write_interface),      deferred :: write_pstate
+      procedure(write_interface)     , deferred :: write_pstate
       procedure(state_size_interface), deferred :: state_size  ! Number of states
+      procedure, public                         :: end_stage   ! Default sync after a step
+      ! Other concrete general methods for all particles
       procedure, public                         :: SetRandSeed
       procedure, public                         :: GetRandSeed
       procedure, public                         :: AssignLagPos
@@ -184,10 +185,178 @@ module particlebase_mod
      end function state_size_interface
   end interface
 
-CONTAINS
+contains
 
   ! ===================================================================
-  ! Concrete methods inherited by all solvers
+  ! Concrete methods to end the time stepping stage
+  ! ===================================================================
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !!  METHOD     : end_stage
+  !!  DESCRIPTION: Default synchronization of the particles after a
+  !!               time step (or after each stage of the traditional
+  !!               stepper): periodicity of the positions, exchange of
+  !!               the particles that left the slab between neighbor
+  !!               tasks (NN) or synchronization of the global database
+  !!               (VDB), and resizing of the buffers. It works for any
+  !!               state made of 3-component vectors with the positions
+  !!               first (positions; positions and velocities; ...):
+  !!               every vector of upout and upin travels with the
+  !!               particle. Solvers with scalar state components must
+  !!               override it, as the exchange routines move three
+  !!               arrays at a time.
+  !!  ARGUMENTS  :
+  !!    this    : 'this' class instance
+  !!    upin    : state at the beginning of the step
+  !!    upout   : state after the step (or stage)
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  SUBROUTINE end_stage(this, upin, upout)
+    IMPLICIT NONE
+    CLASS(ParticleBase), INTENT(INOUT) :: this
+    TYPE  (GPStateComp), INTENT(INOUT) :: upin (:) ! state at t0
+    TYPE  (GPStateComp), INTENT(INOUT) :: upout(:) ! state after step
+    INTEGER                            :: ip,ic,iv,nv,ng,iflag
+
+    ip = this%POSITION
+    nv = SIZE(upout)/3     ! number of 3-vectors in the state
+    IF ( (this%nc_.NE.3) .OR. (MOD(SIZE(upout),3).NE.0) .OR.           &
+         (SIZE(upin).NE.SIZE(upout)) ) THEN
+      WRITE(*,*) TRIM(this%sclass_),                                   &
+        ' EndStage: the default end_stage needs a state of 3-vectors'
+      STOP
+    ENDIF
+
+    ! Branch 1: Nearest-neighbour (NN) exchange -------------------------
+    IF (this%iexchtype_ .EQ. GPEXCHTYPE_NN) THEN
+      ! We first enforce periodicity in x-y only
+      CALL this%MakePeriodicP(upout(ip  )%rcomp,                       &
+                              upout(ip+1)%rcomp,                       &
+                              upout(ip+2)%rcomp, this%nparts_, 3)
+      ! We identify particles that have left the local slab in z
+      CALL GTStart(this%htimers_(GPTIME_COMM))
+      CALL this%gpcomm_%IdentifyExchV(this%id_, upout(ip+2)%rcomp,     &
+               this%nparts_, ng, this%lxbnds_(3,1), this%lxbnds_(3,2))
+      ! We resize internal buffers if the exchange set is too large
+      IF (ng .GT. this%partbuff_) THEN
+        WRITE(*,'(A,I0,A,I0,A,I0,A,I0)')                               &
+          'EndStage: Rank ', this%myrank_, ' resizing: nparts=', ng,   &
+          ' | partbuff=', this%partbuff_, ' --> ', this%partbuff_ +    &
+          (1 + (ng - this%partbuff_) / this%partchunksize_) * this%partchunksize_
+        this%partbuff_ = this%partbuff_ + (1 + (ng - this%partbuff_) / &
+               this%partchunksize_) * this%partchunksize_
+        CALL this%ResizeArrays   (this%partbuff_,.true.)
+        CALL GPState_resize(upin ,this%partbuff_)
+        CALL GPState_resize(upout,this%partbuff_)
+      END IF
+      ! Exchange across MPI tasks all the vectors of the current state
+      ! (upout) and then of the previous state (upin): the first call
+      ! builds the exchange lists and the last one finalizes them
+      DO iv = 1, 2*nv
+        ic = 1 + 3*MOD(iv-1,nv)
+        iflag = GPEXCH_UPDT
+        IF (iv .EQ. 1   ) iflag = GPEXCH_INIT
+        IF (iv .EQ. 2*nv) iflag = GPEXCH_END
+        IF (iv .LE. nv) THEN
+          CALL this%gpcomm_%PartExchangeV(this%id_,                         &
+                   upout(ic  )%rcomp, upout(ic+1)%rcomp, upout(ic+2)%rcomp, &
+                   this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), iflag)
+        ELSE
+          CALL this%gpcomm_%PartExchangeV(this%id_,                         &
+                   upin (ic  )%rcomp, upin (ic+1)%rcomp, upin (ic+2)%rcomp, &
+                   this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), iflag)
+        END IF
+      END DO
+      CALL GTAcc(this%htimers_(GPTIME_COMM))
+      ! x-y periodicity already enforced, we enforce z in upout and upin
+      CALL this%MakePeriodicZ(upout(ip+2)%rcomp,                       &
+                              upin (ip+2)%rcomp, this%nparts_)
+      ! Buffer shrink
+      IF (this%stepcounter_ .GE. GPSWIPERATE) THEN
+        IF ((this%bcollective_ .EQ. 1) .OR. (this%myrank_ .NE. 0)) THEN
+          ng = this%partbuff_ - this%nparts_
+          ng = this%partbuff_ - (ng/this%partchunksize_-1)*this%partchunksize_
+          IF (ng .LT. this%partbuff_) THEN
+            WRITE(*,'(A,I0,A,I0,A,I0,A,I0)') 'EndStage: Rank ',        &
+              this%myrank_, ' shrinking: nparts=', this%nparts_,       &
+              ' | partbuff=', this%partbuff_, ' --> ', ng
+            this%partbuff_ = ng
+            CALL this%ResizeArrays   (this%partbuff_,.false.)
+            CALL GPState_resize(upin ,this%partbuff_)
+            CALL GPState_resize(upout,this%partbuff_)
+          END IF
+        END IF
+        this%stepcounter_ = 1
+      ELSE
+        this%stepcounter_ = this%stepcounter_ + 1
+      END IF
+    END IF  ! GPEXCHTYPE_NN
+
+    ! Branch 2: Voxel Database (VDB) exchange ---------------------------
+    IF (this%iexchtype_ .EQ. GPEXCHTYPE_VDB) THEN
+      ! Enforce x-y-z periodicity on updated positions
+      CALL this%MakePeriodicP(upout(ip  )%rcomp,                       &
+                              upout(ip+1)%rcomp,                       &
+                              upout(ip+2)%rcomp, this%nparts_, 7)
+      ! Consistency check
+      IF (.NOT. this%PartNumConsistent(this%nparts_)) THEN
+        IF (this%myrank_ .EQ. 0) THEN
+          WRITE(*,*) TRIM(this%sclass_),                               &
+                     ' EndStage (VDB): inconsistent particle count'
+          PRINT *,this%nparts_,this%maxparts_
+        END IF
+      END IF
+      ! Sync global VDB for the current positions (upout)
+      CALL GTStart(this%htimers_(GPTIME_COMM))
+      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_,     &
+               upout(ip  )%rcomp, upout(ip+1)%rcomp, upout(ip+2)%rcomp, &
+               this%nparts_,this%ptmp0_)
+      ! Sync the other vectors of the current state (upout) and then
+      ! of the previous state (upin) into gptmp0_, and extract locally
+      DO iv = 1, 2*nv
+        ic = 1 + 3*MOD(iv-1,nv)
+        IF (ic .EQ. ip) CYCLE
+        IF (iv .LE. nv) THEN
+          CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_,  &
+                   upout(ic  )%rcomp, upout(ic+1)%rcomp, upout(ic+2)%rcomp, &
+                   this%nparts_,this%ptmp0_)
+          CALL this%CopyLocalWrk(upout(ic  )%rcomp, upout(ic+1)%rcomp,      &
+                   upout(ic+2)%rcomp, this%vdb_,this%gptmp0_,this%maxparts_)
+        ELSE
+          CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_,  &
+                   upin (ic  )%rcomp, upin (ic+1)%rcomp, upin (ic+2)%rcomp, &
+                   this%nparts_,this%ptmp0_)
+          CALL this%CopyLocalWrk(upin (ic  )%rcomp, upin (ic+1)%rcomp,      &
+                   upin (ic+2)%rcomp, this%vdb_,this%gptmp0_,this%maxparts_)
+        END IF
+      END DO
+      ! Sync gptmp VDB for the previous positions (upin)
+      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_,  &
+               upin (ip  )%rcomp, upin (ip+1)%rcomp, upin (ip+2)%rcomp, &
+               this%nparts_,this%ptmp0_)
+      CALL GTAcc(this%htimers_(GPTIME_COMM))
+      ! Get local particles (upout and upin) based on positions
+      CALL this%GetLocalWrk_aux(this%id_,                               &
+               upout(ip  )%rcomp, upout(ip+1)%rcomp, upout(ip+2)%rcomp, &
+               upin (ip  )%rcomp, upin (ip+1)%rcomp, upin (ip+2)%rcomp, &
+               this%nparts_,this%vdb_,this%gptmp0_,this%maxparts_)
+      ! Global particle-count sanity check
+      CALL MPI_ALLREDUCE(this%nparts_, ng, 1, MPI_INTEGER,             &
+                         MPI_SUM, this%comm_, this%ierr_)
+      IF (this%myrank_ .EQ. 0 .AND. ng .NE. this%maxparts_) THEN
+        WRITE(*,*) TRIM(this%sclass_),                                 &
+          ' EndStage (VDB): inconsistent d.b.: expected: ',            &
+          this%maxparts_, '; found: ', ng
+        CALL this%ascii_write_lag(1,this%odir_,                        &
+             TRIM(this%sstate_pos_) // 'err', '000', 0.0_GP,           &
+             this%maxparts_, this%vdb_)
+        STOP
+      END IF
+    END IF  ! GPEXCHTYPE_VDB
+  END SUBROUTINE end_stage
+
+
+  ! ===================================================================
+  ! Other concrete methods inherited by all solvers
   ! ===================================================================
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1645,170 +1814,6 @@ CONTAINS
      PartNumConsistent = ng .EQ. this%maxparts_
   END FUNCTION PartNumConsistent
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !!  METHOD     : end_stage
-  !!  DESCRIPTION: Default synchronization of the particles after a
-  !!               time step (or after each stage of the traditional
-  !!               stepper): periodicity of the positions, exchange of
-  !!               the particles that left the slab between neighbor
-  !!               tasks (NN) or synchronization of the global database
-  !!               (VDB), and resizing of the buffers. It works for any
-  !!               state made of 3-component vectors with the positions
-  !!               first (positions; positions and velocities; ...):
-  !!               every vector of upout and upin travels with the
-  !!               particle. Solvers with scalar state components must
-  !!               override it, as the exchange routines move three
-  !!               arrays at a time.
-  !!  ARGUMENTS  :
-  !!    this    : 'this' class instance
-  !!    upin    : state at the beginning of the step
-  !!    upout   : state after the step (or stage)
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  SUBROUTINE end_stage(this, upin, upout)
-    IMPLICIT NONE
-    CLASS(ParticleBase), INTENT(INOUT) :: this
-    TYPE  (GPStateComp), INTENT(INOUT) :: upin (:) ! state at t0
-    TYPE  (GPStateComp), INTENT(INOUT) :: upout(:) ! state after step
-    INTEGER                            :: ip,ic,iv,nv,ng,iflag
-
-    ip = this%POSITION
-    nv = SIZE(upout)/3     ! number of 3-vectors in the state
-    IF ( (this%nc_.NE.3) .OR. (MOD(SIZE(upout),3).NE.0) .OR.          &
-         (SIZE(upin).NE.SIZE(upout)) ) THEN
-      WRITE(*,*) TRIM(this%sclass_),                                   &
-        ' EndStage: the default end_stage needs a state of 3-vectors'
-      STOP
-    ENDIF
-
-    ! Branch 1: Nearest-neighbour (NN) exchange -------------------------
-    IF (this%iexchtype_ .EQ. GPEXCHTYPE_NN) THEN
-      ! We first enforce periodicity in x-y only
-      CALL this%MakePeriodicP(upout(ip  )%rcomp,                       &
-                              upout(ip+1)%rcomp,                       &
-                              upout(ip+2)%rcomp, this%nparts_, 3)
-      ! We identify particles that have left the local slab in z
-      CALL GTStart(this%htimers_(GPTIME_COMM))
-      CALL this%gpcomm_%IdentifyExchV(this%id_, upout(ip+2)%rcomp,     &
-               this%nparts_, ng, this%lxbnds_(3,1), this%lxbnds_(3,2))
-      ! We resize internal buffers if the exchange set is too large
-      IF (ng .GT. this%partbuff_) THEN
-        WRITE(*,'(A,I0,A,I0,A,I0,A,I0)')                               &
-          'EndStage: Rank ', this%myrank_, ' resizing: nparts=', ng,   &
-          ' | partbuff=', this%partbuff_, ' --> ', this%partbuff_ +    &
-          (1 + (ng - this%partbuff_) / this%partchunksize_) * this%partchunksize_
-        this%partbuff_ = this%partbuff_ + (1 + (ng - this%partbuff_) / &
-               this%partchunksize_) * this%partchunksize_
-        CALL this%ResizeArrays   (this%partbuff_,.true.)
-        CALL GPState_resize(upin ,this%partbuff_)
-        CALL GPState_resize(upout,this%partbuff_)
-      END IF
-      ! Exchange across MPI tasks all the vectors of the current state
-      ! (upout) and then of the previous state (upin): the first call
-      ! builds the exchange lists and the last one finalizes them
-      DO iv = 1, 2*nv
-        ic = 1 + 3*MOD(iv-1,nv)
-        iflag = GPEXCH_UPDT
-        IF (iv .EQ. 1   ) iflag = GPEXCH_INIT
-        IF (iv .EQ. 2*nv) iflag = GPEXCH_END
-        IF (iv .LE. nv) THEN
-          CALL this%gpcomm_%PartExchangeV(this%id_,                    &
-                   upout(ic  )%rcomp, upout(ic+1)%rcomp, upout(ic+2)%rcomp, &
-                   this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), iflag)
-        ELSE
-          CALL this%gpcomm_%PartExchangeV(this%id_,                    &
-                   upin (ic  )%rcomp, upin (ic+1)%rcomp, upin (ic+2)%rcomp, &
-                   this%nparts_,this%lxbnds_(3,1),this%lxbnds_(3,2), iflag)
-        END IF
-      END DO
-      CALL GTAcc(this%htimers_(GPTIME_COMM))
-      ! x-y periodicity already enforced, we enforce z in upout and upin
-      CALL this%MakePeriodicZ(upout(ip+2)%rcomp,                       &
-                              upin (ip+2)%rcomp, this%nparts_)
-      ! Buffer shrink
-      IF (this%stepcounter_ .GE. GPSWIPERATE) THEN
-        IF ((this%bcollective_ .EQ. 1) .OR. (this%myrank_ .NE. 0)) THEN
-          ng = this%partbuff_ - this%nparts_
-          ng = this%partbuff_ - (ng/this%partchunksize_-1)*this%partchunksize_
-          IF (ng .LT. this%partbuff_) THEN
-            WRITE(*,'(A,I0,A,I0,A,I0,A,I0)') 'EndStage: Rank ',        &
-              this%myrank_, ' shrinking: nparts=', this%nparts_,       &
-              ' | partbuff=', this%partbuff_, ' --> ', ng
-            this%partbuff_ = ng
-            CALL this%ResizeArrays   (this%partbuff_,.false.)
-            CALL GPState_resize(upin ,this%partbuff_)
-            CALL GPState_resize(upout,this%partbuff_)
-          END IF
-        END IF
-        this%stepcounter_ = 1
-      ELSE
-        this%stepcounter_ = this%stepcounter_ + 1
-      END IF
-    END IF  ! GPEXCHTYPE_NN
-
-    ! Branch 2: Voxel Database (VDB) exchange ---------------------------
-    IF (this%iexchtype_ .EQ. GPEXCHTYPE_VDB) THEN
-      ! Enforce x-y-z periodicity on updated positions
-      CALL this%MakePeriodicP(upout(ip  )%rcomp,                       &
-                              upout(ip+1)%rcomp,                       &
-                              upout(ip+2)%rcomp, this%nparts_, 7)
-      ! Consistency check
-      IF (.NOT. this%PartNumConsistent(this%nparts_)) THEN
-        IF (this%myrank_ .EQ. 0) THEN
-          WRITE(*,*) TRIM(this%sclass_),                               &
-                     ' EndStage (VDB): inconsistent particle count'
-          PRINT *,this%nparts_,this%maxparts_
-        END IF
-      END IF
-      ! Sync global VDB for the current positions (upout)
-      CALL GTStart(this%htimers_(GPTIME_COMM))
-      CALL this%gpcomm_%VDBSynch(this%vdb_,this%maxparts_,this%id_,    &
-               upout(ip  )%rcomp, upout(ip+1)%rcomp, upout(ip+2)%rcomp, &
-               this%nparts_,this%ptmp0_)
-      ! Sync the other vectors of the current state (upout) and then
-      ! of the previous state (upin) into gptmp0_, and extract locally
-      DO iv = 1, 2*nv
-        ic = 1 + 3*MOD(iv-1,nv)
-        IF (ic .EQ. ip) CYCLE
-        IF (iv .LE. nv) THEN
-          CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
-                   upout(ic  )%rcomp, upout(ic+1)%rcomp, upout(ic+2)%rcomp, &
-                   this%nparts_,this%ptmp0_)
-          CALL this%CopyLocalWrk(upout(ic  )%rcomp, upout(ic+1)%rcomp, &
-                   upout(ic+2)%rcomp, this%vdb_,this%gptmp0_,this%maxparts_)
-        ELSE
-          CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
-                   upin (ic  )%rcomp, upin (ic+1)%rcomp, upin (ic+2)%rcomp, &
-                   this%nparts_,this%ptmp0_)
-          CALL this%CopyLocalWrk(upin (ic  )%rcomp, upin (ic+1)%rcomp, &
-                   upin (ic+2)%rcomp, this%vdb_,this%gptmp0_,this%maxparts_)
-        END IF
-      END DO
-      ! Sync gptmp VDB for the previous positions (upin)
-      CALL this%gpcomm_%VDBSynch(this%gptmp0_,this%maxparts_,this%id_, &
-               upin (ip  )%rcomp, upin (ip+1)%rcomp, upin (ip+2)%rcomp, &
-               this%nparts_,this%ptmp0_)
-      CALL GTAcc(this%htimers_(GPTIME_COMM))
-      ! Get local particles (upout and upin) based on positions
-      CALL this%GetLocalWrk_aux(this%id_,                              &
-               upout(ip  )%rcomp, upout(ip+1)%rcomp, upout(ip+2)%rcomp, &
-               upin (ip  )%rcomp, upin (ip+1)%rcomp, upin (ip+2)%rcomp, &
-               this%nparts_,this%vdb_,this%gptmp0_,this%maxparts_)
-      ! Global particle-count sanity check
-      CALL MPI_ALLREDUCE(this%nparts_, ng, 1, MPI_INTEGER,             &
-                         MPI_SUM, this%comm_, this%ierr_)
-      IF (this%myrank_ .EQ. 0 .AND. ng .NE. this%maxparts_) THEN
-        WRITE(*,*) TRIM(this%sclass_),                                 &
-          ' EndStage (VDB): inconsistent d.b.: expected: ',            &
-          this%maxparts_, '; found: ', ng
-        CALL this%ascii_write_lag(1,this%odir_,                        &
-             TRIM(this%sstate_pos_) // 'err', '000', 0.0_GP,           &
-             this%maxparts_, this%vdb_)
-        STOP
-      END IF
-    END IF  ! GPEXCHTYPE_VDB
-  END SUBROUTINE end_stage
-
-
   
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !!  METHOD     : Resize_Arrays
@@ -1901,10 +1906,10 @@ CONTAINS
   END SUBROUTINE sync_host
 
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Particle kernels (module procedures with explicit-shape
-  !! arrays; device kernels while gdev_active is set)
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! ===================================================================
+  ! Particle kernels (module procedures with explicit-shape
+  ! arrays; device kernels while gdev_active is set)
+  ! ===================================================================
  
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Periodic wrap of one coordinate; p+L can round up to exactly L

@@ -113,6 +113,7 @@ CONTAINS
     CALL GState_copy(field_nxt,field)
     CALL init_forcing(forcemethod,fluid,force)
     CALL GState_update_to(force)
+    CALL fluid%sync_device()            ! Auxiliary arrays of the solver (if any).
     fstatic = forcing_is_static(forcemethod)
     CALL build_stepper_from_file(trim(file),stepper,workspace,fluid)
   END SUBROUTINE ghost_init

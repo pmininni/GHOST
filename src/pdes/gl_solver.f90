@@ -25,10 +25,10 @@
 !                  - omegaz.(x.dzre/dy - y.dzre/dx) - V.zim
 !
 !              TIME STEPPING: the equations are relaxation equations
-!              with a stiff diffusion term, integrated with first order
-!              implicit Euler for the Laplacian (as in the old code). To
-!              keep the steppers unchanged, dudt returns the effective
-!              time derivative of the semi-implicit Euler step,
+!              with a stiff diffusion term, and should be integrated with
+!              first order implicit Euler for the Laplacian. To this end
+!              dudt returns the effective time derivative of the
+!              semi-implicit Euler step,
 !                dudt = [(z + dt.N(z))/(1 + alpha.k^2.dt) - z]/dt,
 !              with N the explicit terms, so that the traditional stepper
 !              of order 1 (z + dt.dudt) performs the implicit step. This

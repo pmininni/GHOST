@@ -80,11 +80,9 @@ CONTAINS
       case ('GL')
         allocate(GLsolver    :: new_object)
         NUMTMPCOMP = 10; NUMTMPREAL = 4
-        ! The GPE diagnostics (helicity) need many host temporaries
         NUMTMPHCOMP = 12; NUMTMPHREAL = 12
       case ('GPE')
         allocate(GPEsolver   :: new_object)
-        ! Rotation (9) plus the transfer functions (4) at the same time
         NUMTMPCOMP = 13; NUMTMPREAL = 4
         NUMTMPHCOMP = 12; NUMTMPHREAL = 12
 !     case ('UserDefined')

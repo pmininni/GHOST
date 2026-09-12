@@ -81,34 +81,6 @@ iclist = "tworings_z"
 forces = "null_fq,constant_fq"
 /
 
-! IC and forcing specific parameters, in namelists with their names:
-! Parameters for the ABC array of vortices
-&abc_z
-kdn = 1          ! minimum wavenumber
-kup = 1          ! maximum wavenumber
-A = 1.00         ! A amplitude in ABC
-B = 1.00         ! B amplitude in ABC
-C = 1.00         ! C amplitude in ABC
-/
-
-! Parameters for the Gaussian perturbation (gaussian_z)
-&gaussian_z
-z0 = 0.01        ! amplitude of the perturbation
-l0 = 1.00        ! length of the perturbation (in 2.pi units)
-/
-
-! Parameters for the vortex knots (ring_z, trefoil_z, tworings_z)
-&ring_z
-r0 = 1.00        ! radius of the ring
-sig = 1.00       ! width of the velocity filter (in coherence lengths)
-/
-
-! Parameters for the trefoil knot (trefoil_z)
-&trefoil_z
-r0 = 1.00        ! size of the knot
-sig = 1.00       ! width of the velocity filter (in coherence lengths)
-/
-
 ! Parameters for the two linked rings (tworings_z)
 &tworings_z
 r0 = 1.00        ! radius of the rings

@@ -14,6 +14,7 @@
 !              frequency, set by the forcing factory), and omegaz the
 !              rotation rate of the frame. The real and imaginary parts
 !              are solved separately:
+!
 !                dzre/dt = - omegag.zim + beta.|z|^2 zim - alpha.Lap(zim)
 !                          + omegaz.(x.dzre/dy - y.dzre/dx) + V.zim
 !                dzim/dt =   omegag.zre - beta.|z|^2 zre + alpha.Lap(zre)

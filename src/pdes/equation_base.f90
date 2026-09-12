@@ -14,6 +14,9 @@ module equationbase_mod
   private :: Solver_ctor_interface, init_interface
   private :: dudt_interface       , global_interface
   private :: spectra_interface    , state_size_interface
+  ! The default implementation is only reached through the binding
+  ! (particle_base has a module procedure with the same name)
+  private :: sync_device
 
   ! ================= Base class for all PDEs =======================
   ! Define an abstract base class
@@ -66,7 +69,7 @@ module equationbase_mod
 
   type, abstract, extends(EquationBase) :: QuantumBase
       integer :: ZFUNC       ! start of wavefunction sector
-      ! Constants of the GPE-type equations (set by the solvers, read by
+      ! Constants of the GL/GPE-type equations (set by the solvers, read by
       ! the initial conditions and the forcing): alpha = c.xi/sqrt(2),
       ! omegag = c/(xi.sqrt(2)), beta = omegag/rho0, with c the speed of
       ! sound, xi the coherence length and rho0 the equilibrium density
@@ -74,8 +77,8 @@ module equationbase_mod
       real(kind=GP) :: beta_   = 0.0_GP
       real(kind=GP) :: omegag_ = 0.0_GP
       real(kind=GP) :: rho0_   = 1.0_GP
-      real(kind=GP) :: V0_     = 0.0_GP ! amplitude of the trapping potential
-      real(kind=GP) :: omegaz_ = 0.0_GP ! rotation rate (rotating frame)
+      real(kind=GP) :: V0_     = 0.0_GP  ! amplitude of the trapping potential
+      real(kind=GP) :: omegaz_ = 0.0_GP  ! rotation rate (rotating frame)
       logical       :: hasadv_ = .false. ! advective velocity in use
       logical       :: haspot_ = .false. ! external potential in use
       logical       :: dorot_  = .false. ! rotating frame
@@ -215,59 +218,6 @@ CONTAINS
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Concrete methods of the quantum solvers: allocation (with
-  !! device copies, zero by default), deallocation, and copy to
-  !! the device of the auxiliary arrays shared by the quantum
-  !! solvers (advective velocity, |v|^2, potential, and linear
-  !! ramps for the rotation)
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine quantum_alloc_aux(this)
-    use gmem
-    use grid
-    use mpivars
-    class (QuantumBase), intent(inout) :: this
-    call galloc(this%vx_   ,nz,ny,ista,iend)
-    call galloc(this%vy_   ,nz,ny,ista,iend)
-    call galloc(this%vz_   ,nz,ny,ista,iend)
-    call galloc(this%vsq_  ,nx,ny,ksta,kend)
-    call galloc(this%vpot_ ,nx,ny,ksta,kend)
-    call galloc(this%vlinx_,nx,ny,ksta,kend)
-    call galloc(this%vliny_,nx,ny,ksta,kend)
-    this%vx_    = 0.0_GP
-    this%vy_    = 0.0_GP
-    this%vz_    = 0.0_GP
-    this%vsq_   = 0.0_GP
-    this%vpot_  = 0.0_GP
-    this%vlinx_ = 0.0_GP
-    this%vliny_ = 0.0_GP
-  end subroutine quantum_alloc_aux
-
-  subroutine quantum_free_aux(this)
-    use gmem
-    class (QuantumBase), intent(inout) :: this
-    call gfree(this%vx_)
-    call gfree(this%vy_)
-    call gfree(this%vz_)
-    call gfree(this%vsq_)
-    call gfree(this%vpot_)
-    call gfree(this%vlinx_)
-    call gfree(this%vliny_)
-  end subroutine quantum_free_aux
-
-  subroutine quantum_aux_to_device(this)
-    use gmem
-    class (QuantumBase), intent(inout) :: this
-    call gupdate_to(this%vx_)
-    call gupdate_to(this%vy_)
-    call gupdate_to(this%vz_)
-    call gupdate_to(this%vsq_)
-    call gupdate_to(this%vpot_)
-    call gupdate_to(this%vlinx_)
-    call gupdate_to(this%vliny_)
-  end subroutine quantum_aux_to_device
-
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Concrete method to write field states
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine write_states(this, uin, planio)
@@ -402,5 +352,68 @@ CONTAINS
     call this%workspace_%free_complex_tmp(C1)
     call this%workspace_%free_real_tmp   (R1)
   end subroutine write_states
+
+
+  ! ===================================================================
+  ! Concrete methods for the quantum solvers
+  ! ===================================================================
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Concrete methods of the quantum solvers: allocation (with
+  !! device copies, zero by default).
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine quantum_alloc_aux(this)
+    use gmem
+    use grid
+    use mpivars
+    class (QuantumBase), intent(inout) :: this
+    call galloc(this%vx_   ,nz,ny,ista,iend)
+    call galloc(this%vy_   ,nz,ny,ista,iend)
+    call galloc(this%vz_   ,nz,ny,ista,iend)
+    call galloc(this%vsq_  ,nx,ny,ksta,kend)
+    call galloc(this%vpot_ ,nx,ny,ksta,kend)
+    call galloc(this%vlinx_,nx,ny,ksta,kend)
+    call galloc(this%vliny_,nx,ny,ksta,kend)
+    this%vx_    = 0.0_GP
+    this%vy_    = 0.0_GP
+    this%vz_    = 0.0_GP
+    this%vsq_   = 0.0_GP
+    this%vpot_  = 0.0_GP
+    this%vlinx_ = 0.0_GP
+    this%vliny_ = 0.0_GP
+  end subroutine quantum_alloc_aux
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Deallocation
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine quantum_free_aux(this)
+    use gmem
+    class (QuantumBase), intent(inout) :: this
+    call gfree(this%vx_)
+    call gfree(this%vy_)
+    call gfree(this%vz_)
+    call gfree(this%vsq_)
+    call gfree(this%vpot_)
+    call gfree(this%vlinx_)
+    call gfree(this%vliny_)
+  end subroutine quantum_free_aux
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Copy to the device of the auxiliary arrays shared by the
+  !! quantum solvers (advective velocity, |v|^2, potential,
+  !! and linear ramps for the rotation) 
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine quantum_aux_to_device(this)
+    use gmem
+    class (QuantumBase), intent(inout) :: this
+    call gupdate_to(this%vx_)
+    call gupdate_to(this%vy_)
+    call gupdate_to(this%vz_)
+    call gupdate_to(this%vsq_)
+    call gupdate_to(this%vpot_)
+    call gupdate_to(this%vlinx_)
+    call gupdate_to(this%vliny_)
+  end subroutine quantum_aux_to_device
+
 
 end module equationbase_mod

@@ -85,7 +85,8 @@ CONTAINS
     this%sstate_lag_ = 'vlg'       ! state name of Lagrangian velocities
     this%traits_%partlod = partlod
   end subroutine init_impl
-  
+
+
   ! ===================================================================
   ! Computation of RHS, the solver equations are defined here
   ! ===================================================================
@@ -156,7 +157,6 @@ CONTAINS
     type (GStateComp), intent(inout) :: feedback(:)
     return
   end subroutine null_feedback
-
 
   
   ! ===================================================================
