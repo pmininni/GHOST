@@ -79,7 +79,7 @@ CONTAINS
       case ('read_s')
         allocate( icRead_s      :: new_object(i)%ic )
       case ('uniform_s')
-        allocate( icUniform_s  :: new_object(i)%ic )
+        allocate( icUniform_s   :: new_object(i)%ic )
       case ('puff_s')
         allocate( icPuff_s      :: new_object(i)%ic )
       case ('random_s')

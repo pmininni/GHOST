@@ -1,6 +1,6 @@
 ! =====================================================================
 ! NAME       : ic_quantum.f90
-! DESCRIPTION: Initial conditions for the order parameter (wave
+! DESCRIPTION: Initial conditions for the order parameter (or wave
 !              function) z = zre + i zim of the quantum solvers (all
 !              solver classes extending QuantumBase). Some ICs also
 !              set the advective velocity companion of the solver
@@ -17,8 +17,7 @@
 !   uniform_z : Uniform condensate, z = sqrt(rho0)
 !   gaussian_z: Gaussian perturbation of the uniform condensate
 !   abc_z     : Array of vortices following an ABC flow (+ ABC velocity)
-!   tg_z      : Array of vortices following a Taylor-Green flow (+ TG
-!               velocity)
+!   tg_z      : Array of vortices following a Taylor-Green flow (+ TG vel)
 !   ring_z    : Vortex ring (+ velocity of the ring)
 !   trefoil_z : Trefoil vortex knot (+ velocity of the knot)
 !   tworings_z: Two linked vortex rings (+ velocity of the rings)
@@ -77,9 +76,7 @@ contains
   !! Dealiases the order parameter (zeroes the modes with
   !! kn2 > kmax). The ICs built in real space have modes up to
   !! the Nyquist wavenumber; the solvers evolve only the modes
-  !! with kn2 <= kmax, and the others must be removed (the
-  !! old code did this at every time step, the new steppers
-  !! do not modify the modes with zero time derivative)
+  !! with kn2 <= kmax, and the others must be removed.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine dealias_z(solver,state)
     use grid
@@ -135,11 +132,11 @@ contains
       write(ext, fmtext) tind
       call io_read(1,solver%idir_,trim(solver%sstate_(solver%ZFUNC  )),ext, &
                    solver%planio_,R1)
-      call fftp3d_real_to_complex(planrc,R1,state(solver%ZFUNC  )%ccomp, &
+      call fftp3d_real_to_complex(planrc,R1,state(solver%ZFUNC  )%ccomp,    &
                    MPI_COMM_WORLD)
       call io_read(1,solver%idir_,trim(solver%sstate_(solver%ZFUNC+1)),ext, &
                    solver%planio_,R1)
-      call fftp3d_real_to_complex(planrc,R1,state(solver%ZFUNC+1)%ccomp, &
+      call fftp3d_real_to_complex(planrc,R1,state(solver%ZFUNC+1)%ccomp,    &
                    MPI_COMM_WORLD)
     class default
       error stop 'IC: This solver does not support order parameter ICs'

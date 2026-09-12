@@ -81,7 +81,7 @@ contains
     implicit none
 
     class   (icRead_as), intent(in)            :: this
-    class(EquationBase), intent(inout)            :: solver
+    class(EquationBase), intent(inout)         :: solver
     type   (GStateComp), intent(inout)         :: state(:)
     real(kind=GP), pointer, dimension(:,:,:)   :: R1
     integer                                    :: i
@@ -115,11 +115,11 @@ contains
     implicit none
 
     class(icUniform_as), intent(in)           :: this
-    class(EquationBase), intent(inout)           :: solver
+    class(EquationBase), intent(inout)        :: solver
     type   (GStateComp), intent(inout)        :: state(:)
     real      (kind=GP), allocatable          :: c0(:)
     integer                                   :: i,j,k,n
-    integer                                    :: isc,nsc
+    integer                                   :: isc,nsc
 
     namelist /uniform_as/ c0
     call active_sector(solver,isc,nsc)
@@ -164,7 +164,7 @@ contains
     implicit none
 
     class   (icPuff_as), intent(in)            :: this
-    class(EquationBase), intent(inout)            :: solver
+    class(EquationBase), intent(inout)         :: solver
     type   (GStateComp), intent(inout)         :: state(:)
     real(kind=GP), pointer                     :: R1(:,:,:)
     real(kind=GP), allocatable, dimension(:)   :: c0,x0,y0,z0,r0
@@ -240,7 +240,7 @@ contains
     implicit none
 
     class (icRandom_as), intent(in)            :: this
-    class(EquationBase), intent(inout)            :: solver
+    class(EquationBase), intent(inout)         :: solver
     type   (GStateComp), intent(inout)         :: state(:)
     real(kind=GP), allocatable, dimension(:)   :: c0,kdn,kup
     real(kind=GP)                              :: skup,skdn

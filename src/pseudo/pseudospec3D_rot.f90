@@ -69,7 +69,6 @@ MODULE pseudospec_aniso
       USE mpivars
       USE filefmt
       USE boxsize
-!$    USE threads
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(nz/2+1) :: Ek,Ektot
@@ -378,7 +377,6 @@ MODULE pseudospec_aniso
       USE mpivars
       USE filefmt
       USE boxsize
-!$    USE threads
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ek,Ektot
@@ -711,7 +709,6 @@ MODULE pseudospec_aniso
       USE mpivars
       USE filefmt
       USE boxsize
-!$    USE threads
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(nz/2+1) :: Ek,Ektot
@@ -899,7 +896,6 @@ MODULE pseudospec_aniso
       USE mpivars
       USE filefmt
       USE boxsize
-!$    USE threads      
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Ek,Ektot
@@ -1050,294 +1046,6 @@ MODULE pseudospec_aniso
       END SUBROUTINE entperp
 
 !*****************************************************************
-      SUBROUTINE heltpara(a,b,c,d,e,f,path,nmb,kin)
-!-----------------------------------------------------------------
-!
-! Computes the helicity transfer in the direction parallel 
-! to the preferred direction (rotation or uniform magnetic 
-! field) in 3D Fourier space. The k-shells are planes with 
-! normal (0,0,kz), kz = Dkz*(0,...,nz/2). Normalization of
-! the transfer function is such that the flux is
-! Pi = -sum[T(kz).Dkz], where Dkz is the width of the
-! Fourier shells. The output is written to a file by the
-! first node.
-!
-! Output files contain:
-! 'hktranpara.XXX.txt': kz, TH_v(kz) (kinetic helicity transfer)
-! 'hmtranpara.XXX.txt': kz, TH_b(kz) (magnetic helicity transfer)
-!
-! Parameters
-!     a   : field component in the x-direction (v or a)
-!     b   : field component in the y-direction (v or a)
-!     c   : field component in the z-direction (v or a)
-!     d   : nonlinear term in the x-direction
-!     e   : nonlinear term in the y-direction
-!     f   : nonlinear term in the z-direction
-!     path: path for the output
-!     nmb : the extension used when writting the file
-!     kin : =0 computes the magnetic helicity transfer
-!           =1 computes the kinetic helicity transfer
-!
-      USE fprecision
-      USE commtypes
-      USE kes
-      USE grid
-      USE mpivars
-      USE filefmt
-      USE boxsize
-!$    USE threads
-      IMPLICIT NONE
-
-      DOUBLE PRECISION, DIMENSION(nz/2+1) :: Hk,Hktot
-      DOUBLE PRECISION    :: tmq
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
-      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1, c2, c3
-      REAL(KIND=GP)       :: tmp
-      INTEGER, INTENT(IN) :: kin
-      INTEGER             :: i,j,k
-      INTEGER             :: kmn
-      CHARACTER(len=*), INTENT(IN) :: path,nmb
-
-!
-! Sets Hk to zero
-!
-      LOGICAL :: bret_
-      CALL gws%get_complex_htmp(c1,bret_)
-      CALL gws%get_complex_htmp(c2,bret_)
-      CALL gws%get_complex_htmp(c3,bret_)
-      DO k = 1,nz/2+1
-         Hk(k) = 0.0D0
-      END DO
-!
-! Computes the helicity transfer
-!
-      tmp = 1.0_GP/ &
-            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
-      CALL rotor3(b,c,c1,1)
-      CALL rotor3(a,c,c2,2)
-      CALL rotor3(a,b,c3,3)
-      IF (ista.eq.1) THEN
-!$omp parallel private (k,kmn,tmq,j)
-!$omp do
-         DO j = 1,ny
-            DO k = 1,nz
-               kmn = int(abs(kz(k))*Lz+1)
-               IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
-                  tmq = (real(c1(k,j,1)*conjg(d(k,j,1)))+          &
-                         real(c2(k,j,1)*conjg(e(k,j,1)))+          &
-                         real(c3(k,j,1)*conjg(f(k,j,1))))*tmp
-!$omp atomic
-                  Hk(kmn) = Hk(kmn)+tmq
-               ENDIF
-            END DO
-         END DO
-!$omp end do
-!$omp do
-         DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-            DO j = 1,ny
-               DO k = 1,nz
-                  kmn = int(abs(kz(k))*Lz+1)
-                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
-                     tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+     &
-                              real(c2(k,j,i)*conjg(e(k,j,i)))+     &
-                              real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
-!$omp atomic
-                     Hk(kmn) = Hk(kmn)+tmq
-                  ENDIF
-              END DO
-            END DO
-         END DO
-!$omp end do
-!$omp end parallel
-      ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-            DO j = 1,ny
-               DO k = 1,nz
-                  kmn = int(abs(kz(k))*Lz+1)
-                  IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
-                     tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+     &
-                              real(c2(k,j,i)*conjg(e(k,j,i)))+     &
-                              real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
-!$omp atomic
-                     Hk(kmn) = Hk(kmn)+tmq
-                  ENDIF
-               END DO
-            END DO
-         END DO
-      ENDIF
-!
-! Computes the reduction between nodes
-! and exports the result to a file
-!
-      CALL MPI_REDUCE(Hk,Hktot,nz/2+1,MPI_DOUBLE_PRECISION,MPI_SUM,0, &
-                      MPI_COMM_WORLD,ierr)
-      IF (myrank.eq.0) THEN
-         IF (kin.eq.0) THEN
-            OPEN(1,file=trim(path) // '/hmtranpara.' // nmb // '.txt')
-         ELSE
-            OPEN(1,file=trim(path) // '/hktranpara.' // nmb // '.txt')
-         ENDIF
-         DO k = 1,nz/2+1
-            WRITE(1,FMT='(E13.6,E23.15)') Dkz*(k-1),Hktot(k)*Lz
-         END DO
-         CLOSE(1)
-      ENDIF
-
-      CALL gws%free_complex_htmp(c1)
-      CALL gws%free_complex_htmp(c2)
-      CALL gws%free_complex_htmp(c3)
-      RETURN
-      END SUBROUTINE heltpara
-
-!*****************************************************************
-      SUBROUTINE heltperp(a,b,c,d,e,f,path,nmb,kin)
-!-----------------------------------------------------------------
-!
-! Computes the helicity transfer in the direction perpendicular
-! to the preferred direction (rotation or uniform magnetic 
-! field) in 3D Fourier space. The k-shells are cylindrical 
-! surfaces with kperp = Dkk*(0,...,max{nx*Dkx/Dkk,nyDky/Dkk}/2).
-! Normalization of the transfer function is such that the
-! flux is Pi = -sum[T(kperp).Dkk], where Dkk is the width of the
-! Fourier shells. The output is written to a file by the first
-! node.
-!
-! Output files contain [kp = Dkk*sqrt(kx**2+ky**2)]:
-! 'hktranperp.XXX.txt': kp, TH_v(kp) (kinetic helicity transfer)
-! 'hmtranperp.XXX.txt': kp, TH_b(kp) (magnetic helicity transfer)
-!
-! Parameters
-!     a   : field component in the x-direction (v or a)
-!     b   : field component in the y-direction (v or a)
-!     c   : field component in the z-direction (v or a)
-!     d   : nonlinear term in the x-direction
-!     e   : nonlinear term in the y-direction
-!     f   : nonlinear term in the z-direction
-!     path: path for the output
-!     nmb : the extension used when writting the file
-!     kin : =0 computes the magnetic helicity transfer
-!           =1 computes the kinetic helicity transfer
-!
-      USE fprecision
-      USE commtypes
-      USE kes
-      USE grid
-      USE mpivars
-      USE filefmt
-      USE boxsize
-!$    USE threads
-      IMPLICIT NONE
-
-      DOUBLE PRECISION, DIMENSION(nmaxperp/2+1) :: Hk,Hktot
-      DOUBLE PRECISION    :: tmq
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
-      COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: d,e,f
-      COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: c1, c2, c3
-      REAL(KIND=GP)       :: tmp
-      INTEGER, INTENT(IN) :: kin
-      INTEGER             :: i,j,k
-      INTEGER             :: kmn
-      CHARACTER(len=*), INTENT(IN) :: path,nmb
-
-!
-! Sets Hk to zero
-!
-      LOGICAL :: bret_
-      CALL gws%get_complex_htmp(c1,bret_)
-      CALL gws%get_complex_htmp(c2,bret_)
-      CALL gws%get_complex_htmp(c3,bret_)
-      DO i = 1,nmaxperp/2+1
-         Hk(i) = 0.0D0
-      END DO
-!
-! Computes the helicity transfer
-!
-      tmp = 1.0_GP/ &
-            (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
-      CALL rotor3(b,c,c1,1)
-      CALL rotor3(a,c,c2,2)
-      CALL rotor3(a,b,c3,3)
-      IF (ista.eq.1) THEN
-!$omp parallel private (k,kmn,tmq,j)
-!$omp do
-         DO j = 1,ny
-            kmn = int(sqrt(kx(1)**2+ky(j)**2)/Dkk+1)
-            IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
-               DO k = 1,nz
-                  tmq = (real(c1(k,j,1)*conjg(d(k,j,1)))+          &
-                         real(c2(k,j,1)*conjg(e(k,j,1)))+          &
-                         real(c3(k,j,1)*conjg(f(k,j,1))))*tmp
-!$omp atomic
-                  Hk(kmn) = Hk(kmn)+tmq
-               END DO
-            ENDIF
-         END DO
-!$omp end do
-!$omp do
-         DO i = 2,iend
-!$omp parallel do if (iend-2.lt.nth) private (k,kmn,tmq)
-            DO j = 1,ny
-               kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
-               IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
-                  DO k = 1,nz
-                     tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+     &
-                              real(c2(k,j,i)*conjg(e(k,j,i)))+     &
-                              real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
-!$omp atomic
-                     Hk(kmn) = Hk(kmn)+tmq
-                  END DO
-               ENDIF
-            END DO
-         END DO
-!$omp end do
-!$omp end parallel
-      ELSE
-!$omp parallel do if (iend-ista.ge.nth) private (j,k,kmn,tmq)
-         DO i = ista,iend
-!$omp parallel do if (iend-ista.lt.nth) private (k,kmn,tmq)
-            DO j = 1,ny
-               kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
-               IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
-                  DO k = 1,nz
-                     tmq = 2*(real(c1(k,j,i)*conjg(d(k,j,i)))+     &
-                              real(c2(k,j,i)*conjg(e(k,j,i)))+     &
-                              real(c3(k,j,i)*conjg(f(k,j,i))))*tmp
-!$omp atomic
-                     Hk(kmn) = Hk(kmn)+tmq                       
-                  END DO
-               ENDIF
-            END DO
-         END DO
-      ENDIF
-!
-! Computes the reduction between nodes
-! and exports the result to a file
-!
-      CALL MPI_REDUCE(Hk,Hktot,nmaxperp/2+1,MPI_DOUBLE_PRECISION,  &
-                      MPI_SUM,0,MPI_COMM_WORLD,ierr)
-      IF (myrank.eq.0) THEN
-         IF (kin.eq.0) THEN
-            OPEN(1,file=trim(path) // '/hmtranperp.' // nmb // '.txt')
-         ELSE
-            OPEN(1,file=trim(path) // '/hktranperp.' // nmb // '.txt')
-         ENDIF
-         DO j = 1,nmaxperp/2+1
-            WRITE(1,FMT='(E13.6,E23.15)') Dkk*(j-1),Hktot(j)/Dkk
-         END DO
-         CLOSE(1)
-      ENDIF
-
-      CALL gws%free_complex_htmp(c1)
-      CALL gws%free_complex_htmp(c2)
-      CALL gws%free_complex_htmp(c3)
-      RETURN
-      END SUBROUTINE heltperp
-
-!*****************************************************************
       SUBROUTINE spec2D(a,b,c,nmb,dir,kin,hel)
 !-----------------------------------------------------------------
 !
@@ -1379,7 +1087,6 @@ MODULE pseudospec_aniso
       USE mpivars
       USE filefmt
       USE boxsize
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
@@ -1668,7 +1375,6 @@ MODULE pseudospec_aniso
       USE mpivars
       USE filefmt
       USE boxsize
-!$    USE threads
       IMPLICIT NONE
 
       COMPLEX(KIND=GP), INTENT(IN), DIMENSION(nz,ny,ista:iend) :: a

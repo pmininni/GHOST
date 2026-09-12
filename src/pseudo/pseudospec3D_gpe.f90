@@ -16,8 +16,8 @@
 ! directives, temporaries from the workspace pool), and the
 ! module pseudospec_gpe the diagnostics (computed in the host,
 ! with host-only temporaries). The constants of the equations
-! (alpha, beta, omegag) are passed as arguments; the old 'hbar'
-! module is not used. See pseudospec3D_hd.f90 for the methodology.
+! (alpha, beta, omegag) are passed as arguments. See
+! pseudospec3D_hd.f90 for the methodology.
 !
 ! NOTATION: index 'i' is 'x'
 !           index 'j' is 'y'

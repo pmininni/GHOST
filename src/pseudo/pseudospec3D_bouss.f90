@@ -781,6 +781,7 @@ module pseudospec_bouss
       complex(kind=gp), intent(in), dimension(nz,ny,ista:iend) :: w,s
       complex(kind=gp),             dimension(nz,ny,ista:iend) :: c1,c2
       complex(kind=gp),             dimension(nz,ny,ista:iend) :: c3,a
+      double precision  :: tmq
       real(kind=gp)     :: tmp
       integer           :: i,j,k
       integer           :: kmn
@@ -803,32 +804,42 @@ module pseudospec_bouss
 !
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+!$omp parallel private (k,kmn,tmq) reduction(+:Ek)
+!$omp do
       if (ista.eq.1) then
          do j = 1,ny
             do k = 1,nz
                kmn = int(abs(kz(k))*Lz+1)
                if ((kmn.gt.0).and.(kmn.le.nz/2+1)) then
-                  Ek(kmn) = Ek(kmn)+tmp*abs(a(k,j,1))**2
+                  tmq = (abs(a(k,j,1))**2)*tmp
+                  Ek(kmn) = Ek(kmn)+tmq
                endif
             end do
          end do
+!$omp end do
+!$omp do collapse(2)
          do i = 2,iend
             do j = 1,ny
                do k = 1,nz
                   kmn = int(abs(kz(k))*Lz+1)
                   if ((kmn.gt.0).and.(kmn.le.nz/2+1)) then
-                     Ek(kmn) = Ek(kmn)+2*tmp*abs(a(k,j,i))**2
+                     tmq = 2*(abs(a(k,j,i))**2)*tmp
+                     Ek(kmn) = Ek(kmn)+tmq
                   endif
                end do
             end do
          end do
+!$omp end do
+!$omp end parallel
       else
+!$omp parallel do collapse(2) private (k,kmn,tmq) reduction(+:Ek)
          do i = ista,iend
             do j = 1,ny
                do k = 1,nz
                   kmn = int(abs(kz(k))*Lz+1)
                   IF ((kmn.gt.0).and.(kmn.le.nz/2+1)) THEN
-                     Ek(kmn) = Ek(kmn)+2*tmp*abs(a(k,j,i))**2
+                     tmq = 2*(abs(a(k,j,i))**2)*tmp
+                     Ek(kmn) = Ek(kmn)+tmq
                   endif
                end do
             end do

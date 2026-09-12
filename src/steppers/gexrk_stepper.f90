@@ -260,9 +260,9 @@ contains
   !! This time stepper does not perform computation of feedback
   !! forces on the fluid (one-way coupled), and evolves the
   !! particles in a fixed velocity field during the substepping 
-  !! stages. This method is mainly intended for manual
-  !! integration of multiple sets of (same type) one-way
-  !! coupled particles.
+  !! stages (which limits the method to first order in dt). This
+  !! method is mainly intended for manual integration of
+  !! multiple sets of (same type) one-way coupled particles.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine pstep_impl(this, time, uin, upin, dt, upout)
     use gpstate_mod

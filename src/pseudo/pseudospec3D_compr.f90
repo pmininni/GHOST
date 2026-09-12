@@ -58,7 +58,7 @@ MODULE pseudospec_compressible
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(IN),    DIMENSION(nz,ny,ista:iend) :: d
       COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: x
-      REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: r1,r2,r3,r4
+      REAL(KIND=GP)   , POINTER, DIMENSION(:,:,:) :: r1,r2,r3,r4
       INTEGER :: i,j,k
       LOGICAL :: bret
 
@@ -129,7 +129,7 @@ MODULE pseudospec_compressible
       COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: e
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: dpx,dpy,dpz
       COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: t
-      REAL(KIND=GP),    INTENT(IN)                 :: gam1
+      REAL(KIND=GP)   , INTENT(IN)                :: gam1
       INTEGER       :: i,j,k
       LOGICAL       :: bret
 
@@ -173,9 +173,9 @@ MODULE pseudospec_compressible
       COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: c,d
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: e,f
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: g
-      REAL(KIND=GP),    INTENT(IN)                 :: cp1, gam1
+      REAL(KIND=GP)   , INTENT(IN)                :: cp1, gam1
       COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: h
-      REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: r1,r2,r3,r4
+      REAL(KIND=GP)   , POINTER, DIMENSION(:,:,:) :: r1,r2,r3,r4
       REAL(KIND=GP) :: tmp
       INTEGER       :: i,j,k
       LOGICAL       :: bret
@@ -250,9 +250,9 @@ MODULE pseudospec_compressible
 
       COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: d
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: e,f,g
-      REAL(KIND=GP),    INTENT(IN)                 :: cp1, gam1
+      REAL(KIND=GP),    INTENT(IN)                :: cp1, gam1
       COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: h
-      REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: r4
+      REAL(KIND=GP)   , POINTER, DIMENSION(:,:,:) :: r4
       REAL(KIND=GP) :: tmp
       INTEGER       :: i,j,k
       LOGICAL       :: bret
@@ -300,8 +300,7 @@ MODULE pseudospec_compressible
 !     b  : input matrix with v_y (in Fourier space)
 !     c  : input matrix with v_z (in Fourier space) [A = (a,b,c)]
 !     d  : input matrix with density (in Fourier space)
-!     dodealias:
-!          flag (0, 1) to do dealiasing
+!     dodealias:  flag (0, 1) to do dealiasing
 !     e  : output matrix with div(d.A) (in Fourier space)
 !
       USE fprecision
@@ -318,7 +317,7 @@ MODULE pseudospec_compressible
       COMPLEX(KIND=GP), INTENT(IN),  DIMENSION(nz,ny,ista:iend) :: c,d
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: e
       COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: f,g,h
-      REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: r1,r2,r3,r4
+      REAL(KIND=GP)   , POINTER, DIMENSION(:,:,:) :: r1,r2,r3,r4
       REAL(KIND=GP) :: tmp
       INTEGER       :: i,j,k
       LOGICAL       :: bret
@@ -454,9 +453,9 @@ MODULE pseudospec_compressible
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: a,b,c
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: d,e,f
       COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: g,h
-      REAL(KIND=GP),    INTENT(IN)                 :: nu,nu2
-      INTEGER                                      :: i,j,k
-      LOGICAL                                      :: bret
+      REAL(KIND=GP)   , INTENT(IN)                :: nu,nu2
+      INTEGER                                     :: i,j,k
+      LOGICAL                                     :: bret
 
       CALL gws%get_complex_tmp(g,bret)
       CALL gws%get_complex_tmp(h,bret)
@@ -476,7 +475,7 @@ MODULE pseudospec_compressible
             END DO
          END DO
       END DO
-                                          ! nu del^2(vel) + nu2 grad(div(vel))
+                                         ! nu del^2(vel) + nu2 grad(div(vel))
       CALL derivk3(g,h,1)
       CALL laplak3(a,d)
       CALL saxpby_c(d,d,nu,h,nu2)
@@ -505,8 +504,7 @@ MODULE pseudospec_compressible
 !     a   : input matrix with v_x (in Fourier space)
 !     b   : input matrix with v_y (in Fourier space)
 !     c   : input matrix with v_z (in Fourier space) [A = (a,b,c)]
-!     dodealias:
-!          flag (0, 1) to do dealiasing
+!     dodealias: flag (0, 1) to do dealiasing
 !     pdV : result
 !
       USE fprecision
@@ -525,8 +523,8 @@ MODULE pseudospec_compressible
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: e
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: pdV
       COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: t1,t2,t3,t4
-      REAL(KIND=GP)   , INTENT (IN)                :: gam1
-      REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: r1,r2,r3,r4
+      REAL(KIND=GP)   , INTENT (IN)               :: gam1
+      REAL(KIND=GP)   , POINTER, DIMENSION(:,:,:) :: r1,r2,r3,r4
       REAL(KIND=GP)                 :: tmp
       INTEGER                       :: i,j,k
       LOGICAL                       :: bret
@@ -626,13 +624,10 @@ MODULE pseudospec_compressible
 ! Computes velocity from momentum
 !
 ! Parameters
-!     rho   : density
-!     sx,sy,
-!     sz    : momentum componnts
-!     dodealias:
-!          flag (0, 1) to do dealiasing
-!     vx,vy,
-!     vz    : velocity componnts
+!     rho      : density
+!     sx,sy, sz: momentum components
+!     dodealias: flag (0, 1) to do dealiasing
+!     vx,vy,vz : velocity components
 !
       USE fprecision
       USE kes
@@ -648,7 +643,7 @@ MODULE pseudospec_compressible
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: sx,sy,sz
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
       COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: t4
-      REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: r1,r2,r3,r4
+      REAL(KIND=GP)   , POINTER, DIMENSION(:,:,:) :: r1,r2,r3,r4
       INTEGER                       :: i,j,k
       LOGICAL                       :: bret
 
@@ -773,7 +768,7 @@ MODULE pseudospec_compressible
       COMPLEX(KIND=GP), INTENT (IN), DIMENSION(nz,ny,ista:iend) :: c
       COMPLEX(KIND=GP), INTENT(OUT), DIMENSION(nz,ny,ista:iend) :: phi
       COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: t1,t2,t3,t4,t5,t6,t7
-      REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: r1,r2,r3,r4
+      REAL(KIND=GP)   , POINTER, DIMENSION(:,:,:) :: r1,r2,r3,r4
       REAL(KIND=GP)                 :: tmp
       INTEGER                       :: i,j,k
       INTEGER                       :: btrunc,bnorm
@@ -945,7 +940,7 @@ MODULE pseudospec_compr
       INTEGER,          INTENT(IN)  :: t
       CHARACTER(len=*), INTENT(IN)  :: path
       COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: e
-      REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: r1,r4
+      REAL(KIND=GP)   , POINTER, DIMENSION(:,:,:) :: r1,r4
       REAL(KIND=GP)                 :: tmp, tmp1, gam0
       DOUBLE PRECISION              :: tot_ekin
       DOUBLE PRECISION              :: loc_ekin
@@ -1063,7 +1058,7 @@ MODULE pseudospec_compr
       INTEGER,          INTENT(IN)  :: t
       CHARACTER(len=*), INTENT(IN)  :: path
       COMPLEX(KIND=GP), POINTER, DIMENSION(:,:,:) :: t1
-      REAL(KIND=GP), POINTER, DIMENSION(:,:,:) :: r1,r4,r5
+      REAL(KIND=GP)   , POINTER, DIMENSION(:,:,:) :: r1,r4,r5
       REAL(KIND=GP)                 :: csq, tmp1, tmp2, tmp3, vsq
       DOUBLE PRECISION              :: tot_ekin,tot_eint,tot_mass,tot_mach
       DOUBLE PRECISION              :: tot_c,tot_v
