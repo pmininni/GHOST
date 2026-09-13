@@ -58,7 +58,7 @@ rho0 = 1.00      ! density at infinity (or at the zero of the potential)
 V0 = 0.00        ! amplitude of the trapping potential (cyltrap_vq)
 dorot = .FALSE.  ! rotating frame
 omegaz = 0.0     ! rotation rate along z (ignored if dorot is FALSE)
-dotrans = .FALSE.! compute the energy transfer functions with the spectra
+dotrans = .FALSE. ! compute the energy transfer functions with the spectra
 spectlod = 1     ! spectral output level of detail [1-3]
 /
 

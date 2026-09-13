@@ -804,9 +804,9 @@ module pseudospec_bouss
 !
       tmp = 1.0_GP/ &
             (real(nx,kind=GP)*real(ny,kind=GP)*real(nz,kind=GP))**2
+      if (ista.eq.1) then
 !$omp parallel private (k,kmn,tmq) reduction(+:Ek)
 !$omp do
-      if (ista.eq.1) then
          do j = 1,ny
             do k = 1,nz
                kmn = int(abs(kz(k))*Lz+1)

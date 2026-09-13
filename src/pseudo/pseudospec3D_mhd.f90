@@ -409,6 +409,7 @@ MODULE pseudospec_magnetic
       USE grid
       USE mpivars
       USE boxsize
+!$    USE threads
       IMPLICIT NONE
 
       DOUBLE PRECISION, DIMENSION(nmax/2+1) :: Ck
