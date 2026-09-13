@@ -178,7 +178,9 @@
 ! worked on the device inside the time step (gdev_active set) and on
 ! their host copies elsewhere (for I/O and diagnostics): the host copies
 ! of the fields are refreshed before any output, and the forcing, 
-! which is computed on the host, is copied to the device after each update.
+! which is computed on the host, is copied to the device in the steps
+! in which an update method modifies it (the shuffle blends of the
+! intermediate steps run on the device copies).
 ! If we are doing a benchmark, we measure cputime before starting. We
 ! also re-inititialize the fftp timers.
       IF (bench.eq.1) THEN
@@ -210,9 +212,12 @@
             ENDIF
          endif
 
-         ! Every 'cstep' steps writes global quantities
+         ! Every 'cstep' steps writes global quantities (the host copy
+         ! of a time dependent forcing is refreshed: its updates may
+         ! have run on the device)
          IF ((timec.eq.cstep).and.(bench.eq.0)) THEN
             timec = 0
+            IF (.not.fstatic) CALL GState_update_from(force)
             CALL fluid%global(field_nxt, force, t)
          ENDIF
 
@@ -225,7 +230,7 @@
 
          ! Time evolution
          CALL update_forcing(forcemethod,fluid,force)
-         IF (.not.fstatic) CALL GState_update_to(force)
+         IF (forcing_changed(forcemethod)) CALL GState_update_to(force)
          gdev_active = .TRUE.
          if (dopart) then
             CALL GState_copy(field,field_nxt)

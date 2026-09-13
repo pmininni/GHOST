@@ -127,12 +127,12 @@ CONTAINS
     REAL(KIND=GP) :: dt_val
 
     ! Same sequence as the time loop of main.F90: the forcing is
-    ! updated on the host and uploaded, the step runs on the device
+    ! updated (uploaded when its host copy changed), the step runs on the device
     ! (gdev_active set) from the copy of the last state, and 'time' is
     ! the time at the beginning of the step
     DO i = 1, num_steps
        CALL update_forcing(forcemethod,fluid,force)
-       IF (.not.fstatic) CALL GState_update_to(force)
+       IF (forcing_changed(forcemethod)) CALL GState_update_to(force)
        gdev_active = .TRUE.
        CALL GState_copy(field,field_nxt)
        CALL stepper%gstep(time, field, force, dt, field_nxt)
@@ -173,9 +173,12 @@ CONTAINS
   END FUNCTION ghost_get_complex_field
   
   ! Returns the pointer to the forcing component at position num_field
+  ! (its host copy, refreshed from the device first: the updates of a
+  ! time dependent forcing may run on the device)
   FUNCTION ghost_get_complex_forcing(num_field) RESULT(ptr) BIND(C)
     INTEGER(C_INT), VALUE :: num_field
     TYPE   (C_PTR)        :: ptr
+    IF (.not.fstatic) CALL gupdate_from(force(num_field)%ccomp)
     ptr = C_LOC(force(num_field)%ccomp)
   END FUNCTION ghost_get_complex_forcing
 

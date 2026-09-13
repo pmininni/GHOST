@@ -397,6 +397,7 @@ CONTAINS
 
     if (timef.eq.fstep) then
       call force%init_GForce(solver,state)
+      this%changed_ = .true. ! Host copies of the state modified
     endif
   end subroutine update_renewfq
 

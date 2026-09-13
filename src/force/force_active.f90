@@ -318,6 +318,7 @@ CONTAINS
           cdump = COS(phase)+im*SIN(phase)
           call phaseshift(state(n)%ccomp,cdump)
         end do
+        this%changed_ = .true. ! Host copies of the state modified
       endif
     class default
       error stop "Force_updt: This solver does not support active scalar forcing"

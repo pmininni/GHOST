@@ -56,6 +56,7 @@ module force_velocity
   type, extends(forceUpdt) :: shuffleupdt_fv
     contains
       procedure :: update_GForce => update_shufflefv
+      procedure :: blend_GForce  => blend_shufflefv
   end type shuffleupdt_fv
 ! type, extends(forceUpdt) :: userupdt_fv
 !   contains
@@ -697,6 +698,7 @@ CONTAINS
         call phaseshift(state(solver%VELOCITY  )%ccomp,cdump)
         call phaseshift(state(solver%VELOCITY+1)%ccomp,cdump)
         call phaseshift(state(solver%VELOCITY+2)%ccomp,cdump)
+        this%changed_ = .true. ! Host copies of the state modified
       endif
     class default
       error stop "This solver does not support velocity forcing"
@@ -711,6 +713,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine update_shufflefv(this, force, solver, state)
     use equationbase_mod
+    use gmem
     use status
     use filefmt
     use fft
@@ -758,6 +761,12 @@ CONTAINS
         call solver%workspace_%free_real_tmp(R1)
         call solver%workspace_%free_real_tmp(R2)
         call solver%workspace_%free_real_tmp(R3)
+        call gupdate_to(this%fxold_) ! Device copies (no-ops in host builds)
+        call gupdate_to(this%fyold_)
+        call gupdate_to(this%fzold_)
+        call gupdate_to(this%fxnew_)
+        call gupdate_to(this%fynew_)
+        call gupdate_to(this%fznew_)
       endif    
       this%binit_ = .TRUE.
     endif
@@ -765,7 +774,13 @@ CONTAINS
     class is (VelocityBase)
       ! Generate new forcing states when the correlation time is reached
       if (timef.eq.fstep) then
-        do i = ista,iend        ! Keeps a copy of the last forcing state
+        ! Keeps a copy of the last forcing state (the host copies are
+        ! refreshed first: the blends of the previous steps ran on the
+        ! device copies in offload builds)
+        call gupdate_from(state(solver%VELOCITY  )%ccomp)
+        call gupdate_from(state(solver%VELOCITY+1)%ccomp)
+        call gupdate_from(state(solver%VELOCITY+2)%ccomp)
+        do i = ista,iend
           do j = 1,ny
             do k = 1,nz
               this%fxold_(k,j,i) = state(solver%VELOCITY  )%ccomp(k,j,i)
@@ -784,21 +799,16 @@ CONTAINS
             end do
           end do
         end do
+        ! Device copies of the old and new states for the blends of
+        ! the next fstep steps (no-ops in host builds)
+        call gupdate_to(this%fxold_)
+        call gupdate_to(this%fyold_)
+        call gupdate_to(this%fzold_)
+        call gupdate_to(this%fxnew_)
+        call gupdate_to(this%fynew_)
+        call gupdate_to(this%fznew_)
+        this%changed_ = .true. ! Host copies of the state modified
       endif
-      ! Slowly updates the forcing at every time step
-      rmp = float(timef+1)/float(fstep)
-      do i = ista,iend
-        do j = 1,ny
-          do k = 1,nz
-            state(solver%VELOCITY  )%ccomp(k,j,i) = &
-                 (1-rmp)*this%fxold_(k,j,i)+rmp*this%fxnew_(k,j,i)
-            state(solver%VELOCITY+1)%ccomp(k,j,i) = &
-                 (1-rmp)*this%fyold_(k,j,i)+rmp*this%fynew_(k,j,i)
-            state(solver%VELOCITY+2)%ccomp(k,j,i) = &
-                 (1-rmp)*this%fzold_(k,j,i)+rmp*this%fznew_(k,j,i)
-          end do
-        end do
-      end do
     class default
       error stop "This solver does not support velocity forcing"
     end select
@@ -852,5 +862,40 @@ CONTAINS
       call solver%workspace_%free_real_tmp(R3)
     endif
   end subroutine update_shufflefv
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Second pass of the shuffle update: slowly updates the
+  !! forcing at every time step, f = (1-rmp).fold + rmp.fnew.
+  !! The weight is 1/fstep right after a new state is generated
+  !! (timef = fstep) and reaches 1 after fstep steps. In the
+  !! step of the generation the blend is done on the host
+  !! copies (uploaded by the main program with the rest of the
+  !! state), in the other steps on the device copies (offload
+  !! builds; the host copies are left stale).
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine blend_shufflefv(this, solver, state)
+    use equationbase_mod
+    use status
+    implicit none
+
+    class(shuffleupdt_fv), intent(inout)             :: this
+    class  (EquationBase), intent(inout)             :: solver
+    type     (GStateComp), intent(inout)             :: state(:)
+    real(kind=GP)                                    :: rmp
+
+    select type (solver)
+    class is (VelocityBase)
+      rmp = float(mod(timef,fstep)+1)/float(fstep)
+      call blend_forcing(state(solver%VELOCITY  )%ccomp,this%fxold_, &
+                         this%fxnew_,rmp,timef.ne.fstep)
+      call blend_forcing(state(solver%VELOCITY+1)%ccomp,this%fyold_, &
+                         this%fynew_,rmp,timef.ne.fstep)
+      call blend_forcing(state(solver%VELOCITY+2)%ccomp,this%fzold_, &
+                         this%fznew_,rmp,timef.ne.fstep)
+    class default
+      error stop "This solver does not support velocity forcing"
+    end select
+  end subroutine blend_shufflefv
   
 end module force_velocity
