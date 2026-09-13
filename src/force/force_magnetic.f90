@@ -43,12 +43,12 @@ module force_magnetic
   ! ================= Update methods supported =======================
   type, extends(forceUpdt) :: shiftupdt_fb
     contains
-      procedure ::   update_GForce => update_shiftfb
+      procedure :: update_GForce => update_shiftfb
   end type shiftupdt_fb 
   type, extends(forceUpdt) :: shuffleupdt_fb
     contains
-      procedure ::   update_GForce => update_shufflefb
-      procedure ::   blend_GForce  => blend_shufflefb
+      procedure :: update_GForce => update_shufflefb
+      procedure :: blend_GForce  => blend_shufflefb
   end type shuffleupdt_fb
 ! type, extends(forceUpdt) :: userupdt_fb
 !   contains

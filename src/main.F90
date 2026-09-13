@@ -179,8 +179,8 @@
 ! their host copies elsewhere (for I/O and diagnostics): the host copies
 ! of the fields are refreshed before any output, and the forcing, 
 ! which is computed on the host, is copied to the device in the steps
-! in which an update method modifies it (the shuffle blends of the
-! intermediate steps run on the device copies).
+! in which an update method modifies it or its building blocks (e.g.,
+! in shuffle schemes the blending is computed over the device copies).
 ! If we are doing a benchmark, we measure cputime before starting. We
 ! also re-inititialize the fftp timers.
       IF (bench.eq.1) THEN
