@@ -125,12 +125,13 @@ CONTAINS
       endif
       doupdate    = .false.
       doupdate(1) = .true.
-      rmp = 1.0_GP/(real(this%nd_(1),kind=GP)*real(this%nd_(2),kind=GP)*    &
-                    real(this%nd_(3),kind=GP))
       ! Find F(u*):
       do m = 1,this%nc_
         vc => fluidstate(pde%VELOCITY+m-1)%ccomp
         CALL copy3(vc,velc)
+        ! dx/dt = v_p/(delta*FFT_normalization)   Positions are in grid units
+        rmp = this%invdel_(m)/(real(this%nd_(1),kind=GP)*                   &
+                        real(this%nd_(2),kind=GP)*real(this%nd_(3),kind=GP))
         CALL scal3(velc,rmp)
         call fftp3d_complex_to_real(plancr,velc,velr,MPI_COMM_WORLD)
         call this%EulerToLag(dpdtout(this%POSITION+m-1)%rcomp,this%nparts_, &
