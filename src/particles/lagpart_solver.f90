@@ -129,7 +129,7 @@ CONTAINS
       do m = 1,this%nc_
         vc => fluidstate(pde%VELOCITY+m-1)%ccomp
         CALL copy3(vc,velc)
-        ! dx/dt = v_p/(delta*FFT_normalization)   Positions are in grid units
+        ! dx/dt = v_f/(delta*FFT_normalization)   Positions are in grid units
         rmp = this%invdel_(m)/(real(this%nd_(1),kind=GP)*                   &
                         real(this%nd_(2),kind=GP)*real(this%nd_(3),kind=GP))
         CALL scal3(velc,rmp)
