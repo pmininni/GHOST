@@ -72,34 +72,6 @@ module ic_quantum
 
 contains
 
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Dealiases the order parameter (zeroes the modes with
-  !! kn2 > kmax). The ICs built in real space have modes up to
-  !! the Nyquist wavenumber; the solvers evolve only the modes
-  !! with kn2 <= kmax, and the others must be removed.
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine dealias_z(solver,state)
-    use grid
-    use mpivars
-    use kes
-    use ali
-    class(QuantumBase), intent(in)    :: solver
-    type  (GStateComp), intent(inout) :: state(:)
-    integer                           :: i,j,k
-!$omp parallel do collapse(2) private (k)
-    do i = ista,iend
-      do j = 1,ny
-        do k = 1,nz
-          if (kn2(k,j,i).gt.kmax) then
-            state(solver%ZFUNC  )%ccomp(k,j,i) = 0.0_GP
-            state(solver%ZFUNC+1)%ccomp(k,j,i) = 0.0_GP
-          endif
-        end do
-      end do
-    end do
-  end subroutine dealias_z
-
-
   ! ===================================================================
   ! Initial conditions
   ! ===================================================================
@@ -532,41 +504,6 @@ contains
 
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  !! Position and tangent of the vortex filaments at the
-  !! parameter s in [0,2.pi): icurve=1 ring, 2 trefoil, 3 two
-  !! linked rings (nc curves). r0 is the size of the knot.
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-  subroutine knot_curve(icurve,r0,s,nc,pos,tan)
-    use var
-    implicit none
-    integer      , intent (in) :: icurve
-    real(kind=GP), intent (in) :: r0,s
-    integer      , intent(out) :: nc
-    real(kind=GP), intent(out) :: pos(3,2),tan(3,2)
-    select case (icurve)
-    case (1) ! ring in the plane z = pi
-      nc = 1
-      pos(:,1) = (/ pi+r0*cos(s), pi+r0*sin(s), pi /)
-      tan(:,1) = (/ -r0*sin(s), r0*cos(s), 0.0_GP /)
-    case (2) ! trefoil
-      nc = 1
-      pos(:,1) = (/ pi+(r0*(sin(s)+2.0_GP*sin(2.0_GP*s)))/3.0_GP,   &
-                    pi+(r0*(cos(s)-2.0_GP*cos(2.0_GP*s)))/3.0_GP,   &
-                    pi-(r0*sin(3.0_GP*s))/3.0_GP /)
-      tan(:,1) = (/ (r0*(cos(s)+4.0_GP*cos(2.0_GP*s)))/3.0_GP,      &
-                    (r0*(-sin(s)+4.0_GP*sin(2.0_GP*s)))/3.0_GP,     &
-                    -(r0*cos(3.0_GP*s)) /)
-    case default ! two linked rings
-      nc = 2
-      pos(:,1) = (/ pi-r0/2+r0*cos(s), pi+r0*sin(s), pi /)
-      tan(:,1) = (/ -r0*sin(s), r0*cos(s), 0.0_GP /)
-      pos(:,2) = (/ pi+r0/2+r0*cos(s), pi, pi+r0*sin(s) /)
-      tan(:,2) = (/ -r0*sin(s), 0.0_GP, r0*cos(s) /)
-    end select
-  end subroutine knot_curve
-
-
-  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !! Vortex knots: the velocity of the filaments (with a
   !! Gaussian filter) is set as the advective velocity, the
   !! phase of the order parameter is integrated along the
@@ -894,4 +831,71 @@ contains
     end select
   end subroutine init_trapz
 
+
+  ! ===================================================================
+  ! Helpers
+  ! ===================================================================
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Dealiases the order parameter (zeroes the modes with
+  !! kn2 > kmax). The ICs built in real space have modes up to
+  !! the Nyquist wavenumber; the solvers evolve only the modes
+  !! with kn2 <= kmax, and the others must be removed.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine dealias_z(solver,state)
+    use grid
+    use mpivars
+    use kes
+    use ali
+    class(QuantumBase), intent(in)    :: solver
+    type  (GStateComp), intent(inout) :: state(:)
+    integer                           :: i,j,k
+!$omp parallel do collapse(2) private (k)
+    do i = ista,iend
+      do j = 1,ny
+        do k = 1,nz
+          if (kn2(k,j,i).gt.kmax) then
+            state(solver%ZFUNC  )%ccomp(k,j,i) = 0.0_GP
+            state(solver%ZFUNC+1)%ccomp(k,j,i) = 0.0_GP
+          endif
+        end do
+      end do
+    end do
+  end subroutine dealias_z
+
+
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  !! Position and tangent of the vortex filaments at the
+  !! parameter s in [0,2.pi): icurve=1 ring, 2 trefoil, 3 two
+  !! linked rings (nc curves). r0 is the size of the knot.
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  subroutine knot_curve(icurve,r0,s,nc,pos,tan)
+    use var
+    implicit none
+    integer      , intent (in) :: icurve
+    real(kind=GP), intent (in) :: r0,s
+    integer      , intent(out) :: nc
+    real(kind=GP), intent(out) :: pos(3,2),tan(3,2)
+    select case (icurve)
+    case (1) ! ring in the plane z = pi
+      nc = 1
+      pos(:,1) = (/ pi+r0*cos(s), pi+r0*sin(s), pi /)
+      tan(:,1) = (/ -r0*sin(s), r0*cos(s), 0.0_GP /)
+    case (2) ! trefoil
+      nc = 1
+      pos(:,1) = (/ pi+(r0*(sin(s)+2.0_GP*sin(2.0_GP*s)))/3.0_GP,   &
+                    pi+(r0*(cos(s)-2.0_GP*cos(2.0_GP*s)))/3.0_GP,   &
+                    pi-(r0*sin(3.0_GP*s))/3.0_GP /)
+      tan(:,1) = (/ (r0*(cos(s)+4.0_GP*cos(2.0_GP*s)))/3.0_GP,      &
+                    (r0*(-sin(s)+4.0_GP*sin(2.0_GP*s)))/3.0_GP,     &
+                    -(r0*cos(3.0_GP*s)) /)
+    case default ! two linked rings
+      nc = 2
+      pos(:,1) = (/ pi-r0/2+r0*cos(s), pi+r0*sin(s), pi /)
+      tan(:,1) = (/ -r0*sin(s), r0*cos(s), 0.0_GP /)
+      pos(:,2) = (/ pi+r0/2+r0*cos(s), pi, pi+r0*sin(s) /)
+      tan(:,2) = (/ -r0*sin(s), 0.0_GP, r0*cos(s) /)
+    end select
+  end subroutine knot_curve
+  
 end module ic_quantum

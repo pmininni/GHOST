@@ -330,7 +330,9 @@ CONTAINS
   !! call dudt in place (dre and dim overwriting zre and zim), so
   !! the terms with zre and zim are first accumulated in the
   !! temporaries c3 and c4 (overwritten), and the output is then
-  !! built from the temporaries only.
+  !! built from the temporaries only. Module procedure with
+  !! explicit-shape dummies so that the class array can be used
+  !! in the device kernel.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine gpe_rhs_kernel(zre,zim,c3,c4,c5,c6,c7,c8,dre,dim,alpha,beta,omegag,irot)
     use grid
@@ -446,8 +448,7 @@ CONTAINS
   !! Energy transfer functions: the spectra of the state
   !! advanced one time step (with a second order Runge-Kutta
   !! step) are compared with the spectra of the current state,
-  !! T(k) = dE(k)/dt (as in the old code, where the spectra
-  !! before and after a time step were used).
+  !! T(k) = dE(k)/dt.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine gpe_transfer(this, zre, zim, nmb)
     use pseudospec_fluid

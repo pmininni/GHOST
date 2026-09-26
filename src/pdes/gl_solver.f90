@@ -392,7 +392,8 @@ CONTAINS
   !!   nim = (zim + dt (beta.c4 + c5 + fim - c7))/(1 + alpha k^2 dt)
   !! for the modes with kn2 <= kmax (zero otherwise). The advection
   !! (c5,c6) and rotation (c7,c8) terms are included when iadv,
-  !! irot = 1.
+  !! irot = 1. Module procedure with explicit-shape dummies so that
+  !! the class arrays can be used in the device kernel.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine gl_step(zre,zim,c3,c4,c5,c6,c7,c8,fre,fim,nre,nim,alpha,beta,dt,iadv,irot)
     use grid
