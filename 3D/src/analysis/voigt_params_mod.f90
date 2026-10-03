@@ -15,6 +15,7 @@
          REAL(KIND=GP)     :: ttime  ! time stamp
          REAL(KIND=GP)     :: dt
          CHARACTER(len=64) :: ext
+         CHARACTER(len=1024) :: ssuff
       END TYPE GVoigtParamType
       SAVE
 

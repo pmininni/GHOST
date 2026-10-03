@@ -300,7 +300,7 @@
       TYPE(cudaDevicePropG) :: devprop
 #endif
       TYPE(IOPLAN)          :: planio
-      CHARACTER(len=1024)   :: odir,idir
+      CHARACTER(len=1024)   :: odir,idir,ssuff
 #ifdef PART_
       CHARACTER(len=1024)   :: lgseedfile,slgfpfile
 #endif
@@ -419,7 +419,7 @@
 #if defined(TESTPART_) && defined(MAGFIELD_)
       NAMELIST / ptestpart / gyrof,vtherm
 #endif
-      NAMELIST / voigt / iswap,oswap
+      NAMELIST / voigt / ssuff,iswap,oswap
       NAMELIST / voigt / idir,odir,sstat
       NAMELIST / voigt / nbinx,nbiny,prtbin,doSGSinj
       NAMELIST / voigt / ftype,filtparam
@@ -1319,6 +1319,7 @@
 ! parameters that will be used to compute the transfer
 !     idir   : directory for unformatted input (field components)
 !     odir   : directory for unformatted output (prolongated data)
+!     ssuff  : suffix appened to input filenames
 !     sstat  : time index for which to compute VOIGT, or a
 !     ';--separated list
 !     iswap  : do endian swap on input?
@@ -1330,6 +1331,7 @@
 !     Defaults:
       idir   = '.'
       odir   = '.'
+      ssuff  = ''
       sstat  = '0'
       iswap  = 0
       oswap  = 0
@@ -1348,6 +1350,7 @@
       ENDIF
       CALL MPI_BCAST(idir     ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(odir     ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(ssuff    ,1024,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(sstat    ,4096,MPI_CHARACTER,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(oswap    ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(iswap    ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
@@ -1476,6 +1479,7 @@
       gparams%prtbin   = prtbin
       gparams%doSGSinj = doSGSinj
       gparams%dt       = dt
+      gparams%ssuff    = ssuff
 
       tmp = 1.0_GP/REAL(nx*ny*nz,KIND=GP)
       DO it = 1,nstat
@@ -1484,32 +1488,32 @@
 if (myrank.eq.0) write(*,*)'main: Reading time index: ', ext, '...' 
 #ifdef MOM_
 if (myrank.eq.0) write(*,*)'main: Reading sx...'
-        CALL io_read(1,idir,'sx',ext,planio,R1)
+        CALL io_read(1,idir,'sx'//trim(ssuff),ext,planio,R1)
 if (myrank.eq.0) write(*,*)'main: Reading sy...'
-        CALL io_read(1,idir,'sy',ext,planio,R2)
+        CALL io_read(1,idir,'sy'//trim(ssuff),ext,planio,R2)
 if (myrank.eq.0) write(*,*)'main: Reading sz...'
-        CALL io_read(1,idir,'sz',ext,planio,R3)
+        CALL io_read(1,idir,'sz'//trim(ssuff),ext,planio,R3)
         CALL fftp3d_real_to_complex(planrc,R1,sx,MPI_COMM_WORLD)
         CALL fftp3d_real_to_complex(planrc,R2,sy,MPI_COMM_WORLD)
         CALL fftp3d_real_to_complex(planrc,R3,sz,MPI_COMM_WORLD)
 # ifdef DENSITY_
 if (myrank.eq.0) write(*,*)'main: Reading rho...'
-        CALL io_read(1,idir,'rho',ext,planio,R1)
+        CALL io_read(1,idir,'rho'//trim(ssuff),ext,planio,R1)
 if (myrank.eq.0) write(*,*)'main: FFT rho...'
         CALL fftp3d_real_to_complex(planrc,R1,rho,MPI_COMM_WORLD)
 if (myrank.eq.0) write(*,*)'main: call mom2vel...'
         CALL mom2vel(rho,sx,sy,sz,0,vx,vy,vz)
 #  endif
 #else
-        CALL io_read(1,idir,'vx',ext,planio,R1)
-        CALL io_read(1,idir,'vy',ext,planio,R2)
-        CALL io_read(1,idir,'vz',ext,planio,R3)
+        CALL io_read(1,idir,'vx'//trim(ssuff),ext,planio,R1)
+        CALL io_read(1,idir,'vy'//trim(ssuff),ext,planio,R2)
+        CALL io_read(1,idir,'vz'//trim(ssuff),ext,planio,R3)
         CALL fftp3d_real_to_complex(planrc,R1,vx,MPI_COMM_WORLD)
         CALL fftp3d_real_to_complex(planrc,R2,vy,MPI_COMM_WORLD)
         CALL fftp3d_real_to_complex(planrc,R3,vz,MPI_COMM_WORLD)
 #endif
 #ifdef SCALAR_
-        CALL io_read(5,idir,'th',ext,planio,R1)
+        CALL io_read(5,idir,'th'//trim(ssuff),ext,planio,R1)
         CALL fftp3d_real_to_complex(planrc,R1,th,MPI_COMM_WORLD)
 #endif
         if (myrank.eq.0) write(*,*)'main: Time index ', ext, ' read.' 
@@ -3114,13 +3118,13 @@ endif
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
       if ( gparams%doSGSinj .gt. 0 ) then
-        CALL io_read(1,idir,'uSGSinj',ext,planio,R1)
+        CALL io_read(1,idir,'uSGSinj'//trim(gparams%ssuff),ext,planio,R1)
         fnout = trim(odir) // '/' // 'uSGSinjpdf.' // ext // '.txt'
         n = n + 1; sfld(n) = 'uSGSinj' 
         CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),vr(n),s3,s4,s5,s6)
         CALL dopdfr(R1,nx,ny,knz,fnout,nbins(1),0,fmin(1),fmax(1),0) 
 
-        CALL io_read(1,idir,'thSGSinj',ext,planio,R1)
+        CALL io_read(1,idir,'thSGSinj'//trim(gparams%ssuff),ext,planio,R1)
         fnout = trim(odir) // '/' // 'thSGSinjpdf.' // ext // '.txt'
         n = n + 1; sfld(n) = 'thSGSinj' 
         CALL skewflat(R1,nx,ny,knz,av(n),sk(n),ku(n),g5(n),w6(n),vr(n),s3,s4,s5,s6)
