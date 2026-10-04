@@ -313,9 +313,9 @@
       REAL(kind=GP) omega(3),xnormn
       REAL(kind=GP) filtparam
       INTEGER :: ic,ir,it,jc
-      INTEGER :: istat(4096),nstat,prtbin,doSGSinj
+      INTEGER :: istat(4096),nstat,prtbin,doSGSinj,dospectra
       INTEGER :: nbinx,nbiny,nbins(2)
-      INTEGER :: ftype ! filter type (0==Helm; 1==Gaussian; 2=Sharp)
+      INTEGER :: filttype ! filter type (0==Helm; 1==Gaussian; 2=Sharp)
       CHARACTER(len=64) :: ext1
       CHARACTER(len=4096) :: sstat
 
@@ -421,8 +421,8 @@
 #endif
       NAMELIST / voigt / ssuff,iswap,oswap
       NAMELIST / voigt / idir,odir,sstat
-      NAMELIST / voigt / nbinx,nbiny,prtbin,doSGSinj
-      NAMELIST / voigt / ftype,filtparam
+      NAMELIST / voigt / nbinx,nbiny,prtbin,doSGSinj,dospectra
+      NAMELIST / voigt / filttype,filtparam
 
 !
 ! Initialization
@@ -1324,7 +1324,7 @@
 !     ';--separated list
 !     iswap  : do endian swap on input?
 !     oswap  : do endian swap on output? Not used.
-!     ftype  : filter type (0==Helm; 1==Gaussian; 2==Sharp)
+!     filttype: filter type (0==Helm; 1==Gaussian; 2==Sharp)
 !     filtparam
 !            : filter scale
 !
@@ -1339,7 +1339,8 @@
       nbiny  = 100
       prtbin = 0   ! don't print binary data
       doSGSinj = 0 ! don't examine SGSinj terms
-      ftype  = -1  ! no filtering
+      dospectra= 1 ! don't write spectra
+      filttype = -1  ! no filtering
       filtparam = 0.0 ! filter scale
 
 
@@ -1358,7 +1359,8 @@
       CALL MPI_BCAST(nbiny    ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(prtbin   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(doSGSinj ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
-      CALL MPI_BCAST(ftype    ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(dospectra,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(filttype ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(filtparam,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
 ! Befor
 ! options are compatible with the SOLVER being used
@@ -1478,6 +1480,7 @@
       gparams%rotf     = 2*omegaz
       gparams%prtbin   = prtbin
       gparams%doSGSinj = doSGSinj
+      gparams%dospectra= dospectra
       gparams%dt       = dt
       gparams%ssuff    = ssuff
 
@@ -1526,7 +1529,7 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
         nbins(1) = nbinx ; nbins(2) = nbiny
         CALL DoVoigt(vx,vy,vz,th,istat(it),gparams,idir,odir,planio, &
                      C1,C2,C3, C4,R1,R2,R3,R4, &
-                     ftype,filtparam,nbins)
+                     filttype,filtparam,nbins)
 
 
       ENDDO ! end, it-loop
@@ -2785,7 +2788,7 @@ endif
 
       SUBROUTINE DoVoigt(vx_in,vy_in,vz_in,th_in,indtime, &
                           gparams,idir,odir,planio,C1,C2,C3,C4, &
-                          R1,R2,R3,R4,ftype,alpha,nbins)
+                          R1,R2,R3,R4,filttype,alpha,nbins)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
 !
@@ -2803,7 +2806,7 @@ endif
 !     planio : io plan
 !     Ci     : complex temp arrays
 !     Ri     : real temp arrays
-!     ftype  : filter type in (0, 1, 2) for
+!     filttype: filter type in (0, 1, 2) for
 !              (Helmholtz, Gaussian, Sharp). If <0, does nothing
 !     alpha  : filter scale
 !
@@ -2843,7 +2846,7 @@ endif
       LOGICAL                                                    :: bexist
       INTEGER         , INTENT   (IN)                            :: indtime
       INTEGER         , INTENT   (IN)                            :: nbins(2)
-      INTEGER         , INTENT   (IN)                            :: ftype
+      INTEGER         , INTENT   (IN)                            :: filttype
       INTEGER                                                    :: btrunc
       INTEGER                                                    :: i,inorm,itypeRi,j,k,knz,nn,n
       REAL   (KIND=GP)                                           :: fact,fmin(2),fmax(2),xnorm,xnormi,xnormn
@@ -2881,7 +2884,7 @@ endif
         END DO
 
       ! Filter input data:
-      CALL bouss_filter(vx,vy,vz,th,ftype,alpha,C1,C2,C3)
+      CALL bouss_filter(vx,vy,vz,th,filttype,alpha,C1,C2,C3)
 
       ! Print L2 quantities for this time index:
       C1 = 0.0; C2 = 0.0; C3 = 0.0; ! zero-out forces
@@ -3168,51 +3171,53 @@ endif
       ENDIF
 
       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-      !  ... energies:
-      CALL spectrum(vx,vy,vz,ext,1,1)
-      CALL specpara(vx,vy,vz,ext,1,1)
-      CALL specperp(vx,vy,vz,ext,1,1)
-      CALL spec2D(vx,vy,vz,ext,odir,1,1)
+      !  spectra:
+      if ( gparams%dospectra .gt. 0 ) then
+        CALL spectrum(vx,vy,vz,ext,1,1)
+        CALL specpara(vx,vy,vz,ext,1,1)
+        CALL specperp(vx,vy,vz,ext,1,1)
+        CALL spec2D(vx,vy,vz,ext,odir,1,1)
 #ifdef SCALAR_
-      CALL spectrsc(th,ext,0)
-      CALL specscpa(th,ext,0)
-      CALL specscpe(th,ext,0)
-      CALL specsc2D(th,ext,odir,0)
+        CALL spectrsc(th,ext,0)
+        CALL specscpa(th,ext,0)
+        CALL specscpe(th,ext,0)
+        CALL specsc2D(th,ext,odir,0)
 #endif
-      !  ... transfers:
-      CALL nonlhd3(vx,vy,vz,C1,1)
-      CALL nonlhd3(vx,vy,vz,C2,2)
-      CALL nonlhd3(vx,vy,vz,C3,3)
-      CALL advect3(vx,vy,vz,th,C4)
-
-      CALL entrans (vx,vy,vz,C1,C2,C3,ext,1)
-      CALL entpara (vx,vy,vz,C1,C2,C3,ext,1)
-      CALL entperp (vx,vy,vz,C1,C2,C3,ext,1)
-      CALL heltrans(vx,vy,vz,C1,C2,C3,ext,1)
-      CALL heltpara(vx,vy,vz,C1,C2,C3,ext,1)
-      CALL heltperp(vx,vy,vz,C1,C2,C3,ext,1)
-      CALL sctrans (th,C4,ext,0)
-      CALL sctpara (th,C4,ext,0)
-      CALL sctperp (th,C4,ext,0)
+        !  ... transfers:
+        CALL nonlhd3(vx,vy,vz,C1,1)
+        CALL nonlhd3(vx,vy,vz,C2,2)
+        CALL nonlhd3(vx,vy,vz,C3,3)
+        CALL advect3(vx,vy,vz,th,C4)
+  
+        CALL entrans (vx,vy,vz,C1,C2,C3,ext,1)
+        CALL entpara (vx,vy,vz,C1,C2,C3,ext,1)
+        CALL entperp (vx,vy,vz,C1,C2,C3,ext,1)
+        CALL heltrans(vx,vy,vz,C1,C2,C3,ext,1)
+        CALL heltpara(vx,vy,vz,C1,C2,C3,ext,1)
+        CALL heltperp(vx,vy,vz,C1,C2,C3,ext,1)
+        CALL sctrans (th,C4,ext,0)
+        CALL sctpara (th,C4,ext,0)
+        CALL sctperp (th,C4,ext,0)
+      endif
 
       RETURN
       END SUBROUTINE DoVoigt
 
 
-      SUBROUTINE bouss_filter(vx,vy,vz,th,ftype,alpha,C1,C2,C3)
+      SUBROUTINE bouss_filter(vx,vy,vz,th,filttype,alpha,C1,C2,C3)
 !-----------------------------------------------------------------
 ! Filter Boussinesq input data
 ! ARGS:
 !      vi     : complex velocity components, filtered on return
 !      th     : complex potential temperature, filtered on return
-!      ftype  : complex potential temperature: 0 (Helmholtz), or
+!      filttype  : complex potential temperature: 0 (Helmholtz), or
 !               1 (Gaussian), 2 (sharp cut-off). 
 !               A value of -1 means no filtering.
-!      alpha  : filter parameter: if ftype==0 (Helholtz alpha), this
+!      alpha  : filter parameter: if filttype==0 (Helholtz alpha), this
 !               is 1/filter_width, and filters modes as 
-!               1 / ( 1 + alpha^2 k^2 ); if ftype=1 (Gaussian), filters
+!               1 / ( 1 + alpha^2 k^2 ); if filttype=1 (Gaussian), filters
 !               modes as exp(-k^2 * alpha^2/ ( 2sqrt(3) ) ), so a smooth
-!               cut-off; if ftype=2 (sharp) filter has sharp cutoff 
+!               cut-off; if filttype=2 (sharp) filter has sharp cutoff 
 !               of modes at pi/alpha, with filter width alpha. 
 !               See pseudo/pseudospec3D_filt module.
 !      Ci     : complex tmp arrays
@@ -3232,7 +3237,7 @@ endif
 !$    USE threads
       IMPLICIT NONE
 
-      INTEGER         , INTENT   (IN)                             :: ftype
+      INTEGER         , INTENT   (IN)                             :: filttype
       REAL(KIND=GP)   , INTENT   (IN)                             :: alpha
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: vx,vy,vz
       COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: th
@@ -3240,10 +3245,10 @@ endif
 !
       INTEGER                                                     :: i,j,k
 
-      IF ( ftype .lt. 0 ) RETURN ! nothing to do
+      IF ( filttype .lt. 0 ) RETURN ! nothing to do
 
 
-      IF      ( ftype.eq.0 ) THEN ! Helmholtz
+      IF      ( filttype.eq.0 ) THEN ! Helmholtz
 
         CALL smooth3(vx, vy, vz, C1, C2, C3, alpha)
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -3269,7 +3274,7 @@ endif
            END DO
         END DO
 
-      ELSE IF ( ftype.eq.1 ) THEN ! Gaussian
+      ELSE IF ( filttype.eq.1 ) THEN ! Gaussian
 
         CALL gaussian(vx, C1, alpha)
         CALL gaussian(vy, C2, alpha)
@@ -3297,7 +3302,7 @@ endif
            END DO
         END DO
 
-      ELSE IF ( ftype.eq.2 ) THEN ! sharp 
+      ELSE IF ( filttype.eq.2 ) THEN ! sharp 
 
         CALL sharp(vx, C1, alpha)
         CALL sharp(vy, C2, alpha)

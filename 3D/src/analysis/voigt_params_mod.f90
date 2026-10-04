@@ -6,6 +6,7 @@
  
       TYPE GVoigtParamType
          INTEGER           :: doSGSinj
+         INTEGER           :: dospectra
          INTEGER           :: prtbin
          INTEGER           :: icycle ! continuous time icycle
          REAL(KIND=GP)     :: nu
