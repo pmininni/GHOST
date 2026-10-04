@@ -2887,9 +2887,11 @@ endif
       CALL bouss_filter(vx,vy,vz,th,filttype,alpha,C1,C2,C3)
 
       ! Print L2 quantities for this time index:
-      C1 = 0.0; C2 = 0.0; C3 = 0.0; ! zero-out forces
-      CALL hdcheck(vx,vy,vz,C1,C2,C3,gparams%icycle,gparams%dt,1,1)
-      CALL pscheck(th,C1,gparams%icycle, gparams%dt)
+      if ( gparams%dospectra .gt. 0 ) then
+        C1 = 0.0; C2 = 0.0; C3 = 0.0; ! zero-out forces
+        CALL hdcheck(vx,vy,vz,C1,C2,C3,gparams%icycle,gparams%dt,1,1)
+        CALL pscheck(th,C1,gparams%icycle, gparams%dt)
+      endif
 
       n = 0;
 
