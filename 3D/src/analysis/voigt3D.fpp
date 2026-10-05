@@ -1554,8 +1554,8 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
              accum = .FALSE. ! stop accumulation
           ENDIF
 
-          CALL DoAniso(vx,vy,vz,th,istat(it),odir,planio,C1,C2, &
-                       R1,R2,R3,R4,R5,R6,proutII,accum,bden,dden,gden,vden, &
+          CALL DoAnisoComp(vx,vy,vz,th,istat(it),odir,planio,C1,C2, &
+                       R1,R2,R3,R4,R5,R6,accum,bden,dden,gden,vden, &
                        bij,dij,gij,vij)
         ENDIF ! end, aniso computations
 
@@ -3369,8 +3369,8 @@ endif
       END SUBROUTINE bouss_filter
 
 
-      SUBROUTINE DoAniso(vx,vy,vz,th,indtime,odir,planio,C1,C2, &
-                         R1,R2,R3,R4,R5,R6,proutII,accum,bdenom,ddenom,&
+      SUBROUTINE DoAnisoComp(vx,vy,vz,th,indtime,odir,planio,C1,C2, &
+                         R1,R2,R3,R4,R5,R6,accum,bdenom,ddenom,&
                          gdenom,vdenom, bij,dij,gij,vij)
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -3385,7 +3385,6 @@ endif
 !     indtime: integter time index
 !     odir   : output directory
 !     planio  : io plan
-!     proutII: write II-invariant-conditioned quantities?
 !     accum  : if TRUE, continues to accumulate the aniso tensors and normalizations.
 !              If FALSE, final accumulation is done, and global sums are done to
 !              compute tensors
@@ -3429,7 +3428,7 @@ endif
       TYPE(IOPLAN)    , INTENT   (IN)                            :: planio
       LOGICAL                                                    :: bexist
       LOGICAL         , INTENT   (IN)                            :: accum
-      INTEGER         , INTENT   (IN)                            :: proutII,indtime
+      INTEGER         , INTENT   (IN)                            :: indtime
       INTEGER                                                    :: i,j,nn
       CHARACTER(len=1024), INTENT   (IN)                         :: odir
       CHARACTER(len=1024)                                        :: fnout
@@ -3475,6 +3474,6 @@ endif
       ENDIF
 
       RETURN
-      END SUBROUTINE DoAniso
+      END SUBROUTINE DoAnisoComp
 
 
