@@ -313,9 +313,10 @@
       REAL(kind=GP) omega(3),xnormn
       REAL(kind=GP) filtparam
       INTEGER :: ic,ir,it,jc
-      INTEGER :: istat(4096),nstat,prtbin,doSGSinj,dospectra
-      INTEGER :: nbinx,nbiny,nbins(2)
+      INTEGER :: istat(4096),doAniso,nstat,prtbin,doSGSinj,dospectra
+      INTEGER :: nbinx,nbiny,nbins(2),useaccum
       INTEGER :: filttype ! filter type (0==Helm; 1==Gaussian; 2=Sharp)
+      LOGICAL :: accum
       CHARACTER(len=64) :: ext1
       CHARACTER(len=4096) :: sstat
 
@@ -421,8 +422,8 @@
 #endif
       NAMELIST / voigt / ssuff,iswap,oswap
       NAMELIST / voigt / idir,odir,sstat
-      NAMELIST / voigt / nbinx,nbiny,prtbin,doSGSinj,dospectra
-      NAMELIST / voigt / filttype,filtparam
+      NAMELIST / voigt / nbinx,nbiny,prtbin,doAniso,doSGSinj,dospectra
+      NAMELIST / voigt / filttype,filtparam,useaccum
 
 !
 ! Initialization
@@ -1337,9 +1338,12 @@
       oswap  = 0
       nbinx  = 100
       nbiny  = 100
-      prtbin = 0   ! don't print binary data
-      doSGSinj = 0 ! don't examine SGSinj terms
-      dospectra= 1 ! don't write spectra
+      prtbin = 0   ! print binary data
+      doSGSinj = 0 ! examine SGSinj terms
+      dospectra= 1 ! write spectra?
+      useaccum = 0 ! do accumulation over all specified time steps to 
+                   !    compute aniso tensors?
+      doAniso  = 1 ! do aniso computations
       filttype = -1  ! no filtering
       filtparam = 0.0 ! filter scale
 
@@ -1360,10 +1364,21 @@
       CALL MPI_BCAST(prtbin   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(doSGSinj ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(dospectra,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(useaccum ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
+      CALL MPI_BCAST(doAniso   ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(filttype ,1   ,MPI_INTEGER  ,0,MPI_COMM_WORLD,ierr)
       CALL MPI_BCAST(filtparam,1   ,GC_REAL      ,0,MPI_COMM_WORLD,ierr)
-! Befor
-! options are compatible with the SOLVER being used
+
+      ! Initialize anisotropy tensor data:
+      IF ( doAniso .gt. 0 ) THEN
+        accum = .FALSE.
+        IF ( useaccum .gt. 0 ) THEN
+          accum = .TRUE.
+        ENDIF
+        bij = 0.0; dij = 0.0; gij = 0.0; vij = 0.0;
+        bden= 0.0; dden= 0.0; gden= 0.0; vden= 0.0;
+      ENDIF
+
 
       INCLUDE SOLVERCHECK_
 
@@ -1530,6 +1545,19 @@ if (myrank.eq.0) write(*,*)'main: call mom2vel...'
         CALL DoVoigt(vx,vy,vz,th,istat(it),gparams,idir,odir,planio, &
                      C1,C2,C3, C4,R1,R2,R3,R4, &
                      filttype,filtparam,nbins)
+        IF ( doAniso .gt. 0 ) THEN ! do aniso computations
+          IF ( useaccum .EQ. 0 ) THEN
+            bij = 0.0; dij = 0.0; gij = 0.0; vij = 0.0;
+            bden= 0.0; dden= 0.0; gden= 0.0; vden= 0.0;
+          ENDIF
+          IF ( useaccum .GT. 0 .AND. it .EQ. nstat ) THEN
+             accum = .FALSE. ! stop accumulation
+          ENDIF
+
+          CALL DoAniso(vx,vy,vz,th,istat(it),odir,planio,C1,C2, &
+                       R1,R2,R3,R4,R5,R6,proutII,accum,bden,dden,gden,vden, &
+                       bij,dij,gij,vij)
+        ENDIF ! end, aniso computations
 
 
       ENDDO ! end, it-loop
@@ -3339,4 +3367,114 @@ endif
       RETURN
 
       END SUBROUTINE bouss_filter
+
+
+      SUBROUTINE DoAniso(vx,vy,vz,th,indtime,odir,planio,C1,C2, &
+                         R1,R2,R3,R4,R5,R6,proutII,accum,bdenom,ddenom,&
+                         gdenom,vdenom, bij,dij,gij,vij)
+!-----------------------------------------------------------------
+!-----------------------------------------------------------------
+!
+! Computes the anistropy tensor quantities
+!
+! Parameters
+!     vx,
+!     vy,
+!     vz     : complex velocities
+!     th     : pot. temp
+!     indtime: integter time index
+!     odir   : output directory
+!     planio  : io plan
+!     proutII: write II-invariant-conditioned quantities?
+!     accum  : if TRUE, continues to accumulate the aniso tensors and normalizations.
+!              If FALSE, final accumulation is done, and global sums are done to
+!              compute tensors
+!     bij,gij,
+!     vij,dij: aniso tensors, returned. First time in, should be initialized to 0
+!     bdenom,
+!     ...   ,
+!     ddenom: Tensor normalizations, returned. First time in, should be initialized to 0
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE threads
+      USE fft
+      USE var
+      USE fftplans
+      USE ali
+      USE gutils
+      USE iovar
+      USE iompi
+      USE iovar
+      USE filefmt
+      USE boxsize
+
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT   (IN), DIMENSION(nz,ny,ista:iend):: vx,vy,vz,th
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend):: C1,C2
+
+      REAL   (KIND=GP), INTENT(INOUT), DIMENSION(nx,ny,ksta:kend):: R1,R2,R3,R4, R5,R6
+      REAL   (KIND=GP),                DIMENSION(nx,ny,ksta:kend):: ommag
+      REAL   (KIND=GP)                                           :: rcmin,rcmax,rcloc,xmax
+      REAL   (KIND=GP)                                           :: rc2min,rc2max,xmax2
+      DOUBLE PRECISION,                DIMENSION(4,3)            :: invar
+      DOUBLE PRECISION, INTENT(INOUT), DIMENSION(3,3)            :: bij,vij,gij,dij
+      DOUBLE PRECISION, INTENT(INOUT)                            :: bdenom,vdenom,gdenom,ddenom
+      DOUBLE PRECISION                                           :: Ek(nmax/2+1)
+!     TYPE(PMAT)                                                 :: pm(4)
+      TYPE(IOPLAN)    , INTENT   (IN)                            :: planio
+      LOGICAL                                                    :: bexist
+      LOGICAL         , INTENT   (IN)                            :: accum
+      INTEGER         , INTENT   (IN)                            :: proutII,indtime
+      INTEGER                                                    :: i,j,nn
+      CHARACTER(len=1024), INTENT   (IN)                         :: odir
+      CHARACTER(len=1024)                                        :: fnout
+      CHARACTER(len=128)                                         :: rowfmt
+      CHARACTER(len=64)                                          :: sext
+
+      WRITE(rowfmt,'(A, I4, A)') '(I4,',12,'(2X,E14.6))'
+
+
+!     pm(1)%mat => bij
+!     pm(2)%mat => dij
+!     pm(3)%mat => gij
+!     pm(4)%mat => vij
+      CALL anisobij(vx,vy,vz,C1,R1,R2,R3,accum,bdenom,bij)
+      CALL anisodij(vx,vy,vz,C1,C2,R1,R2,accum,ddenom,dij)
+      CALL anisogij(th,C1,R1,R2,R3,accum,gdenom,gij)
+      CALL anisovij(vx,vy,vz,C1,C2,R1,R2,R3,accum,vdenom,vij)
+
+      IF (.not. accum) THEN
+        DO i = 1, 3 ! which invariant, I, II, III
+          CALL invariant(bij, i, invar(1,i))
+          CALL invariant(dij, i, invar(2,i))
+          CALL invariant(gij, i, invar(3,i))
+          CALL invariant(vij, i, invar(4,i))
+        ENDDO
+      ENDIF
+
+
+      IF (myrank.eq.0 .AND. .not. accum) THEN
+      fnout = trim(odir) // '/' // 'invar.txt'
+      inquire( file=fnout, exist=bexist )
+      OPEN(2,file=trim(fnout),position='append')
+      if ( .NOT. bexist ) THEN
+      WRITE(2,'(A, 4x, 12(A, 3x))') '#itime', 'bI', 'bII', 'bIII', 'dI', 'dII', 'dIII', 'gI', 'gII', 'gIII', 'vI', 'vII', 'vIII'
+      ENDIF
+      WRITE(2,rowfmt,advance='no') &
+                          indtime, invar(1,1), invar(1,2), invar(1,3), &
+                          invar(2,1), invar(2,2), invar(2,3), &
+                          invar(3,1), invar(3,2), invar(3,3), &
+                          invar(4,1), invar(4,2), invar(4,3) 
+      CLOSE(2)
+
+      ENDIF
+
+      RETURN
+      END SUBROUTINE DoAniso
+
 
