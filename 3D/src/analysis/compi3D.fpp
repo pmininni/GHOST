@@ -1551,7 +1551,7 @@ if (myrank.eq.0) write(*,*)'main: call DoHPDF ...'
             bden= 0.0; dden= 0.0; gden= 0.0; vden= 0.0;
           ENDIF
           IF ( useaccum .GT. 0 .AND. it .EQ. nstat ) THEN
-             accum = .FALSE.
+             accum = .FALSE. ! stop accumulation
           ENDIF
 #if 1
           CALL DoAniso(vx,vy,vz,th,istat(it),odir,planio,C1,C2, &
