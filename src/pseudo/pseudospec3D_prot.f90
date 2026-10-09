@@ -433,7 +433,7 @@ MODULE pseudospec_anisca
       ELSE
 !$omp parallel do private (j,k,kmz,kmn,tmq) reduction(+:Ek)
          DO i = ista,iend
-            DO CONCURRENT (j=1:ny)
+            DO j = 1,ny
                kmn = int(sqrt(kx(i)**2+ky(j)**2)/Dkk+1)
                IF ((kmn.gt.0).and.(kmn.le.nmaxperp/2+1)) THEN
                   DO k = 1,nz

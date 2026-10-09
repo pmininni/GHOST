@@ -290,7 +290,7 @@ module pseudospec_bouss
 !$omp parallel do collapse(2) private (i) reduction(+:sh)
         DO k = ksta,kend
            DO j = 1,ny
-              DO CONCURRENT (i=1:nx)
+              DO i = 1,nx
                  sh(k) = sh(k)-( r1(i,j,k)*r2(i,j,k) )
               END DO
            END DO
@@ -470,7 +470,7 @@ module pseudospec_bouss
 !$omp parallel do collapse(2) private (i) reduction(+:sh)
         do k = ksta,kend
            do j = 1,ny
-              do concurrent (i=1:nx)
+              DO i = 1,nx
                  sh(k) = sh(k) + r3(i,j,k)*( r1(i,j,k)-r2(i,j,k) )
               end do
            end do
@@ -489,7 +489,7 @@ module pseudospec_bouss
 !$omp parallel do collapse(2) private (i) reduction(+:sh)
         do k = ksta,kend
            do j = 1,ny
-              do concurrent (i=1:nx)
+              DO i = 1,nx
                  sh(k) = sh(k) + r3(i,j,k)*( r1(i,j,k)-r2(i,j,k) )
               end do
            end do
