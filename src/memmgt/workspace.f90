@@ -718,7 +718,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine get_pcomp_tmp(this, ret_ptr, success)
     CLASS(GWorkspace), target, intent(inout) :: this
-    real(kind=GP)   , pointer, intent(out)   :: ret_ptr(:)
+    real(kind=GP)   , pointer, contiguous, intent(out)   :: ret_ptr(:)
     logical        , optional, intent(out)   :: success
     integer                                  :: i
 
@@ -796,7 +796,7 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine free_pcomp_tmp(this, in_ptr)
     CLASS(GWorkspace), target , intent(inout) :: this
-    real(kind=GP)    , pointer, intent(inout) :: in_ptr(:)
+    real(kind=GP)    , pointer, contiguous, intent(inout) :: in_ptr(:)
     integer                                   :: i
 
     do i = 1, this%pcomp_size_
