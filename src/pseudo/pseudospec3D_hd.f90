@@ -796,7 +796,7 @@ MODULE pseudospec_fluid
 !$omp parallel do collapse(2) private (k) reduction(+:dloc)
             DO i = ista,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz)
+                  DO k = 1,nz
                      dloc = dloc+2*(abs(a(k,j,i))**2+abs(b(k,j,i))**2+ &
                             abs(c(k,j,i))**2)*tmp
                   END DO
@@ -835,7 +835,7 @@ MODULE pseudospec_fluid
 !$omp parallel do collapse(2) private (k) reduction(+:dloc)
             DO i = ista,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz)
+                  DO k = 1,nz
                      dloc = dloc+2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
                             abs(c3(k,j,i))**2)*tmp
                   END DO
@@ -874,7 +874,7 @@ MODULE pseudospec_fluid
 !$omp parallel do collapse(2) private (k) reduction(+:dloc)
             DO i = ista,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz)
+                  DO k = 1,nz
                      dloc = dloc+2*(abs(c1(k,j,i))**2+abs(c2(k,j,i))**2+ &
                             abs(c3(k,j,i))**2)*tmp
                   END DO
@@ -950,7 +950,7 @@ MODULE pseudospec_fluid
 !$omp parallel do collapse(2) private (k) reduction(+:dloc)
          DO i = ista,iend
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
+               DO k = 1,nz
                   dloc = dloc+2*real(a(k,j,i)*conjg(c1(k,j,i)))*tmp
                END DO
             END DO
@@ -980,7 +980,7 @@ MODULE pseudospec_fluid
 !$omp parallel do collapse(2) private (k) reduction(+:dloc)
          DO i = ista,iend
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
+               DO k = 1,nz
                   dloc = dloc+2*real(b(k,j,i)*conjg(c1(k,j,i)))*tmp
                END DO
             END DO
@@ -1010,7 +1010,7 @@ MODULE pseudospec_fluid
 !$omp parallel do collapse(2) private (k) reduction(+:dloc)
          DO i = ista,iend
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
+               DO k = 1,nz
                   dloc = dloc+2*real(c(k,j,i)*conjg(c1(k,j,i)))*tmp
                END DO
             END DO
@@ -1092,7 +1092,7 @@ MODULE pseudospec_fluid
 !$omp parallel do collapse(2) private (k) reduction(+:gloc)
             DO i = ista,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz)
+                  DO k = 1,nz
                      gloc = gloc+2*real(a(k,j,i)*conjg(d(k,j,i))+ &
                            b(k,j,i)*conjg(e(k,j,i))+c(k,j,i)*     &
                            conjg(f(k,j,i)))*tmp
@@ -1132,7 +1132,7 @@ MODULE pseudospec_fluid
 !$omp parallel do collapse(2) private (k) reduction(+:gloc)
             DO i = ista,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz)
+                  DO k = 1,nz
                      gloc = gloc+2*real(a(k,j,i)*conjg(d(k,j,i))+ &
                            b(k,j,i)*conjg(e(k,j,i))+c(k,j,i)*     &
                            conjg(f(k,j,i)))*kk2(k,j,i)*tmp
@@ -1216,7 +1216,7 @@ MODULE pseudospec_fluid
 !$omp parallel do collapse(2) private (i) reduction(max:dloc)
       DO k = ksta,kend
          DO j = 1,ny
-            DO CONCURRENT (i=1:nx)
+            DO i = 1,nx
                dloc = max(dloc, &
                           sqrt(r1(i,j,k)**2+r2(i,j,k)**2+r3(i,j,k)**2))
             END DO
@@ -2191,7 +2191,7 @@ MODULE pseudospec_hd
 !$omp parallel do collapse(2) private (k) reduction(+:tmp)
          DO i = ista,iend
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
+               DO k = 1,nz
                   tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
                END DO
             END DO

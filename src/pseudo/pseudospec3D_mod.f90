@@ -56,7 +56,11 @@
       USE fprecision
       REAL(KIND=GP), ALLOCATABLE, DIMENSION (:)        :: kx,ky,kz
       REAL(KIND=GP), TARGET, ALLOCATABLE, DIMENSION (:,:,:) :: kn2
-      REAL(KIND=GP), POINTER, DIMENSION (:,:,:)             :: kk2
+! kk2 is CONTIGUOUS so that it is passed as is to the CONTIGUOUS
+! dummies of gupdate_to/gupdate_from: otherwise compilers may pass a
+! copy (nvfortran 26.5 does), whose address is not in the registry of
+! device copies of gdevice_mod.
+      REAL(KIND=GP), POINTER, CONTIGUOUS, DIMENSION (:,:,:) :: kk2
       INTEGER                                     :: nmax,nmaxperp
       SAVE
 

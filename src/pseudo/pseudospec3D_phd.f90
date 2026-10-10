@@ -240,7 +240,7 @@ MODULE pseudospec_scalar
 !$omp parallel do collapse(2) private (k) reduction(+:bloc)
             DO i = ista,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz)
+                  DO k = 1,nz
                      bloc = bloc+2*tmp*abs(a(k,j,i))**2
                   END DO
                END DO
@@ -273,7 +273,7 @@ MODULE pseudospec_scalar
 !$omp parallel do collapse(2) private (k) reduction(+:bloc)
             DO i = ista,iend
                DO j = 1,ny
-                  DO CONCURRENT (k=1:nz)
+                  DO k = 1,nz
                      bloc = bloc+2*tmp*kk2(k,j,i)*abs(a(k,j,i))**2
                   END DO
                END DO
@@ -342,7 +342,7 @@ MODULE pseudospec_scalar
 !$omp parallel do collapse(2) private (k) reduction(+:cloc)
          DO i = ista,iend
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
+               DO k = 1,nz
                   cloc = cloc+2*tmp*real(a(k,j,i)*conjg(b(k,j,i)))
                END DO
             END DO

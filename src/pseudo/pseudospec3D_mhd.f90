@@ -589,14 +589,14 @@ MODULE pseudospec_mhd
       IF (ista.eq.1) THEN
 !$omp parallel do private (k) reduction(+:tmp)
          DO j = 1,ny
-            DO CONCURRENT (k=1:nz)
+            DO k = 1,nz
                tmp = tmp+abs(c1(k,j,1)+c2(k,j,1)+c3(k,j,1))**2*tmq
             END DO
          END DO
 !$omp parallel do collapse(2) private (k) reduction(+:tmp)
          DO i = 2,iend
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
+               DO k = 1,nz
                   tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
                END DO
             END DO
@@ -605,7 +605,7 @@ MODULE pseudospec_mhd
 !$omp parallel do collapse(2) private (k) reduction(+:tmp)
          DO i = ista,iend
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
+               DO k = 1,nz
                   tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
                END DO
             END DO
@@ -621,14 +621,14 @@ MODULE pseudospec_mhd
       IF (ista.eq.1) THEN
 !$omp parallel do private (k) reduction(+:tmp)
          DO j = 1,ny
-            DO CONCURRENT (k=1:nz)
+            DO k = 1,nz
                tmp = tmp+abs(c1(k,j,1)+c2(k,j,1)+c3(k,j,1))**2*tmq
             END DO
          END DO
 !$omp parallel do collapse(2) private (k) reduction(+:tmp)
          DO i = 2,iend
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
+               DO k = 1,nz
                   tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
                END DO
             END DO
@@ -637,7 +637,7 @@ MODULE pseudospec_mhd
 !$omp parallel do collapse(2) private (k) reduction(+:tmp)
          DO i = ista,iend
             DO j = 1,ny
-               DO CONCURRENT (k=1:nz)
+               DO k = 1,nz
                   tmp = tmp+2*abs(c1(k,j,i)+c2(k,j,i)+c3(k,j,i))**2*tmq
                END DO
             END DO
