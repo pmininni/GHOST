@@ -68,7 +68,7 @@ module pseudospec_bouss
       REAL(KIND=GP),    INTENT(IN)                     :: fo, bv
       DOUBLE PRECISION, DIMENSION(nz)                  :: sh
       DOUBLE PRECISION, INTENT(INOUT), DIMENSION(nz)   :: gsh
-      DOUBLE PRECISION                                 :: tmp
+      DOUBLE PRECISION                                 :: tmp,nn
       INTEGER,INTENT(IN)                               :: itype
       INTEGER                                          :: i,j,k
 
@@ -92,7 +92,9 @@ module pseudospec_bouss
         CALL derivk3(v,c1,3)
         CALL fftp3d_complex_to_real(plancr,c1,r2,MPI_COMM_WORLD)
 !
-! Do hor. average of total shear:
+! Do hor. average of total shear (for itype 9, r1 and r2 are
+! kept for the Richardson number below):
+        IF ( itype .eq. 0 ) THEN
         sh  = 0.0D0
         gsh = 0.0D0
         ! fact 1/(nx*ny*nz)**2 for each dir * 1/(nx*ny) for horiz. avg
@@ -118,6 +120,7 @@ module pseudospec_bouss
         CALL gws%free_real_htmp(r2)
         CALL gws%free_real_htmp(r3)
         RETURN
+        ENDIF
 
      ENDIF
 
@@ -518,6 +521,13 @@ module pseudospec_bouss
 ! Collect as a fcn of z:
         call MPI_ALLREDUCE(sh,gsh,nz,MPI_DOUBLE_PRECISION,      &
                            MPI_SUM,MPI_COMM_WORLD,ierr)
+        call gws%free_complex_htmp(c1)
+        call gws%free_complex_htmp(c2)
+        call gws%free_complex_htmp(c3)
+        call gws%free_complex_htmp(c4)
+        call gws%free_real_htmp(r1)
+        call gws%free_real_htmp(r2)
+        call gws%free_real_htmp(r3)
         return
         
       endif
@@ -530,15 +540,22 @@ module pseudospec_bouss
 !      Note, d\theta/dz should be in r3 already
 !      du_x/dz should be in r1 already, and du_y/dz in r2 from above
 !
+!      The FFTs are not normalized, so r1, r2 and r3 are the
+!      derivatives times nn = nx*ny*nz:
+!        Ri = bv*(bv - r3/nn)/((r1**2 + r2**2)/nn**2)
+!      Points with zero shear give Inf/NaN (Ri is infinite there).
+!
        sh  = 0.0D0
        gsh = 0.0D0
-       tmp = 1.0D0/(dble(nx)**3*dble(ny)**3*dble(nz)**2)
+       nn  = dble(nx)*dble(ny)*dble(nz)
+       tmp = 1.0D0/(dble(nx)*dble(ny))
 
 !$omp parallel do private (j,i)
         DO K = KSTA,KEND
            do j = 1,ny
               do i = 1,nx
-                 sh(k) = sh(k)+bv*(bv-r3(i,j,k))/(r1(i,j,k)**2+r2(i,j,k)**2) 
+                 sh(k) = sh(k)+bv*nn*(bv*nn-dble(r3(i,j,k)))/        &
+                         (dble(r1(i,j,k))**2+dble(r2(i,j,k))**2)
               end do
            end do
            sh(k) = sh(k) * tmp
@@ -547,6 +564,13 @@ module pseudospec_bouss
 ! Collect as a fcn of z:
         call MPI_ALLREDUCE(sh,gsh,nz,MPI_DOUBLE_PRECISION,      &
                            MPI_SUM,MPI_COMM_WORLD,ierr)
+        call gws%free_complex_htmp(c1)
+        call gws%free_complex_htmp(c2)
+        call gws%free_complex_htmp(c3)
+        call gws%free_complex_htmp(c4)
+        call gws%free_real_htmp(r1)
+        call gws%free_real_htmp(r2)
+        call gws%free_real_htmp(r3)
         return
 
       endif
@@ -577,11 +601,17 @@ module pseudospec_bouss
         call MPI_ALLREDUCE(sh,gsh,nz,MPI_DOUBLE_PRECISION,      &
                            MPI_SUM,MPI_COMM_WORLD,ierr)
 
+        call gws%free_complex_htmp(c1)
+        call gws%free_complex_htmp(c2)
+        call gws%free_complex_htmp(c3)
+        call gws%free_complex_htmp(c4)
+        call gws%free_real_htmp(r1)
+        call gws%free_real_htmp(r2)
+        call gws%free_real_htmp(r3)
         return
 
       endif
 
-      return
       CALL gws%free_complex_htmp(c1)
       CALL gws%free_complex_htmp(c2)
       CALL gws%free_complex_htmp(c3)
@@ -589,6 +619,7 @@ module pseudospec_bouss
       CALL gws%free_real_htmp(r1)
       CALL gws%free_real_htmp(r2)
       CALL gws%free_real_htmp(r3)
+      return
       end subroutine havgcomp
 
 !*****************************************************************

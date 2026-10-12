@@ -442,12 +442,15 @@ contains
     type(GStateComp), intent(in), target        :: uin(:)
     complex(kind=GP), pointer, dimension(:,:,:) :: vx,vy,vz,th
     complex(kind=GP), pointer, dimension(:,:,:) :: c1,c2,c3
-    real   (kind=GP)                            :: bvfreq,omegaz
+    real   (kind=GP)                            :: bvfreq,fo
     integer                                     :: i
     logical                                     :: bret
 
     bvfreq = this%traits_%bvfreq 
-    omegaz = this%traits_% omega(3) 
+    ! Coriolis parameter for the horizontal averages (2 Omega_z, zero
+    ! without rotation)
+    fo = 0.0_GP
+    if ( this%traits_%dorot ) fo = 2.0_GP*this%traits_%omega(3)
 
     write(ext, fmtext) sind
     vx => uin(this%VELOCITY  )%ccomp
@@ -493,16 +496,16 @@ contains
     ! Write PV spectra, horizontally-averaged data:
     if ( this%traits_%spectlod .ge. 4 ) then
       call spectpv(vx,vy,vz,th,this%todir_,ext)
-      call havgwrite(0,'shear'  ,this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! shear
-      call havgwrite(1,'tgradz' ,this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! dtheta/dz
-      call havgwrite(2,'hawdtdz',this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! u_z*dtheta/dz
-      call havgwrite(3,'hahke'  ,this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! hor. k.e.
-      call havgwrite(4,'havke'  ,this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! vert. k.e.
-      call havgwrite(5,'haphel' ,this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! perp. helicity
-      call havgwrite(6,'haomzt' ,this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! ometa_z*theta
-      call havgwrite(7,'hapv2'  ,this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! PV^2
-      call havgwrite(8,'hasuph' ,this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! super-helicity
-      call havgwrite(9,'hari'   ,this%todir_,ext,vx,vy,vz,th,omegaz,bvfreq) ! Richardson no.
+      call havgwrite(0,this%todir_,'shear'  ,ext,vx,vy,vz,th,fo,bvfreq) ! shear
+      call havgwrite(1,this%todir_,'tgradz' ,ext,vx,vy,vz,th,fo,bvfreq) ! dtheta/dz
+      call havgwrite(2,this%todir_,'hawdtdz',ext,vx,vy,vz,th,fo,bvfreq) ! u_z*dtheta/dz
+      call havgwrite(3,this%todir_,'hahke'  ,ext,vx,vy,vz,th,fo,bvfreq) ! hor. k.e.
+      call havgwrite(4,this%todir_,'havke'  ,ext,vx,vy,vz,th,fo,bvfreq) ! vert. k.e.
+      call havgwrite(5,this%todir_,'haphel' ,ext,vx,vy,vz,th,fo,bvfreq) ! perp. helicity
+      call havgwrite(6,this%todir_,'haomzt' ,ext,vx,vy,vz,th,fo,bvfreq) ! ometa_z*theta
+      call havgwrite(7,this%todir_,'hapv2'  ,ext,vx,vy,vz,th,fo,bvfreq) ! PV^2
+      call havgwrite(8,this%todir_,'hasuph' ,ext,vx,vy,vz,th,fo,bvfreq) ! super-helicity
+      call havgwrite(9,this%todir_,'hari'   ,ext,vx,vy,vz,th,fo,bvfreq) ! Richardson no.
     endif
 
     call this%workspace_%free_complex_tmp(c1)
