@@ -157,12 +157,12 @@
       IF ( .NOT. anis ) kmax = kmax*real(nx,kind=GP)**2
       tiny  = min(1e-5_GP ,.1_GP/(real(nmax,kind=GP)**2))
       tinyf = min(1e-15_GP,.1_GP/(real(nmax,kind=GP)**2))
-      ! Initializez arrays with the wavenumbers and the
+      ! Initializes arrays with the wavenumbers and the
       ! square wavenumbers. At the end, kx, ky, and kz
       ! have wavenumbers with dimensions, kk2 has the
-      ! squared wavenumbers with dimensions, and kn2 has
+      ! squared wavenumber with dimensions, and kn2 has
       ! the dimensionless and normalized squared
-      ! wavenumbers used for dealiasing.
+      ! wavenumber used for dealiasing.
       DO i = 1,nx/2
          kx(i) = real(i-1,kind=GP)
          kx(i+nx/2) = real(i-nx/2-1,kind=GP)

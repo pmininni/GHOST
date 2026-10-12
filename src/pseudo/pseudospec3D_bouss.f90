@@ -95,33 +95,32 @@ module pseudospec_bouss
 ! Do hor. average of total shear (for itype 9, r1 and r2 are
 ! kept for the Richardson number below):
         IF ( itype .eq. 0 ) THEN
-        sh  = 0.0D0
-        gsh = 0.0D0
-        ! fact 1/(nx*ny*nz)**2 for each dir * 1/(nx*ny) for horiz. avg
-        tmp = 1.0D0/(dble(nx)**3*dble(ny)**3*dble(nz)**2)
+          sh  = 0.0D0
+          gsh = 0.0D0
+          ! fact 1/(nx*ny*nz)**2 for each dir * 1/(nx*ny) for horiz. avg
+          tmp = 1.0D0/(dble(nx)**3*dble(ny)**3*dble(nz)**2)
 !$omp parallel do private (j,i)
-        DO k = ksta,kend
-           DO j = 1,ny
-              DO i = 1,nx
-                 sh(k) = sh(k)+( r1(i,j,k)**2 + r2(i,j,k)**2 )
-              END DO
-           END DO
-           sh(k) = sh(k) * tmp
-        END DO
+          DO k = ksta,kend
+             DO j = 1,ny
+                DO i = 1,nx
+                   sh(k) = sh(k)+( r1(i,j,k)**2 + r2(i,j,k)**2 )
+                END DO
+             END DO
+             sh(k) = sh(k) * tmp
+          END DO
 !
 ! Collect as a fcn of z:
-        CALL MPI_ALLREDUCE(sh,gsh,nz,MPI_DOUBLE_PRECISION,      &
-                           MPI_SUM,MPI_COMM_WORLD,ierr)
-        CALL gws%free_complex_htmp(c1)
-        CALL gws%free_complex_htmp(c2)
-        CALL gws%free_complex_htmp(c3)
-        CALL gws%free_complex_htmp(c4)
-        CALL gws%free_real_htmp(r1)
-        CALL gws%free_real_htmp(r2)
-        CALL gws%free_real_htmp(r3)
-        RETURN
+          CALL MPI_ALLREDUCE(sh,gsh,nz,MPI_DOUBLE_PRECISION,      &
+                             MPI_SUM,MPI_COMM_WORLD,ierr)
+          CALL gws%free_complex_htmp(c1)
+          CALL gws%free_complex_htmp(c2)
+          CALL gws%free_complex_htmp(c3)
+          CALL gws%free_complex_htmp(c4)
+          CALL gws%free_real_htmp(r1)
+          CALL gws%free_real_htmp(r2)
+          CALL gws%free_real_htmp(r3)
+          RETURN
         ENDIF
-
      ENDIF
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -161,7 +160,6 @@ module pseudospec_bouss
           CALL gws%free_real_htmp(r3)
           RETURN
         ENDIF
-
      ENDIF
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -197,7 +195,6 @@ module pseudospec_bouss
         CALL gws%free_real_htmp(r2)
         CALL gws%free_real_htmp(r3)
         RETURN
-
       ENDIF
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -235,7 +232,6 @@ module pseudospec_bouss
         CALL gws%free_real_htmp(r2)
         CALL gws%free_real_htmp(r3)
         RETURN
-
      ENDIF
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -271,7 +267,6 @@ module pseudospec_bouss
         CALL gws%free_real_htmp(r2)
         CALL gws%free_real_htmp(r3)
         RETURN
-
       ENDIF
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -325,7 +320,6 @@ module pseudospec_bouss
         CALL gws%free_real_htmp(r2)
         CALL gws%free_real_htmp(r3)
         RETURN
-
       ENDIF
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -361,7 +355,6 @@ module pseudospec_bouss
         CALL gws%free_real_htmp(r2)
         CALL gws%free_real_htmp(r3)
         RETURN
-
       ENDIF
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -447,8 +440,7 @@ module pseudospec_bouss
         CALL gws%free_real_htmp(r1)
         CALL gws%free_real_htmp(r2)
         CALL gws%free_real_htmp(r3)
-        RETURN
-        
+        RETURN      
       ENDIF
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -528,8 +520,7 @@ module pseudospec_bouss
         call gws%free_real_htmp(r1)
         call gws%free_real_htmp(r2)
         call gws%free_real_htmp(r3)
-        return
-        
+        return 
       endif
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -572,7 +563,6 @@ module pseudospec_bouss
         call gws%free_real_htmp(r2)
         call gws%free_real_htmp(r3)
         return
-
       endif
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -609,7 +599,6 @@ module pseudospec_bouss
         call gws%free_real_htmp(r2)
         call gws%free_real_htmp(r3)
         return
-
       endif
 
       CALL gws%free_complex_htmp(c1)
@@ -619,6 +608,7 @@ module pseudospec_bouss
       CALL gws%free_real_htmp(r1)
       CALL gws%free_real_htmp(r2)
       CALL gws%free_real_htmp(r3)
+
       return
       end subroutine havgcomp
 

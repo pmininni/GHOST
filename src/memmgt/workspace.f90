@@ -715,12 +715,13 @@ CONTAINS
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! Subroutine to check out a free pcomp array from the pool.
   ! Requires init_pcomp_arrays to have been called first.
+  ! Contiguous is needed for NVIDIA compilers when offloading.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine get_pcomp_tmp(this, ret_ptr, success)
-    CLASS(GWorkspace), target, intent(inout) :: this
-    real(kind=GP)   , pointer, contiguous, intent(out)   :: ret_ptr(:)
-    logical        , optional, intent(out)   :: success
-    integer                                  :: i
+    CLASS(GWorkspace), target ,             intent(inout) :: this
+    real(kind=GP)    , pointer, contiguous, intent(out)   :: ret_ptr(:)
+    logical         , optional,             intent(out)   :: success
+    integer                                               :: i
 
     if (present(success)) success = .FALSE.
     if ( this%nparts_ .le. 0 ) then
@@ -792,12 +793,13 @@ CONTAINS
 
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !  Subroutine to check-in/free a pcomp tmp array, making it
-  !  available again.
+  !  available again. For pointers, contiguous is needed for
+  !  NVIDIA compilers when offloading.
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   subroutine free_pcomp_tmp(this, in_ptr)
-    CLASS(GWorkspace), target , intent(inout) :: this
+    CLASS(GWorkspace), target ,             intent(inout) :: this
     real(kind=GP)    , pointer, contiguous, intent(inout) :: in_ptr(:)
-    integer                                   :: i
+    integer                                               :: i
 
     do i = 1, this%pcomp_size_
       if (associated(in_ptr, this%pcomp_entries_(i)%array)) then

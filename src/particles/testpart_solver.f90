@@ -177,8 +177,8 @@ CONTAINS
     complex   (KIND=GP), pointer, dimension(:,:,:) :: C1,C2,C3
     real      (KIND=GP), pointer, dimension(:,:,:) :: velr,tmp1,tmp2
     real      (kind=GP), pointer, contiguous, dimension(:) :: lbx,lby,lbz,lfx,lfy,lfz
-    real      (kind=GP), pointer, dimension(:)     :: dpx,dpy,dpz,dvx,dvy,dvz
-    real      (kind=GP), pointer, dimension(:)     :: pvx,pvy,pvz
+    real      (kind=GP), pointer,             dimension(:) :: dpx,dpy,dpz,dvx,dvy,dvz
+    real      (kind=GP), pointer,             dimension(:) :: pvx,pvy,pvz
     real      (kind=GP)                            :: rmp,cf
     integer                                        :: m
     logical                                        :: bret,dorho,dolap

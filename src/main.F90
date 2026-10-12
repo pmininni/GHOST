@@ -112,8 +112,8 @@
 ! Use FFTW_PATIENT or FFTW_EXHAUSTIVE in very long runs
 ! FFTW_MEASURE is used below: at 128^3 on two MPI ranks it makes the FFTs
 ! about 23% faster than FFTW_ESTIMATE, 13 to 18% of the whole time step.
-! Offload builds (fftp-gpu) ignore the flag and use FFTW_ESTIMATE for
-! their host plans, which are not used in the time step.
+! Offload builds (fftp-gpu) ignore the flag and use FFTW_ESTIMATE for their
+! host plans, which are used for initialization and not in the time step.
       nth = 1
 !$    nth = omp_get_max_threads()
 !$    CALL fftp3d_init_threads(ierr)

@@ -547,12 +547,12 @@
 !              fftp-3 and ignored: the host plans are always created
 !              with FFTW_ESTIMATE. In offload builds they are used
 !              only outside the time step (output, initialization,
-!              host-generated forcing), so their speed hardly
-!              matters, while measured plans (FFTW_MEASURE and up)
-!              depend on timings and can change from run to run,
-!              giving outputs that differ at roundoff level between
-!              identical runs (e.g. 2-3e-7 with two tasks sharing a
-!              GPU). The device plans take no flags.
+!              host-generated forcing), so their speed hardly matters,
+!              while measured plans (FFTW_MEASURE and up) depend on
+!              timings and can change from run to run, giving outputs
+!              that differ at roundoff level between identical runs
+!              (e.g. 2-3e-7 with two tasks sharing a GPU at single
+!              precision). The device plans take no flags.
 !-----------------------------------------------------------------
 
       USE mpivars
