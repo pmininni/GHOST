@@ -543,12 +543,16 @@
 !     fftdir : the direction of the Fourier transform [IN]
 !              FFTW_FORWARD or FFTW_REAL_TO_COMPLEX (-1)
 !              FFTW_BACKWARD or FFTW_COMPLEX_TO_REAL (+1)
-!     flags  : flags for the FFTW [IN]
-!              FFTW_ESTIMATE (sub-optimal but faster)
-!              FFTW_MEASURE (optimal but slower to create plans)
-!              FFTW_PATIENT AND FFTW_EXHAUSTIVE are also available
-!              for extra performance, but may take a long time to
-!              create plans (specially when using OpenMP)
+!     flags  : flags for the FFTW [IN], kept for compatibility with
+!              fftp-3 and ignored: the host plans are always created
+!              with FFTW_ESTIMATE. In offload builds they are used
+!              only outside the time step (output, initialization,
+!              host-generated forcing), so their speed hardly
+!              matters, while measured plans (FFTW_MEASURE and up)
+!              depend on timings and can change from run to run,
+!              giving outputs that differ at roundoff level between
+!              identical runs (e.g. 2-3e-7 with two tasks sharing a
+!              GPU). The device plans take no flags.
 !-----------------------------------------------------------------
 
       USE mpivars
@@ -567,7 +571,7 @@
       INTEGER          :: r,is,ie,ks,ke,nxh
       CHARACTER(len=16):: senv
 
-! Host plans, as in fftp-3
+! Host plans, as in fftp-3 but always with FFTW_ESTIMATE (see above)
       ALLOCATE ( plan%ccarr(n(3),n(2),ista:iend)    )
       ALLOCATE ( plan%carr(n(1)/2+1,n(2),ksta:kend) )
       ALLOCATE ( plan%rarr(n(1),n(2),ksta:kend)     )
@@ -579,18 +583,18 @@
                          kend-ksta+1,plan%rarr,                       &
                          (/n(1),n(2)*(kend-ksta+1)/),1,n(1)*n(2),     &
                          plan%carr,(/n(1)/2+1,n(2)*(kend-ksta+1)/),1, &
-                         (n(1)/2+1)*n(2),flags)
+                         (n(1)/2+1)*n(2),FFTW_ESTIMATE)
       ELSE
       CALL GFFTW_PLAN_MANY_DFT_C2R(plan%planr,2,(/n(1),n(2)/),        &
                          kend-ksta+1,plan%carr,                       &
                          (/n(1)/2+1,n(2)*(kend-ksta+1)/),1,           &
                          (n(1)/2+1)*n(2),plan%rarr,                   &
-                         (/n(1),n(2)*(kend-ksta+1)/),1,n(1)*n(2),flags)
+                         (/n(1),n(2)*(kend-ksta+1)/),1,n(1)*n(2),FFTW_ESTIMATE)
       ENDIF
       CALL GFFTW_PLAN_MANY_DFT(plan%planc,1,n(3),n(2)*(iend-ista+1),  &
                          plan%ccarr,(iend-ista+1)*n(2)*n(3),1,n(3),   &
                          plan%ccarr,(iend-ista+1)*n(2)*n(3),1,n(3),   &
-                         fftdir,flags)
+                         fftdir,FFTW_ESTIMATE)
       plan%nx = n(1)
       plan%ny = n(2)
       plan%nz = n(3)
