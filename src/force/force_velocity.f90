@@ -597,6 +597,8 @@ CONTAINS
             dump = 1./sqrt(kk2(k,j,i))
             state(solver%VELOCITY  )%ccomp(k,j,i) = a2*C4(k,j,i) +  &
                         a1*C7(k,j,i) + C1(k,j,i)*dump
+          ELSE
+            state(solver%VELOCITY  )%ccomp(k,j,i) = 0.0_GP
           ENDIF
         END DO
       END DO
@@ -621,6 +623,8 @@ CONTAINS
             dump = 1./sqrt(kk2(k,j,i))
             state(solver%VELOCITY+1)%ccomp(k,j,i) = a2*C5(k,j,i) +  &
                         a1*C8(k,j,i) + C1(k,j,i)*dump
+          ELSE
+            state(solver%VELOCITY+1)%ccomp(k,j,i) = 0.0_GP
           ENDIF
         END DO
       END DO
@@ -645,6 +649,8 @@ CONTAINS
             dump = 1./sqrt(kk2(k,j,i))
             state(solver%VELOCITY+2)%ccomp(k,j,i) = a2*C6(k,j,i) +  &
                         a1*C3(k,j,i) + C1(k,j,i)*dump
+          ELSE
+            state(solver%VELOCITY+2)%ccomp(k,j,i) = 0.0_GP
           ENDIF
         END DO
       END DO
