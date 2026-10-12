@@ -75,9 +75,13 @@ module particlebase_mod
       REAL(KIND=GP), pointer    , DIMENSION  (:) :: px_  => null()
       REAL(KIND=GP), pointer    , DIMENSION  (:) :: py_  => null()
       REAL(KIND=GP), pointer    , DIMENSION  (:) :: pz_  => null()
-      REAL(KIND=GP), pointer    , DIMENSION  (:) :: lvx_ => null()
-      REAL(KIND=GP), pointer    , DIMENSION  (:) :: lvy_ => null()
-      REAL(KIND=GP), pointer    , DIMENSION  (:) :: lvz_ => null()
+      ! lvx_, lvy_, lvz_ are CONTIGUOUS so that they are passed as is to
+      ! the CONTIGUOUS dummies of gupdate_to/gupdate_from: otherwise
+      ! compilers may pass a copy (nvfortran 26.5 does), whose address is
+      ! not in the registry of device copies of gdevice_mod.
+      REAL(KIND=GP), pointer, CONTIGUOUS, DIMENSION(:) :: lvx_ => null()
+      REAL(KIND=GP), pointer, CONTIGUOUS, DIMENSION(:) :: lvy_ => null()
+      REAL(KIND=GP), pointer, CONTIGUOUS, DIMENSION(:) :: lvz_ => null()
       REAL(KIND=GP)                       :: lxbnds_(3,2),gext_(3)
       REAL(KIND=GP)                       :: delta_(3),invdel_(3)
       CHARACTER(len=1024)                 :: seedfile_,sfile_

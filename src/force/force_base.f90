@@ -17,12 +17,17 @@ module forcebase_mod
   end type forceBase
 
   type, abstract :: forceUpdt
-      complex(kind=GP), pointer, dimension(:,:,:)  :: fxold_ => null()
-      complex(kind=GP), pointer, dimension(:,:,:)  :: fyold_ => null()
-      complex(kind=GP), pointer, dimension(:,:,:)  :: fzold_ => null()
-      complex(kind=GP), pointer, dimension(:,:,:)  :: fxnew_ => null()
-      complex(kind=GP), pointer, dimension(:,:,:)  :: fynew_ => null()
-      complex(kind=GP), pointer, dimension(:,:,:)  :: fznew_ => null()
+      ! The old and new forcing states are CONTIGUOUS so that they are
+      ! passed as is to the CONTIGUOUS dummies of gupdate_to and to the
+      ! explicit-shape dummies of blend_forcing: otherwise compilers may
+      ! pass a copy (nvfortran 26.5 does), whose address is not in the
+      ! registry of device copies of gdevice_mod.
+      complex(kind=GP), pointer, contiguous, dimension(:,:,:) :: fxold_ => null()
+      complex(kind=GP), pointer, contiguous, dimension(:,:,:) :: fyold_ => null()
+      complex(kind=GP), pointer, contiguous, dimension(:,:,:) :: fzold_ => null()
+      complex(kind=GP), pointer, contiguous, dimension(:,:,:) :: fxnew_ => null()
+      complex(kind=GP), pointer, contiguous, dimension(:,:,:) :: fynew_ => null()
+      complex(kind=GP), pointer, contiguous, dimension(:,:,:) :: fznew_ => null()
       logical                                      :: binit_
       ! Set by the update method when it modifies the host copy of the
       ! forcing state in the current step (the main program then copies
