@@ -690,6 +690,9 @@
       ALLOCATE( C1SGS(nz,ny,ista:iend) )
       ALLOCATE( C2SGS(nz,ny,ista:iend) )
       ALLOCATE( C3SGS(nz,ny,ista:iend) )
+      SGS1 = 0.0
+      SGS2 = 0.0
+      SGS3 = 0.0
 #endif
 
 #if defined(MOM_) 
@@ -743,6 +746,7 @@
 #endif
 #ifdef SCALARSGS_
       ALLOCATE( SGSth(nz,ny,ista:iend) )
+      SGSth = 0.0
 #endif
 #ifdef MULTISCALAR_
       ALLOCATE( C21(nz,ny,ista:iend), C22(nz,ny,ista:iend) )
