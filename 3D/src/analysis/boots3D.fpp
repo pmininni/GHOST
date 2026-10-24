@@ -122,6 +122,7 @@
       !  n here refers to the prolongated grid, and nt
       !  is the grid size of the 'old grid'
 
+      if (myrank.eq.0) write(*,*) 'main: check nxt...'
       ! Check input
       IF ( nxt .GT. nx .OR. nxt .LT. 1 ) THEN
         IF ( myrank .eq. 0) PRINT*, 'MAIN: prolongation specification incorrect; input nxt must be less than Nx'
@@ -139,6 +140,7 @@
         STOP
       ENDIF
 
+      if (myrank.eq.0) write(*,*) 'main: check procs...'
       ! First check that nprocs is not 1, and that nx is not nxt.
       ! After that catch non-integer number of slices,
       ! then check quotient is power of two, finally exclude the 2^1 case
@@ -161,6 +163,7 @@
       IF ( nmt .GT. 0 ) ntprocs = ntprocs + 1
       ntprocs = min(ntprocs, nprocs)
 
+      if (myrank.eq.0) write(*,*) 'main: create new communicator...'
       CALL MPI_COMM_GROUP(MPI_COMM_WORLD, groupworld, ierr)
       commtrunc  = MPI_COMM_NULL
       grouptrunc = MPI_GROUP_NULL
@@ -191,14 +194,18 @@
       ALLOCATE( br(nx,ny,ksta:kend) )
 
       IF ( myrank .LT. ntprocs ) THEN
+        if (myrank.eq.0) write(*,*) 'main: call io_init...'
         npkeep = nprocs; nprocs = ntprocs
         CALL io_init(myrank,(/nxt,nyt,nzt/),ktsta,ktend,planiot)
         nprocs = npkeep
       ENDIF
+      if (myrank.eq.0) write(*,*) 'main: io_init done.'
 
       flags  = FFTW_MEASURE
 
+      if (myrank.eq.0) write(*,*) 'main: create plancr...'
       CALL fftp3d_create_plan(plancr,(/nx,ny,nz/),FFTW_COMPLEX_TO_REAL, flags)
+      if (myrank.eq.0) write(*,*) 'main: plancr created.'
 
       IF ( myrank .LT. ntprocs ) THEN
         ! Temporarily redefine ksta,ista,kend,iend to accomodate
@@ -206,7 +213,9 @@
         npkeep = nprocs; nprocs = ntprocs
         CALL range(1,nzt    ,ntprocs,myrank,ksta,kend)
         CALL range(1,nxt/2+1,ntprocs,myrank,ista,iend)
-        CALL fftp3d_create_plan(planrct,(/nxt,nyt,nzt/),FFTW_REAL_TO_COMPLEX,flags)
+        if (myrank.eq.0) write(*,*) 'main: create planrct...'
+        CALL fftp3d_create_plan_comm(planrct,(/nxt,nyt,nzt/),FFTW_REAL_TO_COMPLEX,flags, commtrunc)
+        if (myrank.eq.0) write(*,*) 'main: planrct created.'
         nprocs = npkeep
         CALL range(1,nx/2+1,nprocs,myrank,ista,iend)
         CALL range(1,nz,nprocs,myrank,ksta,kend)
@@ -258,6 +267,7 @@
          ENDIF
 !
 ! Read the external binary files in real space:
+         if (myrank.eq.0) write(*,*) 'main: open: ', trim(fname), '...'
          IF ( myrank .LT. ntprocs ) THEN
            CALL MPI_FILE_OPEN(commtrunc,trim(idir) // '/' // trim(fname), &
                  MPI_MODE_RDONLY,MPI_INFO_NULL,fh,ioerr)
@@ -279,6 +289,7 @@
              STOP
            ENDIF
            CALL MPI_FILE_CLOSE(fh,ioerr)
+         if (myrank.eq.0) write(*,*) 'main: ', trim(fname), ' read.'
 
            IF ( iswap .NE. 0 ) THEN
              CALL rarray_byte_swap(vvt, nxt*nyt*(ktend-ktsta+1))
@@ -286,8 +297,10 @@
 
          ENDIF
 
+!     CALL MPI_BARRIER(MPI_COMM_WORLD)
 !
 ! Compute FT of variable on smaller grid:
+      if (myrank.eq.0) write(*,*) 'main: do FFT R2CT...'
       IF ( myrank .LT. ntprocs ) THEN
         ! Temporarily redefine ksta,ista,kend,iend to accomodate
         ! for ntprocs tasks. Then return to the standard definition
@@ -304,8 +317,12 @@
 ! Prolongate in Fourier space:
          fact = 1.0_GP/ \
             (real(nxt,kind=GP)*real(nyt,kind=GP)*real(nzt,kind=GP))
+!     write(*,*) myrank, ': main: Do prolongation...'
          B1 = 0.0
+!     if (myrank.eq.0) write(*,*) 'main: B1 initialized.'
+         IF ( myrank .LT. ntprocs ) THEN
          DO i = itsta,itend
+!     if (myrank.eq.0) write(*,*) 'main: C1t loop1...'
             DO j = 1,nyt/2
                DO k = 1,nzt/2
                   B1(k,j,i) = C1t(k,j,i) * fact
@@ -314,6 +331,7 @@
                   B1(k,j,i) = C1t(k-nz+nzt,j,i) * fact
                END DO
             END DO
+!     if (myrank.eq.0) write(*,*) 'main: C1t loop2...'
             DO j = ny-nyt/2+1,ny
                DO k = 1,nzt/2
                   B1(k,j,i) = C1t(k,j-ny+nyt,i) * fact
@@ -323,7 +341,10 @@
                END DO
             END DO
          END DO
+         ENDIF
 
+
+      if (myrank.eq.0) write(*,*) 'main: Do spherical truncation...'
 #if 1
 ! Spherically truncate prolongated spectrum in Fourier space:
 !$omp parallel do if (iend-ista.ge.nth) private (j,k)
@@ -337,8 +358,10 @@
          END DO
 #endif
 
+         if (myrank.eq.0) write(*,*) 'main: do inverse FFT...'
 ! Compute inverse FFT of prolongated variable:
          CALL fftp3d_complex_to_real(plancr,B1,br,MPI_COMM_WORLD)
+         if (myrank.eq.0) write(*,*) 'main: inverse FFT done.'
 !
 ! Byte-swap on output:
          IF ( oswap .NE. 0 ) THEN
@@ -346,6 +369,7 @@
          ENDIF
 !
 ! Put to disk:
+      if (myrank.eq.0) write(*,*) 'main: Write file...'
          fout = trim(odir) // '/' // trim(fname) // trim(suff)
          bmangle = 0
          CALL io_write(1,idir,fout,1,planio,br)
@@ -353,6 +377,7 @@
          IF ( myrank .EQ. 0 ) THEN
            WRITE(*,*) 'main: ',trim(fout),' written.'
          ENDIF
+         if (myrank.eq.0) write(*,*) 'main: file, ', trim(fname), ' done.'
       ENDDO ! end of file loop
 !
       CALL fftp3d_destroy_plan(plancr)
