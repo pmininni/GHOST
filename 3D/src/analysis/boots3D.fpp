@@ -4,15 +4,23 @@
 ! BOOTS3D code (part of the GHOST suite)
 !
 ! Reads dataset, and computes dataset that is prolongated in 
-! wavenumber space, and outputs to real space. The files
-! to be read are specified on input, as is the linear size of the
-! old grid; the output files are the originial files appended with
-! the prolongation size 'PXXX-XXX-XXX'.
+! wavenumber space, and outputs to real space. The files 
+! at truncated resolution to be read are specified on input, 
+! as is the truncated size of the old grid; the output files 
+! are the originial files appended with the prolongation size 
+! 'PXXX-XXX-XXX'. The app must be build at the size of the new
+! grid.
 ! This is the 'boostrap regridding' procedure (BOOTS).
 !
 ! Note that the number of mpi tasks must be of the form 2^i * 
 ! nx_new / nx_old, with i .ne. 1. For example, for nx_new = 384 and
 ! nx_old = 128 possible num of tasks are 1, 6, 12, 24, 48, etc.
+!
+! Note also that the total number of MPI tasks available must
+! be T_total=(nx_old/nx_new + 1) * nprocs, where nprocs is the 
+! number of tasks requested for MPI_COMM_WORLD, and is devoted 
+! to the new grid; resource request must allow for T_total 
+! unique sockets, unless re-use is specified.
 !
 ! NOTATION: index 'i' is 'x' 
 !           index 'j' is 'y'
