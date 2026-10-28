@@ -13,10 +13,11 @@
 ! 2025 D. Rosenberg
 !      CIRA/ NOAA
 !
+! 2026-10-09, N. Wang   
+!      CIRA/NOAA 
+!      Modified oringinal version to run the onnx model directly. 
 !=================================================================
 MODULE class_GSGSmodel
- !    USE kes
- !    USE mpivars
       USE fprecision
       USE commtypes
       USE fftplans
@@ -30,8 +31,7 @@ MODULE class_GSGSmodel
 
 !     USE inferof     , only: infero_model, &
 !         infero_initialise, infero_finalise, infero_check
-!     USE fckit_module, only: fckit_map, fckit_tensor_real32
- !    USE, intrinsic :: iso_c_binding
+
       USE  iso_c_binding
 
       IMPLICIT NONE
@@ -52,6 +52,27 @@ MODULE class_GSGSmodel
 
           TYPE(C_PTR), INTENT(IN), VALUE :: c_ptr_to_free
         END SUBROUTINE free_c_array
+
+        subroutine init_onnx_cnn(model_path) &
+                bind(C, name="init_onnx_cnn")
+            import :: c_char
+            character(kind=c_char), intent(in) :: model_path(*)
+        end subroutine init_onnx_cnn
+
+        subroutine run_onnx_cnn(input_data, input_dims, num_dims, output_data, output_size) &
+                bind(C, name="run_onnx_cnn")
+            import :: c_char, c_float, c_int64_t, c_size_t
+            real(c_float), intent(in)          :: input_data(*)
+            integer(c_int64_t), intent(in)     :: input_dims(*)
+            integer(c_size_t), value           :: num_dims
+            real(c_float), intent(out)         :: output_data(*)
+            integer(c_size_t), value           :: output_size
+        end subroutine run_onnx_cnn
+
+        subroutine close_onnx_cnn() &
+                bind(C, name="close_onnx_cnn")
+        end subroutine close_onnx_cnn
+
       END INTERFACE
 !-----------------------------------------------------------------
 !-----------------------------------------------------------------
@@ -361,8 +382,15 @@ MODULE class_GSGSmodel
 !   CALL fftp3d_destroy_plan(this%plancr)
 !   CALL fftp3d_destroy_plan(this%planrc)
 
-    CALL GSGS_destroy_infero(this)
+!!!    CALL GSGS_destroy_infero(this)
     
+! <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+
+   CALL close_onnx_cnn() 
+
+! <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    
+
     CALL MPI_Comm_free(this%comm_, this%ierr_)
 
     CALL GTFree(this%hpack_)
@@ -388,6 +416,7 @@ MODULE class_GSGSmodel
     INTEGER(C_INT)                                :: nb
     INTEGER                                       :: nc, nn, no
     TYPE(GSGSmodelTraits), INTENT  (IN)           :: modtraits
+    CHARACTER(len=4096)                           :: model_name
 
 !   INTEGER, PARAMETER                            :: KIND(0.0D0)
 
@@ -402,12 +431,25 @@ MODULE class_GSGSmodel
       STOP 
     ENDIF
     
-!   IF ( this%myrank_ .eq. 0 ) &
-!   WRITE(*,*) 'GSGS_init_infero: call infero_check... '
+   model_name = trim(this%modelTraits_%model_path) // c_null_char
+!    model_name = "/scratch4/data_untrusted/Ning.Wang/OPTION_Flat_CNN_T128_3Filter_tIndex16_5BneckBlocks_1predset_c1_nonormSGS.onnx" // c_null_char
+
+   IF ( this%myrank_ .eq. 0 ) &
+   WRITE(*,*) 'GSGS_init_infero: call init_onnx_cnn() ... ', trim(model_name)
     
-    CALL infero_check( infero_initialise() )
+!    CALL infero_check( infero_initialise() )
   
+! <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+   
+   CALL init_onnx_cnn(model_name)
+
+! <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+
+   IF ( this%myrank_ .eq. 0 ) &
+   WRITE(*,*) 'GSGS_init_infero: init_onnx_cnn() done. '
+
 !   IF ( this%myrank_ .eq. 0 ) &
+!
 !   WRITE(*,*) 'GSGS_init_infero: allocate C arrays... '
     ! Allocate C arrays 
     nc = this%modelTraits_%nichannel
@@ -422,7 +464,8 @@ MODULE class_GSGSmodel
     !   nc = 15 : v_i, th, Sij, om_i, grad_i th (not available yet)
 
     IF ( nc .NE.  4 .AND. nc .NE.  6 .AND. &
-         nc .NE. 10 .AND. nc .NE. 11 ) THEN
+         nc .NE. 10 .AND. nc .NE. 11  &
+         nc. NE. 15 ) THEN
       STOP 'Invalid nichannel!'
     ENDIF
     IF ( no .LE. 0 .OR. nn .LE. 0 ) THEN
@@ -473,18 +516,18 @@ MODULE class_GSGSmodel
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_init_infero: wrap input tensors... '
     ! Wrap Fortran arrays into fckit tensors and map them by layer names
-    this%tin_wrapped_  = fckit_tensor_real32(this%t_in_)
-    this%tout_wrapped_ = fckit_tensor_real32(this%t_out_)
+!!!    this%tin_wrapped_  = fckit_tensor_real32(this%t_in_)
+!!!    this%tout_wrapped_ = fckit_tensor_real32(this%t_out_)
 
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_init_infero: create imap... '
-    this%imap_ = fckit_map()
-    CALL this%imap_%insert(trim(this%modelTraits_%in_name),  this%tin_wrapped_%c_ptr())
+!!!    this%imap_ = fckit_map()
+!!!    CALL this%imap_%insert(trim(this%modelTraits_%in_name),  this%tin_wrapped_%c_ptr())
 
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_init_infero: create omap... '
-    this%omap_ = fckit_map()
-    CALL this%omap_%insert(trim(this%modelTraits_%out_name), this%tout_wrapped_%c_ptr())
+!!!    this%omap_ = fckit_map()
+!!!    CALL this%omap_%insert(trim(this%modelTraits_%out_name), this%tout_wrapped_%c_ptr())
 
 !   ENDIF ! end, icycle check
 
@@ -492,28 +535,27 @@ MODULE class_GSGSmodel
 !   WRITE(*,*) 'GSGS_init_infero: build YAML configuration... '
     ! Build a YAML config to point Infero at the 
     ! model and backend type:
-    this%modelTraits_%yaml_config = &
-        '---' // new_line('a')                            // &
-        '  path: ' // trim(this%modelTraits_%model_path) // new_line('a') // &
-        '  type: ' // trim(this%modelTraits_%model_type) // c_null_char  
+!!!    this%modelTraits_%yaml_config = &
+!!!        '---' // new_line('a')                            // &
+!!!        '  path: ' // trim(this%modelTraits_%model_path) // new_line('a') // &
+!!!        '  type: ' // trim(this%modelTraits_%model_type) // c_null_char  
 
-!!      '---' // new_line('a')                            // &
-!!      '  path: ' // trim(this%modelTraits_%model_path) // new_line('a') // &
-!!      '  type: ' // trim(this%modelTraits_%model_type) // new_line('a') // &
-!!      '  optimization_level : ' // 'basic' // new_line('a') // &
-!!      'runtime_settings:' //  new_line('a') // &
-!!      '  auto_update: false ' // new_line('a') //  &
-!!      '  allow_external_connections: false ' // c_null_char
+!!!!!      '---' // new_line('a')                            // &
+!!!!!      '  path: ' // trim(this%modelTraits_%model_path) // new_line('a') // &
+!!!!!      '  type: ' // trim(this%modelTraits_%model_type) // new_line('a') // &
+!!!!!      '  optimization_level : ' // 'basic' // new_line('a') // &
+!!!!!      'runtime_settings:' //  new_line('a') // &
+!!!!!      '  auto_update: false ' // new_line('a') //  &
+!!!!!      '  allow_external_connections: false ' // c_null_char
 
 
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_init_infero: initialize Infero model... '
     ! Initialize model from YAML string
-    CALL infero_check( this%infmodel_%initialise_from_yaml_string(this%modelTraits_%yaml_config) )
+!!!    CALL infero_check( this%infmodel_%initialise_from_yaml_string(this%modelTraits_%yaml_config) )
 
-
-
-!   WRITE(*,*) 'GSGS_init_infero: done. '
+   IF ( this%myrank_ .eq. 0 ) &
+   WRITE(*,*) 'GSGS_init_infero: done. '
 
     RETURN
 
@@ -582,7 +624,14 @@ MODULE class_GSGSmodel
 
     INTEGER       :: c_i, x_i, y_i, z_i
     REAL(KIND=GP) :: x_inc, y_inc, z_inc, coordinate
+
+    INTEGER(8)       :: nx, ny, nz, nc_in, nc_sgs, input_dims(1), num_dims, output_size   
     
+    nc_in = this%modelTraits_%nichannel
+    nc_sgs = this%modelTraits_%nochannel
+    input_dims(1) = this%nx * this%ny * this%nz * nc_in
+    num_dims = 1  
+    output_size = this%nx * this%ny * this%nz * nc_sgs
 
     tmp = 1.0_GP/ &
             (real(this%nx,kind=GP)*real(this%ny,kind=GP)*real(this%nz,kind=GP))
@@ -654,12 +703,19 @@ MODULE class_GSGSmodel
 !   IF ( this%myrank_ .eq. 0 ) &
 !   WRITE(*,*) 'GSGS_compute_model: do inference...'
 
-!   WRITE(*,*) this%myrank_, ' GSGS_compute_model: do inference... '
+   WRITE(*,*) this%myrank_, ' GSGS_compute_model: do inference... '
 
     ! Run inference
     CALL GTStart(this%hinf_)
 !!! IF ( this%myrank_ .eq. 0 ) THEN
-    CALL infero_check( this%infmodel_%infer(this%imap_, this%omap_) )
+!    CALL infero_check( this%infmodel_%infer(this%imap_, this%omap_) )
+
+! <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+    
+    CALL run_onnx_cnn(this%t_in_, input_dims, num_dims, this%t_out_, output_size) 
+
+! <><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><><>
+
 !!  iret = this%infmodel_%infer(this%imap_, this%omap_)
 !!! CALL MPI_BCAST(this%t_out_,size(this%t_out_),GC_REAL,0,MPI_COMM_WORLD,this%ierr_)
 !!! ENDIF
@@ -671,8 +727,8 @@ MODULE class_GSGSmodel
 !   WRITE(*,*) this%myrank_, ' GSGS_compute_model: inference done. '
 
     ! (Optional) print stats/config
-    CALL infero_check( this%infmodel_%print_statistics() )
-    CALL infero_check( this%infmodel_%print_config() )
+!    CALL infero_check( this%infmodel_%print_statistics() )
+!    CALL infero_check( this%infmodel_%print_config() )
 
     ! Show output
 !   PRINT *, 'Inference output (first batch row):'
