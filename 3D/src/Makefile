@@ -134,24 +134,25 @@ FFTCULIB    = $(CULIB)
 FFTCUINC    = $(CUINC) -I$(FFTPDIR)
 FFTCULDFLAGS= $(CUFLAGS)
 
-# ECKit libs:
+# ONNX libs:
 $(info    SOLVER is $(SOLVER))
 ifeq ($(SOLVER), ROTBOUSS_SGS)
-#ECKITLDFLAGS = -L$(ONNXDIR) -L$(ECKITDIR)/$(ECKITLIBSZ) 
-ECKITLDFLAGS = -L$(ONNXDIR) -L$(ECKITDIR)/$(ECKITLIBSZ) -Wl,-rpath-link=$(ONNXDIR) -Wl,-rpath-link=$(ECKITDIR)/$(ECKITLIBSZ)
-ECKITINC     = -I$(ECKITDIR)/include -I$(ECKITDIR)/module/fckit -I$(ECKITDIR)/module/infero 
-ECKITLIBS    = $(ONNXLIB) $(ECKITLIB) 
+ONNXLDFLAGS = -L$(ONNXDIR)/lib -Wl,-rpath-link=$(ONNXDIR)/lib 
+ONNXINC     = -I$(ONNXDIR)/include 
+ONNXLIBS    = $(ONNXLIB) 
 else
-ECKITLDFLAGS = 
-ECKITINC     = 
-ECKITLIBS    = 
+ONNXLDFLAGS = 
+ONNXINC     = 
+ONNXLIBS    = 
 endif
 
+ONNXWDIR    = $(GHOME)/onnx_wrappers
+
 LDFLAGS     = $(MPILIB) $(FFTTLIBDIR) $(FFTTLIB) $(MPILDFLAGS) \
-	      $(FFTTLDFLAGS) $(IOLIBFLG) $(ECKITLDFLAGS) $(ECKITLIBS)
+	      $(FFTTLDFLAGS) $(IOLIBFLG) $(ONNXLDFLAGS) $(ONNXLIBS)
 INCLUDE     = $(MPIINC) $(FFTTINC) -I$(FFTPDIR) -I$(GHOME)/$(IOLIB) \
 	      -I$(GHOME)/utils -I$(GHOME)/include $(IOINCDIR) -I$(GHOME) \
-	      -I$(LAGP) $(ECKITINC)
+	      -I$(LAGP) $(ONNXINC)
 CPPFLAGS    = -D$(SOLVER)_SOL -DDO_HYBRID$(P_HYBRID) \
               $(CUDA_GHOST$(P_CUDA)) $(IODEF$(IOLIB))
 PREPROCESS  = $(CPP) $(CPPFLAGS) $(GDEF)
@@ -218,14 +219,14 @@ SUBDIRS        = posix mpiio fftp-2 fftp-3 fftp-cu fftp-mkl \
                  $(CONTRIB)/nvidia $(LAGP)
 EXTRASDIR      = analysis
 GTIMER         = $(UTILS)/gtimer_mod.o
-GUTILS         = #$(UTILS)/gutils_mod.o 
+GUTILS         = $(UTILS)/gutils_mod.o 
 GREGRID        = $(UTILS)/gtrunc_mod.o $(UTILS)/regridutils.o
-GIO            = $(IOLIB)/binary_io.o 
+GIO            = $(IOLIB)/binary_io.o  
 
 #all: edit $(CONTRIBOBJS) $(GTIMER) $(GUTILS) $(FFTPDIR)/fftp3D.o  \
 #	  $(OBJS) $(GUTILS) $(GIO) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
-all: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o  \
-	  $(GIO) $(OBJS) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
+all: edit $(CONTRIBOBJS) $(GTIMER) $(FFTPDIR)/fftp3D.o  $(GIO) \
+ 	  $(OBJS) $(GUTILS) $(LAGPOBJS$(PARTICLES)) $(SOLVER) undo
 
 main: all
 
@@ -350,6 +351,8 @@ edit:
 	cd $(LAGP) && $(MAKE) edit CPP='$(CPP)' CSIZE='$(CSIZE)' \
 	   NSTRIP='$(NSTRIP)' DO_HYBRID='DO_HYBRID$(P_HYBRID)'
 	cd ../
+	cd $(ONNXWDIR) && $(MAKE) ONNXDIR=$(ONNXDIR)
+	cd ../
 	echo "Output for this solver includes the following files:" >> \
 	   $(BIN)/README_output.txt
 	echo "(note some output files may not be created, depending" >> \
@@ -395,11 +398,13 @@ undo:
 	 done ; \
 	fi
 
-$(SOLVER): $(GIO)
+#$(SOLVER): $(GIO)
+$(SOLVER): 
 	$(PREPROCESS) main3D.fpp -o $(SOLVER).f90
 	$(COMPILE) $(SOLVER).f90
 	$(FC) $(FFLAGS) $(TARGET_ARCH) $(DO_HYBRID$(P_HYBRID)) \
            $(FFTPDIR)/*.o $(IOLIB)/*.o $(CONTRIBOBJS) \
+	   $(ONNXWDIR)/onnx_wrapper.o \
            $(LAGPOBJS$(PARTICLES)) $(GTIMER) $(OBJS) $(SOLVER).o \
            $(LDFLAGS) -o $(BIN)/$(SOLVER)
 

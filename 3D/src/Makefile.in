@@ -55,15 +55,10 @@ FFTW2DIR = /opt/ohpc/pub/libs/gnu7/fftw/2.1.5
 FFTW3DIR = /scratch3/BMC/gsd-hpcs/rosenberg/opt/apps/fftw-3.3.10_gnu_openmpi
 MKLDIR   = /opt/ohpc/pub/compiler/intel/mkl/2022.1.0
 
-# ECTOOLS:
-ECKITDIR   = /scratch3/BMC/gsd-hpcs/rosenberg/opt/apps/infero_gcc_openmpi
-ECKITLIBSZ = lib64
-#ECKITLIB   = -lcnpy -leckit -lfckit -linferoapi -linfero -linferof 
-ECKITLIB   = -leckit -lfckit -linferoapi -linfero -linferof 
-#ONNXDIR    = /scratch3/BMC/gsd-hpcs/rosenberg/opt/apps/onnxruntime_gcc_openmpi_v1.10.0
-#ONNXLIB    = -lonnxruntime-genai -lonnxruntime -lonnxruntime_providers_shared 
-ONNXDIR    = /scratch3/BMC/gsd-hpcs/rosenberg/opt/apps/infero_gcc_openmpi/lib
+ONNXDIR    = /scratch3/BMC/gsd-hpcs/rosenberg/opt/apps/infero_gcc_openmpi
 ONNXLIB    = -lonnxruntime 
+#ONNXDIR    = /home/Ning.Wang/onnxruntime
+#ONNXLIB    = -lonnxruntime.so.1 
 
 # IKIND    4 in 32 bits machines, 8 in 64 bits machines
 # NSTRIP   controls strip mining (often set to 1)
