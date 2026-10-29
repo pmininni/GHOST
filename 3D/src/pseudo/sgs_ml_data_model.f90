@@ -447,8 +447,8 @@ MODULE class_GSGSmodel
     !   nc = 15 : v_i, th, Sij, om_i, grad_i th (not available yet)
 
     IF ( nc .NE.  4 .AND. nc .NE.  6 .AND. &
-         nc .NE. 10 .AND. nc .NE. 11  &
-         nc. NE. 15 ) THEN
+         nc .NE. 10 .AND. nc .NE. 11 .AND. &
+         nc .NE. 15 ) THEN
       STOP 'Invalid nichannel!'
     ENDIF
     IF ( no .LE. 0 .OR. nn .LE. 0 ) THEN
