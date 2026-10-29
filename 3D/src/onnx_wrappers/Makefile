@@ -11,6 +11,7 @@ SRC_DIR  := src
 # ==========================================
 # Path to ONNX Runtime
 ONNX_DIR := /home/Ning.Wang/onnxruntime
+#ONNX_DIR := $(ONNXDIR)
 
 CFLAGS   := -Wall -Wextra -O3 -I$(ONNX_DIR)/include -I/usr/lib/gcc/x86_64-redhat-linux/11/include
 
