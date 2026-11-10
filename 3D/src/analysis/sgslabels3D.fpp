@@ -1674,18 +1674,21 @@
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,1, C4)
           SGS1 = C4 - SGS1
           SGS1 = SGS1 * rmp ! normalize
+          CALL bouss_dealias(SGS1, kmax)
           CALL fftp3d_complex_to_real(plancrt,SGS1,R1)
           CALL io_write(1,odir,trim("SGS1_T"),ext,planiot,R1)
 
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,2, C4)
           SGS2 = C4 - SGS2
           SGS2 = SGS2 * rmp ! normalize
+          CALL bouss_dealias(SGS2, kmax)
           CALL fftp3d_complex_to_real(plancrt,SGS2,R2)
           CALL io_write(1,odir,trim("SGS2_T"),ext,planiot,R2)
 
           CALL sgs  %sgsv(vx,vy,vz,C1,C2,C3,3, C4)
           SGS3 = C4 - SGS3
           SGS3 = SGS3 * rmp ! normalize
+          CALL bouss_dealias(SGS3, kmax)
           CALL fftp3d_complex_to_real(plancrt,SGS3,R3)
           CALL io_write(1,odir,trim("SGS3_T"),ext,planiot,R3)
 
@@ -1710,6 +1713,7 @@
           CALL sgs  %sgsth(vx,vy,vz,th,C1,C4)
           SGSth = C4 - SGSth
           SGSth = SGSth * rmp ! normalize
+          CALL bouss_dealias(SGSth, kmax)
           CALL fftp3d_complex_to_real(plancrt,SGSth,R1)
           CALL io_write(1,odir,"SGSth_T",ext,planiot,R1)
 
@@ -1918,5 +1922,47 @@
       RETURN
 
       END SUBROUTINE bouss_filter
+
+
+      SUBROUTINE bouss_dealias(u, kkmax)
+!-----------------------------------------------------------------
+! Filter Boussinesq input data
+! ARGS:
+!      u      : complex field to dealias
+!      kkmax  : kmax^2
+!-----------------------------------------------------------------
+!
+      USE fprecision
+      USE commtypes
+      USE kes
+      USE grid
+      USE mpivars
+      USE ali
+      USE fft
+      USE fftplans
+      USE filefmt
+      USE gtrunc
+      USE gutils
+!$    USE threads
+      IMPLICIT NONE
+
+      COMPLEX(KIND=GP), INTENT(INOUT), DIMENSION(nz,ny,ista:iend) :: u
+      REAL   (KIND=GP), INTENT   (IN)  :: kkmax
+!
+      INTEGER                                                     :: i,j,k
+!$omp parallel do if (iend-ista.ge.nth) private (j,k)
+      DO i = ista,iend
+!$omp parallel do if (iend-ista.lt.nth) private (k)
+         DO j = 1,ny
+            DO k = 1,nz
+               IF (kn2(k,j,i).gt.kkmax) THEN
+                  u(k,j,i) = 0.0_GP
+               ENDIF
+            END DO
+         END DO
+      END DO
+
+
+      END SUBROUTINE bouss_dealias
 
 
