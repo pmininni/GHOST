@@ -229,8 +229,8 @@
 
   MODULE var
       USE fprecision
-      REAL(KIND=GP)    :: pi = 3.14159265358979323846_GP
-      COMPLEX(KIND=GP) :: im = (0.0_GP,1.0_GP)
+      REAL   (KIND=GP), PARAMETER :: pi = 3.14159265358979323846_GP
+      COMPLEX(KIND=GP), PARAMETER :: im = (0.0_GP,1.0_GP)
       SAVE
 
   END MODULE var
