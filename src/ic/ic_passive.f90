@@ -311,7 +311,7 @@ CONTAINS
               IF ((kk2(k,j,i).le.skup**2).and.(kk2(k,j,i).ge.skdn**2)) THEN
                 dump = 1./sqrt(kk2(k,j,i))
                 phase = 2*pi*randu(seed)
-                state(n)%ccomp(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+                state(n)%ccomp(k,j,i) = (COS(phase)+im*SIN(phase))*dump
               ELSE
                 state(n)%ccomp(k,j,i) = 0.
               ENDIF
@@ -325,7 +325,7 @@ CONTAINS
               IF ((kk2(k,j,i).le.skup**2).and.(kk2(k,j,i).ge.skdn**2)) THEN
                 dump = 1./sqrt(kk2(k,j,i))
                 phase = 2*pi*randu(seed)
-                state(n)%ccomp(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+                state(n)%ccomp(k,j,i) = (COS(phase)+im*SIN(phase))*dump
               ELSE
                 state(n)%ccomp(k,j,i) = 0.
               ENDIF

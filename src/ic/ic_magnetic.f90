@@ -254,11 +254,11 @@ CONTAINS
             IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
               dump = 1./sqrt(kk2(k,j,i))**5
               phase = 2*pi*randu(seed)
-              C1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+              C1(k,j,i) = (COS(phase)+im*SIN(phase))*dump
               phase = 2*pi*randu(seed)
-              C2(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+              C2(k,j,i) = (COS(phase)+im*SIN(phase))*dump
               phase = 2*pi*randu(seed)
-              C3(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+              C3(k,j,i) = (COS(phase)+im*SIN(phase))*dump
             ELSE
               C1(k,j,i) = 0.
               C2(k,j,i) = 0.
@@ -274,11 +274,11 @@ CONTAINS
             IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
               dump = 1./sqrt(kk2(k,j,i))**5
               phase = 2*pi*randu(seed)
-              C1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+              C1(k,j,i) = (COS(phase)+im*SIN(phase))*dump
               phase = 2*pi*randu(seed)
-              C2(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+              C2(k,j,i) = (COS(phase)+im*SIN(phase))*dump
               phase = 2*pi*randu(seed)
-              C3(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+              C3(k,j,i) = (COS(phase)+im*SIN(phase))*dump
             ELSE
               C1(k,j,i) = 0.
               C2(k,j,i) = 0.
@@ -369,11 +369,11 @@ CONTAINS
             IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
               dump = 1./sqrt(kk2(k,j,i))**5
               phase = 2*pi*randu(seed)
-              C1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+              C1(k,j,i) = (COS(phase)+im*SIN(phase))*dump
               phase = 2*pi*randu(seed)
-              C2(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+              C2(k,j,i) = (COS(phase)+im*SIN(phase))*dump
               phase = 2*pi*randu(seed)
-              C3(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+              C3(k,j,i) = (COS(phase)+im*SIN(phase))*dump
             ELSE
               C1(k,j,i) = 0.
               C2(k,j,i) = 0.
@@ -389,11 +389,11 @@ CONTAINS
             IF ((kk2(k,j,i).le.kup**2).and.(kk2(k,j,i).ge.kdn**2)) THEN
               dump = 1./sqrt(kk2(k,j,i))**5
               phase = 2*pi*randu(seed)
-              C1(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+              C1(k,j,i) = (COS(phase)+im*SIN(phase))*dump
               phase = 2*pi*randu(seed)
-              C2(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+              C2(k,j,i) = (COS(phase)+im*SIN(phase))*dump
               phase = 2*pi*randu(seed)
-              C3(k,j,i) = 2*(COS(phase)+im*SIN(phase))*dump
+              C3(k,j,i) = (COS(phase)+im*SIN(phase))*dump
             ELSE
               C1(k,j,i) = 0.
               C2(k,j,i) = 0.
